@@ -167,10 +167,15 @@ export async function runRuntime(
             : partition === 'remote-participant-policy'
               ? 'participant-policy'
               : partition === 'remote-complete-activation'
-                ? 'complete-activation'
+                ? // Proof: N7 misrouting complete to policy failed the fixed-leaf command test
+                  // in affected mode; restored passed affected/full. No faulted full-mode claim (2026-11-02).
+                  'complete-activation'
                 : partition === 'remote-rest'
                   ? 'rest'
                   : undefined;
+  // Proof: N6 admission-call omission failed the absent-selected-target test:
+  // actual Nx ran the sentinel before the marker assertion; restored passed.
+  // This witnesses the missing-target surface only (2026-11-02).
   if (remoteLeaf !== undefined) requireRemoteTarget(repository, remoteLeaf);
   const owner = remoteLeaf === undefined ? partition : 'remote';
   if (mode === 'full') {
