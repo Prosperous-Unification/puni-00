@@ -304,6 +304,11 @@ export interface HostJob {
    */
   calibration?: true;
   /**
+   * Present when the singleton guard's holder died while this job's compute was unreleased
+   * (review H5): concurrent mode's guarantee against a stale launcher did not hold for it.
+   */
+  guardLost?: { at: number; holderPid: number };
+  /**
    * What this job reserves while its entries are outstanding (J4, J9): cores and memory until
    * `compute` settles, disk units and slots until `tmpDisk` settles. The envelope, its tmp disk
    * and one slot for a run; the whole `allocatable` vector at admission for a calibration.
@@ -347,6 +352,7 @@ const HostJobShape = type({
   exitCode: 'number.integer | null',
   'launchFailure?': 'string > 0',
   'calibration?': 'true',
+  'guardLost?': type({ at: 'number', holderPid: 'number.integer > 0' }).onUndeclaredKey('reject'),
   'reserved?': type({
     cpuCores: 'number.integer >= 0',
     memoryGib: 'number.integer >= 0',
@@ -495,6 +501,8 @@ const ModeRecordShape = type({
 export interface HostPoolTransition {
   mode: HostPoolModeName;
   guard: 'on' | 'released';
+  /** A file in the legacy hold directory Dash did not write, or null (review H7). */
+  holdCorruption: string | null;
   guardHolder: (GuardHolder & { live: boolean }) | null;
   switching: (ModeSwitch & { live: boolean }) | null;
 }
@@ -603,7 +611,7 @@ const LEDGER_V1_TABLES = [
  * observe mode keeps it; the guard starts on, so the first flip to concurrent holds it.
  */
 const HOST_POOL_TRANSITION_SCHEMA =
-  "ALTER TABLE host_pool ADD COLUMN guard TEXT NOT NULL DEFAULT 'on' CHECK(guard IN ('on','released')); ALTER TABLE host_pool ADD COLUMN guard_holder TEXT; ALTER TABLE host_pool ADD COLUMN switching TEXT; CREATE TABLE host_pool_mode_records (sequence INTEGER PRIMARY KEY AUTOINCREMENT, record TEXT NOT NULL)";
+  "ALTER TABLE host_pool ADD COLUMN guard TEXT NOT NULL DEFAULT 'on' CHECK(guard IN ('on','released')); ALTER TABLE host_pool ADD COLUMN guard_holder TEXT; ALTER TABLE host_pool ADD COLUMN switching TEXT; ALTER TABLE host_pool ADD COLUMN hold_corruption TEXT; CREATE TABLE host_pool_mode_records (sequence INTEGER PRIMARY KEY AUTOINCREMENT, record TEXT NOT NULL)";
 const HOST_POOL_SCHEMA =
   "CREATE TABLE host_jobs (id TEXT PRIMARY KEY, snapshot TEXT NOT NULL); CREATE TABLE host_job_tickets (sequence INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, label TEXT NOT NULL, request TEXT NOT NULL, pid INTEGER NOT NULL, boot TEXT NOT NULL, start TEXT NOT NULL, arrived_at INTEGER NOT NULL, deadline INTEGER NOT NULL, overtakes INTEGER NOT NULL DEFAULT 0); CREATE TABLE host_job_events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, event TEXT NOT NULL, published INTEGER NOT NULL DEFAULT 0); CREATE TABLE host_pool (id INTEGER PRIMARY KEY CHECK(id=1), mode TEXT NOT NULL CHECK(mode IN ('observe','concurrent'))); INSERT INTO host_pool VALUES (1,'observe')";
 interface TicketRow {
@@ -2578,7 +2586,7 @@ export class ResourceRuntime {
   enqueueHostJob(
     input: HostJobRequest,
     waiterPid: number,
-  ): { kind: 'queued'; ticket: string } | { kind: 'refused'; exitCode: 73; reason: string } {
+  ): { kind: 'queued'; ticket: string } | { kind: 'refused'; exitCode: 73 | 75; reason: string } {
     const request = HostJobRequestShape.assert(input);
     const exclusive = request.descriptor.envelope.exclusive;
     // Proof: without it `the host-job seams refuse out-of-order calls` (host-jobs.test.ts)
@@ -2592,6 +2600,17 @@ export class ResourceRuntime {
     const waiter = identifyProcess(waiterPid);
     if (waiter === null) throw new Error('host job waiter identity unavailable');
     return this.transaction(() => {
+      // A switch-mode in progress stops intake (J12, S6B-A16): new tickets are refused 75;
+      // tickets already queued keep their budget and their place, and the switch waits for them.
+      const fence = this.liveSwitch();
+      // Proof: without it `switch-mode stops intake; queued waiters keep their place`
+      // (host-pool-mode.test.ts) queued the late job during the drain (2026-11-02, review H4).
+      if (fence !== null)
+        return {
+          kind: 'refused' as const,
+          exitCode: 75 as const,
+          reason: `host job ${request.descriptor.id} ${request.label} refused: intake stopped while ops pool switch-mode ${fence.target} by ${fence.operator} (pid ${String(fence.pid)}) drains the pool; retry once it ends`,
+        };
       const ticket = randomUUID();
       const now = this.clock.read();
       this.db
@@ -2671,15 +2690,6 @@ export class ResourceRuntime {
         this.db.query('DELETE FROM host_job_tickets WHERE id=?').run(ticket);
         return { kind: 'refused', exitCode: 75, reason };
       };
-      // A switch-mode in progress stops intake (J12), queued tickets included: the pool must
-      // drain, and a caller refused 75 retries as it does for a busy host (S6B-A4).
-      const fence = this.liveSwitch();
-      // Proof: without it `stops intake, queued waiters included`
-      // (host-pool-mode.test.ts) admitted the build while the switch drained (2026-11-02, Slice 6b).
-      if (fence !== null)
-        return refuse(
-          `${named}: intake stopped while ops pool switch-mode ${fence.target} by ${fence.operator} (pid ${String(fence.pid)}) drains the pool; retry once it ends`,
-        );
       // A wait-zero ticket is never "spent": its deadline is its arrival, which the enqueue's
       // fsync already put in the past; it is decided once, below.
       // Proof: without the `waitSeconds > 0` guard, `a wait-zero caller on an empty pool is
@@ -2697,6 +2707,12 @@ export class ResourceRuntime {
       // Concurrent mode under the guard admits only while the `watch` singleton holds the
       // canonical flock (J12), so a stale launcher's `flock` path queues behind every host job.
       const pool = this.poolRow();
+      // Proof: without it `a stray file in the legacy hold directory stops concurrent admission`
+      // (host-pool-mode.test.ts) admitted beside it (2026-11-02, review H7).
+      if (pool.mode === 'concurrent' && pool.holdCorruption !== null)
+        return refuse(
+          `${named}: the legacy hold directory holds ${pool.holdCorruption}, which Dash did not write; check and remove it, then run resources sweep`,
+        );
       // Proof: without it `without the guard a job waits, then is refused 75`
       // (host-pool-mode.test.ts) saw the job admitted with no guard holding the flock (2026-11-02, Slice 6b).
       if (pool.mode === 'concurrent' && pool.guard === 'on' && !this.guardHeld(pool.guardHolder)) {
@@ -2942,6 +2958,15 @@ export class ResourceRuntime {
       // were accepted; a second prepare failed only on mkdir EEXIST (2026-11-01, Slice 2).
       if (job.state !== 'starting' || job.dev !== null)
         throw new Error('host job is not awaiting preparation');
+      // The guard admitted this job; it must still hold before anything is created (review H5).
+      const pool = this.poolRow();
+      // Proof: without it `a guard lost between admission and launch refuses 75`
+      // (host-pool-mode.test.ts) prepared and launched the job (2026-11-02, review H5).
+      if (pool.mode === 'concurrent' && pool.guard === 'on' && !this.guardHeld(pool.guardHolder))
+        throw new HostPoolModeRefusal(
+          75,
+          `host job ${job.id} ${job.label}: the singleton guard was lost between admission and launch`,
+        );
       mkdirSync(job.locator, { mode: 0o700 });
       const identity = lstatSync(job.locator);
       job.dev = identity.dev;
@@ -3280,6 +3305,7 @@ export class ResourceRuntime {
     return {
       mode: pool.mode,
       guard: pool.guard,
+      holdCorruption: pool.holdCorruption,
       guardHolder:
         pool.guardHolder === null ? null : { ...pool.guardHolder, live: alive(pool.guardHolder) },
       switching:
@@ -3307,12 +3333,19 @@ export class ResourceRuntime {
     guard: 'on' | 'released';
     guardHolder: GuardHolder | null;
     switching: ModeSwitch | null;
+    holdCorruption: string | null;
   } {
     const row = this.db
       .query<
-        { mode: string; guard: string; guard_holder: string | null; switching: string | null },
+        {
+          mode: string;
+          guard: string;
+          guard_holder: string | null;
+          switching: string | null;
+          hold_corruption: string | null;
+        },
         []
-      >('SELECT mode, guard, guard_holder, switching FROM host_pool WHERE id=1')
+      >('SELECT mode, guard, guard_holder, switching, hold_corruption FROM host_pool WHERE id=1')
       .get();
     // Proof: without it `status refuses an unreadable pool mode` (host-jobs.test.ts) threw a
     // bare TypeError on the missing row instead of naming it (2026-11-01, verify.md Slice 2).
@@ -3326,7 +3359,36 @@ export class ResourceRuntime {
       guardHolder:
         row.guard_holder === null ? null : GuardHolderShape.assert(JSON.parse(row.guard_holder)),
       switching: row.switching === null ? null : ModeSwitchShape.assert(JSON.parse(row.switching)),
+      holdCorruption: row.hold_corruption,
     };
+  }
+  /**
+   * Record what in the legacy hold directory Dash did not write (`watch` or `sweep` found it), or
+   * clear it with null (review H7): while set, the guard releases nothing and concurrent-mode
+   * admission refuses 75 naming it, so nobody runs beside a hold nobody can account for.
+   */
+  recordHoldCorruption(found: string | null): void {
+    this.transaction(() => {
+      this.db.query('UPDATE host_pool SET hold_corruption=? WHERE id=1').run(found);
+    });
+  }
+  /**
+   * Mark every host job whose compute is unreleased as having run while the singleton guard was
+   * lost (review H5): its holder died, the kernel released the canonical flock, and a stale
+   * launcher may have run beside it. Returns the job ids marked now; a job already marked stays
+   * marked with its first instant.
+   */
+  recordGuardLost(holderPid: number): string[] {
+    return this.transaction(() => {
+      const marked: string[] = [];
+      for (const job of this.listHostJobs()) {
+        if (job.compute.state === 'released' || job.guardLost !== undefined) continue;
+        job.guardLost = { at: this.clock.read(), holderPid };
+        this.saveHostJob(job);
+        marked.push(job.id);
+      }
+      return marked;
+    });
   }
   /**
    * Whether `holder` holds the canonical flock now: its process runs, and the shell lock's
@@ -3488,8 +3550,9 @@ export class ResourceRuntime {
           `host pool ${this.configuration.enrollmentId}: this switch-mode no longer holds the intake fence`,
         );
       const ahead = this.undrained();
+      // The switch drains first (S6B-A16); this is the method-level last check under the fence.
       // Proof: without it `switch-mode concurrent refuses while a host job is admitted`
-      // (host-pool-mode.test.ts) flipped beside an admitted job (2026-11-02, Slice 6b).
+      // (host-pool-mode.test.ts) saw the flip succeed beside an admitted job (2026-11-02, H4).
       if (ahead.length > 0)
         throw new HostPoolModeRefusal(
           75,

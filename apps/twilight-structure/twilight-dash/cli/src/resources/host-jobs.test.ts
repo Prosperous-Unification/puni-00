@@ -933,7 +933,7 @@ if (insideLinuxNamespace(import.meta.path)) {
       // Reduce the fresh ledger to exactly what slices 2 to 5 wrote (version 1).
       const db = new Database(ledger);
       db.run(
-        'DROP TABLE host_pool_mode_records; ALTER TABLE host_pool DROP COLUMN guard; ALTER TABLE host_pool DROP COLUMN guard_holder; ALTER TABLE host_pool DROP COLUMN switching; PRAGMA user_version=1',
+        'DROP TABLE host_pool_mode_records; ALTER TABLE host_pool DROP COLUMN guard; ALTER TABLE host_pool DROP COLUMN guard_holder; ALTER TABLE host_pool DROP COLUMN switching; ALTER TABLE host_pool DROP COLUMN hold_corruption; PRAGMA user_version=1',
       );
       db.close();
       const migrated = ResourceRuntime.open(loadResourceConfiguration(config), clock);
@@ -941,6 +941,7 @@ if (insideLinuxNamespace(import.meta.path)) {
         expect(migrated.hostPoolTransition()).toEqual({
           mode: 'observe',
           guard: 'on',
+          holdCorruption: null,
           guardHolder: null,
           switching: null,
         });
@@ -955,7 +956,7 @@ if (insideLinuxNamespace(import.meta.path)) {
       runtime.close();
       const db = new Database(join(root, '.dash', 'resources.sqlite'));
       db.run(
-        'DROP TABLE host_pool_mode_records; ALTER TABLE host_pool DROP COLUMN guard; ALTER TABLE host_pool DROP COLUMN guard_holder; ALTER TABLE host_pool DROP COLUMN switching; CREATE TABLE stranger (id INTEGER); PRAGMA user_version=1',
+        'DROP TABLE host_pool_mode_records; ALTER TABLE host_pool DROP COLUMN guard; ALTER TABLE host_pool DROP COLUMN guard_holder; ALTER TABLE host_pool DROP COLUMN switching; ALTER TABLE host_pool DROP COLUMN hold_corruption; CREATE TABLE stranger (id INTEGER); PRAGMA user_version=1',
       );
       db.close();
       expect(() => ResourceRuntime.open(loadResourceConfiguration(config), clock)).toThrow(

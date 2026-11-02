@@ -248,7 +248,13 @@ if (insideOpsNamespace(import.meta.path)) {
       // reservation. Proof: dropping either alone stayed green; dropping both admitted the
       // second beside the first (2026-11-02, Slice 4 review A13, verify.md).
       expect(runtime.pollHostJob(second, silent).kind).toBe('waiting');
-      const lines = formatHostPoolStatus(runtime.hostPoolStatus(), new Map(), clock.read(), null);
+      const lines = formatHostPoolStatus(
+        runtime.hostPoolStatus(),
+        new Map(),
+        clock.read(),
+        null,
+        '/holds',
+      );
       // Proof: without the `calibration` word the running and waiting lines began
       // `running gate calibration pid` and `waiting website-dev-build` (2026-11-02, review A7).
       expect(lines[1]?.startsWith(`running calibration gate calibration pid -`)).toBe(true);

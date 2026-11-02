@@ -528,8 +528,18 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
 ### Mode lifecycle, `switch-mode` and the singleton guard (slice 6b)
 
 A host pool runs in one of two modes (`dash-host-jobs` J12, J13). The ledger (version 2)
-records the mode, the guard, the guard's holder, a `switch-mode` in progress and every
-operator mode record.
+records the mode, the guard, the guard's holder, a `switch-mode` in progress, any hold
+corruption and every operator mode record.
+
+**Before enrolling a host in observe mode, `resources watch` must be installed and running as
+its user unit (task 6.7, `Restart=on-failure`, `KillMode=process`).** Without it, a job whose
+payload outlives its launcher keeps the shell lock until an operator runs
+`resources sweep --config <path>`. That covers a surviving child past the 30 s settle budget,
+and a launcher killed after launch. Until then every legacy gate and Dash job refuses 75.
+
+**Deploy order.** Deploy slice 6b's Dash to a host first, and run `watch` or any `ops job run`
+there before `report-capacity`. Either one migrates the ledger to version 2. Until then
+`report-capacity` refuses the version-1 ledger.
 
 - **`observe`** (the start): every host job, calibrations included, also queues on the host's
   shell lock (`bin/heavy-lock-lib.sh`, `/home/puni1/.cache/wbs-heavy-work.lock`) after the
@@ -541,27 +551,48 @@ operator mode record.
   left after admission, rounded up to whole seconds (S6B-A3). Refused there (75), or
   interrupted (129/130/143), the job is withdrawn and its whole reservation returns at once.
   The flock lives on the holder's fd 9, never on Dash. The holder keeps it while the hold file
-  `<root>/.dash/legacy-holds/<job id>` exists. `ops job run` removes that file once the job's
-  compute entry is released. If Dash dies first, the file stays, and `watch` removes it once
-  that entry settles, so an orphaned payload never runs beside a legacy caller. Killing the
-  holder itself makes the kernel release the flock. Its holder record is then reclaimed by the
-  next claimant as a dead pid, the library's own rule.
+  `<root>/.dash/legacy-holds/<job id>` exists (it names the holder's pid). The holder's output
+  goes to `<hold file>.log`, never to Dash. `ops job run` removes the hold file once the job's
+  compute entry is released. Three other cases keep it:
+  - **Dash dies while the job runs.** The file stays, and `watch` or `resources sweep` removes
+    it once that entry settles, so an orphaned payload never runs beside a legacy caller.
+  - **Dash dies while its holder still queues.** The holder claims in its turn and holds, and
+    the never-launched job is released after the launch grace. `watch` or `sweep` then removes
+    the file.
+  - **The holder itself is killed.** The kernel releases the flock, and the next claimant
+    reclaims the holder record from a dead pid, the library's own rule.
 - **`concurrent`**: the pool alone admits, and jobs overlap only when every type involved is in
-  the configuration's `concurrencyEligible` list. A job beside unreleased compute is admitted
-  only if its type and every running type are listed; otherwise it waits, serialised. While
+  the configuration's `concurrencyEligible` list. A job beside unreleased **compute** is
+  admitted only if its type and every running type are listed; otherwise it waits, serialised.
+  A job admitted and not yet launched counts as running. A job whose compute has settled no
+  longer counts, even with its tmp directory or tree still charged. While
   the **guard** is on, `resources watch` holds the canonical flock as legacy holder
   `dash-singleton` whenever a ticket is queued or any job's compute is unreleased, and releases
   it when the pool empties. Admission waits until that holder is recorded, its process runs,
   and the shell lock's holder record names it. A stale launcher on an older checkout therefore
   queues behind every host job. A ticket waits at most 15 s past its own deadline for the guard
-  (S6B-A5), then is refused 75 naming it. The guard's holder outlives `watch`, and a restarted
+  (S6B-A5), then is refused 75 naming it. The guard is re-checked before a job is prepared, so a
+  guard lost after admission refuses the job 75 before anything runs. If the guard's holder
+  dies while jobs run, `watch` marks those jobs `guardLost` before it queues again. `ops job
+status` shows the mark, and the run records it; `ops job audit` reports the run as
+  `attribution_incomplete`.
+  A file in `<root>/.dash/legacy-holds/` that Dash did not write is **hold corruption**: a
+  name that is not a job id, `dash-singleton`, `dash-switch-mode` or their `.log`, or a job
+  hold for a job the ledger does not know. `watch` and `sweep` record it and then release
+  nothing. Concurrent-mode admission refuses 75 naming it, and `ops job status` prints
+  `hold corruption: <path> …`. Check the file and remove it; the next clean scan clears the
+  state. The guard's holder outlives `watch`, and a restarted
   `watch` adopts it. The 6.7 user unit must therefore use `KillMode=process`, or the holder
   dies with the unit's cgroup (S6B-A8).
 
 The configuration gains two optional fields, neither pinned by the binding:
 `launcherCheckouts` (absolute paths, each named once: the checkouts whose launchers run heavy
-jobs here) and `concurrencyEligible` (job type ids, each named once; absent means none). `ops
-pool init` refuses an eligible id that no listed checkout's catalogue names at HEAD.
+jobs here) and `concurrencyEligible` (job type ids, each named once; absent means none). Every
+`ops` pool open (`pool init`, `job run`, `job calibrate`, `job status`, `pool inspect`,
+`switch-mode` and the record readers) refuses 64 an eligible id that no listed checkout's
+catalogue names at HEAD. A typo added later therefore stops the next command rather than
+silently serialising the type it meant (S6B-A17). `resources watch` does not check this,
+because it admits nothing.
 
 ```sh
 dash() { bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts "$@"; }
@@ -573,18 +604,28 @@ dash ops pool switch-mode observe --config /path/to/host-pool.json --operator da
 **Runbook: observe → concurrent.** These are the code steps of task 6.5; the five-launcher
 checklist and the two-job validation come first.
 
-1. Every launcher checkout on the host is listed in `launcherCheckouts`, at a commit whose
-   `bin/heavy-lock-lib.sh` defines `run_heavy_job`. `switch-mode` checks HEAD and that the
-   working file equals HEAD, and refuses 70 naming the first checkout that fails. With no
-   checkout listed it refuses 64.
+1. Every launcher checkout on the host is listed in `launcherCheckouts`. `switch-mode` checks
+   each one and refuses 70 naming the first that fails, and refuses 64 when none is listed.
+   Each checkout must pass five checks:
+   - it is the top of a Git work tree;
+   - git trusts it, with "dubious ownership" named on its own;
+   - `bin/heavy-lock-lib.sh` defines `run_heavy_job` at HEAD;
+   - nothing under `bin/` differs from HEAD, untracked files included;
+   - every catalogue entrypoint that is a `bin/*.sh` launcher calls `run_heavy_job` at HEAD.
+     Other entrypoints are named in the evidence as not checked.
 2. `concurrencyEligible` names the types validated for overlap. With none listed, the switch
    refuses 64, because nothing would change; `--allow-empty` flips anyway. An id that no
    listed catalogue names is refused 64.
 3. `resources watch` runs (task 6.7). In concurrent mode nothing is admitted without it.
-4. Run `switch-mode concurrent`. It **stops intake**: from then on every poll, queued waiters
-   included, is refused 75 `intake stopped while ops pool switch-mode … drains the pool`, until
-   the switch ends or its process dies (S6B-A4). It then **drains the shell lock** by queueing
-   on it as legacy holder `dash-switch-mode` within `--wait-seconds`. Holding it proves every
+4. Run `switch-mode concurrent`. It **stops intake**: from then on a new ticket is refused 75
+   `intake stopped while ops pool switch-mode … drains the pool`, until the switch ends or its
+   process dies. Tickets already queued keep their budget and their place (S6B-A16). It
+   **waits for the pool to drain** of them and of every unreleased compute entry. It then
+   **drains the shell lock** by queueing on it as legacy holder `dash-switch-mode` with what
+   is left of `--wait-seconds`. SIGINT, SIGTERM or SIGHUP at any step withdraws its ticket or
+   releases its hold, reopens intake, and exits 130, 143 or 129. A `dash-switch-mode` hold
+   file left by a killed switch refuses the next switch 75, naming the file and whether its pid
+   is alive. `watch`, or `resources sweep`, removes it once no switch is live. Holding it proves every
    legacy holder, every waiter ahead and every observe-mode Dash job has finished. It refuses
    75 while any waiter queues behind it, naming each, since that is a launcher still taking
    the legacy path. Last, it **flips** in one ledger transaction: the fence must be its own,
@@ -605,6 +646,10 @@ there, then flips with its record. The guard is on again for the next flip.
 `ops job status` names the mode, and in concurrent mode the guard and its holder. It adds a
 `switching to …; intake stopped` line while a switch is live. While the shell lock matters
 (observe mode, or the guard on), it then prints the lock's own `status` lines verbatim, holder
-first. `ops pool inspect` adds `concurrencyEligible`, `launcherCheckouts`, `guard`,
+first. A Dash holder (`dash-job-<id> …`, `dash-switch-mode`) gets a `note:` line naming its
+hold file and who removes it. The note points to `resources sweep` as the operator's one-shot
+release. When the shell lock cannot answer (an unreadable holder record or queue),
+`ops job status` refuses 70 in observe mode and under the guard rather than print a partial
+answer. `ops pool inspect` adds `concurrencyEligible`, `launcherCheckouts`, `guard`,
 `guardHolder`, `switching`, `modeRecords` and `legacyLock` (holder and waiters, or null once
 the guard is released).

@@ -136,13 +136,33 @@
 - [ ] 6.3 `gate_host` role: linger on, pool config, ledger directory, second gate tree,
       `validate` runs `ops job audit`; h2puni disk cleaned first per the recorded order — proof:
       two converging applies, `changed=0` on the second.
-- [ ] 6.4 Enroll h2puni and h4claw in observe mode; run every launcher through `run_heavy_job`
+- [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
+      `Restart=on-failure` and `KillMode=process` (beside the observation units of 4.2). It
+      lands before 6.4, because observe mode needs a running `watch` (review H1 of #818). A host
+      job whose compute outlives its launcher keeps the shell lock until `watch`, or an
+      operator's `resources sweep`, removes its hold file. The concurrent-mode guard's holder
+      must outlive a restarted `watch`, which the default `KillMode=control-group` would kill
+      (S6B-A8). A `watch` stopped by a refusal past the host-job retry bound (S5-A20), or by any
+      other modelled stop, must come back, so the outbox and cleanup-request pulls do not
+      stall. The deploy order (WBS before Dash) is in
+      `apps/twilight-structure/twilight-dash/cli/docs/resources.md`. Proof: kill the process and
+      watch systemd restart it with the guard holder surviving; a converging `gate_host` apply
+      reports `changed=0` the second time.
+- [ ] 6.4 Enroll h2puni and h4claw in observe mode, **only once 6.7's `watch` unit is installed
+      and running on that host** (an observe-mode hold left by a dead launcher is released by
+      `watch` or `resources sweep`, nothing else); run every launcher through `run_heavy_job`
       for a week; calibrate the five types cold and warm; open the catalogue PRs from `propose`.
 - [x] 6.5a Code (slice 6b): `ops pool switch-mode concurrent|observe`, with `--release-guard`
-      and `--allow-empty`: the intake fence, the shell-lock drain, launcher shim verification,
-      the per-type `concurrencyEligible` admission rule and the atomic flip with its operator
-      record; the `resources watch` singleton guard; mode, guard and shell lock in `status` and
-      `inspect` (verify.md Slice 6b).
+      and `--allow-empty`: the intake fence on new tickets (queued ones keep their place,
+      S6B-A16), the pool and shell-lock drain, launcher shim verification (library, `bin/`
+      clean, every `bin/*.sh` entrypoint calling `run_heavy_job`), the atomic flip with its
+      operator record; the `resources watch` singleton guard, with the guard re-checked before
+      launch and a lost guard marking the running jobs `attribution_incomplete`. In concurrent
+      mode a job is admitted beside unreleased **compute** only when its type and every
+      running type are in `concurrencyEligible`. Tree and tmp entries still charged do not
+      count, since a job whose compute has settled is no longer running. An id that no
+      launcher catalogue names is refused **64 at init and at every open**. Mode, guard,
+      eligibility and the shell lock appear in `status` and `inspect` (verify.md Slice 6b).
 - [ ] 6.5 Operator: `ops pool switch-mode concurrent` on each host after the five-launcher checklist,
       with the singleton guard held; two-job concurrent validation recorded in `verify.md`
       (planned proofs apart from observed evidence); decide when a failing `JOB-CATALOGUE`
@@ -156,12 +176,6 @@
       with a user manager. Decide their rule (a worktree use has no scope to compare against),
       then prove it outside a namespace before slice 6 enrolls h2puni: `ops pool init` there
       refuses until this is done.
-- [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
-      `Restart=on-failure` (beside the observation units of 4.2), so a `watch` stopped by a
-      refusal past the host-job retry bound (S5-A20) or any other modelled stop comes back and
-      the outbox and cleanup-request pulls do not stall; the deploy order WBS before Dash is in
-      `apps/twilight-structure/twilight-dash/cli/docs/resources.md` — proof: kill the process,
-      watch systemd restart it; a converging `gate_host` apply reports `changed=0` the second time.
 - [ ] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
       (slice 3, #809) carries `descriptorDigest` and no durable locator, so this needs a locator
       for the run record and a decision on which digest WBS keeps — test: a returned host job's

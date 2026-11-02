@@ -1,12 +1,15 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import { monotonicClock, wallClock } from '../clock';
 import { fakeCredential } from '../compute/testing/credential';
+import { WbsUnreachable } from '../mcp/wbs-tools';
+import { runResources } from '../resources/command';
 import {
   ampleHost,
   fixtureGit,
@@ -29,12 +32,13 @@ import {
 import {
   GUARD_LABEL,
   type HostJobAdmission,
+  HostPoolModeRefusal,
   loadResourceConfiguration,
   ResourceRuntime,
 } from '../resources/runtime';
 import { SingletonGuard } from '../resources/singleton-guard';
 import { type OpsDependencies, opsHandlers, runOps } from './commands';
-import { type JobRunDependencies, runHostJob } from './job-run';
+import { endLegacyHold, type JobRunDependencies, runHostJob } from './job-run';
 import {
   catalogueCheckout,
   fakeScopeTelemetry,
@@ -82,6 +86,9 @@ if (insideOpsNamespace(import.meta.path)) {
       { id: 'eligible', cpuCores: 1, memoryGib: 1 },
       { id: 'other', cpuCores: 1, memoryGib: 1 },
     ]);
+    // Every catalogued entrypoint is `bin/payload.sh`: a launcher that enters through the shim.
+    writeFileSync(join(checkout, 'bin', 'payload.sh'), '#!/bin/sh\nrun_heavy_job -- true\n');
+    fixtureGit(checkout, 'commit', '--quiet', '-am', 'launcher through the shim');
     const configuration = JSON.parse(readFileSync(fixture.config, 'utf8')) as Record<
       string,
       unknown
@@ -194,10 +201,16 @@ if (insideOpsNamespace(import.meta.path)) {
   async function switchMode(
     fixture: Pool,
     target: 'observe' | 'concurrent',
-    flags: { waitSeconds?: number; releaseGuard?: boolean; allowEmpty?: boolean } = {},
+    flags: {
+      waitSeconds?: number;
+      releaseGuard?: boolean;
+      allowEmpty?: boolean;
+      environment?: Readonly<Record<string, string | undefined>>;
+    } = {},
   ) {
     const stdout: string[] = [];
     const stderr: string[] = [];
+    const deps = opsDependencies(fixture.checkout, stdout, stderr);
     const code = await runOps(
       {
         command: 'ops',
@@ -210,7 +223,7 @@ if (insideOpsNamespace(import.meta.path)) {
         releaseGuard: flags.releaseGuard ?? false,
         allowEmpty: flags.allowEmpty ?? false,
       },
-      opsDependencies(fixture.checkout, stdout, stderr),
+      flags.environment === undefined ? deps : { ...deps, environment: flags.environment },
     );
     return { code, stdout: stdout.join(''), stderr: stderr.join('') };
   }
@@ -250,6 +263,10 @@ if (insideOpsNamespace(import.meta.path)) {
       const lines = status.join('').split('\n');
       const holder = lines.find((line) => line.startsWith('heavy lock: holder'));
       expect(holder).toMatch(/^heavy lock: holder pid \d+ label dash-job-[0-9a-f-]+ lane:dash$/);
+      const jobId = /dash-job-([0-9a-f-]+) /.exec(holder ?? '')?.[1] ?? '';
+      expect(lines).toContain(
+        `note: the shell lock is held for Dash through ${fixture.root}/.dash/legacy-holds/${jobId}; it ends when that file goes: the launcher removes it at settlement, resources watch once the work settles, or run resources sweep`,
+      );
       expect(lines.at(1)).toStartWith('running eligible lane:dash pid ');
       const legacy = startLegacyCaller(fixture.lock, 'legacy', fixture.log, {
         waitSeconds: 30,
@@ -458,9 +475,17 @@ if (insideOpsNamespace(import.meta.path)) {
       if (queued.kind !== 'queued') throw new Error(queued.reason);
       const admitted = runtime.pollHostJob(queued.ticket, silent);
       if (admitted.kind !== 'admitted') throw new Error(admitted.kind);
-      const refused = await switchMode(fixture, 'concurrent');
+      const refused = await switchMode(fixture, 'concurrent', { waitSeconds: 1 });
       expect(refused.code).toBe(75);
-      expect(refused.stderr).toContain('is not drained of host jobs: lane:admitted (starting');
+      expect(refused.stderr).toContain(
+        'did not drain of host jobs within 1s: lane:admitted (starting, compute held)',
+      );
+      // The flip's own check, the last line of defence under the fence (method level).
+      runtime.beginModeSwitch('concurrent', 'dany');
+      expect(() => runtime.completeModeSwitch('concurrent', 'dany', 'puni1', [])).toThrow(
+        'is not drained of host jobs: lane:admitted (starting',
+      );
+      runtime.abandonModeSwitch();
       expect(runtime.hostPoolTransition()).toMatchObject({ mode: 'observe', switching: null });
       runtime.withdrawUnlaunchedHostJob(admitted.job.id, 'test');
       expect((await switchMode(fixture, 'concurrent')).code).toBe(0);
@@ -536,28 +561,115 @@ if (insideOpsNamespace(import.meta.path)) {
       });
     });
 
-    test('stops intake, queued waiters included, and refuses a second switch while the first drains', async () => {
+    test('switch-mode stops intake; queued waiters keep their place, and a second switch is refused', async () => {
       const fixture = pool();
+      const runtime = runtimeOf(fixture);
       const legacy = startLegacyCaller(fixture.lock, 'legacy', fixture.log, {
         waitSeconds: 0,
         seconds: 3,
       });
       await eventually('the legacy holder', () => intervalsOf(fixture.log).has('legacy'));
+      // Queued before the fence, with its budget: it keeps its place (S6B-A16).
+      const early = runtime.enqueueHostJob(
+        { descriptor: jobType('eligible', 1, 1), label: 'lane:early', waitSeconds: 60 },
+        process.pid,
+      );
+      if (early.kind !== 'queued') throw new Error(early.reason);
       const first = switchMode(fixture, 'concurrent');
-      const runtime = runtimeOf(fixture);
       await eventually('the fence', () => runtime.hostPoolTransition().switching !== null);
       const second = await switchMode(fixture, 'concurrent');
       expect(second.code).toBe(75);
       expect(second.stderr).toContain('switch-mode concurrent by dany');
+      const status: string[] = [];
+      await runOps(
+        { command: 'ops', words: 'job status', config: fixture.config },
+        opsDependencies(fixture.checkout, status, status),
+      );
+      // Proof: without the line `switch-mode stops intake; queued waiters keep their place`
+      // found no switching line in status (2026-11-02, review H8).
+      expect(status.join('')).toMatch(
+        /\nswitching to concurrent by dany pid \d+ age \d+s; intake stopped\n/,
+      );
       const refused = await refusalOf(
         run(fixture, 'eligible', 'blocked', { seconds: 0, waitSeconds: 30 }),
       );
       expect(refused.exitCode).toBe(75);
       expect(refused.message).toContain('intake stopped while ops pool switch-mode concurrent');
+      const admitted = runtime.pollHostJob(early.ticket, silent);
+      expect(admitted.kind).toBe('admitted');
+      if (admitted.kind !== 'admitted') throw new Error(admitted.kind);
+      // The switch waits for it: withdrawing it lets the drain finish.
+      runtime.withdrawUnlaunchedHostJob(admitted.job.id, 'test');
       expect((await first).code).toBe(0);
       expect(await legacy.exited).toBe(0);
-      const spans = intervalsOf(fixture.log);
-      expect(spans.has('blocked')).toBe(false);
+      expect(intervalsOf(fixture.log).has('blocked')).toBe(false);
+    });
+
+    test('a fence naming a dead switcher is void: intake proceeds', async () => {
+      const fixture = pool();
+      const runtime = runtimeOf(fixture);
+      const gone = spawn('true');
+      const pid = gone.pid;
+      await new Promise((resolveExit) => gone.once('exit', resolveExit));
+      const ledger = new Database(join(fixture.root, '.dash', 'resources.sqlite'));
+      ledger.query('UPDATE host_pool SET switching=? WHERE id=1').run(
+        JSON.stringify({
+          pid,
+          boot: 'gone',
+          start: '1',
+          target: 'concurrent',
+          operator: 'ghost',
+          since: 0,
+        }),
+      );
+      ledger.close();
+      expect(runtime.hostPoolTransition().switching?.live).toBe(false);
+      const queued = runtime.enqueueHostJob(
+        { descriptor: jobType('eligible', 1, 1), label: 'lane:after-ghost', waitSeconds: 0 },
+        process.pid,
+      );
+      // Proof: treating any fence row as live made this enqueue refuse 75 (2026-11-02, review H3).
+      expect(queued.kind).toBe('queued');
+    });
+
+    test('a switch-mode hold left behind refuses the next switch 75, naming it', async () => {
+      const fixture = pool();
+      const gone = spawn('true');
+      const pid = gone.pid;
+      await new Promise((resolveExit) => gone.once('exit', resolveExit));
+      mkdirSync(join(fixture.root, '.dash', 'legacy-holds'), { recursive: true, mode: 0o700 });
+      writeFileSync(switchHoldFile(fixture.root), `${String(pid)}\n`);
+      const refused = await switchMode(fixture, 'concurrent');
+      expect(refused.code).toBe(75);
+      expect(refused.stderr).toContain(
+        `hold ${switchHoldFile(fixture.root)} is still there (holder pid ${String(pid)}, dead)`,
+      );
+      expect(refused.stderr).toContain('run resources sweep to release it');
+    });
+
+    test('a switch-mode interrupted while it queues withdraws its ticket and reopens intake', async () => {
+      const fixture = pool();
+      const legacy = startLegacyCaller(fixture.lock, 'legacy', fixture.log, {
+        waitSeconds: 0,
+        seconds: 4,
+      });
+      await eventually('the legacy holder', () => intervalsOf(fixture.log).has('legacy'));
+      const switching = switchMode(fixture, 'concurrent', { waitSeconds: 30 });
+      await eventually(
+        'the switch ticket',
+        () => readLegacyQueue(fixture.lock).waiters.length === 1,
+      );
+      process.emit('SIGTERM', 'SIGTERM');
+      const interrupted = await switching;
+      expect(interrupted.code).toBe(143);
+      expect(interrupted.stderr).toContain('interrupted by SIGTERM');
+      expect(readLegacyQueue(fixture.lock).waiters).toEqual([]);
+      expect(existsSync(switchHoldFile(fixture.root))).toBe(false);
+      expect(runtimeOf(fixture).hostPoolTransition()).toMatchObject({
+        mode: 'observe',
+        switching: null,
+      });
+      await legacy.exited;
     });
 
     test('refuses while a legacy waiter queues behind it, and reopens intake', async () => {
@@ -790,6 +902,371 @@ if (insideOpsNamespace(import.meta.path)) {
         watch.kill('SIGTERM');
         expect(await exited).toBe(0);
       }
+    });
+  });
+
+  describe('review fixes (Fable, PR #818)', () => {
+    /** A held `dash-singleton` hold recorded as the guard, as `watch` would leave it. */
+    async function heldGuard(fixture: Pool, runtime: ResourceRuntime) {
+      const held = await holdLegacyLock(
+        fixture.lock,
+        {
+          holdFile: guardHoldFile(fixture.root),
+          label: GUARD_LABEL,
+          waitSeconds: 0,
+          pollSeconds: 1,
+          signal: new AbortController().signal,
+          report: silent,
+        },
+        process.env,
+      );
+      if (held.kind !== 'held') throw new Error(held.kind);
+      expect(runtime.recordGuardHolder(held.hold.pid, fixture.lock.lockPath)).toBe(true);
+      cleanups.push(() => {
+        held.hold.release();
+      });
+      return held.hold;
+    }
+
+    function admitOne(runtime: ResourceRuntime, label: string, pid = process.pid) {
+      const queued = runtime.enqueueHostJob(
+        { descriptor: jobType('eligible', 1, 1), label, waitSeconds: 0 },
+        pid,
+      );
+      if (queued.kind !== 'queued') throw new Error(queued.reason);
+      const admitted = runtime.pollHostJob(queued.ticket, silent);
+      if (admitted.kind !== 'admitted') throw new Error(admitted.kind);
+      return admitted.job;
+    }
+
+    test('resources sweep releases the orphan hold of a settled job', async () => {
+      const fixture = pool();
+      const leaver = payloadScript(join(fixture.base, 'leaver.sh'), 'sleep 2 &\nexit 0');
+      expect(
+        await run(fixture, 'eligible', 'leaver', {
+          seconds: 0,
+          waitSeconds: 0,
+          settleBudgetMs: 300,
+          payload: leaver,
+        }),
+      ).toBe(0);
+      expect(readLegacyQueue(fixture.lock).holder.kind).toBe('held');
+      await Bun.sleep(2500);
+      const out: string[] = [];
+      const tools = {
+        call: () => Promise.reject(new WbsUnreachable('fixture', {})),
+        close: () => Promise.resolve(),
+      };
+      expect(
+        await runResources(
+          ['sweep', '--config', fixture.config],
+          clock,
+          (text) => out.push(text),
+          () => tools,
+          () => fixture.lock,
+        ),
+      ).toBe(0);
+      expect(out.join('')).toContain('"legacyHolds":{"released":[');
+      await eventually(
+        'the holder to let go',
+        () => readLegacyQueue(fixture.lock).holder.kind === 'none',
+      );
+    });
+
+    test('a guard holder lost mid-run marks the running jobs, and audit names it', async () => {
+      const fixture = await concurrentPool();
+      watchGuard(fixture);
+      const report: string[] = [];
+      const job = run(fixture, 'eligible', 'lost', { seconds: 3, waitSeconds: 30, report });
+      await eventually('the payload', () => intervalsOf(fixture.log).has('lost'));
+      const holder = runtimeOf(fixture).hostPoolTransition().guardHolder;
+      if (holder === null) throw new Error('no guard holder recorded');
+      process.kill(-holder.pid, 'SIGKILL');
+      expect(await job).toBe(0);
+      const marked = runtimeOf(fixture).listHostJobs().at(0);
+      expect(marked?.guardLost?.holderPid).toBe(holder.pid);
+      expect(
+        report.some((line) =>
+          line.endsWith(`the singleton guard (pid ${String(holder.pid)}) was lost during the run`),
+        ),
+      ).toBe(true);
+      const audit: string[] = [];
+      expect(
+        await runOps(
+          { command: 'ops', words: 'job audit', config: fixture.config, now: undefined },
+          opsDependencies(fixture.checkout, audit, audit),
+        ),
+      ).toBe(1);
+      expect(audit.join('')).toContain(`attribution_incomplete in run ${marked?.id ?? ''}`);
+      expect(audit.join('')).toContain('the singleton guard');
+    });
+
+    test('a guard lost between admission and launch refuses 75', async () => {
+      const fixture = await concurrentPool();
+      const runtime = runtimeOf(fixture);
+      const hold = await heldGuard(fixture, runtime);
+      const job = admitOne(runtime, 'lane:late-launch');
+      hold.release();
+      await hold.exited;
+      let refusal: unknown;
+      try {
+        runtime.prepareHostJob(job.id);
+      } catch (cause) {
+        refusal = cause;
+      }
+      expect(refusal instanceof HostPoolModeRefusal && refusal.exitCode).toBe(75);
+      expect(String(refusal)).toContain(
+        'the singleton guard was lost between admission and launch',
+      );
+    });
+
+    test('a stray file in the legacy hold directory stops concurrent admission', async () => {
+      const fixture = await concurrentPool();
+      const runtime = runtimeOf(fixture);
+      const stray = join(fixture.root, '.dash', 'legacy-holds', 'stray');
+      mkdirSync(join(fixture.root, '.dash', 'legacy-holds'), { recursive: true, mode: 0o700 });
+      writeFileSync(stray, '');
+      const lines: string[] = [];
+      const guard = new SingletonGuard(
+        runtime,
+        () => fixture.lock,
+        process.env,
+        (line) => lines.push(line),
+      );
+      guard.tick();
+      expect(runtime.hostPoolTransition().holdCorruption).toBe(stray);
+      expect(lines.join('\n')).toContain(`holds ${stray}, which Dash did not write`);
+      const queued = runtime.enqueueHostJob(
+        { descriptor: jobType('eligible', 1, 1), label: 'lane:beside-stray', waitSeconds: 0 },
+        process.pid,
+      );
+      if (queued.kind !== 'queued') throw new Error(queued.reason);
+      const refused = runtime.pollHostJob(queued.ticket, silent);
+      expect(refused.kind === 'refused' && refused.reason).toContain(`holds ${stray}`);
+      const status: string[] = [];
+      await runOps(
+        { command: 'ops', words: 'job status', config: fixture.config },
+        opsDependencies(fixture.checkout, status, status),
+      );
+      expect(status.join('')).toContain(`hold corruption: ${stray}`);
+      // No legacy holder was started or ended beside it.
+      expect(readLegacyQueue(fixture.lock).holder).toEqual({ kind: 'none' });
+      rmSync(stray);
+      guard.tick();
+      expect(runtime.hostPoolTransition().holdCorruption).toBeNull();
+    });
+
+    test('a typo added to concurrencyEligible after init refuses ops job run 64', async () => {
+      const fixture = pool();
+      const configuration = JSON.parse(readFileSync(fixture.config, 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      writeFileSync(
+        fixture.config,
+        JSON.stringify({ ...configuration, concurrencyEligible: ['eligble'] }),
+        { mode: 0o600 },
+      );
+      const refused = await refusalOf(
+        run(fixture, 'eligible', 'typo', { seconds: 0, waitSeconds: 0 }),
+      );
+      expect(refused.exitCode).toBe(64);
+      expect(refused.message).toContain('ops job run: concurrencyEligible names eligble');
+    });
+
+    test('refuses a launcher checkout that is missing or not a work tree', async () => {
+      const missing = pool();
+      const configuration = JSON.parse(readFileSync(missing.config, 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      const rewrite = (fixture: Pool, launcherCheckouts: string[]): void => {
+        writeFileSync(
+          fixture.config,
+          JSON.stringify({
+            ...configuration,
+            root: fixture.root,
+            exclusiveUnits: {},
+            launcherCheckouts,
+            concurrencyEligible: [],
+          }),
+          { mode: 0o600 },
+        );
+      };
+      rewrite(missing, [join(missing.base, 'no-such-checkout')]);
+      let refused = await switchMode(missing, 'concurrent', { allowEmpty: true });
+      expect(refused.code).toBe(70);
+      expect(refused.stderr).toContain('no-such-checkout unreadable');
+      rewrite(missing, [join(missing.checkout, 'bin')]);
+      refused = await switchMode(missing, 'concurrent', { allowEmpty: true });
+      expect(refused.code).toBe(70);
+      expect(refused.stderr).toContain('is not the top of a Git work tree');
+    });
+
+    test('refuses a launcher checkout git distrusts, saying so', async () => {
+      const fixture = pool();
+      const fakeBin = join(fixture.base, 'distrust-bin');
+      mkdirSync(fakeBin);
+      payloadScript(
+        join(fakeBin, 'git'),
+        `case " $* " in *" rev-parse --show-toplevel "*) echo "fatal: detected dubious ownership in repository at '$2'" >&2; exit 128;; esac\nexec ${Bun.which('git') ?? '/usr/bin/git'} "$@"`,
+      );
+      const refused = await switchMode(fixture, 'concurrent', {
+        environment: { ...process.env, PATH: `${fakeBin}:${process.env['PATH'] ?? ''}` },
+      });
+      expect(refused.code).toBe(70);
+      expect(refused.stderr).toContain('is refused by git as of dubious ownership');
+    });
+
+    test('refuses a launcher checkout whose bin/ holds an untracked launcher, or whose launcher script was reverted', async () => {
+      const fixture = pool();
+      writeFileSync(join(fixture.checkout, 'bin', 'extra.sh'), 'with_heavy_lock -- true\n');
+      let refused = await switchMode(fixture, 'concurrent');
+      expect(refused.code).toBe(70);
+      expect(refused.stderr).toContain('has bin/ changed from HEAD');
+      rmSync(join(fixture.checkout, 'bin', 'extra.sh'));
+      writeFileSync(
+        join(fixture.checkout, 'bin', 'payload.sh'),
+        '#!/bin/sh\n# run_heavy_job retired here\nwith_heavy_lock "$lock" -- true\n',
+      );
+      fixtureGit(fixture.checkout, 'commit', '--quiet', '-am', 'revert the launcher');
+      refused = await switchMode(fixture, 'concurrent');
+      expect(refused.code).toBe(70);
+      expect(refused.stderr).toContain(
+        'bin/payload.sh (job type eligible) does not call run_heavy_job',
+      );
+    });
+
+    test('the fence answers only its own switch', async () => {
+      const fixture = pool();
+      const runtime = runtimeOf(fixture);
+      // No fence at all: a flip is refused 75.
+      expect(() => runtime.completeModeSwitch('concurrent', 'dany', 'puni1', [])).toThrow(
+        'this switch-mode no longer holds the intake fence',
+      );
+      const other = spawn('sleep', ['30']);
+      cleanups.push(() => other.kill('SIGKILL'));
+      await eventually('the other process', () => other.pid !== undefined);
+      const stat = readFileSync(`/proc/${String(other.pid)}/stat`, 'utf8');
+      const start = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19];
+      const boot = readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim();
+      const ledger = new Database(join(fixture.root, '.dash', 'resources.sqlite'));
+      ledger.query('UPDATE host_pool SET switching=? WHERE id=1').run(
+        JSON.stringify({
+          pid: other.pid,
+          boot,
+          start,
+          target: 'concurrent',
+          operator: 'other',
+          since: 0,
+        }),
+      );
+      ledger.close();
+      // Proof: clearing any fence made `abandonModeSwitch` drop another switcher's (2026-11-02, H7).
+      runtime.abandonModeSwitch();
+      expect(runtime.hostPoolTransition().switching?.pid).toBe(other.pid);
+      expect(() => runtime.completeModeSwitch('concurrent', 'dany', 'puni1', [])).toThrow(
+        'this switch-mode no longer holds the intake fence',
+      );
+    });
+
+    test('releaseGuard refuses 75 under a live fence', async () => {
+      const fixture = await concurrentPool();
+      const runtime = runtimeOf(fixture);
+      runtime.beginModeSwitch('observe', 'dany');
+      let refusal: unknown;
+      try {
+        runtime.releaseGuard('dany', 'puni1', []);
+      } catch (cause) {
+        refusal = cause;
+      }
+      expect(refusal instanceof HostPoolModeRefusal && refusal.exitCode).toBe(75);
+      runtime.abandonModeSwitch();
+    });
+
+    test('a withdrawal for another launcher is refused', async () => {
+      const fixture = pool();
+      const runtime = runtimeOf(fixture);
+      const other = spawn('sleep', ['30']);
+      cleanups.push(() => other.kill('SIGKILL'));
+      await eventually('the other process', () => other.pid !== undefined);
+      const job = admitOne(runtime, 'lane:theirs', other.pid);
+      expect(() => runtime.withdrawUnlaunchedHostJob(job.id, 'test')).toThrow(
+        'was admitted for another launcher',
+      );
+    });
+
+    test('a second watch adopts the live guard holder rather than queue another', async () => {
+      const fixture = await concurrentPool();
+      const runtime = runtimeOf(fixture);
+      const hold = await heldGuard(fixture, runtime);
+      // Observe-free paths: recording refuses while a live holder is recorded, and outside the guard.
+      expect(runtime.recordGuardHolder(process.pid, fixture.lock.lockPath)).toBe(false);
+      runtime.enqueueHostJob(
+        { descriptor: jobType('eligible', 1, 1), label: 'lane:demand', waitSeconds: 30 },
+        process.pid,
+      );
+      const second = new SingletonGuard(
+        runtimeOf(fixture),
+        () => fixture.lock,
+        process.env,
+        silent,
+      );
+      second.tick();
+      await Bun.sleep(500);
+      expect(readLegacyQueue(fixture.lock).waiters).toEqual([]);
+      expect(runtime.hostPoolTransition().guardHolder?.pid).toBe(hold.pid);
+      second.stop();
+    });
+
+    test('recording a guard holder outside concurrent mode is refused', () => {
+      const fixture = pool();
+      expect(runtimeOf(fixture).recordGuardHolder(process.pid, fixture.lock.lockPath)).toBe(false);
+    });
+
+    test('an unreadable guard record refuses admission rather than guess', async () => {
+      const fixture = await concurrentPool();
+      const runtime = runtimeOf(fixture);
+      await heldGuard(fixture, runtime);
+      const queued = runtime.enqueueHostJob(
+        { descriptor: jobType('eligible', 1, 1), label: 'lane:hidden', waitSeconds: 0 },
+        process.pid,
+      );
+      if (queued.kind !== 'queued') throw new Error(queued.reason);
+      chmodSync(`${fixture.lock.lockPath}.d`, 0o000);
+      try {
+        expect(() => runtime.pollHostJob(queued.ticket, silent)).toThrow(
+          `singleton guard record ${fixture.lock.lockPath}.d/holder unreadable`,
+        );
+      } finally {
+        chmodSync(`${fixture.lock.lockPath}.d`, 0o700);
+      }
+    });
+
+    test('an unreadable compute entry keeps the shell lock', async () => {
+      const report: string[] = [];
+      let released = false;
+      await endLegacyHold(
+        {
+          inspectHostJob: () => {
+            throw new Error('ledger gone');
+          },
+        },
+        'job-x',
+        {
+          pid: 1,
+          release: () => {
+            released = true;
+          },
+          exited: Promise.resolve(0),
+        },
+        { report: (line: string) => report.push(line) } as unknown as JobRunDependencies,
+      );
+      // Proof: releasing on the unreadable branch made this see the hold released (2026-11-02, H7).
+      expect(released).toBe(false);
+      expect(report).toEqual([
+        'ops job: job-x keeps the shell lock: its compute entry is unreadable (ledger gone); watch releases it',
+      ]);
     });
   });
 }

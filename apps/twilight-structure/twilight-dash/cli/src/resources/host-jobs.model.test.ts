@@ -161,7 +161,27 @@ if (insideLinuxNamespace(import.meta.path)) {
     }
     return reserved;
   }
+  /**
+   * Concurrent mode (review H6): the type ids the pool lists in `concurrencyEligible`, or null
+   * in observe mode, where the shell lock serialises and admission applies no eligibility rule.
+   */
+  let concurrentEligible: ReadonlySet<string> | null = null;
+  const concurrentReached = { overlapped: 0, serialised: 0, startingCounted: 0 };
+  /**
+   * The eligibility rule written out: beside any unreleased job (starting counts), the
+   * newcomer's type and every running type must be listed.
+   */
+  function mayOverlap(model: Model, type: number): boolean {
+    if (concurrentEligible === null) return true;
+    const eligible = concurrentEligible;
+    const running = model.jobs.filter((job) => !job.released);
+    const listed = (candidate: number): boolean => eligible.has(TYPES[candidate]?.id ?? '');
+    return running.length === 0 || (listed(type) && running.every((job) => listed(job.type)));
+  }
   function modelFits(model: Model, type: number): boolean {
+    return modelVectorFits(model, type) && mayOverlap(model, type);
+  }
+  function modelVectorFits(model: Model, type: number): boolean {
     const envelope = TYPES[type]?.envelope;
     const reserved = modelReserved(model);
     // A calibration fits only a drained pool: nothing reserved, no tree held.
@@ -338,6 +358,14 @@ if (insideLinuxNamespace(import.meta.path)) {
           reached.barrierHeld += 1;
       }
       if (mine.type === CALIBRATION && expected === 'waiting') reached.calibrationWaited += 1;
+      if (concurrentEligible !== null) {
+        const running = model.jobs.filter((job) => !job.released);
+        if (expected === 'admitted' && running.length > 0) concurrentReached.overlapped += 1;
+        if (modelVectorFits(model, mine.type) && !mayOverlap(model, mine.type)) {
+          concurrentReached.serialised += 1;
+          if (running.some((job) => job.payload === null)) concurrentReached.startingCounted += 1;
+        }
+      }
       const outcome = runtimeFor(real, at).pollHostJob(mine.ticket, () => undefined);
       expect(outcome.kind).toBe(expected);
       if (outcome.kind !== 'waiting') {
@@ -613,54 +641,71 @@ if (insideLinuxNamespace(import.meta.path)) {
     .tuple(fc.boolean(), fc.commands(commands, { maxCommands: 80, size: 'max' }))
     .map(([seeded, tail]): Iterable<Command> => (seeded ? [...barrierSeed(), ...tail] : tail));
 
+  /** The types the concurrent run lists: a gate (and its calibration) and the bounded publish. */
+  const CONCURRENCY_ELIGIBLE = ['gate', 'solver-image-publish'] as const;
+  /** One model run against a fresh pool, in observe mode or concurrent and unguarded. */
+  const runModel = async (drawn: Iterable<Command>, concurrent: boolean): Promise<void> => {
+    const fixture = hostPoolFixture(
+      {
+        cpuCores: 8,
+        memoryGib: 15,
+        headroom: { cpuCores: 0, memoryGib: 2 },
+        gateTrees: 2,
+        workspaceSlots: 8,
+        credential: fakeCredential(),
+      },
+      // A small disk budget, so a calibration's whole-budget free-space check passes anywhere.
+      {
+        diskBudgetUnits: 2,
+        ...(concurrent ? { concurrencyEligible: [...CONCURRENCY_ELIGIBLE] } : {}),
+      },
+    );
+    const model: Model = { now: 1800000000000, tickets: [], jobs: [], contenders: [] };
+    const clock = { read: () => model.now };
+    const first = ResourceRuntime.initialize(
+      loadResourceConfiguration(fixture.config),
+      clock,
+      ampleHost,
+    );
+    if (concurrent) {
+      // Concurrent and unguarded, through the operator's own methods: the guard has its
+      // own tests (host-pool-mode.test.ts); eligibility is what this run models.
+      first.beginModeSwitch('concurrent', 'model');
+      first.completeModeSwitch('concurrent', 'model', 'model', []);
+      first.releaseGuard('model', 'model', []);
+    }
+    const second = ResourceRuntime.open(loadResourceConfiguration(fixture.config), clock);
+    const real: Real = {
+      runtimes: [first, second],
+      processes: [],
+      evidence: {
+        containersGone: (job: HostJob) => {
+          const modelled = model.jobs.find((candidate) => candidate.id === job.id);
+          if (modelled === undefined) throw new Error('container evidence for an unknown job');
+          return modelled.containersGone;
+        },
+      },
+    };
+    model.contenders = Array.from({ length: 7 }, () => ({
+      owner: waiter(real),
+      ticket: null,
+      job: null,
+    }));
+    concurrentEligible = concurrent ? new Set(CONCURRENCY_ELIGIBLE) : null;
+    try {
+      await fc.asyncModelRun(() => ({ model, real }), drawn);
+    } finally {
+      concurrentEligible = null;
+      await Promise.all(real.processes.map((child) => kill(child)));
+      first.close();
+      second.close();
+      fixture.remove();
+    }
+  };
+
   test('the admission queue and settlement follow the model under every interleaving', async () => {
     await fc.assert(
-      fc.asyncProperty(drawRun, async (drawn) => {
-        const fixture = hostPoolFixture(
-          {
-            cpuCores: 8,
-            memoryGib: 15,
-            headroom: { cpuCores: 0, memoryGib: 2 },
-            gateTrees: 2,
-            workspaceSlots: 8,
-            credential: fakeCredential(),
-          },
-          // A small disk budget, so a calibration's whole-budget free-space check passes anywhere.
-          { diskBudgetUnits: 2 },
-        );
-        const model: Model = { now: 1800000000000, tickets: [], jobs: [], contenders: [] };
-        const clock = { read: () => model.now };
-        const first = ResourceRuntime.initialize(
-          loadResourceConfiguration(fixture.config),
-          clock,
-          ampleHost,
-        );
-        const second = ResourceRuntime.open(loadResourceConfiguration(fixture.config), clock);
-        const real: Real = {
-          runtimes: [first, second],
-          processes: [],
-          evidence: {
-            containersGone: (job: HostJob) => {
-              const modelled = model.jobs.find((candidate) => candidate.id === job.id);
-              if (modelled === undefined) throw new Error('container evidence for an unknown job');
-              return modelled.containersGone;
-            },
-          },
-        };
-        model.contenders = Array.from({ length: 7 }, () => ({
-          owner: waiter(real),
-          ticket: null,
-          job: null,
-        }));
-        try {
-          await fc.asyncModelRun(() => ({ model, real }), drawn);
-        } finally {
-          await Promise.all(real.processes.map((child) => kill(child)));
-          first.close();
-          second.close();
-          fixture.remove();
-        }
-      }),
+      fc.asyncProperty(drawRun, (drawn) => runModel(drawn, false)),
       {
         numRuns: 60,
         // Two calibrations overtaken three times each: the oldest barrier holds a fitting build
@@ -773,6 +818,17 @@ if (insideLinuxNamespace(import.meta.path)) {
     // The three examples form two barriers; random runs must form more.
     expect(reached.barrierFormed).toBeGreaterThan(2);
     for (const [name, count] of Object.entries(reached))
+      expect(`${name} ${String(count > 0)}`).toBe(`${name} true`);
+  }, 120000);
+
+  test('concurrent mode overlaps only eligible types under every interleaving', async () => {
+    // Proof: dropping `mayOverlap` from `pollHostJob`'s fit made this run see `admitted` where
+    // the model expected `waiting` (2026-11-02, review H6).
+    await fc.assert(
+      fc.asyncProperty(drawRun, (drawn) => runModel(drawn, true)),
+      { numRuns: 30 },
+    );
+    for (const [name, count] of Object.entries(concurrentReached))
       expect(`${name} ${String(count > 0)}`).toBe(`${name} true`);
   }, 120000);
 

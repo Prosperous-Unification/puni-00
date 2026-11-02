@@ -15,6 +15,7 @@ import {
   declaredContainersOnly,
   type HostFacts,
   type HostJob,
+  HostPoolModeRefusal,
   loadResourceConfiguration,
   ResourceRuntime,
 } from '../resources/runtime';
@@ -35,6 +36,7 @@ import {
   type ScopeTelemetry,
   scopeUnitOf,
 } from './scope';
+import { checkEligibleTypes } from './switch-mode';
 
 /** `ops job run`'s parsed command line (J7). */
 export interface JobRunRequest {
@@ -360,6 +362,12 @@ async function executeHostJob(
       { cause },
     );
   }
+  try {
+    checkEligibleTypes(runtime.configuration, 'ops job run');
+  } catch (cause) {
+    runtime.close();
+    throw cause;
+  }
   let records: HostJobRunRecords;
   try {
     records = HostJobRunRecords.open(runtime.configuration.root, runtime.listHostJobs().length > 0);
@@ -517,8 +525,8 @@ async function queueOnLegacyLock(
  * file, and `watch` removes it when that entry settles, so a surviving child never runs beside
  * a legacy caller.
  */
-async function endLegacyHold(
-  runtime: ResourceRuntime,
+export async function endLegacyHold(
+  runtime: Pick<ResourceRuntime, 'inspectHostJob'>,
   jobId: string,
   hold: LegacyHold,
   deps: JobRunDependencies,
@@ -588,7 +596,17 @@ async function runAdmitted(
   interruption: Interruption,
   onSignal: (handler: (signal: NodeJS.Signals) => void) => void,
 ): Promise<number> {
-  const job = runtime.prepareHostJob(admitted.id);
+  let job: HostJob;
+  try {
+    job = runtime.prepareHostJob(admitted.id);
+  } catch (cause) {
+    if (!(cause instanceof HostPoolModeRefusal)) throw cause;
+    // Nothing was created: the guard was lost before preparation, so the job is withdrawn.
+    runtime.withdrawUnlaunchedHostJob(admitted.id, cause.message);
+    throw new OpsRefusal(75, `ops job run: ${cause.message}; its reservation is withdrawn`, {
+      cause,
+    });
+  }
   const unit = scopeUnitOf(job.id);
   let launched: Launched;
   try {
@@ -806,6 +824,17 @@ async function runAdmitted(
     deps.report(`ops job: ${job.id} ${ledgerFailure}`);
   }
   const telemetryFailure = failures.length === 0 ? null : failures.join('; ');
+  // A run during which the singleton guard's holder died had no guarantee against a stale
+  // launcher beside it: its attribution is incomplete (review H5).
+  let guardLost: string | undefined;
+  try {
+    const lost = runtime.inspectHostJob(job.id).guardLost;
+    if (lost !== undefined)
+      guardLost = `the singleton guard (pid ${String(lost.holderPid)}) was lost during the run`;
+  } catch (cause) {
+    deps.report(`ops job: ${job.id} guard state unreadable: ${causeText(cause)}`);
+  }
+  if (guardLost !== undefined) deps.report(`ops job: ${job.id} ${guardLost}`);
   if (telemetryFailure !== null)
     deps.report(`ops job: ${job.id} telemetry failure recorded: ${telemetryFailure}`);
   const incomplete = verdicts.filter((verdict) => verdict.verdict !== 'bounded');
@@ -820,8 +849,11 @@ async function runAdmitted(
       signal,
       telemetryFailure,
       ledgerFailure,
-      attributionIncomplete: incomplete.length > 0,
+      // Proof: without the guard term `a guard holder lost mid-run marks the running jobs`
+      // (host-pool-mode.test.ts) found the run complete in `ops job audit` (2026-11-02, H5).
+      attributionIncomplete: incomplete.length > 0 || guardLost !== undefined,
       containers: verdicts,
+      ...(guardLost === undefined ? {} : { guardLost }),
     });
   } catch (cause) {
     deps.report(`ops job: ${job.id} run record outcome unrecorded: ${causeText(cause)}`);

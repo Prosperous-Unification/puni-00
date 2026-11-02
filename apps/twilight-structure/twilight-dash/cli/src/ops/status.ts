@@ -29,6 +29,7 @@ export function formatHostPoolStatus(
   peaks: ReadonlyMap<string, number | null>,
   now: number,
   legacy: LegacyQueueStatus | null,
+  holdDirectory: string,
 ): string[] {
   const { allocatable, reserved } = status;
   const holder = status.guardHolder;
@@ -46,6 +47,12 @@ export function formatHostPoolStatus(
     lines.push(
       `switching to ${fence.target} by ${fence.operator} pid ${String(fence.pid)} age ${formatSpan(now - fence.since)}; intake stopped`,
     );
+  // Proof: without it `a stray file in the legacy hold directory stops concurrent admission`
+  // (host-pool-mode.test.ts) found no line naming it in status (2026-11-02, review H7).
+  if (status.holdCorruption !== null)
+    lines.push(
+      `hold corruption: ${status.holdCorruption}, which Dash did not write; concurrent admission refuses until it is checked and removed, then resources sweep`,
+    );
   if (status.jobs.length === 0) lines.push('running none');
   for (const job of status.jobs) {
     const { envelope } = job.descriptor;
@@ -62,7 +69,7 @@ export function formatHostPoolStatus(
       ...job.units.map((unit) => `${unit.exclusiveId} ${unit.state}`),
     ].join(', ');
     lines.push(
-      `running ${job.calibration === true ? 'calibration ' : ''}${job.descriptor.id} ${job.label} pid ${job.process === null ? '-' : String(job.process.pid)} age ${formatSpan(now - (job.startedAt ?? job.admittedAt))} envelope ${String(envelope.cpuCores)} cores ${String(envelope.memoryGib)} GiB ${String(envelope.tmpDiskGib)} GiB tmp peak ${peak === null ? 'unmeasured' : `${(peak / GIB).toFixed(1)} GiB`} units ${units} settlement ${job.state} (${entries})${job.launchFailure === undefined ? '' : `; ${job.launchFailure}`}`,
+      `running ${job.calibration === true ? 'calibration ' : ''}${job.descriptor.id} ${job.label} pid ${job.process === null ? '-' : String(job.process.pid)} age ${formatSpan(now - (job.startedAt ?? job.admittedAt))} envelope ${String(envelope.cpuCores)} cores ${String(envelope.memoryGib)} GiB ${String(envelope.tmpDiskGib)} GiB tmp peak ${peak === null ? 'unmeasured' : `${(peak / GIB).toFixed(1)} GiB`} units ${units} settlement ${job.state} (${entries})${job.launchFailure === undefined ? '' : `; ${job.launchFailure}`}${job.guardLost === undefined ? '' : `; singleton guard (pid ${String(job.guardLost.holderPid)}) lost ${formatSpan(now - job.guardLost.at)} ago`}`,
     );
   }
   if (status.waiters.length === 0) lines.push('waiting none');
@@ -70,6 +77,23 @@ export function formatHostPoolStatus(
     lines.push(
       `waiting ${waiter.calibration ? 'calibration ' : ''}${waiter.type} ${waiter.label} pid ${String(waiter.pid)} age ${formatSpan(now - waiter.arrivedAt)} budget ${formatSpan(waiter.deadline - now)} overtakes ${String(waiter.overtakes)}`,
     );
-  if (legacy !== null) lines.push(...legacy.lines);
+  if (legacy !== null) {
+    lines.push(...legacy.lines);
+    // A Dash hold left behind is ended by removing its hold file (review H1): say which file and
+    // who removes it, since only the operator can when no `watch` runs.
+    const holder = legacy.holder;
+    const held =
+      holder.kind !== 'held'
+        ? null
+        : holder.label === 'dash-switch-mode'
+          ? 'dash-switch-mode'
+          : (/^dash-job-([0-9a-f-]{36})(?: |$)/.exec(holder.label)?.[1] ?? null);
+    // Proof: without it `status names a Dash hold's file and its remedy`
+    // (host-pool-mode.test.ts) printed the holder line alone (2026-11-02, review H1).
+    if (held !== null)
+      lines.push(
+        `note: the shell lock is held for Dash through ${holdDirectory}/${held}; it ends when that file goes: the launcher removes it at settlement, resources watch once the work settles, or run resources sweep`,
+      );
+  }
   return lines;
 }

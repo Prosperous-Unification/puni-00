@@ -97,7 +97,7 @@ export function auditDrift(
         drifts.push({
           kind: 'attribution_incomplete',
           type: record.type,
-          line: `${record.type} attribution_incomplete in run ${record.jobId} at ${at}: ${record.containers
+          line: `${record.type} attribution_incomplete in run ${record.jobId} at ${at}: ${record.guardLost === undefined ? '' : `${record.guardLost}; `}${record.containers
             .filter((container) => container.verdict !== 'bounded')
             .map((container) => `${container.id.slice(0, 12)} ${container.verdict}`)
             .join(

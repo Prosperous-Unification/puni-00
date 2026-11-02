@@ -152,6 +152,14 @@ export async function runResources(
     }
     if (action === 'sweep') {
       report(runtime.sweep());
+      // The operator's one-shot release of legacy holds whose work has settled (review H1): on a
+      // host without `watch`, the only remedy for a hold its launcher could not end.
+      // Proof: without it `resources sweep releases the orphan hold of a settled job`
+      // (host-pool-mode.test.ts) left the holder holding (2026-11-02, review H1).
+      const holds = new SingletonGuard(runtime, legacyLock, process.env, (line) => {
+        process.stderr.write(`${line}\n`);
+      }).releaseSettledHolds();
+      report({ legacyHolds: holds });
       return 0;
     }
     if (action === 'sync') {

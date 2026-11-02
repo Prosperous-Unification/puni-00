@@ -174,6 +174,101 @@ describe('the legacy holder (J12)', () => {
     expect(intervalsOf(log).has('early')).toBe(false);
   });
 
+  test('Dash killed while its holder queues: the holder claims, holds and releases cleanly', async () => {
+    const directory = scratch();
+    const lock = privateLegacyLock(directory);
+    const log = join(directory, 'log');
+    const legacy = startLegacyCaller(lock, 'first', log, { waitSeconds: 0, seconds: 2 });
+    await eventually('the legacy holder', () => intervalsOf(log).has('first'));
+    const holdFile = join(directory, 'holds', 'queued');
+    const script = join(directory, 'queue.ts');
+    writeFileSync(
+      script,
+      [
+        `import { holdLegacyLock } from ${JSON.stringify(join(import.meta.dir, 'legacy-lock'))};`,
+        `await holdLegacyLock(${JSON.stringify(lock)}, { holdFile: ${JSON.stringify(holdFile)}, label: 'dash-job-queued', waitSeconds: 30, pollSeconds: 1, signal: new AbortController().signal, report: (line) => process.stderr.write(line + '\\n') }, process.env);`,
+      ].join('\n'),
+    );
+    const taker = spawn(process.execPath, [script], { stdio: ['ignore', 'ignore', 'pipe'] });
+    const takerExit = new Promise((resolveExit) => taker.once('exit', resolveExit));
+    await eventually('the queued ticket', () => readLegacyQueue(lock).waiters.length === 1);
+    taker.kill('SIGKILL');
+    await takerExit;
+    expect(await legacy.exited).toBe(0);
+    // The holder outlived its Dash, claimed in its turn and holds under its own label.
+    await eventually(
+      'the orphaned holder to claim',
+      () => readLegacyQueue(lock).holder.kind === 'held',
+    );
+    const holder = readLegacyQueue(lock).holder;
+    expect(holder.kind === 'held' && holder.label).toBe('dash-job-queued');
+    const pid = Number(readFileSync(holdFile, 'utf8'));
+    expect(holder.kind === 'held' && holder.pid).toBe(pid);
+    expect(await startLegacyCaller(lock, 'early', log, { waitSeconds: 0, seconds: 0 }).exited).toBe(
+      75,
+    );
+    rmSync(holdFile);
+    const next = spawn(
+      'bash',
+      ['-c', 'source "$1" && with_heavy_lock "$2" -- true', 'next', lock.library, lock.lockPath],
+      {
+        stdio: ['ignore', 'ignore', 'pipe'],
+        env: {
+          PATH: process.env['PATH'] ?? '',
+          HEAVY_LOCK_WAIT_SECONDS: '10',
+          HEAVY_LOCK_POLL_SECONDS: '1',
+        },
+      },
+    );
+    let stderr = '';
+    next.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString('utf8');
+    });
+    expect(await new Promise<number | null>((resolveExit) => next.once('exit', resolveExit))).toBe(
+      0,
+    );
+    // Released by its own trap, not reclaimed from a dead pid.
+    expect(stderr).not.toContain('reclaiming');
+  });
+
+  test('a holder that ends 0 without holding is refused 70', async () => {
+    const directory = scratch();
+    const library = join(directory, 'fake-lib.sh');
+    writeFileSync(library, 'with_heavy_lock() { return 0; }\n');
+    const outcome = await holdLegacyLock(
+      { library, lockPath: join(directory, 'heavy.lock') },
+      {
+        holdFile: join(directory, 'holds', 'silent'),
+        label: 'dash-job-silent',
+        waitSeconds: 0,
+        pollSeconds: 1,
+        signal: never,
+        report,
+      },
+      process.env,
+    );
+    expect(outcome).toEqual({ kind: 'refused', exitCode: 70 });
+    expect(existsSync(join(directory, 'holds', 'silent'))).toBe(false);
+  });
+
+  test('a holder that cannot start is refused 70', async () => {
+    const directory = scratch();
+    const outcome = await holdLegacyLock(
+      privateLegacyLock(directory),
+      {
+        holdFile: join(directory, 'holds', 'nobash'),
+        label: 'dash-job-nobash',
+        waitSeconds: 0,
+        pollSeconds: 1,
+        signal: never,
+        report,
+      },
+      { PATH: join(directory, 'no-such-bin') },
+    );
+    expect(outcome).toEqual({ kind: 'refused', exitCode: 70 });
+    expect(existsSync(join(directory, 'holds', 'nobash'))).toBe(false);
+  });
+
   test('a holder killed outright releases the flock, and its record is reclaimed as dead', async () => {
     const directory = scratch();
     const lock = privateLegacyLock(directory);

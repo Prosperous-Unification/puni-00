@@ -1,6 +1,11 @@
 import type { DashCommand } from '../cli-parser';
 import type { Monotonic, WallClock } from '../clock';
-import { type LegacyLock, type LegacyQueueStatus, readLegacyQueue } from '../resources/legacy-lock';
+import {
+  legacyHoldDirectory,
+  type LegacyLock,
+  type LegacyQueueStatus,
+  readLegacyQueue,
+} from '../resources/legacy-lock';
 import {
   type HostFacts,
   type HostPoolStatus,
@@ -16,7 +21,7 @@ import { causeText, OpsRefusal } from './refusal';
 import { HostJobRunRecords } from './run-records';
 import type { ScopeTelemetry } from './scope';
 import { formatHostPoolStatus } from './status';
-import { switchPoolMode, verifyEligibleTypes } from './switch-mode';
+import { checkEligibleTypes, switchPoolMode } from './switch-mode';
 
 /** A parsed `ops` command line, discriminated by its words after `ops`. */
 export type OpsCommand = Extract<DashCommand, { readonly command: 'ops' }>;
@@ -74,12 +79,20 @@ type OpsHandlers = {
   ) => Promise<number> | number;
 };
 
-function openPool(config: string, clock: WallClock): ResourceRuntime {
+function openPool(config: string, clock: WallClock, command: string): ResourceRuntime {
+  let runtime: ResourceRuntime;
   try {
-    return ResourceRuntime.open(loadResourceConfiguration(config), clock);
+    runtime = ResourceRuntime.open(loadResourceConfiguration(config), clock);
   } catch (cause) {
     throw new OpsRefusal(70, `host pool ${config} unusable: ${causeText(cause)}`, { cause });
   }
+  try {
+    checkEligibleTypes(runtime.configuration, command);
+  } catch (cause) {
+    runtime.close();
+    throw cause;
+  }
+  return runtime;
 }
 
 /** What `ops job run` and `ops job calibrate` reach, from the `ops` dependencies. */
@@ -106,7 +119,7 @@ function launcherDependencies(deps: OpsDependencies): JobRunDependencies {
  * @throws OpsRefusal 70 when the pool or its run records are unusable.
  */
 function readRunRecords(config: string, deps: OpsDependencies, command: string) {
-  const runtime = openPool(config, deps.clock);
+  const runtime = openPool(config, deps.clock, command);
   try {
     const records = HostJobRunRecords.openForReading(runtime.configuration.root);
     try {
@@ -212,7 +225,7 @@ export const opsHandlers: OpsHandlers = {
     return 0;
   },
   'job status': (command, deps) => {
-    const runtime = openPool(command.config, deps.clock);
+    const runtime = openPool(command.config, deps.clock, 'ops job status');
     try {
       const status = runtime.hostPoolStatus();
       let records: HostJobRunRecords;
@@ -228,7 +241,13 @@ export const opsHandlers: OpsHandlers = {
           status.jobs.map((job) => [job.id, records.inspect(job.id)?.peakMemoryBytes ?? null]),
         );
         const legacy = legacyQueueOf(status, deps, 'ops job status');
-        for (const line of formatHostPoolStatus(status, peaks, deps.clock.read(), legacy))
+        for (const line of formatHostPoolStatus(
+          status,
+          peaks,
+          deps.clock.read(),
+          legacy,
+          legacyHoldDirectory(runtime.configuration.root),
+        ))
           deps.stdout(`${line}\n`);
       } finally {
         records.close();
@@ -251,11 +270,7 @@ export const opsHandlers: OpsHandlers = {
     // An eligible id no launcher checkout catalogues is refused before anything is created.
     // Proof: without it `ops pool init refuses an eligible type no catalogue names`
     // (host-pool-mode.test.ts) initialized the pool (2026-11-02, Slice 6b).
-    if ((configuration.concurrencyEligible ?? []).length > 0)
-      verifyEligibleTypes(
-        configuration.concurrencyEligible ?? [],
-        configuration.launcherCheckouts ?? [],
-      );
+    checkEligibleTypes(configuration, 'ops pool init');
     try {
       runtime = ResourceRuntime.initialize(configuration, deps.clock, deps.host);
     } catch (cause) {
@@ -285,7 +300,7 @@ export const opsHandlers: OpsHandlers = {
     }
   },
   'pool inspect': (command, deps) => {
-    const runtime = openPool(command.config, deps.clock);
+    const runtime = openPool(command.config, deps.clock, 'ops pool inspect');
     try {
       const status = runtime.hostPoolStatus();
       const legacy = legacyQueueOf(status, deps, 'ops pool inspect');
@@ -303,7 +318,7 @@ export const opsHandlers: OpsHandlers = {
     }
   },
   'pool switch-mode': async (command, deps) => {
-    const runtime = openPool(command.config, deps.clock);
+    const runtime = openPool(command.config, deps.clock, 'ops pool switch-mode');
     try {
       const record = await switchPoolMode(
         runtime,

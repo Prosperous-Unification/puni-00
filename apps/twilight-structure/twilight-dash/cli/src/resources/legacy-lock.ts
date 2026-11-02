@@ -1,8 +1,16 @@
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  constants as fsConstants,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { constants } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { Readable } from 'node:stream';
 
 /**
  * The shell lock a host's legacy callers take (`bin/heavy-lock-lib.sh`, `dash-host-jobs` J12):
@@ -57,20 +65,24 @@ export function guardHoldFile(root: string): string {
 /**
  * The shell holder. `with_heavy_lock` queues this process's ticket, claims the flock in arrival
  * order and records this bash's pid and `$HEAVY_LOCK_LABEL` as the holder; its command prints
- * `held`, closes its stdout and keeps the flock for as long as the hold file exists. The flock
- * lives on this bash's fd 9, never on Dash: Dash dying closes nothing that releases it, and
- * whoever removes the hold file (the launcher at settlement, or `watch` once the job's compute
- * settles) ends it. Its stderr goes to Dash only until it holds, so a pipe Dash's own caller
- * reads is never kept open by a holder that outlives Dash. Killing this bash makes the kernel release the flock and leaves its holder
- * record for the next claimant to reclaim from a dead pid, the library's own rule.
+ * `held` and keeps the flock for as long as the hold file exists. The flock lives on this bash's
+ * fd 9, never on Dash: Dash dying closes nothing that releases it, and whoever removes the hold
+ * file (the launcher at settlement, `watch` or `resources sweep` once the job's compute settles)
+ * ends it. Both its output streams go to `<hold file>.log`, never to a pipe Dash reads, so a
+ * Dash that vanishes while the holder still queues cannot break the library's claim with EPIPE
+ * (review H2 of PR #818): the holder claims, holds and releases on its own. Killing this bash
+ * makes the kernel release the flock and leaves its holder record for the next claimant to
+ * reclaim from a dead pid, the library's own rule.
  */
 const HOLDER = [
-  // Dash reads the holder's stderr only until it holds; a later write to that closed pipe must
-  // not kill the holder that keeps the flock.
-  "trap '' PIPE",
   'source "$1" || exit 70',
-  'with_heavy_lock "$2" -- sh -c \'printf "held\\n"; exec 1>&-; while [ -e "$1" ]; do sleep 1; done\' dash-legacy-hold "$3"',
+  'with_heavy_lock "$2" -- sh -c \'printf "held\\n"; while [ -e "$1" ]; do sleep 1; done\' dash-legacy-hold "$3"',
 ].join('\n');
+
+/** The log beside hold file `holdFile`: the shell holder's stdout and stderr. */
+export function holdLogFile(holdFile: string): string {
+  return `${holdFile}.log`;
+}
 
 /** What a legacy hold attempt asks the shell lock for. */
 export interface LegacyHoldRequest {
@@ -130,90 +142,113 @@ export async function holdLegacyLock(
 ): Promise<LegacyHoldOutcome> {
   mkdirSync(dirname(request.holdFile), { recursive: true, mode: 0o700 });
   writeFileSync(request.holdFile, '', { flag: 'wx', mode: 0o600 });
+  const log = holdLogFile(request.holdFile);
   const release = (): void => {
     rmSync(request.holdFile, { force: true });
+    rmSync(log, { force: true });
   };
-  const child = spawn(
-    'bash',
-    ['-c', HOLDER, 'dash-legacy-hold', lock.library, lock.lockPath, request.holdFile],
-    {
-      cwd: '/',
-      detached: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: {
-        PATH: environment['PATH'] ?? '/usr/bin:/bin',
-        HEAVY_LOCK_LABEL: request.label,
-        HEAVY_LOCK_WAIT_SECONDS: String(request.waitSeconds),
-        HEAVY_LOCK_POLL_SECONDS: String(request.pollSeconds),
+  let output: number;
+  try {
+    output = openSync(
+      log,
+      fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_APPEND,
+      0o600,
+    );
+  } catch (cause) {
+    rmSync(request.holdFile, { force: true });
+    throw cause;
+  }
+  let child: ChildProcess;
+  try {
+    child = spawn(
+      'bash',
+      ['-c', HOLDER, 'dash-legacy-hold', lock.library, lock.lockPath, request.holdFile],
+      {
+        cwd: '/',
+        detached: true,
+        stdio: ['ignore', output, output],
+        env: {
+          PATH: environment['PATH'] ?? '/usr/bin:/bin',
+          HEAVY_LOCK_LABEL: request.label,
+          HEAVY_LOCK_WAIT_SECONDS: String(request.waitSeconds),
+          HEAVY_LOCK_POLL_SECONDS: String(request.pollSeconds),
+        },
       },
-    },
-  );
+    );
+  } finally {
+    closeSync(output);
+  }
   const exited = exitOf(child);
   const pid = child.pid;
-  const stdout = child.stdio[1];
-  const stderr = child.stdio[2];
-  if (pid === undefined || !(stdout instanceof Readable) || !(stderr instanceof Readable)) {
+  // Proof: without it `a holder that cannot start is refused 70` (legacy-lock.test.ts) wrote a
+  // hold file naming `undefined` and waited for a `held` that never came (2026-11-02, H7).
+  if (pid === undefined) {
     release();
-    const status = await exited.catch(() => 70);
-    return { kind: 'refused', exitCode: status === 0 ? 70 : status };
+    await exited.catch(() => undefined);
+    return { kind: 'refused', exitCode: 70 };
   }
+  // The hold file names its holder, so a refusal over an existing one can say whose it is.
+  writeFileSync(request.holdFile, `${String(pid)}\n`);
+  let offset = 0;
   let pending = '';
-  stderr.on('data', (chunk: Buffer) => {
-    pending += chunk.toString('utf8');
+  /** Forward the log's new complete lines; true once the holder said `held`. */
+  const drain = (): boolean => {
+    let text: string;
+    try {
+      text = readFileSync(log, 'utf8');
+    } catch (cause) {
+      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return false;
+      throw cause;
+    }
+    pending += text.slice(offset);
+    offset = text.length;
     const lines = pending.split('\n');
     pending = lines.pop() ?? '';
-    for (const line of lines) request.report(line);
-  });
-  const held = new Promise<boolean>((resolveHeld) => {
-    let text = '';
-    stdout.on('data', (chunk: Buffer) => {
-      text += chunk.toString('utf8');
-      if (text.includes('held\n')) resolveHeld(true);
-    });
-    stdout.once('close', () => {
-      resolveHeld(false);
-    });
-  });
-  const aborted = new Promise<'aborted'>((resolveAbort) => {
-    if (request.signal.aborted) resolveAbort('aborted');
-    request.signal.addEventListener('abort', () => {
-      resolveAbort('aborted');
-    });
-  });
-  const first = await Promise.race([
-    held.then((isHeld) => (isHeld ? ('held' as const) : ('ended' as const))),
-    exited.then(() => 'ended' as const),
-    aborted,
-  ]);
-  if (first === 'held') {
-    stdout.destroy();
-    // Let the event loop turn once so the claim's own `waited …` line, written just before
-    // `held`, is reported before the pipe closes.
-    await new Promise<void>((resolveTurn) => {
-      setImmediate(resolveTurn);
-    });
-    if (pending !== '') request.report(pending);
-    stderr.destroy();
-    child.unref();
-    return { kind: 'held', hold: { pid, release, exited } };
-  }
-  if (first === 'aborted') {
-    // The whole session: a waiting holder sleeps between polls, and bash defers its TERM trap
-    // (ticket withdrawal, exit 143) until that foreground `sleep` ends.
-    try {
-      process.kill(-pid, 'SIGTERM');
-    } catch (cause) {
-      if (!(cause instanceof Error && 'code' in cause && cause.code === 'ESRCH')) throw cause;
+    let isHeld = false;
+    for (const line of lines) {
+      if (line === 'held') isHeld = true;
+      else request.report(line);
     }
-    await exited.catch(() => undefined);
-    release();
-    return { kind: 'cancelled' };
+    return isHeld;
+  };
+  const ended = { status: null as number | null };
+  void exited.then(
+    (status) => {
+      ended.status = status;
+    },
+    () => {
+      ended.status = 70;
+    },
+  );
+  for (;;) {
+    if (drain()) {
+      child.unref();
+      return { kind: 'held', hold: { pid, release, exited } };
+    }
+    if (request.signal.aborted) {
+      // The whole session: a waiting holder sleeps between polls, and bash defers its TERM
+      // trap (ticket withdrawal, exit 143) until that foreground `sleep` ends.
+      try {
+        process.kill(-pid, 'SIGTERM');
+      } catch (cause) {
+        if (!(cause instanceof Error && 'code' in cause && cause.code === 'ESRCH')) throw cause;
+      }
+      await exited.catch(() => undefined);
+      drain();
+      release();
+      return { kind: 'cancelled' };
+    }
+    if (ended.status !== null) {
+      const isHeld = drain();
+      release();
+      // A holder that ended 0 without saying `held` broke the protocol above; it is not a
+      // refusal the library made, so it is reported as the library's "cannot make sense of it".
+      // Proof: without the mapping `a holder that ends 0 without holding is refused 70`
+      // (legacy-lock.test.ts) returned exit 0 as a refusal (2026-11-02, H7).
+      return { kind: 'refused', exitCode: isHeld || ended.status === 0 ? 70 : ended.status };
+    }
+    await Bun.sleep(50);
   }
-  release();
-  const status = await exited;
-  // A holder that ended 0 without saying `held` broke the protocol above; it is not a refusal
-  // the library made, so it is reported as the library's "cannot make sense of it".
-  return { kind: 'refused', exitCode: status === 0 ? 70 : status };
 }
 
 /** The shell lock's holder as its `status` reports it. */
