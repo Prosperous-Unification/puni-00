@@ -160,7 +160,7 @@
       the file enrolls the host. `validate` reads linger, the checkouts, the token unit, the
       configuration's mode, owner and shape, and the units, then runs `ops pool inspect` and
       `ops job audit` once a ledger exists. No host was touched; the apply, the h2puni cleanup
-      and the converging proof stay in 6.3 (verify.md Slice 6c, S6C-A1 to S6C-A23).
+      and the converging proof stay in 6.3 (verify.md Slice 6c, S6C-A1 to S6C-A24).
 - [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
       `Restart=on-failure` and `KillMode=process` (beside the observation units of 4.2). It
       lands before 6.4, because observe mode needs a running `watch` (review H1 of #818). A host

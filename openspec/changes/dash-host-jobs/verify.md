@@ -2118,14 +2118,11 @@ cannot read the cgroup of uninspectable PID 662`. That is not fixture timing. J1
 - **S6C-A21 A process that vanished holds nothing (coordinator's fix of the S6C-A14 race).**
   `outsideScope` in `runtime.ts` now answers `outside`, `holds` or `gone`. It answers `gone` when
   the process has exited since the scan listed it: ENOENT or ESRCH on its cgroup read or its
-  session read, or a null identity (missing or zombie) from the `/proc/<pid>/stat` read.
-  `inspectHolds` skips a `gone` process and records nothing about it. EACCES and EPERM keep their
-  J19 meaning. `HoldScope` and `outsideScope` are exported for the test, which adds no seam: the
-  race cannot be scheduled without one, so the test hands `outsideScope` the pid of a process
-  that has already exited and been reaped. That is exactly what each read sees once the race is
-  lost. A live process in its own cgroup is still decided `holds`. Only the cgroup branch's
-  negative (F17) is observed: a reaped pid fails the cgroup read first, so the identity and
-  session branches are not reached by any test.
+  session read. `inspectHolds` skips a `gone` process and records nothing about it. EACCES and
+  EPERM keep their J19 meaning. A zombie or an exiting process is S6C-A23's case, and the leaving
+  leader inspected through a live thread is S6C-A24's. `HoldScope`, `outsideScope` and
+  `inspectHolds` are exported for the tests, which add no seam. A reaped pid is exactly what each
+  read sees once the race is lost; the cgroup branch's negative is 6c-F17.
 - **S6C-A22 Slice 2's inode-reuse flake is owed, not fixed.** The full-suite failure of
   `a replaced tmp directory or symlink stays charged and untouched` comes from `rmdir` plus `mkdir`
   reusing the inode, which a dev and inode identity cannot tell apart. tasks.md 2.4 owes an
@@ -2141,7 +2138,7 @@ may hold the job's files`. `wc`, a short-lived child of the other gate's steps, 
     so `outsideScope` answered `holds`.
   - The fix is the new exported `processGone(pid)`, in `runtime.ts`. It answers true when the
     process's stat entry is missing (ENOENT/ESRCH), when its state is `X`, or when it is `Z` or
-    has `PF_EXITING` and every other task in `/proc/<pid>/task` is gone or leaving too.
+    has `PF_EXITING` and no other thread in `/proc/<pid>/task` is live.
   - `inspectHolds` uses it at the scan's top and in its catch. Before, both checks were
     `identifyProcess(...) === null`, which also treated a zombie group leader beside live threads
     as dead. `outsideScope` uses it before any other decision. EACCES and EPERM on a process that
@@ -2158,6 +2155,30 @@ may hold the job's files`. `wc`, a short-lived child of the other gate's steps, 
     three runs. Checking each other thread's own state fixed it.
   - The mid-`do_exit` state itself cannot be held still for a test. It shares the zombie's
     `PF_EXITING` flag, and that flag is what the code reads.
+  - **Accepted false-release window.** `gone` is declared from `exit_signals` (`PF_EXITING`) on,
+    while `do_exit` drops the descriptor table later (`exit_files`, `exit_task_work`). So
+    descriptors can stay open for a span of under a millisecond to a few milliseconds, longer only
+    when a file's release blocks in FUSE or NFS. The process cannot run user code past that
+    point, a later job that re-creates the path gets a fresh inode, and only deleted-open disk
+    space lingers until the last `fput` drains.
+- **S6C-A24 A leaving leader is inspected through a live thread (review P1/P2 of 63a070156).** In
+  an `exit_group` the leader is `PF_EXITING`, and refused (EACCES) after `exit_mm`, while a sibling
+  thread still runs for a moment. A leader that called `pthread_exit` stays that way.
+  - `inspectionRoot(pid)` answers `/proc/<pid>` while the leader runs, and
+    `/proc/<pid>/task/<tid>` of a live thread while the leader is leaving. The descriptor table,
+    cwd and memory belong to the whole group, so that view is a real inspection. It answers null,
+    meaning gone, when no thread is live. `processGone` is `inspectionRoot(pid) === null`.
+  - `inspectHolds` reads cwd, fd and maps under that root.
+  - `outsideScope` reads the start time straight from `stat` (`statIdentity`), because
+    `identifyProcess` answers null for a zombie by choice. A zombie leader whose live thread is
+    itself refused therefore gets the full J19 rules (foreign session, owned session, start
+    comparison) instead of `holds`.
+  - Nothing is stricter than J19 now. Where no thread is live the process is gone (S6C-A23);
+    where one is, either its real view decides or J19 does.
+  - Tests in `leaving-holds.test.ts`, inside a private namespace so the scan sees only the
+    suite's processes. "a leaving leader is inspected through its live thread" expects no holder
+    and no outside-scope record. "a leaving leader's live thread holding a file still holds"
+    has the thread hold a file in the locator and expects `live file hold remains charged`.
 
 ### Commands (fresh, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, this workstation)
 
@@ -2182,22 +2203,22 @@ Each fault was applied by script to the real role file, the suite was run, and t
 restored. Its SHA-256 matched before and after in every row. "Red" lists the failing tests in
 `gate-host-pool.test.ts`; each fault also failed the namespace rerun.
 
-| Fault                                                               | Red                                                                                    |
-| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| F1 `enrollmentId` line dropped from `host-pool.json.j2`             | the loader case, the shape-probe case, the namespace init                              |
-| F2 `KillMode=process` dropped from the watch unit                   | the watch unit case                                                                    |
-| F3 `Restart=on-failure` dropped from the watch unit                 | the watch unit case                                                                    |
-| F4 disk refusal `((avail >= need)) \|\| exit 75` replaced by `true` | the disk probe case                                                                    |
-| F5 linger probe's `&& [[ $linger == yes ]]` dropped                 | the linger case                                                                        |
-| F6 token probe's `rev-parse -q --verify HEAD` dropped               | the token unit case (the unborn tree passed)                                           |
-| F7 token command's commit dropped                                   | the token unit case, the namespace init                                                |
-| F8 shape probe's `.root == $root` dropped                           | the shape-probe case (`another root` exited 0)                                         |
-| F9 shape probe's key-set check dropped                              | the shape-probe case (`an extra mode key` exited 0)                                    |
-| F10 audit timer `OnCalendar=weekly` → `daily`                       | the audit units case (template no longer equals the renderer)                          |
-| F11 pool root default renamed to `.../dash/pool`                    | the shim-paths, loader and watch unit cases, the namespace init                        |
-| F12 checkout probe's `installed=` line dropped                      | the checkout probe case                                                                |
-| F13 shape probe's mode and owner check dropped                      | the shape-probe case (the group-readable copy passed)                                  |
-| F14 a second module added to the linger task in `host-pool.yml`     | `ansible-playbook --syntax-check playbooks/gate-host.yml` rc 4, naming the task's line |
+| Fault                                                                  | Red                                                                                    |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| 6c-F1 `enrollmentId` line dropped from `host-pool.json.j2`             | the loader case, the shape-probe case, the namespace init                              |
+| 6c-F2 `KillMode=process` dropped from the watch unit                   | the watch unit case                                                                    |
+| 6c-F3 `Restart=on-failure` dropped from the watch unit                 | the watch unit case                                                                    |
+| 6c-F4 disk refusal `((avail >= need)) \|\| exit 75` replaced by `true` | the disk probe case                                                                    |
+| 6c-F5 linger probe's `&& [[ $linger == yes ]]` dropped                 | the linger case                                                                        |
+| 6c-F6 token probe's `rev-parse -q --verify HEAD` dropped               | the token unit case (the unborn tree passed)                                           |
+| 6c-F7 token command's commit dropped                                   | the token unit case, the namespace init                                                |
+| 6c-F8 shape probe's `.root == $root` dropped                           | the shape-probe case (`another root` exited 0)                                         |
+| 6c-F9 shape probe's key-set check dropped                              | the shape-probe case (`an extra mode key` exited 0)                                    |
+| 6c-F10 audit timer `OnCalendar=weekly` → `daily`                       | the audit units case (template no longer equals the renderer)                          |
+| 6c-F11 pool root default renamed to `.../dash/pool`                    | the shim-paths, loader and watch unit cases, the namespace init                        |
+| 6c-F12 checkout probe's `installed=` line dropped                      | the checkout probe case                                                                |
+| 6c-F13 shape probe's mode and owner check dropped                      | the shape-probe case (the group-readable copy passed)                                  |
+| 6c-F14 a second module added to the linger task in `host-pool.yml`     | `ansible-playbook --syntax-check playbooks/gate-host.yml` rc 4, naming the task's line |
 
 ### Review fixes (Fable, PR #819): commands and evaluator
 
@@ -2216,10 +2237,10 @@ exited 0 and printed `{"failures": 0}`. It ran 30 cases and 24 faults:
 | E6 skip line and `Inspect the host pool and audit …` (fake) | ledger: inspect then audit run, no skip line; none: skip line, nothing run; audit 1 refused  | either `when` removed                                          |
 | E7 `Require the pinned fields to equal the live …`          | `[]` passes; `["memoryGib"]` and a jq failure (rc 2, empty) refused                          | its one condition removed (both bad inputs through)            |
 
-| Fault                                                            | Red in `gate-host-pool.test.ts`                                      |
-| ---------------------------------------------------------------- | -------------------------------------------------------------------- |
-| F15 `memoryGib` dropped from the pinned-field probe's list       | `the pinned-field probe names a changed budget, never a value`       |
-| F16 audit template's `Documentation=` back to `<checkout>/docs/` | `every unit names documentation that exists …`, the audit units case |
+| Fault                                                               | Red in `gate-host-pool.test.ts`                                      |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| 6c-F15 `memoryGib` dropped from the pinned-field probe's list       | `the pinned-field probe names a changed budget, never a value`       |
+| 6c-F16 audit template's `Documentation=` back to `<checkout>/docs/` | `every unit names documentation that exists …`, the audit units case |
 
 Both were restored with their SHA-256 equal. The new probe case also shows that a changed
 headroom or inventory name is named (`["headroom"]`, `["enrollmentId"]`), that a changed
@@ -2273,20 +2294,21 @@ their outer namespace case, which fails if any inner case fails.
 | `bunx nx run-many -t typecheck lint -p twilight-dash --skip-nx-cache`                        | exit 0               |
 | `bunx prettier --check` on the changed files; `bunx openspec validate dash-host-jobs --json` | clean; passed 1 of 1 |
 
-| Fault                                                                   | Red                                                                                                                       |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| F17 `if (isMissing(cause)) return 'gone';` dropped from the cgroup read | `a process that exits after the scan listed it holds nothing` threw `cannot read the cgroup of uninspectable PID 3396337` |
+| Fault                                                                      | Red                                                                                                                       |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 6c-F17 `if (isMissing(cause)) return 'gone';` dropped from the cgroup read | `a process that exits after the scan listed it holds nothing` threw `cannot read the cgroup of uninspectable PID 3396337` |
 
 Restored with its SHA-256 equal. Not observed: separate negatives for the identity and session
 branches (S6C-A21).
 
 ### The leaving-process fix (S6C-A23): faults
 
-| Fault                                                                         | Red in `resource-holds.test.ts`                               |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| F18 `processGone`'s zombie and exit detection removed (`return false` past X) | `an unreaped zombie holds nothing`                            |
-| F19 its per-thread check replaced by `() => true`                             | `a group leader that exited beside a live thread still holds` |
-| F17 again, the cgroup ENOENT branch dropped                                   | `a process that exits after the scan listed it holds nothing` |
+| Fault                                                                | Red in `resource-holds.test.ts`                                    |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| 6c-F18 `taskLeaving` answers `'live'` for every state but `X`        | `an unreaped zombie holds nothing`                                 |
+| 6c-F19 `inspectionRoot` answers null (gone) for every leaving leader | `a group leader that exited beside a live thread still holds`      |
+| 6c-F17 again, the cgroup ENOENT branch dropped                       | `a process that exits after the scan listed it holds nothing`      |
+| 6c-F20 `inspectionRoot` answers the leaving leader's own path        | `leaving-holds.test.ts`: both cases (`cannot inspect process PID`) |
 
 Each was restored with its SHA-256 equal.
 
@@ -2297,6 +2319,24 @@ Fresh after the fix, with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`:
 - no-ambient-clock 2/0; gate-host-pool 12/0.
 - `launchers.test.ts`: 10/10 on each of three runs.
 - `nx run-many -t typecheck lint -p twilight-dash --skip-nx-cache`: exit 0.
+
+### Review P1–P5 of 63a070156: commands
+
+Fresh, with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`; namespaced suites count their outer
+case:
+
+- `resource-holds.test.ts`: 14/0 on each of three runs.
+- `leaving-holds.test.ts`: passes (its two cases run inside the namespace).
+- `host-job-holds` 6/0; `runtime` and `host-jobs` pass.
+- `no-ambient-clock` 2/0; `gate-host-pool` 12/0.
+- `launchers.test.ts`: 10/10 on each of three runs.
+- twilight-dash typecheck and lint (`--skip-nx-cache`): exit 0.
+- prettier: clean.
+- `openspec validate dash-host-jobs`: passed.
+- 6c-F17 to 6c-F20 were rerun against these files; each turned its test red and was restored with
+  its SHA-256 equal.
+- `zombieOf` now throws a named error when its parent printed no pid, or when the pid was reaped
+  before it became a zombie (review P5).
 
 ### Skipped and unverified
 

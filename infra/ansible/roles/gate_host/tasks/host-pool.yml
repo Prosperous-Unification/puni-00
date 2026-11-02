@@ -63,7 +63,7 @@
 # no half tree at the unit's path. An existing path must already be a clean tree with a commit:
 # anything else refuses 70 naming it, never repaired over (S6C-A6).
 # Proof: with the commit dropped, gate-host-pool.test.ts, which runs this exact argv twice and
-# against a broken unit, failed (verify.md Slice 6c, F7).
+# against a broken unit, failed (verify.md Slice 6c, 6c-F7).
 - name: Create the Dagger engine token unit
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:
@@ -138,7 +138,7 @@
 # template rewrites the live file (S6C-A15). The candidate goes in on stdin, never to disk, and
 # the probe prints only the names of differing fields, never a value.
 # Proof: with `memoryGib` dropped from the pinned list, gate-host-pool.test.ts's
-# `the pinned-field probe names a changed budget, never a value` failed (verify.md Slice 6c, F15).
+# `the pinned-field probe names a changed budget, never a value` failed (verify.md Slice 6c, 6c-F15).
 - name: Compare the pinned fields with the live configuration
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:

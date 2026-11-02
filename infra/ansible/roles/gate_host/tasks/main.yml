@@ -241,7 +241,7 @@
 # host whose checkouts all exist passes whatever its free space.
 # Proof: with `((avail >= need)) || exit 75` replaced by `true`, the low-space case of
 # gate-host-pool.test.ts, which runs this exact argv against a fake `df`, failed (verify.md
-# Slice 6c, F4).
+# Slice 6c, 6c-F4).
 - name: Measure free space for the gate checkouts still to clone
   tags: [gate_host]
   ansible.builtin.command:

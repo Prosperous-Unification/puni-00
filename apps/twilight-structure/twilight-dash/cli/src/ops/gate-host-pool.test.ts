@@ -181,7 +181,7 @@ function fakeOnPath(home: string, name: string, body: string): string {
 describe('the gate host role prepares the host pool (dash-host-jobs 6.3, 6.7)', () => {
   test('its pool paths are the ones the launcher shim hard-codes', () => {
     // Proof: renaming the root default to `.../dash/pool` failed this test (verify.md Slice 6c,
-    // F11).
+    // 6c-F11).
     const variables = roleDefaults();
     const library = join(REPOSITORY, 'bin/heavy-lock-lib.sh');
     const shim = run([
@@ -204,7 +204,7 @@ describe('the gate host role prepares the host pool (dash-host-jobs 6.3, 6.7)', 
     mkdirSync(join(home, '.local/share/dash/host-pool'), { recursive: true, mode: 0o700 });
     chmodSync(join(home, '.local/share/dash'), 0o700);
     // Proof: deleting the `enrollmentId` line from host-pool.json.j2 failed this load
-    // (verify.md Slice 6c, F1).
+    // (verify.md Slice 6c, 6c-F1).
     const configuration = loadResourceConfiguration(writeConfig(variables));
     expect(configuration.root).toBe(join(home, '.local/share/dash/host-pool'));
     expect(configuration.cpuCores).toBe(4);
@@ -221,7 +221,7 @@ describe('the gate host role prepares the host pool (dash-host-jobs 6.3, 6.7)', 
   });
 
   // Proof: dropping the probe's mode check, its key-set check or its root check failed this test
-  // (verify.md Slice 6c, F13, F9 and F8).
+  // (verify.md Slice 6c, 6c-F13, 6c-F9 and 6c-F8).
   test('the validate shape probe accepts the template and refuses each broken configuration', () => {
     const { home, variables } = enrolledHost();
     const config = writeConfig(variables);
@@ -265,7 +265,7 @@ describe('the gate host role prepares the host pool (dash-host-jobs 6.3, 6.7)', 
   });
 
   // Proof: with `memoryGib` dropped from the probe's pinned list, the budget case printed `[]`
-  // (verify.md Slice 6c, F15).
+  // (verify.md Slice 6c, 6c-F15).
   test('the pinned-field probe names a changed budget, never a value', () => {
     const { variables } = enrolledHost();
     const live = writeConfig(variables);
@@ -311,7 +311,7 @@ describe('the gate host role prepares the host pool (dash-host-jobs 6.3, 6.7)', 
   test('every unit names documentation that exists in the checkout', () => {
     const { home, variables } = enrolledHost();
     // Proof: the renderer's earlier `<checkout>/docs/resources.md` failed this (verify.md
-    // Slice 6c, F16).
+    // Slice 6c, 6c-F16).
     for (const unit of ['dash-job-audit.service', 'dash-resources-watch.service']) {
       const documentation = unitDirectives(renderTemplate(unit, variables)).get(
         'Unit.Documentation',
@@ -333,7 +333,7 @@ describe('the gate host role prepares the host pool (dash-host-jobs 6.3, 6.7)', 
       checkout: renderRole('{{ puni_gate_launcher_checkout }}', variables),
     };
     // Proof: changing the template's `OnCalendar=weekly` to `daily` failed this test
-    // (verify.md Slice 6c, F10).
+    // (verify.md Slice 6c, 6c-F10).
     expect(renderTemplate('dash-job-audit.service', variables)).toBe(
       renderAuditUnits(paths).service,
     );
@@ -344,7 +344,7 @@ describe('the gate host role prepares the host pool (dash-host-jobs 6.3, 6.7)', 
     const { home, variables } = enrolledHost();
     const unit = unitDirectives(renderTemplate('dash-resources-watch.service', variables));
     // Proof: deleting `KillMode=process` or `Restart=on-failure` from the template failed this
-    // test (verify.md Slice 6c, F2 and F3).
+    // test (verify.md Slice 6c, 6c-F2 and 6c-F3).
     expect(unit.get('Service.KillMode')).toEqual(['process']);
     expect(unit.get('Service.Restart')).toEqual(['on-failure']);
     expect(unit.get('Service.RestartSec')).toEqual(['30']);
@@ -382,7 +382,7 @@ describe('the gate host role prepares the host pool (dash-host-jobs 6.3, 6.7)', 
       fakeOnPath(home, 'df', `printf '     Avail\\n%s\\n' '${bytes}'`);
     // Three checkouts missing: 3 × 5 GiB + 10 GiB = 26843545600 bytes needed.
     // Proof: replacing `((avail >= need)) || exit 75` with `true` failed this test (verify.md
-    // Slice 6c, F4).
+    // Slice 6c, 6c-F4).
     const low = run(argv, { PATH: freeBytes('7516192768') });
     expect(low.exitCode).toBe(75);
     expect(low.stdout).toContain('clones=3 avail=7516192768 need=26843545600');
@@ -418,7 +418,7 @@ describe('the gate host role prepares the host pool (dash-host-jobs 6.3, 6.7)', 
     expect(refused.stderr).toContain(`token unit ${unit} exists but is not a clean Git tree`);
     // A tree with no commit has no resting commit to settle back to.
     // Proof: dropping the `rev-parse -q --verify HEAD` condition from the validate probe, or the
-    // token command's commit, failed this test (verify.md Slice 6c, F6 and F7).
+    // token command's commit, failed this test (verify.md Slice 6c, 6c-F6 and 6c-F7).
     rmSync(unit, { recursive: true });
     expect(run(['git', 'init', '-q', unit], git).exitCode).toBe(0);
     expect(run(read, git).exitCode).not.toBe(0);
@@ -431,7 +431,7 @@ describe('the gate host role prepares the host pool (dash-host-jobs 6.3, 6.7)', 
       renderRole(word, variables),
     );
     const linger = (body: string) => ({ PATH: fakeOnPath(home, 'loginctl', body) });
-    // Proof: dropping `&& [[ $linger == yes ]]` failed this test (verify.md Slice 6c, F5).
+    // Proof: dropping `&& [[ $linger == yes ]]` failed this test (verify.md Slice 6c, 6c-F5).
     expect(
       run(argv, linger(`[ "$*" = 'show-user puni1 --property=Linger --value' ] && echo yes`)),
     ).toEqual({ exitCode: 0, stdout: 'Linger=yes\n', stderr: '' });
@@ -439,7 +439,7 @@ describe('the gate host role prepares the host pool (dash-host-jobs 6.3, 6.7)', 
     expect(run(argv, linger('exit 1')).exitCode).not.toBe(0);
   });
 
-  // Proof: dropping the `installed=` line from the probe failed this test (verify.md Slice 6c, F12).
+  // Proof: dropping the `installed=` line from the probe failed this test (verify.md Slice 6c, 6c-F12).
   test('the checkout probe reads a clone without its frozen install as not installed', () => {
     const { home, variables } = enrolledHost();
     const argv = roleTask('validate.yml', "Read the gate checkouts' state");

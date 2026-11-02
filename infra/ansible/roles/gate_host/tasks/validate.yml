@@ -149,7 +149,7 @@
     label: '{{ item.item }}'
   # Proof (Docker lab, 2026-10-21): one untracked file in the tree failed this with `dirty=1`.
   # Proof: with the `installed=` line dropped, gate-host-pool.test.ts, which runs the probe's
-  # exact argv on a fixture clone without node_modules, failed (verify.md Slice 6c, F12).
+  # exact argv on a fixture clone without node_modules, failed (verify.md Slice 6c, 6c-F12).
 
 - name: Use Docker as the gate account
   become_user: '{{ puni_gate_user }}'
@@ -207,7 +207,7 @@
 # The host pool (task 6.3). Linger is read as root: `loginctl` answers for any account.
 # Proof: with `&& [[ $linger == yes ]]` dropped, gate-host-pool.test.ts, which runs this exact
 # argv against fake `loginctl`s printing `yes`, printing `no` and failing, failed (verify.md
-# Slice 6c, F5).
+# Slice 6c, 6c-F5).
 - name: Require linger for the gate account
   ansible.builtin.command:
     argv:
@@ -227,7 +227,7 @@
 
 # A unit with no commit has no resting commit to settle back to.
 # Proof: with the HEAD check dropped, the unborn-tree case of gate-host-pool.test.ts failed
-# (verify.md Slice 6c, F6).
+# (verify.md Slice 6c, 6c-F6).
 - name: Read the token unit
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:
@@ -293,7 +293,7 @@
 # Proof: gate-host-pool.test.ts runs this exact argv against the rendered template and against
 # broken copies (group-readable, no `enrollmentId`, an extra key, another root, one gate tree, a
 # string budget, no launcher checkout, not JSON); dropping the mode, key-set or root check each
-# failed it (verify.md Slice 6c, F13, F9, F8).
+# failed it (verify.md Slice 6c, 6c-F13, 6c-F9, 6c-F8).
 - name: Require the host pool configuration of an enrolled host
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:

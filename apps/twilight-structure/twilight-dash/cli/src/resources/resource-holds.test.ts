@@ -88,7 +88,7 @@ describe('a vanished uninspectable process (slice 6c, J19)', () => {
     const child = Bun.spawn(['true']);
     await child.exited;
     // Proof: without the ENOENT branch on the cgroup read this threw `cannot read the cgroup of
-    // uninspectable PID` (verify.md Slice 6c, F17).
+    // uninspectable PID` (verify.md Slice 6c, 6c-F17).
     expect(outsideScope(String(child.pid), vanishedScope([]))).toBe('gone');
     expect(outsideScope(String(child.pid), vanishedScope([String(process.pid)]))).toBe('gone');
     // A live process is still decided: this one, in its own cgroup, did not start before itself.
@@ -102,8 +102,18 @@ describe('a vanished uninspectable process (slice 6c, J19)', () => {
     const first = await reader.read();
     reader.releaseLock();
     const pid = new TextDecoder().decode(first.value).trim().split('\n')[0] ?? '';
+    if (!/^\d+$/.test(pid)) {
+      parent.kill();
+      throw new Error(`the zombie's parent printed no pid: ${JSON.stringify(pid)}`);
+    }
     for (let attempt = 0; attempt < 100; attempt += 1) {
-      const state = readFileSync(`/proc/${pid}/stat`, 'utf8');
+      let state: string;
+      try {
+        state = readFileSync(`/proc/${pid}/stat`, 'utf8');
+      } catch (cause) {
+        parent.kill();
+        throw new Error(`PID ${pid} never became a zombie: it was reaped or vanished`, { cause });
+      }
       if (state.slice(state.lastIndexOf(')') + 2).startsWith('Z ')) return { parent, pid };
       await Bun.sleep(20);
     }
