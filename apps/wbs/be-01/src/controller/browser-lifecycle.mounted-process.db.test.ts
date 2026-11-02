@@ -752,3 +752,83 @@ for (const nextSecret of ['same', 'rotated'] as const) {
     }, 20_000);
   }
 }
+
+test('reset leaves durable sessions and revocations unchanged', async () => {
+  dir = mkdtempSync(join(tmpdir(), 'wbs-mounted-reset-'));
+  const path = join(dir, 'shared.db');
+  runMigrations(path, migrations);
+  const sqlite = openDatabase(path);
+  try {
+    seedAccounts(sqlite);
+    const access = await signed('ada');
+    const credential = oidcCredential(access);
+    await withLifecycle(path, (lifecycle) =>
+      lifecycle.open('reset-correlation', credential, { openedAt: 1, reauthenticatedAt: null }),
+    );
+    await withLifecycle(path, async (lifecycle) => {
+      const closed = oidcCredential(await signed('bob'), 'bob');
+      await lifecycle.open('closed-correlation', closed, {
+        openedAt: 1,
+        reauthenticatedAt: null,
+      });
+      await lifecycle.close('closed-correlation', { kind: 'oidc', digest: closed.digest }, 2);
+    });
+    const worker = await openWorker(path);
+    await worker.send({
+      kind: 'seed',
+      correlation: 'reset-correlation',
+      refreshToken: 'refresh',
+      userId: 'ada',
+      generation: 1,
+      credential,
+    });
+    const snapshot = () => ({
+      lifecycles: sqlite
+        .query('SELECT * FROM browser_auth_lifecycle ORDER BY session_digest')
+        .all(),
+      associations: sqlite
+        .query('SELECT * FROM browser_auth_association ORDER BY session_digest, generation')
+        .all(),
+      revocations: sqlite
+        .query('SELECT * FROM browser_credential_revocations ORDER BY credential_digest')
+        .all(),
+    });
+    const before = snapshot();
+    expect(before.lifecycles.length).toBeGreaterThan(0);
+    expect(before.associations.length).toBeGreaterThan(0);
+    expect(before.revocations.length).toBeGreaterThan(0);
+    const response = await worker.send({
+      kind: 'request',
+      method: 'POST',
+      path: '/api/auth/reset',
+      headers: {
+        origin,
+        cookie: `__Host-wbs_access=${access}; __Host-wbs_session=reset-correlation; __Host-wbs_organization=old`,
+      },
+    });
+    expect(response).toMatchObject({
+      status: 204,
+      body: null,
+      providerCalls: 0,
+      providerRevokes: 0,
+    });
+    expect(snapshot()).toEqual(before);
+    expect(
+      (await withLifecycle(path, (lifecycle) => lifecycle.generation('reset-correlation')))
+        .generation,
+    ).toBe(1);
+    const refreshed = await worker.send({
+      kind: 'request',
+      method: 'POST',
+      path: '/api/auth/refresh',
+      headers: {
+        origin,
+        cookie: `__Host-wbs_access=${access}; __Host-wbs_session=reset-correlation`,
+      },
+    });
+    // Refresh reaches the unconfigured provider because reset preserved its refresh record.
+    expect(refreshed).toMatchObject({ status: 500, providerCalls: 1, providerRevokes: 0 });
+  } finally {
+    sqlite.close();
+  }
+}, 30_000);

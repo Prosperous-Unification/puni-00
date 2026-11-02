@@ -19,6 +19,7 @@ import {
   readPasswordSession,
   registerPassword,
 } from './auth-password-shapes';
+import { resetBrowserSession } from './auth-reset-shapes';
 import { readBudgetHeadroom } from './budget-headroom-shapes';
 import {
   createCalendarMarker,
@@ -196,6 +197,7 @@ const ordinaryHttpShapes = [
   registerPassword,
   loginPassword,
   readPasswordSession,
+  resetBrowserSession,
   issueBearerContext,
   listAuthMethods,
   startOidcLogin,
