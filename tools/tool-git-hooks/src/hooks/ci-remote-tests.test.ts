@@ -3187,3 +3187,412 @@ test('graph source STOP and elapsed allocation prevent the next fixture and exac
     expect(invocation.stderr.toString()).not.toContain('scratch cleanup source=afterAll event=');
   }
 });
+
+type GraphBookkeepingField = 'retirement' | 'packet' | 'stop';
+
+/** Selects the real known-infrastructure branch; its carrier observes rejection before any outer catch. */
+async function graphBookkeepingSource() {
+  const extracted = await graphPlacementSource();
+  const ts = await import('typescript');
+  const { createHash } = await import('node:crypto');
+  const source = readFileSync(join(ROOT, GRAPH_PLACEMENT_SOURCE), 'utf8');
+  const digest = (text: string) => createHash('sha256').update(text).digest('hex');
+  expect(digest(source)).toBe(extracted.sourceSHA256);
+  const parsed = ts.createSourceFile(GRAPH_PLACEMENT_SOURCE, source, ts.ScriptTarget.Latest, true);
+  const selections: { name: string; start: number; end: number; sha256: string }[] = [];
+  function retain(name: string, node: Node) {
+    const start = node.getStart(parsed),
+      end = node.end;
+    const text = source.slice(start, end);
+    selections.push({ name, start, end, sha256: digest(text) });
+    return { start, end, text };
+  }
+  function select(name: string, kind: 'function' | 'variable') {
+    const matches = parsed.statements.filter((node) =>
+      kind === 'function'
+        ? ts.isFunctionDeclaration(node) && node.name?.text === name
+        : ts.isVariableStatement(node) &&
+          node.declarationList.declarations.some(
+            (declaration) => ts.isIdentifier(declaration.name) && declaration.name.text === name,
+          ),
+    );
+    expect(matches).toHaveLength(1);
+    const selected = matches.at(0);
+    if (selected === undefined) throw new Error('Actual bookkeeping source absent: ' + name);
+    return { node: selected, ...retain(name, selected) };
+  }
+  const owner = select('closeSettlementOwner', 'variable');
+  const stop = select('stopCloseSettlement', 'function');
+  const hold = select('holdCloseSettlement', 'function');
+  for (const selected of [owner, stop, hold])
+    expect(extracted.bindings.filter((binding) => binding === selected.text)).toHaveLength(1);
+  const settlement = select('runCloseSettlement', 'function');
+  if (!ts.isFunctionDeclaration(settlement.node) || settlement.node.body === undefined)
+    throw new Error('Actual settlement function body absent');
+  const branches: Node[] = [];
+  function visit(node: Node): void {
+    if (
+      ts.isIfStatement(node) &&
+      ts.isBlock(node.thenStatement) &&
+      node.thenStatement.statements.some((statement) => {
+        if (!ts.isVariableStatement(statement)) return false;
+        return statement.declarationList.declarations.some((declaration) => {
+          const initializer = declaration.initializer;
+          const message =
+            initializer !== undefined && ts.isNewExpression(initializer)
+              ? initializer.arguments?.at(0)
+              : undefined;
+          return (
+            ts.isIdentifier(declaration.name) &&
+            declaration.name.text === 'cause' &&
+            initializer !== undefined &&
+            ts.isNewExpression(initializer) &&
+            ts.isIdentifier(initializer.expression) &&
+            initializer.expression.text === 'Error' &&
+            initializer.arguments?.length === 1 &&
+            message !== undefined &&
+            ts.isStringLiteral(message) &&
+            message.text === 'UC1 helper infrastructure refusal after known fixture retirement'
+          );
+        });
+      })
+    )
+      branches.push(node);
+    ts.forEachChild(node, visit);
+  }
+  visit(settlement.node);
+  expect(branches).toHaveLength(1);
+  const selected = branches.at(0);
+  if (selected === undefined || !ts.isIfStatement(selected) || !ts.isBlock(selected.thenStatement))
+    throw new Error('Actual known-infrastructure branch absent');
+  const branch = retain('runCloseSettlement.known-infrastructure', selected);
+  function ownerMember(node: Node, member: string): boolean {
+    return (
+      ts.isPropertyAccessExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'closeSettlementOwner' &&
+      node.name.text === member
+    );
+  }
+  const targets = new Map<GraphBookkeepingField, Node[]>();
+  for (const field of ['retirement', 'packet', 'stop'] as const) targets.set(field, []);
+  function selectTarget(field: GraphBookkeepingField, statement: Node): void {
+    const matches = targets.get(field);
+    if (matches === undefined) throw new Error('Actual bookkeeping target roster absent');
+    matches.push(statement);
+  }
+  for (const statement of selected.thenStatement.statements) {
+    if (!ts.isExpressionStatement(statement) || !ts.isCallExpression(statement.expression))
+      continue;
+    const call = statement.expression;
+    const first = call.arguments.at(0),
+      second = call.arguments.at(1);
+    if (
+      ts.isPropertyAccessExpression(call.expression) &&
+      call.expression.name.text === 'splice' &&
+      ownerMember(call.expression.expression, 'active') &&
+      call.arguments.length === 2 &&
+      first !== undefined &&
+      ts.isIdentifier(first) &&
+      first.text === 'index' &&
+      second !== undefined &&
+      ts.isNumericLiteral(second) &&
+      second.text === '1'
+    )
+      selectTarget('retirement', statement);
+    if (
+      ts.isPropertyAccessExpression(call.expression) &&
+      call.expression.name.text === 'push' &&
+      ownerMember(call.expression.expression, 'failures') &&
+      call.arguments.length === 1 &&
+      first !== undefined &&
+      ts.isCallExpression(first) &&
+      first.arguments.length === 1 &&
+      ts.isPropertyAccessExpression(first.expression) &&
+      ts.isIdentifier(first.expression.expression) &&
+      first.expression.expression.text === 'Object' &&
+      first.expression.name.text === 'freeze'
+    ) {
+      const packet = first.arguments.at(0);
+      if (packet === undefined || !ts.isObjectLiteralExpression(packet))
+        throw new Error('Actual known-failed frozen packet absent');
+      const properties = packet.properties.map((property) => {
+        if (ts.isShorthandPropertyAssignment(property))
+          return [property.name.text, property.name.text];
+        if (!ts.isPropertyAssignment(property) || !ts.isIdentifier(property.name))
+          throw new Error('Actual known-failed packet property differs');
+        return [property.name.text, property.initializer.getText(parsed)];
+      });
+      expect(properties).toEqual([
+        ['cause', 'cause'],
+        ['original', 'retained'],
+        ['stdout', 'stdout'],
+        ['stderr', 'stderr'],
+        ['outcomes', 'retained.outcomes'],
+        ['native', 'native'],
+        ['stdoutOutput', 'out.value'],
+        ['stderrOutput', 'err.value'],
+      ]);
+      selectTarget('packet', statement);
+    }
+    if (
+      ts.isIdentifier(call.expression) &&
+      call.expression.text === 'stopCloseSettlement' &&
+      call.arguments.length === 2 &&
+      first !== undefined &&
+      ts.isIdentifier(first) &&
+      first.text === 'cause' &&
+      second?.kind === ts.SyntaxKind.FalseKeyword
+    )
+      selectTarget('stop', statement);
+  }
+  const flags = selected.thenStatement.statements.filter(
+    (statement) =>
+      ts.isExpressionStatement(statement) &&
+      ts.isBinaryExpression(statement.expression) &&
+      statement.expression.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(statement.expression.left) &&
+      statement.expression.left.text === 'isKnownInfrastructureRefusal' &&
+      statement.expression.right.kind === ts.SyntaxKind.TrueKeyword,
+  );
+  const throws = selected.thenStatement.statements.filter(
+    (statement) =>
+      ts.isThrowStatement(statement) &&
+      ts.isIdentifier(statement.expression) &&
+      statement.expression.text === 'cause',
+  );
+  expect(flags).toHaveLength(1);
+  expect(throws).toHaveLength(1);
+  const omissions = new Map<GraphBookkeepingField, string>();
+  for (const field of ['retirement', 'packet', 'stop'] as const) {
+    const matches = targets.get(field);
+    if (matches === undefined) throw new Error('Actual bookkeeping target roster absent');
+    expect(matches).toHaveLength(1);
+    const target = matches.at(0);
+    if (target === undefined) throw new Error('Actual bookkeeping target absent: ' + field);
+    const retained = retain('known-infrastructure.' + field, target);
+    omissions.set(
+      field,
+      branch.text.slice(0, retained.start - branch.start) +
+        branch.text.slice(retained.end - branch.start),
+    );
+  }
+  return {
+    sourceSHA256: extracted.sourceSHA256,
+    selections,
+    bindings: [owner.text, stop.text, hold.text],
+    branch: branch.text,
+    omissions,
+  };
+}
+
+function graphBookkeepingFixture(
+  source: Awaited<ReturnType<typeof graphBookkeepingSource>>,
+  field: GraphBookkeepingField,
+  omitted: boolean,
+) {
+  const root = scratchSync('graph-known-nonzero-bookkeeping-');
+  const branch = omitted ? source.omissions.get(field) : source.branch;
+  if (branch === undefined) throw new Error('Actual bookkeeping omission absent');
+  const binding = {
+    sourceSHA256: source.sourceSHA256,
+    selections: source.selections,
+    field,
+    omitted,
+  };
+  const image = `
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {test} from 'bun:test';
+const modeledTimers=[];
+function setInterval(callback,delay){const timer={kind:'modeled-interval',callback,delay,cleared:false};modeledTimers.push(timer);return timer;}
+function clearInterval(timer){assert(modeledTimers.includes(timer),'foreign modeled timer');timer.cleared=true;}
+${source.bindings.join('\n')}
+const stdoutBytes=Buffer.from('modeled known-nonzero stdout bytes\\n');
+const stderrBytes=Buffer.from('modeled known-nonzero stderr bytes\\n');
+function capture(bytes){return Object.freeze({bytes:bytes.byteLength,sha256:createHash('sha256').update(bytes).digest('hex'),base64:bytes.toString('base64'),overflow:false});}
+const stdoutOutput=capture(stdoutBytes),stderrOutput=capture(stderrBytes);
+const originalExit=Promise.resolve(1);
+const originalStdout=Promise.resolve(stdoutOutput),originalStderr=Promise.resolve(stderrOutput);
+const originalStdoutClosed=Promise.resolve(undefined),originalStderrClosed=Promise.resolve(undefined);
+const originalPromises=[originalExit,originalStdout,originalStderr,originalStdoutClosed,originalStderrClosed];
+assert.equal(new Set(originalPromises).size,5,'modeled original Promise identity reused');
+assert.notEqual(stdoutOutput,stderrOutput,'modeled outputs share identity');
+const stdoutStream=Object.freeze({kind:'modeled-stdout-stream'}),stderrStream=Object.freeze({kind:'modeled-stderr-stream'});
+const stdoutReader=Object.freeze({kind:'modeled-stdout-reader',closed:originalStdoutClosed}),stderrReader=Object.freeze({kind:'modeled-stderr-reader',closed:originalStderrClosed});
+const stdout={stream:stdoutStream,reader:stdoutReader,closed:originalStdoutClosed,settled:originalStdout,eof:false,closedKnown:false,failure:undefined};
+const stderr={stream:stderrStream,reader:stderrReader,closed:originalStderrClosed,settled:originalStderr,eof:false,closedKnown:false,failure:undefined};
+const child=Object.freeze({kind:'modeled-child',exitCode:1,signalCode:null,exited:originalExit,stdout:stdoutStream,stderr:stderrStream});
+const outcomes=await Promise.allSettled([originalExit,originalStdout,originalStderr]);
+await originalStdoutClosed;stdout.closedKnown=true;stdout.eof=true;
+await originalStderrClosed;stderr.closedKnown=true;stderr.eof=true;
+const termination=outcomes[0],out=outcomes[1],err=outcomes[2];
+assert.equal(termination.status,'fulfilled');assert.equal(out.status,'fulfilled');assert.equal(err.status,'fulfilled');
+assert.equal(termination.value,1);assert.equal(out.value,stdoutOutput);assert.equal(err.value,stderrOutput);
+const resource=Object.freeze({kind:'modeled-resource'}),caller=Object.freeze({kind:'modeled-caller'});
+const native=Object.freeze({kind:'modeled-native-ledger',resources:Object.freeze([resource]),streams:Object.freeze([]),callers:Object.freeze([caller])});
+const retained={child,scenario:'file-before',helperSHA256:'modeled-helper-not-executed',bundleSHA256:'modeled-bundle-not-built',exit:originalExit,referenced:true,stdout,stderr,setupFailures:[],outcomes,accepted:false};
+closeSettlementOwner.active.push(retained);
+let isKnownInfrastructureRefusal=false,carrierCalls=0,caught;
+function rejectAtModeledRunCloseSettlementBoundary(){carrierCalls++;${branch}}
+try{rejectAtModeledRunCloseSettlementBoundary();throw new Error('modeled actual branch did not reject');}
+catch(cause){caught=cause;}
+const boundary=Object.freeze({cause:caught,owner:closeSettlementOwner,retained,child,stdout,stderr,outcomes,native,stdoutOutput,stderrOutput,originalPromises});
+function packets(){return closeSettlementOwner.failures.filter(failure=>failure!==null&&typeof failure==='object'&&'original'in failure&&failure.original===retained);}
+function packetReferencesMatch(packet){return packet!==undefined&&Object.isFrozen(packet)&&packet.cause===caught&&packet.original===retained&&packet.original.child===child&&packet.stdout===stdout&&packet.stderr===stderr&&packet.outcomes===outcomes&&packet.native===native&&packet.stdoutOutput===stdoutOutput&&packet.stderrOutput===stderrOutput;}
+function originalReferencesMatch(){return boundary.owner===closeSettlementOwner&&boundary.cause===caught&&boundary.retained===retained&&boundary.originalPromises===originalPromises&&originalPromises[0]===originalExit&&originalPromises[1]===originalStdout&&originalPromises[2]===originalStderr&&originalPromises[3]===originalStdoutClosed&&originalPromises[4]===originalStderrClosed&&retained.child===child&&retained.exit===originalExit&&child.exited===originalExit&&retained.stdout===stdout&&retained.stderr===stderr&&retained.outcomes===outcomes&&stdout.reader===stdoutReader&&stderr.reader===stderrReader&&stdoutReader.closed===originalStdoutClosed&&stderrReader.closed===originalStderrClosed&&stdout.stream===child.stdout&&stderr.stream===child.stderr&&stdout.closed===originalStdoutClosed&&stderr.closed===originalStderrClosed&&stdout.settled===originalStdout&&stderr.settled===originalStderr&&outcomes[1].value===stdoutOutput&&outcomes[2].value===stderrOutput;}
+const packetRoster=packets();
+const observation={modeled:true,boundary:'runCloseSettlement rejection before outer preflight catch',carrierCalls,
+  caughtName:caught?.name,caughtMessage:caught?.message,isKnownInfrastructureRefusal,
+  originalReferencesMatch:originalReferencesMatch(),originalPromiseCount:originalPromises.length,originalPromiseUniqueCount:new Set(originalPromises).size,
+  originalPromisesJoined:termination.status==='fulfilled'&&out.status==='fulfilled'&&err.status==='fulfilled'&&stdout.closedKnown&&stderr.closedKnown,
+  active:closeSettlementOwner.active.length,sameActiveOriginal:closeSettlementOwner.active.length===1&&closeSettlementOwner.active[0]===retained,
+  packetCount:packetRoster.length,packetReferencesMatch:packetReferencesMatch(packetRoster[0]),
+  causeRetained:closeSettlementOwner.failures.includes(caught)||packetRoster.some(packet=>packet.cause===caught),
+  completed:closeSettlementOwner.completed.length,accepted:retained.accepted,stopped:closeSettlementOwner.stopped,uncertain:closeSettlementOwner.uncertain,
+  keeperRequests:modeledTimers.length,sameKeeper:modeledTimers.length===1&&closeSettlementOwner.keeper===modeledTimers[0],
+  keeperDelayMs:modeledTimers[0]?.delay,keeperCleared:modeledTimers[0]?.cleared,
+  stdoutOutput,stderrOutput,modeledLedger:native};
+process.stderr.write('GRAPH_BOOKKEEPING_SOURCE:'+JSON.stringify(${JSON.stringify(binding)})+'\\n');
+process.stderr.write('GRAPH_BOOKKEEPING_MODELED:'+JSON.stringify(observation)+'\\n');
+function consumeKnownFailure(){
+  assert(caught instanceof Error,'modeled actual branch did not throw original Error');
+  assert.equal(caught.message,'UC1 helper infrastructure refusal after known fixture retirement');
+  assert.equal(carrierCalls,1);assert.equal(isKnownInfrastructureRefusal,true);
+  assert.equal(originalReferencesMatch(),true,'modeled original references changed');
+  assert.equal(child.exitCode,1);assert.equal(child.signalCode,null);
+  assert.equal(stdout.eof,true);assert.equal(stderr.eof,true);assert.equal(stdout.closedKnown,true);assert.equal(stderr.closedKnown,true);
+  assert.equal(stdout.failure,undefined);assert.equal(stderr.failure,undefined);
+  assert.equal(stdoutOutput.overflow,false);assert.equal(stderrOutput.overflow,false);
+  assert.equal(new Set(originalPromises).size,5);assert.equal(observation.originalPromisesJoined,true);
+  assert.equal(boundary.cause,caught);assert.equal(boundary.outcomes,outcomes);assert.equal(boundary.native,native);
+  assert(Object.isFrozen(stdoutOutput)&&Object.isFrozen(stderrOutput));
+  assert(Buffer.from(stdoutOutput.base64,'base64').equals(stdoutBytes));
+  assert(Buffer.from(stderrOutput.base64,'base64').equals(stderrBytes));
+  assert.equal(stdoutOutput.bytes,stdoutBytes.byteLength);assert.equal(stderrOutput.bytes,stderrBytes.byteLength);
+  assert.equal(stdoutOutput.sha256,createHash('sha256').update(stdoutBytes).digest('hex'));
+  assert.equal(stderrOutput.sha256,createHash('sha256').update(stderrBytes).digest('hex'));
+  assert.equal(native.resources[0],resource);assert.equal(native.callers[0],caller);
+  assert.equal(closeSettlementOwner.completed.length,0);assert.equal(retained.accepted,false);assert.equal(closeSettlementOwner.uncertain,false);
+  if(closeSettlementOwner.active.length!==0)throw new Error('Graph known-nonzero bookkeeping retained active original');
+  const observed=packets();
+  if(observed.length!==1||!packetReferencesMatch(observed[0]))throw new Error('Graph known-nonzero bookkeeping lost original failure packet');
+  if(!closeSettlementOwner.stopped)throw new Error('Graph known-nonzero bookkeeping lost STOP');
+}
+test('modeled known-nonzero bookkeeping retains the original failure state',consumeKnownFailure);
+`;
+  write(root, 'bunfig.toml', '[test]\n');
+  write(root, GRAPH_PLACEMENT_SOURCE, image);
+  return { root, image, binding };
+}
+
+function graphBookkeepingObservation(invocation: ReturnType<typeof invokeGraphPlacement>) {
+  const lines = invocation.stderr
+    .toString()
+    .split('\n')
+    .filter((line) => line.startsWith('GRAPH_BOOKKEEPING_MODELED:'));
+  expect(lines).toHaveLength(1);
+  const line = lines.at(0);
+  if (line === undefined) throw new Error('Modeled bookkeeping rejection observation absent');
+  const observed: unknown = JSON.parse(line.slice('GRAPH_BOOKKEEPING_MODELED:'.length));
+  if (observed === null || typeof observed !== 'object' || Array.isArray(observed))
+    throw new Error('Modeled bookkeeping rejection observation malformed');
+  return observed;
+}
+
+test('graph source known-nonzero bookkeeping retains modeled originals and exact statement omissions break it', async () => {
+  const source = await graphBookkeepingSource();
+  const steps = [
+    ['retirement', false],
+    ['retirement', true],
+    ['retirement', false],
+    ['packet', false],
+    ['packet', true],
+    ['packet', false],
+    ['stop', false],
+    ['stop', true],
+    ['stop', false],
+  ] as const;
+  const messages = {
+    retirement: 'Graph known-nonzero bookkeeping retained active original',
+    packet: 'Graph known-nonzero bookkeeping lost original failure packet',
+    stop: 'Graph known-nonzero bookkeeping lost STOP',
+  } as const;
+  const originals = new Map<GraphBookkeepingField, string>();
+  for (const [field, omitted] of steps) {
+    const fixture = graphBookkeepingFixture(source, field, omitted);
+    if (!omitted) {
+      const original = originals.get(field);
+      if (original === undefined) originals.set(field, fixture.image);
+      else expect(fixture.image).toBe(original);
+    }
+    const invocation = invokeGraphPlacement(fixture.root);
+    console.log(
+      'GRAPH_BOOKKEEPING_DIAGNOSTIC:' +
+        JSON.stringify({
+          field,
+          omitted,
+          binding: fixture.binding,
+          exitCode: invocation.exitCode,
+          signalCode: invocation.signalCode,
+          stdoutBase64: invocation.stdout.toString('base64'),
+          stderrBase64: invocation.stderr.toString('base64'),
+        }),
+    );
+    expect(invocation.signalCode, invocation.stderr.toString()).toBeUndefined();
+    const bindingLines = invocation.stderr
+      .toString()
+      .split('\n')
+      .filter((line) => line.startsWith('GRAPH_BOOKKEEPING_SOURCE:'));
+    expect(bindingLines).toHaveLength(1);
+    const bindingLine = bindingLines.at(0);
+    if (bindingLine === undefined) throw new Error('Actual bookkeeping source binding absent');
+    const observedBinding: unknown = JSON.parse(
+      bindingLine.slice('GRAPH_BOOKKEEPING_SOURCE:'.length),
+    );
+    expect(observedBinding).toEqual(fixture.binding);
+    const observed = graphBookkeepingObservation(invocation);
+    expect(observed).toMatchObject({
+      modeled: true,
+      boundary: 'runCloseSettlement rejection before outer preflight catch',
+      carrierCalls: 1,
+      caughtName: 'Error',
+      caughtMessage: 'UC1 helper infrastructure refusal after known fixture retirement',
+      isKnownInfrastructureRefusal: true,
+      originalReferencesMatch: true,
+      originalPromiseCount: 5,
+      originalPromiseUniqueCount: 5,
+      originalPromisesJoined: true,
+      completed: 0,
+      accepted: false,
+      uncertain: false,
+      causeRetained: true,
+      active: omitted && field === 'retirement' ? 1 : 0,
+      sameActiveOriginal: omitted && field === 'retirement',
+      packetCount: omitted && field === 'packet' ? 0 : 1,
+      packetReferencesMatch: !(omitted && field === 'packet'),
+      stopped: !(omitted && field === 'stop'),
+      keeperRequests: omitted && field === 'retirement' ? 1 : 0,
+      sameKeeper: omitted && field === 'retirement',
+    });
+    if (omitted && field === 'retirement')
+      expect(observed).toMatchObject({ keeperDelayMs: 30000, keeperCleared: false });
+    expect(invocation.exitCode, invocation.stderr.toString()).toBe(omitted ? 1 : 0);
+    expect(invocation.stderr.toString()).toContain('Ran 1 test across 1 file.');
+    if (omitted) {
+      expect(invocation.stderr.toString()).toContain('0 pass');
+      expect(invocation.stderr.toString()).toContain('1 fail');
+      expect(invocation.stderr.toString()).toContain('error: ' + messages[field]);
+    } else {
+      expect(invocation.stderr.toString()).toContain('1 pass');
+      expect(invocation.stderr.toString()).toContain('0 fail');
+    }
+    for (const forbidden of [
+      'FIXTURE_NATIVE:',
+      'FIXTURE_CLEANUP:',
+      'CLOSE_HELPER_DIAGNOSTIC:',
+      'scratch cleanup source=afterAll event=',
+    ])
+      expect(invocation.stderr.toString()).not.toContain(forbidden);
+  }
+});
