@@ -2270,3 +2270,277 @@ test('graph source preflight defers actual scratch hook until modeled joins and 
     }
   }
 });
+
+/** Selects the actual admission callsite and exact full-census assertion without importing Graph. */
+async function graphGateSource() {
+  const extracted = await graphPlacementSource();
+  const ts = await import('typescript');
+  const { createHash } = await import('node:crypto');
+  const source = readFileSync(join(ROOT, GRAPH_PLACEMENT_SOURCE), 'utf8');
+  const digest = (text: string) => createHash('sha256').update(text).digest('hex');
+  expect(digest(source)).toBe(extracted.sourceSHA256);
+  const parsed = ts.createSourceFile(GRAPH_PLACEMENT_SOURCE, source, ts.ScriptTarget.Latest, true);
+  const selections = [...extracted.selections];
+  function retain(name: string, node: Node) {
+    const start = node.getStart(parsed);
+    const end = node.end;
+    const text = source.slice(start, end);
+    selections.push({ name, start, end, sha256: digest(text) });
+    return { start, end, text };
+  }
+  function variable(name: string) {
+    const matches = parsed.statements.filter(
+      (statement) =>
+        ts.isVariableStatement(statement) &&
+        statement.declarationList.declarations.some(
+          (declaration) => ts.isIdentifier(declaration.name) && declaration.name.text === name,
+        ),
+    );
+    expect(matches).toHaveLength(1);
+    const selected = matches.at(0);
+    if (selected === undefined || !ts.isVariableStatement(selected))
+      throw new Error('Graph gate variable absent: ' + name);
+    expect(selected.declarationList.declarations).toHaveLength(1);
+    return { ...retain(name, selected), declaration: selected.declarationList.declarations.at(0) };
+  }
+  const repository = variable('graphRepository');
+  const mode = variable('graphMode');
+  const initializer = mode.declaration?.initializer;
+  if (
+    initializer === undefined ||
+    !ts.isCallExpression(initializer) ||
+    !ts.isIdentifier(initializer.expression) ||
+    initializer.expression.text !== 'readGraphTestAdmission'
+  )
+    throw new Error('Actual Graph admission initializer call absent');
+  const admissionCall = retain('graphMode.initializer', initializer);
+  const fixedMode =
+    mode.text.slice(0, admissionCall.start - mode.start) +
+    "'graph-legacy'" +
+    mode.text.slice(admissionCall.end - mode.start);
+  function isAssertion(node: Node, label: string): node is ExpressionStatement {
+    if (!ts.isExpressionStatement(node) || !ts.isCallExpression(node.expression)) return false;
+    const call = node.expression;
+    const message = call.arguments.at(-1);
+    return (
+      ts.isPropertyAccessExpression(call.expression) &&
+      ts.isIdentifier(call.expression.expression) &&
+      call.expression.expression.text === 'assert' &&
+      call.expression.name.text === 'equal' &&
+      message !== undefined &&
+      ts.isStringLiteral(message) &&
+      message.text === label
+    );
+  }
+  const cwdMatches = parsed.statements.filter((node) =>
+    isAssertion(node, 'UC1 graph command cwd differs'),
+  );
+  expect(cwdMatches).toHaveLength(1);
+  const cwdNode = cwdMatches.at(0);
+  if (cwdNode === undefined) throw new Error('Actual Graph cwd assertion absent');
+  const cwd = retain('graph.cwd.assertion', cwdNode);
+  const orchestrationMatches = parsed.statements.filter(
+    (node) => ts.isFunctionDeclaration(node) && node.name?.text === 'prepareClosePreflight',
+  );
+  expect(orchestrationMatches).toHaveLength(1);
+  const orchestration = orchestrationMatches.at(0);
+  if (
+    orchestration === undefined ||
+    !ts.isFunctionDeclaration(orchestration) ||
+    orchestration.body === undefined
+  )
+    throw new Error('Actual Graph census orchestration absent');
+  const hashMatches = orchestration.body.statements.filter((node) =>
+    isAssertion(node, 'UC1 frozen graph title census differs'),
+  );
+  expect(hashMatches).toHaveLength(1);
+  const hashNode = hashMatches.at(0);
+  if (hashNode === undefined) throw new Error('Actual Graph full-census assertion absent');
+  const hashAssertion = retain('graph.full-census.assertion', hashNode);
+  const orchestrationStart = orchestration.getStart(parsed);
+  expect(source.slice(orchestrationStart, orchestration.end)).toBe(extracted.orchestration);
+  const omittedHash =
+    extracted.orchestration.slice(0, hashAssertion.start - orchestrationStart) +
+    extracted.orchestration.slice(hashAssertion.end - orchestrationStart);
+  const launcher = readFileSync(join(ROOT, PROJECT, 'test/run-tests.ts'));
+  return {
+    extracted,
+    repository: repository.text,
+    mode: mode.text,
+    fixedMode,
+    cwd: cwd.text,
+    omittedHash,
+    selections,
+    launcher,
+    launcherSHA256: digest(launcher.toString()),
+    sourceSHA256: extracted.sourceSHA256,
+  };
+}
+
+type GraphGateFault = 'none' | 'omit-admission-call' | 'rename-title' | 'omit-census-assertion';
+function graphGateFixture(
+  source: Awaited<ReturnType<typeof graphGateSource>>,
+  fault: GraphGateFault,
+) {
+  const extracted =
+    fault === 'omit-census-assertion'
+      ? { ...source.extracted, orchestration: source.omittedHash }
+      : source.extracted;
+  const fixture = graphPlacementFixture(extracted, 'graph-legacy', 'none');
+  write(fixture.root, `${PROJECT}/test/run-tests.ts`, source.launcher.toString());
+  expect(
+    readFileSync(join(fixture.root, PROJECT, 'test/run-tests.ts')).equals(source.launcher),
+  ).toBe(true);
+  const binding = {
+    sourceSHA256: source.sourceSHA256,
+    launcherSHA256: source.launcherSHA256,
+    selections: source.selections,
+  };
+  let image = fixture.image.replace(
+    "import assert from 'node:assert/strict';",
+    "import assert from 'node:assert/strict';\nimport {readGraphTestAdmission} from '../../test/run-tests';",
+  );
+  const originalMode = 'const graphMode="graph-legacy";';
+  expect(image.split(originalMode)).toHaveLength(2);
+  const admission = fault === 'omit-admission-call' ? source.fixedMode : source.mode;
+  image = image.replace(
+    originalMode,
+    `writeSync(2,'GRAPH_GATE_SOURCE:'+${JSON.stringify(JSON.stringify(binding))}+'\\n');\ntry {\n` +
+      source.repository +
+      '\n' +
+      admission +
+      '\n' +
+      source.cwd,
+  );
+  if (fault === 'rename-title' || fault === 'omit-census-assertion') {
+    const names = [...graphRoutingTitles];
+    const first = names.at(0);
+    if (first === undefined) throw new Error('Actual ordinary census title absent');
+    names[0] = first + ' [unique ordinary census fault]';
+    expect(names).toHaveLength(228);
+    expect(new Set(names).size).toBe(228);
+    expect(names.slice(202)).toEqual(graphRoutingTitles.slice(202));
+    const original = 'const names=' + JSON.stringify(graphRoutingTitles) + ';';
+    expect(image.split(original)).toHaveLength(2);
+    image = image.replace(original, 'const names=' + JSON.stringify(names) + ';');
+  }
+  image += `\n} catch(cause) {\nif(cause instanceof Error)writeSync(2,'GRAPH_GATE_REFUSAL:'+JSON.stringify({name:cause.name,message:cause.message})+'\\n');\nthrow cause;\n}\n`;
+  write(fixture.root, GRAPH_PLACEMENT_SOURCE, image);
+  return { root: fixture.root, image, binding };
+}
+
+function invokeGraphGate(root: string, admitted: boolean) {
+  const admission: Record<string, string> = {
+    PUNI_REMOTE_GRAPH_MODE: 'graph-legacy',
+    PUNI_REMOTE_GRAPH_ROOT: root,
+    PUNI_REMOTE_GRAPH_EXECUTABLE: process.execPath,
+  };
+  if (admitted) admission['PUNI_REMOTE_GRAPH_ADMISSION'] = 'partitioned-228-v1';
+  return Bun.spawnSync([process.execPath, 'test', '--timeout=5000', GRAPH_PLACEMENT_SOURCE], {
+    cwd: root,
+    env: {
+      PATH: process.env['PATH'],
+      HOME: process.env['HOME'],
+      FORCE_COLOR: '0',
+      NO_COLOR: '1',
+      BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
+      ...admission,
+    },
+    stdout: 'pipe',
+    stderr: 'pipe',
+    timeout: 5000,
+  });
+}
+
+/** The same unchanged refusal consumer must reject each omission because actual modeled fixture work starts. */
+function expectGraphGateRefusal(
+  invocation: ReturnType<typeof invokeGraphGate>,
+  gate: 'admission' | 'census',
+): void {
+  const stderr = invocation.stderr.toString();
+  if (stderr.includes('"kind":"modeled-fixture"') || stderr.includes('"kind":"modeled-join"'))
+    throw new Error('Graph ' + gate + ' guard allowed modeled work');
+  expect(invocation.signalCode, stderr).toBeUndefined();
+  expect(invocation.exitCode, stderr).toBe(1);
+  const frames = stderr.split('\n').filter((line) => line.startsWith('GRAPH_GATE_REFUSAL:'));
+  expect(frames).toHaveLength(1);
+  const frame = frames.at(0);
+  if (frame === undefined) throw new Error('Actual Graph refusal frame absent');
+  const refusal: unknown = JSON.parse(frame.slice('GRAPH_GATE_REFUSAL:'.length));
+  if (
+    refusal === null ||
+    typeof refusal !== 'object' ||
+    !('name' in refusal) ||
+    !('message' in refusal) ||
+    typeof refusal.message !== 'string'
+  )
+    throw new Error('Actual Graph refusal frame malformed');
+  expect(refusal.name).toBe(gate === 'admission' ? 'Error' : 'AssertionError');
+  expect(refusal.message.split('\n').at(0)).toBe(
+    gate === 'admission'
+      ? 'Unsupported graph test admission'
+      : 'UC1 frozen graph title census differs',
+  );
+  for (const kind of ['test-registration', 'finalizer-registration', 'preload-load', 'callback'])
+    expect(stderr).not.toContain('"kind":"' + kind + '"');
+  expect(stderr).not.toContain('scratch cleanup source=afterAll event=');
+}
+
+test('graph source admission and full census refuse before modeled work and both omissions break refusal', async () => {
+  const source = await graphGateSource();
+  const steps = [
+    ['none', true, 'control'],
+    ['none', false, 'admission'],
+    ['omit-admission-call', false, 'admission'],
+    ['none', false, 'admission'],
+    ['rename-title', true, 'census'],
+    ['omit-census-assertion', true, 'census'],
+    ['rename-title', true, 'census'],
+  ] as const;
+  let admissionImage: string | undefined;
+  let censusImage: string | undefined;
+  for (const [fault, admitted, gate] of steps) {
+    const fixture = graphGateFixture(source, fault);
+    if (gate === 'admission' && fault === 'none') {
+      if (admissionImage === undefined) admissionImage = fixture.image;
+      else expect(fixture.image).toBe(admissionImage);
+    }
+    if (gate === 'census' && fault === 'rename-title') {
+      if (censusImage === undefined) censusImage = fixture.image;
+      else expect(fixture.image).toBe(censusImage);
+    }
+    const invocation = invokeGraphGate(fixture.root, admitted);
+    console.log(
+      'GRAPH_GATE_DIAGNOSTIC:' +
+        JSON.stringify({
+          fault,
+          admitted,
+          gate,
+          binding: fixture.binding,
+          exitCode: invocation.exitCode,
+          signalCode: invocation.signalCode,
+          stdoutBase64: invocation.stdout.toString('base64'),
+          stderrBase64: invocation.stderr.toString('base64'),
+        }),
+    );
+    const bindingLines = invocation.stderr
+      .toString()
+      .split('\n')
+      .filter((line) => line.startsWith('GRAPH_GATE_SOURCE:'));
+    expect(bindingLines).toHaveLength(1);
+    const binding = bindingLines.at(0);
+    if (binding === undefined) throw new Error('Actual Graph gate source binding absent');
+    const observedBinding: unknown = JSON.parse(binding.slice('GRAPH_GATE_SOURCE:'.length));
+    expect(observedBinding).toEqual(fixture.binding);
+    if (gate === 'control') expectGraphPlacement(invocation, 'graph-legacy');
+    else if (fault === 'omit-admission-call' || fault === 'omit-census-assertion') {
+      expect(invocation.signalCode).toBeUndefined();
+      expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+      expectGraphPlacement(invocation, 'graph-legacy');
+      expect(invocation.stderr.toString()).toContain('"kind":"modeled-fixture"');
+      expect(() => {
+        expectGraphGateRefusal(invocation, gate);
+      }).toThrow('Graph ' + gate + ' guard allowed modeled work');
+    } else expectGraphGateRefusal(invocation, gate);
+  }
+});
