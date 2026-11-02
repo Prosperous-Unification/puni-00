@@ -2544,3 +2544,335 @@ test('graph source admission and full census refuse before modeled work and both
     } else expectGraphGateRefusal(invocation, gate);
   }
 });
+
+/** Binds the four actual scenario/membership assertion statements; no modeled predicate replaces a guard. */
+async function graphHandoffSource() {
+  const extracted = await graphPlacementSource();
+  const ts = await import('typescript');
+  const { createHash } = await import('node:crypto');
+  const source = readFileSync(join(ROOT, GRAPH_PLACEMENT_SOURCE), 'utf8');
+  expect(createHash('sha256').update(source).digest('hex')).toBe(extracted.sourceSHA256);
+  const parsed = ts.createSourceFile(GRAPH_PLACEMENT_SOURCE, source, ts.ScriptTarget.Latest, true);
+  const guards = [
+    [
+      'graph-identity',
+      'scenario',
+      'readClosePreflight',
+      'UC1 identity observation scenario differs',
+    ],
+    [
+      'graph-legacy',
+      'scenario',
+      'assertLegacyClosePreflight',
+      'UC1 original legacy observation scenario differs',
+    ],
+    [
+      'graph-identity',
+      'membership',
+      'readClosePreflight',
+      'UC1 identity observation foreign to this invocation',
+    ],
+    [
+      'graph-legacy',
+      'membership',
+      'assertLegacyClosePreflight',
+      'UC1 legacy observation foreign to this invocation',
+    ],
+  ] as const;
+  const omissions = new Map<string, readonly string[]>();
+  const selections = [];
+  for (const [mode, guard, name, message] of guards) {
+    const functions = parsed.statements.filter(
+      (node) => ts.isFunctionDeclaration(node) && node.name?.text === name,
+    );
+    expect(functions).toHaveLength(1);
+    const selected = functions.at(0);
+    if (
+      selected === undefined ||
+      !ts.isFunctionDeclaration(selected) ||
+      selected.body === undefined
+    )
+      throw new Error('Actual handoff guard function absent: ' + name);
+    const statements = selected.body.statements.filter((node) => {
+      if (!ts.isExpressionStatement(node) || !ts.isCallExpression(node.expression)) return false;
+      const label = node.expression.arguments.at(-1);
+      return (
+        label !== undefined &&
+        ts.isStringLiteral(label) &&
+        label.text === message &&
+        ((ts.isIdentifier(node.expression.expression) &&
+          node.expression.expression.text === 'assert') ||
+          (ts.isPropertyAccessExpression(node.expression.expression) &&
+            ts.isIdentifier(node.expression.expression.expression) &&
+            node.expression.expression.expression.text === 'assert' &&
+            node.expression.expression.name.text === 'equal'))
+      );
+    });
+    expect(statements).toHaveLength(1);
+    const statement = statements.at(0);
+    if (statement === undefined) throw new Error('Actual handoff assertion absent: ' + message);
+    const functionStart = selected.getStart(parsed);
+    const original = source.slice(functionStart, selected.end);
+    const start = statement.getStart(parsed);
+    const end = statement.end;
+    const text = source.slice(start, end);
+    const omitted = original.slice(0, start - functionStart) + original.slice(end - functionStart);
+    expect(extracted.bindings.filter((binding) => binding === original)).toHaveLength(1);
+    omissions.set(
+      mode + ':' + guard,
+      extracted.bindings.map((binding) => (binding === original ? omitted : binding)),
+    );
+    selections.push({
+      mode,
+      guard,
+      function: name,
+      message,
+      start,
+      end,
+      sha256: createHash('sha256').update(text).digest('hex'),
+      functionSHA256: createHash('sha256').update(original).digest('hex'),
+    });
+  }
+  return { extracted, omissions, selections };
+}
+
+type GraphHandoffFault = 'wrong-scenario' | 'foreign-record' | 'absent-record';
+function graphHandoffFixture(
+  source: Awaited<ReturnType<typeof graphHandoffSource>>,
+  mode: GraphPlacementMode,
+  fault: GraphHandoffFault,
+  omitted: boolean,
+) {
+  const guard = fault === 'wrong-scenario' ? 'scenario' : 'membership';
+  const bindings = omitted ? source.omissions.get(mode + ':' + guard) : source.extracted.bindings;
+  if (bindings === undefined) throw new Error('Actual handoff omitted binding absent');
+  const extracted = { ...source.extracted, bindings: [...bindings] };
+  const fixture = graphPlacementFixture(extracted, mode, 'none');
+  const target = graphRoutingTitles.at(mode === 'graph-identity' ? 213 : 202);
+  if (target === undefined) throw new Error('Actual first handoff callback absent');
+  const originalRegistration =
+    "function registerTest(name,callback,options){emit('test-registration',{name});actualTest(name,callback,options);}";
+  expect(fixture.image.split(originalRegistration)).toHaveLength(2);
+  let image = fixture.image.replace(
+    originalRegistration,
+    `
+let handoffInjected=false;
+const handoffTarget=${JSON.stringify(target)};
+function registerTest(name,callback,options){
+  if(!handoffInjected){
+    assert(allJoined(),'handoff image requires all modeled preflight outcomes first');
+    emit('handoff-ready',{target:handoffTarget});
+    const rows=graphMode==='graph-identity'?closePreflightScenarios:closeLegacyScenarios;
+    const records=graphMode==='graph-identity'?closePreflightRecords:closeLegacyRecords;
+    const first=rows[0];assert(first!==undefined,'handoff first selected scenario absent');
+    const original=records.get(first.scenario);
+    assert(original===modeledOutcomes[0]&&closeSettlementOwner.completed[0]===original,'handoff original observation differs');
+    const fault=${JSON.stringify(fault)};
+    if(fault==='wrong-scenario'){
+      const other=closeSettlementOwner.completed[1];
+      assert(other!==undefined&&other!==original&&other.scenario!==first.scenario,'handoff different actual outcome absent');
+      records.set(first.scenario,other);
+    }else if(fault==='foreign-record'){
+      const foreign={...original};
+      assert(foreign!==original&&foreign.scenario===original.scenario&&!closeSettlementOwner.completed.includes(foreign),'handoff foreign scenario differs');
+      records.set(first.scenario,foreign);
+    }else records.delete(first.scenario);
+    handoffInjected=true;emit('handoff-corrupted',{fault,target:handoffTarget});
+  }
+  emit('test-registration',{name});actualTest(name,callback,options);
+}
+`,
+  );
+  const callbackStart = 'callback:()=>{';
+  expect(image.split(callbackStart)).toHaveLength(2);
+  image = image.replace(callbackStart, callbackStart + 'try{');
+  const callbackEnd = "  emit('callback',{name});\n}}));";
+  expect(image.split(callbackEnd)).toHaveLength(2);
+  image = image.replace(
+    callbackEnd,
+    `
+  if(name===handoffTarget)emit('handoff-target-success',{name});
+  emit('callback',{name});
+}catch(cause){
+  if(name===handoffTarget&&cause instanceof Error)emit('handoff-refusal',{name,errorName:cause.name,message:cause.message});
+  throw cause;
+}
+}}));`,
+  );
+  const binding = { sourceSHA256: source.extracted.sourceSHA256, selections: source.selections };
+  const prepare = 'await prepareClosePreflight();';
+  expect(image.split(prepare)).toHaveLength(2);
+  image = image.replace(
+    prepare,
+    `writeSync(2,'GRAPH_HANDOFF_SOURCE:'+${JSON.stringify(JSON.stringify(binding))}+'\\n');\n` +
+      prepare,
+  );
+  write(fixture.root, GRAPH_PLACEMENT_SOURCE, image);
+  return { root: fixture.root, image, target, binding };
+}
+
+function graphHandoffEvents(invocation: ReturnType<typeof invokeGraphPlacement>) {
+  return invocation.stderr
+    .toString()
+    .split('\n')
+    .filter((line) => line.startsWith('GRAPH_PLACEMENT:'))
+    .map((line) => {
+      const event: unknown = JSON.parse(line.slice('GRAPH_PLACEMENT:'.length));
+      if (
+        event === null ||
+        typeof event !== 'object' ||
+        !('kind' in event) ||
+        typeof event.kind !== 'string'
+      )
+        throw new Error('Actual handoff event malformed');
+      return event as {
+        kind: string;
+        allJoined: boolean;
+        target?: string;
+        name?: string;
+        errorName?: string;
+        message?: string;
+      };
+    });
+}
+
+/** Requires the intended original guard, not an arbitrary failing child or source excerpt. */
+function expectGraphHandoffRefusal(
+  invocation: ReturnType<typeof invokeGraphPlacement>,
+  mode: GraphPlacementMode,
+  fault: GraphHandoffFault,
+  target: string,
+): void {
+  const events = graphHandoffEvents(invocation);
+  if (events.some((event) => event.kind === 'handoff-target-success' && event.name === target))
+    throw new Error('Graph handoff ' + mode + ' ' + fault + ' guard admitted target');
+  expect(invocation.signalCode, invocation.stderr.toString()).toBeUndefined();
+  expect(invocation.exitCode, invocation.stderr.toString()).toBe(1);
+  const refusals = events.filter((event) => event.kind === 'handoff-refusal');
+  expect(refusals).toHaveLength(1);
+  const refusal = refusals.at(0);
+  if (refusal === undefined || typeof refusal.message !== 'string')
+    throw new Error('Actual handoff refusal absent');
+  expect(refusal.name).toBe(target);
+  expect(refusal.errorName).toBe(fault === 'absent-record' ? 'Error' : 'AssertionError');
+  const message =
+    fault === 'absent-record'
+      ? mode === 'graph-identity'
+        ? 'UC1 original identity preflight completion unavailable'
+        : 'UC1 original legacy preflight completion unavailable'
+      : fault === 'wrong-scenario'
+        ? mode === 'graph-identity'
+          ? 'UC1 identity observation scenario differs'
+          : 'UC1 original legacy observation scenario differs'
+        : mode === 'graph-identity'
+          ? 'UC1 identity observation foreign to this invocation'
+          : 'UC1 legacy observation foreign to this invocation';
+  expect(refusal.message.split('\n').at(0)).toBe(message);
+  expect(events.filter((event) => event.kind === 'callback' && event.name === target)).toHaveLength(
+    0,
+  );
+}
+
+test('graph source handoff rejects wrong or foreign records and exact guard omissions admit only the target', async () => {
+  const source = await graphHandoffSource();
+  const steps = [
+    ['graph-identity', 'wrong-scenario', false],
+    ['graph-identity', 'wrong-scenario', true],
+    ['graph-identity', 'wrong-scenario', false],
+    ['graph-legacy', 'wrong-scenario', false],
+    ['graph-legacy', 'wrong-scenario', true],
+    ['graph-legacy', 'wrong-scenario', false],
+    ['graph-identity', 'foreign-record', false],
+    ['graph-identity', 'foreign-record', true],
+    ['graph-identity', 'foreign-record', false],
+    ['graph-legacy', 'foreign-record', false],
+    ['graph-legacy', 'foreign-record', true],
+    ['graph-legacy', 'foreign-record', false],
+    ['graph-identity', 'absent-record', false],
+    ['graph-legacy', 'absent-record', false],
+  ] as const;
+  const restoredImages = new Map<string, string>();
+  for (const [mode, fault, omitted] of steps) {
+    const fixture = graphHandoffFixture(source, mode, fault, omitted);
+    if (!omitted && fault !== 'absent-record') {
+      const key = mode + ':' + fault;
+      const original = restoredImages.get(key);
+      if (original === undefined) restoredImages.set(key, fixture.image);
+      else expect(fixture.image).toBe(original);
+    }
+    const invocation = invokeGraphPlacement(fixture.root);
+    console.log(
+      'GRAPH_HANDOFF_DIAGNOSTIC:' +
+        JSON.stringify({
+          mode,
+          fault,
+          omitted,
+          binding: fixture.binding,
+          exitCode: invocation.exitCode,
+          signalCode: invocation.signalCode,
+          stdoutBase64: invocation.stdout.toString('base64'),
+          stderrBase64: invocation.stderr.toString('base64'),
+        }),
+    );
+    const sourceLines = invocation.stderr
+      .toString()
+      .split('\n')
+      .filter((line) => line.startsWith('GRAPH_HANDOFF_SOURCE:'));
+    expect(sourceLines).toHaveLength(1);
+    const sourceLine = sourceLines.at(0);
+    if (sourceLine === undefined) throw new Error('Actual handoff source binding absent');
+    const observedBinding: unknown = JSON.parse(sourceLine.slice('GRAPH_HANDOFF_SOURCE:'.length));
+    expect(observedBinding).toEqual(fixture.binding);
+    const events = graphHandoffEvents(invocation);
+    const ready = events.filter((event) => event.kind === 'handoff-ready');
+    expect(ready).toHaveLength(1);
+    expect(ready.at(0)?.allJoined).toBe(true);
+    expect(ready.at(0)?.target).toBe(fixture.target);
+    expect(events.filter((event) => event.kind === 'handoff-corrupted')).toHaveLength(1);
+    expect(events.filter((event) => event.kind === 'modeled-join')).toHaveLength(
+      mode === 'graph-identity' ? 14 : 11,
+    );
+    const selected = graphRoutingTitles.slice(
+      mode === 'graph-identity' ? 213 : 202,
+      mode === 'graph-identity' ? 228 : 213,
+    );
+    expect(
+      events.filter((event) => event.kind === 'test-registration').map((event) => event.name),
+    ).toEqual(selected);
+    const expectedCallbacks = omitted
+      ? selected
+      : fault === 'absent-record'
+        ? []
+        : selected.filter((name) => name !== fixture.target);
+    expect(events.filter((event) => event.kind === 'callback').map((event) => event.name)).toEqual(
+      expectedCallbacks,
+    );
+    expect(
+      invocation.stderr
+        .toString()
+        .split('\n')
+        .filter((line) => line === 'scratch cleanup source=afterAll event=start'),
+    ).toHaveLength(1);
+    expect(
+      invocation.stderr
+        .toString()
+        .split('\n')
+        .filter((line) =>
+          /^scratch cleanup source=afterAll event=return elapsedMs=\d+$/.test(line),
+        ),
+    ).toHaveLength(1);
+    if (omitted) {
+      expect(invocation.signalCode).toBeUndefined();
+      expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+      expect(
+        events.filter(
+          (event) => event.kind === 'handoff-target-success' && event.name === fixture.target,
+        ),
+      ).toHaveLength(1);
+      expect(events.filter((event) => event.kind === 'handoff-refusal')).toHaveLength(0);
+      expect(() => {
+        expectGraphHandoffRefusal(invocation, mode, fault, fixture.target);
+      }).toThrow('Graph handoff ' + mode + ' ' + fault + ' guard admitted target');
+    } else expectGraphHandoffRefusal(invocation, mode, fault, fixture.target);
+  }
+});
