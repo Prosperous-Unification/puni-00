@@ -305,7 +305,7 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261101100100_add_resource_directory_capacity');
+    expect(baselineLedger.at(-1)?.name).toBe('20261101120000_add_host_job_projection');
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -1168,7 +1168,8 @@ describe('migration deploy entrypoints', () => {
           name !== '20261028100000_add_agent_pool' &&
           name !== '20261028100100_widen_organization_audit_agent_pools' &&
           name !== '20261101100000_widen_organization_audit_directory_capacity' &&
-          name !== '20261101100100_add_resource_directory_capacity',
+          name !== '20261101100100_add_resource_directory_capacity' &&
+          name !== '20261101120000_add_host_job_projection',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1247,7 +1248,8 @@ describe('migration deploy entrypoints', () => {
           name !== '20261028100000_add_agent_pool' &&
           name !== '20261028100100_widen_organization_audit_agent_pools' &&
           name !== '20261101100000_widen_organization_audit_directory_capacity' &&
-          name !== '20261101100100_add_resource_directory_capacity',
+          name !== '20261101100100_add_resource_directory_capacity' &&
+          name !== '20261101120000_add_host_job_projection',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1283,9 +1285,7 @@ describe('migration deploy entrypoints', () => {
     ])
       expect(reversed).not.toContain(`CREATE TABLE \`${table}\``);
     runMigrations(dbPath, MIGRATIONS);
-    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe(
-      '20261101100100_add_resource_directory_capacity',
-    );
+    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe('20261101120000_add_host_job_projection');
     expect(schemaAt(dbPath).join('\n')).toContain('CREATE TABLE `work_item_resource_demand`');
   }, 60_000);
 

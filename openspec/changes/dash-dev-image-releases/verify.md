@@ -33,4 +33,8 @@ The protected reader's existing unreadability, absence, regular-file, ownership 
 
 ## Remaining acceptance
 
-Companion adapter implementation, combined review, full exact-SHA host gate, required CI and merges remain pending. No live release or production action was requested or performed.
+The private adapter is implemented and independently reviewed; its required CI passed and [PR 78](https://github.com/Prosperous-Unification/puni-pr-00/pull/78) merged at `46f550f4c6a52a30d6d47a22808be883b8565856`. The strict Fleet receipt companion passed its checks and [PR 16](https://github.com/Prosperous-Unification/puni-fleet/pull/16) merged at `2decfae3acd09c93256c89a77f210b48efe2ce08`.
+
+Main advanced to `07c47b69c` while public gates were running, including the host-job command parser. The shared entrypoint conflict is resolved by retaining main's typed parser and ops usage exit code while dispatching only `ops release` before that parser. The combined real-entrypoint CLI/release tests pass: 77 tests, 244 assertions, 0 failures. Dash typecheck and entrypoint formatting also pass. Earlier host runs were stopped after their target became obsolete; they do not count as final acceptance. The final exact-SHA host gate, required CI and public merge remain pending; final external evidence belongs to [PR 824](https://github.com/Prosperous-Unification/puni-00/pull/824).
+
+The first h4 gate's piped output encountered Bun stdout EAGAIN during OpenSpec JSON; repeating the same canonical command with regular-file output passed that stage. No check was changed or skipped. No live release or production action was requested or performed.

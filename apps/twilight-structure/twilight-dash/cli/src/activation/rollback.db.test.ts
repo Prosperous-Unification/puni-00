@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
-import { runDash } from '../cli';
+import { runDashArguments } from '../cli';
 import { GitHubReadFailure } from './github-reader';
 import { readObservationStateConfig } from './observation-service';
 import { type ObservationStateConfig, withRecoveryObservation } from './observation-state';
@@ -167,7 +167,7 @@ test('the pre-relocation controller opens a Dash-written v10 store and continues
   let now = 1_000_000;
   const clock = { read: () => now };
   const output: string[] = [];
-  await runDash(['bootstrap-observation', configuration.configurationPath], {
+  await runDashArguments(['bootstrap-observation', configuration.configurationPath], {
     clock,
     monotonic: { now: () => 0 },
     planEnrollment: () => Promise.reject(new Error('the rollback never plans enrollment')),

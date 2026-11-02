@@ -7,9 +7,10 @@ export interface AuthorityCommandDependencies {
   readonly write: (text: string) => void;
 }
 
-const bootstrapUsage = 'usage: twilight-dash bootstrap-authority <repository>';
-const inspectUsage = 'usage: twilight-dash inspect-authority <repository> [--session <id>]';
-const recoverUsage = 'usage: twilight-dash recover-publication <repository> --integration-id <id>';
+export const bootstrapUsage = 'usage: twilight-dash bootstrap-authority <repository>';
+export const inspectUsage = 'usage: twilight-dash inspect-authority <repository> [--session <id>]';
+export const recoverUsage =
+  'usage: twilight-dash recover-publication <repository> --integration-id <id>';
 
 /**
  * Creates the repository's authority and prints its path. This is the only command that creates

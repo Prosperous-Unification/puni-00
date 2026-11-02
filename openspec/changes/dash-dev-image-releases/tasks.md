@@ -5,9 +5,9 @@
 
 ## 2. Website release adapter
 
-- [ ] 2.1 Complete the companion `website-fast-image-releases` change: exact configurable refs, focused/full checks, cache closure and selective compilation/image reuse, provenance, pin/push/reconciliation/verification, with original API writer identity preserved — test: companion local-remote and controlled-command integration scenarios; negative: source, identity, cache, environment and failure injections documented in companion verify.md.
+- [x] 2.1 Complete the companion `website-fast-image-releases` change: exact configurable refs, focused/full checks, cache closure and selective compilation/image reuse, provenance, pin/push/reconciliation/verification, with original API writer identity preserved — test: companion local-remote and controlled-command integration scenarios; negative: source, identity, cache, environment and failure injections documented in companion verify.md.
 
 ## 3. Verification and merge
 
-- [ ] 3.1 Document commands/profile guarantees and adapter configuration, run focused tests and Nx lint/typecheck/build, validate OpenSpec, record all unavailable checks and mutation proofs in verify.md.
+- [x] 3.1 Document commands/profile guarantees and adapter configuration, run focused tests and Nx lint/typecheck/build, validate OpenSpec, record all unavailable checks and mutation proofs in verify.md.
 - [ ] 3.2 Review both repository branches, run the exact-SHA host gate and required CI, create PRs and merge the authorized changes without bypassing hooks or required checks.
