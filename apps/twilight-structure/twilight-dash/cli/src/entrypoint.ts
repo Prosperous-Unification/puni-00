@@ -18,7 +18,7 @@ function refusalLine(cause: unknown): string {
 
 const argv = process.argv.slice(2);
 try {
-  if (argv[0] === 'ops') {
+  if (argv[0] === 'ops' && argv[1] === 'release') {
     const { runOpsCommand } = await import('./ops/release');
     process.exitCode = await runOpsCommand(argv.slice(1), (text) => process.stdout.write(text));
   } else if (argv[0] === 'mcp') {
