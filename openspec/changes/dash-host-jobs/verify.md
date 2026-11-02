@@ -1471,6 +1471,35 @@ login session`, with the initializer run under `systemd-run --user --scope`.
 | foreign-session exemption removed                         | `pool init succeeds beside … another login session`; host-job-holds login-session case                                   |
 | smoke bound applied unconditionally                       | `leaves its containers unbounded outside a Dash job` (pinned argv)                                                       |
 
+### h2puni gate (unenrolled host, `af8cdd00342918a2fc64b834d17ff03ad4d42f49`)
+
+The gate ran in the isolated worktree `~/puni-00-gate-467-9b552fa8`, which was clean at that SHA,
+with 7.8 GB free on `/` before it started. Nothing on the host was deleted.
+
+- **First attempt.** It printed `heavy lock: waited 0s behind 0 tickets` and `h2puni gate: running
+on af8cdd00342918a2fc64b834d17ff03ad4d42f49`. My SSH session then dropped after about an hour
+  (`Timeout, server … not responding`, exit 255). The orphaned gate's output went to a dead pipe,
+  so it has no readable verdict; it ran to its end and the lock is free.
+- **Rerun.** I started it under `setsid nohup` with its log at
+  `/var/tmp/gate-6a-af8cdd00-rerun2.log`, where it exited `GATE-EXIT 1`.
+  - It printed `heavy lock: waited 1337s behind 0 tickets` (queued behind the orphan) and then
+    `h2puni gate: running on af8cdd00342918a2fc64b834d17ff03ad4d42f49`.
+  - The only failed task was `wbs-be-01:test`, and the only failing test in the 11,034-line log
+    was `✗ reads a space of 30 projects and their roll-ups within the budget [1721.91ms]`
+    (`apps/wbs/be-01/src/controller/space-roll-up-performance.db.test.ts`). Nx marked the task
+    flaky.
+  - This budget test is a recorded flake: it failed the same way on an h2puni gate for a Dash-only
+    PR on 2026-11-01. It is unrelated to this diff.
+- **Single-file rerun.** I ran it in the same worktree with no gate running (`heavy lock: holder
+none`): `env -u CLAUDECODE bunx nx run wbs-be-01:test --skip-nx-cache --
+src/controller/space-roll-up-performance.db.test.ts`. Result: `✓ reads a space of 30 projects
+and their roll-ups within the budget [886.18ms]`, 1 pass, 0 fail, exit 0, tree still clean.
+- **Not reached on h2puni.** The steps run under `set -e`, so the gate stopped after the first
+  `nx run-many`. The Burokrat and Dash split, the two source lints, and
+  `wbs-be-01:solver-image-smoke` (with this PR's unchanged argv outside a Dash job) did not run.
+  `twilight-dash:test` passed on the workstation at `1173437ce`. Nothing ran the solver smoke
+  against this SHA.
+
 ## Slice 6b — observe mode, switch-mode, singleton guard (tasks 6.1 observe half, 6.5a)
 
 Branch `feat/dash-host-jobs-6b-transition` from slice 4's `efd168e40`. It implements J12 and
