@@ -28,3 +28,19 @@
 - [ ] 5.1 Reproduce the Cloud320x568 failure locally with a real classic scrollbar using the unchanged regional driver — test: actual305px visual viewport and original zero-overlap assertion fail; capture screenshot/geometry.
 - [ ] 5.2 Adjust only short/narrow hero spacing while preserving approved typography, card and desktop layout — test: original first-screen heading/input/send and all54 regional cases pass with classic and overlay scrollbars; removing the fix reproduces the obstruction.
 - [ ] 5.3 Review the focused responsive fix and run the original full regional matrix in Browser Use Cloud, retaining both earlier failures and explicit cleanup evidence — test: final54cases plus browser/API stop, no assertion weakening.
+
+## Task 6: Make browser race fixtures deterministic
+
+- [ ] 6.1 Hold the slow-region reply until the actual rejection action, retaining real API lookup and final no-grant checks — test: a delayed consumer reproduces the old timed-reply failure; explicit barrier passes and always releases on cleanup.
+- [ ] 6.2 Observe actual keyboard focus through a bounded web-state assertion and retain snapshots, preserving one allow-focus/Tab sequence and solid2px target requirement — test: delayed real ring converges, absent ring/wrong target still fail; no forced styles or repeated focus actions.
+- [ ] 6.3 Review the narrow fixture changes, rerun native classic/overlay matrices and complete Cloud54 with original failure receipts retained — test: all54cases and owned resource shutdown.
+
+## Task 7: Declare the retained database in repository inventory
+
+- [ ] 7.1 Register only the exact retained monthly gzip in full and bootstrap binary declarations, preserving unknown-binary refusal — test: production classification with both policies; negative: removing either row rejects the actual archive and a same-byte unlisted control remains refused.
+- [ ] 7.2 Record this refresh obligation and rerun the failed pilot cases and covering policy checks — test: production CLI pilot suite and focused policy validation; final hosted CI remains separate.
+
+## Task 8: Preserve visible consent focus under fractional native scaling
+
+- [ ] 8.1 Reproduce declared2px focus rendering1.6px under native125% scale, then strengthen only consent-control keyboard outline while preserving the unchanged actual2px visibility predicate — test: exactAllowfocus/Tab actualbuiltCSS scaledred/green, removingfix reproducesoriginalfailure.
+- [ ] 8.2 Review focusedCSS/builtoutput change and complete native/Cloud regional acceptance with original driver8ea and owned-resource shutdown — test: source/staticchecks appropriate toCSS, exact54Cloudmatrix and actualnegative intact; productionheld.
