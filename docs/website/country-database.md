@@ -36,7 +36,12 @@ privacy requirements.
    Do not edit the MMDB bytes. The reader dependency remains pinned in the root
    `package.json`, Bun lockfile and API portability package metadata.
 3. Update the literal real-dataset tests and package month expectation for the new
-   release, retaining IPv4, full IPv6, unmapped and startup-refusal coverage. Run
+   release, retaining IPv4, full IPv6, unmapped and startup-refusal coverage. Update
+   the dataset month stated in the private site's `apps/website/site/src/pages/privacy.astro`
+   and its relevant assertion in `apps/website/site/src/content/privacy-launch.test.ts`
+   to match the installed release. Keep `privacyEffectiveDate = null` for the
+   development preview; the policy effective date and production publication
+   remain owner-controlled. Run
    `bunx nx run-many -t test lint typecheck build -p website-contracts website-be-01`
    and `bunx nx run website-be-01:test:package`. The package smoke starts the real
    compiled main, exercises regional decisions, then removes its actual archive
