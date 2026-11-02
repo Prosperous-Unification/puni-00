@@ -9,7 +9,7 @@ Dev uses Compose and production plans Kubernetes/Flux, with different pipelines,
 - Bring the proven Elastic trace gateway and autonomous stored-query acceptance into the common deployment, preserving working log mappings and metrics coverage.
 - Implement dev route cutover, rollback and restore with distinct retained-history receipts. Preserve dev until its replacement passes reviewed common checks; record transitions separately from parity.
 - Report source parity, rehearsal evidence and live convergence separately.
-- Inventory and bound source contributors and conditional lifecycles through shared accounting, retaining provider and enforcement provenance.
+- Bound source contributors and conditional lifecycles through shared accounting; retain actual provider, phase and enforcement provenance for resource readings.
 - Collect host/workload resource history through the existing observer, with provider-neutral readings, explicit unavailable states and reversible immutable-binary updates.
 - Validate packet commitments; retain verified archives, helper identity roles and observed platform provenance; version provider records explicitly, preserve prior teardown, derive bounded layer facts and import without implicit builds.
 

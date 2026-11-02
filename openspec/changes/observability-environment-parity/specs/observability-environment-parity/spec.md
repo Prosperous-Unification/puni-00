@@ -1140,3 +1140,34 @@ and MUST NOT authorize migration, route mutation or deletion.
 - **WHEN** capture or historical verification succeeds
 - **THEN** candidate ownership, fresh preflight, route switching, rollback/restore and full Kubernetes/Flux acceptance remain independent required work
 - **AND** existing observer/Grafana receipts, current signal semantics, stores and live routes remain unchanged
+
+### Requirement: Native measurements preserve lifecycle provenance
+
+Disposable component evidence SHALL identify the actual provider, owner and measurement interval. Pre-exit resource readings MUST NOT be represented as current post-exit counters. Final cleanup SHALL be established independently from current provider state. Missing provider state or counter evidence MUST NOT become invented identity or zero usage.
+
+#### Scenario: Provider cleanup removes counter files
+
+- **GIVEN** the original host worker records complete counters after the guest process exits successfully and is reaped, while its own native instance remains live
+- **WHEN** the parent validates that bounded fresh record and independently observes the original instance terminal and its owned group empty or absent, with client exit0 and current physical floors
+- **THEN** the component retains the explicit pre-worker-exit measurement interval and separate fresh cleanup evidence
+- **AND** it does not insert counters, InvocationID or loaded state into the terminal provider projection
+- **AND** component success grants no full-rehearsal or live-migration authority
+
+#### Scenario: Terminal state has no authentic counter record
+
+- **WHEN** counter paths disappear without a complete readable original-inode host record, or its owner, source, PID, native binding, phase or timestamps are wrong, stale or future
+- **THEN** the component refuses acceptance and exposes incomplete evidence
+- **AND** an earlier sample, guest-supplied record or fabricated zero cannot substitute for the missing host evidence
+
+#### Scenario: Descriptor handoff follows actual runtime ordering
+
+- **WHEN** the worker starts the pinned runtime with validated original artifact descriptors
+- **THEN** the actual pre-exec and descriptor-close ordering preserves the original read/write authorities and excludes worker-only device/metadata descriptors from runtime inheritance
+- **AND** an unexpected descriptor, changed artifact, wrong access or denied confinement refuses before runtime execution
+- **AND** controlled process fixtures do not certify native enforcement or boot
+
+#### Scenario: Matching packages do not imply matching runtime capabilities
+
+- **WHEN** selected signed packages match their declared versions but the actual daemon reports a different API, operating-system/architecture or store capability than the selected supported provider contract
+- **THEN** compatibility remains refused without broadening the adapter or defaulting the missing capability
+- **AND** immutable source/component evidence and unsupported baseline observations remain distinct from full rehearsal acceptance
