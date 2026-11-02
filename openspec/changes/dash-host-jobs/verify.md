@@ -2194,6 +2194,26 @@ Fresh after the fixes, with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`:
 - `bunx openspec validate dash-host-jobs --json`: passed, 1 of 1, with the same 11 warnings.
 - ESLint on the changed TypeScript and twilight-dash `tsc --build --force`: exit 0.
 
+### After merging the plan at `b578beef9` (#818 landed)
+
+Fresh, with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`:
+
+- `gate-host-pool.test.ts` and `audit-units.test.ts`: 15 pass, 0 fail.
+- `launchers.test.ts` alone, three runs: 9/10, then 10/10, then 10/10 (S6C-A14).
+- `tool-fleet:check --skip-nx-cache`: exit 0.
+- `bunx prettier --check` on the branch's diff against the plan: clean (no parser for `.j2` or `.py`).
+- `openspec validate dash-host-jobs`: passed, 1 of 1, with 11 warnings.
+- Burokrat `check-indexes working . HEAD`: exit 0.
+- `bunx nx run-many -t typecheck lint -p twilight-dash --skip-nx-cache`: exit 0.
+- `bunx nx run twilight-dash:test --skip-nx-cache` (31 min): 4258 pass and 1 fail, across 4259
+  tests in 139 files.
+  - The failure: `host-jobs.test.ts` "review fixes (Fable, PR #804) > a replaced tmp directory
+    or symlink stays charged and untouched" expected `blocked` and received `released`.
+  - That file alone then passed three times out of three.
+  - Slice 2's settlement is unchanged here: the branch's diff under twilight-dash `src` is
+    `audit-units.ts` (one line), its test, and `gate-host-pool.test.ts`. So this is recorded as a
+    flake under full-suite load and left to slice 2's owner.
+
 ### Skipped and unverified
 
 - **h2puni's first apply (S6C-A17)** is a larger change than this slice, owed by 6.3's operator
