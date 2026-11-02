@@ -1,3 +1,4 @@
+import type { Analytics } from '@website/analytics';
 import { replyReplacePart } from '@website/contracts';
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { JSDOM } from 'jsdom';
@@ -5,6 +6,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 
+import { createMilestones, MilestonesContext } from './analytics-flow';
 import type { Conversation } from './build-contract';
 import { LiveHarness, PausedHarness } from './conversation-harness';
 
@@ -17,6 +19,7 @@ const reply = [
 ].join('\n');
 
 const briefed: Conversation = {
+  scoping: { version: 'legacy' },
   stage: 'contact',
   turns: [
     { role: 'user', content: 'A booking tool' },
@@ -457,7 +460,12 @@ const unsentWithCheck: Conversation = {
 };
 
 /** Stubs fetch: records stream POST bodies and answers them with `streamStatus`. */
-function stubApi(options: { streamStatus?: number; streamCode?: string; reread?: unknown }) {
+function stubApi(options: {
+  streamStatus?: number;
+  streamCode?: string;
+  reread?: unknown;
+  marker?: unknown;
+}) {
   const posts: unknown[] = [];
   const reads: string[] = [];
   globalThis.fetch = Object.assign(
@@ -477,7 +485,9 @@ function stubApi(options: { streamStatus?: number; streamCode?: string; reread?:
             headers: { 'content-type': 'application/json' },
           });
         return new Response(
-          'data: {"type":"start"}\n\ndata: {"type":"finish"}\n\ndata: [DONE]\n\n',
+          (options.marker
+            ? `data: ${JSON.stringify({ type: 'data-conversation-admission', data: options.marker })}\n\n`
+            : '') + 'data: {"type":"start"}\n\ndata: {"type":"finish"}\n\ndata: [DONE]\n\n',
           {
             headers: { 'content-type': 'text/event-stream' },
           },
@@ -499,6 +509,7 @@ function stubApi(options: { streamStatus?: number; streamCode?: string; reread?:
 async function mountHarness(
   conversation: Conversation,
   solveCheck: (challenge: unknown) => Promise<number | null>,
+  milestones: ReturnType<typeof createMilestones> | null = null,
 ) {
   const container = dom.window.document.createElement('div');
   dom.window.document.body.replaceChildren(container);
@@ -510,12 +521,14 @@ async function mountHarness(
   observer.observe(container, { childList: true, subtree: true });
   await act(async () => {
     root.render(
-      <LiveHarness
-        initial={conversation}
-        onReload={() => undefined}
-        onHandedOff={() => undefined}
-        solveCheck={solveCheck}
-      />,
+      <MilestonesContext.Provider value={milestones}>
+        <LiveHarness
+          initial={conversation}
+          onReload={() => undefined}
+          onHandedOff={() => undefined}
+          solveCheck={solveCheck}
+        />
+      </MilestonesContext.Provider>,
     );
     await Promise.resolve();
   });
@@ -635,4 +648,448 @@ test('a refused check from the API shows the manual path', async () => {
   expect(api.posts).toHaveLength(1);
   expect(harness.container.querySelector('.harness-interrupted')).toBeNull();
   harness.unmount();
+});
+
+test('rendered Retry posts exact persisted selected answer after remount', async () => {
+  const answer = {
+    selected: { questionId: 'launch-purpose' as const, answerId: 'buy-book', revision: 2 },
+    message: '  Exact explanation  ',
+  };
+  const stopped: Conversation = {
+    ...briefed,
+    stage: 'clarify',
+    brief: '',
+    scoping: {
+      version: 1,
+      startConversation: true,
+      startingChoice: 'launch',
+      questionId: 'launch-purpose',
+      revision: 2,
+      references: null,
+      candidateBrief: null,
+      emailInvitationDeclined: false,
+    },
+    latestOperation: {
+      state: 'unknown',
+      truncated: false,
+      idempotencyKey: 'selected-retry-key',
+      message: 'Buy or book\n\n  Exact explanation  ',
+      answer,
+    },
+  };
+  const api = stubApi({ streamStatus: 503, streamCode: 'provider_unavailable' });
+  const harness = await mountHarness(stopped, () => Promise.resolve(null));
+  const button = [...harness.container.querySelectorAll('button')].find((candidate) =>
+    candidate.textContent.includes('Retry'),
+  );
+  if (!button) throw new Error('Retry missing');
+  await act(async () => {
+    button.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await Promise.resolve();
+  });
+  await settleUntil(
+    () => api.posts.length === 1,
+    () => JSON.stringify(api.posts),
+  );
+  expect(api.posts).toEqual([{ idempotencyKey: 'selected-retry-key', ...answer }]);
+  harness.unmount();
+});
+
+const scoped: Conversation = {
+  ...briefed,
+  stage: 'clarify',
+  brief: '',
+  scoping: {
+    version: 1,
+    startConversation: true,
+    startingChoice: 'improve',
+    questionId: 'improve-blocker',
+    revision: 1,
+    references: null,
+    candidateBrief: null,
+    emailInvitationDeclined: false,
+  },
+  latestOperation: null,
+};
+
+test('authorized mount starts once; unknown initial waits for explicit Retry', async () => {
+  const unsent = {
+    ...scoped,
+    turns: [],
+    initialOperation: {
+      state: 'not-started' as const,
+      idempotencyKey: 'initial:draft-1',
+      truncated: false,
+    },
+  };
+  const api = stubApi({ streamStatus: 503, streamCode: 'provider_unavailable' });
+  const harness = await mountHarness(unsent, () => Promise.resolve(null));
+  await settleUntil(
+    () => api.posts.length === 1,
+    () => JSON.stringify(api.posts),
+  );
+  expect(api.posts[0]).toMatchObject({ initial: true, automatic: true });
+  harness.unmount();
+  const stopped = {
+    ...unsent,
+    initialOperation: { ...unsent.initialOperation, state: 'unknown' as const },
+    latestOperation: {
+      ...unsent.initialOperation,
+      state: 'unknown' as const,
+      message: unsent.description,
+    },
+  };
+  const waiting = await mountHarness(stopped, () => Promise.resolve(null));
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  });
+  expect(api.posts).toHaveLength(1);
+  expect(waiting.container.textContent).toContain('Retry');
+  waiting.unmount();
+});
+
+test('selected answer carries current revision and exact text once across double click', async () => {
+  const api = stubApi({
+    streamStatus: 409,
+    streamCode: 'stale_answer',
+    reread: { ...scoped, scoping: { ...scoped.scoping, revision: 2 } },
+  });
+  const harness = await mountHarness(scoped, () => Promise.resolve(null));
+  const textarea = harness.container.querySelector('#build-message');
+  if (!(textarea instanceof dom.window.HTMLTextAreaElement)) throw new Error('composer absent');
+  act(() => {
+    const setter = Object.getOwnPropertyDescriptor(
+      dom.window.HTMLTextAreaElement.prototype,
+      'value',
+    );
+    setter?.set?.call(textarea, '  Exact context  ');
+    textarea.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  });
+  const choice = [...harness.container.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Recurring bugs',
+  );
+  if (!choice) throw new Error('suggested answer absent');
+  act(() => {
+    choice.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    choice.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  });
+  await settleUntil(
+    () => api.posts.length === 1,
+    () => JSON.stringify(api.posts),
+  );
+  expect(api.posts[0]).toMatchObject({
+    selected: { questionId: 'improve-blocker', answerId: 'bugs', revision: 1 },
+  });
+  expect(harness.container.textContent).toContain('question changed');
+  expect(harness.container.querySelector('.harness-interrupted')).toBeNull();
+  harness.unmount();
+});
+
+test('Retry after an automatic initial refusal is an explicit request', async () => {
+  const api = stubApi({ streamStatus: 502, streamCode: 'provider_error' });
+  const harness = await mountHarness(
+    {
+      ...scoped,
+      turns: [],
+      initialOperation: {
+        state: 'not-started',
+        idempotencyKey: 'initial:draft-1',
+        truncated: false,
+      },
+    },
+    () => Promise.resolve(null),
+  );
+  await settleUntil(
+    () => harness.container.querySelector('.harness-interrupted button') !== null,
+    () => harness.container.innerHTML,
+  );
+  const retry = harness.container.querySelector('.harness-interrupted button');
+  if (!(retry instanceof dom.window.HTMLButtonElement)) throw new Error('Retry absent');
+  act(() => {
+    retry.click();
+  });
+  await settleUntil(
+    () => api.posts.length === 2,
+    () => JSON.stringify(api.posts),
+  );
+  expect(api.posts[0]).toMatchObject({ automatic: true });
+  expect(api.posts[1]).toEqual({ initial: true, idempotencyKey: 'initial:draft-1' });
+  harness.unmount();
+});
+
+test('human review hides the composer but keeps one working Stop for a paid reply', async () => {
+  let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
+  let cancels = 0;
+  const unsent: Conversation = {
+    ...scoped,
+    turns: [],
+    initialOperation: { state: 'not-started', idempotencyKey: 'initial:draft-1', truncated: false },
+  };
+  globalThis.fetch = Object.assign(
+    (input: Parameters<typeof fetch>[0]) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.endsWith('/conversation/stream'))
+        return Promise.resolve(
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                streamController = controller;
+              },
+            }),
+            { headers: { 'content-type': 'text/event-stream' } },
+          ),
+        );
+      if (url.endsWith('/conversation/cancel')) {
+        cancels += 1;
+        streamController?.close();
+        return Promise.resolve(
+          new Response('{}', { headers: { 'content-type': 'application/json' } }),
+        );
+      }
+      if (url.endsWith('/conversation'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              ...unsent,
+              initialOperation: {
+                state: 'unknown',
+                idempotencyKey: 'initial:draft-1',
+                truncated: false,
+              },
+              latestOperation: {
+                state: 'unknown',
+                idempotencyKey: 'initial:draft-1',
+                truncated: false,
+                message: unsent.description,
+              },
+            }),
+            { headers: { 'content-type': 'application/json' } },
+          ),
+        );
+      throw new Error(`Unexpected request ${url}`);
+    },
+    { preconnect: realFetch.preconnect },
+  );
+  const harness = await mountHarness(unsent, () => Promise.resolve(null));
+  const shortcut = [...harness.container.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Send my request now',
+  );
+  if (!shortcut) throw new Error('early review absent');
+  act(() => {
+    shortcut.click();
+  });
+  await settleUntil(
+    () =>
+      harness.container
+        .querySelector('form.harness-composer')
+        ?.closest('.harness-dock')
+        ?.hasAttribute('hidden') === true,
+    () => harness.container.innerHTML,
+  );
+  const stops = [
+    ...harness.container.querySelectorAll('button[aria-label="Stop response"]'),
+  ].filter((button) => button.closest('[hidden]') === null);
+  expect(stops).toHaveLength(1);
+  act(() => {
+    stops[0]?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  });
+  await settleUntil(
+    () => cancels === 1,
+    () => String(cancels),
+  );
+  expect(cancels).toBe(1);
+  await settleUntil(
+    () => harness.container.querySelector('.harness-interrupted button') !== null,
+    () => harness.container.innerHTML,
+  );
+  expect(
+    harness.container.querySelector('.harness-interrupted button')?.hasAttribute('disabled'),
+  ).toBe(true);
+  harness.unmount();
+});
+
+test('known-invalid reply offers manual review without repeating old choices', () => {
+  const markup = renderToStaticMarkup(
+    <LiveHarness
+      initial={{
+        ...scoped,
+        turns: [
+          {
+            role: 'assistant',
+            content:
+              'The reply could not be confirmed. You can send another message or edit your brief and request human review.',
+          },
+        ],
+        latestOperation: {
+          state: 'completed',
+          idempotencyKey: 'invalid-answer',
+          truncated: false,
+          message: 'invalid envelope',
+          answer: { message: 'invalid envelope' },
+          replyFailure: 'invalid_scoping_reply',
+        },
+      }}
+      onReload={() => undefined}
+      onHandedOff={() => undefined}
+    />,
+  );
+  expect(markup).toContain('Send my request now');
+  expect(markup).not.toContain('aria-label="Suggested answers"');
+});
+
+test('candidate save synchronously blocks a same-event paid Retry', async () => {
+  const conversation: Conversation = {
+    ...scoped,
+    brief: 'Human body',
+    scoping: {
+      version: 1,
+      startConversation: true,
+      startingChoice: 'improve',
+      questionId: null,
+      revision: 1,
+      references: null,
+      candidateBrief: 'Model candidate',
+      emailInvitationDeclined: false,
+    },
+    latestOperation: {
+      state: 'unknown',
+      idempotencyKey: 'retry-while-saving',
+      truncated: false,
+      message: 'Original retry text',
+      answer: { message: 'Original retry text' },
+    },
+  };
+  const pending = Promise.withResolvers<Response>();
+  let streams = 0;
+  globalThis.fetch = Object.assign(
+    (input: Parameters<typeof fetch>[0]) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.endsWith('/scoping')) return pending.promise;
+      if (url.endsWith('/conversation/stream')) {
+        streams += 1;
+        return Promise.resolve(
+          new Response(JSON.stringify({ code: 'provider_unavailable' }), {
+            status: 503,
+            headers: { 'content-type': 'application/json' },
+          }),
+        );
+      }
+      if (url.endsWith('/conversation'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              ...conversation,
+              brief: 'Model candidate',
+              scoping: { ...conversation.scoping, revision: 2 },
+            }),
+            { headers: { 'content-type': 'application/json' } },
+          ),
+        );
+      throw new Error(`Unexpected request ${url}`);
+    },
+    { preconnect: realFetch.preconnect },
+  );
+  const harness = await mountHarness(conversation, () => Promise.resolve(null));
+  const candidate = [...harness.container.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Use suggested brief',
+  );
+  const retry = harness.container.querySelector('.harness-interrupted button');
+  if (!candidate || !(retry instanceof dom.window.HTMLButtonElement))
+    throw new Error('candidate or Retry absent');
+  act(() => {
+    candidate.click();
+    retry.click();
+  });
+  expect(streams).toBe(0);
+  expect(retry.disabled).toBe(true);
+  await act(async () => {
+    pending.resolve(
+      new Response(
+        JSON.stringify({
+          brief: 'Model candidate',
+          scoping: { ...conversation.scoping, revision: 2 },
+        }),
+        { headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    await Promise.resolve();
+  });
+  await settleUntil(
+    () => harness.container.querySelector('.request-preview')?.textContent === 'Model candidate',
+    () => harness.container.innerHTML,
+  );
+  harness.unmount();
+});
+
+for (const status of [409, 429, 200])
+  test(`mounted analytics waits for authoritative admission: ${String(status)}`, async () => {
+    const events: unknown[] = [];
+    const analytics = {
+      dispatch: (event: unknown) => {
+        events.push(event);
+        return 'sent';
+      },
+    } as Analytics;
+    const milestones = createMilestones(analytics);
+    const api = stubApi(
+      status === 200
+        ? {
+            marker: { kind: 'answer', question_id: 'launch-stage', answer_mode: 'text' },
+            reread: scoped,
+          }
+        : {
+            streamStatus: status,
+            streamCode: status === 409 ? 'stale_answer' : 'rate_limited',
+            reread: scoped,
+          },
+    );
+    const harness = await mountHarness(scoped, () => Promise.resolve(null), milestones);
+    try {
+      const choice = [...harness.container.querySelectorAll('button')].find(
+        (button) => button.textContent === 'Recurring bugs',
+      );
+      if (!choice) throw new Error('Missing choice');
+      act(() => {
+        choice.click();
+        choice.click();
+      });
+      await settleUntil(
+        () => api.posts.length === 1 && !harness.container.textContent.includes('Thinking'),
+        () => harness.container.textContent,
+      );
+      const answers = events.filter(
+        (event) => (event as { name: string }).name === 'scoping_answer',
+      );
+      expect(answers).toEqual(
+        status === 200
+          ? [{ name: 'scoping_answer', question_id: 'launch-stage', answer_mode: 'text' }]
+          : [],
+      );
+      expect(
+        events.filter((event) => (event as { name: string }).name === 'scoping_question_view'),
+      ).toHaveLength(1);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+test('anonymous scoped questions and candidate review do not mount an email form', () => {
+  for (const conversation of [
+    scoped,
+    {
+      ...scoped,
+      brief: 'Visitor-reviewed brief',
+      scoping: { ...scoped.scoping, questionId: null, candidateBrief: 'Proposed first step' },
+    },
+  ]) {
+    const markup = renderToStaticMarkup(
+      <LiveHarness
+        initial={conversation}
+        onReload={() => undefined}
+        onHandedOff={() => undefined}
+      />,
+    );
+    expect(markup).toContain('Send my request now');
+    expect(markup).not.toContain('type="email"');
+  }
 });

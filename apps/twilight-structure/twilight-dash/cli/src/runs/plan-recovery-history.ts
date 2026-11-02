@@ -1,8 +1,10 @@
+import type { WriteReceipt } from '@wbs/contracts';
+
 import type { RuntimeCatalog, RuntimeScopeRecord } from './plan-runtime';
 import { addInteger, assertInteger, equalRecords } from './record-codecs';
 import type { OwnershipStatus } from './records';
 import { decodeRecoveryHistory } from './recovery-codecs';
-import { deriveRecoveryClaimCommand } from './recovery-evidence';
+import { deriveRecoveryClaimCommand, deriveRecoveryWriteCommand } from './recovery-evidence';
 import type {
   ClaimRecoveryDecision,
   RecoveryExchangeValue,
@@ -27,6 +29,7 @@ import type {
   RuntimeScope,
   RuntimeScopeSnapshot2,
 } from './runtime-records';
+import { projectWriteReceipt } from './write-codecs';
 
 type AuthorityReceipt = Extract<
   RecoveryObservation,
@@ -234,7 +237,10 @@ function checkExchange(
     // Proof: R2F15 removed only this check; 'recovery audit rejects independent state_context' lost its required rejection. Exact restoration passed.
     throw new Error('corrupt recovery exchange association');
 }
-function checkReceipt(receipt: AuthorityReceipt | ClaimReceipt, original: RuntimeIntent): void {
+function checkReceipt(
+  receipt: AuthorityReceipt | ClaimReceipt | WriteReceipt,
+  original: RuntimeIntent,
+): void {
   const { scope, operation } = readRuntimeRequest(original.canonicalRequest);
   if (
     !equalRuntimeScopes(receipt.scope, scope) ||
@@ -254,7 +260,22 @@ function checkReceipt(receipt: AuthorityReceipt | ClaimReceipt, original: Runtim
     )
       // Proof: R2F17 removed only this check; 'coherent recovery witness rejects authority_receipt' lost its required rejection. Exact restoration passed.
       throw new Error('corrupt recovery authority receipt');
+  } else if (operation.action.kind === 'write') {
+    // Proof: H01 omitting this retained receipt check admitted a substituted claim in the complete pure fold; P05 reverting declared applied selection rejected valid extensions. Exact restorations passed.
+    // Proof: U01 omitted only authority correspondence and admitted a raw-catalogue authority substitution; U02 omitted only applied correspondence and lost the named diagnostic for a valid-shape kind substitution, which the later write command guard still rejected. Exact restorations passed.
+    if (
+      receipt.acceptance.kind !== 'write' ||
+      !equalRecords(receipt.acceptance.authority, operation.authority) ||
+      !equalRecords(receipt.acceptance.claim, operation.action.claim) ||
+      !equalRecords(
+        projectWriteReceipt({ actorId: receipt.actorId, acceptance: receipt.acceptance }).applied,
+        operation.action.commands.map((entry, index) => ({ index, kind: entry.kind })),
+      )
+    )
+      throw Error('corrupt recovery write receipt');
   } else {
+    // parseCanonicalRuntimeRequest narrows the remaining action to claim after the write branch; retain this runtime diagnostic.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (operation.action.kind !== 'claim' || receipt.acceptance.kind !== 'claim')
       // Proof: R2D01 removed this refinement; 'recovery claim kind retains its precise refinement diagnostic' received a later TypeError. Diagnostic-only; exact restoration passed.
       throw new Error('corrupt recovery claim receipt kind');
@@ -331,7 +352,11 @@ function auditRecoveryAssociations(catalog: RuntimeCatalog, ownership: Ownership
       !catalog.intents.some((entry) => equalRecords(entry, original)) ||
       retained.pin.ledgerId !== request.operation.expectedLedgerId ||
       intent.begunScopeRevision !== original.stagedRevision ||
-      (target.kind === 'authority') !== 'kind' in request.operation
+      (target.kind === 'authority') !== 'kind' in request.operation ||
+      (target.kind === 'write' &&
+        ('kind' in request.operation || request.operation.action.kind !== 'write')) ||
+      (target.kind === 'claim' &&
+        ('kind' in request.operation || request.operation.action.kind !== 'claim'))
     )
       // Proof: R2F21 removed only this check; 'coherent recovery witness rejects journal_target' lost its required rejection. Exact restoration passed.
       throw new Error('corrupt recovery journal target');
@@ -551,13 +576,31 @@ function auditRecoveryAssociations(catalog: RuntimeCatalog, ownership: Ownership
           )
             // Proof: R2F34 removed only this check; 'complete recovery catalog rejects original' lost its required rejection. Exact restoration passed.
             throw new Error('corrupt recovery authority closure');
-        } else {
+        } else if (history.version === 2 && closure.version === 2) {
+          // Proof: H02 omitting this retained closure check lost the required projection-correspondence diagnostic. Exact restoration passed; no broader unsafe-admission claim.
+          if (
+            // decodeRecoveryHistory and the enclosing accepted/version2 branch narrow accepted/write discriminants; retain these runtime diagnostics.
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+            closure.decision.kind !== 'accepted' ||
+            // decodeRecoveryHistory and the enclosing accepted/version2 branch narrow accepted/write discriminants; retain these runtime diagnostics.
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+            closure.originalReply.kind !== 'write' ||
+            !equalRecords(
+              closure.decision.command,
+              deriveRecoveryWriteCommand(history.intent, closure.decision.lookup),
+            ) ||
+            !equalRecords(closure.originalReply.command, closure.decision.command) ||
+            !equalRecords(closure.originalReply.ack.receipt.acceptance, acceptance) ||
+            !equalRecords(closure.originalReply.ack.attempt, closure.attemptReply)
+          )
+            throw Error('corrupt recovery write closure');
+        } else if (history.version === 1 && closure.version === 1 && target.kind === 'claim') {
           if (
             !('command' in closure.decision) ||
             closure.originalReply.kind !== 'claim' ||
             !equalRecords(
               closure.decision.command,
-              deriveRecoveryClaimCommand({ ...intent, target }, closure.decision.lookup),
+              deriveRecoveryClaimCommand({ ...history.intent, target }, closure.decision.lookup),
             ) ||
             !equalRecords(closure.originalReply.command, closure.decision.command) ||
             !equalRecords(closure.originalReply.ack.acceptance, acceptance)
@@ -568,7 +611,24 @@ function auditRecoveryAssociations(catalog: RuntimeCatalog, ownership: Ownership
       } else if (acceptance !== undefined || closure.originalReply !== null)
         // Proof: R2F36 removed only this check; 'recovery nonacceptance cannot publish an original claim acknowledgement' lost its required rejection. Exact restoration passed.
         throw new Error('corrupt recovery absent acknowledgement');
-      if (
+      if (target.kind === 'write') {
+        const attempt = closure.attemptReply;
+        // Proof: H03 omitting this retained attempt check lost its required stage-correspondence diagnostic. Exact restoration passed; later independent catalog checks remain.
+        if (
+          closure.version !== 2 ||
+          attempt?.version !== 4 ||
+          attempt.attemptId !== target.attemptId ||
+          attempt.identity.runId !== target.runId ||
+          // WriteAttemptCodec fixes holdsCapacity to false after version4 refinement in the decoded history; retain this defensive runtime diagnostic.
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+          attempt.holdsCapacity ||
+          attempt.state.stageCommandId !== target.stageCommandId ||
+          (closure.decision.kind === 'accepted'
+            ? attempt.state.kind !== 'write_terminal'
+            : attempt.state.kind !== 'write_nonaccepted' || attempt.state.recoveryId !== recoveryId)
+        )
+          throw Error('corrupt recovery write attempt closure');
+      } else if (
         target.kind === 'authority'
           ? closure.attemptReply !== null
           : closure.attemptReply?.attemptId !== target.attemptId ||
@@ -640,7 +700,7 @@ export function findRecoveryCommand(
       history.fences.some(
         (fence) => readRuntimeRequest(fence.canonicalRequest).operation.commandId === commandId,
       ) ||
-      (history.intent.target.kind === 'claim' &&
+      (history.intent.target.kind !== 'authority' &&
         history.intent.target.acceptanceCommandId === commandId),
   );
 }

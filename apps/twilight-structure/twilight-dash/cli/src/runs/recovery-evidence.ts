@@ -7,6 +7,7 @@ import {
   readRuntimeState,
   type RuntimeState,
   validateSchema,
+  type WriteReceipt,
 } from '@wbs/contracts';
 
 import { verifyArtifactContent } from './artifact-integrity';
@@ -32,24 +33,28 @@ import {
 } from './runtime-codecs';
 import { verifyRuntimeReceipt } from './runtime-receipt';
 import type { RuntimeIntent } from './runtime-records';
+import { decodeWriteAcceptCommand, projectWriteReceipt } from './write-codecs';
+import type { WriteRecoveryIntent } from './write-recovery-records';
 
 export type RecoveryEvidenceSubject =
   | { readonly kind: 'state' }
   | { readonly kind: 'authority'; readonly intent: RuntimeIntent }
   | { readonly kind: 'claim'; readonly intent: RuntimeIntent }
+  | { readonly kind: 'write'; readonly intent: RuntimeIntent }
   | { readonly kind: 'absent' }
   | { readonly kind: 'generation_conflict' };
 export type VerifiedRecoveryExchange =
   | { readonly kind: 'state'; readonly exchange: RecoveryExchangeValue<RuntimeState> }
   | { readonly kind: 'authority'; readonly exchange: RecoveryExchangeValue<AuthorityReceipt> }
   | { readonly kind: 'claim'; readonly exchange: RecoveryExchangeValue<ClaimReceipt> }
+  | { readonly kind: 'write'; readonly exchange: RecoveryExchangeValue<WriteReceipt> }
   | { readonly kind: 'absent'; readonly exchange: RecoveryExchangeValue<RecoveryReceiptAbsent> }
   | {
       readonly kind: 'generation_conflict';
       readonly exchange: RecoveryExchangeValue<RecoveryGenerationConflict>;
     };
 const subjectCodec = type({ kind: "'state' | 'absent' | 'generation_conflict'" })
-  .or({ kind: "'authority' | 'claim'", intent: intentCodec })
+  .or({ kind: "'authority' | 'claim' | 'write'", intent: intentCodec })
   .onDeepUndeclaredKey('reject');
 
 /** Reads each retained JSON artifact independently; dependency failures propagate without inventing evidence. */
@@ -80,7 +85,8 @@ function verifyPurpose(exchange: RecoveryExchange, subject: RecoveryEvidenceSubj
         ? status === 404 && isLookup && (isOriginal || isSupersession)
         : subject.kind === 'generation_conflict'
           ? status === 409 && request.kind === 'authority' && isFence
-          : subject.kind === 'claim'
+          : // Proof: R04 permitting fence-purpose evidence as an original write lookup lost the purpose rejection. Exact restoration passed.
+            subject.kind === 'claim' || subject.kind === 'write'
             ? status === 200 && isLookup && isOriginal
             : status === 200 &&
               ((request.kind === 'authority' && isFence) ||
@@ -99,7 +105,7 @@ function verifyPurpose(exchange: RecoveryExchange, subject: RecoveryEvidenceSubj
     )
       throw new Error('recovery authority capture differs');
   }
-  if (subject.kind === 'authority' || subject.kind === 'claim') {
+  if (subject.kind === 'authority' || subject.kind === 'claim' || subject.kind === 'write') {
     const { scope, operation } = readRuntimeRequest(subject.intent.canonicalRequest);
     // Proof: E15 removed this check; five lookup scope/ledger/command/fence correspondence negatives lost rejection.
     if (
@@ -176,6 +182,10 @@ export async function readRecoveryExchange(
     if (checked.issues !== undefined) throw new Error('recovery authority schema differs');
     return { kind: 'authority', exchange: pair(checked.value) };
   }
+  if (snapshot.kind === 'write') {
+    if (receipt.acceptance.kind !== 'write') throw Error('recovery write subject differs');
+    return { kind: 'write', exchange: pair({ ...receipt, acceptance: receipt.acceptance }) };
+  }
   // Proof: E11 removed this check; the authority-as-claim subject swap was accepted.
   if (receipt.acceptance.kind !== 'claim') throw new Error('recovery claim subject differs');
   return { kind: 'claim', exchange: pair({ ...receipt, acceptance: receipt.acceptance }) };
@@ -200,5 +210,23 @@ export function deriveRecoveryClaimCommand(
       actorId: receipt.actorId,
       basisAfter: receipt.acceptance.basisAfter,
     },
+  });
+}
+
+/** Uses the independently verified original write bytes and the reserved local identity; no wire identity is substituted. */
+export function deriveRecoveryWriteCommand(
+  intent: WriteRecoveryIntent,
+  lookup: RecoveryExchangeValue<WriteReceipt>,
+) {
+  const receipt = lookup.body.value;
+  // Proof: P04 reverting only recovery projection selection rejected valid additive entries in both providers. Compatibility proof; exact restoration passed.
+  return decodeWriteAcceptCommand({
+    version: 1,
+    kind: 'accept_write',
+    commandId: intent.target.acceptanceCommandId,
+    stageCommandId: intent.target.stageCommandId,
+    intent: intent.target.original,
+    evidence: lookup.body.artifact,
+    projection: projectWriteReceipt({ actorId: receipt.actorId, acceptance: receipt.acceptance }),
   });
 }

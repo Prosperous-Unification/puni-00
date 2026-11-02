@@ -86,6 +86,10 @@ const SSO_ERROR_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
   // account holds it discloses nothing; no provider or method is named.
   account_exists:
     'An account already uses this email address with a different sign-in method. Sign in the way you did before, then add this method under Account.',
+  // The provider sent no groups claim, so no session could work: an
+  // identity-provider setup fault, not something the reader can retry away.
+  groups_claim_missing:
+    'SSO signed you in, but your identity provider sent no access groups for this app. Ask your administrator to set up access for your account.',
 });
 
 /**

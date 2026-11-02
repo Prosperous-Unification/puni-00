@@ -369,6 +369,7 @@ export function createSqliteRunStore(
       const snapshot = structuredClone(input);
       const ownership = decodeOwnership(snapshot.guard.ownership);
       // Proof: T6S06 bypassing only this closure transaction left independently visible acceptance/execution or closure/barrier/hold rows after real late trigger aborts. Restoration passed.
+      // Proof: Q03 removing only this transaction left a corrupt partial catalog after an actual late closure trigger abort; restored reopen/retry passed.
       return await transact(true, () => {
         const { authority } = readAuthority(ownership);
         // Proof: T6S02 removing only this new current-owner gate replayed an expired owner closure. Restoration passed.
@@ -382,7 +383,12 @@ export function createSqliteRunStore(
         if (replay !== undefined) return finish(replay, authority.observedAt);
         const reply = planRecoveryResolution(catalog, call);
         if (reply.kind === 'refused') return finish(reply, authority.observedAt);
-        insertRecoveryResolution(database, reply.value, catalog.runtime.acceptances.length);
+        insertRecoveryResolution(
+          database,
+          reply.value,
+          catalog.runtime.acceptances.length,
+          catalog,
+        );
         return finish({ kind: 'applied', value: reply.value.closure }, authority.observedAt);
       });
     },
@@ -634,7 +640,7 @@ export function createSqliteRunStore(
           ),
           run,
           recoveries: snapshot.catalog.runtime.recovery.histories.flatMap((history) =>
-            history.intent.target.kind === 'claim' &&
+            history.intent.target.kind !== 'authority' &&
             history.intent.target.runId === run.runId &&
             history.closure !== null
               ? [history.closure]

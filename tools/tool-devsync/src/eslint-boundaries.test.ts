@@ -160,6 +160,65 @@ describe('recovery evidence contract boundaries', () => {
 });
 
 describe('the effective production and test boundaries', () => {
+  // Proof: independent source/test allowance removals failed their actual import admissions;
+  // broad alias, relative path and unlisted-peer allowances failed the matching denials
+  // after zero-fatal parser assertions. Each exact restoration passed 36 assertions (2026-10-31).
+  // Proof (Task2): independent facts-consumer removal, facts-only alias/relative
+  // widening and coordinator-peer admission failed semantic policy assertions;
+  // every restored configuration passed 56 assertions.
+  it('Dash coordination topology consumes only the exact public WBS domain at its exact paths', async () => {
+    const peer = 'apps/twilight-structure/twilight-dash/cli/src/runs/prepare-activity.ts';
+    const peerOptions = boundaryOf(await lint.calculateConfigForFile(peer))[1];
+    if (!isRecord(peerOptions)) throw new Error('Dash coordination peer policy malformed');
+    for (const name of ['topology.ts', 'topology.test.ts', 'run-facts.ts']) {
+      const path = 'apps/twilight-structure/twilight-dash/cli/src/coordination/' + name;
+      const [admission] = await lint.lintText("await import('@wbs/domain');", { filePath: path });
+      expect(admission.fatalErrorCount, path).toBe(0);
+      expect(
+        admission.messages.map((message) => message.ruleId),
+        path,
+      ).not.toContain('@nx/enforce-module-boundaries');
+      for (const alias of [
+        '@wbs/domain/step-node',
+        '@wbs/contracts',
+        '@wbs/core',
+        '@wbs/store-memory',
+        relative(dirname(path), 'libs/wbs/domain/domain/src/index.ts'),
+      ]) {
+        const [denial] = await lint.lintText(`await import('${alias}');`, { filePath: path });
+        expect(denial.fatalErrorCount, path + ' ' + alias).toBe(0);
+        expect(
+          denial.messages.map((message) => message.ruleId),
+          path + ' ' + alias,
+        ).toContain('@nx/enforce-module-boundaries');
+      }
+      const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
+      expect(options, path).toEqual({ ...peerOptions, allow: ['^@wbs/domain$'] });
+      const source = await readFile(join(workspace, path), 'utf8');
+      expect(importsAlias(source, '@wbs/domain'), path).toBe(true);
+      const [actual] = await lint.lintText(source, { filePath: path });
+      expect(actual.fatalErrorCount, path).toBe(0);
+      expect(
+        actual.messages.filter((message) => message.ruleId === '@nx/enforce-module-boundaries'),
+        path,
+      ).toEqual([]);
+    }
+    for (const path of [
+      peer,
+      'apps/twilight-structure/twilight-dash/cli/src/coordination/run-coordinator.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/coordination/run-coordinator.test.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/runs/dispatch-turn.test.ts',
+    ]) {
+      await readFile(join(workspace, path), 'utf8');
+      const [denial] = await lint.lintText("await import('@wbs/domain');", { filePath: path });
+      expect(denial.fatalErrorCount, path).toBe(0);
+      expect(
+        denial.messages.map((message) => message.ruleId),
+        path,
+      ).toContain('@nx/enforce-module-boundaries');
+    }
+  }, 30_000);
+
   // Proof: P1 removes the allowance and P2–P5 widen it; this policy test rejects each fault.
   it('Dash runtime-dispatch worker reaches only its exact public factories', async () => {
     const path =
@@ -1497,18 +1556,66 @@ describe('recovery dispatch exact consumer boundaries', () => {
       30000,
     );
   }
-  it('receiver alone admits harness and keeps every other testing helper restricted', async () => {
+  // Proof: POLICY-R5 R05 admitted the resolved production auth path under Nx only;
+  // its exact Nx denial failed. T01/T02 removed/widened only the helper predicate;
+  // T03 widened only Nx relative access. Each independent calendar assertion failed.
+  it('receiver admits exact reboot fixtures while auth and unrelated helpers remain denied elsewhere', async () => {
     const receiver = root + 'testing/recovery-receiver.ts';
+    const production = root + 'dispatch-recovery.ts';
+    const auth = relative(dirname(production), 'apps/wbs/be-01/src/testing/auth-fixture');
+    await readFile(join(workspace, dirname(production), auth + '.ts'), 'utf8');
     const [denial] = await lint.lintText(
-      "import { TEST_JWT_KEY } from '../../../../../../wbs/be-01/src/testing/auth-fixture'; void TEST_JWT_KEY;",
-      { filePath: receiver },
+      'import { TEST_JWT_KEY } from ' + JSON.stringify(auth) + '; void TEST_JWT_KEY;',
+      { filePath: production },
     );
     expect(denial.fatalErrorCount).toBe(0);
-    expect(denial.messages.map((message) => message.ruleId)).toContain(
-      '@typescript-eslint/no-restricted-imports',
+    expect(
+      denial.messages.map((message) => message.ruleId),
+      'POLICY-R5 production auth helper',
+    ).toContain('@typescript-eslint/no-restricted-imports');
+    expect(
+      denial.messages.map((message) => message.ruleId),
+      'POLICY-R5 production auth Nx',
+    ).toContain('@nx/enforce-module-boundaries');
+    expect(
+      denial.messages.map(({ ruleId, messageId, message }) => ({ ruleId, messageId, message })),
+    ).toContainEqual({
+      ruleId: '@nx/enforce-module-boundaries',
+      messageId: 'noRelativeOrAbsoluteImportsAcrossLibraries',
+      message:
+        'Projects cannot be imported by a relative or absolute path, and must begin with a npm scope',
+    });
+    expect(denial.messages.map((message) => message.messageId)).not.toContain(
+      'noRelativeOrAbsoluteExternals',
     );
-    expect(denial.messages.map((message) => message.ruleId)).toContain(
-      '@nx/enforce-module-boundaries',
+    const calendar = relative(
+      dirname(receiver),
+      'apps/wbs/be-01/src/testing/calendar-marker-fixture',
+    );
+    await readFile(join(workspace, dirname(receiver), calendar + '.ts'), 'utf8');
+    const [unlisted] = await lint.lintText(
+      'import * as Fixture from ' + JSON.stringify(calendar) + '; void Fixture;',
+      { filePath: receiver },
+    );
+    expect(unlisted.fatalErrorCount).toBe(0);
+    expect(
+      unlisted.messages.map((message) => message.ruleId),
+      'POLICY-R5 calendar helper',
+    ).toContain('@typescript-eslint/no-restricted-imports');
+    expect(
+      unlisted.messages.map((message) => message.ruleId),
+      'POLICY-R5 calendar Nx',
+    ).toContain('@nx/enforce-module-boundaries');
+    expect(
+      unlisted.messages.map(({ ruleId, messageId, message }) => ({ ruleId, messageId, message })),
+    ).toContainEqual({
+      ruleId: '@nx/enforce-module-boundaries',
+      messageId: 'noRelativeOrAbsoluteImportsAcrossLibraries',
+      message:
+        'Projects cannot be imported by a relative or absolute path, and must begin with a npm scope',
+    });
+    expect(unlisted.messages.map((message) => message.messageId)).not.toContain(
+      'noRelativeOrAbsoluteExternals',
     );
     const [typebox] = await lint.lintText("import { Type } from '@sinclair/typebox'; void Type;", {
       filePath: receiver,
@@ -1676,4 +1783,194 @@ describe('Dash write publication contract boundaries', () => {
       30_000,
     );
   }
+});
+
+describe('Task3 exact write recovery policy', () => {
+  const root = 'apps/twilight-structure/twilight-dash/cli/src/runs/';
+  const receiver = root + 'testing/recovery-receiver.ts';
+  const prefix = '../../../../../../wbs/be-01/src/';
+  const aliases = [
+    '@wbs/store-sqlite',
+    '@wbs/observability',
+    prefix + 'app',
+    prefix + 'boot',
+    prefix + 'testing/auth-fixture',
+    prefix + 'testing/machine-grant-fixture',
+    prefix + 'testing/organization-limits-fixture',
+  ];
+  // Proof: POLICY-R5 A01–A07 and H01–H03 removed one admission dependency at a time;
+  // the corresponding actual-source Nx/helper assertion failed with zero fatal errors.
+  it('receiver actual source admits only exact owned reboot imports', async () => {
+    const source = await readFile(join(workspace, receiver), 'utf8');
+    for (const alias of aliases) expect(importsAlias(source, alias), alias).toBe(true);
+    const [actual] = await lint.lintText(source, { filePath: receiver });
+    expect(actual.fatalErrorCount).toBe(0);
+    expect(
+      actual.messages.map((message) => message.ruleId),
+      'POLICY-R5 receiver actual Nx admission',
+    ).not.toContain('@nx/enforce-module-boundaries');
+    expect(
+      actual.messages.map((message) => message.ruleId),
+      'POLICY-R5 receiver actual helper admission',
+    ).not.toContain('@typescript-eslint/no-restricted-imports');
+    const options = boundaryOf(await lint.calculateConfigForFile(receiver))[1];
+    const peerOptions = boundaryOf(
+      await lint.calculateConfigForFile(root + 'plan-execution.ts'),
+    )[1];
+    if (!isRecord(options) || !isRecord(peerOptions)) throw new Error('receiver policy malformed');
+    expect(options['allow']).toEqual([
+      '^@wbs/contracts$',
+      '^@wbs/store-sqlite$',
+      '^@wbs/observability$',
+      ...[
+        'app',
+        'boot',
+        'testing/organization-harness',
+        'testing/auth-fixture',
+        'testing/machine-grant-fixture',
+        'testing/organization-limits-fixture',
+      ].map((path) => '^' + prefix.replaceAll('.', '\\.') + path + '$'),
+    ]);
+    const constrainedOptions: unknown = { ...options, allow: peerOptions['allow'] };
+    expect(constrainedOptions).toEqual(peerOptions);
+  }, 30000);
+  // Proof: POLICY-R5 R01/R02 widened alias/subpath access; the real-target denials failed.
+  it('receiver denies real sibling subpath and relative bypasses', async () => {
+    for (const [label, alias, target] of [
+      ['alias', '@wbs/store-memory', 'libs/wbs/adapters/store-memory/src/index.ts'],
+      [
+        'subpath',
+        '@wbs/contracts/solver/supervisor-protocol',
+        'libs/wbs/adapters/solver-supervisor-protocol/src/index.ts',
+      ],
+      [
+        'relative',
+        relative(dirname(receiver), 'libs/wbs/adapters/store-sqlite/src/index.ts'),
+        'libs/wbs/adapters/store-sqlite/src/index.ts',
+      ],
+    ]) {
+      await readFile(join(workspace, target), 'utf8');
+      const [denied] = await lint.lintText(
+        'import * as Forbidden from ' + JSON.stringify(alias) + '; void Forbidden;',
+        { filePath: receiver },
+      );
+      expect(denied.fatalErrorCount).toBe(0);
+      expect(
+        denied.messages.map((message) => message.ruleId),
+        'POLICY-R5 receiver denies ' + label,
+      ).toContain('@nx/enforce-module-boundaries');
+      expect(denied.messages.map((message) => message.messageId)).not.toContain(
+        'noRelativeOrAbsoluteExternals',
+      );
+    }
+  }, 30000);
+  // Proof: POLICY-R5 R03/R04 added one real fixture/production peer selector; its denial failed.
+  for (const alias of aliases)
+    it(
+      'receiver scope keeps the same reboot alias denied to sibling ' + alias,
+      async () => {
+        const text = 'import * as Fixture from ' + JSON.stringify(alias) + '; void Fixture;';
+        const [allowed] = await lint.lintText(text, { filePath: receiver });
+        expect(allowed.fatalErrorCount).toBe(0);
+        expect(
+          allowed.messages.map((message) => message.ruleId),
+          'POLICY-R5 receiver admits Nx ' + alias,
+        ).not.toContain('@nx/enforce-module-boundaries');
+        expect(
+          allowed.messages.map((message) => message.ruleId),
+          'POLICY-R5 receiver admits helper ' + alias,
+        ).not.toContain('@typescript-eslint/no-restricted-imports');
+        const [denied] = await lint.lintText(text, { filePath: root + 'testing/fixtures.ts' });
+        expect(denied.fatalErrorCount).toBe(0);
+        expect(
+          denied.messages.map((message) => message.ruleId),
+          'POLICY-R5 receiver fixture peer ' + alias,
+        ).toContain('@nx/enforce-module-boundaries');
+        if (alias === '@wbs/store-sqlite' || alias === '@wbs/observability') {
+          const production = root + 'dispatch-recovery.ts';
+          await readFile(join(workspace, production), 'utf8');
+          const [blocked] = await lint.lintText(text, { filePath: production });
+          expect(blocked.fatalErrorCount).toBe(0);
+          expect(
+            blocked.messages.map((message) => message.ruleId),
+            'POLICY-R5 receiver production peer ' + alias,
+          ).toContain('@nx/enforce-module-boundaries');
+        }
+      },
+      30000,
+    );
+  // Proof: POLICY-R5 A08–A11 removed each selector; C01–C20 widened one alias,
+  // subpath, relative allowance or real peer selector. The named admission/denial
+  // assertions failed with zero fatal errors (C03 corrected).
+  for (const name of [
+    'write-recovery-records.ts',
+    'plan-recovery.ts',
+    'plan-recovery-history.ts',
+    'testing/write-recovery-contract.ts',
+  ])
+    it(
+      name + ' admits actual public contract and denies private or sibling imports',
+      async () => {
+        const path = root + name;
+        const [actual] = await lint.lintText(await readFile(join(workspace, path), 'utf8'), {
+          filePath: path,
+        });
+        expect(actual.fatalErrorCount).toBe(0);
+        expect(
+          actual.messages.map((message) => message.ruleId),
+          'POLICY-R5 actual contract admission ' + name,
+        ).not.toContain('@nx/enforce-module-boundaries');
+        for (const [label, alias, target] of [
+          ['alias', '@wbs/store-memory', 'libs/wbs/adapters/store-memory/src/index.ts'],
+          [
+            'subpath',
+            '@wbs/contracts/solver/supervisor-protocol',
+            'libs/wbs/adapters/solver-supervisor-protocol/src/index.ts',
+          ],
+          [
+            'relative',
+            relative(dirname(path), 'libs/wbs/domain/contracts/src/index.ts'),
+            'libs/wbs/domain/contracts/src/index.ts',
+          ],
+        ]) {
+          await readFile(join(workspace, target), 'utf8');
+          const [denied] = await lint.lintText(
+            'import * as Forbidden from ' + JSON.stringify(alias) + '; void Forbidden;',
+            {
+              filePath: path,
+            },
+          );
+          expect(denied.fatalErrorCount).toBe(0);
+          expect(
+            denied.messages.map((message) => message.ruleId),
+            'POLICY-R5 contract denies ' + label + ' ' + name,
+          ).toContain('@nx/enforce-module-boundaries');
+          expect(denied.messages.map((message) => message.messageId)).not.toContain(
+            'noRelativeOrAbsoluteExternals',
+          );
+        }
+        for (const peer of ['plan-execution.ts', 'dispatch-turn.test.ts']) {
+          await readFile(join(workspace, root + peer), 'utf8');
+          const [denied] = await lint.lintText(
+            "import * as Forbidden from '@wbs/contracts'; void Forbidden;",
+            { filePath: root + peer },
+          );
+          expect(denied.fatalErrorCount).toBe(0);
+          expect(
+            denied.messages.map((message) => message.ruleId),
+            'POLICY-R5 contract peer ' + peer + ' ' + name,
+          ).toContain('@nx/enforce-module-boundaries');
+        }
+        const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
+        const peerOptions = boundaryOf(
+          await lint.calculateConfigForFile(root + 'plan-execution.ts'),
+        )[1];
+        if (!isRecord(options) || !isRecord(peerOptions))
+          throw new Error('write recovery policy malformed');
+        expect(options['allow']).toEqual(['^@wbs/contracts$']);
+        const constrainedOptions: unknown = { ...options, allow: peerOptions['allow'] };
+        expect(constrainedOptions).toEqual(peerOptions);
+      },
+      30000,
+    );
 });

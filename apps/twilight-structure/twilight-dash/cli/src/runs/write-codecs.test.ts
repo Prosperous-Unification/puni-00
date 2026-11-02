@@ -18,6 +18,7 @@ import {
   decodeWriteReceipt,
   decodeWriteStageAck,
   decodeWriteStageCommand,
+  projectWriteReceipt,
 } from './write-codecs';
 
 async function writeSamples() {
@@ -311,7 +312,9 @@ test('historical current attempt and generic completion codecs keep their exact 
   const predecessor: unknown = decodeAttempt(fixture.facts.attempt);
   expect(predecessor).toEqual(fixture.facts.attempt);
   expect(() => decodeAttempt(attempt)).toThrow();
-  expect(() => decodeCurrentAttempt(attempt)).toThrow();
+  const currentAttempt: unknown = decodeCurrentAttempt(attempt);
+  expect(currentAttempt).toEqual(attempt);
+  expect(currentAttempt).not.toBe(attempt);
   const generic = createCompletion(fixture.claim, fixture.quiescence);
   const completion: unknown = decodeCompletion(generic);
   expect(completion).toEqual(generic);
@@ -398,4 +401,34 @@ test('write nested shapes reject unknown keys at every retained object boundary'
       expect(() => decode(corrupted)).toThrow();
     }
   }
+});
+
+test('verified write receipt selection retains strict known fields and detaches applied entries', () => {
+  const projection = decodeWriteProjection({
+    version: 1,
+    actorId: 'actor',
+    basisAfter: 'rb1:' + 'b'.repeat(64),
+    applied: [{ index: 0, kind: 'setProgress' }],
+  });
+  const receipt = { actorId: projection.actorId, acceptance: projection };
+  Object.assign(receipt.acceptance.applied[0], { publicExtension: true });
+  const selected = projectWriteReceipt(receipt);
+  expect(selected).toEqual({
+    version: 1,
+    actorId: 'actor',
+    basisAfter: 'rb1:' + 'b'.repeat(64),
+    applied: [{ index: 0, kind: 'setProgress' }],
+  });
+  Object.assign(receipt.acceptance.applied[0], { index: 2 });
+  expect(selected.applied[0].index).toBe(0);
+  for (const malformed of [{ index: -1 }, { kind: 'unknown' }]) {
+    Object.assign(receipt.acceptance.applied[0], { index: 0, kind: 'setProgress' }, malformed);
+    expect(() => projectWriteReceipt(receipt)).toThrow();
+  }
+  expect(() =>
+    decodeWriteProjection({
+      ...selected,
+      applied: [{ index: 0, kind: 'setProgress', localUnknown: true }],
+    }),
+  ).toThrow();
 });

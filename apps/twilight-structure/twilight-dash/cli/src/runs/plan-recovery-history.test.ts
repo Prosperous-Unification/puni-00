@@ -534,7 +534,8 @@ for (const fault of [
       Object.assign(closure.attemptReply!.state, { closureId: 'other' });
     if (fault === 'hold_checkpoint') {
       const hold = closure.attemptReply!;
-      if (hold.state.cause !== 'claim_accepted_fenced') throw new Error('expected ready hold');
+      if (hold.version !== 3 || hold.state.cause !== 'claim_accepted_fenced')
+        throw new Error('expected ready hold');
       Object.assign(hold.state, { checkpoint: structuredClone(hold.state.checkpoint) });
       Object.assign(hold.state.checkpoint, { cause: { kind: 'decision', decisionId: 'invented' } });
       Object.assign(corrupted.attempts[0], { attempt: hold });

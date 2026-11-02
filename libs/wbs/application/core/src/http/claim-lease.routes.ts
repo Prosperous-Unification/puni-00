@@ -27,7 +27,7 @@ export function claimLeaseRoutes(
       // Proof: with this refusal removed, `renews on an agent heartbeat and
       // refuses a session heartbeat not_pinned` (claim-lease.controller.db.test.ts)
       // answered the session 200 (2 pass, 1 fail); watched 2026-10-23.
-      if (pin === null || !('personId' in pin)) return notPinned;
+      if (pin === null) return notPinned;
       // Scoped to the grant's run when it opted in (`wbs-mcp-agent-surface`
       // M15), every lease of the person otherwise.
       // Proof: with the person alone renewed (the run dropped), `two

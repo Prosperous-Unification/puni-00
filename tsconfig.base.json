@@ -131,7 +131,8 @@
       "@wbs/validation": ["./libs/wbs/domain/validation/src/index.ts"],
       "@wbs/validation/fixtures": ["./libs/wbs/domain/validation/src/fixtures/index.ts"],
       "@website/contracts": ["./libs/website/domain/contracts/src/index.ts"],
-      "@website/store-sqlite": ["./libs/website/adapters/store-sqlite/src/store.ts"]
+      "@website/store-sqlite": ["./libs/website/adapters/store-sqlite/src/store.ts"],
+      "@website/analytics": ["./libs/website/adapters/analytics/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

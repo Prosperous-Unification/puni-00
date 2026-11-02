@@ -4,10 +4,18 @@ import {
   type ConversationReplyStage,
   type ConversationState,
   deriveReplyStage,
+  invalidScopingReplyText,
+  parseScopingAnswerRequest,
+  presentScopingReply,
+  readScopingReply,
+  type ReplyFailure,
+  type ScopingAnswerRequest,
+  type ScopingReply,
 } from '@website/contracts';
 import type { Database } from 'bun:sqlite';
 
 import { sweepAdmissionCounts, tripInferencePause } from './guardrail-store';
+import { applyScopingReply, type DraftScoping, readDraftScoping } from './scoping-store';
 
 export interface ConversationTurn {
   role: 'user' | 'assistant';
@@ -28,6 +36,8 @@ export interface ConversationOperationRecord {
   state: ConversationOperationState;
   truncated: boolean;
   message: string;
+  answer: ScopingAnswerRequest | null;
+  replyFailure: ReplyFailure | null;
 }
 
 /**
@@ -45,6 +55,13 @@ export const conversationAllowance = {
   siteUnsettledCalls: 4,
 } as const;
 
+/** A coherent admission snapshot priced and sent unchanged; edits during inference affect only settlement. */
+export interface ConversationContext {
+  scoping: DraftScoping;
+  brief: string;
+  visitorTurns: number;
+}
+
 /**
  * How a new operation may start: `closed` admits none (replays and refusals still answer),
  * `free` starts one without a reservation (loopback demo), `paid` prices the exact history and
@@ -53,7 +70,14 @@ export const conversationAllowance = {
 export type ConversationPricing =
   | { kind: 'closed' }
   | { kind: 'free' }
-  | { kind: 'paid'; price(history: ConversationTurn[], stage: ConversationReplyStage): number };
+  | {
+      kind: 'paid';
+      price(
+        history: ConversationTurn[],
+        stage: ConversationReplyStage,
+        context: ConversationContext,
+      ): number;
+    };
 
 export interface ConversationAdmissionRequest {
   claimHash: string;
@@ -62,6 +86,10 @@ export interface ConversationAdmissionRequest {
   bodyHash: string;
   message: string;
   initial: boolean;
+  /** Mount-triggered initial attempt; unknown operations always require explicit Retry. */
+  automatic?: boolean;
+  /** Exact validated raw answer for Retry; selected identity is rechecked only for new attempts. */
+  answer?: ScopingAnswerRequest;
   promptVersion: string;
   pricing: ConversationPricing;
   /**
@@ -75,13 +103,22 @@ export interface ConversationAdmissionRequest {
 export type ConversationAdmission =
   | {
       kind: 'started';
+      /** True only for the first attempt of this logical input, never an unknown Retry. */
+      isNewInput: boolean;
       id: string;
       conversationId: string;
       stage: ConversationReplyStage;
       /** The model's context for this reply, see {@link listModelContext}. */
       history: ConversationTurn[];
+      context: ConversationContext;
     }
-  | { kind: 'completed'; reply: string }
+  | {
+      kind: 'completed';
+      reply: string;
+      replyVersion: 1 | null;
+      replyFailure: ReplyFailure | null;
+      promptVersion: string;
+    }
   | { kind: 'exhausted'; reason: ConversationExhaustedReason }
   /** Paid inference is paused; `openedPauseId` names the pause this admission opened, if any. */
   | { kind: 'paused'; openedPauseId: string | null }
@@ -94,7 +131,10 @@ export type ConversationAdmission =
         | 'initial_required'
         | 'provider_unavailable'
         | 'busy'
-        | 'challenge_required';
+        | 'challenge_required'
+        | 'stale_answer'
+        | 'automatic_forbidden'
+        | 'invalid_initial';
     };
 
 interface ConversationRow {
@@ -110,6 +150,10 @@ interface OperationRow {
   body_hash: string;
   state: ConversationOperationState;
   reply: string | null;
+  reply_version: 1 | null;
+  reply_failure: unknown;
+  settlement: string | null;
+  prompt_version: string;
 }
 
 /**
@@ -200,19 +244,46 @@ export function findConversation(database: Database, draftId: string): Conversat
   return row ? { id: row.id, state: row.state, exhaustedReason: row.exhausted_reason } : null;
 }
 
+/**
+ * Reads exact raw Retry input. Legacy and initial operations have no payload. An erased
+ * accounting operation has both an empty message and a null payload; other versioned
+ * follow-ups require valid saved input. @throws for missing, malformed or misplaced payloads.
+ */
 function toOperationRecord(row: {
   id: string;
   idempotency_key: string;
   state: ConversationOperationState;
   truncated: number;
   message: string;
+  initial: number;
+  request_json: string | null;
+  scoping_version: number | null;
+  reply_failure: unknown;
+  reply_version: 1 | null;
+  settlement: string | null;
 }): ConversationOperationRecord {
+  let answer: ScopingAnswerRequest | null = null;
+  if (row.request_json !== null) {
+    // Proof: bypassing this branch accepted raw payloads on initial and legacy rows in the saved-answer fixture.
+    if (row.initial !== 0 || row.scoping_version !== 1)
+      throw new Error('Unexpected saved conversation answer');
+    const source: unknown = JSON.parse(row.request_json);
+    const parsed = parseScopingAnswerRequest(source);
+    // Proof: bypassing this check accepted malformed saved objects in the saved-answer fixture.
+    if (parsed.kind !== 'valid') throw new Error('Malformed saved conversation answer');
+    answer = parsed.value;
+    // Proof: bypassing this absence check accepted missing non-erased retry input in the saved-answer fixture.
+  } else if (row.scoping_version === 1 && row.initial === 0 && row.message !== '') {
+    throw new Error('Missing saved conversation answer');
+  }
   return {
     id: row.id,
     idempotencyKey: row.idempotency_key,
     state: row.state,
     truncated: row.truncated === 1,
     message: row.message,
+    answer,
+    replyFailure: readReplyFailure(row),
   };
 }
 
@@ -230,10 +301,16 @@ export function findConversationOperation(
         state: ConversationOperationState;
         truncated: number;
         message: string;
+        initial: number;
+        request_json: string | null;
+        scoping_version: number | null;
+        reply_failure: unknown;
+        reply_version: 1 | null;
+        settlement: string | null;
       },
       [string, string]
     >(
-      'SELECT id, idempotency_key, state, truncated, message FROM conversation_operation WHERE conversation_id = ? AND idempotency_key = ? ORDER BY rowid DESC LIMIT 1',
+      'SELECT step.id, step.idempotency_key, step.state, step.truncated, step.message, step.initial, step.request_json, draft.scoping_version, step.reply_failure, step.reply_version, step.settlement FROM conversation_operation AS step JOIN conversation AS talk ON talk.id = step.conversation_id JOIN intake_draft AS draft ON draft.id = talk.draft_id WHERE step.conversation_id = ? AND step.idempotency_key = ? ORDER BY step.rowid DESC LIMIT 1',
     )
     .get(conversationId, idempotencyKey);
   return row ? toOperationRecord(row) : null;
@@ -251,10 +328,16 @@ export function findLatestConversationOperation(
         state: ConversationOperationState;
         truncated: number;
         message: string;
+        initial: number;
+        request_json: string | null;
+        scoping_version: number | null;
+        reply_failure: unknown;
+        reply_version: 1 | null;
+        settlement: string | null;
       },
       [string]
     >(
-      'SELECT id, idempotency_key, state, truncated, message FROM conversation_operation WHERE conversation_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1',
+      'SELECT step.id, step.idempotency_key, step.state, step.truncated, step.message, step.initial, step.request_json, draft.scoping_version, step.reply_failure, step.reply_version, step.settlement FROM conversation_operation AS step JOIN conversation AS talk ON talk.id = step.conversation_id JOIN intake_draft AS draft ON draft.id = talk.draft_id WHERE step.conversation_id = ? ORDER BY step.created_at DESC, step.rowid DESC LIMIT 1',
     )
     .get(conversationId);
   return row ? toOperationRecord(row) : null;
@@ -318,6 +401,7 @@ function refuseReservation(
     'site spend',
   ).total;
   const pause = tripInferencePause(database, siteSpend, reservedMicroUsd, now);
+  // Proof: bypassing this pause admitted the structured reservation at the 80 percent site threshold.
   if (pause) return { kind: 'paused', ...pause };
   if (siteSpend + reservedMicroUsd > conversationAllowance.siteDayMicroUsd)
     return exhaust(database, conversation.id, 'site_spend');
@@ -339,11 +423,16 @@ function refuseReservation(
  * concurrent writer in another process waits for the lock instead of reading stale totals.
  * Order: live draft, conversation state, idempotent lookup of the key's latest attempt (replay,
  * conflict, in-flight; an `unknown` attempt was settled at its ceiling and may be retried under
- * the same key as a new attempt), the initial-once and turn rules, the per-conversation in-flight rule, then the
+ * the same key as an explicit new attempt), durable selection revision, the initial-once and turn rules, the per-conversation in-flight rule, then the
  * priced ceilings. A turn or spend refusal stores the conversation as `exhausted` with its
  * reason; saved turns never change. The conversation row is created on the first admitted
  * attempt, only with a verified browser check under paid pricing, and carries the salted source
  * hash; later operations, retries and replays never need a check because the row exists.
+ * Versioned initial requests bind the key and opening to persisted intent. Automatic requests
+ * require landing authorization and never retry unknown attempts. Selected-answer revisions
+ * are matched only after completed/inflight replay and body conflict resolution. Versioned
+ * completed replay and body conflicts also precede exhaustion; new attempts still refuse
+ * before pricing. Legacy exhausted drafts retain their original early refusal.
  *
  * @throws when stored state contradicts its invariants (an exhausted row without a reason, a
  * completed operation without a reply) or the pricing returns a non-positive amount.
@@ -355,11 +444,35 @@ export function admitConversationOperation(
   return database
     .transaction((): ConversationAdmission => {
       const draft = database
-        .query<{ id: string }, [string, number]>(
-          'SELECT id FROM intake_draft WHERE claim_hash = ? AND expires_at > ? AND consumed_at IS NULL',
+        .query<
+          {
+            id: string;
+            description: string;
+            brief: string;
+            scoping_version: unknown;
+            start_conversation: unknown;
+            starting_choice: unknown;
+          },
+          [string, number]
+        >(
+          'SELECT id, description, brief, scoping_version, start_conversation, starting_choice FROM intake_draft WHERE claim_hash = ? AND expires_at > ? AND consumed_at IS NULL',
         )
         .get(request.claimHash, request.now);
       if (!draft) return { kind: 'draft_unavailable' };
+      const scoping = readDraftScoping(database, draft.id, draft);
+      // Proof: bypassing either key or description comparison admitted the forged-initial fixture before reservation.
+      if (
+        request.initial &&
+        scoping.version === 1 &&
+        (request.idempotencyKey !== `initial:${draft.id}` || request.message !== draft.description)
+      )
+        return { kind: 'invalid_initial' };
+      // Proof: bypassing persisted intent admitted automatic requests in both legacy/manual mounted fixtures.
+      if (
+        request.automatic &&
+        (!request.initial || scoping.version !== 1 || !scoping.startConversation)
+      )
+        return { kind: 'automatic_forbidden' };
       let conversation = findConversationRow(database, draft.id);
       if (!conversation) {
         if (request.pricing.kind === 'closed') return { kind: 'provider_unavailable' };
@@ -378,29 +491,55 @@ export function admitConversationOperation(
       }
       if (conversation.state === 'handed_off')
         throw new Error('Handed-off conversation has an unconsumed draft');
-      if (conversation.state === 'exhausted') {
-        if (conversation.exhausted_reason === null)
-          throw new Error('Exhausted conversation has no reason');
-        return { kind: 'exhausted', reason: conversation.exhausted_reason };
-      }
+      const exhaustedReason =
+        conversation.state === 'exhausted' ? conversation.exhausted_reason : null;
+      if (conversation.state === 'exhausted' && exhaustedReason === null)
+        throw new Error('Exhausted conversation has no reason');
+      // Proof: deferring this refusal for legacy drafts failed both legacy exhaustion replay fixtures.
+      if (exhaustedReason !== null && scoping.version === 'legacy')
+        return { kind: 'exhausted', reason: exhaustedReason };
       const visitorTurns = countVisitorTurns(database, conversation.id);
       const existing = database
         .query<OperationRow, [string, string]>(
-          'SELECT id, body_hash, state, reply FROM conversation_operation WHERE conversation_id = ? AND idempotency_key = ? ORDER BY rowid DESC LIMIT 1',
+          'SELECT id, body_hash, state, reply, reply_version, reply_failure, settlement, prompt_version FROM conversation_operation WHERE conversation_id = ? AND idempotency_key = ? ORDER BY rowid DESC LIMIT 1',
         )
         .get(conversation.id, request.idempotencyKey);
       if (existing) {
         // Proof: dropping this comparison made the changed-body admission test return `completed` instead of `conflict`.
         if (existing.body_hash !== request.bodyHash) return { kind: 'conflict' };
         if (existing.state === 'completed') {
-          if (request.initial && visitorTurns > 1) return { kind: 'turn_limit' };
+          // Proof: restoring the legacy-only limit for version 1 made completed initial navigation after a selected answer return 429.
+          if (request.initial && scoping.version === 'legacy' && visitorTurns > 1)
+            return { kind: 'turn_limit' };
           if (existing.reply === null)
             throw new Error('Completed conversation operation has no reply');
-          return { kind: 'completed', reply: existing.reply };
+          if (existing.reply_version === 1) readScopingReply(existing.reply);
+          return {
+            kind: 'completed',
+            reply: existing.reply,
+            replyVersion: existing.reply_version,
+            replyFailure: readReplyFailure(existing),
+            promptVersion: existing.prompt_version,
+          };
         }
-        if (existing.state === 'inflight') return { kind: 'inflight' };
-        // An `unknown` attempt was settled at its ceiling; the same key may start a new attempt.
       }
+      // Proof: moving this refusal before lookup broke completed turn/spend replay and conflicts; omitting it made fresh exhausted requests throw in those same fixtures.
+      if (exhaustedReason !== null) return { kind: 'exhausted', reason: exhaustedReason };
+      if (existing?.state === 'inflight') return { kind: 'inflight' };
+      // An `unknown` attempt was settled at its ceiling; explicit Retry may start a new attempt.
+      // Proof: bypassing this check made the mounted unknown-initial fixture reserve a second automatic attempt.
+      if (request.automatic && existing?.state === 'unknown')
+        return { kind: 'automatic_forbidden' };
+      // Proof: moving this block before replay lookup rejected the mounted successful same-key answer after revision advanced.
+      const selection = request.answer?.selected;
+      // Proof: bypassing question identity admitted the wrong-question fixture; bypassing revision admitted the real second-connection stale race before pricing.
+      if (
+        selection &&
+        (scoping.version !== 1 ||
+          selection.questionId !== scoping.questionId ||
+          selection.revision !== scoping.revision)
+      )
+        return { kind: 'stale_answer' };
       if (request.pricing.kind === 'closed') return { kind: 'provider_unavailable' };
       if (request.initial && visitorTurns > 0) return { kind: 'turn_limit' };
       if (!request.initial && visitorTurns === 0) return { kind: 'initial_required' };
@@ -416,11 +555,15 @@ export function admitConversationOperation(
         'in-flight operation',
       ).count;
       if (running > 0) return { kind: 'inflight' };
+      // Proof: bypassing this invariant admitted the missing-normalized-answer fixture instead of throwing before pricing.
+      if (scoping.version === 1 && !request.initial && !request.answer)
+        throw new Error('Missing normalized conversation answer');
       const stage = deriveReplyStage(visitorTurns);
       const history = listModelContext(database, conversation.id);
+      const context = { scoping, brief: draft.brief, visitorTurns };
       let reservedMicroUsd: number | null = null;
       if (request.pricing.kind === 'paid') {
-        reservedMicroUsd = request.pricing.price(history, stage);
+        reservedMicroUsd = request.pricing.price(history, stage, context);
         if (!Number.isSafeInteger(reservedMicroUsd) || reservedMicroUsd <= 0)
           throw new Error('Conversation reservation must be a positive integer of micro-USD');
         const refusal = refuseReservation(
@@ -430,12 +573,13 @@ export function admitConversationOperation(
           reservedMicroUsd,
           request.now,
         );
+        // Proof: removing this admission refusal failed structured reservation participates in conversation ceiling.
         if (refusal) return refusal;
       }
       const id = crypto.randomUUID();
       database
         .query(
-          "INSERT INTO conversation_operation (id, conversation_id, idempotency_key, source_hash, body_hash, message, initial, stage, prompt_version, state, utc_day, reserved_micro_usd, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'inflight', ?, ?, ?)",
+          "INSERT INTO conversation_operation (id, conversation_id, idempotency_key, source_hash, body_hash, message, initial, stage, prompt_version, state, utc_day, reserved_micro_usd, created_at, request_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'inflight', ?, ?, ?, ?)",
         )
         .run(
           id,
@@ -450,8 +594,19 @@ export function admitConversationOperation(
           utcDayOf(request.now),
           reservedMicroUsd,
           request.now,
+          // Proof: storing null here failed mounted selected Retry after remount.
+          request.answer ? JSON.stringify(request.answer) : null,
         );
-      return { kind: 'started', id, conversationId: conversation.id, stage, history };
+      // Proof: marking every attempt new repeated admission in unknown-initial and selected-Retry mounted tests.
+      return {
+        kind: 'started',
+        isNewInput: existing === null,
+        id,
+        conversationId: conversation.id,
+        stage,
+        history,
+        context,
+      };
     })
     .immediate();
 }
@@ -496,6 +651,45 @@ export function completeDeclinedConversationOperation(
   return settleConversationOperation(database, id, reply, actualMicroUsd, now, false, refusal);
 }
 
+/** Validated envelope, readable turns and current scoping state settle in one immediate transaction. */
+export function completeScopingConversationOperation(
+  database: Database,
+  id: string,
+  reply: ScopingReply | null,
+  actualMicroUsd: number,
+  now: number,
+): boolean {
+  return settleConversationOperation(
+    database,
+    id,
+    reply === null ? invalidScopingReplyText : JSON.stringify(reply),
+    actualMicroUsd,
+    now,
+    false,
+    null,
+    reply === null ? { kind: 'invalid' } : { kind: 'valid', reply },
+  );
+}
+
+/** Rejects corrupt failure metadata even when a database was restored without its constraints. */
+function readReplyFailure(row: {
+  reply_failure: unknown;
+  state: ConversationOperationState;
+  settlement: string | null;
+  reply_version: 1 | null;
+}): ReplyFailure | null {
+  if (row.reply_failure === null) return null;
+  // Proof: bypassing this reader accepted each corrupt failure row with SQLite CHECK enforcement disabled.
+  if (
+    row.reply_failure !== 'invalid_scoping_reply' ||
+    row.state !== 'completed' ||
+    row.settlement !== 'usage' ||
+    row.reply_version !== null
+  )
+    throw new Error('Malformed conversation reply failure');
+  return row.reply_failure;
+}
+
 function settleConversationOperation(
   database: Database,
   id: string,
@@ -504,6 +698,7 @@ function settleConversationOperation(
   now: number,
   truncated: boolean,
   refusal: ConversationRefusal | null,
+  structured?: { kind: 'valid'; reply: ScopingReply } | { kind: 'invalid' },
 ): boolean {
   return database
     .transaction(() => {
@@ -515,10 +710,11 @@ function settleConversationOperation(
             state: ConversationOperationState;
             stage: ConversationReplyStage;
             reserved_micro_usd: number | null;
+            prompt_version: string;
           },
           [string]
         >(
-          'SELECT conversation_id, message, state, stage, reserved_micro_usd FROM conversation_operation WHERE id = ?',
+          'SELECT conversation_id, message, state, stage, reserved_micro_usd, prompt_version FROM conversation_operation WHERE id = ?',
         )
         .get(id);
       if (operation?.state !== 'inflight') return false;
@@ -532,18 +728,41 @@ function settleConversationOperation(
       // Only the assistant reply is parsed, so brief markers in visitor text never reach the draft.
       // Proof: parsing `operation.message` here stored the visitor's injected brief in the markers-in-visitor-text test.
       // Proof: capturing a declined reply stored the decline as the draft brief in the brief-stage refusal test.
-      const capture = operation.stage === 'brief' && refusal === null ? captureBrief(reply) : null;
+      const draft = database
+        .query<{ id: string }, [string, number]>(
+          'SELECT id FROM intake_draft WHERE id = (SELECT draft_id FROM conversation WHERE id = ?) AND consumed_at IS NULL AND expires_at > ?',
+        )
+        .get(operation.conversation_id, now);
+      // Proof: bypassing this guard completed known-invalid replies after expiry, consumption and missing ownership.
+      if (!draft) return false;
+      if (
+        structured?.kind === 'valid' &&
+        !applyScopingReply(database, draft.id, structured.reply, now)
+      )
+        return false;
+      // Proof: using the legacy formatter here failed the mounted fresh/store/replay equality fixture.
+      const prose =
+        structured?.kind === 'valid'
+          ? presentScopingReply(structured.reply, operation.prompt_version).text
+          : reply;
+      const capture =
+        !structured && operation.stage === 'brief' && refusal === null ? captureBrief(reply) : null;
       const settled = database
         .query(
-          "UPDATE conversation_operation SET state = 'completed', reply = ?, truncated = ?, settled_micro_usd = ?, settlement = 'usage', overrun = ?, brief_capture = ?, refusal = ? WHERE id = ? AND state = 'inflight'",
+          "UPDATE conversation_operation SET state = 'completed', reply = ?, truncated = ?, settled_micro_usd = ?, settlement = 'usage', overrun = ?, brief_capture = ?, refusal = ?, reply_version = ?, reply_failure = ? WHERE id = ? AND state = 'inflight'",
         )
         .run(
           reply,
           truncated ? 1 : 0,
           actualMicroUsd,
           overrun ? 1 : 0,
-          capture?.kind ?? null,
+          // Proof: marking every structured outcome as captured failed all mounted known-invalid envelope cases.
+          structured?.kind === 'valid' && structured.reply.brief !== null
+            ? 'marked'
+            : (capture?.kind ?? null),
           refusal,
+          structured?.kind === 'valid' ? 1 : null,
+          structured?.kind === 'invalid' ? 'invalid_scoping_reply' : null,
           id,
         );
       if (settled.changes !== 1) throw new Error('Conversation completion was not atomic');
@@ -557,13 +776,14 @@ function settleConversationOperation(
         operation.message,
         now,
       );
-      insertTurn.run(crypto.randomUUID(), operation.conversation_id, 'assistant', reply, now + 1);
+      insertTurn.run(crypto.randomUUID(), operation.conversation_id, 'assistant', prose, now + 1);
       // Proof: storing the raw reply for an `empty` capture failed the empty-marked-body test.
+      // Proof: removing the version predicate captured Legacy model candidate in the versioned-draft fixture.
       if (capture && capture.kind !== 'empty')
         // Proof: dropping `brief = ''` overwrote the visitor's saved brief in the kept-brief test.
         database
           .query(
-            "UPDATE intake_draft SET brief = ? WHERE id = (SELECT draft_id FROM conversation WHERE id = ?) AND consumed_at IS NULL AND brief = ''",
+            "UPDATE intake_draft SET brief = ? WHERE id = (SELECT draft_id FROM conversation WHERE id = ?) AND consumed_at IS NULL AND brief = '' AND scoping_version IS NULL",
           )
           .run(capture.body.slice(0, 4_000), operation.conversation_id);
       return true;
@@ -591,8 +811,8 @@ export function recordConversationGeneration(
  * Conservative settlement for an in-flight operation whose final usage is unknown (stop,
  * disconnect, timeout, provider or stream error, refused completion): it becomes `unknown` and
  * is settled at its full reservation with `settlement = 'reserved_ceiling'`. The reservation was
- * priced at the pinned `max_price` with the full output cap, so the recorded spend can only
- * over-count the provider's charge. The conversation stays open; the partial reply is not saved
+ * priced at verified effective cache/tier ceilings with the full output cap, conservatively covering
+ * the published applicable rates. The conversation stays open; the partial reply is not saved
  * and the visitor's message stays on the operation for a retry. Returns false when it was not in
  * flight.
  */
@@ -660,6 +880,7 @@ export function handOffConversation(database: Database, draftId: string): void {
  * operations and by request-retention erasure.
  */
 export function eraseConversationContent(database: Database, draftId: string): void {
+  // Proof: omitting request_json blanking retained the raw sentinel in both subject erasures, expired accounting cleanup and the pre-erasure journal snapshot replay.
   database
     .query(
       "UPDATE conversation_turn SET content = '' WHERE conversation_id IN (SELECT id FROM conversation WHERE draft_id = ?)",
@@ -667,7 +888,7 @@ export function eraseConversationContent(database: Database, draftId: string): v
     .run(draftId);
   database
     .query(
-      "UPDATE conversation_operation SET message = '', reply = CASE WHEN reply IS NULL THEN NULL ELSE '' END WHERE conversation_id IN (SELECT id FROM conversation WHERE draft_id = ?)",
+      "UPDATE conversation_operation SET request_json = NULL, message = '', reply = CASE WHEN reply IS NULL THEN NULL ELSE '' END WHERE conversation_id IN (SELECT id FROM conversation WHERE draft_id = ?)",
     )
     .run(draftId);
 }

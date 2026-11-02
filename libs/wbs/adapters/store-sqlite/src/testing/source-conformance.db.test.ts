@@ -32,7 +32,6 @@ import {
   LIMITS_FIXTURE,
   observePlanInput,
   OWNED_BINDING,
-  PINNED_CREDENTIAL,
   printCertification,
   PROGRESS_SENTINEL_STEP_ID,
   readSubtreePublicState,
@@ -44,6 +43,7 @@ import {
   seedOrganizationLimits,
   seedResourceCase,
   seedSavedPlanCapture,
+  SHARED_OCCUPANCY_OWNERSHIP,
   sourceConformanceRegistrations,
   type SourceDeclaration,
   type SourceReaders,
@@ -414,20 +414,24 @@ async function openSqliteCase<Family extends ExistingFamily>(
       await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0], []);
     if (caseId === 'directory.removePerson:delegated-claims')
       await seeded.stores.claims.add([...DELEGATED_CLAIMS], [], DETERMINISTIC_SEED.stamps[0], []);
-    if (caseId === 'directory.removePerson:pinned-credential') {
-      const { personId, issuer, subject } = PINNED_CREDENTIAL;
-      const added = await seeded.stores.directory.addPerson(
-        { id: personId, name: 'Pinned person', kind: 'agent' },
-        [],
-        DETERMINISTIC_SEED.stamps[0],
-      );
-      if (!added.ok) throw new Error('the pinned person was refused');
-      // The row `link-credential-cli.ts` writes, its only writer.
+    await seedResourceCase(seeded.stores, caseId, DETERMINISTIC_SEED);
+    if ((SHARED_OCCUPANCY_OWNERSHIP.caseIds as readonly string[]).includes(caseId)) {
+      const { organizationId, otherOrganizationId, resourceId } = SHARED_OCCUPANCY_OWNERSHIP;
+      for (const id of [organizationId, otherOrganizationId])
+        seeded.db.run(
+          sql`INSERT INTO organization (id, name, created_at) VALUES (${id}, ${id}, 1)`,
+        );
+      for (const [projectId, owner] of [
+        [DETERMINISTIC_SEED.projectIds[0], organizationId],
+        [DETERMINISTIC_SEED.projectIds[1], otherOrganizationId],
+      ] as const)
+        seeded.db.run(
+          sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, ${owner})`,
+        );
       seeded.db.run(
-        sql`INSERT INTO external_identity (id, user_id, issuer, subject, person_id, created_at) VALUES ('pinned-credential', ${DETERMINISTIC_SEED.ownerIds[0]}, ${issuer}, ${subject}, ${personId}, 1)`,
+        sql`INSERT INTO resource_organization (resource_id, organization_id, name) VALUES (${resourceId}, ${organizationId}, ${resourceId})`,
       );
     }
-    await seedResourceCase(seeded.stores, caseId, DETERMINISTIC_SEED);
   });
   if (family === 'subtrees') {
     return {

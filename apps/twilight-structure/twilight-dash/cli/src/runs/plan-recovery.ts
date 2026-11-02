@@ -1,17 +1,21 @@
+import { matchesRuntimeReceipt } from '@wbs/contracts';
+
 import type { ClaimAcceptCommand, RecordedExecution } from './execution-records';
 import { claimAcceptTransition } from './plan-claims';
 import { checkAttempt, executionCheckpoint } from './plan-execution';
 import type { RecoveryBarrier, RecoveryCatalog } from './plan-recovery-history';
 import { findRecoveryCommand } from './plan-recovery-history';
 import { inspectRuntimeScope } from './plan-runtime';
+import { writeAcceptanceTransition, type WriteAcceptPlan } from './plan-writes';
 import { addInteger, equalRecords } from './record-codecs';
 import type { Run } from './records';
-import { deriveRecoveryClaimCommand } from './recovery-evidence';
+import { deriveRecoveryClaimCommand, deriveRecoveryWriteCommand } from './recovery-evidence';
 import type {
   Attempt3,
   RecoveryBeginCall,
   RecoveryCall,
   RecoveryClosure,
+  RecoveryClosure1,
   RecoveryContext,
   RecoveryExchange,
   RecoveryExchangeValue,
@@ -27,6 +31,8 @@ import type { StoreReply } from './run-store';
 import { digestRuntimeRequest, equalRuntimeScopes, readRuntimeRequest } from './runtime-codecs';
 import type { RuntimeAcceptance } from './runtime-records';
 import type { HistoryCatalog } from './validate-history';
+import type { Attempt4, WriteObligation } from './write-records';
+import type { WriteRecoveryClosure, WriteRecoveryHistory } from './write-recovery-records';
 
 /** Plans only journal/index admission from an owner-authorized, completely audited catalog. Exact immutable replay precedes fresh revision and checkpoint checks. */
 export function planRecoveryBegin(
@@ -45,7 +51,7 @@ export function planRecoveryBegin(
     return { kind: 'refused', reason: 'authority_conflict' };
   // Proof: T3B9G removed this check; a changed guard replayed in the matching recovery contract; exact restoration passed.
   if (
-    call.kind === 'claim' &&
+    call.kind !== 'authority' &&
     (call.guard.runId !== call.intent.target.runId ||
       call.guard.attemptId !== call.intent.target.attemptId)
   )
@@ -69,7 +75,11 @@ export function planRecoveryBegin(
   if (
     !snapshot.intents.some((retained) => equalRecords(retained, target.original)) ||
     intent.begunScopeRevision !== target.original.stagedRevision ||
-    (target.kind === 'authority') !== 'kind' in request.operation
+    (target.kind === 'authority') !== 'kind' in request.operation ||
+    (target.kind === 'write' &&
+      ('kind' in request.operation || request.operation.action.kind !== 'write')) ||
+    (target.kind === 'claim' &&
+      ('kind' in request.operation || request.operation.action.kind !== 'claim'))
   )
     return { kind: 'refused', reason: 'identity_conflict' };
   // Proof: T3B6 removed only this new dependency; the resolver-mismatch test observed an applied journal; exact restoration passed.
@@ -94,7 +104,7 @@ export function planRecoveryBegin(
     ...catalog.writes.map((entry) => entry.command.commandId),
     ...catalog.runtime.recovery.histories.flatMap((history) => [
       history.intent.recoveryId,
-      ...(history.intent.target.kind === 'claim'
+      ...(history.intent.target.kind !== 'authority'
         ? [history.intent.target.acceptanceCommandId]
         : []),
       ...history.fences.map(
@@ -104,6 +114,64 @@ export function planRecoveryBegin(
   ]);
   // Proof: T3B8A removed only this new dependency; the recovery-command collision test observed an applied journal; exact restoration passed.
   if (occupied.has(intent.recoveryId)) return { kind: 'refused', reason: 'identity_conflict' };
+  if (call.kind === 'write') {
+    const write = call.intent.target;
+    const localIds = new Set<string>(
+      [...catalog.executions, ...catalog.writes].map((entry) => entry.command.commandId),
+    );
+    const reserved = findRecoveryCommand(catalog.runtime.recovery, write.acceptanceCommandId);
+    // Proof: R05 omitting local reservation admitted collisions; R06 replacing it with the broad wire namespace rejected legitimate local/wire equality. Admission and compatibility observations are distinct; exact restorations passed.
+    if (
+      localIds.has(write.acceptanceCommandId) ||
+      reserved !== undefined ||
+      write.acceptanceCommandId === intent.recoveryId
+    )
+      return { kind: 'refused', reason: 'identity_conflict' };
+    const attempt = catalog.attempts.find(
+      (entry) => entry.attempt.attemptId === write.attemptId,
+    )?.attempt;
+    const run = catalog.runs.find((entry) => entry.run.runId === write.runId)?.run;
+    const stage = catalog.writes.find((entry) => entry.command.commandId === write.stageCommandId);
+    const obligation = catalog.obligations.find(
+      (entry) => entry.stageCommandId === write.stageCommandId,
+    );
+    // Proof: Z01 removing only this check lost the named missing-target rejection for an actual provider call. Both providers returned instead; diagnostic-only, exact restoration passed.
+    if (attempt === undefined || run === undefined) throw Error('recovery target does not exist');
+    // Proof: Z02 removing only this association check changed the actual invalid-stage refusal to a later stage.reply TypeError. Diagnostic-only; both providers restored exactly.
+    if (
+      attempt.identity.runId !== write.runId ||
+      stage?.kind !== 'stage_write' ||
+      stage.attemptId !== write.attemptId ||
+      stage.runId !== write.runId ||
+      !equalRecords(stage.reply.intent, write.original)
+    )
+      return { kind: 'refused', reason: 'identity_conflict' };
+    // Diagnostic invariant: provider validateHistory already folds the immutable write stage through writeStageTransition and settlement provenance; matching pending scope selects that pending checkpoint/obligation. This retains a defensive check on audited facts, not a separate admission proof.
+    if (
+      attempt.version !== 4 ||
+      // WriteAttemptCodec fixes holdsCapacity to false in the provider-validated catalogue; retain this defensive runtime diagnostic.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      attempt.holdsCapacity ||
+      attempt.state.kind !== 'write_pending' ||
+      !equalRecords(attempt, stage.reply.attempt) ||
+      !equalRecords(obligation, stage.reply.obligation) ||
+      obligation?.disposition.kind !== 'pending'
+    )
+      return { kind: 'refused', reason: 'state_conflict' };
+    const conflict = checkAttempt({ attempt, run }, call.guard);
+    if (conflict !== undefined) return conflict;
+    return {
+      kind: 'applied',
+      value: {
+        version: 2,
+        intent: call.intent,
+        revision: 0,
+        fences: [],
+        observations: [],
+        closure: null,
+      },
+    };
+  }
   if (call.kind === 'claim') {
     const claim = call.intent.target;
     // Proof: T3B8B removed only this new dependency; the acceptance-ID collision test observed an applied journal; exact restoration passed.
@@ -145,7 +213,14 @@ export function planRecoveryBegin(
   }
   return {
     kind: 'applied',
-    value: { version: 1, intent, revision: 0, fences: [], observations: [], closure: null },
+    value: {
+      version: 1,
+      intent: call.intent,
+      revision: 0,
+      fences: [],
+      observations: [],
+      closure: null,
+    },
   };
 }
 
@@ -157,7 +232,7 @@ export function isActiveRecoveryAttempt(
   return runtime.recovery.histories.some(
     (history) =>
       history.closure === null &&
-      history.intent.target.kind === 'claim' &&
+      history.intent.target.kind !== 'authority' &&
       history.intent.target.attemptId === attemptId,
   );
 }
@@ -191,8 +266,8 @@ export function planRecoveryFence(
     return { kind: 'refused', reason: 'authority_conflict' };
   // Proof: T4F05 removing claim target correspondence admitted wrong run/attempt guards. Exact restoration passed.
   if (
-    call.kind === 'claim' &&
-    target.kind === 'claim' &&
+    call.kind !== 'authority' &&
+    target.kind !== 'authority' &&
     (call.guard.runId !== target.runId || call.guard.attemptId !== target.attemptId)
   )
     return { kind: 'refused', reason: 'identity_conflict' };
@@ -230,7 +305,7 @@ export function planRecoveryFence(
       (call.kind === 'authority' ? call.guard.expectedRevision : call.guard.expectedScopeRevision)
   )
     return { kind: 'refused', reason: 'revision_conflict' };
-  if (call.kind === 'claim' && target.kind === 'claim') {
+  if (call.kind !== 'authority' && target.kind !== 'authority') {
     const attempt = catalog.attempts.find(
       (entry) => entry.attempt.attemptId === target.attemptId,
     )?.attempt;
@@ -385,8 +460,8 @@ export function planRecoveryObservation(
     return { kind: 'refused', reason: 'authority_conflict' };
   // Proof: T5O04 removing claim target correspondence admitted wrong run/attempt guards. Exact restoration passed.
   if (
-    call.kind === 'claim' &&
-    target.kind === 'claim' &&
+    call.kind !== 'authority' &&
+    target.kind !== 'authority' &&
     (call.guard.runId !== target.runId || call.guard.attemptId !== target.attemptId)
   )
     return { kind: 'refused', reason: 'identity_conflict' };
@@ -414,7 +489,7 @@ export function planRecoveryObservation(
       (call.kind === 'authority' ? call.guard.expectedRevision : call.guard.expectedScopeRevision)
   )
     return { kind: 'refused', reason: 'revision_conflict' };
-  if (call.kind === 'claim' && target.kind === 'claim') {
+  if (call.kind !== 'authority' && target.kind !== 'authority') {
     const attempt = catalog.attempts.find(
       (entry) => entry.attempt.attemptId === target.attemptId,
     )?.attempt;
@@ -476,7 +551,9 @@ export interface RecoveryResolutionPlan {
   readonly originalAcceptance: RuntimeAcceptance | null;
   readonly originalExecution: Extract<RecordedExecution, { command: ClaimAcceptCommand }> | null;
   readonly barrier: RecoveryBarrier;
-  readonly attempt: Attempt3 | null;
+  readonly attempt: Attempt3 | Attempt4 | null;
+  readonly originalWrite: WriteAcceptPlan | null;
+  readonly obligation: WriteObligation | null;
   readonly run: Run | null;
   readonly history: RecoveryHistory;
   readonly counts: RecoveryCatalog['counts'];
@@ -505,8 +582,8 @@ export function replayRecoveryResolution(
     return { kind: 'refused', reason: 'authority_conflict' };
   // Proof: T6C04 removing target correspondence admitted wrong run/attempt guards. Restoration passed.
   if (
-    call.kind === 'claim' &&
-    target.kind === 'claim' &&
+    call.kind !== 'authority' &&
+    target.kind !== 'authority' &&
     (call.guard.runId !== target.runId || call.guard.attemptId !== target.attemptId)
   )
     return { kind: 'refused', reason: 'identity_conflict' };
@@ -551,6 +628,7 @@ export function planRecoveryResolution(
   const decision = call.decision;
   // Proof: T6C08 removing lookup correspondence admitted pre-fence context and unbound body/scope/ledger/request/status. Restoration passed.
   if (
+    // Proof: R03 bypassing write exchange correspondence admitted substituted observation context in both providers. Exact restoration passed.
     !matchesRecoveryExchange(
       decision.lookup,
       request.scope,
@@ -567,6 +645,10 @@ export function planRecoveryResolution(
       decision.kind === 'accepted' ? 200 : 404,
     )
   )
+    return { kind: 'refused', reason: 'identity_conflict' };
+  if (call.kind === 'write' && history.version === 2)
+    return planWriteRecoveryResolution(catalog, call, history, snapshot);
+  if (call.kind === 'write' || history.version !== 1 || target.kind === 'write')
     return { kind: 'refused', reason: 'identity_conflict' };
   const floor = observation.reply.body.value.acceptance.authority.generation;
   let originalAcceptance: RuntimeAcceptance | null = null;
@@ -696,12 +778,12 @@ export function planRecoveryResolution(
     };
   }
   const scopeAfter = addInteger(snapshot.revision, decision.kind === 'accepted' ? 2 : 1);
-  const closure: RecoveryClosure = {
+  const closure: RecoveryClosure1 = {
     version: 1,
     recoveryId: call.recoveryId,
     original,
     fence: call.fence,
-    decision,
+    decision: call.decision,
     resolvedRevision: addInteger(history.revision, 1),
     resolver: { ownerId: call.guard.ownership.ownerId, epoch: call.guard.ownership.epoch },
     scopeBefore: snapshot.revision,
@@ -716,6 +798,8 @@ export function planRecoveryResolution(
       closure,
       originalAcceptance,
       originalExecution,
+      originalWrite: null,
+      obligation: null,
       attempt,
       run,
       barrier: {
@@ -724,6 +808,159 @@ export function planRecoveryResolution(
         scopeBefore: snapshot.revision,
         scopeAfter,
         generationFloor: floor,
+      },
+      history: { ...history, revision: closure.resolvedRevision, closure },
+      counts: {
+        ...recovery.counts,
+        closures: addInteger(recovery.counts.closures, 1),
+        barriers: addInteger(recovery.counts.barriers, 1),
+        active: recovery.counts.active - 1,
+      },
+      active: recovery.active.filter((entry) => entry.recoveryId !== call.recoveryId),
+    },
+  };
+}
+
+/** Computes the write consequence once; the accepted event owns its attempt revision and the closure owns only the scope barrier. */
+function planWriteRecoveryResolution(
+  catalog: HistoryCatalog,
+  call: Extract<RecoveryResolveCall, { kind: 'write' }>,
+  history: WriteRecoveryHistory,
+  snapshot: Extract<ReturnType<typeof inspectRuntimeScope>, { kind: 'pinned' }>,
+): StoreReply<RecoveryResolutionPlan> {
+  const target = history.intent.target;
+  const predecessor = catalog.attempts.find(
+    (entry) => entry.attempt.attemptId === target.attemptId,
+  )?.attempt;
+  const retainedRun = catalog.runs.find((entry) => entry.run.runId === target.runId)?.run;
+  // Diagnostic invariant: the provider complete audit already enforces validateHistory recovery target/stage association before this private resolution helper; retain the missing-state error without manufacturing an unaudited catalogue.
+  if (predecessor === undefined || retainedRun === undefined)
+    throw Error('recovery target does not exist');
+  const conflict = checkAttempt({ attempt: predecessor, run: retainedRun }, call.guard);
+  if (conflict !== undefined) return conflict;
+  const stage = catalog.writes.find((entry) => entry.command.commandId === target.stageCommandId);
+  const obligation = catalog.obligations.find(
+    (entry) => entry.stageCommandId === target.stageCommandId,
+  );
+  // Diagnostic invariant: provider validateHistory active write checkpoint and obligation folding, followed by the scoped checkAttempt revision checks above, own this audited predecessor. This retains defense without independent removal credit.
+  if (
+    predecessor.version !== 4 ||
+    // WriteAttemptCodec fixes holdsCapacity to false in the provider-validated catalogue; retain this defensive runtime diagnostic.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    predecessor.holdsCapacity ||
+    predecessor.state.kind !== 'write_pending' ||
+    stage?.kind !== 'stage_write' ||
+    !equalRecords(stage.reply.attempt, predecessor) ||
+    !equalRecords(stage.reply.intent, target.original) ||
+    !equalRecords(stage.reply.obligation, obligation)
+  )
+    throw Error('write recovery predecessor differs');
+  let originalWrite: WriteAcceptPlan | null = null;
+  let attempt: Attempt4;
+  let nextObligation: WriteObligation | null = null;
+  if (call.decision.kind === 'accepted') {
+    const request = readRuntimeRequest(target.original.canonicalRequest);
+    // Proof: R01 removing receipt correspondence admitted substituted original command, claim and authority in both providers. Exact restoration passed.
+    if (
+      !matchesRuntimeReceipt(
+        request.scope,
+        request.operation,
+        target.original.requestDigest,
+        call.decision.lookup.body.value,
+      )
+    )
+      return { kind: 'refused', reason: 'identity_conflict' };
+    // Proof: R02 removing receipt-derived command correspondence admitted a forged local projection in both providers. Exact restoration passed.
+    if (
+      !equalRecords(
+        call.decision.command,
+        deriveRecoveryWriteCommand(history.intent, call.decision.lookup),
+      )
+    )
+      return { kind: 'refused', reason: 'identity_conflict' };
+    const manifest = catalog.manifests.find((entry) => entry.digest === retainedRun.manifestDigest);
+    if (manifest === undefined) throw Error('recovery manifest does not exist');
+    const accepted = writeAcceptanceTransition(
+      {
+        run: retainedRun,
+        attempt: predecessor,
+        manifest,
+        ownership: catalog.ownership,
+        executions: catalog.executions.filter(
+          (entry) => entry.reply.attempt.attemptId === target.attemptId,
+        ),
+        submissions: catalog.executions,
+        scope: snapshot,
+        runtime: catalog.runtime,
+        writes: catalog.writes,
+        obligations: catalog.obligations,
+      },
+      call.decision.command,
+    );
+    if (accepted.kind === 'refused') return accepted;
+    const ack = accepted.value;
+    attempt = ack.attempt;
+    originalWrite = {
+      runRevision: addInteger(retainedRun.revision, 1),
+      ack,
+      record: {
+        version: 1,
+        kind: 'accept_write',
+        runId: target.runId,
+        attemptId: target.attemptId,
+        context: { version: 1, scopeRevision: snapshot.revision },
+        command: call.decision.command,
+        reply: ack,
+      },
+      acceptance: ack.receipt.acceptance,
+      receipt: ack.receipt,
+      obligationKey: target.stageCommandId,
+    };
+  } else {
+    attempt = {
+      ...predecessor,
+      revision: addInteger(predecessor.revision, 1),
+      state: { ...predecessor.state, kind: 'write_nonaccepted', recoveryId: call.recoveryId },
+    };
+    nextObligation = {
+      ...stage.reply.obligation,
+      disposition: { kind: 'fenced_nonaccepted', recoveryId: call.recoveryId },
+    };
+  }
+  const scopeAfter = addInteger(snapshot.revision, call.decision.kind === 'accepted' ? 2 : 1);
+  const closure: WriteRecoveryClosure = {
+    version: 2,
+    recoveryId: call.recoveryId,
+    original: target.original,
+    fence: call.fence,
+    decision: call.decision,
+    resolvedRevision: addInteger(history.revision, 1),
+    resolver: { ownerId: call.guard.ownership.ownerId, epoch: call.guard.ownership.epoch },
+    scopeBefore: snapshot.revision,
+    scopeAfter,
+    originalReply:
+      originalWrite === null
+        ? null
+        : { kind: 'write', command: originalWrite.record.command, ack: originalWrite.ack },
+    attemptReply: attempt,
+  };
+  const recovery = catalog.runtime.recovery;
+  return {
+    kind: 'applied',
+    value: {
+      closure,
+      originalAcceptance: originalWrite?.acceptance ?? null,
+      originalExecution: null,
+      originalWrite,
+      obligation: nextObligation,
+      attempt,
+      run: { ...retainedRun, revision: addInteger(retainedRun.revision, 1) },
+      barrier: {
+        recoveryId: call.recoveryId,
+        scope: call.guard.scope,
+        scopeBefore: snapshot.revision,
+        scopeAfter,
+        generationFloor: call.fence.observation.reply.body.value.acceptance.authority.generation,
       },
       history: { ...history, revision: closure.resolvedRevision, closure },
       counts: {

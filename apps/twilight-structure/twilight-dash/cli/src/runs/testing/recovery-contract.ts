@@ -10,14 +10,14 @@ import { decodeDecision, decodeReceipt, ownerId } from '../record-codecs';
 import type { ArtifactRef } from '../records';
 import { deriveRecoveryClaimCommand, readRecoveryExchange } from '../recovery-evidence';
 import type {
-  RecoveryBeginCall,
-  RecoveryCall,
+  RecoveryBeginCall1 as RecoveryBeginCall,
+  RecoveryCall1 as RecoveryCall,
   RecoveryContext,
   RecoveryExchange,
   RecoveryFence,
   RecoveryFenceInput,
   RecoveryFenceReplyInput,
-  RecoveryResolveCall,
+  RecoveryResolveCall1 as RecoveryResolveCall,
 } from '../recovery-records';
 import type { RunStore } from '../run-store';
 import { decodeRuntimeIntent, digestRuntimeRequest, readRuntimeRequest } from '../runtime-codecs';

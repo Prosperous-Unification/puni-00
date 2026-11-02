@@ -3,8 +3,10 @@ import type { Database } from 'bun:sqlite';
 import type { RecoveryResolutionPlan } from '../plan-recovery';
 import type { RecoveryFence, RecoveryHistory, RecoveryObservation } from '../recovery-records';
 import { readRuntimeRequest, runtimeScopeKey } from '../runtime-codecs';
+import type { HistoryCatalog } from '../validate-history';
 import { insertRuntimeAcceptance } from './runtime-store';
 import { CURRENT_FORMAT } from './schema';
+import { insertWriteAcceptance } from './write-store';
 
 /** Publishes a planned revision-zero journal and its active index in the caller's write transaction. Scope, run, attempt and reservation rows remain untouched. */
 export function insertRecoveryBegin(database: Database, history: RecoveryHistory): void {
@@ -75,13 +77,31 @@ export function insertRecoveryObservation(
   );
 }
 
-/** Proof: T6S07 injecting readHistory after original writes triggered the production-path no-intermediate-read assertion; exact restoration passed. Applies only the precomputed complete closure within the caller's synchronous write transaction. No reads, plans or public ports occur between writes; reservations stay held. */
+/**
+ * Applies only the precomputed complete closure within the caller's synchronous transaction.
+ * Nonaccepted writes must update exactly one retained obligation before the remaining bundle publishes.
+ * No reads, plans or public ports occur between writes. Claim recovery preserves held capacity;
+ * write recovery preserves already released capacity.
+ * Proof: T6S07 injecting readHistory after original writes triggered the production-path no-intermediate-read assertion; exact restoration passed.
+ * @throws {Error} If the obligation disposition UPDATE does not change exactly one row.
+ */
 export function insertRecoveryResolution(
   database: Database,
   plan: RecoveryResolutionPlan,
   previousAcceptances: number,
+  catalog: HistoryCatalog,
 ): void {
   const scope = runtimeScopeKey(plan.barrier.scope);
+  // Proof: Q01 omitting coupled write publication lost the original accepted acknowledgement in real SQLite recovery. Exact restoration passed.
+  if (plan.originalWrite !== null) insertWriteAcceptance(database, plan.originalWrite, catalog);
+  // Proof: Q02 omitting nonacceptance disposition publication left inconsistent settlement in real SQLite history. Exact restoration passed.
+  if (plan.obligation !== null) {
+    const updated = database
+      .query('UPDATE run6_write_obligation SET record=? WHERE stage_command_id=?')
+      .run(JSON.stringify(plan.obligation), CURRENT_FORMAT.encode(plan.obligation.stageCommandId));
+    // Proof: Fix1 BEFORE UPDATE RAISE(IGNORE) returned applied with a pending obligation and committed closure/barrier when only this cardinality guard was removed. Exact restoration preserved the predecessor across rollback/reopen and one retry.
+    if (updated.changes !== 1) throw new Error('write obligation disposition differs');
+  }
   if (plan.originalAcceptance !== null)
     insertRuntimeAcceptance(
       database,

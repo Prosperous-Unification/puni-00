@@ -852,3 +852,167 @@ test('ignored obligation DELETE aborts actual acceptance and reopens the exact p
     }, [() => fixture.close()]);
   }
 });
+
+for (const operation of ['stage', 'accept'] as const)
+  for (const publication of operation === 'stage'
+    ? (['journal', 'obligation', 'counts'] as const)
+    : (['journal', 'receipt', 'counts'] as const))
+    test(`ignored ${operation} ${publication} publication preserves the complete predecessor`, async () => {
+      const fixture = await writeInspection();
+      let reopened: Awaited<ReturnType<typeof openSqliteStores>> | undefined;
+      try {
+        const setup = await createWriteFixture({ ...fixture.stores, clock: fixture.clock });
+        const stage =
+          operation === 'accept'
+            ? unwrapReply(await fixture.stores.runs.stageWrite(setup.guard, setup.command))
+            : undefined;
+        const guard = operation === 'stage' ? setup.guard : await setup.currentGuard();
+        const input =
+          stage === undefined
+            ? undefined
+            : {
+                commandId: executionCommandId('publication-accept'),
+                stageCommandId: setup.command.commandId,
+                intent: stage.intent,
+                evidence: await retainWriteReceipt(fixture.stores, stage.intent),
+              };
+        const submit = (stores: Pick<typeof fixture.stores, 'runs' | 'artifacts'>) => {
+          if (operation === 'stage') return stores.runs.stageWrite(guard, setup.command);
+          if (input === undefined) throw new Error('publication acceptance input missing');
+          return acceptWriteReceipt(stores.runs, stores.artifacts, guard, input);
+        };
+        const capturePhysical = () =>
+          fixture.database
+            .query<{ name: string }, []>(
+              "SELECT name FROM sqlite_schema WHERE type='table' AND name LIKE 'run_%' ORDER BY name",
+            )
+            .all()
+            .map(({ name }) => ({
+              name,
+              rows: fixture.database
+                .query('SELECT * FROM "' + name.replaceAll('"', '""') + '"')
+                .all()
+                .map((row) => JSON.stringify(row))
+                .sort(),
+            }));
+        const readVisible = async (runs: typeof fixture.stores.runs) => ({
+          run: await runs.readRun(setup.run.runId),
+          history: await runs.readExecutionHistory(setup.run.runId, setup.guard.attemptId),
+          scope: await runs.readRuntimeScope(setup.scope),
+        });
+        const before = {
+          physical: capturePhysical(),
+          visible: await readVisible(fixture.stores.runs),
+        };
+        const table =
+          publication === 'journal'
+            ? 'run6_write'
+            : publication === 'counts'
+              ? 'run6_write_format'
+              : publication === 'obligation'
+                ? 'run6_write_obligation'
+                : 'run6_write_receipt';
+        fixture.database.run(
+          `CREATE TRIGGER ignore_write_publication BEFORE ${publication === 'counts' ? 'UPDATE' : 'INSERT'} ON ${table} BEGIN SELECT RAISE(IGNORE); END`,
+        );
+        const submitted = await submit(fixture.stores).then(
+          (value) => ({ kind: 'returned' as const, value }),
+          (cause: unknown) => ({ kind: 'thrown' as const, cause }),
+        );
+        console.log(
+          JSON.stringify({
+            event: 'ignored-write-publication',
+            operation,
+            publication,
+            submitted:
+              submitted.kind === 'returned'
+                ? submitted
+                : { kind: submitted.kind, cause: String(submitted.cause) },
+            before: before.physical,
+            after: capturePhysical(),
+          }),
+        );
+        expect(
+          submitted.kind,
+          operation + ' ' + publication + ' must abort before publication',
+        ).toBe('thrown');
+        if (submitted.kind !== 'thrown')
+          throw new Error('ignored write publication returned success');
+        const expectedFailure =
+          publication === 'journal'
+            ? 'write journal publication differs'
+            : publication === 'obligation'
+              ? 'write obligation publication differs'
+              : publication === 'receipt'
+                ? 'write receipt publication differs'
+                : operation === 'stage'
+                  ? 'write stage counts publication differs'
+                  : 'write acceptance counts publication differs';
+        expect(submitted.cause).toBeInstanceOf(Error);
+        expect(String(submitted.cause)).toContain(expectedFailure);
+        expect({
+          physical: capturePhysical(),
+          visible: await readVisible(fixture.stores.runs),
+        }).toEqual(before);
+        await fixture.stores.closeConnection();
+        reopened = await openSqliteStores(fixture.options);
+        expect({ physical: capturePhysical(), visible: await readVisible(reopened.runs) }).toEqual(
+          before,
+        );
+        fixture.database.run('DROP TRIGGER ignore_write_publication');
+        const applied = await submit(reopened);
+        expect(applied.kind).toBe('applied');
+        if (applied.kind !== 'applied') throw new Error('publication retry did not apply');
+        const published = {
+          physical: capturePhysical(),
+          visible: await readVisible(reopened.runs),
+        };
+        expect(await submit(reopened)).toEqual({ ...applied, kind: 'duplicate' });
+        expect({ physical: capturePhysical(), visible: await readVisible(reopened.runs) }).toEqual(
+          published,
+        );
+      } finally {
+        await settleFixture(async () => {
+          if (reopened !== undefined) await reopened.close();
+        }, [() => fixture.close()]);
+      }
+    });
+
+test('required write publications apply and replay with genuine no-fault controls', async () => {
+  const fixture = await writeInspection();
+  await settleFixture(async () => {
+    const setup = await createWriteFixture({ ...fixture.stores, clock: fixture.clock });
+    const stage = await fixture.stores.runs.stageWrite(setup.guard, setup.command);
+    expect(stage.kind).toBe('applied');
+    if (stage.kind !== 'applied') throw new Error('no-fault stage control did not apply');
+    const staged = unwrapReply(stage);
+    expect(await fixture.stores.runs.stageWrite(setup.guard, setup.command)).toEqual({
+      ...stage,
+      kind: 'duplicate',
+    });
+    const guard = await setup.currentGuard();
+    const input = {
+      commandId: executionCommandId('publication-control-accept'),
+      stageCommandId: setup.command.commandId,
+      intent: staged.intent,
+      evidence: await retainWriteReceipt(fixture.stores, staged.intent),
+    };
+    const accepted = await acceptWriteReceipt(
+      fixture.stores.runs,
+      fixture.stores.artifacts,
+      guard,
+      input,
+    );
+    expect(accepted.kind).toBe('applied');
+    if (accepted.kind !== 'applied') throw new Error('no-fault acceptance control did not apply');
+    expect(
+      await acceptWriteReceipt(fixture.stores.runs, fixture.stores.artifacts, guard, input),
+    ).toEqual({ ...accepted, kind: 'duplicate' });
+    expect(
+      fixture.database
+        .query('SELECT record_count,obligation_count,receipt_count FROM run6_write_format')
+        .get(),
+    ).toEqual({ record_count: 2, obligation_count: 0, receipt_count: 1 });
+    expect((await fixture.stores.runs.readRun(setup.run.runId)).capacity.reserved).toBe(0);
+  }, [() => fixture.close()]);
+});

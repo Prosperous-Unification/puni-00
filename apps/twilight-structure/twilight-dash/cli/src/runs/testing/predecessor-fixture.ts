@@ -36,6 +36,7 @@ import {
   type Format5Expected,
   type Format5Payload,
   type Format5Population,
+  type Format5RecoveryStore,
 } from './format5-protocol';
 /** Verifies extracted predecessor provider, format and legacy codecs before the worker can create or open SQLite. */
 export function verifyPredecessorSource(
@@ -79,12 +80,19 @@ function reviveCell(_key: string, value: unknown): unknown {
 }
 
 /** Pins the archive and its wrapper-owned protocol decoder without selecting production behavior. */
-export type HistoricalRunStore = Omit<RunStore, 'stageWrite' | 'recordWriteAcceptance'>;
+export type HistoricalRunStore = Omit<
+  RunStore,
+  'stageWrite' | 'recordWriteAcceptance' | keyof Format5RecoveryStore
+> &
+  Format5RecoveryStore;
 export type HistoricalSqliteStores = Omit<
   Awaited<ReturnType<typeof SqliteStoreModule.openSqliteStores>>,
   'runs'
 > & { readonly runs: HistoricalRunStore };
 export interface HistoricalSqliteModule {
+  bootstrapSqliteStores(
+    options: Parameters<typeof SqliteStoreModule.openSqliteStores>[0],
+  ): Promise<HistoricalSqliteStores>;
   openSqliteStores(
     options: Parameters<typeof SqliteStoreModule.openSqliteStores>[0],
   ): Promise<HistoricalSqliteStores>;

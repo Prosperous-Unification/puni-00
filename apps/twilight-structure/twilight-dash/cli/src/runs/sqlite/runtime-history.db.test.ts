@@ -1052,9 +1052,10 @@ for (const history of ['queued attempt', 'prepared execution', 'accepted claim']
       const stores = await createRuntimeDatabaseFixture('historical');
       const database = new Database(stores.options.path);
       try {
-        if (history === 'queued attempt') await admitExecutionForDown(stores);
-        else if (history === 'prepared execution') await prepareSessionForDown(stores);
-        else await prepareClaimedForDown(stores);
+        if (history === 'queued attempt') await admitExecutionForDown<typeof stores.runs>(stores);
+        else if (history === 'prepared execution')
+          await prepareSessionForDown<typeof stores.runs>(stores);
+        else await prepareClaimedForDown<typeof stores.runs>(stores);
         validateDatabaseForFormat(database, FORMAT4);
         const before = captureRuntimeDatabase(database);
         expect(() => {

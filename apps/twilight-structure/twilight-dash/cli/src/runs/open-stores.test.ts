@@ -8,7 +8,7 @@ import { afterEach, expect, test } from 'bun:test';
 import ts from 'typescript';
 
 import { openStores as openSelected, type SqliteConfiguration } from './open-stores';
-import { organizationId, ownerId } from './record-codecs';
+import { executionCommandId, organizationId, ownerId } from './record-codecs';
 import { acceptRuntimeReceipt } from './runtime-history';
 import { bootstrapSqliteStores as bootstrapStores } from './sqlite/open-stores';
 import { closeFixtures } from './testing/close-fixtures';
@@ -33,6 +33,9 @@ import {
 } from './testing/runtime-history-contract';
 import { prepareWait } from './testing/signals-contract';
 import { createStoreDirectory, findStoreDirectory } from './testing/store-directory';
+import { createWriteFixture } from './testing/write-fixture';
+import { retainWriteReceipt } from './testing/write-store-contract';
+import { acceptWriteReceipt } from './write-history';
 
 const directories: ReturnType<typeof createStoreDirectory>[] = [];
 afterEach(async () => {
@@ -177,6 +180,40 @@ test('production close is idempotent and every public operation refuses closed d
   };
   const receiptGuard = await setup.currentGuard();
   unwrapReply(await stores.runs.reconcileReceipt(receiptGuard, receipt));
+  // Proof: the integrated Task4 baseline omitted both write calls and failed the exact public-operation census before closure checks; real duplicate replay now precedes both retained-connection closed calls.
+  const write = await createWriteFixture({ ...stores, clock }, { ownership, suffix: 'lifecycle' });
+  const writeStageGuard = write.guard;
+  const stagedWrite = unwrapReply(await stores.runs.stageWrite(writeStageGuard, write.command));
+  const writeAcceptanceGuard = await write.currentGuard();
+  const acceptedWrite = unwrapReply(
+    await acceptWriteReceipt(stores.runs, stores.artifacts, writeAcceptanceGuard, {
+      commandId: executionCommandId('lifecycle-accept-write'),
+      stageCommandId: write.command.commandId,
+      intent: stagedWrite.intent,
+      evidence: await retainWriteReceipt(stores, stagedWrite.intent),
+    }),
+  );
+  const writeHistory = await stores.runs.readExecutionHistory(
+    write.run.runId,
+    write.guard.attemptId,
+  );
+  if (writeHistory.version !== 3) throw new Error('fixture write history missing');
+  const writeAcceptance = writeHistory.writes.find((entry) => entry.kind === 'accept_write');
+  if (writeAcceptance === undefined) throw new Error('fixture write acceptance missing');
+  const readWrite = async () => ({
+    run: await stores.runs.readRun(write.run.runId),
+    history: await stores.runs.readExecutionHistory(write.run.runId, write.guard.attemptId),
+    scope: await stores.runs.readRuntimeScope(write.scope),
+  });
+  const beforeWriteReplay = await readWrite();
+  expect(await stores.runs.stageWrite(writeStageGuard, write.command)).toEqual({
+    kind: 'duplicate',
+    value: stagedWrite,
+  });
+  expect(
+    await stores.runs.recordWriteAcceptance(writeAcceptanceGuard, writeAcceptance.command),
+  ).toEqual({ kind: 'duplicate', value: acceptedWrite });
+  expect(await readWrite()).toEqual(beforeWriteReplay);
   unwrapReply(await stores.runs.pinRuntimeScope(ownership, runtimePin));
   const runtimeScopeBefore = await stores.runs.readRuntimeScope(runtimeScope);
   if (runtimeScopeBefore.kind !== 'pinned') throw new Error('expected retained runtime scope');
@@ -247,6 +284,9 @@ test('production close is idempotent and every public operation refuses closed d
   const observationCall = await createRecoveryObservationCall(stores.artifacts, fenceCall);
   const resolveCall = await createRecoveryResolveCall(stores, recoveryBegin, false, undefined, 2);
   const operations = {
+    stageWrite: () => stores.runs.stageWrite(writeStageGuard, write.command),
+    recordWriteAcceptance: () =>
+      stores.runs.recordWriteAcceptance(writeAcceptanceGuard, writeAcceptance.command),
     resolveRecovery: () => stores.runs.resolveRecovery(resolveCall),
     recordRecoveryFence: () => stores.runs.recordRecoveryFence(observationCall),
     stageRecoveryFence: () => stores.runs.stageRecoveryFence(fenceCall),
@@ -359,7 +399,13 @@ function portableImports(path: string): string[] {
 test('portable ports and core records exclude adapter dependencies structurally', () => {
   // Proof: D01R/D02R/D03R injected records/live-port/aggregate edges into each new owner, and D04R restored the runtime aggregate edge; this structural test named each forbidden path and failed.
   const allowed: Readonly<Record<string, readonly string[]>> = {
-    'run-store.ts': ['./records', './runtime-records', './execution-records', './recovery-records'],
+    'run-store.ts': [
+      './records',
+      './runtime-records',
+      './execution-records',
+      './recovery-records',
+      './write-records',
+    ],
     'artifact-store.ts': ['./records'],
     'records.ts': [
       './record-codecs',
@@ -367,6 +413,7 @@ test('portable ports and core records exclude adapter dependencies structurally'
       './execution-records',
       './recovery-records',
       './runtime-records',
+      './write-records',
     ],
     'record-codecs.ts': [
       '@shared/validation',
@@ -375,6 +422,7 @@ test('portable ports and core records exclude adapter dependencies structurally'
       './execution-codecs',
       './execution-records',
       './recovery-codecs',
+      './write-codecs',
     ],
     'runtime-records.ts': ['./records', '@wbs/contracts', './recovery-records'],
     'runtime-codecs.ts': [
@@ -390,6 +438,7 @@ test('portable ports and core records exclude adapter dependencies structurally'
       './records',
       './runtime-records',
       './recovery-records',
+      './write-records',
     ],
     'claim-records.ts': [
       '@wbs/contracts',
@@ -409,6 +458,7 @@ test('portable ports and core records exclude adapter dependencies structurally'
       './execution-records',
       './records',
       './runtime-records',
+      './write-recovery-records',
     ],
     'recovery-codecs.ts': [
       '@shared/validation',
@@ -416,7 +466,32 @@ test('portable ports and core records exclude adapter dependencies structurally'
       './recovery-records',
       './runtime-codecs',
       './value-codecs',
+      './write-codecs',
+      './write-recovery-codecs',
     ],
+    // Proof: Task4 portable-write-{records,codecs,recovery-records,recovery-codecs} independently injected a valid import type from './run-store' into each actual owner; this AST test named its owner/dependency and failed, then exact restoration passed.
+    'write-records.ts': [
+      '@wbs/contracts',
+      './claim-records',
+      './execution-records',
+      './records',
+      './runtime-records',
+    ],
+    'write-codecs.ts': [
+      'node:util',
+      '@shared/validation',
+      './execution-codecs',
+      './runtime-codecs',
+      './value-codecs',
+      './write-records',
+    ],
+    'write-recovery-records.ts': [
+      '@wbs/contracts',
+      './records',
+      './recovery-records',
+      './write-records',
+    ],
+    'write-recovery-codecs.ts': ['@shared/validation', './runtime-codecs', './value-codecs'],
     'value-codecs.ts': ['@shared/validation'],
     '../agents/execution-records.ts': ['@twilight-burokrat/contracts', '../runs/records'],
     '../agents/execution-codecs.ts': [

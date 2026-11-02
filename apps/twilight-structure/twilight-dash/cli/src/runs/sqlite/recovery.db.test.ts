@@ -409,7 +409,7 @@ for (const format of ['current', 'historical'] as const)
         format === 'historical' ? createFormat4Inspection : createRecoveryInspection
       )(directory, options);
       try {
-        const setup = await prepareClaimed({ ...stores, clock: options.clock });
+        const setup = await prepareClaimed<typeof stores.runs>({ ...stores, clock: options.clock });
         const execution = await stores.runs.readExecutionHistory(
           setup.run.runId,
           setup.admission.attemptId,

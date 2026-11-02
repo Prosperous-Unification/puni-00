@@ -191,6 +191,52 @@ describe('AuthService on /api: machine bearers (wbs-mcp-agent-surface M9)', () =
     }
   });
 
+  // The groups-less half of M9, after #731 retired operator links.
+  it('refuses a groups-less token of the sign-in issuer machine_bearer_not_accepted, reading no mapping', async () => {
+    const table = memoryUserTable();
+    const users = inMemoryUsers(table);
+    const reads: string[] = [];
+    const watched = new Proxy(users, {
+      get(target, property, receiver) {
+        const member: unknown = Reflect.get(target, property, receiver);
+        if (typeof member !== 'function') return member;
+        return (...args: unknown[]) => {
+          reads.push(String(property));
+          return Reflect.apply(member, target, args) as unknown;
+        };
+      },
+    });
+    const verifying: string[] = [];
+    const auth = new AuthService({
+      tokens,
+      passwords,
+      oidc: {
+        verify: (token) => {
+          verifying.push(token);
+          return Promise.resolve({
+            issuer: 'https://login.example',
+            subject: 'fleet@clients',
+            email: null,
+            emailVerified: false,
+            scopes: [],
+            groupsClaimed: false,
+          });
+        },
+      },
+      account: new AccountResource({
+        users: watched,
+        clock: clockOf({ now: () => NOW, newId: () => 'seeded' }),
+        enterprise: NO_PROVEN_CONNECTIONS,
+      }),
+    });
+    expect(await auth.authenticateOrRefuse('header.payload.sig')).toBe(
+      'machine_bearer_not_accepted',
+    );
+    expect(verifying).toEqual(['header.payload.sig']);
+    expect(reads).toEqual([]);
+    expect(table.byId.size).toBe(0);
+  });
+
   it('answers machine_bearer_not_accepted as no principal where a route reads none', async () => {
     const { key, credentials } = await credentialsFor('dany-id');
     expect(

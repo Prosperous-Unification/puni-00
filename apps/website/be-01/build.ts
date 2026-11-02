@@ -16,6 +16,13 @@ if (!build.success) throw new Error('Website API bundle failed');
 mkdirSync(output, { recursive: true });
 cpSync(join(migrationSource, 'migrations'), join(output, 'migrations'), { recursive: true });
 // The private release pin copies this into its receipt; fleet-check refuses an `s3` journal for a
-// release without `retention-journal/1` (design D§5, veto V13).
+// release without `retention-journal/1` (design D§5, veto V13). Scoping compatibility
+// covers persisted v1 drafts, raw Retry, structured replies and failure/accounting/retention;
+// it does not enable inference or analytics.
 // Proof: dropping this write made build-smoke.ts fail with ENOENT on bundle/capabilities.json.
-writeFileSync(join(output, 'capabilities.json'), `${JSON.stringify(['retention-journal/1'])}\n`);
+// Proof: a built capabilities.json containing only retention-journal/1 made build-smoke.ts
+// refuse the package on 2026-10-25; restoring conversion-scoping/1 passed package smoke.
+writeFileSync(
+  join(output, 'capabilities.json'),
+  `${JSON.stringify(['retention-journal/1', 'conversion-scoping/1'])}\n`,
+);

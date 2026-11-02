@@ -8,11 +8,11 @@
 
 **Tech Stack:** TypeScript, Bun, bun:sqlite, ArkType through `@shared/validation`, existing WBS runtime contracts/client/receiver, Nx and OpenSpec.
 
-**Spec:** Read [approved intent](recovery-intent.md), [approved design](recovery-design.md), [run-coordination delta](specs/twilight/run-coordination/spec.md), [ADR 0064](../../../docs/adr/0064-uncertain-runtime-requests-use-journaled-recovery.md) and [verification record](recovery-verify.md). The design owns record semantics; this plan selects concrete source names and review boundaries.
+**Spec:** Read [approved intent](recovery-intent.md), [approved design](recovery-design.md), [run-coordination delta](specs/twilight/run-coordination/spec.md), [ADR 0067](../../../docs/adr/0067-uncertain-runtime-requests-use-journaled-recovery.md) and [verification record](recovery-verify.md). The design owns record semantics; this plan selects concrete source names and review boundaries.
 
 ## Global Constraints
 
-- Approved for implementation, tests and review on 2026-10-28. Architectural merge remains held.
+- Approved for implementation, tests and review on 2026-10-28. The user subsequently authorized normal commit, push and merge: “you can commit and push it and than merge”. Normal hooks, independent review, applicable CI and the exact-SHA canonical gate remain required. The exact import-policy scope was approved on 2026-11-02; [execution evidence](../runtime-write-delivery/verify.md) records its verification. Operator-store migration and production remain excluded.
 - Preserve and explicitly upgrade genuine populated format3 stores; never migrate during ordinary open.
 - Append a named additive migration with guarded down, preserving every earlier migration byte.
 - Keep all inherited guards installed, retain capacity throughout uncertainty, and require actual production-path negatives for each new safety check.
@@ -20,7 +20,7 @@
 - Three fence identities and three POSTs per invocation bound convergence; later invocations resume identical attempts after pre-send/lost-reply crashes.
 - No default empty witness collection hides a caller.
 - Barriers are historical evidence, never current permission.
-- Architectural main merge and production remain held.
+- Normal publication follows the authorization and required gates above; production remains excluded.
 - Use Bun and Nx only; never bypass hooks or introduce a second task runner. Read callers/tests before each behavior change and preserve unrelated edits.
 - Full outcome/write recovery, physical continuation, producer lifecycle, remaining adapters, a second durable provider and S7a remain subsequent required work.
 
@@ -692,7 +692,7 @@ Pair this with full physical capture comparisons and actual old reader success; 
 Ruling29 local verification note: the actual pre-refinement whole project attempt is **NONPASSING**,4767pass/4fail (four cwd-dependent race-worker launch failures). The source-relative fix passes all four from actual CLI cwd. Complete final affected test/protocol/lifecycle checks and actual static checks are required; unaffected-test confidence remains conditional on the mandatory root exact-SHA full gate. Local affected coverage is not a passing whole target. See `recovery-verify.md` for version-pinned receipts.
 
 - [x] **Canonical gate:** On h2puni use a clean isolated gate worktree, never `/home/puni1/wbs-dev/src`; run `bin/h2puni-gate.sh <candidate-sha>` without checking that SHA out first. Alternative h4claw uses its separate documented lock/tree. Trust printed `h2puni gate: running on <sha>` and actual exit. Exit65 requires preserving/committing named dirty paths; exit66 permits the documented mode-repair rerun. Never raw full Nx gates on the gate host or unattended clean. Record full gate SHA/output, CI secret/migration lint and OpenSpec outcomes; a stale SHA is not this candidate's evidence. The exact reviewed `b3b594dab4f0153d2ef00a2989bbeb02ea0cbbda` gate passed; see the controller checkpoint in `recovery-verify.md`. Required PR CI remains separate and pending.
-- [x] **Independent review:** Request scoped reviews for type/value trust boundaries, complete current/prefix folds, explicit populated3/down compatibility, transaction closure and real receiver chronology. Resolve findings with fresh focused verification; final review must inspect the actual candidate and remaining scope. Keep architectural main merge and production held. Neither successful gate nor reviewer approval authorizes those actions. Task8, complete whole-branch and scoped final-fix reviews accepted the candidate through `b3b594dab4f0153d2ef00a2989bbeb02ea0cbbda`; the separately observed accepted-ID provider defect remains open.
+- [x] **Independent review:** Request scoped reviews for type/value trust boundaries, complete current/prefix folds, explicit populated3/down compatibility, transaction closure and real receiver chronology. Resolve findings with fresh focused verification; final review must inspect the actual candidate and remaining scope. The historical review checkpoint held architectural merge and production. The subsequent user authorization above permits normal publication after the required gates; production remains excluded. Task8, complete whole-branch and scoped final-fix reviews accepted the candidate through `b3b594dab4f0153d2ef00a2989bbeb02ea0cbbda`; the separately observed accepted-ID provider defect remains open.
 - [x] **Local implementation evidence:** Task8 report, immutable command/raw-output/hash receipts and final affected/static/migration-lint/format/OpenSpec results are recorded in `recovery-verify.md`; full target nonpassing status and root-owned remaining gates are explicit.
 - [ ] **Deliver full review/gate evidence:** Update `recovery-verify.md` with every RED/GREEN/fault/restoration and gate/review record, explicitly mark any skipped/unavailable checks and all remaining work. Do not mark parent full recovery/S0/S7a tasks complete. Report logical closure and compatibility only to the extent observed, with physical quiescence/authenticity/current authority limits intact.
 

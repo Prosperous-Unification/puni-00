@@ -254,7 +254,7 @@ for (const provider of ['memory', 'sqlite'] as const)
         };
         const begun = unwrapReply(await fixture.stores.runs.beginRecovery(begin));
         const pending = await fixture.stores.runs.readRuntimeScope(runtimeScope);
-        if (pending.kind !== 'pinned' || pending.version !== 2)
+        if (pending.kind !== 'pinned' || pending.version !== (provider === 'memory' ? 3 : 2))
           throw new Error('expected pinned runtime');
         expect(pending.recoveries).toHaveLength(1);
         expect(await fixture.stores.runs.beginRecovery(begin)).toEqual({
@@ -278,7 +278,7 @@ for (const provider of ['memory', 'sqlite'] as const)
         const before = await fixture.stores.runs.readRuntimeScope(runtimeScope);
         expect(closed.recoveryId).toBe('recovery-' + identity);
         expect(original.commandId).toBe(identity);
-        if (before.kind !== 'pinned' || before.version !== 2)
+        if (before.kind !== 'pinned' || before.version !== (provider === 'memory' ? 3 : 2))
           throw new Error('expected closed pinned runtime');
         expect(before.recoveries.map((recovery) => recovery.intent.recoveryId)).toEqual([
           'recovery-' + identity,
@@ -306,7 +306,7 @@ for (const provider of ['memory', 'sqlite'] as const)
         const ownership = unwrapReply(
           await fixture.stores.runs.acquireOwnership(ownerId('owner'), 0),
         );
-        const setup = await prepareTurn(
+        const setup = await prepareTurn<typeof fixture.stores.runs>(
           { ...fixture.stores, clock: fixture.options.clock },
           { ownership, suffix: identity.length === 256 ? String(index) : identity },
         );
@@ -560,7 +560,19 @@ test('SQLite retains exact bounded admissions and decoded occurrence ordering as
           left.ordinal - right.ordinal,
       ),
     );
-    expect({ ...actual, attempts: [] }).toEqual({ ...expected, attempts: [] });
+    if (expected.version !== 4 || actual.version !== 3)
+      throw new Error('expected current memory and genuine5 SQLite snapshots');
+    const { version: memoryVersion, writeObligations, writeReceipts, ...memorySnapshot } = expected;
+    const { version: sqliteVersion, ...sqliteSnapshot } = actual;
+    expect({ version: memoryVersion, writeObligations, writeReceipts }).toEqual({
+      version: 4,
+      writeObligations: [],
+      writeReceipts: [],
+    });
+    expect(sqliteVersion).toBe(3);
+    expect(Object.hasOwn(actual, 'writeObligations')).toBe(false);
+    expect(Object.hasOwn(actual, 'writeReceipts')).toBe(false);
+    expect({ ...sqliteSnapshot, attempts: [] }).toEqual({ ...memorySnapshot, attempts: [] });
     await fixture.stores.close();
     const reopened = await fixture.reopen();
     expect(await reopened.runs.readRun(createRun().runId)).toEqual(actual);
@@ -595,7 +607,7 @@ test('encoded completion ordering cannot admit a collision across two completed 
     const ownership = unwrapReply(await fixture.stores.runs.acquireOwnership(ownerId('owner'), 0));
     const completed = [];
     for (const identity of ['\0', 'A']) {
-      const setup = await prepareTurn(
+      const setup = await prepareTurn<typeof fixture.stores.runs>(
         { ...fixture.stores, clock: fixture.options.clock },
         { ownership, suffix: identity },
       );

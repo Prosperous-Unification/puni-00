@@ -87,7 +87,7 @@ export interface TokenRequestRefusal {
 }
 
 /** HTTP Basic client authentication: the user is the `client_id`, the password the key. */
-interface BasicCredentials {
+export interface BasicCredentials {
   readonly user: string;
   readonly password: string;
 }
@@ -247,7 +247,7 @@ function refused(error: TokenRequestRefusal['error'], description?: string): Tok
  * themselves, and a part carrying `%` or `+` is no key at all. The MCP SDK
  * does not encode them either.
  */
-function basicCredentialsOf(authorization: string): BasicCredentials | 'malformed' {
+export function basicCredentialsOf(authorization: string): BasicCredentials | 'malformed' {
   const match = /^Basic ([A-Za-z0-9+/]+={0,2})$/i.exec(authorization);
   if (match?.[1] === undefined) return 'malformed';
   const decoded = Buffer.from(match[1], 'base64').toString('utf8');

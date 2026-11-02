@@ -4,8 +4,21 @@ import type { Attempt2 } from '../execution-records';
 import { decodeCurrentAttempt } from '../record-codecs';
 import * as recoveryCodecs from '../recovery-codecs';
 import type { Attempt3 } from '../recovery-records';
-import type { RecoveryHistory } from '../recovery-records';
-import type { RunStore, StoreReply } from '../run-store';
+import type {
+  RecoveryBeginCall,
+  RecoveryBeginCall1,
+  RecoveryCall,
+  RecoveryCall1,
+  RecoveryClosure1,
+  RecoveryFence,
+  RecoveryFenceInput,
+  RecoveryFenceReplyInput,
+  RecoveryHistory1,
+  RecoveryObservation,
+  RecoveryResolveCall,
+  RecoveryResolveCall1,
+} from '../recovery-records';
+import type { StoreReply } from '../run-store';
 import { equalRuntimeScopes, readRuntimeRequest } from '../runtime-codecs';
 import type { RuntimeScope } from '../runtime-records';
 import {
@@ -30,6 +43,14 @@ export type Format5Population =
   | 'claim_recovery_active'
   | 'claim_recovery_accepted'
   | 'claim_recovery_nonaccepted';
+export interface Format5RecoveryStore {
+  beginRecovery(call: RecoveryBeginCall1): Promise<StoreReply<RecoveryHistory1>>;
+  stageRecoveryFence(call: RecoveryCall1<RecoveryFenceInput>): Promise<StoreReply<RecoveryFence>>;
+  recordRecoveryFence(
+    call: RecoveryCall1<RecoveryFenceReplyInput>,
+  ): Promise<StoreReply<RecoveryObservation>>;
+  resolveRecovery(call: RecoveryResolveCall1): Promise<StoreReply<RecoveryClosure1>>;
+}
 type RecoveryMethod =
   'beginRecovery' | 'stageRecoveryFence' | 'recordRecoveryFence' | 'resolveRecovery';
 export type Format5Mutation = Format3Command['method'] | RecoveryMethod;
@@ -38,7 +59,7 @@ export type Format5Command =
   | {
       [Method in RecoveryMethod]: {
         readonly method: Method;
-        readonly parameters: Parameters<RunStore[Method]>;
+        readonly parameters: Parameters<Format5RecoveryStore[Method]>;
       };
     }[RecoveryMethod];
 export type Format5Expected =
@@ -57,7 +78,7 @@ type RecoveryReply = {
   [Method in RecoveryMethod]: {
     readonly action: 'invoke';
     readonly method: Method;
-    readonly value: Awaited<ReturnType<RunStore[Method]>>;
+    readonly value: Awaited<ReturnType<Format5RecoveryStore[Method]>>;
   };
 }[RecoveryMethod];
 export type Format5Payload =
@@ -67,7 +88,7 @@ export type Format5Payload =
   | {
       readonly action: 'observe_recovery';
       readonly version: 2;
-      readonly value: RecoveryHistory | null;
+      readonly value: RecoveryHistory1 | null;
     }
   | {
       readonly action: 'invoke';
@@ -126,6 +147,34 @@ export function correlateFormat5Request(request: Format5Expected): Format5Correl
     return { action: 'prepare', method: request.mutation };
   return { action: request.kind };
 }
+/** Historical capability narrowing uses c12-existing decoder entrypoints on both worker and controller. */
+// Proof: L01 removing this narrowing admitted an actual current write2 begin call at the genuine5 controller boundary. Exact restoration passed.
+function requireLegacyBegin(call: RecoveryBeginCall): RecoveryBeginCall1 {
+  if (call.kind === 'write') throw Error('unsupported historical format5 recovery');
+  return call;
+}
+// Proof: L02 removing this narrowing admitted an actual current write fence call at the genuine5 controller boundary. Exact restoration passed.
+function requireLegacyCall<P>(call: RecoveryCall<P>): RecoveryCall1<P> {
+  if (call.kind === 'write') throw Error('unsupported historical format5 recovery');
+  return call;
+}
+// Proof: L03 removing this narrowing admitted an actual current write2 resolve call at the genuine5 controller boundary. Exact restoration passed.
+function requireLegacyResolve(call: RecoveryResolveCall): RecoveryResolveCall1 {
+  if (call.kind === 'write') throw Error('unsupported historical format5 recovery');
+  return call;
+}
+function decodeLegacyHistory(candidate: unknown): RecoveryHistory1 {
+  const history = recoveryCodecs.decodeRecoveryHistory(candidate);
+  // Proof: L04 removing only this version narrowing admitted an actual current write2 begin history. Exact restoration passed.
+  if (history.version !== 1) throw Error('unsupported historical format5 recovery history');
+  return history;
+}
+function decodeLegacyClosure(candidate: unknown): RecoveryClosure1 {
+  const closure = recoveryCodecs.decodeRecoveryClosure(candidate);
+  // Proof: L05 removing only this version narrowing admitted an actual current write2 closure. Exact restoration passed.
+  if (closure.version !== 1) throw Error('unsupported historical format5 recovery closure');
+  return closure;
+}
 /** Decodes the genuine predecessor's four recovery calls without widening its unchanged legacy tuple decoders. */
 export function decodeFormat5Command(input: unknown): Format5Command {
   const command = parseOrThrow(
@@ -139,22 +188,22 @@ export function decodeFormat5Command(input: unknown): Format5Command {
     case 'beginRecovery':
       return {
         method: command.method,
-        parameters: [recoveryCodecs.decodeRecoveryBeginCall(first)],
+        parameters: [requireLegacyBegin(recoveryCodecs.decodeRecoveryBeginCall(first))],
       };
     case 'stageRecoveryFence':
       return {
         method: command.method,
-        parameters: [recoveryCodecs.decodeRecoveryFenceCall(first)],
+        parameters: [requireLegacyCall(recoveryCodecs.decodeRecoveryFenceCall(first))],
       };
     case 'recordRecoveryFence':
       return {
         method: command.method,
-        parameters: [recoveryCodecs.decodeRecoveryObservationCall(first)],
+        parameters: [requireLegacyCall(recoveryCodecs.decodeRecoveryObservationCall(first))],
       };
     case 'resolveRecovery':
       return {
         method: command.method,
-        parameters: [recoveryCodecs.decodeRecoveryResolveCall(first)],
+        parameters: [requireLegacyResolve(recoveryCodecs.decodeRecoveryResolveCall(first))],
       };
     default:
       throw new Error('unsupported format5 recovery method');
@@ -214,7 +263,7 @@ export function decodeFormat5Payload(input: unknown): Format5Payload {
     return {
       action: 'observe_recovery',
       version: payload.version,
-      value: payload.value === null ? null : recoveryCodecs.decodeRecoveryHistory(payload.value),
+      value: payload.value === null ? null : decodeLegacyHistory(payload.value),
     };
   }
   if (header.action === 'prepare') {
@@ -268,7 +317,7 @@ export function decodeFormat5Payload(input: unknown): Format5Payload {
       return {
         action: 'invoke',
         method: payload.method,
-        value: decodeReply(payload.value, recoveryCodecs.decodeRecoveryHistory),
+        value: decodeReply(payload.value, decodeLegacyHistory),
       };
     case 'stageRecoveryFence':
       return {
@@ -286,7 +335,7 @@ export function decodeFormat5Payload(input: unknown): Format5Payload {
       return {
         action: 'invoke',
         method: payload.method,
-        value: decodeReply(payload.value, recoveryCodecs.decodeRecoveryClosure),
+        value: decodeReply(payload.value, decodeLegacyClosure),
       };
     default:
       throw new Error('unsupported format5 reply method');

@@ -1,9 +1,13 @@
 # Verification
 
 Task1 values/planners and Task2 memory/SQLite storage are locally accepted.
-Task3 delivery/recovery and Task4 complete inventory, all-change validation,
-build/CI and exact-source canonical gate are pending. No main, operator-store,
-production or PostgreSQL-conformance acceptance follows from this record.
+Task3 delivery/recovery and the bounded Task4 repairs have passed their scoped
+reviews and checks. A fresh complete RunStore run passed on source `99027159`;
+the original full f7 failure remains a separate result. The narrow import-policy
+scope was approved and applied on 2026-11-02, and its independent execution
+review passed. Normal hooks, current-main integration, full-project acceptance,
+current CI and the exact-SHA canonical gate are pending. No main, operator-store, production or PostgreSQL-conformance
+acceptance follows from this record.
 
 ## Task2 storage checkpoint
 
@@ -59,3 +63,229 @@ Local native receipts, reports, reuse manifests and independent reviews are in
 `.superpowers/sdd/runtime-write-delivery-20261101/`. Immutable checkpoint and
 review supplements are retained under `.superpowers/artifacts/agentic-write-store*`.
 Full packet verification must preserve these limits and add its own fresh results.
+
+## Task3/Task4 integration checkpoint (2026-11-02)
+
+Current integration remains uncommitted on HEAD
+`d65bec3378ea0af94b35c0dbd1f11b35419379ea`, merging main
+`c894bc45e9299348fa6688141282840136995814`. The user authorized normal
+commit/push/merge; normal hooks, current CI and the exact-SHA canonical gate
+remain required. Import-policy approval and execution are recorded below. No operator
+migration, production activation or PostgreSQL adapter acceptance is recorded.
+
+Task3's independent review and scoped fix review closed its ignored
+nonacceptance-UPDATE publication and late-abort assertion findings. Its bounded
+fix cohort passed 29 tests/384 assertions; its two independent negatives failed
+meaningfully and were restored. This does not close its import-policy blocker.
+
+The integration review identified five required SQLite publication effects whose
+ignored writes could return `applied` with partial bundles. Real isolated
+`RAISE(IGNORE)` faults reproduced five partial publications. Required single-row
+checks now cover shared journal insertion, stage-obligation insertion, stage-count
+update, acceptance-receipt insertion and acceptance-count update inside the
+existing transactions. Removing each guard independently fails its named test;
+restoration preserves rollback, reopen, same-guard retry and original duplicate
+state. The separate stage-journal fault was already foreign-key protected and is
+not a sixth independent unsafe-admission claim. Four portable-owner import
+injections failed their structural assertions and were restored. The covering
+write/open-store files passed 121 tests/259 assertions and two sender/receiver
+reopen cases passed two tests/nine assertions. These are their source-bound
+results, not a fresh full-suite result or power-loss proof. The one scoped review
+closed all four integration findings; its original whole-branch coverage limits
+remain explicit.
+
+### Complete run that failed
+
+Source `f7e65c86e5fe4708bcab4ab5ef553a39dced257cde9f65be0ca21271e4697324`
+ran from the Dash CLI directory with this worktree's trusted dependencies:
+
+```sh
+bun test --preload ./src/runs/testing/format4-lifetime-preload.ts --preload ./src/runs/testing/format5-lifetime-preload.ts src/runs --timeout=60000
+```
+
+It completed naturally with **exit1, 2,887 pass/54 fail, 11,615 assertions,
+2,941 tests across all76 files, 4,519.83 seconds**, no signal or skips/filters.
+53 named failures comprised41 ordinary genuine5 fixture configuration mismatches
+and12 stale memory-version assertions; one teardown failure retained41 uncertain
+native constructor owners. Original source/index/HEAD/MERGE_HEAD fingerprints
+agreed before and after. The failed aggregate remains failed.
+
+### Bounded genuine5 fixture repair
+
+Frozen code checkpoint
+`07cbd106ee2b1f14e387c30125470cd1c0198eebe148276418ac88f3a0afd969`
+changes only five test-support/test owners relative to f7. Ordinary bootstrap/open
+now calls the verified pinned native5 producer with copied caller options and a
+live clock; fixed-recipe explicit workers and original3/4/5 producers/protocols
+are unchanged. Identity tests assert exact provider versions and write-field
+presence/absence. One incompatible-open migration control uses the existing
+worker route while preserving exact physical before/after equality.
+
+Actual sequential covering commands used the same two lifetime preloads and
+`--timeout=60000`:
+
+- Complete `src/runs/sqlite/identity-keys.db.test.ts`: exit0,65pass/688assertions.
+- All affected ordinary migration callers in
+  `src/runs/sqlite/identity-migration.db.test.ts`: exit0,10pass/115assertions,
+  26 deliberately filtered tests.
+- Native recovery replies, independent COMMIT/observation/submitted-scope,
+  bridge lifecycle and custom-options control in
+  `src/runs/testing/format5-fixture.test.ts`: exit0,13pass/136assertions,
+  11 deliberately filtered tests.
+- Exact-five-owner ESLint and Prettier checks: exit0.
+- `bunx nx run twilight-dash:typecheck --skip-nx-cache`: exit0.
+
+The original custom-options regression failed the native configuration guard;
+its corrected bridge passed. One capacity-forwarding-only mutation produced
+stored capacity1 instead of expected3 and failed the real assertion; exact
+restoration passed. This is a constructor compatibility negative, not a removed
+production-admission guard. The initial zero-test-match launch has no semantic
+RED credit. The65/10/13 results precede only documented test import movement,
+local alpha-renaming and equivalent fulfilled/rejected Promise outcomes; final
+lint/type/format cover final bytes. No runtime rerun is claimed for that
+mechanical cleanup.
+
+Independent narrow review approved the complete five-owner repair with no
+Critical or Important findings. It explicitly accepted only the described
+mechanical runtime-evidence reuse. Full before/after review fingerprints agree;
+12,725 other source entries, complete index bytes/stat and Git identities are
+unchanged. This is scoped repair approval, not full-gate or merge approval.
+
+### Remaining verification and retention limits
+
+Pre-repair f7 statics passed Dash/Tool types, Dash build, Tool lint (two existing
+warnings), all-file formatting, OpenSpec (317 valid,689 warnings/25 info) and six
+migration SQL-file lint inputs. Boundary composition passed7tests/90assertions
+with84 filtered. These retain their source bindings. Whole-Dash lint remains
+blocked by14 import-policy diagnostics; workspace graph reports16pass/1fail for
+two exact receiver library edges. The three-file scope proposal is unapproved
+and unapplied. Scoped fixture lint is not whole-Dash or graph acceptance.
+Fresh normal hooks, hosted CI and exact-SHA canonical acceptance remain pending.
+The fresh complete RunStore result below closes that suite only; it does not close the remaining publication gates.
+
+Original full-run source `/tmp/format5-source-Z9pg3O` and41 DB directories remain
+retained, with raw copies under
+`.superpowers/artifacts/agentic-write-delivery-full-f7e65c86-20261102/`.
+New failed constructors retain sources9Nq6uh/eDlOQP and the custom RED database
+root where still present; the incompatible caller's existing finally removed
+its DB directory after closing its old worker. Process exit, empty process census
+and later pools with zero leases do not establish the failed native constructors'
+closure. No retrospective cleanup or blanket native-connection claim is made.
+Full foundation work still includes actual adapters, a second durable provider,
+automatic business mapping, physical continuation and S7a; PostgreSQL remains
+feasibility only.
+
+## Fresh complete RunStore verification (2026-11-02)
+
+The same complete `src/runs` command above, with both historical-provider lifetime
+preloads, actual Dash CLI working directory and worktree-trusted dependencies,
+completed on source
+`990271592806d532292672a02610da3c402e619d5fe48df58f0c193eb2f1b120`:
+**exit0, 2,941 pass, zero failures, 12,133 assertions across76 files in4,003.63
+seconds**. No signal, skip/filter summary or test-name selector was present.
+This is a fresh successful run after the fixture repair; the earlier f7 run
+remains a failed historical observation.
+
+Full12,730-entry source/mode/symlink fingerprints, complete index bytes and all
+stat fields, HEADd65 and MERGE_HEADc894 agree before, after and at closure.
+All1,873 native-capture inputs match the full source snapshot. Original stdout,
+stderr and saved helper byte/hash identities, native terminal status and owned
+regular output-descriptor closure were independently checked. Regular-file
+closure is not a pipe-EOF claim. Native PID1628492 is absent and the scoped
+current-user Bun/Node actual-executable/worktree-cwd census is empty; this is not
+a global native-connection or scratch-cleanup claim. Earlier unreturned native
+constructors and their retained failure evidence keep their original uncertainty.
+
+Source and original evidence are retained in
+`.superpowers/artifacts/agentic-write-delivery-full-99027159-20261102/index.json`
+(179 source paths,227 retained files,27,062,890 bytes). The archive accepts only
+this complete RunStore suite; Task4 publication, main merge, CI and canonical
+acceptance remain false. The exact three-file import-policy proposal is still
+unapproved and unapplied. A passing RunStore suite does not implement the other
+executor kinds, PostgreSQL/second durability, automatic business policy,
+physical worker continuation or the complete S7a coordinator.
+
+## Remaining Dash source inventory (2026-11-02)
+
+The current Dash source inventory contains 157 test files. The 76 RunStore files
+above were excluded from a second, explicit-file run of the remaining 81 files,
+using the same two lifetime preloads, actual Dash CLI directory and trusted
+worktree dependencies. The retained inventory and launcher preserve the expanded
+argument list rather than a test-name filter. That run completed naturally on
+source `49ba32d4` with **exit 0, 2,501 pass, zero failures, 12,537 assertions across 81
+files in 1,263.29 seconds**, no signal or skip/filter summary.
+
+The original native streams/helper/status were checked; the 81 observed source
+headers exactly match the selected inventory, with no RunStore test header.
+Full source/mode/link, index bytes/all stat fields and Git identities agree
+before/after/closure. Both cohorts’ 1,873 captured input maps match source `49ba32d4`;
+its only difference from RunStore-tested `99027159` is the factual verification record.
+Together these two disjoint successful runs cover 157 source files, 5,442 tests
+and 24,670 assertions. **They are two separate processes, not one successful full
+Nx target, hosted CI or exact-SHA canonical gate.**
+
+Original evidence and 179 feature source paths are retained in
+`.superpowers/artifacts/agentic-write-delivery-dash-49ba32d4-20261102/index.json`
+(225 files, 23,866,782 bytes). The native PID is absent and the scoped worktree
+Bun/Node census is empty. Historical native-constructor uncertainty is unchanged.
+The import-policy proposal remains unapplied; actual policy/R5 execution,
+normal hooks, current CI, canonical acceptance and publication remain pending.
+Remaining adapters, second durability and full S7a are not closed by these tests.
+
+## Approved import-policy execution (2026-11-02)
+
+The owner explicitly approved the proposed blocker resolution. The reviewed
+three-file scope was applied: seven exact receiver imports, public WBS contracts
+at four exact consumers, and two receiver-only static graph routes. No global
+allowance or inherited constraint was weakened. Earlier checkpoint statements
+that policy consent/application or the fourteen lint/two graph diagnostics were
+pending describe their original observations and are superseded by this section.
+
+The final policy checkpoint is source
+`24905b1f5fec1e95228f7b9122ab8dc17b04fb2f9ef0b201fac66ad5fdcdc92e`,
+12,730 entries: exactly three approved owners changed and 12,727 entries stayed
+identical. Temporary fault owners, index bytes/all stat fields, HEAD `d65bec33`
+and pending MERGE_HEAD `c894bc45` were preserved. Root original-capture audits and
+the independent execution review passed; no Critical or Important finding remains.
+
+Commands and observed scoped results:
+
+- Focused boundary matrix: 17 pass/194 assertions; complete boundary test file:
+  92 pass/1,052 assertions; complete workspace graph: 17 pass/27 assertions.
+- Current real auth/calendar controls: 1 pass/28 assertions. Uncached
+  `tool-devsync:typecheck`, `tool-devsync:lint`, `twilight-dash:lint` and exact
+  three-owner Prettier checks passed. Tool lint retains two inherited unused-disable
+  warnings in the unchanged service-kinds owners.
+- Fifty finite classified proof cases reached their intended native failures,
+  from 53 native mutation attempts, with exact byte restoration. These include
+  fourteen compatibility/admission observations and lint/graph boundary variants;
+  they are not fifty independent security guards. Original C03 and stale-cache
+  G03/G04 attempts receive no proof credit. One rejected parser preflight launched
+  no native test. Three original failed covering checks remain retained.
+
+The successful focused/full-boundary/graph captures precede a narrow test-typing
+amendment: two local unknown bindings retain the same object/equality checks,
+and exact diagnostic projections retain the same existential three-field match.
+The independent review accepted bounded reuse; current auth/calendar, typecheck,
+lint and format checks cover final bytes. No successful runtime or old proof
+campaign was repeated solely for this amendment. Actual mutation and cover
+streams, helper/source bindings and restoration records remain archived.
+
+Fresh private graph caches corrected stale file attribution. ESLint covers prime
+a genuine cache-enabled graph; direct graph proofs use fresh isolated directories.
+After all checks closed, twelve positively owned generated cache files were moved
+into ignored evidence with exact path/hash mappings, without deletion or an ignore
+rule change. The initial 12,741-entry artifact inventories are superseded. Scoped
+Bun/Node and native-check censuses were empty; no database-close claim follows.
+
+One historical Minor remains disclosed: Python prepared some helpers/evidence and
+added proof comments despite the Bun/Nx workflow. Further use stopped; all proof
+and verification commands ran with Bun/Nx. Retained failures were not relabeled.
+
+Evidence and independent review are retained under
+`.superpowers/artifacts/import-policy-r5-24905b1f-20261102/` and
+`.superpowers/artifacts/import-policy-r5-review-24905b1f-20261102/`. Normal hooks,
+current-main integration, hosted CI, exact-SHA canonical acceptance and merge are
+still required. This closes the narrow policy blocker; it does not complete the
+other adapters, second durable provider, business mapping, physical continuation
+or full S7a, and authorizes no operator-store migration or production action.

@@ -19,7 +19,7 @@
   - (d) M7: pools.
   - (e) M9: the cut. **ASSUMED** (assume-and-document; Dany may reverse): the M9 cut ships in
     two halves, keys and trusted-issuer tokens now (slice 18), the groups-less
-    configured-issuer half after #731.
+    configured-issuer half after #731 (landed in PR #731, slice 21).
   - (f) M15: opt-in run scoping.
   - (g) **Open question, M16: the account-keyed parent check.** This change leaves
     `parent_claim_foreign` and `wbs-team-claims` D7 exactly as they are. Today any agent bound
@@ -252,6 +252,16 @@
       fake. A `wbs_mk_` key is already 401 through `decodeJwt`, and no check is claimed for
       it.
 - [ ] 3.6 Hosted connector check on dev: claude.ai consent with `none` is unchanged. Record it.
+      (Since #751 claude.ai registers `client_secret_post`, not `none`; task 3.9.)
+- [x] 3.9 Confidential consent clients (design M17): registration accepts `client_secret_basic`
+      and `client_secret_post`, answers the secret once and stores its digest; the consent
+      grants require it by the registered method. Negatives: accept only `none` again (the live
+      400); skip the code or refresh refusal; compare only the secret, not the method; make the
+      digest compare return `true`; the migration CHECKs as `CHECK (1)`; the rollback preflight
+      and down `DELETE` removed. A boot test runs the claude.ai-shaped flow through the MCP SDK.
+      The claude.ai check on dev after deploy stays with 3.6. Review of PR #791: the family
+      records its client's method and the exchange is atomic (S2-1), an absent method is
+      `client_secret_basic`, and the metadata lists all three methods. verify.md slice 20.
 - [x] 3.7 Secret cutover (M14), with each secret tested on `/internal/mcp/delegation`. The old
       secret is removed in release N+1 (a follow-up).
 - [x] 3.8 Removed the consent path's `use === undefined` branch (`consentClaimsOf` in
@@ -344,8 +354,9 @@
   Negatives: move the refusal after the read; the old Dash HTTP path test observes
   `machine_bearer_not_accepted`.
   (verify.md slice 18; 8.1 passed on dev 2026-10-29. Dash's `resources` runtime is an MCP client too.)
-  - [ ] The groups-less configured-issuer half of M9, after #731 (its precondition, still
-        open): such a token answers `machine_bearer_not_accepted` on `/api`.
+  - [x] The groups-less configured-issuer half of M9, after #731 (its precondition, merged
+        with it in PR #731): such a token answers `machine_bearer_not_accepted` on `/api`.
+        (verify.md slice 21.)
 
 - [x] 7.3 Docs (M12), with Burokrat `check-indexes` exiting 0. (verify.md slice 18.)
 

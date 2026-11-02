@@ -8,7 +8,11 @@
     "portability": {
       "visibility": "public",
       "dependencies": ["libs/website/domain/contracts", "libs/website/adapters/store-sqlite"],
-      "aliases": []
+      "aliases": [],
+      "packages": {
+        "@openrouter/ai-sdk-provider": "3.1.0",
+        "ai": "7.0.118"
+      }
     }
   },
   "targets": {
@@ -16,11 +20,13 @@
       "inputs": [
         "default",
         "^production",
-        "{workspaceRoot}/openspec/changes/build-ai-chat-harness/system-prompt.md"
+        "{workspaceRoot}/openspec/changes/build-ai-chat-harness/system-prompt.md",
+        "{workspaceRoot}/openspec/changes/conversion-scoping/system-prompt.md",
+        "{workspaceRoot}/apps/website/fe-01/browser/conversation-api.mjs"
       ],
       "executor": "nx:run-commands",
       "options": {
-        "command": "bun test apps/website/be-01/src --timeout=30000"
+        "command": "bun test ./apps/website/be-01/src --timeout=30000"
       }
     },
     "lint": {

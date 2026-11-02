@@ -132,6 +132,8 @@ function tempDb(): { path: string; cleanup: () => void } {
 function beforeIdentity(dbPath: string): void {
   runMigrations(dbPath, FOLDER);
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
+    '20261101100100_add_resource_directory_capacity',
+    '20261101100000_widen_organization_audit_directory_capacity',
     '20261028100100_widen_organization_audit_agent_pools',
     '20261028100000_add_agent_pool',
     '20261026130000_widen_organization_audit_machine_tokens',
@@ -289,6 +291,8 @@ describe('the OIDC identity migration', () => {
       beforeIdentity(db.path);
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
         '20261028100000_add_agent_pool',
         '20261026130000_widen_organization_audit_machine_tokens',
@@ -411,6 +415,8 @@ describe('the OIDC identity migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
         '20261028100000_add_agent_pool',
         '20261026130000_widen_organization_audit_machine_tokens',

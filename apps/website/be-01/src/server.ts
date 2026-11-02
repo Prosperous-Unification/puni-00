@@ -2,10 +2,14 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 import {
   browserCheckDifficulty,
+  type ConversationAdmissionMarker,
   type ConversationProvider,
   type ConversationView,
   deriveStage,
   type DraftView,
+  isStartingChoiceId,
+  parseScopingIntake,
+  type ScopingAnswerRequest,
 } from '@website/contracts';
 import {
   type ConversationAdmission,
@@ -25,10 +29,12 @@ import {
   WebsiteStore,
 } from '@website/store-sqlite';
 
+import { requestBodyByteLimit } from './body-capacity';
 import { mintBrowserCheck, verifyBrowserCheck } from './conversation/browser-check';
 import {
   composeConversationRequest,
   defaultConversationReplyTokens,
+  parseConversationAnswer,
   priceConversationRequest,
   simulateReply,
   visitorMessageLimit,
@@ -41,13 +47,18 @@ import {
   replayReply,
   streamConfirmedReply,
 } from './conversation/stream';
-import { providerDeclineReply, salesPromptVersion } from './conversation/system-prompt';
+import {
+  providerDeclineReply,
+  salesPromptVersion,
+  scopingPromptVersion,
+} from './conversation/system-prompt';
 import {
   deliverAlert,
   FloodCounter,
   type GuardrailAlertKind,
   readWebhookUrl,
 } from './guardrail-alerts';
+import { parseScopingEdit } from './scoping-edit';
 
 export interface WebsiteApiConfig {
   databasePath: string;
@@ -65,6 +76,8 @@ export interface WebsiteApiConfig {
   openRouterProvider?: string;
   openRouterInputUsdPerMillion?: number;
   openRouterOutputUsdPerMillion?: number;
+  openRouterInputCeilingUsdPerMillion?: number;
+  openRouterOutputCeilingUsdPerMillion?: number;
   openRouterPrivacyVerified?: boolean;
   /** Sent on every paid call as excluded reasoning; unset sends no reasoning field. */
   openRouterReasoningEffort?: ReasoningEffort;
@@ -195,7 +208,8 @@ function emailField(value: unknown): string | null {
 
 async function readBody(request: Request): Promise<Record<string, unknown> | null> {
   const contentLength = Number(request.headers.get('content-length'));
-  if (Number.isFinite(contentLength) && contentLength > 12_000) return null;
+  // Proof: removing this check accepted the declared-over-cap valid intake in server.test.ts.
+  if (Number.isFinite(contentLength) && contentLength > requestBodyByteLimit) return null;
   const reader = request.body?.getReader();
   if (reader === undefined) return null;
   const decoder = new TextDecoder('utf-8', { fatal: true });
@@ -207,7 +221,7 @@ async function readBody(request: Request): Promise<Record<string, unknown> | nul
       if (chunk.done) break;
       receivedBytes += chunk.value.byteLength;
       // Proof: removing this limit causes the chunked-body test to read the injected second chunk and fail.
-      if (receivedBytes > 12_000) {
+      if (receivedBytes > requestBodyByteLimit) {
         await reader.cancel();
         return null;
       }
@@ -644,17 +658,30 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
   function readProviderRates(): ProviderRates | null {
     const inputUsdPerMillion = config.openRouterInputUsdPerMillion;
     const outputUsdPerMillion = config.openRouterOutputUsdPerMillion;
-    // Proof: skipping this check failed the ten bad-rate cases of the mounted "paid inference with ..." conversation test.
+    const inputCeilingUsdPerMillion = config.openRouterInputCeilingUsdPerMillion;
+    const outputCeilingUsdPerMillion = config.openRouterOutputCeilingUsdPerMillion;
+    // Proof: skipping base checks failed ten bad-rate cases; bypassing ceiling checks failed the mounted missing-ceiling/manual-conversion test.
     if (
       typeof inputUsdPerMillion !== 'number' ||
       typeof outputUsdPerMillion !== 'number' ||
       !Number.isFinite(inputUsdPerMillion) ||
       !Number.isFinite(outputUsdPerMillion) ||
       inputUsdPerMillion <= 0 ||
-      outputUsdPerMillion <= 0
+      outputUsdPerMillion <= 0 ||
+      typeof inputCeilingUsdPerMillion !== 'number' ||
+      typeof outputCeilingUsdPerMillion !== 'number' ||
+      !Number.isFinite(inputCeilingUsdPerMillion) ||
+      !Number.isFinite(outputCeilingUsdPerMillion) ||
+      inputCeilingUsdPerMillion < inputUsdPerMillion ||
+      outputCeilingUsdPerMillion < outputUsdPerMillion
     )
       return null;
-    return { inputUsdPerMillion, outputUsdPerMillion };
+    return {
+      inputUsdPerMillion,
+      outputUsdPerMillion,
+      inputCeilingUsdPerMillion,
+      outputCeilingUsdPerMillion,
+    };
   }
 
   function providerReady(
@@ -699,7 +726,14 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     admitted: Exclude<ConversationAdmission, { kind: 'started' }>,
     provider: ReturnType<typeof selectConversationProvider>['kind'],
   ): Response {
-    if (admitted.kind === 'completed') return replayReply(admitted.reply);
+    if (admitted.kind === 'completed')
+      return replayReply(
+        admitted.reply,
+        admitted.replyVersion,
+        admitted.replyFailure,
+        undefined,
+        admitted.promptVersion,
+      );
     if (admitted.kind === 'exhausted') {
       const reason = admitted.reason;
       const code =
@@ -729,6 +763,9 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       ],
       paused: ['provider_paused', 503],
       challenge_required: ['challenge_required', 428],
+      stale_answer: ['stale_answer', 409],
+      automatic_forbidden: ['automatic_forbidden', 409],
+      invalid_initial: ['invalid_initial', 409],
     } as const;
     const [code, status] = refusals[admitted.kind];
     return failure(code, status);
@@ -788,8 +825,26 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       const rate = admitRequestRate('/intakes', source, now);
       if (rate.kind !== 'admitted') return rateRefusal(rate);
       const body = await readBody(request);
-      const description = body && textField(body['description'], 2000);
-      if (!description) return failure('invalid_description', 400);
+      if (
+        body &&
+        request.headers.get('content-type')?.startsWith('application/x-www-form-urlencoded')
+      ) {
+        const intent = body['startConversation'];
+        if (intent === 'true' || intent === 'false') body['startConversation'] = intent === 'true';
+        const description = body['description'];
+        // Proof: removing this normalization made native/fetch starter forms with empty text answer 400; dropping the raw bound admitted the oversized-blank fixture.
+        if (
+          isStartingChoiceId(body['startingChoice']) &&
+          typeof description === 'string' &&
+          description.length <= 2000 &&
+          description.trim() === ''
+        )
+          delete body['description'];
+      }
+      // Proof: bypassing the shared unknown-choice guard accepted typed text with an invented choice in the mounted versioned-intake refusal test.
+      const intake = parseScopingIntake(body);
+      if (intake.kind !== 'valid') return failure('invalid_description', 400);
+      const { description, protocol, startingChoice, startConversation } = intake.value;
       const priorClaim = draftClaim(request);
       const claim = secret();
       const created = store.createDraft(
@@ -799,6 +854,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         now,
         now + draftLifetime,
         source,
+        protocol === 'scoping' ? { version: 1, startingChoice, startConversation } : undefined,
       );
       // Proof: answering 201 with the claim cookie here put a Set-Cookie on the mounted draft-cap refusal.
       if (created.kind !== 'created') return attachSiteCors(capRefusal(created.kind, now));
@@ -830,6 +886,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       if (!claim || !draft) return attachCors(failure('draft_unavailable', 401), origin);
       const view: DraftView = {
         description: draft.description,
+        scoping: draft.scoping,
         brief: draft.brief,
         csrfToken: draftCsrf(claim),
         expiresAt: new Date(draft.expiresAt).toISOString(),
@@ -869,6 +926,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
             )
           : null;
       const view: ConversationView = {
+        expiresAt: new Date(draft.expiresAt).toISOString(),
+        scoping: draft.scoping,
         challenge,
         stage: deriveStage(conversation?.state ?? 'open', visitorTurns),
         turns,
@@ -882,13 +941,16 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
           state: initialRecord?.state ?? 'not-started',
           idempotencyKey: initialKey,
           truncated: initialRecord?.truncated ?? false,
+          replyFailure: initialRecord?.replyFailure ?? null,
         },
         latestOperation: latest
           ? {
               state: latest.state,
               idempotencyKey: latest.idempotencyKey,
               truncated: latest.truncated,
+              replyFailure: latest.replyFailure,
               message: latest.message,
+              answer: latest.answer,
             }
           : null,
         exhaustedReason: conversation?.exhaustedReason ?? null,
@@ -909,13 +971,53 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       const suppliedKey = body?.['idempotencyKey'];
       if (typeof suppliedKey !== 'string' || !/^[A-Za-z0-9:_-]{8,120}$/.test(suppliedKey))
         return attachCors(failure('invalid_idempotency_key', 400), origin);
-      const initial = body?.['initial'] === true;
+      // Proof: bypassing flag types accepted string/null flags in the mounted malformed-flags fixture.
+      if (
+        !body ||
+        (Object.hasOwn(body, 'initial') && typeof body['initial'] !== 'boolean') ||
+        (Object.hasOwn(body, 'automatic') && typeof body['automatic'] !== 'boolean')
+      )
+        return attachCors(failure('invalid_initial', 400), origin);
+      const initial = body['initial'] === true;
+      const automatic = body['automatic'] === true;
+      // Proof: bypassing this shape guard changed the mounted automatic-follow-up refusal from 400 to 409.
+      if ((automatic && !initial) || (initial && Object.hasOwn(body, 'selected')))
+        return attachCors(failure('invalid_initial', 400), origin);
       const draft = store.findDraft(digest(claim), now);
       if (!draft) return attachCors(failure('draft_unavailable', 401), origin);
-      const message = initial
-        ? draft.description
-        : textField(body?.['message'], visitorMessageLimit);
-      if (!message) return attachCors(failure('invalid_message', 400), origin);
+      let message = draft.description;
+      let normalizedAnswer: ScopingAnswerRequest | undefined;
+      if (!initial && draft.scoping.version === 1) {
+        const answer = parseConversationAnswer({
+          ...(Object.hasOwn(body, 'message') ? { message: body['message'] } : {}),
+          ...(Object.hasOwn(body, 'selected') ? { selected: body['selected'] } : {}),
+        });
+        if (answer.kind !== 'valid') return attachCors(failure('invalid_message', 400), origin);
+        message = answer.value.message;
+        normalizedAnswer = answer.value.request;
+      } else if (!initial) {
+        if (Object.hasOwn(body, 'selected'))
+          return attachCors(failure('invalid_message', 400), origin);
+        const legacyMessage = textField(body['message'], visitorMessageLimit);
+        if (!legacyMessage) return attachCors(failure('invalid_message', 400), origin);
+        message = legacyMessage;
+      }
+      // Proof: omitting selected identity made equal-label answers across questions/revisions replay instead of conflict.
+      const bodyHash =
+        draft.scoping.version === 1
+          ? digest(
+              JSON.stringify(
+                initial
+                  ? {
+                      initial: true,
+                      message,
+                      startingChoice: draft.scoping.startingChoice,
+                      startConversation: draft.scoping.startConversation,
+                    }
+                  : { initial: false, answer: normalizedAnswer },
+              ),
+            )
+          : digest(`${initial ? 'initial' : 'message'}:${message}`);
       // Proof: using the browser's key for an initial operation made the replay test answer 429.
       const idempotencyKey = initial ? `initial:${draft.id}` : suppliedKey;
       const provider = selectConversationProvider();
@@ -937,9 +1039,10 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         provider.kind === 'paid'
           ? {
               kind: 'paid',
-              price: (history, stage) =>
+              price: (history, stage, context) =>
                 priceConversationRequest(
-                  composeConversationRequest(history, message, stage),
+                  // Proof: pricing only the first 1,500 characters failed the mounted long-answer exact reservation assertion against the captured complete outbound request.
+                  composeConversationRequest(history, message, stage, context),
                   provider.rates,
                   // Proof: pricing with the 400-token default failed the reasoning-effort reservation test.
                   conversationReplyTokens,
@@ -952,10 +1055,12 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         claimHash: digest(claim),
         sourceHash: source,
         idempotencyKey,
-        bodyHash: digest(`${initial ? 'initial' : 'message'}:${message}`),
+        bodyHash,
         message,
         initial,
-        promptVersion: salesPromptVersion,
+        automatic,
+        answer: normalizedAnswer,
+        promptVersion: draft.scoping.version === 1 ? scopingPromptVersion : salesPromptVersion,
         pricing,
         browserCheck,
         now,
@@ -966,11 +1071,30 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         response.headers.set('Cache-Control', 'no-store');
         return attachCors(response, origin);
       }
+      const currentQuestion =
+        admitted.context.scoping.version === 1 ? admitted.context.scoping.questionId : null;
+      const admission: ConversationAdmissionMarker | undefined = !admitted.isNewInput
+        ? undefined
+        : initial
+          ? { kind: 'initial' }
+          : currentQuestion === null
+            ? { kind: 'continuation' }
+            : {
+                kind: 'answer',
+                question_id: currentQuestion,
+                answer_mode: normalizedAnswer?.selected
+                  ? normalizedAnswer.message?.trim()
+                    ? 'mixed'
+                    : normalizedAnswer.selected.answerId === 'not-sure'
+                      ? 'unsure'
+                      : 'choice'
+                  : 'text',
+              };
       if (provider.kind === 'demo') {
         const reply = simulateReply(admitted.stage, draft.description);
         if (!store.completeConversationOperation(admitted.id, reply, null, Date.now(), false))
           throw new Error('Demo conversation operation failed to complete');
-        const response = replayReply(reply);
+        const response = replayReply(reply, null, null, admission);
         response.headers.set('Cache-Control', 'no-store');
         return attachCors(response, origin);
       }
@@ -978,8 +1102,14 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       if (provider.kind !== 'paid')
         throw new Error('Unavailable provider admitted a new conversation operation');
       noteSiteSpend(now);
-      const outbound = composeConversationRequest(admitted.history, message, admitted.stage);
+      const outbound = composeConversationRequest(
+        admitted.history,
+        message,
+        admitted.stage,
+        admitted.context,
+      );
       const response = streamConfirmedReply({
+        admission,
         pin: {
           key: String(config.openRouterKey),
           model: String(config.openRouterModel),
@@ -990,6 +1120,19 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         rates: provider.rates,
         system: outbound.system,
         messages: outbound.messages,
+        structured:
+          admitted.context.scoping.version === 1
+            ? {
+                promptVersion: scopingPromptVersion,
+                complete: (reply, actualMicroUsd) =>
+                  store.completeScopingConversationOperation(
+                    admitted.id,
+                    reply,
+                    actualMicroUsd,
+                    Date.now(),
+                  ),
+              }
+            : undefined,
         maxCompletionTokens: conversationReplyTokens,
         operationId: admitted.id,
         aborts: conversationAborts,
@@ -1077,6 +1220,25 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         origin,
       );
     }
+    if (path === '/scoping' && request.method === 'PATCH') {
+      const claim = draftClaim(request);
+      if (!claim) return attachCors(failure('draft_unavailable', 401), origin);
+      if (!validDraftCsrf(request, claim))
+        return attachCors(failure('csrf_forbidden', 403), origin);
+      const rate = admitRequestRate('/scoping', source, now);
+      if (rate.kind !== 'admitted') return attachCors(rateRefusal(rate), origin);
+      const parsed = parseScopingEdit(await readBody(request));
+      if (parsed === null) return attachCors(failure('invalid_scoping_edit', 400), origin);
+      // Proof: substituting the current revision admitted the stale mounted write instead of 409.
+      const edited = store.editScoping(digest(claim), parsed.revision, parsed.edit, now);
+      if (edited.kind === 'missing') return attachCors(failure('draft_unavailable', 401), origin);
+      if (edited.kind !== 'updated')
+        return attachCors(failure(`scoping_${edited.kind}`, 409), origin);
+      const draft = store.findDraft(digest(claim), now);
+      // Proof: a broken findDraft dependency loses contextual failure if this readback guard is removed.
+      if (draft === null) throw new Error('Edited scoping draft disappeared');
+      return attachCors(json({ scoping: edited.scoping, brief: draft.brief }), origin);
+    }
     if (path === '/brief' && request.method === 'PATCH') {
       const claim = draftClaim(request);
       if (!claim || !store.findDraft(digest(claim), now))
@@ -1103,11 +1265,24 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       if (rate.kind !== 'admitted') return attachCors(rateRefusal(rate), origin);
       const body = await readBody(request);
       const email = body && emailField(body['email']);
-      const brief = body && textField(body['brief'], 8000);
+      const version = body?.['version'];
+      if (body && Object.hasOwn(body, 'version') && version !== 1)
+        return attachCors(failure('invalid_proposal', 400), origin);
+      const rawBrief = body?.['brief'];
+      // Proof: trimming v1 or validating trimmed length failed exact reviewed bytes and oversized raw input.
+      const brief =
+        version === 1
+          ? typeof rawBrief === 'string' && rawBrief.trim() !== '' && rawBrief.length <= 8000
+            ? rawBrief
+            : null
+          : textField(rawBrief, 8000);
       const idempotencyKey = body && textField(body['idempotencyKey'], 128);
       if (!email || !brief || !idempotencyKey || !/^[a-zA-Z0-9_-]{8,128}$/.test(idempotencyKey))
         return attachCors(failure('invalid_proposal', 400), origin);
-      const bodyHash = digest(JSON.stringify({ email, brief }));
+      // Proof: omitting version or trimming v1 broke whitespace conflict/legacy replay compatibility.
+      const bodyHash = digest(
+        JSON.stringify(version === 1 ? { version: 1, email, brief } : { email, brief }),
+      );
       const receipt = randomBytes(16).toString('hex');
       const priorReplay = priorClaim
         ? store.replaySubmission(digest(priorClaim), idempotencyKey, bodyHash, now)

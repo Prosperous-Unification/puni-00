@@ -403,7 +403,7 @@ describe('credential epoch advance', () => {
       db.run('PRAGMA journal_mode = WAL');
       migrateMcpStore(db, true, MCP_STORE_MIGRATIONS.slice(0, 2));
     });
-    expect(() => advanceCredentialEpoch(path, 1_234, true)).toThrow(/applied 2 of 4 migrations/);
+    expect(() => advanceCredentialEpoch(path, 1_234, true)).toThrow(/applied 2 of 5 migrations/);
     expect(storeState(path).epoch).toBe(0);
   });
 

@@ -15,8 +15,7 @@ that remains stable when the same creation is retried or recovered.
 
 ## Non-Goals
 
-No automatic repair of corrupt stores, operator-store migration, architectural main merge,
-production deployment, new coordinator CLI, credential work or second database choice.
+No automatic repair of corrupt stores, operator-store migration, production deployment, new coordinator CLI, credential work or second database choice.
 This does not complete the remaining recovery, adapters or S7a foundation.
 
 ## Constraints
@@ -42,7 +41,7 @@ Workflow run.
 
 ## Decisions Recorded
 
-[ADR0065](../../../docs/adr/0065-workflow-ids-use-json-private-keys.md).
+[ADR0068](../../../docs/adr/0068-workflow-ids-use-json-private-keys.md).
 
 ## Impact
 

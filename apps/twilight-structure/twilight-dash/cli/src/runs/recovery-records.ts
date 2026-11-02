@@ -8,6 +8,13 @@ import type {
   RuntimeIntent,
   RuntimeScope,
 } from './runtime-records';
+import type {
+  WriteRecoveryClosure,
+  WriteRecoveryDecision,
+  WriteRecoveryHistory,
+  WriteRecoveryIntent,
+  WriteRecoveryTarget,
+} from './write-recovery-records';
 
 export interface AuthorityRecoveryTarget {
   readonly kind: 'authority';
@@ -21,10 +28,11 @@ export interface ClaimRecoveryTarget {
   readonly stageCommandId: string;
   readonly acceptanceCommandId: string;
 }
-export type RecoveryTarget = AuthorityRecoveryTarget | ClaimRecoveryTarget;
+export type RecoveryTarget1 = AuthorityRecoveryTarget | ClaimRecoveryTarget;
+export type RecoveryTarget = RecoveryTarget1 | WriteRecoveryTarget;
 export type AuthorityRecoveryGuard = RuntimeGuard & { readonly expectedRecoveryRevision: number };
 export type ClaimRecoveryGuard = ScopedAttemptGuard & { readonly expectedRecoveryRevision: number };
-export interface RecoveryIntent<T extends RecoveryTarget = RecoveryTarget> {
+export interface RecoveryIntent1<T extends RecoveryTarget1 = RecoveryTarget1> {
   readonly version: 1;
   readonly recoveryId: string;
   readonly target: T;
@@ -143,7 +151,7 @@ export type ClaimRecoveryDecision =
       readonly kind: 'fenced_nonaccepted';
       readonly lookup: RecoveryExchangeValue<RecoveryReceiptAbsent>;
     };
-export type RecoveryBeginCall =
+export type RecoveryBeginCall1 =
   | {
       readonly kind: 'authority';
       readonly guard: AuthorityRecoveryGuard;
@@ -154,7 +162,7 @@ export type RecoveryBeginCall =
       readonly guard: ClaimRecoveryGuard;
       readonly intent: RecoveryIntent<ClaimRecoveryTarget>;
     };
-export type RecoveryCall<P> =
+export type RecoveryCall1<P> =
   | {
       readonly kind: 'authority';
       readonly guard: AuthorityRecoveryGuard;
@@ -167,7 +175,7 @@ export type RecoveryCall<P> =
       readonly recoveryId: string;
       readonly input: P;
     };
-export type RecoveryResolveCall =
+export type RecoveryResolveCall1 =
   | {
       readonly kind: 'authority';
       readonly guard: AuthorityRecoveryGuard;
@@ -199,7 +207,7 @@ export type Attempt3 = Omit<Attempt2, 'version' | 'state'> & {
   readonly version: 3;
   readonly state: RecoveryHold;
 };
-export interface RecoveryClosure {
+export interface RecoveryClosure1 {
   readonly version: 1;
   readonly recoveryId: string;
   readonly original: RuntimeIntent;
@@ -219,11 +227,45 @@ export interface RecoveryClosure {
       };
   readonly attemptReply: Attempt3 | null;
 }
-export interface RecoveryHistory {
+export interface RecoveryHistory1 {
   readonly version: 1;
-  readonly intent: RecoveryIntent;
+  readonly intent: RecoveryIntent1;
   readonly revision: number;
   readonly fences: readonly RecoveryFence[];
   readonly observations: readonly RecoveryObservation[];
-  readonly closure: RecoveryClosure | null;
+  readonly closure: RecoveryClosure1 | null;
 }
+
+export type RecoveryIntent<T extends RecoveryTarget = RecoveryTarget> = [T] extends [
+  WriteRecoveryTarget,
+]
+  ? WriteRecoveryIntent
+  : [T] extends [RecoveryTarget1]
+    ? RecoveryIntent1<Extract<T, RecoveryTarget1>>
+    : RecoveryIntent1 | WriteRecoveryIntent;
+export type RecoveryClosure = RecoveryClosure1 | WriteRecoveryClosure;
+export type RecoveryHistory = RecoveryHistory1 | WriteRecoveryHistory;
+export type RecoveryBeginCall =
+  | RecoveryBeginCall1
+  | {
+      readonly kind: 'write';
+      readonly guard: ClaimRecoveryGuard;
+      readonly intent: WriteRecoveryIntent;
+    };
+export type RecoveryCall<P> =
+  | RecoveryCall1<P>
+  | {
+      readonly kind: 'write';
+      readonly guard: ClaimRecoveryGuard;
+      readonly recoveryId: string;
+      readonly input: P;
+    };
+export type RecoveryResolveCall =
+  | RecoveryResolveCall1
+  | {
+      readonly kind: 'write';
+      readonly guard: ClaimRecoveryGuard;
+      readonly recoveryId: string;
+      readonly fence: AcceptedRecoveryFence;
+      readonly decision: WriteRecoveryDecision;
+    };

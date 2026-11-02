@@ -15,7 +15,7 @@ import type { RuntimeIntent } from './runtime-records';
 import { readRuntimeStateArtifact } from './runtime-state';
 import { ArtifactRefCodec, ExecutionCommandIdCodec } from './value-codecs';
 import { verifyArtifacts } from './verify-artifacts';
-import { decodeWriteCompletion, decodeWriteProjection, WriteCompletionCodec } from './write-codecs';
+import { decodeWriteCompletion, projectWriteReceipt, WriteCompletionCodec } from './write-codecs';
 import type { WriteAcceptAck, WriteCompletion, WriteStageAck } from './write-records';
 
 const stageInput = type({
@@ -78,12 +78,13 @@ export async function readWriteObservation(
     live.kind !== 'runtime' ||
     !equalRecords(live.binding, expected) ||
     !equalRecords(request.operation.action.claim, expected) ||
+    // Proof: S15 removing only the session run binding admitted local Dash run substitution against authentic receiver-shaped state. The actual builder RED exposed this domain mismatch; exact restoration passed.
     !equalRecords(live.claim, {
       id: expected.claimId,
       workItemId: expected.workItemId,
       stepId: expected.stepId,
       personId: state.scope.personId,
-      runId: history.run.runId,
+      runId: expected.execution.sessionId,
       parentClaimId: expected.parentClaimId,
       accountId: binding.projection.actorId,
     })
@@ -163,11 +164,10 @@ export async function acceptWriteReceipt(
   // Proof: T2 wrapper-memory/sqlite-receipt-verifier replaced this verifier with raw JSON; both actual providers accepted wrong-command receipt bytes. Exact restorations passed.
   const receipt = await verifyRuntimeReceipt(artifacts, captured.intent, captured.evidence);
   if (receipt.acceptance.kind !== 'write') throw new Error('write receipt kind differs');
-  const projection = decodeWriteProjection({
-    version: 1,
+  // Proof: P02 reverting only ordinary selection rejected an actual client-accepted additive entry in both providers. Compatibility proof; exact restoration passed.
+  const projection = projectWriteReceipt({
     actorId: receipt.actorId,
-    basisAfter: receipt.acceptance.basisAfter,
-    applied: receipt.acceptance.applied,
+    acceptance: receipt.acceptance,
   });
   return await runs.recordWriteAcceptance(capturedGuard, {
     version: 1,
@@ -215,12 +215,11 @@ export async function verifyWriteHistory(
       if (
         // Proof: receipt-history-projection broke “coherent retained write projection remains bound to original receipt bytes”; exact source hash restored.
         receipt.acceptance.kind !== 'write' ||
-        !equalRecords(entry.command.projection, {
-          version: 1,
-          actorId: receipt.actorId,
-          basisAfter: receipt.acceptance.basisAfter,
-          applied: receipt.acceptance.applied,
-        })
+        // Proof: P03 comparing raw additive entries rejected independently stored correct projections in both providers. Compatibility proof; exact restoration passed.
+        !equalRecords(
+          entry.command.projection,
+          projectWriteReceipt({ actorId: receipt.actorId, acceptance: receipt.acceptance }),
+        )
       )
         throw new Error('historical write projection differs from artifact');
     }

@@ -12,7 +12,7 @@ business-outcome policy. One unreleased format6 cohort preserves genuine format5
 **Tech stack:** Existing Bun1.4.4, TypeScript, ArkType, bun:sqlite, Bun tests and Nx.
 
 **Spec:** [delta](specs/runtime-write-delivery/spec.md), [design](design.md),
-[intent](proposal.md) and [ADR0066](../../../docs/adr/0066-outcomes-and-runtime-writes-stage-together.md).
+[intent](proposal.md) and [ADR0069](../../../docs/adr/0069-outcomes-and-runtime-writes-stage-together.md).
 
 ## Global constraints
 
@@ -22,7 +22,8 @@ business-outcome policy. One unreleased format6 cohort preserves genuine format5
 - Preserve0001–0005 forward/down bytes, original format3/4 worker/protocol bytes, public WBS
   wire codecs, receiver behavior and generic completion/receipt semantics. No dependency change.
 - No automatic business mapper, new business retry/budget policy, physical-work inference,
-  operator-store migration, architectural main merge, live provider spend or production action.
+  operator-store migration, live provider spend or production action. The user's subsequent
+  explicit commit/push/merge authorization permits publication after the required review and gates.
 - All paths below are relative to `apps/twilight-structure/twilight-dash/cli/src/runs/` unless
   explicitly rooted. Symbol behavior/invariants belong in JSDoc. No unexplained unchecked casts.
 - New runtime types are standalone during Task1; Task2 integrates complete read contracts.
@@ -290,7 +291,7 @@ intent/history/closure versions are2; unchanged legacy recovery envelopes remain
 existing recovery call/decision types with a precise write branch and the same four public
 RecoveryStore operations. The current generation barrier and fence bounds remain unchanged.
 
-- [ ] 3.1 Observe RED then implement the actual sender over verified wrappers — tests:
+- [x] 3.1 Observe RED then implement the actual sender over verified wrappers — tests:
       shared `write-dispatch-contract.ts` on memory and SQLite proves durable-stage/renewal barriers,
       exactly one applied-stage sender, lookup-only duplicates, original winner/evidence and
       distinct local identity, preserved submitted cuts, nested mutable inputs, cancellation,
@@ -298,7 +299,7 @@ RecoveryStore operations. The current generation barrier and fence bounds remain
       ahead of either awaited barrier, elect duplicate POST, borrow another acceptance winner,
       advance duplicate cuts, substitute parsed reply or skip evidence verification; observe the
       actual injected client/provider path fail and restore exactly.
-- [ ] 3.2 Observe RED then implement write recovery across complete pure folds and both
+- [x] 3.2 Observe RED then implement write recovery across complete pure folds and both
       adapters — tests: shared recovery contract plus `write-recovery.test.ts`/
       `sqlite/write-recovery.db.test.ts` proves durable fence chronology, contextual original
       lookup, three-fence bounds, accepted atomic write/terminal/obligation/barrier publication,
@@ -310,7 +311,7 @@ RecoveryStore operations. The current generation barrier and fence bounds remain
       Include lost-reply recovery whose local acceptance ID equals the original wire ID, unrelated
       local/wire lexical equality, genuinely borrowed-association refusal and unchanged legacy
       cross-namespace refusal controls; use the same matrix in planners and complete-history audits.
-- [ ] 3.3 Prove real receiver effects across lost replies and restart — tests:
+- [x] 3.3 Prove real receiver effects across lost replies and restart — tests:
       `sqlite/deliver-outcome.db.test.ts` composes the real owned WBS SQLite/controller receiver,
       commits ordered progress/reference/measurement/final release, drops the reply after commit,
       closes/reopens receiver and sender, and recovers the same receipt without repeated effects.
@@ -319,7 +320,7 @@ RecoveryStore operations. The current generation barrier and fence bounds remain
       acceptance rollback. Negative: break actual sender capture/lookup or atomic closure and
       observe duplicate effect, lost original correspondence or partial state; do not alter
       receiver guards to make the sender pass.
-- [ ] 3.4 Run final focused sender/recovery/history/provider/lifecycle contracts once after
+- [x] 3.4 Run final focused sender/recovery/history/provider/lifecycle contracts once after
       all proofs and source restoration, then actual affected static/policy checks and independent
       task review. Keep failed/setup runs and explicit skip/unsupported boundaries. Release the
       source hold; no canonical acceptance is inferred from these focused results.
@@ -335,6 +336,7 @@ RecoveryStore operations. The current generation barrier and fence bounds remain
       existing warnings, exclusions, old worker/pipe/native closure and cleanup limits explicitly.
 - [ ] 4.2 Normally commit/push the cohesive packet, run its own applicable hosted CI and the
       exact-SHA canonical gate from a clean isolated host tree, then write `verify.md` from actual
-      source-bound outputs and normal hooks. Keep this architectural work in draft under the
-      existing main-merge/operator/prod holds. Maintain accurate WBS and retained checkpoints;
+      source-bound outputs and normal hooks. Merge only after review and source-specific gates
+      pass, under the user's explicit authorization; operator migration and production remain
+      outside scope. Maintain accurate WBS and retained checkpoints;
       no complete-foundation or deployment claim follows from this packet alone.

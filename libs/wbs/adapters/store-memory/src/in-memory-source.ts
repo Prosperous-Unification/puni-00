@@ -93,7 +93,14 @@ export function inMemoryStores(): TransactionalStores {
       memoryClaimTable(),
       claimIdentityOf(directory),
       (resourceId) => directoryTables.resources.resources.has(resourceId),
-      { projects: projectTables, workItems: workItemTables, people: directoryTables.people },
+      {
+        projects: projectTables,
+        workItems: workItemTables,
+        people: directoryTables.people,
+        // This legacy source owns no project in any organization.
+        projectOrganization: new Map(),
+        resourceOrganization: directoryTables.organizationOf,
+      },
     ),
     blockages: inMemoryStepBlockages(workItems, {
       async findById(stepId) {

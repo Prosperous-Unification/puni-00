@@ -6,7 +6,6 @@ import {
   type CredentialAuthentication,
   isUnderMcpAuthorizationServer,
   type OidcIdentity,
-  type WbsScope,
 } from '@wbs/contracts';
 import {
   admitMachineCredential,
@@ -190,7 +189,9 @@ export class AuthService {
    * The account a browser session proves. A first-party password session wins
    * (its token cannot be an OIDC one); otherwise the token is verified with the
    * configured OIDC verifier and resolved through existing mappings only, so a
-   * session can never create or merge an account here. Verifier and store
+   * session can never create or merge an account here. A token without the
+   * groups claim is a machine's and proves no session (`wbs-machine-credentials`
+   * A18), whatever `external_identity` maps its pair to. Verifier and store
    * faults propagate.
    */
   async sessionUser(token: string | null): Promise<SessionAccount | null> {
@@ -198,7 +199,10 @@ export class AuthService {
     if (password !== null) return { kind: 'password', user: password };
     if (token === null || this.opts.oidc === undefined) return null;
     const identity = await this.opts.oidc.verify(token);
-    if (identity === null) return null;
+    // Proof: without this check, `refuses a link start under a groups-less
+    // cookie whose pair is linked` (`oidc-identity.controller.db.test.ts`)
+    // started the link (200); watched 2026-10-25.
+    if (identity?.groupsClaimed !== true) return null;
     const user = await this.readExistingOidcIdentity(identity);
     return user === null ? null : { kind: 'oidc', user };
   }
@@ -280,13 +284,15 @@ export class AuthService {
    * {@link authenticate}, telling a verified token nobody is linked to
    * (`unknown_identity`) apart from an absent or invalid one (null).
    *
-   * **A token without a groups claim never mints an account** (`wbs-team-claims`
-   * D6b): it is a machine credential, which reaches only an account a host
-   * operator linked it to with `link-credential-cli.ts`, and it is read through
-   * the existing mapping alone, so it writes nothing (no email refresh either).
-   * Its scopes come from the linked account's memberships
-   * ({@link scopesOfRoles}); the per-organization role checks then apply as for
-   * any session of that account. A token with the claim keeps the login path.
+   * **A token of the configured issuer without a groups claim is a machine
+   * bearer** (`wbs-machine-credentials` A13 step 2, A18, A21;
+   * `wbs-mcp-agent-surface` M9, its groups-less half): the configured issuer
+   * mints human sign-ins only, so such a token is a machine's, and a machine
+   * is admitted only by a machine credential, through `/mcp`. It is refused
+   * `machine_bearer_not_accepted` once verified: no mapping is read for it (an
+   * `external_identity` row pinned by the retired operator link admits
+   * nothing), no account is minted and nothing is written. A token with the
+   * claim keeps the login path.
    *
    * **Machine bearers are refused `machine_bearer_not_accepted` before any
    * read** (`wbs-mcp-agent-surface` M9): a token with the `wbs_mk_` prefix,
@@ -298,8 +304,6 @@ export class AuthService {
    * handed to any verifier.
    * Machines present them at mcp-01's token endpoint, whose
    * {@link admitMachineProof} verifies them, and call through `/mcp`.
-   * A groups-less configured-issuer token keeps the D6b path below until
-   * #731 retires operator links (M9's precondition).
    *
    * **A native session never reads the OIDC verifier**: when password
    * sessions are admitted it verifies on the JWT key first, so a session
@@ -346,22 +350,19 @@ export class AuthService {
     if (this.opts.oidc === undefined) return null;
     const identity = await this.opts.oidc.verify(token);
     if (identity === null) return null;
-    if (!identity.groupsClaimed) {
-      // Proof: resolving this through `resolveOidcIdentity` made `refuses an
-      // unlinked machine token as unknown_identity, minting no account` in
-      // `fleet-credential.controller.db.test.ts` mint a second account and
-      // answer 403 instead of 401 (watched 2026-10-20), and made `leaves the
-      // owner's email alone under a groups-less token carrying an email`
-      // write the token's address over Dany's (watched 2026-10-20).
-      const linked = await this.readExistingOidcIdentity(identity);
-      if (linked === null) return 'unknown_identity';
-      return {
-        id: linked.id,
-        username: linked.username,
-        scopes: scopesOfRoles(await this.opts.account.membershipRolesOf(linked.id)),
-        authentication: { kind: 'upstream', issuer: identity.issuer, subject: identity.subject },
-      };
-    }
+    // Proof: resolving this through `resolveOidcIdentity` made `refuses an
+    // unlinked machine token as unknown_identity, minting no account` in
+    // `fleet-credential.controller.db.test.ts` mint a second account and
+    // answer 403 instead of 401 (watched 2026-10-20). Proof: with the
+    // retired link read restored here (`readExistingOidcIdentity`, the
+    // linked account admitted), `admits nothing for a pinned row …` and
+    // `admits nothing for an unpinned row …` in the same file failed;
+    // watched 2026-10-25. Proof: with `unknown_identity` answered here again
+    // (the pre-M9 refusal), `refuses a groups-less token of the sign-in issuer
+    // machine_bearer_not_accepted, reading no mapping` (machine-key.test.ts)
+    // and `refuses an unlinked machine token machine_bearer_not_accepted…`
+    // (fleet-credential.controller.db.test.ts) failed; watched 2026-10-31.
+    if (!identity.groupsClaimed) return 'machine_bearer_not_accepted';
     const user = await this.resolveOidcIdentity(identity);
     if (user === null) return null;
     return {
@@ -405,7 +406,11 @@ export class AuthService {
     return this.opts.account.resolveIdentity(identity);
   }
 
-  /** Resolves only a pre-existing exact verified pair; refresh may not create or link users. */
+  /**
+   * Resolves only a pre-existing exact verified pair; refresh may not create or
+   * link users. Callers check `groupsClaimed` first: a groups-less token's pair
+   * admits nothing (`wbs-machine-credentials` A18).
+   */
   readExistingOidcIdentity(
     identity: Pick<OidcIdentity, 'issuer' | 'subject'>,
   ): Promise<User | null> {
@@ -799,25 +804,6 @@ export function organizationRoleOf(
 ): OrganizationRole {
   if (authentication?.kind !== 'machine' && authentication?.kind !== 'consent') return role;
   return role === 'viewer' ? 'viewer' : 'member';
-}
-
-/**
- * The scopes a linked machine token without a groups claim carries
- * (`wbs-team-claims` D6b): the strongest of its account's organization roles.
- * `viewer` reads, `member` reads and writes, `admin` and `super_admin` edit;
- * no membership grants nothing.
- *
- * Proof: answering [] for every role made `scopes a linked token without
- * groups from its account's membership: a member`
- * (`fleet-credential.controller.db.test.ts`) answer the member's read 403
- * insufficient_scope (watched 2026-10-20).
- */
-export function scopesOfRoles(roles: readonly OrganizationRole[]): WbsScope[] {
-  if (roles.some((role) => role === 'admin' || role === 'super_admin'))
-    return ['read', 'write', 'editor'];
-  if (roles.includes('member')) return ['read', 'write'];
-  if (roles.includes('viewer')) return ['read'];
-  return [];
 }
 
 /**

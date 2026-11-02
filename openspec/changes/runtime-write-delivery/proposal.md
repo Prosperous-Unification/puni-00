@@ -20,7 +20,7 @@ preserving exact requests, original acknowledgements and existing capacity seman
 
 Automatic success/failure/cancellation mapping, new business-attempt budgets, physical worker
 reconciliation, remaining adapters, another durable provider, coordinator CLI/dogfood,
-operator-store migration, architectural main merge and production activation remain separate.
+operator-store migration and production activation remain separate.
 No WBS-owned authentication, credentials, limits, runtime request or receipt semantics change.
 
 ## Constraints
@@ -53,7 +53,7 @@ Write obligation, recorded in root `CONTEXT.md`.
 
 ## Decisions Recorded
 
-[ADR 0066](../../../docs/adr/0066-outcomes-and-runtime-writes-stage-together.md).
+[ADR 0069](../../../docs/adr/0069-outcomes-and-runtime-writes-stage-together.md).
 
 ## Impact
 

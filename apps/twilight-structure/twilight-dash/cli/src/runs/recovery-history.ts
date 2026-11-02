@@ -3,6 +3,7 @@ import { equalRecords } from './record-codecs';
 import { decodeRecoveryHistory } from './recovery-codecs';
 import {
   deriveRecoveryClaimCommand,
+  deriveRecoveryWriteCommand,
   readRecoveryExchange,
   type RecoveryEvidenceSubject,
 } from './recovery-evidence';
@@ -51,7 +52,18 @@ export async function verifyRecoveryHistory(
       ? { kind: target.kind, intent: target.original }
       : { kind: 'absent' },
   );
-  if (target.kind === 'claim' && closure.decision.kind === 'accepted') {
+  if (history.version === 2 && closure.version === 2 && closure.decision.kind === 'accepted') {
+    // Proof: L06 removing this byte-derived command correspondence let a forged projection pass actual verified history for both providers. Exact restoration passed.
+    if (
+      verified.kind !== 'write' ||
+      !equalRecords(
+        deriveRecoveryWriteCommand(history.intent, verified.exchange),
+        closure.decision.command,
+      )
+    )
+      throw Error('recovery write command differs from actual receipt');
+  }
+  if (history.version === 1 && target.kind === 'claim' && closure.decision.kind === 'accepted') {
     if (
       verified.kind !== 'claim' ||
       !('command' in closure.decision) ||

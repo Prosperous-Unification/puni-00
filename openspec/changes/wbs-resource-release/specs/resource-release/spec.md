@@ -124,7 +124,8 @@ tracked and charged too.
 Pending, running, blocked, unknown and retained resource uses SHALL continue to charge
 their unreleased runtime reservation entries. Runtime admission SHALL count these entries
 across projects sharing a canonical physical pool. WBS claim occupancy and schedule inputs
-SHALL keep their existing semantics and remain clearly distinguished from runtime capacity.
+SHALL keep their existing semantics, except as `wbs-shared-occupancy` changes them for a
+resource with a directory capacity, and remain clearly distinguished from runtime capacity.
 
 #### Scenario: A new project tries to consume cleanup-pending disk
 

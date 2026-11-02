@@ -260,6 +260,19 @@ export function decodeWriteStageCommand(input: unknown): WriteStageCommand {
   // Proof: T1 snapshot-6570 substituted a shallow copy; 'write boundaries reject owned unknown missing and version fields and detach every nested value' failed nested ownership. Exact restoration passed.
   return structuredClone(command);
 }
+/** Selects the declared local fields of a previously verified write receipt without changing its retained raw evidence. Public additions stay in the artifact; local projection validation remains strict. This neither authenticates the response nor grants execution permission. */
+export function projectWriteReceipt(receipt: {
+  readonly actorId: WriteProjection['actorId'];
+  readonly acceptance: Pick<WriteProjection, 'basisAfter' | 'applied'>;
+}): WriteProjection {
+  // Proof: P01 retaining additive applied metadata rejected valid public receipts; P06/P07 substituting valid actor/basis values broke known-field correspondence. Strict local decoding and raw artifacts stay unchanged. Exact restorations passed.
+  return decodeWriteProjection({
+    version: 1,
+    actorId: receipt.actorId,
+    basisAfter: receipt.acceptance.basisAfter,
+    applied: receipt.acceptance.applied.map(({ index, kind }) => ({ index, kind })),
+  });
+}
 export function decodeWriteProjection(input: unknown): WriteProjection {
   const projection = parseOrThrow(WriteProjectionCodec, input);
   checkProjection(projection);

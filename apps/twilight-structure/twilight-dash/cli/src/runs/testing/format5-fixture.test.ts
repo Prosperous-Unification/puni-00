@@ -4,7 +4,10 @@ import { join } from 'node:path';
 
 import { expect, test } from 'bun:test';
 
+import { createManifest, createRun, unwrapReply } from './fixtures';
 import { verifyFormat5Source } from './format5-fixture';
+import { bootstrapFormat5Stores, openFormat5Stores } from './format5-fixture';
+import { inspectFormat5Provider } from './format5-provider';
 import { extractPredecessorSource } from './predecessor-fixture';
 test('format5 source verifier rejects an actually rewritten c12 archive', () => {
   const source = extractPredecessorSource({
@@ -95,8 +98,12 @@ for (const method of [
     'genuine format5 ' + method + ' returns its complete correlated recovery witness',
     async () => {
       const directory = mkdtempSync(join(tmpdir(), 'format5-recovery-wire-'));
+      console.log('Task3 genuine5 native creation ' + JSON.stringify({ method, directory }));
       const owner = createStoreDirectory(directory, { recursive: true });
       const fixture = owner.retainStore(await createFormat5Fixture(join(directory, 'runs.sqlite')));
+      console.log(
+        'Task3 genuine5 source ' + JSON.stringify({ method, directory: fixture.sourceDirectory }),
+      );
       await owner.runTest(async () => {
         const command = await fixture.prepareMutation(method);
         expect(command.method).toBe(method);
@@ -139,6 +146,17 @@ for (const method of [
       expect(await fixture.worker.exited).toEqual({ code: 0, signal: null });
       expect(fixture.worker.stdoutClosed).toBe(true);
       expect(fixture.worker.stderrClosed).toBe(true);
+      console.log(
+        'Task3 genuine5 native closure ' +
+          JSON.stringify({
+            method,
+            exit: await fixture.worker.exited,
+            stdoutClosed: fixture.worker.stdoutClosed,
+            stderrClosed: fixture.worker.stderrClosed,
+            dbDirectoryExists: existsSync(directory),
+            sourceDirectoryExists: existsSync(fixture.sourceDirectory),
+          }),
+      );
     },
     60000,
   );
@@ -817,3 +835,116 @@ test('genuine5 observation snapshots submitted scope before caller mutation and 
   expect(existsSync(directory)).toBe(false);
   expect(existsSync(fixture.sourceDirectory)).toBe(false);
 }, 60000);
+
+test('optioned genuine5 bridge preserves caller configuration clock and exact replay through reopen', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'format5-optioned-'));
+  const owner = createStoreDirectory(directory, { recursive: true });
+  const clock = new FixtureClock();
+  clock.advance(37);
+  const options = {
+    path: join(directory, 'runs.sqlite'),
+    organizationId: organizationId('optioned-organization'),
+    capacity: 3,
+    leaseMilliseconds: 271,
+    clock,
+    maxBusyAttempts: 17,
+    busyDelayMilliseconds: 2,
+  };
+  let isOpening = false;
+  owner.retainStore({
+    close(): Promise<void> {
+      if (isOpening) {
+        console.log(
+          JSON.stringify({
+            event: 'optioned-genuine5-construction-retained',
+            directory,
+            nativeClosure: 'unestablished',
+          }),
+        );
+        return Promise.reject(
+          new Error('optioned native construction closure unestablished: ' + directory),
+        );
+      }
+      return Promise.resolve();
+    },
+  });
+  await owner.runTest(async () => {
+    isOpening = true;
+    const stores = owner.retainStore(await bootstrapFormat5Stores(options));
+    isOpening = false;
+    const database = owner.retainProbe(new Database(options.path, { create: false }));
+    expect(
+      database
+        .query('SELECT schema_version,capacity,lease_milliseconds,last_observed_at FROM run_meta')
+        .get(),
+    ).toEqual({ schema_version: 5, capacity: 3, lease_milliseconds: 271, last_observed_at: 1037 });
+    expect(database.query("SELECT name FROM sqlite_schema WHERE name='run6_record'").all()).toEqual(
+      [],
+    );
+    verifyFormat5Source(stores.sourceDirectory);
+    const ownership = unwrapReply(await stores.runs.acquireOwnership(ownerId('optioned-owner'), 0));
+    expect(ownership.organizationId).toBe(organizationId('optioned-organization'));
+    expect(ownership.expiresAt).toBe(1308);
+    clock.advance(11);
+    const renewed = unwrapReply(await stores.runs.renewOwnership(ownership));
+    expect(renewed.expiresAt).toBe(1319);
+    const manifest = createManifest();
+    unwrapReply(await stores.runs.retainManifest(renewed, manifest));
+    const run = createRun({ manifestDigest: manifest.digest });
+    expect(await stores.runs.createRun(renewed, run)).toEqual({ kind: 'applied', value: run });
+    const snapshot = await stores.runs.readRun(run.runId);
+    expect(snapshot.version).toBe(3);
+    const captureRows = () =>
+      database
+        .query<{ name: string }, []>(
+          "SELECT name FROM sqlite_schema WHERE type='table' AND name LIKE 'run_%' ORDER BY name",
+        )
+        .all()
+        .map(({ name }) => ({
+          name,
+          rows: database
+            .query('SELECT * FROM "' + name.replaceAll('"', '""') + '"')
+            .all()
+            .map((row) => JSON.stringify(row))
+            .sort(),
+        }));
+    const before = captureRows();
+    expect(await stores.runs.createRun(renewed, run)).toEqual({ kind: 'duplicate', value: run });
+    expect(captureRows()).toEqual(before);
+    await stores.close();
+    expect(inspectFormat5Provider()?.leaseCount).toBe(0);
+    const reopening = { ...options };
+    isOpening = true;
+    const pending = openFormat5Stores(reopening);
+    const unrequested = join(directory, 'unrequested.sqlite');
+    Object.assign(reopening, {
+      path: unrequested,
+      organizationId: organizationId('changed-organization'),
+      capacity: 1,
+      leaseMilliseconds: 100,
+      clock: new FixtureClock(),
+    });
+    const reopened = owner.retainStore(await pending);
+    isOpening = false;
+    expect(reopened.sourceDirectory).toBe(stores.sourceDirectory);
+    expect(await reopened.runs.readRun(run.runId)).toEqual(snapshot);
+    expect(await reopened.runs.createRun(renewed, run)).toEqual({ kind: 'duplicate', value: run });
+    expect(captureRows()).toEqual(before);
+    expect(existsSync(unrequested)).toBe(false);
+    await reopened.close();
+    await reopened.close();
+    expect(inspectFormat5Provider()?.leaseCount).toBe(0);
+    console.log(
+      JSON.stringify({
+        event: 'optioned-genuine5-closed',
+        directory,
+        source: stores.sourceDirectory,
+        nativeVersion: 5,
+        capacity: 3,
+        leaseMilliseconds: 271,
+        lastObservedAt: 1048,
+      }),
+    );
+  });
+  expect(existsSync(directory)).toBe(false);
+});

@@ -475,6 +475,9 @@ export function createMemoryStores(options: MemoryOptions): {
       const barriers = new Map(recoveryBarriers);
       const active = new Map(plan.active.map((entry) => [runtimeScopeKey(entry.scope), entry]));
       const executionRows = new Map(executions);
+      const writeRows = new Map(writes);
+      const obligationRows = new Map(obligations);
+      const receiptRows = new Map(writeReceipts);
       const runRows = new Map(runs);
       const attemptRows = new Map(attempts);
       const key = runtimeScopeKey(call.guard.scope);
@@ -487,6 +490,13 @@ export function createMemoryStores(options: MemoryOptions): {
         executionRows.set(plan.originalExecution.command.commandId, plan.originalExecution);
       if (plan.attempt !== null) attemptRows.set(plan.attempt.attemptId, plan.attempt);
       if (plan.run !== null) runRows.set(plan.run.runId, plan.run);
+      if (plan.originalWrite !== null) {
+        writeRows.set(plan.originalWrite.record.command.commandId, plan.originalWrite.record);
+        receiptRows.set(plan.originalWrite.receipt.stageCommandId, plan.originalWrite.receipt);
+        obligationRows.delete(plan.originalWrite.obligationKey);
+      }
+      if (plan.obligation !== null)
+        obligationRows.set(plan.obligation.stageCommandId, plan.obligation);
       journals.set(call.recoveryId, plan.history);
       barriers.set(call.recoveryId, plan.barrier);
       const counts = {
@@ -496,9 +506,22 @@ export function createMemoryStores(options: MemoryOptions): {
           plan.originalAcceptance === null ? 0 : 1,
         ),
       };
+      const nextWriteCounts = {
+        records: writeRows.size,
+        obligations: obligationRows.size,
+        receipts: receiptRows.size,
+      };
       const response = structuredClone({ kind: 'applied' as const, value: plan.closure });
       // Proof: T6M06 publishing scope before reply preparation left a corrupt current revision after the real clone dependency failed; exact predecessor read failed. Restoration passed.
       // All fallible preparation precedes this synchronous publication boundary.
+      // Proof: M04 omitting count publication made actual memory history reject the coupled closure. Exact restoration passed.
+      writeCounts = nextWriteCounts;
+      // Proof: M01 omitting the write journal publication left corrupt write counts after accepted recovery. Exact restoration passed.
+      writes = writeRows;
+      // Proof: M02 omitting obligation publication left inconsistent settlement in accepted/nonaccepted recovery. Exact restoration passed.
+      obligations = obligationRows;
+      // Proof: M03 omitting receipt publication left corrupt write settlement/counts. Exact restoration passed.
+      writeReceipts = receiptRows;
       runtimeScopes = scopes;
       runtimeAcceptances = acceptances;
       executions = executionRows;
@@ -759,7 +782,7 @@ export function createMemoryStores(options: MemoryOptions): {
           ),
           run,
           recoveries: readRuntimeCatalog().recovery.histories.flatMap((history) =>
-            history.intent.target.kind === 'claim' &&
+            history.intent.target.kind !== 'authority' &&
             history.intent.target.runId === run.runId &&
             history.closure !== null
               ? [history.closure]

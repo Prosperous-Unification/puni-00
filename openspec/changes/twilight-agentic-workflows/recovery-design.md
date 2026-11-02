@@ -1,6 +1,6 @@
 # Trusted-value recovery and atomic historical cuts
 
-Approved for implementation, tests and review on 2026-10-28; architectural main merge remains held. [Intent](recovery-intent.md) and [ADR 0064](../../../docs/adr/0064-uncertain-runtime-requests-use-journaled-recovery.md) own the selected scope and trade-offs.
+Approved for implementation, tests and review on 2026-10-28. The user subsequently authorized normal commit, push and merge: “you can commit and push it and than merge”. Normal hooks, independent review, applicable CI and the exact-SHA canonical gate remain required. The exact import-policy scope was approved on 2026-11-02; [execution evidence](../runtime-write-delivery/verify.md) records its verification. Operator-store migration and production remain excluded. [Intent](recovery-intent.md) and [ADR 0067](../../../docs/adr/0067-uncertain-runtime-requests-use-journaled-recovery.md) own the selected scope and trade-offs.
 
 ## Existing boundary
 
@@ -201,7 +201,7 @@ Keep the documented legacy artifact-retention and monotone refusal-clock excepti
 
 Exhausting the bounded per-call recovery POST budget throws a correlated exhaustion error while the retained journal remains unresolved and capacity stays reserved. Ordinary duplicates remain lookup-only. Artifact references and typed links establish neither transport authenticity nor physical quiescence.
 
-Architectural main merge and production remain held. Implementation and proof work are recorded in [recovery verification](recovery-verify.md); no proposed behavior is credited before its real tests and faults run.
+Normal publication follows the authorization and required gates above; production remains excluded. Implementation and proof work are recorded in [recovery verification](recovery-verify.md); no proposed behavior is credited before its real tests and faults run.
 
 ## Remaining full-goal requirements
 

@@ -1109,11 +1109,10 @@ export function DirectoryPage({
                   </ul>
                 </div>
               )}
-              {/* Absent from an outgoing be-01 mid-swap, which counts no pins. */}
-              {(confirming.usage.pinnedCredentials ?? 0) > 0 && (
+              {(confirming.usage.machineCredentials ?? 0) > 0 && (
                 <p>
-                  {count(confirming.usage.pinnedCredentials ?? 0, 'fleet credential')} pinned to{' '}
-                  {confirming.name} {confirming.usage.pinnedCredentials === 1 ? 'is' : 'are'}{' '}
+                  {count(confirming.usage.machineCredentials ?? 0, 'machine credential')} of{' '}
+                  {confirming.name} {confirming.usage.machineCredentials === 1 ? 'is' : 'are'}{' '}
                   revoked.
                 </p>
               )}

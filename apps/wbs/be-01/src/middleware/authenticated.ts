@@ -58,8 +58,9 @@ export async function userFromHeaders(
 
 /**
  * {@link userFromHeaders}, keeping a verified token linked to nobody apart as
- * `unknown_identity`, and a machine bearer (a `wbs_mk_` key, or a JWT of
- * another issuer than the configured one) as `machine_bearer_not_accepted`
+ * `unknown_identity`, and a machine bearer (a `wbs_mk_` key, a JWT of
+ * another issuer than the configured one, or a configured-issuer token
+ * without the groups claim) as `machine_bearer_not_accepted`
  * (`wbs-mcp-agent-surface` M9).
  *
  * A `wbs_mk_` API key travels in `Authorization: Bearer` only

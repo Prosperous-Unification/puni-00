@@ -111,7 +111,17 @@ export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHist
     // Proof: catalog-foreign-write broke “complete catalog rejects a genuine foreign write journal instead of hiding it behind another valid run”; exact source hash restored.
     if (target?.attempt.identity.runId !== entry.runId) throw new Error('orphan write history');
     // Proof: catalog-recovery-reservation omitted this guard; the coherent actual recovery reservation collision lost refusal. Exact hash restored.
-    if (findRecoveryCommand(catalog.runtime.recovery, entry.command.commandId) !== undefined)
+    const reserved = findRecoveryCommand(catalog.runtime.recovery, entry.command.commandId);
+    const isOwnRecoveryAcceptance =
+      entry.kind === 'accept_write' &&
+      reserved?.intent.target.kind === 'write' &&
+      reserved.intent.target.acceptanceCommandId === entry.command.commandId &&
+      reserved.closure?.version === 2 &&
+      reserved.closure.originalReply?.kind === 'write' &&
+      equalRecords(reserved.closure.originalReply.command, entry.command) &&
+      equalRecords(reserved.closure.originalReply.ack, entry.reply);
+    // Proof: Z03 removing only this reservation check lost its required borrowed-ack diagnostic; the later original acknowledgement check still rejected the corruption. Diagnostic-only; both providers restored exactly.
+    if (reserved !== undefined && !isOwnRecoveryAcceptance)
       throw new Error('corrupt write recovery command collision');
   }
   const writeStages = writes.filter((entry) => entry.kind === 'stage_write');
@@ -159,6 +169,66 @@ export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHist
     throw new Error('corrupt recovery execution command collision');
   for (const history of catalog.runtime.recovery.histories) {
     const target = history.intent.target;
+    if (target.kind === 'write') {
+      const originalReply = history.closure?.originalReply;
+      const ownCommand = originalReply?.kind === 'write' ? originalReply.command : null;
+      // Proof: Z04 removing only this identity check let the complete pure fold accept a write recovery acceptance ID borrowed from an existing local execution. This is raw-catalogue admission evidence, not a whole verified-API claim; both providers restored exactly.
+      if (
+        acceptanceCommands.has(target.acceptanceCommandId) ||
+        recoveryCommands.has(target.acceptanceCommandId) ||
+        executions.some((entry) => entry.command.commandId === target.acceptanceCommandId) ||
+        writes.some(
+          (entry) =>
+            entry.command.commandId === target.acceptanceCommandId &&
+            !equalRecords(entry.command, ownCommand),
+        )
+      )
+        throw Error('corrupt recovery write acceptance identity');
+      acceptanceCommands.add(target.acceptanceCommandId);
+      const retained = catalog.attempts.find(
+        (entry) => entry.attempt.attemptId === target.attemptId,
+      );
+      const stage = writes.find((entry) => entry.command.commandId === target.stageCommandId);
+      // Proof: Z05 removing only this target/stage association changed its corruption diagnostic to a later stage.reply TypeError. Diagnostic-only; both providers restored exactly.
+      if (
+        retained?.attempt.identity.runId !== target.runId ||
+        stage?.kind !== 'stage_write' ||
+        stage.runId !== target.runId ||
+        stage.attemptId !== target.attemptId ||
+        !equalRecords(stage.reply.intent, target.original)
+      )
+        throw Error('corrupt recovery write stage association');
+      if (history.closure === null) {
+        // Proof: Z06 removing only this active checkpoint check lost its named diagnostic; the later generic current-attempt provenance fold still rejected the substituted summary. Both providers restored exactly; no admission claim.
+        if (
+          !equalRecords(retained.attempt, stage.reply.attempt) ||
+          retained.attempt.holdsCapacity ||
+          retained.attempt.version !== 4 ||
+          retained.attempt.state.kind !== 'write_pending'
+        )
+          throw Error('corrupt active recovery write checkpoint');
+      } else {
+        const closure = history.closure;
+        // Proof: Z07 removing only this current-attempt link lost its named diagnostic; generic current-attempt provenance still rejected the substituted summary. Both providers restored exactly; no admission claim.
+        if (closure.version !== 2 || !equalRecords(retained.attempt, closure.attemptReply))
+          throw Error('corrupt recovery write current attempt');
+        if (closure.decision.kind === 'accepted') {
+          const accepted = writes.find(
+            (entry) => entry.command.commandId === target.acceptanceCommandId,
+          );
+          // Invariant boundary: decodeRecordedWrite already binds context to acceptance (the phase2 context corruption failed there first); reservation equality above binds the retained acknowledgement. Z03 observed this check reject when only reservation checking was removed. No independent removal credit is claimed for this masked compound check.
+          if (
+            originalReply?.kind !== 'write' ||
+            accepted?.kind !== 'accept_write' ||
+            accepted.context.scopeRevision !== closure.scopeBefore ||
+            !equalRecords(accepted.command, originalReply.command) ||
+            !equalRecords(accepted.reply, originalReply.ack)
+          )
+            throw Error('corrupt recovery write original acknowledgement');
+        }
+      }
+      continue;
+    }
     if (target.kind !== 'claim') continue;
     const acceptedCommand =
       history.closure?.originalReply?.kind === 'claim'
@@ -263,7 +333,7 @@ export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHist
     if (completions.length > 1 || receipts.length > 1)
       throw new Error('duplicate settlement history');
     const recoveries = catalog.runtime.recovery.histories.flatMap((history) =>
-      history.intent.target.kind === 'claim' &&
+      history.intent.target.kind !== 'authority' &&
       history.intent.target.attemptId === attempt.attemptId &&
       history.closure !== null
         ? [history.closure]
@@ -279,11 +349,14 @@ export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHist
         revision: write.reply.attempt.revision,
         write,
       })),
-      ...recoveries.map((closure) => {
-        // Proof: R2D06 removed this refinement; 'recovery missing hold retains its diagnostic after audited local value changes' received a null-revision TypeError. Earlier hold-closure association (R2F03) owns admission. Exact restoration passed; diagnostic-only.
-        if (closure.attemptReply === null) throw new Error('claim closure has no hold');
-        return { kind: 'recovery' as const, revision: closure.attemptReply.revision, closure };
-      }),
+      // Proof: R07 counting an accepted write closure as another attempt event caused corrupt event revisions in both providers. Exact restoration passed.
+      ...recoveries
+        .filter((closure) => closure.version === 1 || closure.decision.kind !== 'accepted')
+        .map((closure) => {
+          // Proof: R2D06 removed this refinement; 'recovery missing hold retains its diagnostic after audited local value changes' received a null-revision TypeError. Earlier hold-closure association (R2F03) owns admission. Exact restoration passed; diagnostic-only.
+          if (closure.attemptReply === null) throw new Error('claim closure has no hold');
+          return { kind: 'recovery' as const, revision: closure.attemptReply.revision, closure };
+        }),
       ...ownExecutions.map((execution) => ({
         kind: 'execution' as const,
         revision: execution.reply.attempt.revision,
@@ -402,11 +475,42 @@ export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHist
         foldedWrites.push(entry);
         continue;
       }
-      if (predecessor.version !== 2)
+      if (predecessor.version !== 2 && !(event.kind === 'recovery' && event.closure.version === 2))
         // Proof: R2D04 removed this diagnostic; 'recovery subsequent event retains its precise hold diagnostic' instead reached ordinary hold refusal (R2F08). Exact restoration passed; no admission-safety credit.
         throw new Error('recovery hold has a subsequent attempt event');
       if (event.kind === 'recovery') {
         const closure = event.closure;
+        if (closure.version === 2) {
+          // Diagnostic invariant: strict stage acknowledgement decoding and the prior write fold establish write_pending plus its obligation; R07 event selection excludes accepted write closures, and the version2 decision decoder constrains the remaining nonacceptance. Retain this sequence check without defeating earlier guards.
+          if (
+            predecessor.version !== 4 ||
+            predecessor.state.kind !== 'write_pending' ||
+            pendingWrite === undefined ||
+            closure.decision.kind !== 'fenced_nonaccepted'
+          )
+            throw Error('corrupt write nonacceptance predecessor');
+          const expected = {
+            ...predecessor,
+            revision: addInteger(predecessor.revision, 1),
+            state: {
+              ...predecessor.state,
+              kind: 'write_nonaccepted',
+              recoveryId: closure.recoveryId,
+            },
+          };
+          // Proof: Z09 removing only this consequence check let the complete pure fold accept a coherent closure/current summary substitution against the staged business outcome. Raw-catalogue scope only; both providers restored exactly.
+          if (!equalRecords(expected, closure.attemptReply))
+            throw Error('corrupt write nonacceptance consequence');
+          // Proof: R08 omitting the nonacceptance fold lost settlement provenance in both providers. Exact restoration passed.
+          pendingWrite = {
+            ...pendingWrite,
+            disposition: { kind: 'fenced_nonaccepted', recoveryId: closure.recoveryId },
+          };
+          predecessor = decodeCurrentAttempt(closure.attemptReply);
+          scopeLowerBound = closure.scopeAfter;
+          continue;
+        }
+
         const checkpoint = executionCheckpoint(predecessor);
         if (
           closure.attemptReply === null ||

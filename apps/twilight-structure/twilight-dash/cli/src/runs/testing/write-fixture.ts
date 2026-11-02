@@ -32,7 +32,7 @@ async function prepareWriteTarget(
           workItemId: live.workItemId,
           stepId: live.stepId,
           personId: setup.scope.personId,
-          runId: setup.locator.preparation.identity.runId,
+          runId: setup.locator.session.sessionId,
           parentClaimId: live.parentClaimId,
           accountId: binding.projection.actorId,
         },

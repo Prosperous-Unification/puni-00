@@ -630,3 +630,20 @@ describe('an existing account with another sign-in method', () => {
     consoleWatch.expectSilent();
   });
 });
+
+// Proof: with the `groups_claim_missing` entry renamed away, this found no message (1 of 31
+// failed); watched 2026-10-31.
+describe('a sign-in whose provider sent no groups claim', () => {
+  itDom('names the missing access groups and the administrator', () => {
+    const consoleWatch = watchConsole();
+    arriveWith('?auth_error=groups_claim_missing');
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
+    expect(
+      screen.getByText(
+        'SSO signed you in, but your identity provider sent no access groups for this app. Ask your administrator to set up access for your account.',
+      ),
+    ).toBeDefined();
+    expect(window.location.search).not.toContain('auth_error');
+    consoleWatch.expectSilent();
+  });
+});

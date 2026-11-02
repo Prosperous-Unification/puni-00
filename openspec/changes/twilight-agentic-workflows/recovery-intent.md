@@ -10,10 +10,10 @@ Retain a recovery journal with verified response values and original evidence. S
 
 ## Non-goals
 
-This first packet implements authority and claim logical recovery. Write/outbox delivery and recovery, physical worker lookup/effect/quiescence, replacement, operator transitions, business-attempt/budget lifecycle, additional adapters, a second durable provider and S7a remain required subsequent work. This packet provides no production deployment or architectural main-merge authorization.
+This first packet implements authority and claim logical recovery. Write/outbox delivery and recovery, physical worker lookup/effect/quiescence, replacement, operator transitions, business-attempt/budget lifecycle, additional adapters, a second durable provider and S7a remain required subsequent work. Production deployment remains excluded; normal publication follows the subsequent authorization below.
 
 ## Constraints
 
 Preserve and explicitly upgrade genuine populated format3 stores; never migrate during ordinary open. Append a named additive migration with guarded down, preserving every earlier migration byte. Permit only the documented legacy artifact-retention and monotone refusal-clock exceptions; prove already-open and queued old writers cannot change execution, ownership or history after upgrade. Keep all inherited guards installed, retain capacity throughout uncertainty, and require actual production-path negatives for each new safety check. Receiver/network and artifact validation remain outside synchronous provider transactions.
 
-Approved for implementation, tests and review on 2026-10-28. Architectural merge remains held. Decision: [ADR 0064](../../../docs/adr/0064-uncertain-runtime-requests-use-journaled-recovery.md).
+Approved for implementation, tests and review on 2026-10-28. The user subsequently authorized normal commit, push and merge: “you can commit and push it and than merge”. Normal hooks, independent review, applicable CI and the exact-SHA canonical gate remain required. The exact import-policy scope was approved on 2026-11-02; [execution evidence](../runtime-write-delivery/verify.md) records its verification. Operator-store migration and production remain excluded. Decision: [ADR 0067](../../../docs/adr/0067-uncertain-runtime-requests-use-journaled-recovery.md).

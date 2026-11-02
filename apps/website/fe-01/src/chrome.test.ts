@@ -33,13 +33,14 @@ async function renderHeader(tone: 'light' | 'night' = 'night') {
 }
 
 describe('night site header', () => {
-  test('lists the four numbered links and a decorative moon from the site origin', async () => {
+  test('lists four plain links and a decorative moon from the site origin', async () => {
     const { container, root, act, siteOrigin } = await renderHeader();
     const links = [...container.querySelectorAll('nav[aria-label="Primary"] a')].map((link) =>
       link.textContent.replace(/\s+/g, ' ').trim(),
     );
-    expect(links).toEqual(['[1] Home', '[2] Build', '[3] Services', '[4] Blog']);
-    expect(container.querySelector('.nav-rail-label')?.textContent).toBe('[-] Navigation');
+    expect(links).toEqual(['Home', 'Build', 'Services', 'Blog']);
+    expect(container.querySelector('.nav-rail-label, .nav-index')).toBeNull();
+    expect(container.querySelector('a[aria-current="page"]')?.textContent).toBe('Build');
     const moon = container.querySelector('.wordmark-moon img');
     expect(moon?.getAttribute('alt')).toBe('');
     expect(moon?.getAttribute('src')).toBe(`${siteOrigin}/media/brand/moon.webp`);
@@ -47,6 +48,29 @@ describe('night site header', () => {
       `${siteOrigin}/media/brand/moon.avif`,
     );
     expect(container.querySelector('.wordmark-dot')).toBeNull();
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  test('Menu exposes its controlled links and Escape returns focus', async () => {
+    const { container, root, act } = await renderHeader();
+    const toggle = container.querySelector('button');
+    if (!toggle) throw new Error('Menu button missing');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    const panel = container.querySelector('nav');
+    if (!panel) throw new Error('Primary navigation missing');
+    expect(toggle.getAttribute('aria-controls')).toBe(panel.id);
+    act(() => {
+      toggle.click();
+    });
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    act(() => {
+      dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(dom.window.document.activeElement).toBe(toggle);
+    expect(container.querySelector('.skip-link')?.getAttribute('href')).toBe('#main');
     act(() => {
       root.unmount();
     });
@@ -67,12 +91,13 @@ describe('night site header', () => {
     });
   });
 
-  test('the light tone keeps the same rail, links, moon and Menu, changing only colours', async () => {
+  test('the light tone keeps the same identity, links and Menu', async () => {
     const { container, root, act } = await renderHeader('light');
     expect(container.querySelector('header')?.className).toBe(
-      'site-header site-header-light site-header-rail-flow',
+      'site-header site-header-light site-header-placement-flow',
     );
-    expect(container.querySelector('.nav-rail-label')?.textContent).toBe('[-] Navigation');
+    expect(container.querySelector('.nav-rail-label, .nav-index')).toBeNull();
+    expect(container.querySelector('a[aria-current="page"]')?.textContent).toBe('Build');
     expect(container.querySelectorAll('nav[aria-label="Primary"] a')).toHaveLength(4);
     expect(container.querySelector('.wordmark-moon img')).not.toBeNull();
     expect(container.querySelector('.menu-toggle')?.textContent).toBe('Menu☰');

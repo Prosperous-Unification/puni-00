@@ -11,6 +11,7 @@ import {
   measureDefinitionRow,
   PLAN_COMMAND_KINDS,
   type PlanCommandKind,
+  previewDirectoryCapacity,
   readBudgetHeadroom,
   readClaimHistory,
   readPersonWork,
@@ -943,6 +944,29 @@ export function workItemRoutes(
           status: 200,
           body: await withProviderReadings(read, providers.reports, providers.clock.now()),
         };
+      },
+    ),
+    bind(
+      previewDirectoryCapacity,
+      async ({ params, body, principal }): Promise<HttpReply<typeof previewDirectoryCapacity>> => {
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        // A directory capacity is an organization's; legacy access has none.
+        if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
+        const { units } = body;
+        // The command's own bound (`resourceUnitsOf`): a whole number from 0.
+        if (units !== null && (!Number.isSafeInteger(units) || units < 0))
+          return { ok: false, status: 400, body: { error: 'invalid_body' } };
+        const preview = await workItems.previewDirectoryCapacityWithin(
+          params.resourceId,
+          units,
+          resolved.access.scope,
+        );
+        if (!preview.ok)
+          return preview.reason === 'forbidden'
+            ? { ok: false, status: 403, body: { error: 'forbidden' } }
+            : { ok: false, status: 404, body: { error: 'not_found' } };
+        return { ok: true, status: 200, body: preview.value };
       },
     ),
     bind(getWorkItem, async ({ params, principal }): Promise<HttpReply<typeof getWorkItem>> => {

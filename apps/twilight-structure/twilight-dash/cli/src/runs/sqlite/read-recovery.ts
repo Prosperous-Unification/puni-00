@@ -110,8 +110,9 @@ export function readRecoveryCatalog(
       (observation) => observation.recovery_id === row.recovery_id,
     );
     const closure = closures.find((entry) => entry.recovery_id === row.recovery_id);
+    const intent = parseOrThrow(type({ version: '1 | 2' }), parseRecord(row.record));
     const history = decodeRecoveryHistory({
-      version: 1,
+      version: intent.version,
       intent: parseRecord(row.record),
       revision: row.revision,
       fences: ownedFences.map((fence) => parseRecord(fence.record)),

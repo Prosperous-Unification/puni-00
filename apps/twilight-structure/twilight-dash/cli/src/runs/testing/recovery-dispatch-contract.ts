@@ -1410,7 +1410,10 @@ async function retainActual(stores: OutcomeFixture, exchange: RuntimeExchange<un
   return retained.reference;
 }
 
-async function beginClaim(stores: OutcomeFixture, receiver: RecoveryReceiverFixture) {
+export async function prepareReceiverClaim(
+  stores: OutcomeFixture,
+  receiver: RecoveryReceiverFixture,
+) {
   const ownership = unwrapReply(
     await stores.runs.acquireOwnership(ownerId('resolver'), stores.ownership.epoch),
   );
@@ -1596,6 +1599,15 @@ async function beginClaim(stores: OutcomeFixture, receiver: RecoveryReceiverFixt
       stateEvidence: evidence,
     }),
   );
+  return { request, stage, guard, run, admission, evidence };
+}
+
+async function beginClaim(stores: OutcomeFixture, receiver: RecoveryReceiverFixture) {
+  const { request, stage, guard, run, admission, evidence } = await prepareReceiverClaim(
+    stores,
+    receiver,
+  );
+  const ownership = (await guard()).ownership;
   const call = {
     kind: 'claim' as const,
     guard: { ...(await guard()), expectedRecoveryRevision: 0 },

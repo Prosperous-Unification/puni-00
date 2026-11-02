@@ -45,14 +45,16 @@ export type {
   SqliteCaptureCell,
 } from './format5-protocol';
 
-/** Historical test bridge: the verified archive supplies the actual format5 module; current6 never opens predecessor state. Archive ownership lasts through native store closure. */
+/** Snapshots caller options before source acquisition and invokes the verified pinned native bootstrap/open directly. The original clock remains live. No fixed-recipe worker is allocated; the source lease lasts through positive native closure and is retained on uncertain construction/closure failure. */
 export async function openFormat5Stores(
   options: SqliteOptions,
   mode: 'bootstrap' | 'open' = 'open',
 ) {
+  // Proof: Task4 option-forwarding changed only the forwarded capacity from 3 to 1; the actual native configuration assertion failed. Exact source restoration passed custom bootstrap/reopen and original replay.
+  const captured = { ...options };
   requireFormat5Lifetime();
-  const fixture = await createFormat5Fixture(options.path, mode);
-  return await openPooledFormat5Stores(fixture, options);
+  const source = retainFormat5Provider(captured.path);
+  return await openNativeFormat5Stores(null, captured, source, mode);
 }
 
 /** Uses one suite-owned immutable provider module while preserving this independently archived worker's lifecycle. */
@@ -89,15 +91,19 @@ export async function openVerifiedFormat5Stores(
   });
 }
 
-/** Native closure releases only its source lease; worker shutdown and pipe drains are attempted independently even when native closure is unknown. */
+/** Native closure releases only its source lease; an explicit worker's shutdown and pipe drains are attempted independently even when native closure is unknown. Null selects the ordinary native-only bridge, which allocates no worker. Native replies and scope snapshots are returned unchanged. */
 async function openNativeFormat5Stores(
-  fixture: Awaited<ReturnType<typeof createFormat5Fixture>>,
+  fixture: Awaited<ReturnType<typeof createFormat5Fixture>> | null,
   options: SqliteOptions,
   source: Format5SourceLease,
+  mode: 'bootstrap' | 'open' = 'open',
 ) {
   try {
     const predecessor = await source.load();
-    const stores = await predecessor.openSqliteStores(options);
+    const stores =
+      mode === 'bootstrap'
+        ? await predecessor.bootstrapSqliteStores(options)
+        : await predecessor.openSqliteStores(options);
     let closing: Promise<void> | undefined;
     return {
       ...stores,
@@ -114,7 +120,7 @@ async function openNativeFormat5Stores(
           }
           try {
             // Proof: genuine5-bridge-worker-drain broke “format5 bridge close-before failure retains source after independent worker closure”; exact source hash restored.
-            await fixture.close();
+            if (fixture !== null) await fixture.close();
           } catch (cause) {
             failures.push(cause);
           }
@@ -129,7 +135,7 @@ async function openNativeFormat5Stores(
   } catch (cause) {
     const failures: unknown[] = [cause, source.retain(cause)];
     try {
-      await fixture.close();
+      if (fixture !== null) await fixture.close();
     } catch (cleanupCause) {
       failures.push(cleanupCause);
     }

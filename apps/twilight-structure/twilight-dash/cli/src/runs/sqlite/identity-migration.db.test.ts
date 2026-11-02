@@ -14,7 +14,10 @@ import { constructFixture, settleFixture } from '../testing/construct-fixture';
 import { createManifest, FixtureClock, unwrapReply } from '../testing/fixtures';
 import { bootstrapFormat4Stores, openFormat4Stores } from '../testing/format4-fixture';
 import { createFormat4Fixture, type Format4Capture } from '../testing/format4-fixture';
-import { openFormat5Stores as openSqliteStores } from '../testing/format5-fixture';
+import {
+  createFormat5Fixture,
+  openFormat5Stores as openSqliteStores,
+} from '../testing/format5-fixture';
 import {
   createRecoveryFenceCall,
   createRecoveryObservationCall,
@@ -62,7 +65,10 @@ test('genuine populated format4 preserves payloads and unused round trip', async
     expect(fixture.old.sourceCommit).toBe('b3b594dab4f0153d2ef00a2989bbeb02ea0cbbda');
     await fixture.old.populate('receipt_settled');
     const before = await fixture.old.capture();
-    await rejects(openSqliteStores(fixture.options), /incompatible/);
+    await rejects(async () => {
+      const unexpected = await createFormat5Fixture(fixture.options.path, 'open');
+      await unexpected.close();
+    }, /incompatible/);
     expect(await fixture.old.capture()).toEqual(before);
     expect(await upgradeSqliteIdentityKeys(fixture.options)).toEqual({
       kind: 'upgraded',

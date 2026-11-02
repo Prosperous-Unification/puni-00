@@ -70,7 +70,13 @@ export function authorityReceipt(intent: RuntimeIntent) {
 export function runtimeHistoryContract(
   name: string,
   create: () => Promise<
-    Omit<StoreFixture, 'runs'> & { runs: HistoricalRunStore; artifacts: ArtifactStore }
+    Omit<StoreFixture, 'runs'> & {
+      runs: Omit<
+        HistoricalRunStore,
+        'beginRecovery' | 'stageRecoveryFence' | 'recordRecoveryFence' | 'resolveRecovery'
+      >;
+      artifacts: ArtifactStore;
+    }
   >,
 ): void {
   describe(name, () => {

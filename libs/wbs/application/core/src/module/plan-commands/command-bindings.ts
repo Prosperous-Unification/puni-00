@@ -181,6 +181,11 @@ export class CommandContext {
         // Proof: with holders replaced by [], `refuses the ninth claim on 32 GB
         // naming the eight holders` (resource-occupancy.db.test.ts) named
         // nobody; watched 2026-10-20.
+        // `scope` is carried where the decision said it, only for a resource
+        // with a directory capacity (`wbs-shared-occupancy` S3).
+        // Proof: with `scope` left out of both, `refuses B’s 16 GB while A
+        // holds the directory’s 16, naming the organization`
+        // (shared-occupancy.db.test.ts) failed on both stores; watched 2026-10-25.
         return this.refuse({
           reason: outcome.reason,
           detail: {
@@ -188,6 +193,7 @@ export class CommandContext {
             asked: outcome.asked,
             free: outcome.free,
             holders: outcome.holders.map((holder) => ({ ...holder })),
+            ...(outcome.scope === undefined ? {} : { scope: outcome.scope }),
             // Proof: with this list cut to its first entry, `names both
             // resources a claim is short of` (resource-occupancy.db.test.ts)
             // failed on both stores (0 pass, 2 fail); watched 2026-10-23.
@@ -196,6 +202,7 @@ export class CommandContext {
               asked: short.asked,
               free: short.free,
               holders: short.holders.map((holder) => ({ ...holder })),
+              ...(short.scope === undefined ? {} : { scope: short.scope }),
             })),
           },
         });
@@ -1039,6 +1046,18 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
         await directory.measures.removeWithin(
           context.required(command.measureId, command.measureRef),
           context.actorId,
+          context.access,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    setDirectoryCapacity: async (command, context) => {
+      context.value(
+        await directory.setDirectoryCapacityWithin(
+          context.required(command.resourceId, command.resourceRef),
+          context.actorId,
+          command.units,
+          command.confirm ?? false,
           context.access,
         ),
       );

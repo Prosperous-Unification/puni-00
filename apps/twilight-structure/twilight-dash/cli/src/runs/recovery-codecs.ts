@@ -28,6 +28,8 @@ import {
   OwnershipCodec,
   Positive,
 } from './value-codecs';
+import { WriteAcceptAckCodec, WriteAcceptCommandCodec, WriteAttemptCodec } from './write-codecs';
+import { WriteRecoveryIntentCodec } from './write-recovery-codecs';
 
 /** Closes each owned schema literal without recursively overwriting public payload policies. */
 // Proof: fix1-R1 changed this metadata to ignore; 26 owned-field negatives across all four codec paths lost rejection, while four inherited scope/ref controls stayed strict.
@@ -366,6 +368,81 @@ const resolve = type({
   fence: acceptedFence,
   decision: claimDecision,
 });
+const writeReceipt = type({
+  ...receiptFields,
+  acceptance: {
+    kind: "'write'",
+    authority,
+    claim,
+    basisAfter: basis,
+    applied: type({
+      index: Integer,
+      kind: "'setProgress'|'setMeasure'|'patchWorkItem'|'releaseWorkItem'",
+    }).array(),
+  },
+}).onDeepUndeclaredKey('ignore');
+const writeExchange = type({
+  ...closedRecord,
+  envelope,
+  body: { ...closedRecord, artifact: ArtifactRefCodec, value: writeReceipt },
+});
+const writeDecision = type({
+  ...closedRecord,
+  kind: "'accepted'",
+  lookup: writeExchange,
+  command: WriteAcceptCommandCodec,
+}).or(nonacceptedDecision);
+// Proof: C04 widening this new closure version lost direct future-version decoder rejection. Exact restoration passed.
+const writeClosure = closure.omit('version', 'decision', 'originalReply', 'attemptReply').merge({
+  ...closedRecord,
+  version: '2',
+  decision: writeDecision,
+  originalReply: type({
+    ...closedRecord,
+    kind: "'write'",
+    command: WriteAcceptCommandCodec,
+    ack: WriteAcceptAckCodec,
+  }).or('null'),
+  attemptReply: WriteAttemptCodec,
+});
+const write = {
+  closure: writeClosure,
+  // Proof: C03 widening this new history version lost direct future-version decoder rejection. Exact restoration passed.
+  history: history.omit('version', 'intent', 'closure').merge({
+    ...closedRecord,
+    version: '2',
+    intent: WriteRecoveryIntentCodec,
+    closure: writeClosure.or('null'),
+  }),
+  begin: type({
+    ...closedRecord,
+    kind: "'write'",
+    guard: claimGuard,
+    intent: WriteRecoveryIntentCodec,
+  }),
+  fenceCall: type({
+    ...closedRecord,
+    kind: "'write'",
+    guard: claimGuard,
+    recoveryId: identity,
+    input: { ...closedRecord, fence },
+  }),
+  observationCall: type({
+    ...closedRecord,
+    kind: "'write'",
+    guard: claimGuard,
+    recoveryId: identity,
+    input: acceptedReply.or(conflictReply),
+  }),
+  resolve: type({
+    ...closedRecord,
+    kind: "'write'",
+    guard: claimGuard,
+    recoveryId: identity,
+    fence: acceptedFence,
+    decision: writeDecision,
+  }),
+};
 const exchangeCodec = exchange;
 
 /** Synchronous snapshots close owned records and preserve public body additions; these do not authenticate supplied value/reference pairs. */
@@ -386,27 +463,27 @@ export function decodeRecoveryObservation(candidate: unknown): RecoveryObservati
 /** Structurally validates and detaches a native closure; complete-history correspondence and artifact authentication remain separate. */
 // Proof: removing this parse or snapshot independently failed the genuine format5 resolveRecovery complete-correlated-witness protocol test (malformed version or caller mutation); exact source hashes restored.
 export function decodeRecoveryClosure(candidate: unknown): RecoveryClosure {
-  return structuredClone(parseOrThrow(closure, candidate));
+  return structuredClone(parseOrThrow(closure.or(write.closure), candidate));
 }
 export function decodeRecoveryHistory(candidate: unknown): RecoveryHistory {
   // Proof: C2 bypassed this new parse dependency; owned malformed record negatives lost rejection.
-  return structuredClone(parseOrThrow(history, candidate));
+  return structuredClone(parseOrThrow(history.or(write.history), candidate));
 }
 export function decodeRecoveryBeginCall(candidate: unknown): RecoveryBeginCall {
   // Proof: C3 bypassed this new parse dependency; owned malformed record negatives lost rejection.
-  return structuredClone(parseOrThrow(begin, candidate));
+  return structuredClone(parseOrThrow(begin.or(write.begin), candidate));
 }
 export function decodeRecoveryFenceCall(candidate: unknown): RecoveryCall<RecoveryFenceInput> {
   // Proof: C4 bypassed this new parse dependency; owned malformed record negatives lost rejection.
-  return structuredClone(parseOrThrow(fenceCall, candidate));
+  return structuredClone(parseOrThrow(fenceCall.or(write.fenceCall), candidate));
 }
 export function decodeRecoveryObservationCall(
   candidate: unknown,
 ): RecoveryCall<RecoveryFenceReplyInput> {
   // Proof: C5 bypassed this new parse dependency; owned malformed record negatives lost rejection.
-  return structuredClone(parseOrThrow(observationCall, candidate));
+  return structuredClone(parseOrThrow(observationCall.or(write.observationCall), candidate));
 }
 export function decodeRecoveryResolveCall(candidate: unknown): RecoveryResolveCall {
   // Proof: C6 bypassed this new parse dependency; owned malformed record negatives lost rejection.
-  return structuredClone(parseOrThrow(resolve, candidate));
+  return structuredClone(parseOrThrow(resolve.or(write.resolve), candidate));
 }

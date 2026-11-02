@@ -3082,3 +3082,280 @@ file (`runtime-wbs.test.ts`, 8 pass) and Dash's typecheck and lint were rerun.
   expects a re-signed token without `token_use` to be refused. With the pre-3.8 guard
   `use !== undefined &&` restored, it received `"admitted"` and failed (1 fail); with the fix,
   1 pass. Watched 2026-10-30 (`env -u CLAUDECODE bun test src/oauth.test.ts -t "of any use but consent"`).
+
+## Slice 20 — confidential DCR clients (task 3.9)
+
+- **Live failure (2026-10-31, dev):** the AS metadata lists `none`, `client_secret_basic` and
+  `client_secret_post` since #751; claude.ai's connector registered `client_secret_post` with
+  `grant_types: ['authorization_code', 'refresh_token']` and was answered
+  `400 invalid_client_metadata` (`mcp_oauth_route POST /mcp/oauth/register status 400`);
+  `client_secret_basic` was refused the same way and `none` answered 201. Probed by the
+  coordinator.
+- **Change:** design M17. `src/consent-client.ts` (`presentedClientOf`, `authenticatesClient`,
+  `issueClientSecret`); `register`, `token` and `refreshGrant` in `src/oauth.ts`;
+  `RegisteredClient.authentication` in `src/session-store.ts`; migration
+  `20261031120000_mcp_client_secret` with a rollback preflight. `basicCredentialsOf` is shared
+  with the machine parser. `/authorize`, `/revoke` and `bin/dev-mcp-probe.sh` are unchanged;
+  the metadata lists all three auth methods everywhere since the review below.
+- **Choice:** real confidential support, not answering `none` in the `201`: RFC 7591 lets a
+  client reject a replaced method, and claude.ai's handling of one is unobserved.
+
+Proofs, each watched on 2026-10-31 by applying the fault, running the named test with
+`env -u CLAUDECODE bun test --timeout=10000 <file> -t <name>`, seeing it fail, and restoring:
+
+| Fault injected                                                            | Test (file)                                                                                       | Observed                                     |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| registration accepts only `none`                                          | `registers a client_secret_post and a client_secret_basic client…` (oauth.test.ts)                | 400, expected 201                            |
+| same                                                                      | `a claude.ai-shaped confidential connector consents, calls a tool and refreshes` (boot)           | SDK `InvalidClientMetadataError`             |
+| token endpoint's code refusal skipped                                     | `refuses a confidential client's code without its secret or with a wrong one, and burns it`       | 200, expected 401                            |
+| digest compare returns `true`                                             | same                                                                                              | 200 for the wrong secret                     |
+| `authenticatesClient` ignores the method                                  | `refuses a secret sent by the method it was not registered with…`                                 | 200, expected 401                            |
+| `authenticatesClient` returns `true`                                      | `an API key never authenticates a consent grant…`                                                 | 200 for the key as the client's secret       |
+| `refreshGrant`'s refusal skipped                                          | `refreshes a confidential client only with its secret…`                                           | 200, expected 401                            |
+| `routeEvidenceOf` records the form's `client_secret`                      | `records no client secret in route evidence`                                                      | the secret appeared in the evidence          |
+| parser admits any secret on `client_credentials`                          | `a confidential consent client's secret never authenticates a machine grant` (machine-token.test) | be-01 asked, 502, expected 401               |
+| `client_assertion` refusal removed; malformed header read as `none`       | `refuses a client_assertion and a non-Basic Authorization header invalid_client` (consent-client) | a presented client, expected invalid_client  |
+| two-method, repeated-field and Basic-user refusals removed (each in turn) | `refuses two methods, a repeated field and a Basic user unlike the body client_id…`               | a presented client, expected invalid_request |
+| `CHECK (1)` on the method column, then on the digest column               | `refuses a confidential client row without its secret digest…` (store-migrations.test)            | 1, then 3 rows stored                        |
+| malformed authentication read as public                                   | `refuses a stored client whose authentication is malformed`                                       | did not throw                                |
+| rollback preflight removed                                                | `refuses to roll back the client secret migration while a confidential client is live`            | rolled back                                  |
+| down `DELETE` turned into a `SELECT`                                      | `rolls back the client secret migration once no confidential client is live`                      | expired confidential client remained         |
+
+Not a separate check: dropping the `presented.clientId === grant.clientId` guard only turns
+the API key's own id from `invalid_grant` into `invalid_client`, because the main condition
+compares it again.
+
+Existing behaviour kept: the whole public-client suite (`oauth.test.ts`, every other mcp-01
+test) passes unchanged except that hand-built `RegisteredClient` literals now carry
+`authentication: { method: 'none' }` and the migration lists name the fifth migration.
+
+Not run here: the hosted claude.ai connector on dev (needs the deploy; task 3.6), the h2puni
+gate, and be-01 (not touched).
+
+Commands, 2026-10-31, in the slice worktree (laptop):
+
+- `env -u CLAUDECODE bunx nx run-many -t test,typecheck,lint -p wbs-mcp-01 --skip-nx-cache`:
+  exit 0; 749 pass, 0 fail across 34 files.
+- `bun tools/tool-git-hooks/src/hooks/migration-lint.ts` on the new `migration.sql` and
+  `down.sql`: exit 0 (a first draft's `IS NOT NULL` inside the `ADD COLUMN` CHECK was refused
+  as a required column and rewritten with `coalesce(length(…))`).
+- `bunx prettier --check` on every changed non-SQL file: clean.
+- `bunx openspec validate --all --json`: 304 of 304 passed.
+- `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`:
+  exit 0.
+
+### Review of PR #791 (Fable, high), how each item is addressed
+
+No S1. Separation from the machine grants, secret handling and the migration were confirmed.
+
+| Item                                                                    | Change                                                                                                                                                                                                                                                                       | Proof (watched 2026-10-31)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1 refresh fails open when a confidential family's client row is gone | `mcp_family.client_auth_method` (same migration, CHECK, `down.sql`, preflight); `refreshGrant` refuses a confidential family without a live client of its method; the exchange signs first, then `createFamily` writes the family and promotes the client in one transaction | family refusal removed, or the method not recorded: `refuses a confidential family's refresh once its client row is gone` answered 200 (row deleted, and row rewritten public); promotion outside the transaction: `commits the family and the client's promotion together` found 1 family row; family `CHECK (1)`: `refuses a family client method outside the confidential two` stored it; preflight without the family count: `… while a confidential family is usable` rolled back. `keeps a public family's refresh once its client row is gone` stays 200 |
+| S3-1 RFC 7591 §2 default                                                | an absent method registers as `client_secret_basic`; spec requirement and scenario                                                                                                                                                                                           | refusing absent: `registers an absent method as client_secret_basic (RFC 7591 §2)` answered 400                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| S3-2 SHA-256 boundary                                                   | R3 comment at `secretSha256Of` (32 CSPRNG bytes, not a password; as `digestOf`)                                                                                                                                                                                              | none needed (comment only); CodeQL alert #90 is left to the owner to dismiss                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| S4 blue-green wording                                                   | migration header and M17 now say Recreate, one replica, and an older release refusing the newer ledger                                                                                                                                                                       | none (wording)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| S4 boot test order                                                      | the claude.ai-shaped test runs last, as grace, and creates and lists its own project                                                                                                                                                                                         | registration accepting only `none` again still fails it (`InvalidClientMetadataError`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| S4 public clients and `Authorization`                                   | M17 states any `Authorization` header from a public client is now `401`                                                                                                                                                                                                      | covered by `refuses a secret sent by the method …`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| S4 `Basic :secret` leniency                                             | removed: an empty Basic user is `invalid_client`                                                                                                                                                                                                                             | check removed: `refuses a client_assertion and a non-Basic Authorization header invalid_client` read `Basic :secret` as a client named `''`                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| S4 `client_secret_expires_at`                                           | M17 states it mirrors `client_id_expires_at`                                                                                                                                                                                                                                 | none (wording)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| S4 metadata                                                             | `token_endpoint_auth_methods_supported` lists all three unconditionally; `grant_types_supported` unchanged                                                                                                                                                                   | listing only `none` without machine grants: `omits them without the secret and in gateway mode` failed (machine-token.test.ts)                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+
+After the review fixes, 2026-10-31: `nx run-many -t test,typecheck,lint -p wbs-mcp-01
+--skip-nx-cache` exit 0, 756 pass, 0 fail; migration lint exit 0; prettier clean; `openspec
+validate --all` 304 of 304; `check-indexes working . HEAD` exit 0.
+
+## Slice 21 — groups-less half of M9 (with PR #731)
+
+Lands in PR #731 (`wbs-machine-credentials` slice 4), its precondition, after that branch was
+merged with main 7e0c05d82 (2026-10-31). Dany approved landing #731; dev had no operator-linked
+fleet (`wbs-machine-credentials` verify.md "Task 4.3 pre-swap evidence").
+
+- **Change.** `AuthService.authenticateOrRefuse` answers a verified configured-issuer token
+  without `wbs_groups` `machine_bearer_not_accepted` (was `unknown_identity`), so `/api`
+  answers `401 { error: 'machine_bearer_not_accepted', endpoint: '/mcp' }`. It still reads no
+  mapping, mints no account and writes nothing; only the issuer's own verification runs, since
+  the groups claim is read from the verified token. Browser `sessionUser` (no session) and the
+  refresh path (refused) are #731's and unchanged.
+- **The internal delegation route.** `boot.ts` already turned a machine bearer into "no
+  upstream sign-in", so a groups-less token posted to `/internal/mcp/delegation` now answers
+  `401 unauthenticated` (was `unknown_identity`). mcp-01 treats the two alike
+  (`organization-authority.ts` `isUserRefusal`). Assumed acceptable: the route takes human
+  tokens only. `mcp-delegation.boot.db.test.ts` expects the new answer.
+- **Spec.** `wbs-machine-credentials`' own `fleet-credentials` delta ("A machine token is
+  scoped by its linked account…") now states the M9 answer; it is the one restatement (the
+  review of the merge, S3-2, removed a second copy here). This change's `machine-credentials`
+  delta keeps its groups-less sentence and scenario. design.md's table row and M9's "two
+  halves" note say both halves landed; task 7.1's sub-item ticked; 0.2 (e) notes it.
+- **Docs.** `docs/auth-integration.md` (groups-less token) and `docs/runbook-prod-deploy.md`
+  (swap window; fleets call through `/mcp`) name the new refusal.
+- **Merge fixes found by the suites** (`wbs-machine-credentials` verify.md "Slice 4 merge with
+  main"): the swarm rehearsal now calls through machine grants; `runtime-state.db.test.ts` and
+  `runtime-authority.db.test.ts` (main) pinned through `external_identity.person_id`, which
+  #731 retires: their pin cases now use a machine credential's person.
+
+**Proofs (R5).**
+
+| Guard                                                                  | Injected fault                                      | Observed failure (2026-10-31, `env -u CLAUDECODE bun test`)                                                                                                                                         |
+| ---------------------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `authentication.feature.ts` groups-less refusal                        | `unknown_identity` answered again (the pre-M9 line) | `refuses a groups-less token of the sign-in issuer machine_bearer_not_accepted, reading no mapping` (machine-key.test.ts): 1 of 15 failed; `fleet-credential.controller.db.test.ts`: 5 of 8 failed  |
+| `principal.ts` `credentialPinOf` machine pin (rewritten runtime tests) | the machine branch never taken                      | `enforces real credential pins even for an admin` (runtime-state) and `checks project, organization person, account binding and credential pin on every entry` (runtime-authority) failed (2 of 47) |
+
+Each fault was reverted and the file's diff checked.
+
+**Commands** (laptop, `env -u CLAUDECODE`, 2026-10-31, the merged branch):
+
+| Command                                                                                                                                        | Result                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                                                                   | 3847 pass, 3 skip, 2 fail: the two runtime pin cases above, fixed; their files and the other touched suites then 92 pass, 0 fail |
+| `bunx nx run-many -t test -p wbs-fe-01 wbs-core wbs-contracts wbs-store-sqlite wbs-store-memory wbs-conformance wbs-mcp-01 --parallel=1`       | 7 projects succeeded                                                                                                             |
+| `bunx nx run-many -t typecheck -p` be-01, fe-01, mcp-01, contracts, core, store-sqlite, store-memory, conformance, domain, auth, twilight-dash | success                                                                                                                          |
+| `bunx nx run-many -t typecheck lint -p wbs-be-01 wbs-core wbs-contracts`                                                                       | first run: 4 lint errors in the new test code (unused `sqlite`, an `any` return, one needless guard); fixed, then success        |
+| Prettier on touched files; `openspec validate --all --json`; Burokrat `check-indexes working . HEAD`                                           | clean; 304 of 304; exit 0                                                                                                        |
+
+Not rerun after the last fixes: the whole be-01 suite (only the fixed files and the touched
+suites were); CI carries it. No migration touched, so no migration lint. No h2puni/h4claw gate.
+
+### Review of #731 merge (Fable, high), how each item is addressed
+
+No S1 or S2. Confirmed by the review: the conflict resolution, run scoping, absent vs empty
+groups (`Object.hasOwn`), the delegation route and the rewritten tests.
+
+| Item                                                                                                             | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S3-1 the login callback minted a session from a groups-less access token (a sign-in loop: every `/api` call 401) | `auth-oidc-endpoints.ts`: with a browser lifecycle, an access token whose `groupsClaimed` is not true is refused `302 /?auth_error=groups_claim_missing` before any account read or write. fe-01 `auth-form.tsx` renders a message for the code. `docs/auth-integration.md` says a missing claim is a refused session, unlike a wrong prefix. Red first: `refuses a sign-in whose access token has no groups claim, issuing no session` (`oidc-identity.controller.db.test.ts`) redirected to `/`. fe-01: with the entry renamed away, `names the missing access groups and the administrator` failed (1 of 31). |
+| S3-2 two deltas restated one requirement with different answers                                                  | `wbs-machine-credentials/specs/fleet-credentials/spec.md` now states the M9 answer and the callback refusal; this change's copy is deleted. `wbs-machine-credentials` tasks 4.1 says what was built: `readExistingOidcIdentity` is kept and guarded by the groups check, not deleted.                                                                                                                                                                                                                                                                                                                            |
+| S3-3 the provider requirements did not say the claim must be present                                             | `docs/auth-integration.md` "The provider must supply": the claim must be present on every access token, refreshed ones included; an empty array is fine.                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| S4 tautological `'personId' in pin`                                                                              | Dropped in `claim-lease.routes.ts` and `plan-commands.feature.ts`; the adjacent proofs stand, since the guarded behaviour is unchanged. `authenticated.ts` JSDoc names the groups-less token as a machine bearer.                                                                                                                                                                                                                                                                                                                                                                                                |
+| S4 runtime-authority combination                                                                                 | `checks project, organization person, account binding and credential pin…` used to test the pin with the agent unbound and the actor admin, where an upstream pair's admin bypass of the binding let the pin check run. A machine principal gets no such bypass, so the test now binds the agent again before the pin case. The order unbound → `person_not_bound`, then bound + foreign pin → `credential_not_for_person` is what it asserts now.                                                                                                                                                               |
+
+After the review fixes (`env -u CLAUDECODE`, 2026-10-31): `nx run-many -t test -p wbs-be-01
+wbs-fe-01 wbs-core --parallel=1 --skip-nx-cache` exited 0 (the full be-01 suite included; the
+per-test counts were lost with the log file); `nx run-many -t typecheck lint -p wbs-be-01
+wbs-core wbs-fe-01` succeeded; the oidc-identity suite ran 81 pass and fe-01's auth-form 31
+pass; Prettier clean; `openspec validate --all` 304 of 304; Burokrat `check-indexes` exit 0.
+
+## Launch gate fixture synchronization repair (2026-10-29)
+
+The actual `wbs-mcp-01:test` target at `9f3d50b0f` failed two top-level tests on h2puni:
+the swarm's strict re-key recovery event count and the in-flight property's expected 3 calls
+versus 2. Both originals passed in a fresh local worktree under Bun 1.4.4 with coverage
+(3 tests, 948 expectations); that isolated pass did not explain or waive the host failures.
+The same source's public CI also passed both tests. Controlled real-path timing faults below
+established the two fixture synchronization defects; no production/authentication behavior
+needed changing. The relevant recent main delta added the swarm and indexed be-01 routing;
+`http.ts`, `server.ts`, `wbs-client.ts`, `machine-limits.ts`, `in-flight-counter.ts` and the
+in-flight property itself were unchanged between `083fb6801` and `9f3d50b0f`.
+
+### Causes and repaired observations
+
+**In-flight model.** `End` resolved the fixture's fetch and slept five 1 ms timers. The real
+`callTool` still had to consume its response body, unwind `untilAborted`, and return through
+`server.ts`'s `finally` before its slot was free. A 25 ms streamed successful body on the
+reported sequence `[Send(org-b,2), End(org-b,ok), Send(org-b,3), End(org-b,throw), Send(org-b,1)]`
+made the original assertion fail with exactly expected 3 / received 2. The counter correctly
+held the slot while the response body was unfinished.
+
+The model now decorates the real `MachineTrafficLimits` boundary to observe every admission
+attempt and completed release. `Send` waits for all its messages to enter admission; `End`
+waits for the actual production release, including a call inside a still-unfinished batch.
+The decorator neither admits nor releases on its own. A missing transition rejects after a
+bounded 1 s observation wait, rather than advancing the model by elapsed time. The oracle
+still counts the calls held at be-01, with limit 3, two independent organizations, all batch
+messages and success/500/thrown completions. The 60 runs, seed 20261027, 60 s property deadline
+and every reached-branch assertion are unchanged. The same 25 ms body fault now passes.
+
+**Swarm client.** The SDK starts a GET SSE probe after `initialized` without awaiting it.
+SDK 1.31.0 accepts that GET in stateless mode; this server closes its per-request transport,
+so the real HTTP response is 200 with an ended SSE body. The SDK then schedules another GET.
+A background GET and foreground heartbeat can both meet the old bearer's refused-set 401
+and independently run the helper. Holding the SDK's actual GET until the first in-band
+re-key refusal, then rendezvousing its 401 with the foreground POST, reproduced the exact
+host trace for all three agents: `helper_issued, http_401, http_401, helper_issued, helper_issued`
+while the heartbeat outcomes remained `[tool_error:machine_credential_refused, ok]`.
+
+This task-8.1 rehearsal now explicitly uses a foreground-helper client profile:
+`StreamableHTTPClientTransport`'s public `reconnectionOptions.maxRetries = 0` (the SDK requires
+the complete options shape; its unchanged default delay values are unused), plus an EOF
+barrier on the initial **real** GET 200 before commands begin. It does not cover background
+notifications or SSE recovery, and establishes no claim about general clients' reconnect
+behavior. HTTP, SDK framing, helper invocation, real credentials, re-keying, claims and
+leases all remain real. No server route or authentication behavior changed. The initial
+405 inference was incorrect; an intermediate candidate failed its new 405 assertion and was
+corrected after observing the actual response, rather than changing the server.
+
+The driver checks that startup completed its GET, then snapshots each agent's re-key episode.
+That episode must be exactly `[http_401, helper_issued]`, the helper reason `after_401`, and the
+same two strict heartbeat outcomes. Extra 401s, refreshes or unrelated events fail. Revocation,
+lease cleanup and skip-reimport/skip-revoke checks keep their existing strict outcomes. The
+initial GET barrier is bounded by the driver's existing 60 s command deadline; no service
+TTL, retry allowance, helper budget or test deadline was increased.
+
+### Production-path and fixture negatives
+
+All five counter sabotages were rerun individually against the real `/mcp` property at
+seed 20261027, with coverage and the unchanged reached-branch assertions, then each source
+file was restored byte for byte:
+
+| Fault                                            | Observed rejection                                                                                            |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `count > limit`                                  | expected 3 / held 4; `[Send(org-a,1), Send(org-a,3)]`                                                         |
+| Release deletes the whole key count              | `TypeError: undefined is not an object (evaluating 'reply.result.isError')`; `[Send(org-a,1), Send(org-a,1)]` |
+| One in-flight counter key for both organizations | expected 3 / held 2; `[Send(org-b,1), Send(org-a,3)]`                                                         |
+| Release before the call                          | expected 3 / held 4; `[Send(org-a,1), Send(org-a,3)]`                                                         |
+| Release only when the call succeeds              | `missing release 1; observed 0`; `[Send(org-b,1), End(org-b,fail)]`                                           |
+
+The synchronization/profile and existing scenario controls are recorded below with their
+actual final command outcomes. Raw diagnostics, fault scripts and byte-restoration manifests
+are retained in `/tmp/puni-launch-mcp-gate-repair/`; the owning task's final report records
+the selected commit and exact local verification. These local checks do not replace a new
+canonical host gate or public CI for that commit.
+
+| Synchronization/scenario fault                                                                                | Observed rejection                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Remove the probe barrier; delay completion of the real initial GET by 100 ms                                  | All three startup checks fail before re-key: only `helper_issued` observed when `tools` returns; exit 1                                         |
+| Restore SDK reconnects; hold the second real GET until re-key and rendezvous its 401 with the foreground POST | All three exact re-key episodes fail: POST and GET carry the same old jti, both receive 401, two new helpers issue; exit 1                      |
+| Hold the initial probe readiness forever after receiving its real response                                    | Existing `ask` deadline reports `did not answer tools within 60 s`; rehearsal exits 1 and cleans up its child processes                         |
+| `--fault=skip-reimport`                                                                                       | Exit 1: all three agents see `[machine_credential_refused, helper_failed:1]`, and strict round-2 recovery/heartbeat/release/audit checks reject |
+| `--fault=skip-revoke` in the focused boot test                                                                | Boot test passes only because the child exits 1 and names the original no-claim-left lease check                                                |
+
+All three synchronization/profile faults were restored byte for byte. The failed initial
+405 candidate is retained as a diagnostic failure; it is not counted as a successful check.
+
+### Local commands and results
+
+All runs used Bun 1.4.4, frozen locked dependencies in a fresh isolated worktree of
+`9f3d50b0f`, synthetic stores/keys and loopback-only traffic. The two relevant specs validated
+with their existing warning/info diagnostics (agent surface: 1 warning, 3 info; machine
+credentials: 14 warnings, 1 info). No specification behavior was changed.
+
+| Command                                                                                                                                                                   | Observed result                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `bun install --frozen-lockfile`                                                                                                                                           | exit 0, 1493 packages installed                                                                     |
+| `bun test apps/wbs/mcp-01/src/in-flight-counter.model.test.ts apps/wbs/mcp-01/src/pool-swarm.boot.test.ts --coverage --coverage-reporter=lcov --timeout=10000` (original) | 3 pass, 0 fail, 948 expectations; isolation control only                                            |
+| Same focused command after synchronization repair                                                                                                                         | 3 pass, 0 fail, 948 expectations; model 527.70 ms, clean swarm 11256.73 ms, skip-revoke 10930.82 ms |
+| `bun apps/wbs/mcp-01/src/load/pool-swarm-rehearsal.ts` (final SDK profile)                                                                                                | exit 0, 139/139 expectations; positive timeline retained                                            |
+| Same driver with `--fault=skip-reimport`                                                                                                                                  | exit 1, 20 failed expectations; strict refusal/helper failure outcomes retained                     |
+| All five model production sabotages with coverage                                                                                                                         | exit 1 each; source restored byte for byte                                                          |
+| Probe barrier, background reconnect and never-ready probe faults, repeated after the complete SDK option shape was supplied                                               | exit 1 each; final fixtures restored byte for byte                                                  |
+| `bunx nx run wbs-mcp-01:build --skip-nx-cache`                                                                                                                            | exit 0, MCP plus 7 declared dependency tasks; no production source changed                          |
+| `bunx nx run-many --targets=lint,typecheck --projects=wbs-mcp-01 --skip-nx-cache --parallel=2`                                                                            | exit 0; both targets passed after the SDK-required unused default fields were supplied              |
+| `bunx openspec validate wbs-mcp-agent-surface --json`                                                                                                                     | valid, 1 passed / 0 failed; existing diagnostics above                                              |
+| `bunx openspec validate wbs-machine-credentials --json`                                                                                                                   | valid, 1 passed / 0 failed; existing diagnostics above                                              |
+
+An intermediate typecheck rejected `{ maxRetries: 0 }` because this SDK requires the complete
+option shape; adding its unchanged unused delay defaults fixed the type contract. That failed
+output and the earlier incorrect-405 candidate are retained, separate from intentional
+negative proofs. The final declared target, `bunx nx run wbs-mcp-01:test --skip-nx-cache`, passed 723 tests
+across 33 files with 0 failures and 9724 expectations in 67.83 s. It ran the declared
+`bun test --coverage --coverage-reporter=lcov --timeout=10000` command: the strict model
+passed in 486.57 ms and the clean swarm in 11424.85 ms. An earlier runtime pass before
+the unused SDK shape fields were added was 723/0 with 9552 expectations; a second run
+verified the exact final source after that type correction. The different total expectation
+counts are whole-suite observations; no assertion or property run count was removed.
+
+Named-file formatting and `git diff --check` passed. No host gate, new-source public CI,
+provider, deployment or Fleet operation ran in this scoped repair. Those exact-commit
+release checks remain the owning task's responsibility; the older failed host receipt and
+successful public receipt remain unchanged.
+
+_Merge note 2026-11-01 (integration/puni-launch-funnel-main-20261101): the swarm re-key assertion above was superseded by main's effeb1017 form, which requires a completed `after_401` helper refresh without a global event count; the in-flight model decoration below is unchanged and carried forward._

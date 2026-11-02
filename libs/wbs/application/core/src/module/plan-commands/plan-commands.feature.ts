@@ -355,8 +355,8 @@ export class PlanCommandRunner {
   constructor(private readonly opts: PlanCommandRunnerOptions) {}
 
   /**
-   * Under legacy access, with no credential pair: before activation no
-   * credential is linked, so none is pinned (`link-credential-cli.ts` refuses).
+   * Under legacy access, with no credential: before activation no machine
+   * credential admits a request, so none is pinned.
    */
   run(projectId: string, actorId: string, commands: readonly PlanCommand[]): Promise<BatchOutcome> {
     return this.execute(projectId, actorId, commands, LEGACY_ACCESS, null, null).then(
@@ -734,7 +734,7 @@ export class PlanCommandRunner {
             // every committed write, and not on a refused one`
             // (claim-lease.db.test.ts) read the old expiry (9 pass, 1 fail);
             // watched 2026-10-23.
-            if (!('ok' in applied) && credential !== null && 'personId' in credential) {
+            if (!('ok' in applied) && credential !== null) {
               // Only the grant's own run when it opted in (M15); every lease
               // of the person otherwise.
               // Proof: with `null` for the run here, `a run-scoped write renews

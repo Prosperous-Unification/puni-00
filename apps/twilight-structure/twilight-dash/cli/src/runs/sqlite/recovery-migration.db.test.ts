@@ -422,7 +422,7 @@ for (const stage of ['journal', 'fence', 'observation'] as const)
           if (scope.kind !== 'pinned' || scope.version !== 2)
             throw new Error('expected current pinned scope');
           const history = scope.recoveries.at(0);
-          if (history?.intent.target.kind !== 'authority')
+          if (history?.version !== 1 || history.intent.target.kind !== 'authority')
             throw new Error('authority journal required');
           const begin = {
             kind: 'authority' as const,

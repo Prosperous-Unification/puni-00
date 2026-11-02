@@ -733,3 +733,123 @@ still rejects every touch.
 - CI on 688f7836403 (PR #625): every check green.
 - Reviews: every slice had a Fable review before merging into the plan branch (#628 slice 1 after fixes incl. A23; #631 slice 2 after fixes incl. A24; #633 slice 5 after fixes incl. A25; #634 slice 6 after fixes; #641 slice 3 MERGE with S3 follow-ups landed).
 - Not observed live: tasks 3.5 (consent as an agent on dev), 4.x (slice 4, retirement of the operator links, waits for the fleets' self-serve onboarding), 5.4 (a real GitHub Actions token on dev), 6.3 (by-eye acceptance on dev).
+
+## Slice 4 record (2026-10-25): retirement of the operator links, tasks 4.1 and 4.2
+
+Branch `feat/wbs-machine-credentials-retire-links` from main `93b6f3555`. Held from merging
+until task 4.3's pre-swap step (every fleet holds its API key): merging deploys to dev, where
+the swap refuses every Auth0 machine-to-machine token. 4.3 (operator, Dany) is not done.
+
+Red first: the rewritten `fleet-credential.controller.db.test.ts` against main's code failed
+4 of 7 (`admits nothing for a pinned row …`, `admits nothing for an unpinned row …`,
+`leaves the owner’s email alone …` each received 200 instead of `401 unknown_identity`;
+`removes a person with a pinned row unconfirmed …` received 409 `in_use`).
+
+| Command (worktree, `env -u CLAUDECODE` for `bun test`)                                                                                                                                                                                                                                     | Result                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| `bun test` be-01: fleet-credential, claim-identity, machine-credential, machine-credential-admin, directory controller, directory service, person-account-migration, person-account controller, oidc-identity controller, organization-credential-rules, `swarm-rehearsal.boot.db.test.ts` | 270 pass, 0 fail (11 files)                     |
+| `bunx nx run-many -t typecheck -p wbs-be-01 wbs-fe-01 wbs-store-sqlite wbs-store-memory wbs-auth wbs-core wbs-conformance wbs-contracts tool-git-hooks`                                                                                                                                    | 12 tasks succeeded                              |
+| `CLAUDECODE=0 bunx nx run-many -t test -p wbs-core wbs-store-memory wbs-conformance wbs-contracts wbs-auth tool-git-hooks wbs-store-sqlite --parallel=1`                                                                                                                                   | 7 projects succeeded                            |
+| fe-01 `TZ=UTC bunx vitest run src/components/directory/directory-page.test.tsx`                                                                                                                                                                                                            | 51 pass (red first on the renamed confirmation) |
+| `bunx openspec validate --all --json`                                                                                                                                                                                                                                                      | 287 items, 0 failed                             |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                                                                                                                                | exit 0                                          |
+
+Lint: `NODE_OPTIONS=--max-old-space-size=8192 bunx nx run-many -t lint` over the same nine
+projects: eight passed, `wbs-store-memory` failed on an unused import left in
+`directory-fixture.test.ts`; fixed, then `nx run-many -t lint test -p wbs-store-memory`
+succeeded.
+
+Not run locally (laptop RAM, another heavy agent): the full be-01 `test:store`/`test:unit` and
+fe-01 suites; CI carries them.
+
+### Slice 4 failure proofs
+
+| Guard (file)                                                           | Injected fault                                                           | Observed failure                                                                                                                                                     |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `authentication.feature.ts` groups-less refusal (4.1)                  | link read restored (`readExistingOidcIdentity`, linked account admitted) | `admits nothing for a pinned row …`, `admits nothing for an unpinned row …`, `leaves the owner’s email alone …` failed (3 of 7)                                      |
+| `oidc-identity.ts` `groupsClaimed`                                     | answered `true` always                                                   | 5 of 7 `fleet-credential` cases failed (links admitted, unlinked tokens minted accounts)                                                                             |
+| `store-sqlite/directory.ts` delete of a removed person's pinned rows   | delete removed                                                           | `removes a person with a pinned row unconfirmed …` answered 500 (foreign key)                                                                                        |
+| `claim-store.ts` `claimIdentityOf` pin                                 | `pinnedPersonOf` answered null                                           | `refuses a pinned credential claiming as another agent` (memory) and `machine-credential.controller.db.test.ts` `claims as its person …`, `delegates under …` failed |
+| `user.ts` email kept under a token without one                         | early return removed                                                     | `keeps its groups whether or not its pair is linked …` read `email: null, email_verified: 0`                                                                         |
+| grep test: no production reader of `external_identity.person_id` (4.2) | `DirectoryRepository.credentialPinOf` restored                           | `has no production reader …` listed its `.select({ personId: externalIdentity.personId })` beside the allowed delete                                                 |
+| `plaintext-secrets.ts` `wbs_mk_` pattern (4.2)                         | pattern made unmatchable (`(?!)`)                                        | `aborts a commit staging a WBS API key, exit 1, …` exited 0; `detects a WBS API key …` scanned null                                                                  |
+
+Each fault was restored from a copy and the file's diff checked before moving on.
+
+### Slice 4 review fixes (Fable on #731 at 2cb8e3674: request changes, fixed)
+
+- **S2-1** `sessionUser` admitted a groups-less token whose pair a retired link maps, so a
+  fleet's Auth0 token as the session cookie could start and complete an account link (Fable
+  reproduced it). `sessionUser` now answers no session for a token without `wbs_groups`, and
+  the refresh path refuses a refreshed token without it before installing it. Red first: both
+  new `oidc-identity.controller.db.test.ts` cases failed on 2cb8e3674 (link start 200, refresh
+  204).
+- **S3-1** `organizationCredentialEvidence` throws for groups-less evidence (unreachable: the
+  principal was admitted on the same token), with a unit test.
+- **S3-2, S3-6** Runbook swap section: no person deletions during the window, the last-used
+  evidence step, the `wbs_groups`-on-refresh evidence step, the rollback caveat for rows that
+  person removals deleted, and the post-rollback cleanup of every CLI row (described, backup
+  first).
+- **S3-3** Task 4.3's pre-swap step now requires a decoded refreshed dev access token showing
+  `wbs_groups`, recorded here before the PR merges. Not done: it is Dany's operator step.
+- **S3-4** Stale comments fixed (`claim.ts`, `wbs-api.ts`, `work-item-shapes.ts`,
+  `refusal.ts`). The open `wbs-permissions` change still plans `scopesOfRoles` changes
+  (tasks.md:72; design.md:9, 296, 486, 639); left to its owner, listed in the PR.
+- **S3-5** The grep test's JSDoc states what it does not prove.
+- **S3-7** The h2puni/h4claw gate was not run by this slice's worker; CI on the PR is the
+  check of record until the coordinator runs the gate.
+
+| Guard (file)                                      | Injected fault           | Observed failure                                                                                                           |
+| ------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `authentication.feature.ts` `sessionUser` groups  | check removed            | `refuses a link start under a groups-less cookie whose pair is linked`: 1 of 80 failed                                     |
+| `auth-oidc-endpoints.ts` refresh groups           | check removed            | `refuses a refreshed access token without groups, leaving the lifecycle alone`: 1 of 80 failed                             |
+| `organization-credential.ts` groups-less evidence | throw replaced by `null` | `throws for groups-less upstream evidence behind an admitted principal` (`organization-credential.test.ts`): 1 of 4 failed |
+
+Fresh runs after the fixes (`env -u CLAUDECODE bun test`): fleet-credential,
+oidc-identity, organization-credential, machine-credential, organization-credential-rules,
+claim-identity, `boot.db.test.ts`, swarm rehearsal: 193 pass, 0 fail. The nine other suites
+that call link, `sessionUser` or refresh (boot-browser-session, auth-oidc, pending-membership,
+browser-lifecycle mounted process, enterprise-link, organization-audit-completeness,
+oidc.integration, auth-oidc-shapes, enterprise-email-trust): 114 pass, 0 fail. `nx run-many -t typecheck lint` over be-01, fe-01, core, contracts and store-sqlite: the
+first run failed lint on two `prefer-optional-chain` guards and an `await` in the new unit
+test; fixed (guards re-watched after the rewrite), then typecheck and lint of be-01 and core
+succeeded, the other three having passed in the first run. `nx test` for core and contracts:
+succeeded. `openspec validate --all --json`: 287/287. Burokrat `check-indexes`: exit 0.
+
+## Task 4.3 pre-swap evidence (2026-10-31)
+
+- **Linked fleets on dev: none.** A read-only look at dev on 2026-10-31 found no
+  `external_identity` row with a `person_id` (no pinned links), no `@clients` subject (no
+  Auth0 machine-to-machine identity) and no fleet API keys. No fleet on dev authenticates
+  through an operator link, so the key-issuance and last-use steps are vacuous: merging cuts
+  off no fleet. The fleets already call through `/mcp` (`wbs-mcp-agent-surface` 8.1).
+- **A refreshed browser token carries `wbs_groups`: ASSUMED, not observed.** Decoding one needs
+  the owner's browser session. Basis: the dev tenant's post-login Action sets `wbs_groups` on
+  both the ID and the access token (`docs/auth-integration.md`, the Action at about L170–180),
+  and Auth0 runs post-login Actions on a refresh-token exchange too (Auth0's documented
+  `oauth2-refresh-token` transaction protocol). Owed by Dany after merge: decode a refreshed dev
+  access token and confirm `wbs_groups`; if it is missing, sessions end at their first refresh
+  (the refresh path refuses it, 401).
+- **Not done (owner):** deleting the Auth0 machine-to-machine applications in the dashboard,
+  and the post-swap "every fleet writes" record in puni-plan. 4.3 stays unticked for them.
+- **Hold lifted:** Dany approved landing #731 on 2026-10-31.
+
+## Slice 4 merge with main (2026-10-31)
+
+Merged `origin/main` 7e0c05d82 into the branch (agent pools #771/#774/#772, MCP machine
+credentials, #785 REST off).
+
+- **Conflicts.** `principal.ts`: `CredentialPin` stays an interface without the upstream pair
+  (this slice) and gains main's optional `runId` (`wbs-mcp-agent-surface` M15);
+  `credentialPinOf` keeps main's run for a machine grant and this slice's null for an upstream
+  pair. `claim-store.ts`: main's `pinnedRunOf` kept, reduced to `credential?.runId ?? null`
+  now that no pair can reach it; `claimIdentityOf` keeps this slice's directory-free pin.
+- **Semantic conflicts.** `swarm-rehearsal.boot.db.test.ts` used its fleets' API keys as
+  `/api` Bearers, which #785 refuses: the fleets now buy a machine grant at
+  `/internal/mcp/machine-grants` (as mcp-01 does) and call with it; the raw key is asserted
+  `machine_bearer_not_accepted`; step 6 checks the revoked credential both under its held
+  grant and at a new grant request (`unknown_identity`). Step 4's undo now runs as the claire
+  fleet: undo is per acting person on main, and the release is that fleet's entry, not dany's.
+- **The groups-less half of M9** landed with this merge (`wbs-mcp-agent-surface` verify.md
+  slice 21): 4.1's `unknown_identity` for a groups-less configured-issuer token on `/api` is
+  now `machine_bearer_not_accepted`; `sessionUser` and refresh are unchanged.

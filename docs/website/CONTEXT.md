@@ -23,8 +23,24 @@ A record of a prospective software project, its brief and proposal status. A bro
 _Avoid_: WBS work item, project
 
 **Scoping conversation**:
-A bounded exchange that helps a prospect clarify the problem, users, workflows, constraints and first useful release.
+A bounded exchange that helps a visitor clarify the problem, users, workflows, constraints and first useful release.
 _Avoid_: Delivery agent
+
+**Starting choice**:
+One of the six invitations through which a visitor expresses what they want help with, including help choosing a direction.
+_Avoid_: Product category
+
+**Suggested answer**:
+A selectable response to the current scoping question, offered alongside the visitor's own words and an uncertainty option.
+_Avoid_: Required answer
+
+**Question acknowledgement**:
+An optional contextual comment from the assistant connecting the visitor's answer to the next scoping question.
+_Avoid_: Follow-up question
+
+**Request reference**:
+An optional example, link or description supplied by a visitor, together with what they want to borrow, change or avoid.
+_Avoid_: Inspected source
 
 **Request brief**:
 The editable summary of a software request that can be reviewed apart from any conversation.
@@ -131,3 +147,10 @@ _Avoid_: Kill switch, outage
 **Guardrail alert**:
 A durable, deduplicated record that a guardrail threshold was crossed, optionally pushed to the operator's webhook.
 _Avoid_: Notification, incident
+
+**Cookieless measurement**:
+Usage measurement without analytics cookies or a persistent browser identifier.
+_Avoid_: Anonymous visitor tracking
+
+**Analytics event**:
+A usage signal about progress through the public website funnel, distinct from a durable Funnel count.

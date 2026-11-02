@@ -23,23 +23,35 @@ and audited").
 
 ### Requirement: A machine token is scoped by its linked account and never mints an account
 
-be-01 SHALL refuse `401 unknown_identity`, before creating any account and whether or not
-organizations are activated, every verified token of the configured issuer that carries no
-groups claim: no `external_identity` row, pinned or not, SHALL admit it, and no credential
-lookup SHALL happen for it. A machine is admitted only by a machine credential
-(`machine-credentials`, "One verification path admits every source"). A token that carries
-the groups claim SHALL keep today's mapping, so browser sign-in is unchanged.
+be-01 SHALL refuse, before creating any account and whether or not organizations are
+activated, every verified token of the configured issuer that carries no groups claim: on
+`/api` with `401 { error: 'machine_bearer_not_accepted', endpoint: '/mcp' }`
+(`wbs-mcp-agent-surface` M9, its groups-less half), at mcp-01's delegation route as no
+upstream sign-in (`401 unauthenticated`), as no browser session, and on refresh. A sign-in
+whose access token carries no groups claim SHALL be refused with
+`302 /?auth_error=groups_claim_missing` and no session. No `external_identity` row, pinned or
+not, SHALL admit such a token, and no credential lookup SHALL happen for it. A machine is
+admitted only by a machine credential (`machine-credentials`, "One verification path admits
+every source"). A token that carries the groups claim, an empty one included, SHALL keep
+today's mapping, so browser sign-in is unchanged.
 
 #### Scenario: An unlinked machine token
 
-- **WHEN** a verified token with no groups claim arrives for a pair no row names
-- **THEN** the request is refused `401 unknown_identity` and the users table is unchanged
+- **WHEN** a verified token with no groups claim arrives on `/api` for a pair no row names
+- **THEN** the request is refused `401 machine_bearer_not_accepted` naming `/mcp`, and the
+  users table is unchanged
 
 #### Scenario: A pinned link admits nothing
 
-- **WHEN** a verified token with no groups claim arrives for a pair that exists as a pinned
-  `external_identity` row written by the retired CLI
-- **THEN** the request is refused `401 unknown_identity` and the row is unchanged
+- **WHEN** a verified token with no groups claim arrives on `/api` for a pair that exists as a
+  pinned `external_identity` row written by the retired CLI
+- **THEN** the request is refused `401 machine_bearer_not_accepted` and the row is unchanged
+
+#### Scenario: A sign-in without the groups claim
+
+- **WHEN** the OIDC callback receives an access token without the groups claim
+- **THEN** it redirects to `/?auth_error=groups_claim_missing`, issues no session and writes no
+  account
 
 #### Scenario: A browser token keeps its groups
 

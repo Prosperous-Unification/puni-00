@@ -1,5 +1,4 @@
 import type { OidcIdentity } from '@wbs/contracts';
-import type { OrganizationRole } from '@wbs/domain';
 
 import type { User } from './account-values';
 import type { WriteStamp } from './write-stamp';
@@ -32,12 +31,6 @@ export interface OidcIdentityStore {
       | 'email_collision'
       | 'invalid_account';
   }>;
-  /**
-   * The roles the user holds across its organization memberships, in any
-   * order; empty for none. What a linked machine token without a groups claim
-   * is scoped from (`wbs-team-claims` D6b).
-   */
-  membershipRolesOf(userId: string): Promise<readonly OrganizationRole[]>;
   /** Every `(issuer, subject)` pair mapped to the user; empty for a password-only account. */
   listIdentities(userId: string): Promise<readonly { issuer: string; subject: string }[]>;
   /** Returns null when an existing email belongs to a different federated identity. */

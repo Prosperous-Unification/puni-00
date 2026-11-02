@@ -192,4 +192,4 @@ task-scoped ledger/review packets under the unique portable-workflow-identities 
       host Nx gate, foreign cleanup, force/admin merge or production action.
 - [x] 4.4 Invoke openspec-verify-change and write verify.md from actual outputs/proof table;
       keep unverified tasks open. Re-read WBS after notes/status updates, preserving old notes.
-      Keep architectural main merge/operator stores/prod held and the wider foundation open.
+      Keep operator stores/prod excluded and the wider foundation open; normal publication follows the authorization and required gates in the design.

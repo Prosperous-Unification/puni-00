@@ -9,6 +9,7 @@ import { decodeRecoveryHistory } from './recovery-codecs';
 import { RecoveryDispatchError } from './recovery-dispatch-error';
 import {
   deriveRecoveryClaimCommand,
+  deriveRecoveryWriteCommand,
   readRecoveryExchange,
   type RecoveryEvidenceSubject,
 } from './recovery-evidence';
@@ -40,7 +41,8 @@ export type RecoveryDispatchCall =
       readonly guard: AuthorityRecoveryGuard;
       readonly recoveryId: string;
     }
-  | { readonly kind: 'claim'; readonly guard: ClaimRecoveryGuard; readonly recoveryId: string };
+  | { readonly kind: 'claim'; readonly guard: ClaimRecoveryGuard; readonly recoveryId: string }
+  | { readonly kind: 'write'; readonly guard: ClaimRecoveryGuard; readonly recoveryId: string };
 type RecoveryClientReply =
   | Awaited<ReturnType<RuntimeClient['readState']>>['reply']
   | Awaited<ReturnType<RuntimeClient['lookupReceipt']>>['reply']
@@ -134,7 +136,7 @@ export async function dispatchRecovery(
           guard: { ...decodeRuntimeGuard(ordinary), expectedRecoveryRevision },
         }
       : {
-          kind: 'claim',
+          kind: call.kind,
           recoveryId,
           guard: { ...decodeScopedAttemptGuard(ordinary), expectedRecoveryRevision },
         };
@@ -174,14 +176,14 @@ export async function dispatchRecovery(
     if (capturedCall.kind !== history.intent.target.kind)
       return { kind: 'refused', reason: 'identity_conflict' };
     if (
-      capturedCall.kind === 'claim' &&
-      history.intent.target.kind === 'claim' &&
+      capturedCall.kind !== 'authority' &&
+      history.intent.target.kind !== 'authority' &&
       (capturedCall.guard.runId !== history.intent.target.runId ||
         capturedCall.guard.attemptId !== history.intent.target.attemptId)
     )
       return { kind: 'refused', reason: 'identity_conflict' };
     // Proof: T7A07 bypassed this reader; all three 'claim verifies complete manifest artifacts before POST' cases lost rejection in both providers.
-    if (capturedCall.kind === 'claim')
+    if (capturedCall.kind !== 'authority')
       await readExecutionHistory(
         runs,
         artifacts,
@@ -317,7 +319,8 @@ export async function dispatchRecovery(
         if (
           resolveCall.kind === 'claim' &&
           verified.kind === 'claim' &&
-          history.intent.target.kind === 'claim'
+          history.intent.target.kind === 'claim' &&
+          history.version === 1
         ) {
           const command = deriveRecoveryClaimCommand(
             { ...history.intent, target: history.intent.target },
@@ -330,9 +333,19 @@ export async function dispatchRecovery(
           });
           return closed.kind === 'refused' ? closed : { kind: 'resolved', closure: closed.value };
         }
+        if (resolveCall.kind === 'write' && verified.kind === 'write' && history.version === 2) {
+          const command = deriveRecoveryWriteCommand(history.intent, verified.exchange);
+          const closed = await runs.resolveRecovery({
+            ...resolveCall,
+            fence: accepted,
+            decision: { kind: 'accepted', lookup: verified.exchange, command },
+          });
+          return closed.kind === 'refused' ? closed : { kind: 'resolved', closure: closed.value };
+        }
         throw new Error('original recovery receipt kind differs');
       }
       // Proof: T7A04 removed this budget; 'three canonical identities and three POSTs ... lost=false' observed four actual recovery POST IDs, including the retained third twice.
+      // Proof: B01 removing this shared budget observed extra POSTs for an actual write target in both providers. Exact restoration passed.
       if (posts >= 3) throwExhausted();
       if (fence === null || observation?.kind === 'generation_conflict') {
         // Proof: T7A03 issued the dependent lookup here first; the real contention trace failed state-before-lookup order.
@@ -417,6 +430,7 @@ export async function dispatchRecovery(
           };
         }
         // Proof: T7A15 removed this cap; the bounds test received the inherited fourth-identity refusal instead of exhaustion. No fourth identity was admitted.
+        // Proof: B02 omitting this cap returned actual store state_conflict on write recovery resume instead of bounded exhaustion; no fourth identity admission is claimed. Diagnostic-only; exact restoration passed.
         if (fence === null || fence.ordinal < 3) {
           const ordinal = fence === null ? 1 : fence.ordinal + 1;
           const canonicalRequest = canonicalRuntimeRequest(scope, {
