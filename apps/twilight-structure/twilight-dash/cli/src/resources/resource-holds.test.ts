@@ -9,7 +9,12 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { fakeCredential } from '../compute/testing/credential';
 import { admitFixture } from './admission.test.fixture';
 import { ampleHost, hostPoolFixture } from './host-pool.test.fixture';
-import { type CreationRequest, loadResourceConfiguration, ResourceRuntime } from './runtime';
+import {
+  type CreationRequest,
+  isForeignLoginSession,
+  loadResourceConfiguration,
+  ResourceRuntime,
+} from './runtime';
 
 /**
  * `dash-host-jobs` decision J19, outside any namespace on purpose, as host-job-holds.test.ts is:
@@ -50,6 +55,32 @@ const inLogin = /^\/user\.slice\/user-\d+\.slice\/session-[A-Za-z0-9]+\.scope$/.
 const loginReason = inLogin
   ? ''
   : ` (skipped: this test runs in ${ownCgroup}, not a login session)`;
+
+describe('isForeignLoginSession (J19 amendment, reviews F1 and G2)', () => {
+  // The predicate alone, so CI runners, which have no login session, still check its shape.
+  test('only another login session scope is foreign', () => {
+    const login = '/user.slice/user-1000.slice/session-3.scope';
+    expect(isForeignLoginSession(login, null)).toBe(true);
+    expect(
+      isForeignLoginSession(login, '/user.slice/user-1000.slice/user@1000.service/app.slice'),
+    ).toBe(true);
+    expect(isForeignLoginSession(login, '/user.slice/user-1000.slice/session-4.scope')).toBe(true);
+    // Proof: dropping the owner comparison made this `true` (2026-11-02, review G2).
+    expect(isForeignLoginSession(login, login)).toBe(false);
+    // Proof: matching any `session-*.scope` component made these `true` (2026-11-02, review F1).
+    expect(
+      isForeignLoginSession(
+        '/user.slice/user-1000.slice/user@1000.service/app.slice/session-9.scope',
+        null,
+      ),
+    ).toBe(false);
+    expect(isForeignLoginSession('/user.slice/user-1000.slice/session-3.scope/child', null)).toBe(
+      false,
+    );
+    expect(isForeignLoginSession('/system.slice/ssh.service', null)).toBe(false);
+    expect(isForeignLoginSession('/', null)).toBe(false);
+  });
+});
 
 describe('uninspectable processes outside Dash-owned work (J19)', () => {
   const cleanups: (() => void)[] = [];
@@ -165,18 +196,50 @@ describe('uninspectable processes outside Dash-owned work (J19)', () => {
   );
 
   test.skipIf(!inLogin)(
-    `pool init succeeds beside a non-dumpable login-session process started after it${loginReason}`,
+    `pool init refuses beside a non-dumpable process of its own login session started after it${loginReason}`,
     async () => {
       const fixture = pool(1);
+      // A detached child of this test, the initializer: a new session id, the same session scope.
+      const pid = await nonDumpable(fixture.base);
+      // Proof: see `outsideScope`; with the owner's login session exempted too this initialized
+      // (2026-11-02, review G2).
+      expect(() =>
+        ResourceRuntime.initialize(loadResourceConfiguration(fixture.config), clock, ampleHost),
+      ).toThrow(`cannot inspect process PID ${String(pid)} (python3)`);
+    },
+    60000,
+  );
+
+  test.skipIf(!inLogin || scopes.exitCode !== 0)(
+    `pool init succeeds beside a non-dumpable process of another login session${loginReason}${scopeReason}`,
+    async () => {
+      const fixture = pool(1);
+      // The initializer runs under the user manager, so this test's login session is foreign to it.
+      const init = Bun.spawn(
+        [
+          'systemd-run',
+          '--user',
+          '--scope',
+          '--quiet',
+          '--collect',
+          '--',
+          process.execPath,
+          ENTRYPOINT,
+          'ops',
+          'pool',
+          'init',
+          '--config',
+          fixture.config,
+        ],
+        { stdout: 'pipe', stderr: 'pipe' },
+      );
+      // Started after the initializer, which takes seconds to load before it inspects the unit.
       await nonDumpable(fixture.base);
-      // Proof: see `outsideScope`; without the login-session test this refused (2026-11-02, F1).
-      expect(() => {
-        ResourceRuntime.initialize(
-          loadResourceConfiguration(fixture.config),
-          clock,
-          ampleHost,
-        ).close();
-      }).not.toThrow();
+      const stderr = await new Response(init.stderr).text();
+      // Proof: see `outsideScope`; without the foreign-session test this exited 70 "cannot inspect
+      // process PID" (2026-11-02, reviews F1, G2).
+      expect(stderr).toBe('');
+      expect(await init.exited).toBe(0);
     },
     60000,
   );
@@ -253,14 +316,16 @@ describe('uninspectable processes outside Dash-owned work (J19)', () => {
   );
 
   test.skipIf(!inLogin)(
-    `a non-dumpable login-session process started after the leader does not hold${loginReason}`,
+    `a setsid descendant in Dash's own login session still holds${loginReason}`,
     async () => {
+      // A detached child of this test, which is the Dash process here: a new session id, started
+      // after the leader, in the same login session scope (review G2).
       const { use, pid, current } = await cleanupBesideLaterHolder();
-      // Proof: see `outsideScope`; without the login-session test this was `blocked`
-      // (2026-11-02, F1).
-      expect(current.state).toBe('released');
-      expect(current.reason).toContain(`${String(pid)} (python3)`);
-      expect(existsSync(use.locator)).toBe(false);
+      // Proof: see `outsideScope`; with the owner's login session exempted too this was
+      // `released` (2026-11-02, review G2).
+      expect(current.state).toBe('blocked');
+      expect(current.reason).toContain(`cannot inspect process PID ${String(pid)} (python3)`);
+      expect(existsSync(use.locator)).toBe(true);
     },
     60000,
   );

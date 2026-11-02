@@ -285,7 +285,8 @@ try {
     test('an unenrolled host runs the gate on the legacy lock in the launcher checkout', async () => {
       expect(existsSync(CONFIG)).toBe(false);
       const barrier = barrierDirectory('legacy');
-      const result = await launch(gate, barrier, 1);
+      // A forged verdict changes nothing: no code reads it (slice 6a review G1).
+      const result = await launch(gate, barrier, 1, { HEAVY_JOB_ENROLLMENT: 'enrolled' });
       expect(result.stderr).toContain('heavy lock: waited 0s behind 0 tickets');
       expect(result.stderr).toContain(`h2puni gate: running on ${launchedSha}`);
       expect(result.exitCode).toBe(0);
@@ -295,7 +296,7 @@ try {
       expect(existsSync(join(base, 'dash.log'))).toBe(false);
     }, 120000);
 
-    test('a configuration that appears while a gate is queued does not change its mechanism', async () => {
+    test('a configuration that appears while a gate is queued makes its payload refuse 64', async () => {
       expect(existsSync(CONFIG)).toBe(false);
       const release = join(base, 'holder-release');
       const held = join(base, 'holder-held');
@@ -329,16 +330,13 @@ try {
       writeFileSync(release, '');
       const result = await queued;
       expect(await holder.exited).toBe(0);
-      // Proof: see `run_heavy_job`; without the exported verdict the payload judged the host
-      // enrolled and refused 64 for want of DASH_JOB_UNIT_GATE_TREE (2026-11-02, review F10).
-      expect(result.stderr).not.toContain('DASH_JOB_UNIT_GATE_TREE');
-      // Its ticket was in the queue before the configuration appeared (polled above); it then ran
-      // under the legacy lock. `waited` counts whole seconds, so it may read 0s.
+      // Enrolling a host with a gate queued is operator error: enrollment drains the queue first
+      // (J12, slice 6a assumption S6-A14). The payload judges the host under the lock, finds it
+      // enrolled with no admission, and refuses rather than gate a tree nobody reserved.
       expect(result.stderr).toContain('heavy lock: waited ');
-      expect(result.exitCode).toBe(0);
-      expect(
-        readdirSync(barrier).map((name) => readFileSync(join(barrier, name), 'utf8').trim()),
-      ).toEqual([checkout]);
+      expect(result.stderr).toContain('DASH_JOB_UNIT_GATE_TREE is not set');
+      expect(result.exitCode).toBe(64);
+      expect(readdirSync(barrier)).toEqual([]);
       rmSync(CONFIG);
     }, 120000);
 
@@ -418,6 +416,19 @@ try {
       for (const unit of units)
         expect(fixtureGit(unit, 'log', '-1', '--format=%s')).toBe('resting commit');
     }, 120000);
+
+    test('the enrolled payload ignores an inherited verdict', async () => {
+      const result = await launch(
+        ['bash', 'bin/h2puni-gate-payload.sh', launchedSha],
+        barrierDirectory('forged'),
+        1,
+        { HEAVY_JOB_ENROLLMENT: 'unenrolled' },
+      );
+      // Proof: see bin/h2puni-gate-payload.sh; reading the variable made this exit 0, gating the
+      // launcher checkout with no admission (2026-11-02, review G1).
+      expect(result.exitCode).toBe(64);
+      expect(result.stderr).toContain('DASH_JOB_UNIT_GATE_TREE is not set');
+    }, 60000);
 
     test('the enrolled payload run without an admission refuses 64', async () => {
       const result = await launch(

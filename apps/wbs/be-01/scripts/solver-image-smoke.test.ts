@@ -220,14 +220,22 @@ describe('solver-image-smoke container bounds (dash-host-jobs J16)', () => {
       expect(call).not.toContain('--cpus');
       expect(call).not.toContain('puni.job');
     }
-    // The registry run's argv exactly as it was before slice 6a.
-    expect(
-      runs.some((call) =>
-        /^run --detach --rm --publish 127\.0\.0\.1::5000 --name wbs-solver-smoke-registry-\d+ registry:2$/.test(
-          call,
-        ),
-      ),
-    ).toBe(true);
+    // All four argv exactly as the script produced them before slice 6a (compared against the
+    // c01dae8d5 script under this harness, 2026-11-02, review G5).
+    const socket = '[^ ]+/socket:/run/wbs-solver:ro';
+    const image = '127\\.0\\.0\\.1:5000/wbs-be-01@sha256:[0-9a-f]{64}';
+    const client =
+      '/app/apps/wbs/be-01/scripts/solver-supervisor-image-client.ts /run/wbs-solver/supervisor.sock';
+    const expected = [
+      `^run --rm --interactive --entrypoint wbs-solver wbs-be-01:solver-smoke-${UUID}$`,
+      '^run --detach --rm --publish 127\\.0\\.0\\.1::5000 --name wbs-solver-smoke-registry-\\d+ registry:2$',
+      `^run --rm --name wbs-solver-smoke-caller-\\d+ --volume ${socket} --entrypoint bun ${image} ${client} /app/libs/wbs/domain/contracts/solver/fixtures/request/valid-quantised-baseline\\.json ${UUID}$`,
+      `^run --rm --name wbs-solver-smoke-caller-\\d+ --volume ${socket} --entrypoint bun ${image} ${client} shared-person ${UUID}$`,
+    ];
+    // Proof: applying the bound unconditionally failed the first line (2026-11-02, review F4).
+    runs.forEach((call, index) => {
+      expect(call).toMatch(new RegExp(expected[index] ?? '^$'));
+    });
   });
 });
 

@@ -1350,9 +1350,8 @@ their `HostJob`.
   blocked reason, in `docs/resources.md` and in the inventory.
 - **F9.** The known gap (a non-dumpable consumer released by birth or placement that opens the
   locator's files later) is written beside J19 and in `docs/resources.md`.
-- **F10.** `run_heavy_job` exports its verdict as `HEAVY_JOB_ENROLLMENT`; the gate payload trusts
-  it and judges afresh only without one. Test: `a configuration that appears while a gate is
-queued does not change its mechanism` (launchers.test.ts).
+- **F10.** Applied, then dropped by review G1 (below). The payload judges enrollment under the
+  lock again.
 - **F11.** `the shim's exact argv gets past the real Dash parser` runs the real
   `bin/heavy-lock-lib.sh` and `entrypoint.ts`, and expects the post-parse refusal `is not inside
 a Git checkout with a job catalogue`.
@@ -1361,9 +1360,12 @@ a Git checkout with a job catalogue`.
 
 - **S6-A13 Login-session shape.** Only the exact four-component path is a login session. A
   sub-cgroup beneath a session scope, or any `session-*.scope` under `user@<uid>.service`, is not.
-- **S6-A14 `HEAVY_JOB_ENROLLMENT`.** `run_heavy_job` sets it on every call, so an inherited value
-  never outlives the launcher that set it. A value other than `enrolled` or `unenrolled` is
-  refused 64 by `resolve_gate_tree`.
+- **S6-A14 Enrollment while a gate is queued (revised by review G1).** Enrolling a host while a gate
+  is queued is operator error. The enrollment procedure in 6.4 drains the queue first (J12's stop
+  intake and drain). A configuration that appears while a gate is queued makes the gate's payload
+  refuse 64; that refusal is tested and kept. F10's `HEAVY_JOB_ENROLLMENT` is dropped: nothing
+  exports it and nothing reads it. An inherited value is ignored both ways, by tests and by a
+  grep (heavy-lock case 48).
 - **S6-A15 `concurrencyEligible`.** The field is a list of type ids, default `[]`, validated
   against the admitting checkout's catalogue. An unlisted type is admitted in concurrent mode
   only into an otherwise empty pool. Slice 6b implements it.
@@ -1373,6 +1375,11 @@ a Git checkout with a job catalogue`.
 - **S6-A17 `runtime.test.ts` runs with `--cgroup`.** Every process in its namespace reads `0::/`,
   so the suite behaves the same in a login session (this workstation) and on a CI runner.
   Without it, its protected process sat in `session-3.scope` and was released over.
+  The login-session cases in `resource-holds.test.ts` and `host-job-holds.test.ts` run only where
+  the suite itself runs in a logind login session (this workstation, an ssh gate). **On CI they
+  skip** with that reason in the test name, because runners have no login session. What still
+  runs everywhere is a pure test of `isForeignLoginSession`'s shape. No fake `/proc` seam was
+  added: the real-process cases depend on real cgroup membership (review G3).
 - **S6-A18 `HEAVY_LOCK_TEST_SUITES=jobs`.** This test-only knob in `bin/heavy-lock.test.sh` runs
   cases 40 to 47 alone, for fault runs. CI and the default run everything.
 - **S6-A19 Remedies.** The enrolled exit-66 remedy is `chmod -R go+rX -- <unit>`. The
@@ -1423,3 +1430,35 @@ Each fault was applied by script, watched red, and restored with SHA-256 equal b
 | `openspec validate dash-host-jobs`                                                                                                       | 1 passed, 0 failed                           |
 | `check-indexes working . HEAD`                                                                                                           | exit 0                                       |
 | `bunx nx run twilight-dash:test --skip-nx-cache` at `1173437ce` (after the re-merge)                                                     | 4230 pass, 0 fail across 136 files, 29m 8s   |
+
+### Second review pass (Fable on `1173437ce`, DO NOT MERGE AS IS)
+
+- **G1 (S1).** F10's exported `HEAVY_JOB_ENROLLMENT` reached every descendant of the gate. That
+  included `launchers.test.ts`, which failed under it. It also let an inherited `unenrolled`
+  defeat J15's enrolled-payload refusal.
+  - Fix: the variable is removed from the launcher and the payload. The payload judges
+    enrollment under the lock (S6-A14, revised).
+  - Tests: `the enrolled payload ignores an inherited verdict` (payload given `unenrolled`
+    still refuses 64); the unenrolled launcher with `enrolled` set still takes the legacy path;
+    heavy-lock case 48 greps that no script reads or exports the variable.
+  - `HEAVY_JOB_ENROLLMENT=unenrolled bun test src/ops/launchers.test.ts` now passes (1 pass).
+- **G2 (S2).** A login session is exempt only when it is not the owning Dash process's own
+  (`ownCgroup`; null for host jobs). The design.md J19 amendment is rewritten.
+  - New: `pool init refuses beside a non-dumpable process of its own login session started
+after it`; `a setsid descendant in Dash's own login session still holds`.
+  - The foreign-session case is `pool init succeeds beside a non-dumpable process of another
+login session`, with the initializer run under `systemd-run --user --scope`.
+- **G3 (S3).** The CI skip is stated in S6-A17; `isForeignLoginSession` has a pure test that runs
+  everywhere.
+- **G4 (S3).** The PR body's solver-smoke bullet now says "only inside a Dash job".
+- **G5 (S3).** All four smoke `docker run` argv are pinned outside a Dash job. They were compared
+  against the `c01dae8d5` script under the same harness and are identical after normalising
+  ids.
+
+| Fault (each restored, SHA-256 equal)                      | Went red                                                                                                                 |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `export HEAVY_JOB_ENROLLMENT` put back in `run_heavy_job` | heavy-lock 48                                                                                                            |
+| payload reads an inherited `HEAVY_JOB_ENROLLMENT`         | launchers: `an unenrolled host runs the gate …` (forged `enrolled`); `the enrolled payload ignores an inherited verdict` |
+| owner comparison dropped from `isForeignLoginSession`     | predicate test; `pool init refuses … its own login session …`; `a setsid descendant … still holds`                       |
+| foreign-session exemption removed                         | `pool init succeeds beside … another login session`; host-job-holds login-session case                                   |
+| smoke bound applied unconditionally                       | `leaves its containers unbounded outside a Dash job` (pinned argv)                                                       |

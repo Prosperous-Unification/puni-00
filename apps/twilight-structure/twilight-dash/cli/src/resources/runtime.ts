@@ -879,6 +879,12 @@ interface HoldScope {
   /** Session ids (leader pids) of Dash-owned process groups. */
   sessions: ReadonlySet<string>;
   before: ProcessIdentity;
+  /**
+   * The cgroup v2 path of the Dash process that owns this inspection's work, when that work can
+   * share its login session (managed uses, pool init); null for a host job, whose payload never
+   * runs in a login session (J19 amendment, review G2).
+   */
+  ownCgroup: string | null;
   /** The object of `which may hold …` in a refusal. */
   held: string;
   remedy: string;
@@ -898,6 +904,7 @@ function jobScopeOf(job: HostJob): HoldScope {
     owns: (component) => component === unit,
     sessions: new Set(),
     before: job.process ?? job.launcher,
+    ownCgroup: null,
     held: "the job's files",
     remedy: `end it, or stop the job's scope with \`systemctl --user stop ${unit}\`, and settlement retries`,
     outside: [],
@@ -916,10 +923,23 @@ function initScopeOf(path: string): HoldScope {
     owns: (component) => DASH_JOB_SCOPE.test(component),
     sessions: new Set(),
     before: initializer,
+    ownCgroup: ownCgroupPath(),
     held: `unit ${path}`,
     remedy: 'end it, then initialize again',
     outside: [],
   };
+}
+
+/**
+ * This process's cgroup v2 path, from `/proc/self/cgroup`.
+ * @throws Error when it is unreadable or names no unified hierarchy, which keeps the entry charged.
+ */
+function ownCgroupPath(): string {
+  const unified = readFileSync('/proc/self/cgroup', 'utf8')
+    .split('\n')
+    .find((line) => line.startsWith('0::'));
+  if (unified === undefined) throw new Error('this Dash process has no cgroup v2 membership');
+  return unified.slice(3);
 }
 
 /** How many outside-scope processes an entry's reason names before it only counts them. */
@@ -966,8 +986,8 @@ function outsideScope(pid: string, scope: HoldScope): boolean {
   const unified = membership.split('\n').find((line) => line.startsWith('0::'));
   if (unified === undefined)
     throw new Error(`uninspectable PID ${pid} has no cgroup v2 membership`);
-  const components = unified.slice(3).split('/');
-  if (components.some(scope.owns)) return false;
+  const cgroup = unified.slice(3);
+  if (cgroup.split('/').some(scope.owns)) return false;
   const identity = identifyProcess(Number(pid));
   if (identity === null) throw new Error(`uninspectable PID ${pid} has no identity`);
   if (scope.sessions.size > 0) {
@@ -978,12 +998,17 @@ function outsideScope(pid: string, scope: HoldScope): boolean {
     // resource` (resource-holds.test.ts) saw the use released (2026-11-02, J19).
     if (scope.sessions.has(session)) return false;
   }
-  // A login session's own processes (`sshd-session`, `(sd-pam)` beside it) are outside Dash-owned
-  // work whenever they started (J19 amendment, review F1): a `puni1` ssh login that begins during
-  // a job would otherwise hold the gate tree until it logs out.
-  // Proof: without this, `a non-dumpable login-session process started after the leader does not
-  // hold` (resource-holds.test.ts) saw the resource `blocked` (2026-11-02, review F1).
-  if (inLoginSession(components)) return true;
+  // Another login session's processes (`sshd-session`, `(sd-pam)` beside it) are outside Dash-owned
+  // work whenever they started (J19 amendment, reviews F1 and G2): a `puni1` ssh login that
+  // begins during a job would otherwise hold the gate tree until it logs out. The owner's own
+  // login session is not foreign: a managed use's leader is a plain child of Dash, so a
+  // descendant that calls `setsid` and turns non-dumpable stays in Dash's session scope.
+  // Proof: without this, `pool init succeeds beside a non-dumpable process of another login
+  // session` (resource-holds.test.ts) refused and `a non-dumpable login-session process started
+  // after the job does not hold` (host-job-holds.test.ts) saw tmp `blocked`; with the owner's
+  // session exempted too, `a setsid descendant in Dash's own login session still holds`
+  // (resource-holds.test.ts) saw the resource `released` (2026-11-02, reviews F1, G2).
+  if (isForeignLoginSession(cgroup, scope.ownCgroup)) return true;
   // Proof: without the start comparison `a non-dumpable process that left for another scope
   // after the job still holds` (host-job-holds.test.ts) saw tmp `released` with the file open
   // (2026-11-02, Slice 3 review R1).
@@ -991,13 +1016,16 @@ function outsideScope(pid: string, scope: HoldScope): boolean {
 }
 
 /**
- * Whether cgroup v2 path `components` is a logind login session, `/user.slice/user-<uid>.slice/
- * session-<id>.scope`, created by PAM at login and writable by root alone. A Dash payload cannot
- * enter one: `systemd-run --user` puts its descendants under `user@<uid>.service`, which this
- * refuses, and the session scope itself is not delegated to the account.
+ * Whether cgroup v2 path `cgroup` is a logind login session, `/user.slice/user-<uid>.slice/
+ * session-<id>.scope`, other than `owner`'s own (null: every login session is foreign). PAM
+ * creates session scopes at login and only root may write them. A Dash payload cannot enter one:
+ * `systemd-run --user` puts its descendants under `user@<uid>.service`, which this refuses, and
+ * the session scope itself is not delegated to the account.
  */
-function inLoginSession(components: readonly string[]): boolean {
+export function isForeignLoginSession(cgroup: string, owner: string | null): boolean {
+  const components = cgroup.split('/');
   return (
+    cgroup !== owner &&
     components.length === 4 &&
     components[0] === '' &&
     components[1] === 'user.slice' &&
@@ -1944,6 +1972,7 @@ export class ResourceRuntime {
       owns: (component) => DASH_JOB_SCOPE.test(component),
       sessions,
       before: use.process ?? use.creator,
+      ownCgroup: ownCgroupPath(),
       held: `resource ${use.id}`,
       remedy: 'end it, and cleanup retries',
       outside: [],

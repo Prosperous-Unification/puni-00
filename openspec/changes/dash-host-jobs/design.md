@@ -276,9 +276,14 @@ the Dash process itself. Otherwise it blocks, naming the pid, comm and the remed
 settlement keeps its own scope and leader. Reason: those processes exist on every enrolled host,
 so without the rule worktree cleanup and `ops pool init` refuse everywhere.
 
-_Amendment (slice 6a review F1, 2026-11-02)._ A process whose cgroup is a logind login session,
-`/user.slice/user-<uid>.slice/session-<id>.scope`, is outside Dash-owned work whenever it started,
-in every position, host-job settlement included. Without this, a `puni1` ssh login that begins
+_Amendment (slice 6a reviews F1 and G2, 2026-11-02)._ A process whose cgroup is a logind login
+session, `/user.slice/user-<uid>.slice/session-<id>.scope`, **other than the owning Dash
+process's own**, is outside Dash-owned work whenever it started. For host-job settlement every
+login session is foreign, because a payload runs in its job's scope, never in a login session.
+For managed-resource cleanup and `ops pool init` the owner is the Dash process doing the work,
+read from `/proc/self/cgroup`. A managed use's leader is a plain detached child of Dash, so a
+descendant that calls `setsid` and turns non-dumpable (`ssh-agent`, `gpg-agent`) has a foreign
+session id but stays in Dash's own session scope, and it still blocks. Without the exemption, a `puni1` ssh login that begins
 during a job (its `sshd-session` is same-uid, non-dumpable, outside every Dash scope and started
 after the leader) holds the gate tree until it logs out, which on h2puni is the normal case. A
 payload cannot put a process there: PAM creates session scopes at login, they are root's and not
@@ -290,9 +295,11 @@ keeps its descendants charged.
 _Known gaps (review F9)._ The rule decides by birth and placement, not by what a process opens. A
 non-dumpable process that predates the leader, or one in a login session, and that opens files in
 the locator afterwards is released over. Examples are an `ssh-agent` or `gpg-agent` started from a
-login, or a non-dumpable payload descendant that calls `setsid` while still in that login's session
-scope. The gap is confined to non-dumpable consumers: every dumpable process's descriptors, cwd and
-maps are still read.
+login in another session. A use's leader may also have been launched by a different Dash process than the one that
+cleans it up (`resources run` from an ssh login, cleanup by `watch` under the user manager). Its
+setsid descendants then sit in a login session foreign to the cleaner, and are released over. The
+gap is confined to non-dumpable consumers: every dumpable process's descriptors, cwd and maps are
+still read.
 
 ## Risks / Trade-offs
 

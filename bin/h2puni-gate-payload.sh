@@ -22,12 +22,13 @@ if [[ $# -ne 1 ]]; then
   exit 64
 fi
 
-# The launcher's verdict, which `run_heavy_job` exports for its payload (review F10); judged
-# afresh only when this runs without one. `resolve_gate_tree` refuses any other value.
-enrollment=${HEAVY_JOB_ENROLLMENT:-}
-if [[ -z $enrollment ]]; then
-  enrollment=$(read_host_pool_enrollment)
-fi
+# Judged here, under the lock or the admission, and never taken from the environment: an
+# inherited verdict would let any caller name the host unenrolled and gate the launcher checkout
+# with no admission (slice 6a review G1). A host enrolled while a gate is queued therefore makes
+# this payload refuse 64; enrollment drains the queue first (J12).
+# Proof (observed 2026-11-02): reading an inherited `HEAVY_JOB_ENROLLMENT` here made `the
+# enrolled payload ignores an inherited verdict` (launchers.test.ts) exit 0 where 64 is expected.
+enrollment=$(read_host_pool_enrollment)
 tree=$(resolve_gate_tree "$checkout" "$enrollment")
 settle=keep
 if [[ $enrollment == enrolled ]]; then

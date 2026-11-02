@@ -1595,6 +1595,12 @@ run_launcher_refusals() {
   if grep -q 'SOLVER_PUBLISH_BUN is bun; it must be an absolute path' "$job_scratch/stderr"; then
     pass '47e: the refusal names the variable'
   else fail "47e: the refusal did not name the variable: $(cat "$job_scratch/stderr")"; fi
+
+  # 48. Enrollment is judged from the fixed paths only, never inherited (review G1): no launcher,
+  # payload or library expands a `HEAVY_JOB_ENROLLMENT` a caller could forge.
+  local readers
+  readers=$(grep -n -E '\$\{?HEAVY_JOB_ENROLLMENT|export HEAVY_JOB_ENROLLMENT' "$repo_root"/bin/*.sh | grep -v '\.test\.sh:')
+  expect_equal '' "$readers" '48: no launcher, payload or library reads HEAVY_JOB_ENROLLMENT'
 }
 
 if [[ $(uname -s) == Linux ]]; then

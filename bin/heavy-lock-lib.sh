@@ -1245,15 +1245,6 @@ run_heavy_job() {
   fi
   local enrollment
   enrollment=$(read_host_pool_enrollment) || return $?
-  # The verdict travels with the job (review F10): the payload may run long after this, under a
-  # lock it queued for, and a configuration that appeared meanwhile must not make the payload
-  # judge the host enrolled while it runs under the legacy lock, or the reverse. The argument
-  # profile constrains argv only, so the environment carries it.
-  # Proof (observed 2026-11-02): with this export removed, a gate queued on the legacy lock while
-  # the configuration appeared was refused by its payload, `this host is enrolled and
-  # DASH_JOB_UNIT_GATE_TREE is not set` — `a configuration that appears while a gate is queued
-  # does not change its mechanism` (launchers.test.ts).
-  export HEAVY_JOB_ENROLLMENT=$enrollment
   if [[ $enrollment == unenrolled ]]; then
     local legacy_status=0
     with_heavy_lock "$(resolve_heavy_lock_path)" -- "$@" || legacy_status=$?
