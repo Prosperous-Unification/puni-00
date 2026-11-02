@@ -1,0 +1,8 @@
+[Unit]
+Description=Twilight Dash host-job envelope audit (dash-host-jobs J9)
+Documentation=file://{{ puni_gate_launcher_checkout }}/apps/twilight-structure/twilight-dash/cli/docs/resources.md
+
+[Service]
+Type=oneshot
+WorkingDirectory={{ puni_gate_launcher_checkout }}
+ExecStart={{ puni_gate_bun_path }} {{ puni_gate_dash_entrypoint }} ops job audit --config {{ puni_gate_pool_config }}

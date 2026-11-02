@@ -3,7 +3,7 @@ import { chmodSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
-import { type DashDependencies, runDash } from '../cli';
+import { type DashDependencies, runDashArguments } from '../cli';
 import { openActivationController } from './controller';
 import { ObservationStoreError, type ObservationStoreFailure } from './observation-commands';
 import { readObservationStateConfig } from './observation-service';
@@ -49,7 +49,7 @@ async function refusalOf(argv: readonly string[]): Promise<{
 }> {
   const { deps, output } = capturingDependencies();
   try {
-    await runDash(argv, deps);
+    await runDashArguments(argv, deps);
   } catch (cause) {
     if (cause instanceof Error) return { refusal: cause, output };
     throw new Error('Dash did not return an Error', { cause });
@@ -92,7 +92,7 @@ function createVersionEight(configuration: ObservationServiceConfiguration): voi
 test('bootstrap-observation creates a v10 store once and refuses the second time', async () => {
   const configuration = service();
   const first = capturingDependencies();
-  await runDash(['bootstrap-observation', configuration.configurationPath], first.deps);
+  await runDashArguments(['bootstrap-observation', configuration.configurationPath], first.deps);
   expect(first.output).toEqual([
     `${JSON.stringify({ path: configuration.databasePath, status: 'bootstrapped', version: 10 })}\n`,
   ]);
@@ -108,7 +108,7 @@ test('migrate-observation steps a v8 store through v9 to v10', async () => {
   const configuration = service();
   createVersionEight(configuration);
   const migrated = capturingDependencies();
-  await runDash(['migrate-observation', configuration.configurationPath], migrated.deps);
+  await runDashArguments(['migrate-observation', configuration.configurationPath], migrated.deps);
   expect(migrated.output).toEqual([
     `${JSON.stringify({ path: configuration.databasePath, status: 'migrated', from: 8, to: 10 })}\n`,
   ]);
@@ -123,7 +123,7 @@ test('migrate-observation steps a v9 store to v10', async () => {
     ),
   ).toBe('initialized');
   const migrated = capturingDependencies();
-  await runDash(['migrate-observation', configuration.configurationPath], migrated.deps);
+  await runDashArguments(['migrate-observation', configuration.configurationPath], migrated.deps);
   expect(migrated.output).toEqual([
     `${JSON.stringify({ path: configuration.databasePath, status: 'migrated', from: 9, to: 10 })}\n`,
   ]);
@@ -132,7 +132,7 @@ test('migrate-observation steps a v9 store to v10', async () => {
 
 test('migrate-observation refuses a current store unchanged', async () => {
   const configuration = service();
-  await runDash(
+  await runDashArguments(
     ['bootstrap-observation', configuration.configurationPath],
     capturingDependencies().deps,
   );
@@ -228,7 +228,7 @@ test('refused store commands create nothing', async () => {
   expect(existsSync(absentDirectory.stateDirectory)).toBe(false);
 
   const established = service();
-  await runDash(
+  await runDashArguments(
     ['bootstrap-observation', established.configurationPath],
     capturingDependencies().deps,
   );

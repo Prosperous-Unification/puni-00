@@ -15,6 +15,8 @@ const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const AGENT_POOL_WIDENING = '20261028100100_widen_organization_audit_agent_pools';
 const AUDIT_WIDENING = '20261101100000_widen_organization_audit_directory_capacity';
 const DIRECTORY_CAPACITY = '20261101100100_add_resource_directory_capacity';
+/** The one folder stamped above this change's pair (`dash-host-jobs`); every rollback below it reverses it first. */
+const HOST_JOB_PROJECTION = '20261101120000_add_host_job_projection';
 /** What the widening adds; every other value of the two vocabularies was admitted before it. */
 const NEW_ACTION = 'directory_capacity_changed';
 const NEW_KIND = 'resource';
@@ -45,7 +47,7 @@ function baselineStore(): { root: string; dbPath: string } {
   roots.push(root);
   cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
   const dbPath = join(root, 'plan.db');
-  for (const name of [AUDIT_WIDENING, DIRECTORY_CAPACITY])
+  for (const name of [AUDIT_WIDENING, DIRECTORY_CAPACITY, HOST_JOB_PROJECTION])
     rmSync(join(root, 'drizzle', name), { recursive: true });
   runMigrations(dbPath, join(root, 'drizzle'));
   return { root, dbPath };
@@ -110,15 +112,19 @@ async function rollBack(root: string, dbPath: string, to: string) {
 // 20261025140000/140100 stamps failed it the same way, below main's
 // machine-token and agent-pool folders, until they were restamped 20261101.
 //
-// Deliberately the newest two, not merely after AGENT_POOL_WIDENING: until this
-// change merges, a migration landing on main first makes this fail at merge
-// time, and the fix is to restamp these two above it (verify.md, "Merge-time
-// restamp").
-it('is the newest pair of folders, after the agent pool widening, colliding with none', () => {
+// The pair was the newest two until it merged; since then only folders stamped
+// above it may follow, first HOST_JOB_PROJECTION (verify.md, "Merge-time restamp").
+// Proof: with HOST_JOB_PROJECTION's folder restamped 20261101090000, below the
+// pair, this failed on the slice; watched 2026-11-02 at the main merge.
+it('is the pair right after the agent pool widening, below every later folder, colliding with none', () => {
   const names = readdirSync(MIGRATIONS).sort();
   expect(duplicateMigrationStamps(names)).toEqual([]);
-  expect(names.indexOf(AUDIT_WIDENING)).toBe(names.indexOf(AGENT_POOL_WIDENING) + 1);
-  expect(names.slice(-2)).toEqual([AUDIT_WIDENING, DIRECTORY_CAPACITY]);
+  const at = names.indexOf(AGENT_POOL_WIDENING) + 1;
+  expect(names.slice(at, at + 3)).toEqual([
+    AUDIT_WIDENING,
+    DIRECTORY_CAPACITY,
+    HOST_JOB_PROJECTION,
+  ]);
 });
 
 /** The audit vocabulary widening (`wbs-shared-occupancy` task 1.0). */
@@ -206,7 +212,9 @@ describe(AUDIT_WIDENING, () => {
     const down = await rollBack(root, dbPath, AGENT_POOL_WIDENING);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${DIRECTORY_CAPACITY}, ${AUDIT_WIDENING}\n`);
+    expect(down.stdout).toContain(
+      `rolled back: ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}, ${AUDIT_WIDENING}\n`,
+    );
     expect(auditSchemaOf(dbPath)).toEqual(baseline);
   }, 60_000);
 
@@ -249,7 +257,7 @@ describe(DIRECTORY_CAPACITY, () => {
     const down = await rollBack(root, dbPath, AUDIT_WIDENING);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${DIRECTORY_CAPACITY}\n`);
+    expect(down.stdout).toContain(`rolled back: ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}\n`);
     expect(
       count(
         dbPath,
