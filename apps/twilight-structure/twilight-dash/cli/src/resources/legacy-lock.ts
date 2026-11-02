@@ -180,8 +180,9 @@ export async function holdLegacyLock(
   }
   const exited = exitOf(child);
   const pid = child.pid;
-  // Proof: without it `a holder that cannot start is refused 70` (legacy-lock.test.ts) wrote a
-  // hold file naming `undefined` and waited for a `held` that never came (2026-11-02, H7).
+  // A holder that never started has no pid to name or signal. Not a check of its own: without
+  // this exit the general path below answers the same 70 once `exited` rejects (review H7, G19
+  // in verify.md); `a holder that cannot start is refused 70` (legacy-lock.test.ts) pins it.
   if (pid === undefined) {
     release();
     await exited.catch(() => undefined);
