@@ -6539,3 +6539,18 @@ corrections are proceeding in a new private capsule. No native-ready or
 canonical completion claim follows. Actual creator/ledger, descriptor and
 Landlock/KVM binding, conversion/seed execution, effective Linux ISO namespace
 closure and real guest/runtime acceptance remain incomplete.
+
+### Native raw preparation refusal and seed preparation — 2026-11-02
+
+Task104 passed preparation-only scoped review at manifest
+`8a81dc4a28d13784ca7add7dc5cbcfeb657a872dbf84842048b6fce24d491033`: 22 new tests and 15 targeted fault witnesses covered postallocation accounting, safe receipt refusal and fresh terminal observations. The native guest entrypoint remains unavailable; no guest success follows.
+
+Task105 review found a retained-FIFO preflight refusal and missing direct confinement/handoff proofs. Task106 corrected these with 17 new checks and 11 targeted witnesses; scoped review accepted its preparation. Task107 then tightened the actual raw service memory cap to 1 GiB and derived its initial memory requirement as 16 GiB live reserve plus that cap and three 128 MiB clients: 18,656,264,192 bytes. Ten new tests and five faults covered the matching service/coordinator/preflight boundaries. Guest and full-stack envelopes were unchanged. Reviewed manifest: `3532808c6e9c8ef07f0c39a736a7e15c2297fe6f7967a86ba7686e0afc2a87ee`.
+
+At 19:50:25 UTC, a native precheck observed 18,540,462,080 bytes available and refused before executing the entrypoint. At 20:00:37 UTC, a later fresh precheck passed with 18,918,809,600 bytes available and 128,941,494,272 bytes backing free. The exact reviewed entrypoint then exited 1 at `verify_inputs` / `input-identity`, before creating an attempt, service or raw disk. This was a safe refusal, not a successful conversion. No native workload was left to clean up.
+
+A separate bounded read-only native diagnosis established the cause: of 86 pinned inputs, 66 host system files had sandbox UID 65534 but native UID 0; their resolved paths, sizes, modes, devices/inodes and link counts matched. The exact metadata receipt SHA is `a673970f56d9cd2685fc0c1e347ae4ef82187139bbb53c69e5942a5726ac36a4`. New preparation must bind only these observed native identities and retain strict runtime identity and digest checks. Blanket UID normalization is not an accepted repair.
+
+The independent seed ISO stage uses the previously signed genisoimage package. Read-only extraction selected `isoinfo` (367,200 bytes, SHA `1d84af39c3fe7fd0d7a2da51842de14fb1f77ef3c5dc9f3b0a1ac6d33778b612`) and its manual; empty-write loader/version/help diagnostics succeeded. One missing native library binding was recorded separately: libmagic SHA `2f4745657a648f09add1aee122891f9be1c24bae93d29e734da9386544fedb71`, metadata receipt SHA `e631d892590915ac1371a758b9795335067dd122f4c33384f135cf660d79557b`. No ISO was generated or mounted by these diagnostics.
+
+Task108 seed-port preparation and Task109 exact native pin rebinding are in progress. Both require scoped review and fresh capacity before one native component. Original physical floors, retained history, shared BuildKit and the working dev service are preserved. Canonical completion remains 4/11; Task97 and all actual guest/full-stack/live cutover obligations remain open.
