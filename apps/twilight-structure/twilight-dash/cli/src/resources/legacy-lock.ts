@@ -126,6 +126,8 @@ export type LegacyHoldOutcome =
 const POLL_MS = 50;
 /** How long past its wait budget a holder may take to claim or end before Dash ends it. */
 const CLAIM_GRACE_MS = 15_000;
+/** Polls the log gets, once the holder holds, to show the claim's own line (diagnostics only). */
+const LOG_SETTLE_POLLS = 20;
 
 function exitOf(child: ChildProcess): Promise<number> {
   return new Promise((resolveExit, rejectExit) => {
@@ -228,6 +230,9 @@ export async function holdLegacyLock(
   }
   let offset = 0;
   let pending = '';
+  let logSaysHeld = false;
+  // A function, not the variable: `drain` sets it, which narrowing cannot see.
+  const sawHeldLine = (): boolean => logSaysHeld;
   /** Forward the log's new complete lines; the log is diagnostics only, so it never fails this. */
   const drain = (): void => {
     let text: string;
@@ -241,7 +246,10 @@ export async function holdLegacyLock(
     offset = text.length;
     const lines = pending.split('\n');
     pending = lines.pop() ?? '';
-    for (const line of lines) if (line !== 'held') request.report(line);
+    for (const line of lines) {
+      if (line === 'held') logSaysHeld = true;
+      else request.report(line);
+    }
   };
   /**
    * Whether the holder holds: the shell lock's own holder record names its pid. The library
@@ -274,6 +282,12 @@ export async function holdLegacyLock(
     // Proof: deciding by the log's `held` line made `a holder whose log cannot be written still
     // holds, by the lock record itself` (legacy-lock.test.ts) wait past its bound (2026-11-02, K2).
     if (holds()) {
+      // The lock decided; the log only follows it. Give the claim's own `waited …` line, which
+      // the library prints just after recording the holder, a moment to reach the report.
+      for (let wait = 0; !sawHeldLine() && wait < LOG_SETTLE_POLLS; wait++) {
+        await Bun.sleep(POLL_MS);
+        drain();
+      }
       child.unref();
       return { kind: 'held', hold: { pid, release, exited } };
     }
