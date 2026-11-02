@@ -15,5 +15,6 @@
 
 ## Task 4: Verification and review
 
+- [x] 4.0 Restore the existing independent target-candidate contract exposed by the canonical gate. Add real-Git regressions for a borrowed source with a non-HEAD requested target and for required object-copy failure; retain the target before copying borrowed objects and removing alternates. Observe branch/copy fault failures, restore checks, run poller/shell/lint/typecheck validation and obtain scoped review. This restores the precise contract in `docs/runbook-dev-deploy.md`; it introduces no new deployment behavior.
 - [ ] 4.1 Run affected backend, frontend and contract test/lint/typecheck/build targets, `bunx nx format:check --all`, and locked OpenSpec validation. Run the required canonical host gate on an isolated h2 or h4 gate tree for the committed SHA, preserving the printed running SHA and any queued-lock outcome. Record commands, results and every observed failure proof in verify.md after implementation; list every skipped or unavailable check.
 - [ ] 4.2 Request read-only review of the final diff, resolve material findings, and merge the approved fix after required checks. Verify dev bootCommit and public stale-cookie recovery after merge.
