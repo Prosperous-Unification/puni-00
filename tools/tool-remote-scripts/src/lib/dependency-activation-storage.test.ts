@@ -2116,3 +2116,237 @@ test('UC2 pre-helper diagnostic projection is bounded', async () => {
   expect(observed.hostileTouches).toBe(0);
   expect(observed.reportCalls).toEqual([]);
 });
+
+interface ActualPrehelperBuild {
+  cause: unknown;
+  root: string;
+  marker: string;
+  entry: string;
+  priorBytes: Buffer;
+  invalidBytes: Buffer;
+  buildPromise: unknown;
+  buildObserver: unknown;
+  operations: {
+    label: string;
+    original: unknown;
+    receiver: unknown;
+    args: readonly unknown[];
+    returned: unknown;
+    promise: unknown;
+    observer: unknown;
+    state: string;
+    cause: unknown;
+    joined: boolean;
+    observerSettled: boolean;
+  }[];
+  clocks: { state: string; tick: unknown }[];
+  stopped: boolean;
+  terminal: boolean;
+  spawnEntered: boolean;
+  childCount: number;
+  timer: unknown;
+  keeper: unknown;
+  parentTimer: unknown;
+  parentKeeper: unknown;
+  report:
+    | {
+        setupCause: unknown;
+        writer: unknown;
+        descriptor: number;
+        buffer: Buffer;
+        offset: number;
+        length: number;
+        position: null;
+        state: string;
+        returned: unknown;
+      }
+    | undefined;
+  mkdtempAPI: unknown;
+  writeAPI: unknown;
+  buildAPI: unknown;
+  reportAPI: unknown;
+  descriptor: number;
+  buildConfig: unknown;
+}
+let actualPrehelperBuild: Promise<ActualPrehelperBuild> | undefined;
+
+/** Retains one actual private-boundary preparation, including rejection or HOLD; never retries. */
+function prepareActualPrehelperBuild(): Promise<ActualPrehelperBuild> {
+  actualPrehelperBuild ??= observeActualPrehelperBuild();
+  return actualPrehelperBuild;
+}
+
+/** Extracts current private custody cuts; acquires no subject constructor, plugin or child. */
+async function observeActualPrehelperBuild(): Promise<ActualPrehelperBuild> {
+  const source = await readFile(
+    new URL('../fixtures/dependency-owner-custody.ts', import.meta.url),
+    'utf8',
+  );
+  function between(start: string, end: string): string {
+    if (source.split(start).length !== 2 || source.split(end).length !== 2)
+      throw new Error('UC2 actual build source boundary differs');
+    const begin = source.indexOf(start);
+    const finish = source.indexOf(end, begin + start.length);
+    if (finish <= begin) throw new Error('UC2 actual build source order differs');
+    return source.slice(begin, finish);
+  }
+  const catchStart =
+    '  } catch (cause) {\n    if (parent.stopped || parent.originals.some((original) => !original.known))';
+  if (source.split(catchStart).length !== 2)
+    throw new Error('UC2 actual build catch boundary differs');
+  const catchFinally = source.slice(source.indexOf(catchStart)).trimEnd();
+  if (!catchFinally.endsWith('\n}')) throw new Error('UC2 actual build tail differs');
+  const image = [
+    `import {readFileSync,writeSync} from 'node:fs';
+import {mkdtemp,writeFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+interface CustodyObservation {pass:boolean;oracle:string;}`,
+    between('interface ParentPipe {', '\nfunction stop(cause: unknown)'),
+    between('function stop(cause: unknown)', 'function replaceOnce('),
+    between('const prehelperWriteSync = writeSync;', 'const PARENT_CAPS:'),
+    between('const PARENT_CAPS:', 'function joinPrehelperRefusal()'),
+    between('function joinPrehelperRefusal()', 'async function joinOuterOperations()'),
+    `export async function observe(){
+let root,marker,entry,buildPromise,buildObserver,buildConfig,cause,retainedTimer,retainedKeeper;
+const priorBytes=Buffer.from('UC2 prior write retained\\n');
+const invalidBytes=Buffer.from('export const broken = ;\\n');
+async function execute(){`,
+    between(
+      '  const allocation = readAllocation();',
+      '  try {\n    for (const row of dependencyOwnerCustodyCases.filter',
+    ),
+    `retainedTimer=timer;retainedKeeper=keeper;
+try {
+root=await outerOperation('outer.fs.mkdtemp',mkdtemp,undefined,[join(tmpdir(),'uc2-invalid-build-')]);
+if(typeof root!=='string')throw new Error('UC2 actual build directory return differs');
+marker=join(root,'prior-write.txt');entry=join(root,'invalid-entry.ts');
+await outerOperation('outer.fs.writeFile',writeFile,undefined,[marker,priorBytes]);
+await outerOperation('outer.fs.writeFile',writeFile,undefined,[entry,invalidBytes]);
+buildConfig={entrypoints:[entry],target:'bun'};
+buildPromise=outerOperation('outer.Bun.build',Bun.build,Bun,[buildConfig]);
+const record=parent.operations.at(-1);
+if(record===undefined||record.promise!==buildPromise)throw new Error('UC2 actual build original absent');
+buildObserver=record.observer;
+await buildPromise;
+return await stop(new Error('UC2 actual invalid build did not reject'));`,
+    catchFinally,
+    `try{await execute();}catch(failure){cause=failure;}
+return {cause,root,marker,entry,priorBytes,invalidBytes,buildPromise,buildObserver,
+operations:parent.operations,clocks:parent.clockOperations,stopped:parent.stopped,
+terminal:parent.prehelperRefusalTerminal,spawnEntered:parent.spawnEntered,
+childCount:parent.originals.length,timer:retainedTimer,keeper:retainedKeeper,
+parentTimer:parent.timer,parentKeeper:parent.keeper,report:parent.report,
+mkdtempAPI:mkdtemp,writeAPI:writeFile,buildAPI:Bun.build,reportAPI:writeSync,
+descriptor:process.stderr.fd,buildConfig};
+}`,
+  ].join('\n');
+  const emitted = new Bun.Transpiler({ loader: 'ts', target: 'bun' }).transformSync(image);
+  const namespace: unknown = await import(
+    'data:text/javascript;base64,' + Buffer.from(emitted).toString('base64')
+  );
+  if (
+    typeof namespace !== 'object' ||
+    namespace === null ||
+    !('observe' in namespace) ||
+    typeof namespace.observe !== 'function'
+  )
+    throw new Error('UC2 actual build extracted consumer absent');
+  // Test-only module boundary contains solely checked private cuts and real lexical APIs.
+  const provider = namespace as { observe(): Promise<ActualPrehelperBuild> };
+  return await provider.observe();
+}
+
+const actualPrehelperExpectedDiagnostic = Buffer.from(
+  'UC2_PREFLIGHT_FAILURE:{"schema":"uc2-prehelper-failure","version":1,"sourceEpoch":"uc2-prehelper-report-v1","phase":"pre-helper","disposition":"terminal-setup-refusal","spawnEntered":false,"children":0,"operationCount":4,"operationsTruncated":false,"operations":[{"index":0,"label":"outer.fs.mkdtemp","state":"fulfilled","original":true,"promise":true,"observer":true,"joined":true,"observerSettled":true},{"index":1,"label":"outer.fs.writeFile","state":"fulfilled","original":true,"promise":true,"observer":true,"joined":true,"observerSettled":true},{"index":2,"label":"outer.fs.writeFile","state":"fulfilled","original":true,"promise":true,"observer":true,"joined":true,"observerSettled":true},{"index":3,"label":"outer.Bun.build","state":"rejected","original":true,"promise":true,"observer":true,"joined":true,"observerSettled":true}],"failureCount":1,"failuresTruncated":false,"failures":[{"role":"setup","category":"object"}],"clockCount":5,"clocksTruncated":false,"clocks":[{"state":"returned","validated":true},{"state":"returned","validated":true},{"state":"returned","validated":true},{"state":"returned","validated":true},{"state":"returned","validated":true}]}\n',
+  'utf8',
+);
+
+test('UC2 actual invalid build retires pre-helper parent after original rejection and complete diagnostic', async () => {
+  const preparation = prepareActualPrehelperBuild();
+  const observed = await preparation;
+  expect(prepareActualPrehelperBuild()).toBe(preparation);
+  expect(observed.operations.map((operation) => operation.label)).toEqual([
+    'outer.fs.mkdtemp',
+    'outer.fs.writeFile',
+    'outer.fs.writeFile',
+    'outer.Bun.build',
+  ]);
+  expect(observed.operations.map((operation) => operation.state)).toEqual([
+    'fulfilled',
+    'fulfilled',
+    'fulfilled',
+    'rejected',
+  ]);
+  const directory = observed.operations.at(0);
+  const prior = observed.operations.at(1);
+  const invalid = observed.operations.at(2);
+  const build = observed.operations.at(3);
+  if (
+    directory === undefined ||
+    prior === undefined ||
+    invalid === undefined ||
+    build === undefined
+  )
+    throw new Error('UC2 actual build required originals absent');
+  expect(directory.original).toBe(observed.mkdtempAPI);
+  expect(directory.receiver).toBeUndefined();
+  expect(directory.args).toHaveLength(1);
+  expect(prior.original).toBe(observed.writeAPI);
+  expect(prior.receiver).toBeUndefined();
+  expect(prior.args).toEqual([observed.marker, observed.priorBytes]);
+  expect(prior.args[1]).toBe(observed.priorBytes);
+  expect(invalid.original).toBe(observed.writeAPI);
+  expect(invalid.receiver).toBeUndefined();
+  expect(invalid.args).toEqual([observed.entry, observed.invalidBytes]);
+  expect(invalid.args[1]).toBe(observed.invalidBytes);
+  expect(build.original).toBe(observed.buildAPI);
+  expect(build.receiver).toBe(Bun);
+  expect(build.args).toEqual([observed.buildConfig]);
+  expect(build.args[0]).toBe(observed.buildConfig);
+  expect(build.promise).toBe(observed.buildPromise);
+  expect(build.observer).toBe(observed.buildObserver);
+  expect(observed.cause).toBe(build.cause);
+  expect(await Promise.allSettled([observed.buildPromise])).toEqual([
+    { status: 'rejected', reason: observed.cause },
+  ]);
+  for (const operation of observed.operations) {
+    expect(operation.promise).toBeInstanceOf(Promise);
+    expect(operation.returned).toBe(operation.promise);
+    expect(operation.observer).toBeInstanceOf(Promise);
+    expect(operation.observerSettled).toBe(true);
+    expect(operation.joined).toBe(true);
+    expect(await Promise.allSettled([operation.observer])).toEqual([
+      { status: 'fulfilled', value: undefined },
+    ]);
+  }
+  expect(observed.stopped).toBe(true);
+  expect(observed.terminal).toBe(true);
+  expect(observed.spawnEntered).toBe(false);
+  expect(observed.childCount).toBe(0);
+  expect(observed.clocks).toHaveLength(5);
+  expect(observed.cause).not.toBeNull();
+  expect(typeof observed.cause).toBe('object');
+  for (const clock of observed.clocks) {
+    expect(clock.state).toBe('returned');
+    expect(typeof clock.tick).toBe('bigint');
+  }
+  expect(observed.timer).toBeDefined();
+  expect(observed.keeper).toBeDefined();
+  expect(observed.parentTimer).toBe(observed.timer);
+  expect(observed.parentKeeper).toBe(observed.keeper);
+  const report = observed.report;
+  if (report === undefined) throw new Error('UC2 actual build diagnostic record absent');
+  expect(report.setupCause).toBe(observed.cause);
+  expect(report.writer).toBe(observed.reportAPI);
+  expect(report.descriptor).toBe(observed.descriptor);
+  expect(report.descriptor).toBe(2);
+  expect(report.state).toBe('returned');
+  expect(report.offset).toBe(0);
+  expect(report.length).toBe(report.buffer.byteLength);
+  expect(report.position).toBeNull();
+  expect(report.returned).toBe(report.buffer.byteLength);
+  expect(report.buffer.toString('utf8').startsWith('UC2_PREFLIGHT_FAILURE:')).toBe(true);
+  expect(report.buffer.at(-1)).toBe(10);
+  expect(report.buffer.equals(actualPrehelperExpectedDiagnostic)).toBe(true);
+}, 10000);
