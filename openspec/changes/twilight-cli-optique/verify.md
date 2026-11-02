@@ -241,7 +241,34 @@ unchanged.
 
 ### Commands and results
 
-RESULTS
+At 5ac847694 unless noted (laptop, non-root):
+
+| Command                                                                                                          | Result                                                                                                                                                        |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run twilight-burokrat:test --skip-nx-cache`                                                             | `2585 pass`, `0 fail`, `Ran 2585 tests across 104 files. [4530.08s]`, `Successfully ran target test`                                                          |
+| the same, first run at ab1d62cab                                                                                 | `2582 pass`, `3 fail`: two packaged `--help` pins and the coverage-runtime toolkit-boundary pin, fixed by B-A17 and the coverage-runtime row above            |
+| `bun test src/evidence/browser-levels.test.ts`                                                                   | `15 pass`, `0 fail`; rerun alone after an aborted second full run, started by mistake beside the first, timed out `[TEST-AXES-121]` at 60 s under double load |
+| `bunx nx run twilight-burokrat:typecheck --skip-nx-cache`                                                        | `Successfully ran target typecheck`                                                                                                                           |
+| `bunx nx run twilight-burokrat:lint:source --skip-nx-cache`                                                      | `Successfully ran target lint:source`                                                                                                                         |
+| `bunx nx run twilight-burokrat:build --skip-nx-cache`                                                            | `Successfully ran target build`                                                                                                                               |
+| `bunx nx run twilight-burokrat:pack --skip-nx-cache`                                                             | `Successfully ran target pack`; sizes in the table above                                                                                                      |
+| `bunx prettier --check` on every file changed since cd95ce82d                                                    | `All matched files use Prettier code style!`                                                                                                                  |
+| `bunx openspec validate twilight-cli-optique --json`                                                             | `"valid": true`, 1 passed, 0 failed                                                                                                                           |
+| `bun …/cli/src/cli.ts check-indexes working . HEAD`                                                              | exit 0 (39 indexes, 2 review debt)                                                                                                                            |
+| `bun …/cli/dist/toolkit/validator.mjs check-indexes working . HEAD` and `bun …/cli/dist/bin.mjs check-indexes …` | exit 0; the validator's stdout byte-identical to the source run's                                                                                             |
+
+`tool-devsync:test` was not run: no root file changed (`docs/platform-map.md` is the only file
+outside the Burokrat project and this change).
+
+Observed by hand from the installed entry (`bun …/cli/dist/bin.mjs`):
+
+```text
+$ twib --version                      → 0.1.0, exit 0
+$ twib not-a-command                  → error: Unsupported Burokrat command: not-a-command, exit 1
+$ twib inspect-level-facts            → error: usage: twilight-burokrat inspect-level-facts REPOSITORY COMMITTED-SHA AUTHORITY (Expected a `REPOSITORY`, but too few arguments.), exit 1
+$ twib candidate-identity committed . HEAD → error: Unsupported Burokrat command: candidate-identity, exit 1
+$ twib completion zsh                 → #compdef twilight-burokrat …, exit 0
+```
 
 ### Fault table
 
