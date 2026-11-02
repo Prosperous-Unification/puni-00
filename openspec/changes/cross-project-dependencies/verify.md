@@ -4,6 +4,9 @@
 
 **Status:** Implementation in progress; only recorded completed slices are verified.
 
+Latest focused backend correction: [held trace publication](verify-ci-held-trace-publication.md).
+The atomic-publication proof passed; the subsequent existing caller pair has an unresolved deadline failure.
+
 Latest isolated source reconciliation: [main reconciliation, 2026-10-25](verify-main-20261025.md).
 Its local checkpoint does not establish feature release or architectural adoption.
 

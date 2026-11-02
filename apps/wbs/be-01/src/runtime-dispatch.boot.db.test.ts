@@ -1,13 +1,17 @@
 import { strict as assert } from 'node:assert';
 import {
+  appendFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
+  readSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
+  writeSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -137,11 +141,12 @@ async function runIntegration(
     if (variant === 'dependency-enabled') seedDependencyAuthority(dbPath);
     const trace = (stage: HeldTrace['stage']) => {
       if (tracePath === undefined) throw new Error('held integration trace path missing');
-      writeFileSync(
-        tracePath,
-        JSON.stringify({ stage, dbPath, dbPresent: existsSync(dbPath), port: running?.port }),
-        { mode: 0o600 },
-      );
+      publishHeldTrace(tracePath, {
+        stage,
+        dbPath,
+        dbPresent: existsSync(dbPath),
+        port: running?.port,
+      });
     };
     if (variant === 'held-readiness' || variant === 'held-disposal')
       process.on('SIGTERM', () => {
@@ -460,17 +465,67 @@ interface HeldTrace {
   port?: number;
 }
 
+function writePrivateTrace(path: string, json: string): void {
+  writeFileSync(path, json, { mode: 0o600 });
+}
+
+function publishHeldTrace(
+  path: string,
+  trace: HeldTrace,
+  writeTrace: (path: string, json: string) => void = writePrivateTrace,
+): void {
+  // Proof: the real split-write child exposed an incomplete published marker before
+  // this private-write/rename boundary; the same publication test then passed, while
+  // malformed published JSON still threw SyntaxError.
+  const privatePath = path + '.pending-' + String(process.pid);
+  writeTrace(privatePath, JSON.stringify(trace));
+  renameSync(privatePath, path);
+}
+
+function runTracePublication(tracePath: string): void {
+  const release = (expected: string) => {
+    const byte = new Uint8Array(1);
+    assert.equal(readSync(0, byte, 0, 1, null), 1, 'trace publication release byte missing');
+    assert.equal(byte[0], expected.charCodeAt(0), 'trace publication release byte differs');
+  };
+  let publication = 0;
+  const splitWrite = (path: string, json: string) => {
+    publication += 1;
+    assert(publication === 1 || publication === 2, 'unexpected trace publication');
+    const prefix = '{"stage":';
+    assert(json.startsWith(prefix), 'trace publication serialization differs');
+    writeFileSync(path, prefix, { mode: 0o600 });
+    writeSync(1, 'trace-prefix:' + String(publication) + '\n');
+    release(publication === 1 ? '1' : '3');
+    appendFileSync(path, json.slice(prefix.length));
+  };
+  const first: HeldTrace = {
+    stage: 'readiness-held',
+    dbPath: join(dirname(tracePath), 'owned.sqlite'),
+    dbPresent: false,
+    port: 43123,
+  };
+  publishHeldTrace(tracePath, first, splitWrite);
+  writeSync(1, 'trace-complete:1\n');
+  release('2');
+  publishHeldTrace(tracePath, { ...first, stage: 'signal' }, splitWrite);
+  writeSync(1, 'trace-complete:2\n');
+  release('4');
+  assert.equal(publication, 2, 'trace publication count differs');
+}
+
 async function runHeldReceiver(role: HeldRole, tracePath: string): Promise<void> {
   const harness = OrganizationHarness.openComposed();
   const dbPath = await harness.stopForRecovery();
   const pending = Promise.withResolvers<never>();
   let receiver: RunningBe | undefined;
   const trace = (stage: HeldTrace['stage']) => {
-    writeFileSync(
-      tracePath,
-      JSON.stringify({ stage, dbPath, dbPresent: existsSync(dbPath), port: receiver?.port }),
-      { mode: 0o600 },
-    );
+    publishHeldTrace(tracePath, {
+      stage,
+      dbPath,
+      dbPresent: existsSync(dbPath),
+      port: receiver?.port,
+    });
   };
   process.on('SIGTERM', () => {
     // Proof: C3 falsely exits on SIGTERM; forced disposal rejects a graceful result.
@@ -547,7 +602,8 @@ type ContainedRole =
   | 'disposal'
   | 'disposal-start-delayed'
   | 'forced-disposal'
-  | 'dual-failure';
+  | 'dual-failure'
+  | 'trace-publication';
 interface ContainedConfig {
   role: ContainedRole;
   tracePath: string;
@@ -573,7 +629,8 @@ function readContainedConfig(path: string): ContainedConfig {
         configured.role === 'disposal' ||
         configured.role === 'disposal-start-delayed' ||
         configured.role === 'forced-disposal' ||
-        configured.role === 'dual-failure') &&
+        configured.role === 'dual-failure' ||
+        configured.role === 'trace-publication') &&
       'tracePath' in configured &&
       typeof configured.tracePath === 'string',
     'invalid private child role',
@@ -650,7 +707,9 @@ function signalOwnedGroup(pid: number, signal: NodeJS.Signals): void {
   }
 }
 
-async function joinOwnedGroup(child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>): Promise<void> {
+async function joinOwnedGroup(
+  child: Pick<Bun.Subprocess<'ignore', 'pipe', 'pipe'>, 'pid' | 'exitCode' | 'exited'>,
+): Promise<void> {
   const pid = child.pid;
   assert(Number.isSafeInteger(pid) && pid > 0, 'invalid owned process group');
   if (child.exitCode === null) {
@@ -898,8 +957,433 @@ async function runContainedReceiver(
   };
 }
 
+async function runTracePublicationProof(): Promise<void> {
+  const entered = performance.now();
+  const workDeadline = entered + 8000;
+  const requireTime = (deadline: number, phase: string) => {
+    const remaining = deadline - performance.now();
+    assert(remaining > 0, 'trace publication absolute deadline expired: ' + phase);
+    return remaining;
+  };
+  type Settlement<T> =
+    { kind: 'pending' } | { kind: 'fulfilled'; value: T } | { kind: 'rejected'; cause: unknown };
+  const observe = <T>(original: Promise<T>) => {
+    const record: { original: Promise<T>; outcome: Settlement<T>; settled: Promise<void> } = {
+      original,
+      outcome: { kind: 'pending' },
+      settled: Promise.resolve(),
+    };
+    record.settled = original.then(
+      (value) => {
+        record.outcome = { kind: 'fulfilled', value };
+      },
+      (cause: unknown) => {
+        record.outcome = { kind: 'rejected', cause };
+      },
+    );
+    return record;
+  };
+  const fixtureRoot = mkdtempSync(join(tmpdir(), 'runtime-trace-publication-'));
+  const root = join(fixtureRoot, 'runtime');
+  const markerDirectory = join(fixtureRoot, 'markers');
+  const tracePath = join(markerDirectory, 'trace.json');
+  const configPath = join(root, 'role.json');
+  let child: Bun.Subprocess<'pipe', 'pipe', 'pipe'>;
+  try {
+    mkdirSync(root, { mode: 0o700 });
+    mkdirSync(markerDirectory, { mode: 0o700 });
+    writeFileSync(configPath, JSON.stringify({ role: 'trace-publication', tracePath }), {
+      mode: 0o600,
+    });
+    requireTime(workDeadline, 'child spawn');
+    child = Bun.spawn(
+      [
+        process.execPath,
+        'test',
+        import.meta.path,
+        '-t',
+        '^contained trace-publication$',
+        '--timeout=12000',
+      ],
+      {
+        cwd: resolve(import.meta.dir, '../../../..'),
+        env: { ...process.env, TMPDIR: root, PUNI_RUNTIME_DISPATCH_CHILD_CONFIG: configPath },
+        detached: true,
+        stdin: 'pipe',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    );
+  } catch (acquisition) {
+    try {
+      rmSync(fixtureRoot, { recursive: true });
+    } catch (cleanup) {
+      throw new AggregateError(
+        [acquisition, cleanup],
+        'trace publication spawn and cleanup failed',
+        { cause: cleanup },
+      );
+    }
+    throw acquisition;
+  }
+  const input = child.stdin;
+  const stdout = child.stdout;
+  const stderr = child.stderr;
+  const exit = observe(child.exited);
+  const pipeOperations: {
+    phase: string;
+    returned?: number | Promise<number>;
+    observation: ReturnType<typeof observe<number>>;
+  }[] = [];
+  const startPipe = (phase: string, start: () => number | Promise<number>, deadline: number) => {
+    requireTime(deadline, phase);
+    assert(pipeOperations.length < 9, 'trace publication pipe operation count exceeded');
+    let returned: number | Promise<number>;
+    try {
+      returned = start();
+    } catch (cause) {
+      const operation = {
+        phase,
+        observation: observe(
+          Promise.reject<number>(new Error('trace publication pipe operation threw', { cause })),
+        ),
+      };
+      pipeOperations.push(operation);
+      return operation;
+    }
+    const operation = { phase, returned, observation: observe(Promise.resolve(returned)) };
+    pipeOperations.push(operation);
+    return operation;
+  };
+  const receipts = ['trace-prefix:1', 'trace-complete:1', 'trace-prefix:2', 'trace-complete:2'];
+  const protocol: { received: number; banner: boolean; failure?: Error } = {
+    received: 0,
+    banner: false,
+  };
+  let changed = Promise.withResolvers<undefined>();
+  const wake = () => {
+    const pending = changed;
+    changed = Promise.withResolvers<undefined>();
+    pending.resolve(undefined);
+  };
+  interface StreamOwner {
+    name: 'stdout' | 'stderr';
+    original: ReadableStream<Uint8Array<ArrayBuffer>>;
+    chunks: Uint8Array[];
+    reader?: ReadableStreamDefaultReader<Uint8Array<ArrayBuffer>>;
+    closed?: ReturnType<typeof observe<void>>;
+    pump?: ReturnType<typeof observe<void>>;
+    cancellation?: ReturnType<typeof observe<void>>;
+    cancelRequested: boolean;
+    eof: boolean;
+  }
+  const streams: StreamOwner[] = [
+    { name: 'stdout', original: stdout, chunks: [], cancelRequested: false, eof: false },
+    { name: 'stderr', original: stderr, chunks: [], cancelRequested: false, eof: false },
+  ];
+  const beginStream = (stream: (typeof streams)[number]) => {
+    requireTime(workDeadline, stream.name + ' reader acquisition');
+    const reader = stream.original.getReader();
+    stream.reader = reader;
+    stream.closed = observe(reader.closed);
+    stream.pump = observe(
+      (async () => {
+        const decoder = new TextDecoder();
+        let line = '';
+        try {
+          for (;;) {
+            const chunk = await reader.read();
+            if (chunk.done) {
+              stream.eof = !stream.cancelRequested;
+              break;
+            }
+            stream.chunks.push(chunk.value);
+            if (stream.name !== 'stdout') continue;
+            line += decoder.decode(chunk.value, { stream: true });
+            for (;;) {
+              const newline = line.indexOf('\n');
+              if (newline < 0) break;
+              const receipt = line.slice(0, newline);
+              line = line.slice(newline + 1);
+              if (
+                !protocol.banner &&
+                protocol.received === 0 &&
+                /^bun test v\d+\.\d+\.\d+ \([a-f0-9]+\)$/.test(receipt)
+              ) {
+                protocol.banner = true;
+              } else if (receipt === receipts[protocol.received]) {
+                protocol.received += 1;
+              } else {
+                protocol.failure ??= new Error(
+                  'trace publication receipt out of order: ' + receipt,
+                );
+              }
+              wake();
+            }
+          }
+          if (stream.name === 'stdout') {
+            line += decoder.decode();
+            if (line !== '')
+              protocol.failure ??= new Error('trace publication unterminated receipt');
+          }
+        } finally {
+          reader.releaseLock();
+          wake();
+        }
+      })(),
+    );
+  };
+  const within = <T>(promise: Promise<T>, phase: string) =>
+    awaitPhase(promise, 'trace publication ' + phase, requireTime(workDeadline, phase));
+  const requireFulfilled = <T>(observation: ReturnType<typeof observe<T>>, phase: string): T => {
+    assert(
+      observation.outcome.kind !== 'pending',
+      'trace publication original remains unresolved: ' + phase,
+    );
+    if (observation.outcome.kind === 'rejected')
+      throw new Error('trace publication original failed: ' + phase, {
+        cause: observation.outcome.cause,
+      });
+    return observation.outcome.value;
+  };
+  const receive = async (count: number) => {
+    const stream = streams[0];
+    assert(stream.pump !== undefined, 'trace publication stdout owner missing');
+    for (;;) {
+      if (protocol.failure !== undefined) throw protocol.failure;
+      if (stream.pump.outcome.kind === 'rejected') requireFulfilled(stream.pump, 'stdout pump');
+      if (protocol.received >= count) return;
+      assert(
+        stream.pump.outcome.kind === 'pending',
+        'trace publication stdout ended before receipt ' + String(count),
+      );
+      await within(changed.promise, 'receipt ' + String(count));
+    }
+  };
+  const release = async (byte: string) => {
+    const write = startPipe('release ' + byte, () => input.write(byte), workDeadline);
+    await within(write.observation.settled, write.phase);
+    assert.equal(requireFulfilled(write.observation, write.phase), 1);
+    const flush = startPipe('flush ' + byte, () => input.flush(), workDeadline);
+    await within(flush.observation.settled, flush.phase);
+    requireFulfilled(flush.observation, flush.phase);
+  };
+  let primaryFailed = false;
+  let primaryFailure: unknown;
+  try {
+    for (const stream of streams) beginStream(stream);
+    const first: HeldTrace = {
+      stage: 'readiness-held',
+      dbPath: join(markerDirectory, 'owned.sqlite'),
+      dbPresent: false,
+      port: 43123,
+    };
+    const privatePath = tracePath + '.pending-' + String(child.pid);
+    await receive(1);
+    assert.equal(
+      existsSync(tracePath),
+      false,
+      'held trace became visible before complete private write',
+    );
+    assert.equal(readFileSync(privatePath, 'utf8'), '{"stage":');
+    await release('1');
+    await receive(2);
+    assert.deepEqual(readHeldTrace(tracePath), first);
+    await release('2');
+    await receive(3);
+    assert.deepEqual(
+      readHeldTrace(tracePath),
+      first,
+      'published trace changed during private replacement',
+    );
+    assert.equal(readFileSync(privatePath, 'utf8'), '{"stage":');
+    await release('3');
+    await receive(4);
+    assert.deepEqual(readHeldTrace(tracePath), { ...first, stage: 'signal' });
+    await release('4');
+    await within(exit.settled, 'child completion');
+    assert.equal(requireFulfilled(exit, 'child exit'), 0);
+    const output = streams[0];
+    assert(output.pump !== undefined, 'trace publication stdout owner missing');
+    await within(output.pump.settled, 'stdout completion');
+    requireFulfilled(output.pump, 'stdout pump');
+    if (protocol.failure !== undefined) throw protocol.failure;
+    assert.equal(protocol.received, 4, 'trace publication receipt count differs');
+    assert.equal(output.eof, true, 'trace publication stdout EOF missing');
+  } catch (cause) {
+    primaryFailed = true;
+    primaryFailure = cause;
+  }
+  const cleanupDeadline = Math.min(entered + 18000, performance.now() + 8000);
+  const cleanupFailures: unknown[] = [];
+  const failedOriginals = new Set<object>();
+  const joinOriginal = async <T>(
+    observation: ReturnType<typeof observe<T>>,
+    phase: string,
+    deadline = cleanupDeadline,
+  ) => {
+    try {
+      await awaitPhase(
+        observation.settled,
+        'trace publication cleanup ' + phase,
+        requireTime(deadline, phase),
+      );
+    } catch (cause) {
+      cleanupFailures.push(cause);
+    }
+    if (observation.outcome.kind === 'rejected' && !failedOriginals.has(observation)) {
+      failedOriginals.add(observation);
+      cleanupFailures.push(
+        new Error('trace publication original failed: ' + phase, {
+          cause: observation.outcome.cause,
+        }),
+      );
+    }
+  };
+  let end: (typeof pipeOperations)[number] | undefined;
+  try {
+    end = startPipe('stdin end', () => input.end(), cleanupDeadline);
+  } catch (cause) {
+    cleanupFailures.push(cause);
+  }
+  const group = observe(joinOwnedGroup(child));
+  const closeStream = async (stream: (typeof streams)[number]) => {
+    const initialDeadline = Math.min(cleanupDeadline, performance.now() + 2000);
+    const originals = [stream.pump, stream.closed].filter((operation) => operation !== undefined);
+    const initialJoins = await Promise.allSettled(
+      originals.map((operation, index) =>
+        joinOriginal(operation, stream.name + ' initial ' + String(index), initialDeadline),
+      ),
+    );
+    for (const joined of initialJoins)
+      if (joined.status === 'rejected') cleanupFailures.push(joined.reason as unknown);
+    if (
+      stream.reader === undefined ||
+      originals.length !== 2 ||
+      originals.some((operation) => operation.outcome.kind !== 'fulfilled')
+    ) {
+      try {
+        requireTime(cleanupDeadline, stream.name + ' cancellation');
+        stream.cancelRequested = true;
+        stream.cancellation = observe(
+          stream.reader === undefined ? stream.original.cancel() : stream.reader.cancel(),
+        );
+      } catch (cause) {
+        cleanupFailures.push(cause);
+      }
+    }
+    // Every retained original is joined independently; a failed cancellation cannot skip either reader owner.
+    const finals = [stream.pump, stream.closed, stream.cancellation].filter(
+      (operation) => operation !== undefined,
+    );
+    const finalJoins = await Promise.allSettled(
+      finals.map((operation, index) =>
+        joinOriginal(operation, stream.name + ' final ' + String(index)),
+      ),
+    );
+    for (const joined of finalJoins)
+      if (joined.status === 'rejected') cleanupFailures.push(joined.reason as unknown);
+  };
+  const streamClosures = streams.map(closeStream);
+  await joinOriginal(group, 'owned group');
+  // Group exit is not pipe settlement: independently join every original write, flush and end.
+  const pipeClosures = pipeOperations.map((operation) =>
+    joinOriginal(operation.observation, operation.phase),
+  );
+  const finalClosures = await Promise.allSettled([
+    ...streamClosures,
+    ...pipeClosures,
+    joinOriginal(exit, 'original child exit'),
+  ]);
+  for (const joined of finalClosures)
+    if (joined.status === 'rejected') cleanupFailures.push(joined.reason as unknown);
+  const settled = <T>(observation: ReturnType<typeof observe<T>> | undefined) =>
+    observation !== undefined && observation.outcome.kind !== 'pending';
+  const streamKnown = (stream: (typeof streams)[number]) =>
+    stream.reader !== undefined &&
+    settled(stream.pump) &&
+    settled(stream.closed) &&
+    (!stream.cancelRequested || settled(stream.cancellation));
+  const joined = group.outcome.kind === 'fulfilled';
+  const custodyKnown =
+    joined &&
+    settled(exit) &&
+    end !== undefined &&
+    pipeOperations.every((operation) => settled(operation.observation)) &&
+    streams.every(streamKnown);
+  let rootRemoved = false;
+  if (custodyKnown) {
+    try {
+      rmSync(fixtureRoot, { recursive: true });
+      rootRemoved = !existsSync(fixtureRoot);
+      assert.equal(rootRemoved, true, 'trace publication owned root remains');
+    } catch (cause) {
+      cleanupFailures.push(cause);
+    }
+  } else {
+    cleanupFailures.push(
+      new Error('trace publication original custody unresolved; retain owned root: ' + fixtureRoot),
+    );
+  }
+  writeSync(
+    2,
+    JSON.stringify({
+      fixture: 'trace-publication',
+      pid: child.pid,
+      group: child.pid,
+      exit: exit.outcome.kind,
+      groupJoin: group.outcome.kind,
+      custodyKnown,
+      pipes: pipeOperations.map((operation) => ({
+        phase: operation.phase,
+        returned: typeof operation.returned,
+        state: operation.observation.outcome.kind,
+      })),
+      streams: streams.map((stream) => ({
+        name: stream.name,
+        acquired: stream.reader !== undefined,
+        pump: stream.pump?.outcome.kind,
+        closed: stream.closed?.outcome.kind,
+        cancellation: stream.cancellation?.outcome.kind,
+        cancelRequested: stream.cancelRequested,
+        eof: stream.eof,
+        bytes: stream.chunks.reduce((count, chunk) => count + chunk.byteLength, 0),
+      })),
+      received: protocol.received,
+      root: fixtureRoot,
+      rootRemoved,
+    }) + '\n',
+  );
+  if (primaryFailed) {
+    const childOutput = sanitizeChildOutput(
+      streams.map((stream) => Buffer.concat(stream.chunks).toString('utf8')).join(''),
+    );
+    primaryFailure = new Error('trace publication primary failure\n' + childOutput, {
+      cause: primaryFailure,
+    });
+  }
+  if (cleanupFailures.length > 0)
+    throw new AggregateError(
+      primaryFailed ? [primaryFailure, ...cleanupFailures] : cleanupFailures,
+      'trace publication failed with cleanup failure',
+    );
+  if (primaryFailed) throw primaryFailure;
+}
+
 const childConfigPath = process.env['PUNI_RUNTIME_DISPATCH_CHILD_CONFIG'];
 if (childConfigPath === undefined) {
+  test('publishes held traces only after complete private writes', runTracePublicationProof, 20000);
+  test('rejects malformed published held trace JSON', () => {
+    const root = mkdtempSync(join(tmpdir(), 'runtime-trace-malformed-'));
+    const path = join(root, 'trace.json');
+    try {
+      writeFileSync(path, '{"stage":', { mode: 0o600 });
+      assert.throws(() => readHeldTrace(path), SyntaxError);
+    } finally {
+      rmSync(root, { recursive: true });
+    }
+  });
+
   test('real boot and Dash worker retain conditional uncertainty then one observed turn without business completion', async () => {
     const observed = await runContainedReceiver('integration');
     assert.equal(observed.exitCode, 0, observed.output);
@@ -1088,7 +1572,11 @@ if (childConfigPath === undefined) {
 } else {
   const configured = readContainedConfig(childConfigPath);
   const role = configured.role;
-  if (role === 'integration') {
+  if (role === 'trace-publication') {
+    test('contained trace-publication', () => {
+      runTracePublication(configured.tracePath);
+    }, 12000);
+  } else if (role === 'integration') {
     test('contained integration', () => runIntegration(), 45000);
   } else if (role === 'integration-enabled') {
     test('contained integration-enabled', () => runIntegration('dependency-enabled'), 45000);
