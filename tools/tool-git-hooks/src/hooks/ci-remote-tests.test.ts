@@ -1053,3 +1053,675 @@ test.each([
     expect(invocation.stdout.toString()).toContain('"files":1');
   },
 );
+
+interface GraphLauncherBoundary {
+  readonly repository: string;
+  readonly modulePath: string;
+  readonly executable: string;
+  readonly requiredExecutable: string;
+  readonly declaredCount: number;
+  readonly declaredTitlesSHA256: string;
+}
+interface GraphLauncherAdmission {
+  readRemoteTestCommand(
+    arguments_: readonly string[],
+    environment: Readonly<Record<string, string | undefined>>,
+  ): string;
+  readGraphTestAdmission(
+    environment: Readonly<Record<string, string | undefined>>,
+    boundary: GraphLauncherBoundary,
+  ): string;
+}
+
+/** Imports only the test command owner's pure boundary; never imports Graph or starts a child. */
+async function graphLauncherAdmission(): Promise<GraphLauncherAdmission> {
+  const candidate: unknown = await import(join(ROOT, PROJECT, 'test/run-tests.ts'));
+  if (
+    typeof candidate !== 'object' ||
+    candidate === null ||
+    !('readRemoteTestCommand' in candidate) ||
+    typeof candidate.readRemoteTestCommand !== 'function' ||
+    !('readGraphTestAdmission' in candidate) ||
+    typeof candidate.readGraphTestAdmission !== 'function'
+  )
+    throw new Error('Reviewed typed launcher scaffold is required before this RED invocation');
+  // Boundary: both actual module exports were checked callable; this test-local shape declares their input contract.
+  return candidate as GraphLauncherAdmission;
+}
+
+/** Records actual boundary refusal so an unimplemented behavior fails an owning assertion, not module loading. */
+function observeGraphAdmission<T>(
+  operation: () => T,
+):
+  | { readonly status: 'returned'; readonly value: T }
+  | { readonly status: 'refused'; readonly message: string } {
+  try {
+    return { status: 'returned', value: operation() };
+  } catch (cause) {
+    if (!(cause instanceof Error)) throw cause;
+    return { status: 'refused', message: cause.message };
+  }
+}
+
+const graphAdmissionBoundary: GraphLauncherBoundary = {
+  repository: '/review/repository',
+  modulePath: '/review/repository/tools/tool-remote-scripts/src/lib/initial-handoff-graph.test.ts',
+  executable: '/review/tools/bun',
+  requiredExecutable: '/review/tools/bun',
+  declaredCount: 228,
+  declaredTitlesSHA256: '9676491473de150ee073672db57973de44ec6707f2e1a5f5f5f5b75384e4bd2a',
+};
+const graphAdmissionEnvelope = {
+  PUNI_REMOTE_GRAPH_ADMISSION: 'partitioned-228-v1',
+  PUNI_REMOTE_GRAPH_MODE: 'graph-identity',
+  PUNI_REMOTE_GRAPH_ROOT: '/review/repository',
+  PUNI_REMOTE_GRAPH_EXECUTABLE: '/review/tools/bun',
+};
+
+test('graph launcher admission parses only the five public commands', async () => {
+  const launcher = await graphLauncherAdmission();
+  for (const command of ['canonical', 'graph', 'graph-ordinary', 'graph-legacy', 'graph-identity'])
+    expect(observeGraphAdmission(() => launcher.readRemoteTestCommand([command], {}))).toEqual({
+      status: 'returned',
+      value: command,
+    });
+});
+
+test('graph launcher admission refuses missing unknown and forwarded selection arguments', async () => {
+  const launcher = await graphLauncherAdmission();
+  for (const arguments_ of [
+    [],
+    ['rest'],
+    ['unknown'],
+    ['graph', 'graph-identity'],
+    ['graph', '--test-name-pattern', 'one'],
+    ['graph', '--timeout=1'],
+    ['graph', '--preload', 'foreign.ts'],
+    ['graph', '--path-ignore-patterns=src'],
+    ['graph', 'tools/tool-remote-scripts/src/lib/initial-handoff-graph.test.ts'],
+  ])
+    expect(() => launcher.readRemoteTestCommand(arguments_, {})).toThrow(
+      'Unsupported remote graph command',
+    );
+});
+
+test('graph launcher admission refuses ambient Bun selection controls', async () => {
+  const launcher = await graphLauncherAdmission();
+  for (const environment of [
+    { BUN_OPTIONS: '--preload foreign.ts' },
+    { BUN_TEST_TIMEOUT: '1' },
+    { BUN_TEST_NAME_PATTERN: 'one' },
+    { NODE_OPTIONS: '--require foreign.js' },
+    { PUNI_UC1_PREFLIGHT: 'focused-identity-15-v1' },
+    { PUNI_REMOTE_GRAPH_MODE: 'graph-identity' },
+  ])
+    expect(() => launcher.readRemoteTestCommand(['graph'], environment)).toThrow(
+      'Unsupported remote graph selection environment',
+    );
+});
+
+test('graph launcher admission selects each explicit graph partition', async () => {
+  const launcher = await graphLauncherAdmission();
+  for (const mode of ['graph-ordinary', 'graph-legacy', 'graph-identity'])
+    expect(
+      observeGraphAdmission(() =>
+        launcher.readGraphTestAdmission(
+          { ...graphAdmissionEnvelope, PUNI_REMOTE_GRAPH_MODE: mode },
+          graphAdmissionBoundary,
+        ),
+      ),
+    ).toEqual({ status: 'returned', value: mode });
+});
+
+test('graph launcher admission refuses absent incomplete or unknown envelopes', async () => {
+  const launcher = await graphLauncherAdmission();
+  for (const environment of [
+    {},
+    { PUNI_REMOTE_GRAPH_ADMISSION: 'partitioned-228-v1' },
+    { ...graphAdmissionEnvelope, PUNI_REMOTE_GRAPH_ADMISSION: 'partitioned-228-v2' },
+    { ...graphAdmissionEnvelope, PUNI_REMOTE_GRAPH_MODE: 'graph' },
+    { ...graphAdmissionEnvelope, PUNI_REMOTE_GRAPH_ROOT: undefined },
+    { ...graphAdmissionEnvelope, PUNI_REMOTE_GRAPH_EXECUTABLE: undefined },
+  ])
+    expect(() => launcher.readGraphTestAdmission(environment, graphAdmissionBoundary)).toThrow(
+      'Unsupported graph test admission',
+    );
+});
+
+test('graph launcher admission refuses mixed historical and partition admission', async () => {
+  const launcher = await graphLauncherAdmission();
+  for (const environment of [
+    { PUNI_UC1_PREFLIGHT: 'focused-identity-15-v1' },
+    { ...graphAdmissionEnvelope, PUNI_UC1_PREFLIGHT: 'focused-identity-15-v1' },
+  ])
+    expect(() => launcher.readGraphTestAdmission(environment, graphAdmissionBoundary)).toThrow(
+      'Unsupported graph test admission',
+    );
+});
+
+test('graph launcher admission binds the canonical source executable and declaration census', async () => {
+  const launcher = await graphLauncherAdmission();
+  for (const boundary of [
+    {
+      ...graphAdmissionBoundary,
+      modulePath: '/review/repository/elsewhere/initial-handoff-graph.test.ts',
+    },
+    { ...graphAdmissionBoundary, repository: '/review/repository/../repository' },
+    { ...graphAdmissionBoundary, executable: '/review/foreign/bun' },
+    { ...graphAdmissionBoundary, declaredCount: 227 },
+    { ...graphAdmissionBoundary, declaredTitlesSHA256: '0'.repeat(64) },
+  ])
+    expect(() => launcher.readGraphTestAdmission(graphAdmissionEnvelope, boundary)).toThrow(
+      'Unsupported graph test admission',
+    );
+});
+
+test('graph launcher admission refuses forwarded selection controls in child admission', async () => {
+  const launcher = await graphLauncherAdmission();
+  for (const environment of [
+    { ...graphAdmissionEnvelope, BUN_OPTIONS: '--preload foreign.ts' },
+    { ...graphAdmissionEnvelope, BUN_TEST_TIMEOUT: '1' },
+    { ...graphAdmissionEnvelope, BUN_TEST_NAME_PATTERN: 'one' },
+    { ...graphAdmissionEnvelope, NODE_OPTIONS: '--require foreign.js' },
+  ])
+    expect(() => launcher.readGraphTestAdmission(environment, graphAdmissionBoundary)).toThrow(
+      'Unsupported graph test admission',
+    );
+});
+
+// These marker fixtures exercise only actual CLI routing/receipts; they never construct Graph or emit native ledgers.
+const graphRoutingTitles: readonly string[] = [
+  'active graph refuses missing committed pointer without creating or scanning evidence',
+  'complete owned initial graph captures and closes H6',
+  'complete owned initial graph captures and closes H7',
+  'complete owned initial graph captures and closes H8',
+  'complete graph rejects a hash-bound unknown field in handoff-admission',
+  'complete graph rejects a hash-bound unknown field in handoff-intent',
+  'complete graph rejects a hash-bound unknown field in exposure-intent',
+  'complete graph rejects a hash-bound unknown field in exposure-complete',
+  'complete graph rejects a hash-bound unknown field in handoff-complete',
+  'complete graph rejects a hash-bound unknown field in solver-restore-intent',
+  'complete graph rejects a hash-bound unknown field in solver-restore-complete',
+  'complete graph rejects a hash-bound unknown field in activation-participants',
+  'complete graph rejects a hash-bound unknown field in activation-capture',
+  'complete graph rejects a hash-bound unknown field in activation-backup',
+  'complete graph rejects a hash-bound unknown field in activation-intent',
+  'complete graph rejects a hash-bound unknown field in activation-committed',
+  'complete graph rejects a hash-bound unknown field in activation-participant-restore-intent',
+  'complete graph rejects a hash-bound unknown field in activation-participant-ready',
+  'complete graph rejects a hash-bound unknown field in activation-participant-policy-intent',
+  'complete graph rejects a hash-bound unknown field in activation-participants-restored',
+  'dedicated solver-ready edge rejects inherited policy-publication-intent sibling',
+  'dedicated solver-ready edge rejects inherited policy-published sibling',
+  'independent closing graph refuses changed raw-capture bytes',
+  'independent closing graph refuses changed raw-backup bytes',
+  'complete graph refuses consistently archived backend database differing from selected database identity',
+  'complete graph refuses NUL in otherwise matched historical solver-ready cgroup',
+  'complete selected artifact closure accepts ordered roster prod',
+  'complete selected artifact closure accepts ordered roster dev',
+  'complete selected artifact closure accepts ordered roster prod,dev',
+  'selected exact raw capture reader refuses unknown-root with recomputed reference hashes',
+  'selected exact raw capture reader refuses unknown-applied-row with recomputed reference hashes',
+  'selected exact raw capture reader refuses pending-ledger with recomputed reference hashes',
+  'original manifest codec refuses hash-bound writers-input origin',
+  'original manifest codec refuses hash-bound source-manifest-input closed',
+  'original manifest codec refuses hash-bound migration-manifest-input closed',
+  'selected backup reader refuses declared byte bound 0',
+  'selected backup reader refuses declared byte bound 1073741825',
+  'complete real artifact boundary refuses absent-capture',
+  'complete real artifact boundary refuses unreadable-capture',
+  'complete real artifact boundary refuses public-capture',
+  'complete real artifact boundary refuses symlink-capture',
+  'complete real artifact boundary refuses absent-backup',
+  'complete real artifact boundary refuses unreadable-backup',
+  'complete real artifact boundary refuses extra-artifact',
+  'complete real artifact boundary refuses retained-original-fence',
+  'full initial pointer/pending/archive state refuses both',
+  'full initial pointer/pending/archive state refuses neither',
+  'full initial pointer/pending/archive state refuses complete-pending',
+  'full initial pointer/pending/archive state refuses unknown-pointer',
+  'full initial pointer/pending/archive state refuses wrong-pointer-policy',
+  'full graph preserves a nonzero original on-failure retry count',
+  'complete hash-bound admission-v2 consumer refuses admission-v1',
+  'complete hash-bound admission-v2 consumer refuses missing-pins',
+  'complete hash-bound admission-v2 consumer refuses unknown-pin',
+  'complete hash-bound admission-v2 consumer refuses foreign-source',
+  'complete hash-bound admission-v2 consumer refuses foreign-writer',
+  'complete hash-bound admission-v2 consumer refuses foreign-machine',
+  'complete hash-bound admission-v2 consumer refuses missing-profile',
+  'complete hash-bound admission-v2 consumer refuses reversed-profile',
+  'complete hash-bound admission-v2 consumer refuses boolean-uid',
+  'complete hash-bound admission-v2 consumer refuses invalid-hash',
+  'review crosslink refuses independent writer-build-revision branch with recomputed enclosing hashes',
+  'review crosslink refuses independent migration-image-identity branch with recomputed enclosing hashes',
+  'review crosslink refuses independent restored-policy-digest branch with recomputed enclosing hashes',
+  'INITIAL prerequisite exports content validation and retained raw observation',
+  'seeded plan validates prod without terminal publication',
+  'seeded plan validates dev without terminal publication',
+  'seeded plan validates prod+dev without terminal publication',
+  'pure plan refuses closed container',
+  'pure plan refuses record cardinality',
+  'pure plan refuses duplicate record',
+  'pure plan refuses missing reference',
+  'pure plan refuses extra record',
+  'pure plan refuses record family',
+  'pure plan refuses pending bytes',
+  'pure plan refuses fence bytes',
+  'pure plan refuses unused record bytes',
+  'pure plan refuses ill-formed UTF-8',
+  'pure plan refuses UTF-8 byte length',
+  'pure plan refuses exact owner LF',
+  'pure plan refuses snapshot decimal',
+  'pure plan refuses snapshot mode',
+  'pure plan refuses snapshot parent',
+  'pure plan refuses snapshot identity',
+  'pure plan refuses relative namespace',
+  'pure plan refuses unnormalized namespace',
+  'pure plan refuses NUL namespace',
+  'pure plan refuses policy unknown field',
+  'pure plan refuses policy phase',
+  'pure plan refuses policy namespace',
+  'pure plan refuses prepared pointer phase',
+  'pure plan refuses complete pointer digest',
+  'pure plan refuses manifest extra field',
+  'pure plan refuses fence cardinality',
+  'pure plan refuses artifact projection size',
+  'shared plan codec refuses repaired-hash unknown field in handoff-admission',
+  'shared plan codec refuses repaired-hash unknown field in handoff-intent',
+  'shared plan codec refuses repaired-hash unknown field in exposure-intent',
+  'shared plan codec refuses repaired-hash unknown field in exposure-complete',
+  'shared plan codec refuses repaired-hash unknown field in handoff-complete',
+  'shared plan codec refuses repaired-hash unknown field in solver-restore-intent',
+  'shared plan codec refuses repaired-hash unknown field in solver-restore-complete',
+  'shared plan codec refuses repaired-hash unknown field in activation-participants',
+  'shared plan codec refuses repaired-hash unknown field in activation-capture',
+  'shared plan codec refuses repaired-hash unknown field in activation-backup',
+  'shared plan codec refuses repaired-hash unknown field in activation-intent',
+  'shared plan codec refuses repaired-hash unknown field in activation-committed',
+  'shared plan codec refuses repaired-hash unknown field in activation-participant-restore-intent',
+  'shared plan codec refuses repaired-hash unknown field in activation-participant-ready',
+  'shared plan codec refuses repaired-hash unknown field in activation-participant-policy-intent',
+  'shared plan codec refuses repaired-hash unknown field in activation-participants-restored',
+  'fixed raw observer refuses owner bound',
+  'fixed raw observer refuses owner surrogate',
+  'fixed raw observer refuses writer bound',
+  'fixed raw observer refuses database cardinality',
+  'fixed raw observer refuses database malformed identity',
+  'fixed raw observer refuses selected roster',
+  'fixed raw observer refuses selected name',
+  'fixed raw observer refuses backup zero',
+  'fixed raw observer refuses backup over limit',
+  'fixed raw observer refuses missing capture',
+  'fixed raw observer refuses unreadable capture',
+  'fixed raw observer refuses public backup',
+  'fixed raw observer refuses symlink backup',
+  'fixed raw observer refuses extra raw evidence',
+  'fixed raw observer refuses changed capture bytes',
+  'fixed raw observer refuses truncated backup',
+  'fixed raw observer refuses grown backup',
+  'shared raw codec refuses repaired-hash target',
+  'shared raw codec refuses repaired-hash attempt',
+  'shared raw codec refuses repaired-hash candidate',
+  'shared raw codec refuses repaired-hash ledger',
+  'shared raw codec refuses repaired-hash rows',
+  'raw observation detaches inputs and freezes nested output before retaining closure',
+  'raw closing observation refuses replacement',
+  'raw closing observation refuses parent',
+  'raw closing observation refuses capture',
+  'raw closing observation refuses backup',
+  'raw close remains available and idempotent after expiry',
+  'pure validation refuses expiration at its final successful-return boundary',
+  'bounded raw reader refuses actual fifo',
+  'bounded raw reader refuses actual invalid-utf8',
+  'bounded raw reader refuses actual sparse-over-limit',
+  'raw construction failure closes its descriptors and preserves caller descriptor',
+  'raw streaming keeps its original deadline between backup chunks',
+  'shared graph semantics refuse repaired-hash writer-build through plan and disk',
+  'shared graph semantics refuse repaired-hash migration-image through plan and disk',
+  'shared graph semantics refuse repaired-hash policy-digest through plan and disk',
+  'shared graph semantics refuse repaired-hash receipt-attempt through plan and disk',
+  'shared graph semantics refuse repaired-hash ready-phase through plan and disk',
+  'shared graph semantics refuse repaired-hash launch-source through plan and disk',
+  'shared graph semantics refuse repaired-hash ready-selection through plan and disk',
+  'pure graph retains a nonzero original on-failure retry count',
+  'raw observation refuses successful return after its original final deadline',
+  'dedicated actual ready reread refuses identical bytes on a replacement inode',
+  'plan bounds every standalone fence before enumerating supplied records',
+  'standalone backup malformed names refuse before raw I/O',
+  'standalone backup 161-byte names refuse before raw I/O',
+  'standalone backup large names refuse before raw I/O',
+  'standalone backup 4097-name names refuse before raw I/O',
+  'standalone backup ordinary name passes admission and reaches real downstream I/O',
+  'standalone backup 160-byte name passes admission and reaches real downstream I/O',
+  'healthy-deadline post-close methods refuse before acquiring descriptors',
+  'LF-inclusive public envelope byte boundary limit (valid)',
+  'LF-inclusive public envelope byte boundary limit+1 (valid)',
+  'LF-inclusive public writers byte boundary limit (valid)',
+  'LF-inclusive public writers byte boundary limit+1 (valid)',
+  'LF-inclusive public writers-multibyte byte boundary limit (valid)',
+  'LF-inclusive public writers-multibyte byte boundary limit+1 (valid)',
+  'LF-inclusive public source byte boundary limit (valid)',
+  'LF-inclusive public source byte boundary limit+1 (valid)',
+  'LF-inclusive public migration byte boundary limit (canonical-refusal)',
+  'LF-inclusive public migration byte boundary limit+1 (canonical-refusal)',
+  'LF-inclusive public capture byte boundary limit (valid)',
+  'LF-inclusive public capture byte boundary limit+1 (valid)',
+  'LF-inclusive public policy byte boundary limit (valid)',
+  'LF-inclusive public policy byte boundary limit+1 (valid)',
+  'LF-inclusive public prepared byte boundary limit (valid)',
+  'LF-inclusive public prepared byte boundary limit+1 (valid)',
+  'LF-inclusive public complete byte boundary limit (valid)',
+  'LF-inclusive public complete byte boundary limit+1 (valid)',
+  'LF-inclusive public request-writers byte boundary limit (io-reach)',
+  'LF-inclusive public request-writers byte boundary limit+1 (io-reach)',
+  'LF-inclusive public request-source byte boundary limit (io-reach)',
+  'LF-inclusive public request-source byte boundary limit+1 (io-reach)',
+  'plan refuses reachable non-predecessor admission with repaired enclosing hashes',
+  'paired intended semantic refusal missing-admission-field after repairing enclosing hashes',
+  'paired intended semantic refusal admission-v1 after repairing enclosing hashes',
+  'paired intended semantic refusal source-pin after repairing enclosing hashes',
+  'paired intended semantic refusal owner-newline after repairing enclosing hashes',
+  'paired intended semantic refusal reference-family after repairing enclosing hashes',
+  'paired intended semantic refusal conflicting-reference after repairing enclosing hashes',
+  'paired intended semantic refusal activation-order after repairing enclosing hashes',
+  'paired intended semantic refusal missing-activation after repairing enclosing hashes',
+  'paired intended semantic refusal invented-activation after repairing enclosing hashes',
+  'paired intended semantic refusal database-binding after repairing enclosing hashes',
+  'paired intended semantic refusal capture-link after repairing enclosing hashes',
+  'paired intended semantic refusal participant-link after repairing enclosing hashes',
+  'paired intended semantic refusal ingress-projection after repairing enclosing hashes',
+  'paired intended semantic refusal source-local-attempt after repairing enclosing hashes',
+  'paired intended semantic refusal backend-local-attempt after repairing enclosing hashes',
+  'paired intended semantic refusal gateway-local-attempt after repairing enclosing hashes',
+  'close settlement retained file before delegation attempts every original',
+  'close settlement retained file after delegation stays unknown',
+  'close settlement retained parent before delegation attempts every original',
+  'close settlement retained parent after delegation stays unknown',
+  'close settlement multiple failures preserve caller descriptor',
+  'close settlement raw construction retains read and cleanup failures',
+  'close settlement disk construction retains semantic and cleanup failures',
+  'close settlement directory transfer expiry closes original once',
+  'close settlement reopened verification failure revokes observation',
+  'close settlement roster stream failure retains read and close causes',
+  'close settlement complete disk finalization stays unknown',
+  'cleanup identity recognizes actual raw construction primary and close UNKNOWN',
+  'cleanup identity recognizes actual disk construction semantic and close UNKNOWN',
+  'cleanup identity recognizes reopened file UNKNOWN before stable terminal cleanup',
+  'cleanup identity recognizes directory stream UNKNOWN before stable terminal cleanup',
+  'cleanup identity recognizes retained file UNKNOWN before native delegation',
+  'cleanup identity recognizes retained file UNKNOWN after native delegation',
+  'cleanup identity recognizes retained parent UNKNOWN before native delegation',
+  'cleanup identity recognizes retained parent UNKNOWN after native delegation',
+  'cleanup identity recognizes complete disk final close UNKNOWN',
+  'cleanup identity recognizes failed original cleanup after work expiry',
+  'cleanup identity stays revoked through expiry after transient UNKNOWN',
+  'cleanup identity refuses malformed raw construction with known cleanup',
+  'cleanup identity refuses malformed disk construction with known cleanup',
+  'cleanup identity refuses acquisition transfer expiry with known cleanup',
+  'cleanup identity refuses primitive and message field lookalikes',
+];
+
+type GraphRoutingFault = 'none' | 'failed-ordinary' | 'missing-ordinary';
+const GRAPH_ROUTING_FILE = 'src/lib/initial-handoff-graph.test.ts';
+
+function graphRoutingFixture(fault: GraphRoutingFault = 'none'): string {
+  const root = scratchSync('graph-cli-routing-');
+  for (const path of ['.bun-version', 'nx.json'])
+    write(root, path, readFileSync(join(ROOT, path), 'utf8'));
+  const project: unknown = JSON.parse(readFileSync(join(ROOT, PROJECT, 'project.json'), 'utf8'));
+  if (
+    typeof project !== 'object' ||
+    project === null ||
+    Array.isArray(project) ||
+    !('targets' in project)
+  )
+    throw new Error('Marker fixture project requires object targets');
+  const targets = project.targets;
+  if (
+    typeof targets !== 'object' ||
+    targets === null ||
+    Array.isArray(targets) ||
+    !('test' in targets)
+  )
+    throw new Error('Marker fixture project requires object test target');
+  const canonical = targets.test;
+  if (
+    typeof canonical !== 'object' ||
+    canonical === null ||
+    Array.isArray(canonical) ||
+    !('options' in canonical)
+  )
+    throw new Error('Marker fixture test target requires object options');
+  const options = canonical.options;
+  if (
+    typeof options !== 'object' ||
+    options === null ||
+    Array.isArray(options) ||
+    !('command' in options) ||
+    typeof options.command !== 'string'
+  )
+    throw new Error('Marker fixture test options require string command');
+  options.command = 'bun run test/run-tests.ts canonical';
+  write(root, `${PROJECT}/project.json`, JSON.stringify(project));
+  write(
+    root,
+    `${PROJECT}/test/run-tests.ts`,
+    readFileSync(join(ROOT, PROJECT, 'test/run-tests.ts'), 'utf8'),
+  );
+  write(root, 'tools/test/scratch/preload.ts', '');
+  mkdirSync(join(root, 'child-scratch'));
+  write(
+    root,
+    `${PROJECT}/${GRAPH_ROUTING_FILE}`,
+    `
+import {createHash} from 'node:crypto';
+import {resolve} from 'node:path';
+import {test,expect} from 'bun:test';
+import {readGraphTestAdmission} from '../../test/run-tests';
+const names=${JSON.stringify(graphRoutingTitles)};
+const repository=resolve(import.meta.dir,'../../../..');
+const mode=readGraphTestAdmission(process.env,{
+  repository,modulePath:import.meta.path,executable:process.execPath,requiredExecutable:process.execPath,
+  declaredCount:names.length,declaredTitlesSHA256:createHash('sha256').update(JSON.stringify(names)).digest('hex')
+});
+console.log('GRAPH_ROUTE_ENTER='+mode);
+const fault=${JSON.stringify(fault)};
+const first=mode==='graph-ordinary'?0:mode==='graph-legacy'?202:213;
+const end=mode==='graph-ordinary'?202:mode==='graph-legacy'?213:228;
+for(let index=first;index<end;index++){
+  if(fault==='missing-ordinary'&&mode==='graph-ordinary'&&index===201)continue;
+  const name=names[index];if(name===undefined)throw Error('marker declaration absent');
+  test(name,()=>{
+    console.log('GRAPH_ROUTE_CASE='+JSON.stringify({mode,index}));
+    if(fault==='failed-ordinary'&&mode==='graph-ordinary'&&index===0){
+      console.error('GRAPH_ROUTE_EXPECTED_FAILURE');expect(false).toBe(true);
+    }else expect(true).toBe(true);
+  });
+}
+`,
+  );
+  for (const path of [
+    ...explicit,
+    'src/new.test.ts',
+    'src/lib/initial-handoff-graph-extra.test.ts',
+    'elsewhere/src/lib/initial-handoff-graph.test.ts',
+  ])
+    write(
+      root,
+      `${PROJECT}/${path}`,
+      `
+import {test,expect} from 'bun:test';
+test(${JSON.stringify(path)},()=>{console.log('EXECUTED='+${JSON.stringify(path)});expect(true).toBe(true);});
+`,
+    );
+  return root;
+}
+
+/** The actual harmless CLI is waited synchronously with full original captures; no timeout/signal/reader surrogate. */
+function invokeGraphRouting(
+  root: string,
+  tokens: readonly string[],
+  selection: Readonly<Record<string, string>> = {},
+) {
+  const path = process.env['PATH'];
+  const home = process.env['HOME'];
+  if (path === undefined || home === undefined)
+    throw new Error('Marker CLI requires actual PATH and HOME');
+  const argv = [process.execPath, 'run', join(root, PROJECT, 'test/run-tests.ts'), ...tokens];
+  const invocation = Bun.spawnSync(argv, {
+    cwd: root,
+    env: {
+      PATH: path,
+      HOME: home,
+      LANG: 'C.UTF-8',
+      LC_ALL: 'C.UTF-8',
+      TZ: 'UTC',
+      TERM: 'dumb',
+      NO_COLOR: '1',
+      FORCE_COLOR: '0',
+      NODE_ENV: 'test',
+      CLAUDECODE: '0',
+      AGENT: '0',
+      BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
+      TMPDIR: join(root, 'child-scratch'),
+      ...selection,
+    },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  console.log(
+    'GRAPH_ROUTING_DIAGNOSTIC:' +
+      JSON.stringify({
+        argv,
+        cwd: root,
+        exitCode: invocation.exitCode,
+        stdoutBase64: invocation.stdout.toString('base64'),
+        stderrBase64: invocation.stderr.toString('base64'),
+      }),
+  );
+  expect(invocation.signalCode, invocation.stderr.toString()).toBeUndefined();
+  return invocation;
+}
+
+function graphRoutingEntries(stdout: string): string[] {
+  return [...stdout.matchAll(/^GRAPH_ROUTE_ENTER=(.+)$/gm)].map((match) => match[1]);
+}
+function graphRoutingCases(stdout: string): { readonly mode: string; readonly index: number }[] {
+  return [...stdout.matchAll(/^GRAPH_ROUTE_CASE=(.+)$/gm)].map((match) => {
+    const entry: unknown = JSON.parse(match[1]);
+    if (
+      typeof entry !== 'object' ||
+      entry === null ||
+      !('mode' in entry) ||
+      typeof entry.mode !== 'string' ||
+      !('index' in entry) ||
+      !Number.isInteger(entry.index)
+    )
+      throw new Error('Actual marker callback record malformed');
+    return entry as { readonly mode: string; readonly index: number }; // Boundary: actual closed marker shape checked above.
+  });
+}
+
+function expectFullGraphRouting(stdout: string): void {
+  expect(graphRoutingEntries(stdout)).toEqual(['graph-ordinary', 'graph-legacy', 'graph-identity']);
+  const cases = graphRoutingCases(stdout);
+  expect(cases).toHaveLength(228);
+  expect(cases.map((entry) => entry.index)).toEqual(
+    Array.from({ length: 228 }, (_, index) => index),
+  );
+  expect(cases.slice(0, 202).every((entry) => entry.mode === 'graph-ordinary')).toBe(true);
+  expect(cases.slice(202, 213).every((entry) => entry.mode === 'graph-legacy')).toBe(true);
+  expect(cases.slice(213).every((entry) => entry.mode === 'graph-identity')).toBe(true);
+  const lines = stdout.split('\n');
+  expect(lines.indexOf('GRAPH_ROUTE_ENTER=graph-legacy')).toBeGreaterThan(
+    lines.findIndex(
+      (line) =>
+        line === 'GRAPH_ROUTE_CASE=' + JSON.stringify({ mode: 'graph-ordinary', index: 201 }),
+    ),
+  );
+  expect(lines.indexOf('GRAPH_ROUTE_ENTER=graph-identity')).toBeGreaterThan(
+    lines.findIndex(
+      (line) => line === 'GRAPH_ROUTE_CASE=' + JSON.stringify({ mode: 'graph-legacy', index: 212 }),
+    ),
+  );
+}
+
+test('graph launcher routing refuses public extra arguments before any marker entry', () => {
+  const root = graphRoutingFixture();
+  for (const tokens of [
+    ['graph', 'unexpected'],
+    ['graph', '--test-name-pattern', 'one'],
+    ['unknown'],
+  ]) {
+    const invocation = invokeGraphRouting(root, tokens);
+    expect(invocation.stderr.toString()).toContain('Unsupported remote graph command');
+    expect(invocation.exitCode).toBe(1);
+    expect(graphRoutingEntries(invocation.stdout.toString())).toEqual([]);
+    expect(executed(invocation.stdout.toString())).toEqual([]);
+  }
+});
+
+test('graph launcher routing refuses ambient selection families before any marker entry', () => {
+  const root = graphRoutingFixture();
+  const selections: readonly Readonly<Record<string, string>>[] = [
+    { BUN_TEST_UC1_SELECTION: 'one' },
+    { PUNI_REMOTE_GRAPH_MODE: 'graph-identity' },
+    { PUNI_REMOTE_GRAPH_UNOWNED: 'one' },
+  ];
+  for (const selection of selections) {
+    const invocation = invokeGraphRouting(root, ['graph'], selection);
+    expect(invocation.stderr.toString()).toContain(
+      'Unsupported remote graph selection environment',
+    );
+    expect(invocation.exitCode).toBe(1);
+    expect(graphRoutingEntries(invocation.stdout.toString())).toEqual([]);
+    expect(executed(invocation.stdout.toString())).toEqual([]);
+  }
+});
+
+test('graph launcher routing executes the marker202 legacy11 identity15 union serially', () => {
+  const root = graphRoutingFixture();
+  const invocation = invokeGraphRouting(root, ['graph']);
+  expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+  expectFullGraphRouting(invocation.stdout.toString());
+  expect(executed(invocation.stdout.toString())).toEqual([]);
+});
+
+test('graph launcher routing retains a known failed first phase without starting later phases', () => {
+  const root = graphRoutingFixture('failed-ordinary');
+  const invocation = invokeGraphRouting(root, ['graph']);
+  expect(graphRoutingEntries(invocation.stdout.toString())).toEqual(['graph-ordinary']);
+  expect(invocation.stderr.toString()).toContain('GRAPH_ROUTE_EXPECTED_FAILURE');
+  expect(invocation.exitCode).toBe(1);
+  expect(graphRoutingCases(invocation.stdout.toString())).toHaveLength(202);
+  expect(executed(invocation.stdout.toString())).toEqual([]);
+});
+
+test('graph launcher routing rejects a successful201 terminal receipt before later phases', () => {
+  const root = graphRoutingFixture('missing-ordinary');
+  const invocation = invokeGraphRouting(root, ['graph']);
+  expect(graphRoutingEntries(invocation.stdout.toString())).toEqual(['graph-ordinary']);
+  expect(graphRoutingCases(invocation.stdout.toString())).toHaveLength(201);
+  expect(invocation.stderr.toString()).toContain('201 pass');
+  expect(invocation.exitCode).toBe(1);
+  expect(executed(invocation.stdout.toString())).toEqual([]);
+});
+
+test('graph launcher routing owns the canonical graph once while preserving collision remainder files', () => {
+  const root = graphRoutingFixture();
+  const invocation = invokeGraphRouting(root, ['canonical']);
+  expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+  expectFullGraphRouting(invocation.stdout.toString());
+  expect(executed(invocation.stdout.toString())).toEqual(
+    [
+      ...explicit,
+      'src/new.test.ts',
+      'src/lib/initial-handoff-graph-extra.test.ts',
+      'elsewhere/src/lib/initial-handoff-graph.test.ts',
+    ].sort(),
+  );
+  const lines = invocation.stdout.toString().split('\n');
+  const firstRemainder = lines.findIndex((line) => line.startsWith('EXECUTED='));
+  const finalGraph = lines.findLastIndex((line) => line.startsWith('GRAPH_ROUTE_CASE='));
+  expect(firstRemainder).toBeGreaterThan(finalGraph);
+});
