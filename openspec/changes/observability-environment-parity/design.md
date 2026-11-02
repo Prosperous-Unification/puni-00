@@ -717,3 +717,15 @@ read-only inspection. It does not invent uncertainty recovery against already
 retired ownership, recreate records or claim exit-zero success. Pre-completion
 uncertainty keeps the existing pinned-retry semantics. The same completion model
 covers successful compensation and explicit recovery.
+
+## Selected existing local substrate: capability experiment
+
+Fresh existing-host inventory on 2026-11-02 selects the existing local host as the preliminary rehearsal candidate: 18.127 GiB available memory and 123.268 GiB Docker-backing free space. Other observed hosts fail the unchanged preliminary floors. This is target selection, not reservation, admission or runtime readiness. The physical-host 16 GiB available-memory floor remains unchanged; a guest's configured RAM cannot replace that observation. Effective guest capacity and startup sufficiency require separate evidence.
+
+The user's exact revised-packet approval authorized publication of immutable source49955 packet commit9c57; all86 remote blob identities/modes match. Later implementation dependency/alias-order differences remain explicit provenance limits. The source packet is not relabeled as the current implementation's dependency closure.
+
+The selected host delegates user CPU/memory/PID controls and grants existing KVM device access. Its rootful Docker daemon creates objects outside that user subtree; a CLI wrapper does not contain daemon-side resources. The shared preexisting BuildKit has no exclusive worktree ownership or certified finite coexistence envelope and must remain untouched. Rootless Docker lacks required privileged UID-mapping helpers. No host-root/loop privilege workaround is permitted.
+
+The next experiment prepares pinned ordinary-user QEMU tools and a small private KVM/cgroup/raw-disk capability probe. A disposable guest is a candidate substrate for the existing strict k3d runner and its private guest Docker endpoint, not a replacement cluster runner or general quota engine. First verify the actual delegated hierarchy, finite outer limits, all child/helper placement and owned cleanup. Keep fault tests inside an independently finite outer envelope. Verify physical preallocation without discard/sparse assumptions and distinguish raw block geometry from actual guest filesystem/inode enforcement. No privileged helper, host share, external daemon store or unbounded host log is part of the supported experiment.
+
+Probe results can establish individual native capabilities only. They cannot authorize a full attempt or certify the two-instance stack. A full creation positive still requires complete initial source/process/writer/host/coexistence coverage, effective bounds and fresh provenance at the actual mutation boundary. Preserve HostCapacity-only refusal, conditional accounting and runtimeAuthority false until the appropriate later gates. Keep the shared observation/accounting model provider-neutral and concrete Linux/KVM details in an adapter if this experiment justifies implementation.
