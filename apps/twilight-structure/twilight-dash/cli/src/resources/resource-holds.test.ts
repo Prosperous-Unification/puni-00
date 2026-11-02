@@ -11,8 +11,12 @@ import { admitFixture } from './admission.test.fixture';
 import { ampleHost, hostPoolFixture } from './host-pool.test.fixture';
 import {
   type CreationRequest,
+  type HoldScope,
+  identifyProcess,
   isForeignLoginSession,
   loadResourceConfiguration,
+  outsideScope,
+  processGone,
   ResourceRuntime,
 } from './runtime';
 
@@ -55,6 +59,107 @@ const inLogin = /^\/user\.slice\/user-\d+\.slice\/session-[A-Za-z0-9]+\.scope$/.
 const loginReason = inLogin
   ? ''
   : ` (skipped: this test runs in ${ownCgroup}, not a login session)`;
+
+// A process the hold scan listed can exit before its cgroup, identity or session is read. The
+// race itself cannot be scheduled without a seam, so this hands `outsideScope` the pid of a
+// process that has already exited and been reaped, which is what every read then sees
+// (verify.md Slice 6c, S6C-A21). Runs outside any namespace.
+describe('a vanished uninspectable process (slice 6c, J19)', () => {
+  function vanishedScope(sessions: string[]): HoldScope {
+    const before = identifyProcess(process.pid);
+    if (before === null) throw new Error('this test process has no identity');
+    const own = readFileSync('/proc/self/cgroup', 'utf8')
+      .split('\n')
+      .find((line) => line.startsWith('0::'))
+      ?.slice(3);
+    if (own === undefined) throw new Error('this test process has no cgroup v2 membership');
+    return {
+      owns: () => false,
+      sessions: new Set(sessions),
+      before,
+      ownCgroup: own,
+      held: 'the fixture',
+      remedy: 'none',
+      outside: [],
+    };
+  }
+
+  test('a process that exits after the scan listed it holds nothing', async () => {
+    const child = Bun.spawn(['true']);
+    await child.exited;
+    // Proof: without the ENOENT branch on the cgroup read this threw `cannot read the cgroup of
+    // uninspectable PID` (verify.md Slice 6c, 6c-F17).
+    expect(outsideScope(String(child.pid), vanishedScope([]))).toBe('gone');
+    expect(outsideScope(String(child.pid), vanishedScope([String(process.pid)]))).toBe('gone');
+    // A live process is still decided: this one, in its own cgroup, did not start before itself.
+    expect(outsideScope(String(process.pid), vanishedScope([]))).toBe('holds');
+  });
+
+  /** Spawn `argv`, read the pid it prints first, and wait until that pid's state is `Z`. */
+  async function zombieOf(argv: string[]) {
+    const parent = Bun.spawn(argv, { stdout: 'pipe' });
+    const reader = parent.stdout.getReader();
+    const first = await reader.read();
+    reader.releaseLock();
+    const pid = new TextDecoder().decode(first.value).trim().split('\n')[0] ?? '';
+    if (!/^\d+$/.test(pid)) {
+      parent.kill();
+      throw new Error(`the zombie's parent printed no pid: ${JSON.stringify(pid)}`);
+    }
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      let state: string;
+      try {
+        state = readFileSync(`/proc/${pid}/stat`, 'utf8');
+      } catch (cause) {
+        parent.kill();
+        throw new Error(`PID ${pid} never became a zombie: it was reaped or vanished`, { cause });
+      }
+      if (state.slice(state.lastIndexOf(')') + 2).startsWith('Z ')) return { parent, pid };
+      await Bun.sleep(20);
+    }
+    parent.kill();
+    throw new Error(`PID ${pid} never became a zombie`);
+  }
+
+  test('an unreaped zombie holds nothing', async () => {
+    // Python installs no SIGCHLD handler and this parent never waits, so the forked child stays
+    // a zombie; a shell could reap it before `exec` (CI on ee0f13fb1).
+    const { parent, pid } = await zombieOf([
+      'python3',
+      '-c',
+      'import os,time\npid = os.fork()\nif pid == 0:\n    os._exit(0)\nprint(pid, flush=True)\ntime.sleep(30)',
+    ]);
+    try {
+      expect(processGone(pid)).toBe(true);
+      expect(outsideScope(pid, vanishedScope([]))).toBe('gone');
+      // The live parent is not gone.
+      expect(processGone(String(parent.pid))).toBe(false);
+    } finally {
+      parent.kill();
+      await parent.exited;
+    }
+  });
+
+  test('a group leader that exited beside a live thread still holds', async () => {
+    const { parent, pid } = await zombieOf([
+      'python3',
+      '-c',
+      [
+        'import ctypes,os,threading,time',
+        'threading.Thread(target=lambda: time.sleep(30)).start()',
+        'print(os.getpid(), flush=True)',
+        'ctypes.CDLL(None).pthread_exit(None)',
+      ].join('\n'),
+    ]);
+    try {
+      expect(processGone(pid)).toBe(false);
+      expect(outsideScope(pid, vanishedScope([]))).toBe('holds');
+    } finally {
+      parent.kill('SIGKILL');
+      await parent.exited;
+    }
+  });
+});
 
 describe('isForeignLoginSession (J19 amendment, reviews F1 and G2)', () => {
   // The predicate alone, so CI runners, which have no login session, still check its shape.

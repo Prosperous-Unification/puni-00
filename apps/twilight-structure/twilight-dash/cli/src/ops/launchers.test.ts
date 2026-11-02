@@ -55,6 +55,24 @@ const NAMESPACE_SETUP = [
   'exec "$@"',
 ].join('\n');
 
+/** What an enclosing gate or host job exports that a launcher under test must not inherit. */
+const INHERITED_JOB_VARIABLE =
+  /^(HEAVY_LOCK_(LABEL|WAIT_SECONDS|POLL_SECONDS|JOB_TYPE)|DASH_JOB_(ID|TYPE|UNIT_.+)|HEAVY_JOB_ENROLLMENT)$/;
+
+/**
+ * `environment` without the heavy-lock and Dash job variables: run inside a real gate, this
+ * suite inherits `HEAVY_LOCK_LABEL=gate:<sha>` from `bin/h2puni-gate.sh`, and a launcher spawned
+ * with it labels its job as the outer gate (h2puni gate on 37ca6254a, verify.md Slice 6c).
+ */
+function cleanLauncherEnv(environment: NodeJS.ProcessEnv): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(environment).filter(
+      (entry): entry is [string, string] =>
+        entry[1] !== undefined && !INHERITED_JOB_VARIABLE.test(entry[0]),
+    ),
+  );
+}
+
 if (process.env[NAMESPACE_FLAG] !== '1') {
   test('launchers.test.ts in a private user, mount and PID namespace', () => {
     const execution = Bun.spawnSync(
@@ -78,7 +96,7 @@ if (process.env[NAMESPACE_FLAG] !== '1') {
         '--timeout=120000',
       ],
       {
-        env: { ...process.env, [NAMESPACE_FLAG]: '1' },
+        env: { ...cleanLauncherEnv(process.env), [NAMESPACE_FLAG]: '1' },
         stdout: 'pipe',
         stderr: 'pipe',
         timeout: 420000,
@@ -274,7 +292,7 @@ try {
     const run = Bun.spawn([...argv], {
       cwd: checkout,
       env: {
-        ...process.env,
+        ...cleanLauncherEnv(process.env),
         PATH: `${tools}:${process.env['PATH'] ?? ''}`,
         TOOL_WIKI_ACTIVATION_ROOT: '',
         LAUNCHER_TEST_BARRIER: barrier,
@@ -328,7 +346,7 @@ try {
           '-c',
           `: > ${held}; until [ -e ${release} ]; do sleep 0.05; done`,
         ],
-        { cwd: checkout, stdout: 'ignore', stderr: 'ignore' },
+        { cwd: checkout, env: cleanLauncherEnv(process.env), stdout: 'ignore', stderr: 'ignore' },
       );
       for (let poll = 0; !existsSync(held); poll++) {
         if (poll > 2000) throw new Error('the holder never took the lock');
@@ -371,7 +389,7 @@ try {
           '--config',
           CONFIG,
         ],
-        { stdout: 'pipe', stderr: 'pipe' },
+        { env: cleanLauncherEnv(process.env), stdout: 'pipe', stderr: 'pipe' },
       );
       expect(init.stderr.toString()).toBe('');
       expect(init.exitCode).toBe(0);
@@ -394,7 +412,7 @@ try {
             'launchers-test',
             ...flags,
           ],
-          { stdout: 'pipe', stderr: 'pipe' },
+          { env: cleanLauncherEnv(process.env), stdout: 'pipe', stderr: 'pipe' },
         );
         expect(switched.exitCode, switched.stderr.toString()).toBe(0);
       }
@@ -427,10 +445,20 @@ try {
 
     test('a gate runs beside a release build', async () => {
       const barrier = barrierDirectory('gate-and-release');
-      const [gateRun, releaseRun] = await Promise.all([
-        launch(gate, barrier, 2),
-        launch(release, barrier, 2),
-      ]);
+      // As inside a real gate, which exports its own label: the release launcher must not
+      // inherit it.
+      // Proof: spawning with `process.env` in place of `cleanLauncherEnv` made the release line
+      // read `--label gate:deadbeef` (verify.md Slice 6c, 6c-F21).
+      const inherited = process.env['HEAVY_LOCK_LABEL'];
+      process.env['HEAVY_LOCK_LABEL'] = 'gate:deadbeef';
+      let runs: { exitCode: number; stderr: string }[];
+      try {
+        runs = await Promise.all([launch(gate, barrier, 2), launch(release, barrier, 2)]);
+      } finally {
+        if (inherited === undefined) delete process.env['HEAVY_LOCK_LABEL'];
+        else process.env['HEAVY_LOCK_LABEL'] = inherited;
+      }
+      const [gateRun, releaseRun] = runs;
       expect(gateRun.exitCode).toBe(0);
       expect(releaseRun.exitCode).toBe(0);
       const names = readdirSync(barrier);
@@ -494,7 +522,7 @@ try {
           'shim-argv',
           join(WORKSPACE, 'bin', 'heavy-lock-lib.sh'),
         ],
-        { cwd: outside, stdout: 'ignore', stderr: 'pipe' },
+        { cwd: outside, env: cleanLauncherEnv(process.env), stdout: 'ignore', stderr: 'pipe' },
       );
       const stderr = await new Response(run.stderr).text();
       // Proof: renaming `--wait-seconds` to `--wait` in the shim made this exit 64 with a usage

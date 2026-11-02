@@ -879,6 +879,99 @@ export function identifyProcess(pid: number): ProcessIdentity | null {
   if (fields[0] === 'Z') return null;
   return { pid, boot: readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim(), start };
 }
+/** The kernel's `PF_EXITING` task flag, field 9 of `/proc/<pid>/stat`. */
+const PF_EXITING = 0x4;
+
+/**
+ * Whether the process `pid` holds nothing any more because it is leaving: its `/proc` entry is
+ * gone, it is dead (`X`), or it is a zombie (`Z`) or in `do_exit` (`PF_EXITING`) with no other
+ * thread in its group. Such a process has dropped or is dropping its memory, and the kernel then
+ * refuses its `fd` directory (EACCES) and its `cwd` link, so without this J19 counts it as an
+ * uninspectable holder (slice 6c: `cannot inspect process PID 571 (wc)` in CI). A group leader
+ * that exited while other threads run is a zombie too, and those threads still hold its
+ * descriptors: it is not gone.
+ * @throws Error when its state or thread list is unreadable for a reason other than its exit.
+ */
+export function processGone(pid: string): boolean {
+  return inspectionRoot(pid) === null;
+}
+
+/**
+ * Where to read the process `pid`'s cwd, descriptors and maps, or null when it is gone
+ * ({@link processGone}). While its leader runs, `/proc/<pid>`. While the leader is leaving
+ * beside a live thread, that thread's `/proc/<pid>/task/<tid>`: the descriptor table, cwd and
+ * memory belong to the whole group, and the leaving leader's are refused (EACCES), unreadable or
+ * empty. So the live thread's view is a real inspection where the leader's would be a guess
+ * (review P1 of 63a070156: an `exit_group` leaves siblings running for a moment).
+ * @throws Error when a state or the thread list is unreadable for a reason other than an exit.
+ */
+export function inspectionRoot(pid: string): string | null {
+  const own = taskLeaving(`/proc/${pid}/stat`);
+  if (own === 'gone') return null;
+  if (own === 'live') return `/proc/${pid}`;
+  let tasks: string[];
+  try {
+    tasks = readdirSync(`/proc/${pid}/task`);
+  } catch (cause) {
+    if (isMissing(cause)) return null;
+    throw new Error(`thread inspection unavailable for PID ${pid}`, { cause });
+  }
+  // A group exit takes every thread down; a leader that called `pthread_exit` leaves live ones.
+  // Proof: answering null here for every leaving leader made `a group leader that exited beside
+  // a live thread still holds` (resource-holds.test.ts) see it gone (verify.md Slice 6c,
+  // 6c-F19); answering the leader's own path made `a leaving leader is inspected through its
+  // live thread` (leaving-holds.test.ts) refuse `cannot inspect process` (6c-F20).
+  const live = tasks.find(
+    (task) => task !== pid && taskLeaving(`/proc/${pid}/task/${task}/stat`) === 'live',
+  );
+  return live === undefined ? null : `/proc/${pid}/task/${live}`;
+}
+
+/**
+ * One task's state from its `stat` file: `gone` (missing or `X`), `leaving` (`Z`, or `PF_EXITING`
+ * set by `do_exit`) or `live`.
+ * @throws Error when the file is unreadable for another reason or malformed.
+ */
+function taskLeaving(path: string): 'gone' | 'leaving' | 'live' {
+  let stat: string;
+  try {
+    stat = readFileSync(path, 'utf8');
+  } catch (cause) {
+    if (isMissing(cause)) return 'gone';
+    throw new Error(`process state inspection unavailable at ${path}`, { cause });
+  }
+  const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+  const state = fields[0];
+  const flags = Number(fields[6]);
+  if (!state || !Number.isSafeInteger(flags)) throw new Error(`process state at ${path} malformed`);
+  if (state === 'X') return 'gone';
+  // Proof: with zombie and exit detection removed (`'live'` for every state but `X`),
+  // `an unreaped zombie holds nothing` (resource-holds.test.ts) saw it hold (verify.md Slice 6c,
+  // 6c-F18).
+  return state === 'Z' || (flags & PF_EXITING) !== 0 ? 'leaving' : 'live';
+}
+
+/**
+ * `pid`'s identity from its `stat` whatever its state, zombie included, or null once it is gone.
+ * @throws Error when the file is unreadable for another reason or malformed.
+ */
+function statIdentity(pid: string): ProcessIdentity | null {
+  let source: string;
+  try {
+    source = readFileSync(`/proc/${pid}/stat`, 'utf8');
+  } catch (cause) {
+    if (isMissing(cause)) return null;
+    throw new Error('process identity inspection unavailable', { cause });
+  }
+  const start = source.slice(source.lastIndexOf(')') + 2).split(' ')[19];
+  if (!start) throw new Error('process identity malformed');
+  return {
+    pid: Number(pid),
+    boot: readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim(),
+    start,
+  };
+}
+
 function isMissing(cause: unknown): boolean {
   return (
     cause instanceof Error && 'code' in cause && (cause.code === 'ENOENT' || cause.code === 'ESRCH')
@@ -1030,7 +1123,7 @@ function git(arguments_: string[], input?: string): string {
  * sessions that make it Dash-owned, the identity nothing the owner made can predate, what a
  * refusal says may be held and its remedy, and the processes recorded as outside.
  */
-interface HoldScope {
+export interface HoldScope {
   /** Whether one component of a process's cgroup v2 path is a Dash-owned scope. */
   owns: (component: string) => boolean;
   /** Session ids (leader pids) of Dash-owned process groups. */
@@ -1131,29 +1224,49 @@ function outsideNote(scope: HoldScope): string {
  * leave the scope with `systemd-run --user`. A process that predates the leader cannot have
  * inherited or been handed the owner's files by it. Anything else, including any process of
  * another boot, stays an unknown holder.
- * @throws Error when its cgroup, session or identity cannot be read, which keeps the entry charged.
+ *
+ * `gone` when the process exited after the scan listed it: ENOENT or ESRCH on its cgroup, its
+ * identity (a zombie included) or its session means it holds nothing. On a real host processes
+ * exit during settlement all the time, and counting them as unknown holders blocked units at
+ * random (`cannot read the cgroup of uninspectable PID …`, slice 6c's launchers run).
+ * Exported for that test.
+ * @throws Error when its cgroup, session or identity is unreadable for any other reason
+ * (EACCES, EPERM, malformed), which keeps the entry charged.
  */
-function outsideScope(pid: string, scope: HoldScope): boolean {
+export function outsideScope(pid: string, scope: HoldScope): 'outside' | 'holds' | 'gone' {
   let membership: string;
   try {
     membership = readFileSync(`/proc/${pid}/cgroup`, 'utf8');
   } catch (cause) {
+    // Proof: without this, `a process that exits after the scan listed it holds nothing`
+    // (resource-holds.test.ts) threw `cannot read the cgroup of uninspectable PID` (verify.md
+    // Slice 6c, 6c-F17).
+    if (isMissing(cause)) return 'gone';
     throw new Error(`cannot read the cgroup of uninspectable PID ${pid}`, { cause });
   }
   const unified = membership.split('\n').find((line) => line.startsWith('0::'));
   if (unified === undefined)
     throw new Error(`uninspectable PID ${pid} has no cgroup v2 membership`);
   const cgroup = unified.slice(3);
-  if (cgroup.split('/').some(scope.owns)) return false;
-  const identity = identifyProcess(Number(pid));
-  if (identity === null) throw new Error(`uninspectable PID ${pid} has no identity`);
+  if (processGone(pid)) return 'gone';
+  if (cgroup.split('/').some(scope.owns)) return 'holds';
+  // Read directly, not through `identifyProcess`, which answers null for a zombie by choice: a
+  // zombie leader beside live threads still has a start to compare (review P2).
+  const identity = statIdentity(pid);
+  if (identity === null) return 'gone';
   if (scope.sessions.size > 0) {
-    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    let stat: string;
+    try {
+      stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    } catch (cause) {
+      if (isMissing(cause)) return 'gone';
+      throw new Error(`cannot read the session of uninspectable PID ${pid}`, { cause });
+    }
     const session = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[3];
     if (!session) throw new Error(`uninspectable PID ${pid} has no session`);
     // Proof: without this, `a non-dumpable process in another use's process group still holds a
     // resource` (resource-holds.test.ts) saw the use released (2026-11-02, J19).
-    if (scope.sessions.has(session)) return false;
+    if (scope.sessions.has(session)) return 'holds';
   }
   // Another login session's processes (`sshd-session`, `(sd-pam)` beside it) are outside Dash-owned
   // work whenever they started (J19 amendment, reviews F1 and G2): a `puni1` ssh login that
@@ -1165,11 +1278,13 @@ function outsideScope(pid: string, scope: HoldScope): boolean {
   // after the job does not hold` (host-job-holds.test.ts) saw tmp `blocked`; with the owner's
   // session exempted too, `a setsid descendant in Dash's own login session still holds`
   // (resource-holds.test.ts) saw the resource `released` (2026-11-02, reviews F1, G2).
-  if (isForeignLoginSession(cgroup, scope.ownCgroup)) return true;
+  if (isForeignLoginSession(cgroup, scope.ownCgroup)) return 'outside';
   // Proof: without the start comparison `a non-dumpable process that left for another scope
   // after the job still holds` (host-job-holds.test.ts) saw tmp `released` with the file open
   // (2026-11-02, Slice 3 review R1).
-  return identity.boot === scope.before.boot && BigInt(identity.start) < BigInt(scope.before.start);
+  return identity.boot === scope.before.boot && BigInt(identity.start) < BigInt(scope.before.start)
+    ? 'outside'
+    : 'holds';
 }
 
 /**
@@ -1213,8 +1328,9 @@ function isAccessDenied(cause: unknown): boolean {
  * ({@link outsideScope}) is recorded in `scope.outside` instead of refusing (J19: host-job
  * settlement, managed-resource cleanup and the unit check at pool init alike); any other
  * uninspectable process refuses, naming its pid, comm and the scope's remedy.
+ * Exported for its leaving-process tests (leaving-holds.test.ts).
  */
-function inspectHolds(locator: string, scope: HoldScope): void {
+export function inspectHolds(locator: string, scope: HoldScope): void {
   // Proof: returning without inspection released a live writer's directory (live-holds.log)
   // and the protected-process target in `existing account runs work` (2026-10-25).
   const mounts = readFileSync('/proc/self/mountinfo', 'utf8').split('\n');
@@ -1224,14 +1340,12 @@ function inspectHolds(locator: string, scope: HoldScope): void {
   }
   for (const pid of readdirSync('/proc').filter((name) => /^\d+$/.test(name))) {
     try {
-      if (
-        statSync(`/proc/${pid}`).uid !== process.getuid?.() ||
-        identifyProcess(Number(pid)) === null
-      )
-        continue;
+      if (statSync(`/proc/${pid}`).uid !== process.getuid?.()) continue;
+      const root = inspectionRoot(pid);
+      if (root === null) continue;
       for (const link of [
-        `/proc/${pid}/cwd`,
-        ...readdirSync(`/proc/${pid}/fd`).map((fd) => `/proc/${pid}/fd/${fd}`),
+        `${root}/cwd`,
+        ...readdirSync(`${root}/fd`).map((fd) => `${root}/fd/${fd}`),
       ]) {
         let target: string;
         try {
@@ -1243,19 +1357,24 @@ function inspectHolds(locator: string, scope: HoldScope): void {
         if (samePath(target.replace(/ \(deleted\)$/, ''), locator))
           throw new Error('live file hold remains charged');
       }
-      for (const mapping of readFileSync(`/proc/${pid}/maps`, 'utf8').split('\n')) {
+      for (const mapping of readFileSync(`${root}/maps`, 'utf8').split('\n')) {
         const target = /\s(\/.*)$/.exec(mapping)?.[1];
         if (target && samePath(target.replace(/ \(deleted\)$/, ''), locator))
           throw new Error('mapped file hold remains charged');
       }
     } catch (cause) {
-      if (isMissing(cause) || identifyProcess(Number(pid)) === null) continue;
+      // Leaving since it was listed (ENOENT or ESRCH, or a zombie or `do_exit` caught mid-read):
+      // it holds nothing. Only EACCES and EPERM below mean uninspectable.
+      if (isMissing(cause) || processGone(pid)) continue;
       if (cause instanceof Error && cause.message.includes('remains charged')) throw cause;
       // Proof: without this branch `a non-dumpable process outside the job scope does not hold
       // its tmp directory` (host-job-holds.test.ts) saw tmp `blocked` "cannot inspect process
       // PID"; with `outsideScope` always true `a non-dumpable process inside the job scope still
       // holds its tmp directory` saw it `released` (2026-11-02, Slice 3 review F1).
-      if (isAccessDenied(cause) && outsideScope(pid, scope)) {
+      const verdict = isAccessDenied(cause) ? outsideScope(pid, scope) : 'holds';
+      // Exited since the scan listed it: it holds nothing and leaves no evidence.
+      if (verdict === 'gone') continue;
+      if (verdict === 'outside') {
         scope.outside.push({
           pid: Number(pid),
           comm: commOf(pid),

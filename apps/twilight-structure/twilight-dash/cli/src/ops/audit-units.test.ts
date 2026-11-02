@@ -32,7 +32,7 @@ describe('the weekly audit units (task 4.2)', () => {
     const { service, timer } = renderAuditUnits(paths);
     expect(service).toBe(`[Unit]
 Description=Twilight Dash host-job envelope audit (dash-host-jobs J9)
-Documentation=file:///home/puni1/puni-00/docs/resources.md
+Documentation=file:///home/puni1/puni-00/apps/twilight-structure/twilight-dash/cli/docs/resources.md
 
 [Service]
 Type=oneshot

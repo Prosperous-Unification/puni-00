@@ -45,6 +45,14 @@
       transaction with the outbox event — test: the surviving-child and dirty-tree scenarios;
       negative: settle memory on exit code alone and watch the surviving-child test admit over it.
 
+- [ ] 2.4 Follow-up (seen in slice 6c's full `twilight-dash:test`): `host-jobs.test.ts`'s
+      `a replaced tmp directory or symlink stays charged and untouched` failed once under
+      full-suite load (expected `blocked`, received `released`), then passed alone three times.
+      `rmdir` then `mkdir` can reuse the inode, so a tmp directory's device and inode identity
+      does not prove it is the original. The identity should include ctime or birth time, or a
+      content marker — test: replace the directory with one that reuses the inode; negative:
+      compare dev and inode only and watch the replacement be released.
+
 ## 3. Measured runs (needs 2)
 
 - [x] 3.1 `ops job run`: scope through the runtime's FD-gated launch, counters read and identity
@@ -144,6 +152,15 @@
 - [ ] 6.3 `gate_host` role: linger on, pool config, ledger directory, second gate tree,
       `validate` runs `ops job audit`; h2puni disk cleaned first per the recorded order — proof:
       two converging applies, `changed=0` on the second.
+- [x] 6.3a Code (slice 6c): the role turns linger on, creates the empty fixed pool root and
+      `~/.config/dash`, the `dagger_engine` token unit and two more full clones with one frozen
+      install each, `~/puni-00-gate-tbf2` (the second `gate_tree`) and the launcher-only
+      `~/puni-00-gate-launcher`. It refuses to clone below 5 GiB free per missing checkout plus
+      10 GiB. It writes `host-pool.json` only where `puni_gate_host_pool_enroll` is true, since
+      the file enrolls the host. `validate` reads linger, the checkouts, the token unit, the
+      configuration's mode, owner and shape, and the units, then runs `ops pool inspect` and
+      `ops job audit` once a ledger exists. No host was touched; the apply, the h2puni cleanup
+      and the converging proof stay in 6.3 (verify.md Slice 6c, S6C-A1 to S6C-A25).
 - [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
       `Restart=on-failure` and `KillMode=process` (beside the observation units of 4.2). It
       lands before 6.4, because observe mode needs a running `watch` (review H1 of #818). A host
@@ -156,6 +173,11 @@
       `apps/twilight-structure/twilight-dash/cli/docs/resources.md`. Proof: kill the process and
       watch systemd restart it with the guard holder surviving; a converging `gate_host` apply
       reports `changed=0` the second time.
+- [x] 6.7a Code (slice 6c): the role installs `dash-resources-watch.service`
+      (`Restart=on-failure`, `RestartSec=30`, `KillMode=process`, skipped until the ledger
+      exists) and the audit pair `ops job render-audit-units` renders. It enables them on an
+      enrolled host and never starts them. The restart proof on a host stays in 6.7
+      (verify.md Slice 6c).
 - [ ] 6.4 Enroll h2puni and h4claw in observe mode, **only once 6.7's `watch` unit is installed
       and running on that host** (an observe-mode hold left by a dead launcher is released by
       `watch` or `resources sweep`, nothing else); run every launcher through `run_heavy_job`
@@ -196,6 +218,17 @@
       refuses until this is done. Done by J19 (design.md): `resource-holds.test.ts` outside any
       namespace; `ops pool init` now succeeds beside this workstation's own `systemd --user`
       (PID 2327) and `(sd-pam)` (verify.md Slice 6a).
+- [ ] 6.9 A user timer that keeps `~/puni-00-gate-launcher` fresh (`git fetch` and
+      `checkout --detach origin/main` while no job runs from it, then a watch restart); until it
+      lands that is a manual operator step (`docs/infra/gate-hosts.md`, S6C-A20) — test: the
+      timer refuses while a job launched from the checkout runs.
+- [ ] 6.10 A nested `run_heavy_job` inherits the outer job's `HEAVY_LOCK_LABEL`: a `test:queued`
+      or solver publish started inside an admitted gate payload is labelled as the gate, on the
+      legacy lock and in Dash alike (found by slice 6c's h2puni gate on 37ca6254a, where
+      `launchers.test.ts` saw `--label gate:37ca6254`). `run_heavy_job` should refuse a nested
+      call, or re-label it `<outer label>/<own type>` when `DASH_JOB_ID` is already set — test:
+      a launcher run inside a fake admitted job records the derived label; negative: drop the
+      check and watch it record the outer label.
 - [ ] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
       (slice 3, #809) carries `descriptorDigest` and no durable locator, so this needs a locator
       for the run record and a decision on which digest WBS keeps — test: a returned host job's

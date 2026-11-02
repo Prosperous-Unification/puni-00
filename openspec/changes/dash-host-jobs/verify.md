@@ -1994,3 +1994,379 @@ passed`.
 - **`bunx openspec validate dash-host-jobs --json`:** `failed: 0`.
 - **`bunx nx run twilight-dash:test --skip-nx-cache`:** exit 0, 4247 pass, 0 fail, 138 files,
   1853.92 s.
+
+## Slice 6c (code) — `gate_host` role for the host pool (tasks 6.3, 6.7: code half)
+
+Branch `feat/dash-host-jobs-6c-role` from `feat/dash-host-jobs-6a-launchers` at `af8cdd003`, with
+`feat/dash-host-jobs-6b-transition` at `d5b7a0658` merged in (S6C-A1). **Nothing here touched a
+host:** no ssh, no Ansible apply, no enrollment. The apply, the h2puni disk cleanup, the two
+converging applies with `changed=0`, the restart proof and `ops pool init` all stay open in 6.3,
+6.7 and 6.4. Docs are [gate hosts](../../../docs/infra/gate-hosts.md) ("What the role sets up",
+"Enroll a host in the host pool"); the test is
+`apps/twilight-structure/twilight-dash/cli/src/ops/gate-host-pool.test.ts`.
+
+### Assumptions (overrulable by id)
+
+- **S6C-A1 6b merged in.** The configuration template writes `launcherCheckouts` and
+  `concurrencyEligible`, which only 6b's schema accepts (`onUndeclaredKey('reject')`), and the test
+  loads the template through Dash's own loader. So 6b is merged into this branch. tasks.md and
+  verify.md took both slices' text. Whoever merges #818 into `plan/dash-host-jobs` resolves the same
+  two files.
+- **S6C-A2 The configuration is the enrollment.** J12 enrolls a host when
+  `/home/puni1/.config/dash/host-pool.json` exists. A role apply must not enroll as a side effect,
+  and S6-A14 makes enrolling while a gate is queued operator error. So the role writes it only where
+  `puni_gate_host_pool_enroll` is true. That boolean is required, with no default. A host with it
+  false must have neither the configuration nor a ledger. `validate` refuses either, and never
+  deletes one.
+- **S6C-A3 No ledger directory.** `ops pool init` creates `<root>/.dash` itself and refuses a
+  non-empty root. So "the ledger directory it needs" is the root's parents. The root is 0700 and
+  left empty.
+- **S6C-A4 Disk threshold.** Each missing checkout needs 5 GiB, and 10 GiB must be left over. The
+  5 GiB is the ~4.4 GB that a clone plus its frozen install measured on h2puni. The 10 GiB is the
+  `gate` type's 8 GiB tmp envelope plus margin, so a clone never leaves a host unable to gate
+  (h2puni's ENOSPC of 2026-10-20). With all three checkouts missing that is 26843545600 bytes. h2puni
+  has about 8 GB free, so the role refuses there until the cleanup. The probe exits 75 and prints
+  `clones= avail= need= missing=`. The assert's message adds the threshold and points to the
+  cleanup entry in puni-plan `RESUME.md`. A host whose checkouts all exist is never refused.
+- **S6C-A5 Budget and headroom.** `cpuCores` is `nproc` (`ansible_facts.processor_nproc`).
+  `memoryGib` is `memtotal_mb // 1024`, at or under the MemTotal GiB that init checks. Headroom
+  defaults to 1 core and 2 GiB, provisional until 6.4's calibration, and a host may override it.
+  `diskUnitBytes` is 1 GiB, `headroomBytes` 10 GiB and `workspaceSlots` 4. `diskBudgetUnits`
+  comes per host from `$OPS`.
+- **S6C-A6 Token unit.** `git init` runs on a `mktemp -d` sibling, which gets one empty commit
+  (`dagger_engine token unit (dash-host-jobs S6-A7)`, fixed author `gate_host`, no signing) and is
+  then renamed onto `~/.local/share/dash/units/dagger_engine`. That path is outside the managed
+  root: a unit under the root, as the brief suggested, is refused (`overlaps the managed root`).
+  The commit gives settlement a resting commit, which an unborn tree lacks. A path that already
+  exists must be a clean tree with a commit, or the command refuses 70 naming it. It is never
+  repaired over.
+- **S6C-A7 No `docker_build` unit.** No catalogue type names `docker_build`, and neither does the
+  launcher inventory, so it would only be one more token tree. `exclusiveUnits` is `gate_tree` (two)
+  and `dagger_engine` (one).
+- **S6C-A8 No `mode` field.** The schema-3 configuration has no `mode` and rejects undeclared keys.
+  The ledger starts in `observe`, and only `ops pool switch-mode` changes it.
+- **S6C-A9 Launcher-only checkout.** `launcherCheckouts` is not the two gate trees.
+  [heavy job launchers](../../../docs/infra/heavy-job-launchers.md) and S6-A6 rule them out: an
+  enrolled payload refuses its own launcher's checkout, and a process working in a unit holds it.
+  So the role clones a third full checkout, `~/puni-00-gate-launcher`. Gates, the watch and the
+  audit run Dash from it, and the list defaults to it. A host overrides the list to add other
+  launchers, such as h2puni's `~/wbs-dev/src`.
+- **S6C-A10 Audit units, one source.** The renderer `renderAuditUnits` stays the source of truth.
+  The role ships equivalent templates, and the test requires them to equal its output for the
+  role's paths. The renderer's `Documentation=file://<checkout>/docs/resources.md` names a path
+  that does not exist (the file is under `apps/twilight-structure/twilight-dash/cli/docs/`). It is
+  mirrored here unchanged and left as a renderer follow-up.
+- **S6C-A11 Watch unit.** `ConditionPathExists=<ledger>`: `resources watch` throws without a
+  ledger, so before `ops pool init` the unit is skipped, not crash-looped. The role enables the
+  watch and the audit timer only on an enrolled host, and starts neither. The operator order is
+  init, then start, then the first job. The brief's "start the unit, then init" is reversed
+  because a watch has nothing to watch before init. 6b's "watch running before observe jobs" still
+  holds. `RestartSec=30`. PATH is the pinned Bun and Node, then the system's. The working
+  directory is the launcher checkout.
+- **S6C-A12 WBS inputs per host.** `puni_gate_host_pool` has exactly `authorityId`, `epoch`,
+  `providerId`, `mcpResource` (https), `credential` and `diskBudgetUnits`, from the operator's
+  `$OPS/gate.json`. Nothing is defaulted. The template task is `no_log`, and the shape probe
+  discards `jq`'s output, so the credential is never printed.
+- **S6C-A13 What the test cannot render.** The test renders templates and probe argv with a
+  strict Jinja subset (`{{ name }}`, `.key`, `[n]`, `to_json`, `int`). Anything else in a
+  template throws. Real Ansible rendering, the facts arithmetic of S6C-A5, the `systemd_service`
+  and `wait_for` tasks and linger itself run only at the apply. `ops pool init` refuses a budget
+  above the host's facts loudly.
+- **S6C-A14 The 6a × 6b launchers conflict, resolved by #818; its flake was a real race.** Before
+  #818 landed, three of 6a's concurrent-gate cases in `launchers.test.ts` failed on this branch's
+  6a + 6b tree: 6b's observe mode queues every Dash job through the shell lock. #818's final
+  `9855c2343` patched the fixture, and this branch merged the plan at `b578beef9`. The next three
+  runs went 9/10, 10/10, 10/10. In the failing run, "two gates run at once" saw `blocked: …
+cannot read the cgroup of uninspectable PID 662`. That is not fixture timing. J19's inspection
+  listed a process, found its descriptors unreadable, and the process had exited by the time
+  `/proc/<pid>/cgroup` was read; the inspection counted it as an unknown holder. On a host this
+  would block units at random. Fixed under S6C-A21.
+- **S6C-A15 Pinned fields stop the role (review Q1).** Once a ledger and a configuration both
+  exist, the role renders the candidate configuration on the controller and passes it on stdin,
+  never to disk. A `jq` probe compares it with the live file on the thirteen fields
+  `ResourceRuntime.binding` pins: root, authority, epoch, provider, disk unit, disk budget, slots,
+  headroom bytes, cores, memory, headroom, units and enrollment id. The probe prints only the
+  names of differing fields. An assert stops the play before the template task, with "pinned
+  field differs from the ledger; re-enrollment under a new root is required". `mcpResource`,
+  `credential`, `launcherCheckouts` and `concurrencyEligible` may still change. "Provisional" is
+  gone from the headroom default: it is chosen per host before init.
+- **S6C-A16 What the guard compares.** It compares with the live file, not the ledger, which is
+  what every open compares with. A configuration missing beside a ledger is rewritten from the
+  inputs. That restores a broken enrollment, and the next open checks it against the ledger. The
+  assert has one condition (`stdout == '[]'`): a `jq` failure prints nothing, so a separate
+  `rc == 0` could never fail on its own, and the evaluator showed exactly that.
+- **S6C-A17 h2puni onboarding is its own step (review Q2).** h2puni is not in `gate_hosts` and has
+  never been role-managed. Its first apply replaces `~/.bashrc`, installs the pins, packages and
+  solver venv, and requires the live shared `~/puni-00-gate-tbf` to be a full clean clone of the
+  canonical URL. That is a larger change than this slice. It is owed by 6.3's operator half,
+  **for Dany to see before it runs**, as step 0 of gate-hosts.md "Enroll a host in the host pool".
+- **S6C-A18 Controller-image evaluator.** `infra/ansible/tests/gate-host-assertions.py` runs the
+  role's exact tasks in the digest-locked controller, on localhost, with recorded registered
+  values or fake commands. It runs by hand, not in CI: it needs the controller image and
+  `--tmpfs /tmp:exec` for the fakes. A fault counts as caught when its bad input gets past the
+  named refusal. Either the play passes, or it fails with Ansible's own error instead of the
+  task's message: E1 conditions 0, 1 and 4, E2's `failed_when`, E3 condition 0.
+- **S6C-A19 Audit documentation path (review Q9).** `renderAuditUnits` (slice 4) now names
+  `<checkout>/apps/twilight-structure/twilight-dash/cli/docs/resources.md`, a path that exists.
+  `audit-units.test.ts`'s expected text and the role's template follow it, and the equality test
+  keeps the two in step.
+- **S6C-A20 Launcher freshness is manual (review Q6).** After enrollment, gates launch from
+  `~/puni-00-gate-launcher`. AGENTS.md's gate line and gate-hosts.md's launch section say so.
+  Its head moves only by hand (`git checkout --detach origin/main` while no job runs from it); task
+  6.9 owes a timer. `validate`'s header now says that `ops pool inspect` and `ops job audit` can
+  migrate an older ledger forward (review Q5).
+- **S6C-A21 A process that vanished holds nothing (coordinator's fix of the S6C-A14 race).**
+  `outsideScope` in `runtime.ts` now answers `outside`, `holds` or `gone`. It answers `gone` when
+  the process has exited since the scan listed it: ENOENT or ESRCH on its cgroup read or its
+  session read. `inspectHolds` skips a `gone` process and records nothing about it. EACCES and
+  EPERM keep their J19 meaning. A zombie or an exiting process is S6C-A23's case, and the leaving
+  leader inspected through a live thread is S6C-A24's. `HoldScope`, `outsideScope` and
+  `inspectHolds` are exported for the tests, which add no seam. A reaped pid is exactly what each
+  read sees once the race is lost; the cgroup branch's negative is 6c-F17.
+- **S6C-A22 Slice 2's inode-reuse flake is owed, not fixed.** The full-suite failure of
+  `a replaced tmp directory or symlink stays charged and untouched` comes from `rmdir` plus `mkdir`
+  reusing the inode, which a dev and inode identity cannot tell apart. tasks.md 2.4 owes an
+  identity that also carries ctime or birth time, or a content marker.
+- **S6C-A23 A leaving process holds nothing; the second form of the race (CI on `37ca6254a`).**
+  CI's "two gates run at once" ended with `blocked: … cannot inspect process PID 571 (wc), which
+may hold the job's files`. `wc`, a short-lived child of the other gate's steps, was leaving:
+  either a zombie, or in `do_exit` with its memory dropped. The kernel then refuses its `fd`
+  directory (EACCES) and has no `cwd`. Observed on this workstation: a zombie's `/proc/<pid>/fd`
+  is `Permission denied`, `cwd` cannot be read, `maps` is empty, and its stat flags include
+  `PF_EXITING` (0x4).
+  - Not yet a zombie at the check, it went through J19's EACCES path. Its session was a job's,
+    so `outsideScope` answered `holds`.
+  - The fix is the new exported `processGone(pid)`, in `runtime.ts`. It answers true when the
+    process's stat entry is missing (ENOENT/ESRCH), when its state is `X`, or when it is `Z` or
+    has `PF_EXITING` and no other thread in `/proc/<pid>/task` is live.
+  - `inspectHolds` uses it at the scan's top and in its catch. Before, both checks were
+    `identifyProcess(...) === null`, which also treated a zombie group leader beside live threads
+    as dead. `outsideScope` uses it before any other decision. EACCES and EPERM on a process that
+    is not leaving keep the J19 rule.
+  - A zombie group leader whose threads still run holds those threads' descriptors. It is now an
+    unknown holder: identity null and not gone means `holds`, where before it was skipped.
+  - Tests in `resource-holds.test.ts`, no seam. "an unreaped zombie holds nothing" forks from a Python parent that installs no SIGCHLD handler and never waits, then waits for the child's state to read `Z`. Its live parent is not gone. The first fixture, `bash -c 'true & echo $!; exec sleep 30'`, raced on CI (ee0f13fb1): bash reaped the child before `exec`. The replacement passed 5 of 5 runs here, and once more with the test pinned to one core (`taskset -c 0`) beside three busy loops. "a group leader that exited beside a live thread still holds" uses Python's main thread calling `pthread_exit` beside a sleeping thread.
+  - The first cut required the task list to hold only the leader. On this workstation's
+    launchers runs, a Bun mid-group-exit, whose other threads were still tearing down, became an
+    uninspectable holder: `cannot inspect process PID 432 (bun)`, 8 or 9 out of 10 on each of
+    three runs. Checking each other thread's own state fixed it.
+  - The mid-`do_exit` state itself cannot be held still for a test. It shares the zombie's
+    `PF_EXITING` flag, and that flag is what the code reads.
+  - **Accepted false-release window.** `gone` is declared from `exit_signals` (`PF_EXITING`) on,
+    while `do_exit` drops the descriptor table later (`exit_files`, `exit_task_work`). So
+    descriptors can stay open for a span of under a millisecond to a few milliseconds, longer only
+    when a file's release blocks in FUSE or NFS. The process cannot run user code past that
+    point, a later job that re-creates the path gets a fresh inode, and only deleted-open disk
+    space lingers until the last `fput` drains.
+- **S6C-A24 A leaving leader is inspected through a live thread (review P1/P2 of 63a070156).** In
+  an `exit_group` the leader is `PF_EXITING`, and refused (EACCES) after `exit_mm`, while a sibling
+  thread still runs for a moment. A leader that called `pthread_exit` stays that way.
+  - `inspectionRoot(pid)` answers `/proc/<pid>` while the leader runs, and
+    `/proc/<pid>/task/<tid>` of a live thread while the leader is leaving. The descriptor table,
+    cwd and memory belong to the whole group, so that view is a real inspection. It answers null,
+    meaning gone, when no thread is live. `processGone` is `inspectionRoot(pid) === null`.
+  - `inspectHolds` reads cwd, fd and maps under that root.
+  - `outsideScope` reads the start time straight from `stat` (`statIdentity`), because
+    `identifyProcess` answers null for a zombie by choice. A zombie leader whose live thread is
+    itself refused therefore gets the full J19 rules (foreign session, owned session, start
+    comparison) instead of `holds`.
+  - Nothing is stricter than J19 now. Where no thread is live the process is gone (S6C-A23);
+    where one is, either its real view decides or J19 does.
+  - Tests in `leaving-holds.test.ts`, inside a private namespace so the scan sees only the
+    suite's processes. "a leaving leader is inspected through its live thread" expects no holder
+    and no outside-scope record. "a leaving leader's live thread holding a file still holds"
+    has the thread hold a file in the locator and expects `live file hold remains charged`.
+- **S6C-A25 Launchers under test get a clean environment.** Run inside a real gate,
+  `launchers.test.ts` inherited `HEAVY_LOCK_LABEL=gate:<sha>`, which `bin/h2puni-gate.sh`
+  exports. Its release launcher then recorded `--label gate:37ca6254` where the case expects
+  `unlabeled`; the h2puni gate on 37ca6254a failed this way, and CI never sets the variable.
+  `cleanLauncherEnv` drops `HEAVY_LOCK_LABEL`, `HEAVY_LOCK_WAIT_SECONDS`,
+  `HEAVY_LOCK_POLL_SECONDS`, `HEAVY_LOCK_JOB_TYPE`, `DASH_JOB_ID`, `DASH_JOB_TYPE`,
+  `DASH_JOB_UNIT_*` and `HEAVY_JOB_ENROLLMENT` from every spawn in the file: the namespace rerun,
+  the launchers, the legacy holder, `ops pool init` and `switch-mode`, and the shim's argv. The
+  negative sets `HEAVY_LOCK_LABEL=gate:deadbeef` around "a gate runs beside a release build" and
+  still expects `--label unlabeled`. The production side, a nested `run_heavy_job` inheriting the
+  outer label, is owed by task 6.10.
+
+### Commands (fresh, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, this workstation)
+
+| Command                                                                                                       | Result                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test … src/ops/gate-host-pool.test.ts` (twilight-dash)                                                   | 10 pass, 0 fail: nine cases plus the namespace rerun, which runs `ResourceRuntime.initialize` on the rendered configuration with two fixture gate trees and the token unit the role's own command made               |
+| `bun test … gate-host-pool audit-units host-pool-mode launchers host-jobs` (twilight-dash, the 6a + 6b merge) | 15 pass, 1 fail: `launchers.test.ts` (6a's), whose three concurrent-gate cases fail on the merged 6a + 6b tree (`heavy lock:` in a gate's stderr; exit 143 after the 120 s case timeout). See S6C-A14                |
+| `bunx nx run tool-fleet:check --skip-nx-cache`                                                                | exit 0; `ansible: 15 playbooks syntax-checked`, `yaml: 231 files parsed strictly`, `shellcheck 0.11.0: 12 scripts`, `every family passed`; its `tool-fleet:test` (with `ansible.test.ts`), lint and typecheck passed |
+| `ansible-playbook --syntax-check -i localhost, playbooks/gate-host.yml` in the fleet controller image         | rc 0 (`Could not match supplied host pattern … gate_hosts`, as for every playbook)                                                                                                                                   |
+| `shellcheck -S style` on the 14 inline `bash -c` scripts of the role's three task files                       | only SC1091 (info, a sourced `~/.bashrc` or library not followed), as the existing probes have; nothing on the new scripts' own code                                                                                 |
+| `bunx eslint …/gate-host-pool.test.ts`, `bunx tsc --build --force …/twilight-dash/cli/tsconfig.json`          | clean; exit 0                                                                                                                                                                                                        |
+| `bunx prettier --check` on every touched file                                                                 | `All matched files use Prettier code style!`                                                                                                                                                                         |
+| `bunx openspec validate dash-host-jobs --json`                                                                | valid; 11 warnings, the same 11 as before this slice (long requirements, text before the first requirement)                                                                                                          |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                   | exit 0; two pre-existing review-debt entries                                                                                                                                                                         |
+
+`ansible-lint` is not pinned in this repository (no toolchain entry and no binary on this
+workstation), so it was not run.
+
+### Fault injection
+
+Each fault was applied by script to the real role file, the suite was run, and the file was
+restored. Its SHA-256 matched before and after in every row. "Red" lists the failing tests in
+`gate-host-pool.test.ts`; each fault also failed the namespace rerun.
+
+| Fault                                                                  | Red                                                                                    |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| 6c-F1 `enrollmentId` line dropped from `host-pool.json.j2`             | the loader case, the shape-probe case, the namespace init                              |
+| 6c-F2 `KillMode=process` dropped from the watch unit                   | the watch unit case                                                                    |
+| 6c-F3 `Restart=on-failure` dropped from the watch unit                 | the watch unit case                                                                    |
+| 6c-F4 disk refusal `((avail >= need)) \|\| exit 75` replaced by `true` | the disk probe case                                                                    |
+| 6c-F5 linger probe's `&& [[ $linger == yes ]]` dropped                 | the linger case                                                                        |
+| 6c-F6 token probe's `rev-parse -q --verify HEAD` dropped               | the token unit case (the unborn tree passed)                                           |
+| 6c-F7 token command's commit dropped                                   | the token unit case, the namespace init                                                |
+| 6c-F8 shape probe's `.root == $root` dropped                           | the shape-probe case (`another root` exited 0)                                         |
+| 6c-F9 shape probe's key-set check dropped                              | the shape-probe case (`an extra mode key` exited 0)                                    |
+| 6c-F10 audit timer `OnCalendar=weekly` → `daily`                       | the audit units case (template no longer equals the renderer)                          |
+| 6c-F11 pool root default renamed to `.../dash/pool`                    | the shim-paths, loader and watch unit cases, the namespace init                        |
+| 6c-F12 checkout probe's `installed=` line dropped                      | the checkout probe case                                                                |
+| 6c-F13 shape probe's mode and owner check dropped                      | the shape-probe case (the group-readable copy passed)                                  |
+| 6c-F14 a second module added to the linger task in `host-pool.yml`     | `ansible-playbook --syntax-check playbooks/gate-host.yml` rc 4, naming the task's line |
+
+### Review fixes (Fable, PR #819): commands and evaluator
+
+Rerun fresh after the fixes; results are below the evaluator table.
+
+`docker run --rm --network none --read-only --tmpfs /tmp:exec --tmpfs /runner/.ansible -v "$PWD/infra/ansible:/work/ansible:ro" --entrypoint python3 ghcr.io/prosperous-unification/fleet-controller:0.1.0 /work/ansible/tests/gate-host-assertions.py`
+exited 0 and printed `{"failures": 0}`. It ran 30 cases and 24 faults:
+
+| Family (exact task)                                         | Cases (each as expected)                                                                     | Faults, each letting its bad input through                     |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| E1 `Require the host pool inputs of an enrolled host`       | valid passes; unenrolled skips; undefined, non-mapping, extra key, http, `"16"`, `0` refused | each of the six conditions removed; `when` removed             |
+| E2 free-space probe and `Require free space …` (fake `df`)  | 26843545600 free passes; 7516192768 refused naming `clones=3 avail=7516192768 need=…`        | assert condition removed; probe's `failed_when: false` removed |
+| E3 `Require the pool root and the Dash user units`          | as written passes; root missing, 0755, foreign, each unit file missing refused               | each of the six conditions removed                             |
+| E4 `Require no host pool state on a host that is not …`     | clean passes; enrolled skips; configuration or ledger left refused                           | each condition removed; `when` removed                         |
+| E5 `Read whether the Dash user units are enabled` (fake)    | `enabled enabled` passes; unenrolled skips; `enabled static` (exit 0) refused                | `failed_when` removed; `when` removed                          |
+| E6 skip line and `Inspect the host pool and audit …` (fake) | ledger: inspect then audit run, no skip line; none: skip line, nothing run; audit 1 refused  | either `when` removed                                          |
+| E7 `Require the pinned fields to equal the live …`          | `[]` passes; `["memoryGib"]` and a jq failure (rc 2, empty) refused                          | its one condition removed (both bad inputs through)            |
+
+| Fault                                                               | Red in `gate-host-pool.test.ts`                                      |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| 6c-F15 `memoryGib` dropped from the pinned-field probe's list       | `the pinned-field probe names a changed budget, never a value`       |
+| 6c-F16 audit template's `Documentation=` back to `<checkout>/docs/` | `every unit names documentation that exists …`, the audit units case |
+
+Both were restored with their SHA-256 equal. The new probe case also shows that a changed
+headroom or inventory name is named (`["headroom"]`, `["enrollmentId"]`), that a changed
+credential, launcher list or eligibility list prints `[]`, and that a missing live file exits
+nonzero.
+
+Fresh after the fixes, with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`:
+
+- `gate-host-pool.test.ts` and `audit-units.test.ts`: 15 pass, 0 fail.
+- `bunx nx run tool-fleet:check --skip-nx-cache`: exit 0 (`ansible: 15 playbooks syntax-checked`,
+  `every family passed`).
+- `ansible-playbook --syntax-check -i localhost, playbooks/gate-host.yml` in the controller: rc 0.
+- `bunx prettier --check` on every touched Markdown, YAML and TypeScript file: clean. Prettier has
+  no parser for `.j2` and `.py`.
+- `bunx openspec validate dash-host-jobs --json`: passed, 1 of 1, with the same 11 warnings.
+- ESLint on the changed TypeScript and twilight-dash `tsc --build --force`: exit 0.
+
+### After merging the plan at `b578beef9` (#818 landed)
+
+Fresh, with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`:
+
+- `gate-host-pool.test.ts` and `audit-units.test.ts`: 15 pass, 0 fail.
+- `launchers.test.ts` alone, three runs: 9/10, then 10/10, then 10/10 (S6C-A14).
+- `tool-fleet:check --skip-nx-cache`: exit 0.
+- `bunx prettier --check` on the branch's diff against the plan: clean (no parser for `.j2` or `.py`).
+- `openspec validate dash-host-jobs`: passed, 1 of 1, with 11 warnings.
+- Burokrat `check-indexes working . HEAD`: exit 0.
+- `bunx nx run-many -t typecheck lint -p twilight-dash --skip-nx-cache`: exit 0.
+- `bunx nx run twilight-dash:test --skip-nx-cache` (31 min): 4258 pass and 1 fail, across 4259
+  tests in 139 files.
+  - The failure: `host-jobs.test.ts` "review fixes (Fable, PR #804) > a replaced tmp directory
+    or symlink stays charged and untouched" expected `blocked` and received `released`.
+  - That file alone then passed three times out of three.
+  - Slice 2's settlement is unchanged here: the branch's diff under twilight-dash `src` is
+    `audit-units.ts` (one line), its test, and `gate-host-pool.test.ts`. So this is recorded as a
+    flake under full-suite load and left to slice 2's owner.
+
+### The vanished-holder fix (S6C-A21): commands
+
+Fresh, with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`. "pass" for the namespaced suites is
+their outer namespace case, which fails if any inner case fails.
+
+| Command                                                                                      | Result               |
+| -------------------------------------------------------------------------------------------- | -------------------- |
+| `bun test src/resources/host-job-holds.test.ts`                                              | 6 pass, 0 fail       |
+| `bun test src/resources/resource-holds.test.ts` (with the new vanished-process case)         | 12 pass, 0 fail      |
+| `bun test src/resources/runtime.test.ts`, `src/resources/host-jobs.test.ts`                  | each passes, 0 fail  |
+| `bun test src/no-ambient-clock.test.ts`                                                      | 2 pass, 0 fail       |
+| `bun test src/ops/gate-host-pool.test.ts`                                                    | 12 pass, 0 fail      |
+| `bun test src/ops/launchers.test.ts`, three runs                                             | 10/10, 10/10, 10/10  |
+| `bunx nx run-many -t typecheck lint -p twilight-dash --skip-nx-cache`                        | exit 0               |
+| `bunx prettier --check` on the changed files; `bunx openspec validate dash-host-jobs --json` | clean; passed 1 of 1 |
+
+| Fault                                                                      | Red                                                                                                                       |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 6c-F17 `if (isMissing(cause)) return 'gone';` dropped from the cgroup read | `a process that exits after the scan listed it holds nothing` threw `cannot read the cgroup of uninspectable PID 3396337` |
+
+Restored with its SHA-256 equal. Not observed: separate negatives for the identity and session
+branches (S6C-A21).
+
+### The leaving-process fix (S6C-A23): faults
+
+| Fault                                                                | Red in `resource-holds.test.ts`                                    |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| 6c-F18 `taskLeaving` answers `'live'` for every state but `X`        | `an unreaped zombie holds nothing`                                 |
+| 6c-F19 `inspectionRoot` answers null (gone) for every leaving leader | `a group leader that exited beside a live thread still holds`      |
+| 6c-F17 again, the cgroup ENOENT branch dropped                       | `a process that exits after the scan listed it holds nothing`      |
+| 6c-F20 `inspectionRoot` answers the leaving leader's own path        | `leaving-holds.test.ts`: both cases (`cannot inspect process PID`) |
+
+Each was restored with its SHA-256 equal.
+
+Fresh after the fix, with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`:
+
+- host-job-holds 6/0; resource-holds 14/0.
+- runtime and host-jobs: the outer namespace case passes for each.
+- no-ambient-clock 2/0; gate-host-pool 12/0.
+- `launchers.test.ts`: 10/10 on each of three runs.
+- `nx run-many -t typecheck lint -p twilight-dash --skip-nx-cache`: exit 0.
+
+### Review P1–P5 of 63a070156: commands
+
+Fresh, with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`; namespaced suites count their outer
+case:
+
+- `resource-holds.test.ts`: 14/0 on each of three runs.
+- `leaving-holds.test.ts`: passes (its two cases run inside the namespace).
+- `host-job-holds` 6/0; `runtime` and `host-jobs` pass.
+- `no-ambient-clock` 2/0; `gate-host-pool` 12/0.
+- `launchers.test.ts`: 10/10 on each of three runs.
+- twilight-dash typecheck and lint (`--skip-nx-cache`): exit 0.
+- prettier: clean.
+- `openspec validate dash-host-jobs`: passed.
+- 6c-F17 to 6c-F20 were rerun against these files; each turned its test red and was restored with
+  its SHA-256 equal.
+- `zombieOf` now throws a named error when its parent printed no pid, or when the pid was reaped
+  before it became a zombie (review P5).
+
+### The environment fix (S6C-A25): commands
+
+- `launchers.test.ts`: 10/10 on two runs, then 10/10 with all eight variables exported in the
+  shell (`HEAVY_LOCK_LABEL=gate:leaked HEAVY_LOCK_WAIT_SECONDS=1800 HEAVY_LOCK_POLL_SECONDS=7
+HEAVY_LOCK_JOB_TYPE=gate DASH_JOB_ID=outer-job DASH_JOB_TYPE=gate
+DASH_JOB_UNIT_GATE_TREE=/nonexistent HEAVY_JOB_ENROLLMENT=enrolled`).
+- 6c-F21: with `launch` spreading `process.env` in place of `cleanLauncherEnv`, "a gate runs
+  beside a release build" failed, its output containing `deadbeef`. Restored with its SHA-256
+  equal.
+
+### Skipped and unverified
+
+- **h2puni's first apply (S6C-A17)** is a larger change than this slice, owed by 6.3's operator
+  half, for Dany to see first.
+- **On a host:** the apply itself; linger; `wait_for` on the user manager socket;
+  `systemctl --user daemon-reload`; enabling with `systemd_service`; the facts arithmetic; the
+  clones and installs. The two-converging-applies proof (`changed=0`), killing the watch to see
+  systemd restart it with the guard holder surviving, `ops pool init` and `--tags validate`
+  against a real pool are all open in 6.3, 6.7 and 6.4. The h2puni disk cleanup waits on Dany.
+- **Real Jinja:** templates and argv were rendered by the test's strict subset (S6C-A13), never by
+  Ansible. `--syntax-check` parses the tasks but templates nothing.
+- `ansible-lint`: not pinned, not run.
+- The full twilight-dash and repository suites were not run here (laptop memory rule). CI and the
+  h2puni gate run them.
