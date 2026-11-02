@@ -2130,6 +2130,34 @@ cannot read the cgroup of uninspectable PID 662`. That is not fixture timing. J1
   `a replaced tmp directory or symlink stays charged and untouched` comes from `rmdir` plus `mkdir`
   reusing the inode, which a dev and inode identity cannot tell apart. tasks.md 2.4 owes an
   identity that also carries ctime or birth time, or a content marker.
+- **S6C-A23 A leaving process holds nothing; the second form of the race (CI on `37ca6254a`).**
+  CI's "two gates run at once" ended with `blocked: … cannot inspect process PID 571 (wc), which
+may hold the job's files`. `wc`, a short-lived child of the other gate's steps, was leaving:
+  either a zombie, or in `do_exit` with its memory dropped. The kernel then refuses its `fd`
+  directory (EACCES) and has no `cwd`. Observed on this workstation: a zombie's `/proc/<pid>/fd`
+  is `Permission denied`, `cwd` cannot be read, `maps` is empty, and its stat flags include
+  `PF_EXITING` (0x4).
+  - Not yet a zombie at the check, it went through J19's EACCES path. Its session was a job's,
+    so `outsideScope` answered `holds`.
+  - The fix is the new exported `processGone(pid)`, in `runtime.ts`. It answers true when the
+    process's stat entry is missing (ENOENT/ESRCH), when its state is `X`, or when it is `Z` or
+    has `PF_EXITING` and every other task in `/proc/<pid>/task` is gone or leaving too.
+  - `inspectHolds` uses it at the scan's top and in its catch. Before, both checks were
+    `identifyProcess(...) === null`, which also treated a zombie group leader beside live threads
+    as dead. `outsideScope` uses it before any other decision. EACCES and EPERM on a process that
+    is not leaving keep the J19 rule.
+  - A zombie group leader whose threads still run holds those threads' descriptors. It is now an
+    unknown holder: identity null and not gone means `holds`, where before it was skipped.
+  - Tests in `resource-holds.test.ts`, no seam. "an unreaped zombie holds nothing" uses
+    `bash -c 'true & echo $!; exec sleep 30'`: nothing ever reaps `true`, and the test waits for
+    state `Z`. Its live parent is not gone. "a group leader that exited beside a live thread still
+    holds" uses Python's main thread calling `pthread_exit` beside a sleeping thread.
+  - The first cut required the task list to hold only the leader. On this workstation's
+    launchers runs, a Bun mid-group-exit, whose other threads were still tearing down, became an
+    uninspectable holder: `cannot inspect process PID 432 (bun)`, 8 or 9 out of 10 on each of
+    three runs. Checking each other thread's own state fixed it.
+  - The mid-`do_exit` state itself cannot be held still for a test. It shares the zombie's
+    `PF_EXITING` flag, and that flag is what the code reads.
 
 ### Commands (fresh, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, this workstation)
 
@@ -2251,6 +2279,24 @@ their outer namespace case, which fails if any inner case fails.
 
 Restored with its SHA-256 equal. Not observed: separate negatives for the identity and session
 branches (S6C-A21).
+
+### The leaving-process fix (S6C-A23): faults
+
+| Fault                                                                         | Red in `resource-holds.test.ts`                               |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| F18 `processGone`'s zombie and exit detection removed (`return false` past X) | `an unreaped zombie holds nothing`                            |
+| F19 its per-thread check replaced by `() => true`                             | `a group leader that exited beside a live thread still holds` |
+| F17 again, the cgroup ENOENT branch dropped                                   | `a process that exits after the scan listed it holds nothing` |
+
+Each was restored with its SHA-256 equal.
+
+Fresh after the fix, with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`:
+
+- host-job-holds 6/0; resource-holds 14/0.
+- runtime and host-jobs: the outer namespace case passes for each.
+- no-ambient-clock 2/0; gate-host-pool 12/0.
+- `launchers.test.ts`: 10/10 on each of three runs.
+- `nx run-many -t typecheck lint -p twilight-dash --skip-nx-cache`: exit 0.
 
 ### Skipped and unverified
 

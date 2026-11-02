@@ -16,6 +16,7 @@ import {
   isForeignLoginSession,
   loadResourceConfiguration,
   outsideScope,
+  processGone,
   ResourceRuntime,
 } from './runtime';
 
@@ -64,17 +65,15 @@ const loginReason = inLogin
 // process that has already exited and been reaped, which is what every read then sees
 // (verify.md Slice 6c, S6C-A21). Runs outside any namespace.
 describe('a vanished uninspectable process (slice 6c, J19)', () => {
-  test('a process that exits after the scan listed it holds nothing', async () => {
+  function vanishedScope(sessions: string[]): HoldScope {
     const before = identifyProcess(process.pid);
     if (before === null) throw new Error('this test process has no identity');
-    const child = Bun.spawn(['true']);
-    await child.exited;
     const own = readFileSync('/proc/self/cgroup', 'utf8')
       .split('\n')
       .find((line) => line.startsWith('0::'))
       ?.slice(3);
     if (own === undefined) throw new Error('this test process has no cgroup v2 membership');
-    const scope = (sessions: string[]): HoldScope => ({
+    return {
       owns: () => false,
       sessions: new Set(sessions),
       before,
@@ -82,13 +81,68 @@ describe('a vanished uninspectable process (slice 6c, J19)', () => {
       held: 'the fixture',
       remedy: 'none',
       outside: [],
-    });
+    };
+  }
+
+  test('a process that exits after the scan listed it holds nothing', async () => {
+    const child = Bun.spawn(['true']);
+    await child.exited;
     // Proof: without the ENOENT branch on the cgroup read this threw `cannot read the cgroup of
     // uninspectable PID` (verify.md Slice 6c, F17).
-    expect(outsideScope(String(child.pid), scope([]))).toBe('gone');
-    expect(outsideScope(String(child.pid), scope([String(process.pid)]))).toBe('gone');
+    expect(outsideScope(String(child.pid), vanishedScope([]))).toBe('gone');
+    expect(outsideScope(String(child.pid), vanishedScope([String(process.pid)]))).toBe('gone');
     // A live process is still decided: this one, in its own cgroup, did not start before itself.
-    expect(outsideScope(String(process.pid), scope([]))).toBe('holds');
+    expect(outsideScope(String(process.pid), vanishedScope([]))).toBe('holds');
+  });
+
+  /** Spawn `argv`, read the pid it prints first, and wait until that pid's state is `Z`. */
+  async function zombieOf(argv: string[]) {
+    const parent = Bun.spawn(argv, { stdout: 'pipe' });
+    const reader = parent.stdout.getReader();
+    const first = await reader.read();
+    reader.releaseLock();
+    const pid = new TextDecoder().decode(first.value).trim().split('\n')[0] ?? '';
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const state = readFileSync(`/proc/${pid}/stat`, 'utf8');
+      if (state.slice(state.lastIndexOf(')') + 2).startsWith('Z ')) return { parent, pid };
+      await Bun.sleep(20);
+    }
+    parent.kill();
+    throw new Error(`PID ${pid} never became a zombie`);
+  }
+
+  test('an unreaped zombie holds nothing', async () => {
+    // `exec sleep` replaces the shell that started `true`, so nothing ever reaps it.
+    const { parent, pid } = await zombieOf(['bash', '-c', 'true & echo $!; exec sleep 30']);
+    try {
+      expect(processGone(pid)).toBe(true);
+      expect(outsideScope(pid, vanishedScope([]))).toBe('gone');
+      // The live parent is not gone.
+      expect(processGone(String(parent.pid))).toBe(false);
+    } finally {
+      parent.kill();
+      await parent.exited;
+    }
+  });
+
+  test('a group leader that exited beside a live thread still holds', async () => {
+    const { parent, pid } = await zombieOf([
+      'python3',
+      '-c',
+      [
+        'import ctypes,os,threading,time',
+        'threading.Thread(target=lambda: time.sleep(30)).start()',
+        'print(os.getpid(), flush=True)',
+        'ctypes.CDLL(None).pthread_exit(None)',
+      ].join('\n'),
+    ]);
+    try {
+      expect(processGone(pid)).toBe(false);
+      expect(outsideScope(pid, vanishedScope([]))).toBe('holds');
+    } finally {
+      parent.kill('SIGKILL');
+      await parent.exited;
+    }
   });
 });
 
