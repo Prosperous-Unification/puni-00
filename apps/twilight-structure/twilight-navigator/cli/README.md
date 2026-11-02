@@ -10,6 +10,33 @@ progress receipt comes back. Burokrat declares and validates both
 ([`navigator-records.ts`](../../twilight-burokrat/cli/src/contracts/navigator-records.ts));
 `twib validate plan-reference <file>` checks one.
 
+## Commands
+
+The command line is parsed by [Optique](../../../../docs/adr/0064-use-optique-for-clis.md)
+from `src/cli-parser.ts`, and help is generated from it. `twin --help` prints (2026-11-02):
+
+```text
+Usage: twin admit-progress --receipt PATH --plan-reference PATH --tasks PATH --accepted-reference PATH --output PATH
+       twin plan-reference --export PATH --repository URL --change NAME --planning-commit SHA --source-base SHA
+       --requirements PATH --output DIR
+       twin receipt-to-commands --receipt PATH --plan-reference PATH --tasks PATH --output PATH
+       twin help [COMMAND...]
+       twin completion [SHELL] [ARG...]
+       twin --help
+
+  admit-progress              Propose WBS commands for a bound receipt against a selected accepted reference.
+  plan-reference              Write tasks.json and plan-reference.json from a WBS plan export.
+  receipt-to-commands         Write the WBS command batch for one progress receipt.
+  help                        Show help information.
+  completion                  Generate shell completion script or provide completions.
+  --help                      Show help information.
+```
+
+`twin help <command>` prints one command with every flag. `twin completion bash|zsh|fish`
+prints a completion script; the script calls `twin` again to complete, so it needs `twin` on
+`PATH` (for example a wrapper running `bun …/entrypoint.ts "$@"`). Navigator has no `--version`
+until it is published.
+
 ## `twin plan-reference`
 
 From the repository root, with a WBS plan export (`GET /api/projects/:id/export`, version 7, 8, 9 or 10)
@@ -82,10 +109,12 @@ assertions and evidence is not authenticated.
 ## Exit codes
 
 Exit 2 is a refused invocation (unknown command, unknown, duplicate, missing or valueless
-flag), raised before any file is read. Exit 1 is a refused input: a missing, unreadable or
-malformed input file, an export of another version, an identifier or record the contracts
-refuse, a mismatched plan reference, or an occupied output file. `twin --help` lists the
-commands.
+flag, stray argument), raised before any file is read: one `error: ` line on stderr, either
+`Unsupported twin command: <name>` or the command's usage followed by the reason in
+parentheses, for example `error: usage: twin plan-reference --export PATH … (Missing required
+twin flag: --export)`. Exit 1 is a refused input: a missing, unreadable or malformed input
+file, an export of another version, an identifier or record the contracts refuse, a mismatched
+plan reference, or an occupied output file. Help and completion exit 0 on stdout.
 
 ## Checks
 
