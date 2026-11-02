@@ -13,6 +13,12 @@
 
 ## Task 3: Private site projection and browser acceptance
 
-- [ ] 3.1 Mirror reviewed canonical projects into the existing private site snapshot and update its region-driven card and visible DB-IP/privacy credit — test: snapshot parity, private site tests and Astro check; negative: elsewhere hides only the arrival choice while unknown and storage failure retain a recoverable choice.
+- [x] 3.1 Mirror reviewed canonical projects into the existing private site snapshot and update its region-driven card and visible DB-IP/privacy credit — test: snapshot parity, private site tests and Astro check; negative: elsewhere hides only the arrival choice while unknown and storage failure retain a recoverable choice.
 - [ ] 3.2 Verify actual site/app browser flows for consent-required, elsewhere and unknown, saved rejection and slow lookup, at desktop and original small-phone sizes — test: browser acceptance and screenshots; negative: no late grant, no frontend MMDB, no analytics cookies before a permitted regional default or explicit acceptance; existing cookieless first-page measurement remains unchanged.
 - [ ] 3.3 Review the complete diff, validate OpenSpec and record all commands, R5 proofs and unavailable checks — test: scoped Nx test/lint/typecheck/build and API package smoke, private site verification, final review. Production remains held.
+
+## Task 4: Integrate current private main before final acceptance
+
+- [ ] 4.1 Merge private main 28a2c51 into the private candidate, preserving owner About/portrait, dark-theme changes and the approved compact card — test: private site tests/Astro build, exact canonical-tree parity and the existing regional browser matrix on combined source.
+- [ ] 4.2 Make browser-fixture setup and receipt writes fall inside their owning cleanup scopes — test: real context-setup and process.json-write faults close their owned context/API; negative: original cleanup placement leaves the owned resource alive and fails those assertions.
+- [ ] 4.3 Review combined source and the Cloud launcher, run the reviewed regional matrix in Browser Use Cloud, confirm managed-browser/API shutdown and record exact artifacts — test:54 scenarios and explicit SDK stop receipt; production remains held.
