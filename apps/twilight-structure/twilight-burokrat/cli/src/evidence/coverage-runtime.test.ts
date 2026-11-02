@@ -173,7 +173,17 @@ test('built executable registers coverage before the installed authority boundar
     const executable = join(root, 'bin.mjs');
     writeFileSync(executable, new Uint8Array(await artifact.arrayBuffer()));
     const invocation = Bun.spawnSync(
-      [process.execPath, executable, 'inspect-evaluation-coverage'],
+      // A complete command line: `bin.ts` refuses an incomplete one before it reads the toolkit
+      // (twilight-cli-optique B-A10), so only this one reaches the installed authority.
+      [
+        process.execPath,
+        executable,
+        'inspect-evaluation-coverage',
+        root,
+        'a'.repeat(40),
+        'policy.json',
+        'review.json',
+      ],
       { stdout: 'pipe', stderr: 'pipe' },
     );
     expect(invocation.exitCode).toBe(1);
