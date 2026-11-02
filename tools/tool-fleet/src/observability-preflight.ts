@@ -135,6 +135,7 @@ const Identity = type({
   immutable: 'boolean',
   '+': 'reject',
 });
+/** Preserves native observedGeneration -1; current-generation readiness still requires equality. */
 const Resource = type({
   kind: name,
   name,
@@ -143,7 +144,8 @@ const Resource = type({
   owner: 'string',
   ownerNamespace: 'string',
   generation: 'number.integer>=0',
-  observedGeneration: 'number.integer>=0',
+  // Proof: widening to >=-2 failed `native resource observedGeneration -2 remains projection-malformed` with dependency-unready instead.
+  observedGeneration: 'number.integer>=-1',
   ready: 'boolean',
   revision: 'string',
   chart: 'string',

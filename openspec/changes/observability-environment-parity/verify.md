@@ -6052,3 +6052,53 @@ Existing CI41330998470 at implementation2d8cd42b9c7d19a7e4a01c1a731dad64e501c8db
 Fresh read-only inventory selected the existing local host (30.946 GiB total/18.127 GiB available,123.268 GiB Docker backing free). Other observed hosts cannot meet the unchanged preliminary memory floor; the build host also lacks Docker free space. Absolute pinned k3d5.9.0 and kubectl1.36.4 executables already exist and match the tool lock; absence from PATH was not treated as an absent required binary. Local user CPU/memory/PID delegation and KVM access are observed capabilities, not effective trial limits. The rootful daemon creates outside the user subtree, the shared ext4 store has no established trial boundary, and the unrelated BuildKit has no finite/exclusive coexistence envelope. It was not stopped, paused, updated or removed.
 
 Safe raw inventory/provenance/ownership evidence: `/tmp/puni-task90-host-inventory/`; conditional admission design: `/tmp/puni-task91-admission-design.md`. No lab, guest, mount, enforcement experiment, credential change or workload mutation occurred during inventory/design. Canonical progress remains4/11 with1.3/2.2/3.1/3.2/4.1/4.2/4.3 open. Task92 capability preparation is the next bounded prerequisite; it cannot substitute for full runtime acceptance.
+
+## Task94: Native unreconciled-generation adapter compatibility — 2026-11-02
+
+Actual retained safe API records in `/tmp/puni-task93-live-inventory/` show present
+`status.observedGeneration: -1` on alerts, backup, observability and puni-cluster. The
+native producer preserves that field; its absence fallback is0. The Resource decoder
+previously rejected those records as projection-malformed. This bounded fix accepts
+only integer-1 plus the existing nonnegative integers in the Kubernetes/Flux Resource
+adapter. Declared generation stays nonnegative, Source and the shared observation/progress
+model stay unchanged, and raw values/provenance remain intact. No readiness, identity,
+revision, authorization, namespace, freshness, ownership or capacity check changed.
+
+All tests use the existing fixture and real preflight decoder/CLI. Inventory retains
+-1 and its resource/query provenance while migration remains blocked. Independent
+Ready=true Kustomization and controller-enabled HelmRelease cases still refuse with
+exact dependency-unready. Observed-2, fractional and missing observation, and negative,
+fractional and missing declared generation each refuse with exact projection-malformed;
+nonzero exit alone cannot distinguish these refusals.
+
+Raw exact argv, UTC start/end, duration, exit, separate streams and SHA256 receipts:
+`/tmp/puni-task94-evidence/`. Full implementation/review/commit report:
+`.superpowers/sdd/observability-environment-parity/task-94-report.md` (ignored private evidence).
+Base `012082208899b02b1c625756f4197584b593043a`; initial spec/tasks plan edits are preserved.
+
+| Check / production fault                       | Observed outcome                                                                                                          | Raw receipt                         |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| Focused new cases before the fix               | exit1;6 pass/3 fail; both Ready=true cases incorrectly returned projection-malformed;7.478s                               | `red.json`                          |
+| Minimal Resource lower-bound fix               | exit0;9 pass/0 fail;9.025s                                                                                                | `green.json`                        |
+| Widen only observed lower bound to-2           | exit1; exact production -2 negative FAILED: expected projection-malformed, received dependency-unready;1.378s             | `lower-bound-mutation.json`         |
+| Restore exact pre-fault source bytes           | SHA256 `99b10b04b92998cd3b31b9c297edcea79dce2513a4fd142c176b3243bd192c55`;9 pass/0 fail;9.066s; adjacent Proof then added | `restoration.json`, `restored.json` |
+| Final focused cases after test lint correction | exit0;9 pass/0 fail/35 assertions;10.485s                                                                                 | `focused-final.json`                |
+| Covering preflight file, once                  | exit0;214 pass/0 fail/574 assertions;277.476s;10:52:52.843868–10:57:30.319461 UTC                                         | `preflight-file.json`               |
+| Two changed TypeScript files, ESLint           | exit0;10.011s                                                                                                             | `lint-final.json`                   |
+| Nx tool-fleet:typecheck, force/no cache        | exit0;5.864s                                                                                                              | `typecheck-final.json`              |
+
+Initial two-file ESLint failed only on the new test's forbidden inline import() type
+and unsafe expect.any(String) assignment. The original failure remains in `lint.json`;
+a top-level type-only import and explicit provenance match/string assertion fixed both.
+The final focused/type/lint checks cover those edits. Bare openspec was absent from the
+nonlogin PATH; the existing locked executable worked through `bunx --no-install` with no
+installation/dependency change. Final formatting, OpenSpec validation, independent scoped
+review and normal commit-hook outcomes are recorded in the private report/raw receipts.
+
+No full repository/Fleet/render/fault matrix, app/browser suite, host gate or live preflight
+was run for this bounded source slice. The inspected tool-fleet project has no ordinary
+build target; its image targets create infrastructure images and were not run. The scoped
+force typecheck compiled the source. No live Kubernetes/host/Docker/BuildKit/Secret, packet,
+publication, merge or push operation occurred. Suspended/unready dependencies, missing
+stack/material/capacity and runtime acceptance remain blockers. Task92 and all seven open
+canonical tasks remain open; this source proof does not close3.2 or advance live progress.

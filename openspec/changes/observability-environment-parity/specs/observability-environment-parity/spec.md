@@ -81,6 +81,18 @@ Migration planning SHALL bind a reviewed revision to fresh target identity, name
 - **THEN** the source candidate remains reviewable while live migration is explicitly blocked
 - **AND** no guessed cluster identity or direct apply is substituted
 
+#### Scenario: Native unreconciled generation remains unready evidence
+
+- **WHEN** the Kubernetes/Flux resource adapter receives the supported native `observedGeneration: -1` value
+- **THEN** it retains that value as valid resource evidence rather than a malformed projection
+- **AND** the resource cannot satisfy current-generation readiness, even if its Ready flag is true
+
+#### Scenario: Unsupported negative generation is malformed
+
+- **WHEN** a resource projection reports `observedGeneration` below `-1`, or a negative declared `generation`
+- **THEN** the production decoder refuses the malformed projection
+- **AND** no missing-field or invalid-value fallback makes it ready
+
 #### Scenario: Shared controllers are not installed twice
 
 - **WHEN** two instances use one cluster

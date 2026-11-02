@@ -8,6 +8,7 @@ import { parseAllDocuments } from 'yaml';
 
 import { cliEnvironment } from './cli.fixture';
 import type { DiscoveryCommand, DiscoveryResponse } from './discover';
+import type { ObservabilityPreflightReceipt } from './observability-preflight';
 import type { WorkloadSpec } from './observability-workload';
 
 interface ReceiptView {
@@ -241,6 +242,73 @@ it('first inventory returns observed UIDs while migration remains blocked withou
   expect(receipt.blockers).toContain('review-required');
   expect(receipt.observed.identity.uid).toBe('identity-uid');
 });
+
+it('native resource observedGeneration -1 preserves inventory evidence and provenance', async () => {
+  const setup = await fixture();
+  setup.request.phase = 'inventory';
+  setup.snapshot.resources[1].observedGeneration = -1;
+  const response = await setup.run();
+  expect(response.exitCode).toBe(0);
+  expect(response.stderr).toBe('');
+  const receipt = JSON.parse(
+    await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+  ) as ObservabilityPreflightReceipt;
+  expect(receipt.observed.resources.find((resource) => resource.uid === 'flux-uid')).toMatchObject({
+    kind: 'Kustomization',
+    namespace: 'flux-system',
+    name: 'observability',
+    owner: 'root',
+    generation: 1,
+    observedGeneration: -1,
+    ready: true,
+  });
+  const provenance = receipt.provenance.find(
+    (entry) =>
+      entry.source ===
+      'observability-kubernetes:reviewed-context/kustomizations.kustomize.toolkit.fluxcd.io',
+  );
+  expect(provenance).toMatchObject({ executable: 'kubectl' });
+  expect(provenance?.observedAt).toBeString();
+  expect(receipt.inventoryComplete).toBe(true);
+  expect(receipt.migrationReady).toBe(false);
+  expect(receipt.blockers).toEqual(['review-required']);
+});
+
+for (const [kind, index] of [
+  ['Kustomization', 1],
+  ['HelmRelease', 3],
+] as const) {
+  it(`native resource ${kind} observedGeneration -1 refuses readiness despite Ready true`, async () => {
+    const setup = await fixture();
+    expect(setup.snapshot.resources[index].ready).toBe(true);
+    if (kind === 'HelmRelease')
+      expect(setup.snapshot.resources[index].controllerEnabled).toBe(true);
+    setup.snapshot.resources[index].observedGeneration = -1;
+    const response = await setup.run();
+    expect(response.exitCode).toBe(1);
+    expect(response.stderr.trim()).toBe('observability preflight: dependency-unready');
+    expect(response.stdout).toBe('');
+  });
+}
+
+for (const [field, value] of [
+  ['observedGeneration', -2],
+  ['observedGeneration', -0.5],
+  ['observedGeneration', undefined],
+  ['generation', -1],
+  ['generation', 0.5],
+  ['generation', undefined],
+] as const) {
+  it(`native resource ${field} ${String(value)} remains projection-malformed`, async () => {
+    const setup = await fixture();
+    if (value === undefined) Reflect.deleteProperty(setup.snapshot.resources[1], field);
+    else setup.snapshot.resources[1][field] = value;
+    const response = await setup.run();
+    expect(response.exitCode).toBe(1);
+    expect(response.stderr.trim()).toBe('observability preflight: projection-malformed');
+    expect(response.stdout).toBe('');
+  });
+}
 
 for (const [name, fault, diagnostic] of [
   [
