@@ -14,7 +14,11 @@ function useAnalyticsChoice() {
     (notify) => analytics?.subscribeChoice(notify) ?? (() => undefined),
     () => analytics?.getChoice(),
   );
-  return { analytics, state, choice };
+  const region = useSyncExternalStore(
+    (notify) => analytics?.subscribeRegion(notify) ?? (() => undefined),
+    () => analytics?.getRegion(),
+  );
+  return { analytics, state, choice, region };
 }
 
 /** Inline controls reserve layout space; opening privacy choices never covers the request form. */
@@ -39,9 +43,12 @@ export function PrivacyChoices() {
       {isOpen && (
         <div id={id} className="privacy-panel">
           <p>
-            We use basic cookieless measurement to understand visits and completed requests.
-            Analytics cookies require your permission. Your request text and email stay out of
-            analytics. Disable measurement to stop further collection.
+            We use basic cookieless measurement to understand visits and completed requests. We
+            estimate your approximate country on our server. Analytics cookies are allowed by
+            regional default outside the consent region, or when you allow them. In the consent
+            region and when the country is unknown, cookies stay off until you allow them. Your
+            request text and email stay out of analytics. Disable measurement to stop further
+            collection. <a href={`${siteOrigin}/privacy/`}>Privacy, source and licence details</a>
           </p>
           <div className="scoping-answers">
             <button
@@ -93,28 +100,30 @@ export function PrivacyChoices() {
   );
 }
 
-/** An in-flow invitation; only a persisted choice hides it. It never moves request focus. */
+/** Compact in-flow invitation for unknown/consent-required defaults and recoverable choice failure.
+ * Elsewhere hides it without saving a preference. It never moves request focus or covers the form.
+ */
 export function ArrivalChoice() {
-  const { analytics, state, choice } = useAnalyticsChoice();
+  const { analytics, state, choice, region } = useAnalyticsChoice();
   // Proof: removing this admission exposes the strip for accepted/rejected choices and disabled routes
   // in arrival choice visibility; removing disabled admission fails all three disabled/unsupported cases; replacing choice with loading state misses persisted grants during startup.
+  // Proof: removing regional admission failed regional arrival visibility while loading; hiding all
+  // elsewhere choices failed regional grant cannot hide a failed preference write.
   if (
     !analytics ||
     !state ||
     state.status === 'disabled' ||
     choice === 'accepted' ||
-    choice === 'rejected'
+    choice === 'rejected' ||
+    (choice === 'unset' && region === 'elsewhere')
   )
     return null;
   return (
     <aside className="arrival-choice" data-arrival-choice="" aria-label="Analytics choice">
       <div>
         <p>
-          <strong>Help us improve PUNI.</strong>
-        </p>
-        <p>
-          We use cookieless measurement. Allow analytics cookies for a clearer view, or disable
-          measurement. <a href={`${siteOrigin}/privacy/`}>Privacy information</a>
+          <strong>Help improve PUNI.</strong> Analytics cookies are optional.{' '}
+          <a href={`${siteOrigin}/privacy/`}>Privacy</a>
         </p>
         {(state.status === 'unavailable' || choice === 'unavailable') && (
           <p role="status">

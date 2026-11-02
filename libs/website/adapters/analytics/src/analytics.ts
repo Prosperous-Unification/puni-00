@@ -1,4 +1,4 @@
-import { type AnalyticsEvent, parseAnalyticsEvent } from '@website/contracts';
+import { type AnalyticsEvent, type AnalyticsRegion, parseAnalyticsEvent } from '@website/contracts';
 
 import {
   type AnalyticsConfiguration,
@@ -8,6 +8,7 @@ import {
   resolvePage,
 } from './configuration';
 export type { MeasurementContext } from './configuration';
+export type { AnalyticsRegion } from '@website/contracts';
 
 /** Loading accepts safe vendor enqueues; cookieless/ready distinguish denied/granted cookie storage.
  * Denied is an explicit complete opt-out. Disabled excludes configuration/routes; unavailable stops
@@ -56,8 +57,16 @@ export type DispatchOutcome = 'sent' | 'dropped' | 'duplicate' | 'unavailable';
 export type LeadEvent = Extract<AnalyticsEvent, { name: 'generate_lead' }>;
 export interface Analytics {
   getState(): AnalyticsState;
-  /** Validated preference, independent of vendor readiness; unavailable means the last preference read or write failed. */
+  /** Validated preference, independent of vendor readiness. Unavailable means a failed read/write;
+   * a failed write remains unavailable until a successful preference retry.
+   */
   getChoice(): AnalyticsChoice;
+  /** Approximate regional default; unknown denies cookies without blocking cookieless measurement. */
+  getRegion(): AnalyticsRegion;
+  /** Notifies regional changes independently of vendor readiness or saved choice. */
+  subscribeRegion(listener: (region: AnalyticsRegion) => void): () => void;
+  /** Supplies a validated region; never persists an explicit choice or replays events. */
+  setRegion(region: AnalyticsRegion): void;
   /** Notifies preference changes even when collection remains loading; sync/navigation refresh expiry. */
   subscribeChoice(listener: (choice: AnalyticsChoice) => void): () => void;
   subscribe(listener: (state: AnalyticsState) => void): () => void;
@@ -101,8 +110,9 @@ function readChoice(value: string | null, now: number): 'unset' | 'accepted' | '
 
 /**
  * Framework-neutral controller. Safe events enqueue during startup, preserving the initial page.
- * Cookieless measurement starts without a choice; valid rejection blocks it. Cookie grants update the
- * existing tag without replay. Two explicit load attempts per controller bound optional retry.
+ * Unknown region starts cookieless; elsewhere grants a regional cookie default. Valid rejection
+ * blocks measurement. Cookie grants update the existing tag without replay. Two explicit load
+ * attempts per controller bound optional retry.
  * Consumers must observe functional transitions independently of state notifications: never replay a
  * historical question/brief/receipt when consent changes. See {@link Analytics.dispatchLead}.
  */
@@ -110,6 +120,9 @@ export function createAnalytics(options: AnalyticsOptions, ports: AnalyticsPorts
   const configuration = configureAnalytics(options, ports.location());
   let state: AnalyticsState = { status: configuration.enabled ? 'denied' : 'disabled' };
   let choice: AnalyticsChoice = 'unset';
+  let region: AnalyticsRegion = 'unknown';
+  let preferenceWriteFailed = false;
+  const regionListeners = new Set<(region: AnalyticsRegion) => void>();
   const choiceListeners = new Set<(choice: AnalyticsChoice) => void>();
   function setChoice(next: AnalyticsChoice) {
     if (choice === next) return;
@@ -207,7 +220,9 @@ export function createAnalytics(options: AnalyticsOptions, ports: AnalyticsPorts
       permission = 'denied';
       return false;
     }
-    const nextPermission = choice === 'accepted' ? 'granted' : 'denied';
+    // Proof: granting unknown failed regional defaults update; accepted/rejected precedence is
+    // covered by regional defaults never override explicit acceptance rejection or unreadable preference.
+    const nextPermission = choice === 'accepted' || region === 'elsewhere' ? 'granted' : 'denied';
     // Proof: removing unchanged-permission admission accessed blocked session storage in cookieless-browser-leads.
     if (permission === nextPermission) return true;
     permission = nextPermission;
@@ -238,6 +253,14 @@ export function createAnalytics(options: AnalyticsOptions, ports: AnalyticsPorts
       if (state.status !== 'disabled') stop({ status: 'disabled' }, false);
       return false;
     }
+    // Proof: removing this latch revived an older acceptance after failed rejection in a failed
+    // preference write cannot revive old acceptance through a regional answer or sync.
+    if (preferenceWriteFailed) {
+      // Proof: removing this restoration left public recovery controls hidden after operator
+      // navigation in failed preference recovery controls return after operator navigation.
+      setState({ status: 'unavailable', reason: 'storage' });
+      return false;
+    }
     const preference = ports.readPreference(configuration);
     if (preference.status === 'unavailable') {
       // Proof: injecting unset here failed unreadable-preference assertions for both arrival actions.
@@ -263,11 +286,14 @@ export function createAnalytics(options: AnalyticsOptions, ports: AnalyticsPorts
     if (
       ports.writePreference(preference, configuration, expires.getTime()).status === 'unavailable'
     ) {
+      preferenceWriteFailed = true;
+      permission = 'denied';
       // Proof: injecting a rejected choice here hid both refused actions in arrival-choice persistence tests.
       setChoice('unavailable');
       stop({ status: 'unavailable', reason: 'storage' }, false);
       return;
     }
+    preferenceWriteFailed = false;
     if (!accepted) setChoice('rejected');
     if (accepted) {
       page = resolvePage(configuration, ports.location(), ports.referrer());
@@ -283,6 +309,22 @@ export function createAnalytics(options: AnalyticsOptions, ports: AnalyticsPorts
   const controller: Analytics = {
     getState: () => state,
     getChoice: () => choice,
+    getRegion: () => region,
+    subscribeRegion: (listener) => {
+      regionListeners.add(listener);
+      return () => {
+        regionListeners.delete(listener);
+      };
+    },
+    setRegion: (next) => {
+      // Proof: removing disposal admission changed the region in regional updates after disposal.
+      if (disposed) return;
+      const changed = region !== next;
+      region = next;
+      sync();
+      // Proof: removing notification failed regional defaults update while the tag stayed loading.
+      if (changed) for (const listener of regionListeners) listener(region);
+    },
     subscribeChoice: (listener) => {
       choiceListeners.add(listener);
       return () => {
@@ -357,6 +399,7 @@ export function createAnalytics(options: AnalyticsOptions, ports: AnalyticsPorts
       stop({ status: 'disabled' }, false);
       listeners.clear();
       choiceListeners.clear();
+      regionListeners.clear();
     },
   };
   sync();

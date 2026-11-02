@@ -491,6 +491,11 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // See openspec/changes/burokrat-workflow-binding-validation/evidence/inventory-repair.json.
     // Proof (2026-10-27): P2 removed only the five BE inputs from the full declaration;
     // production lint emitted fact check.be-01.test authority-selector mismatch.
+    // Proof (2026-11-02): CI run41370408113 failed this pilot on undeclared binary content at
+    // apps/website/be-01/src/assets/country/dbip-country-lite-2026-11.mmdb.gz. Both original
+    // policies reproduced that refusal through production classify-candidate; removing the exact
+    // DB-IP declaration from either corrected policy restored it. Both corrected policies accepted
+    // the archive as binary gzip and still refused a same-byte unlisted gzip control.
     expect(invocation.exitCode, output(invocation)).toBe(0);
     expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
       mode: 'observe',
