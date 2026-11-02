@@ -219,6 +219,14 @@ existing ledger is exit 70, never legacy mode; a caller with no type is 64. `wit
 with its explicit path argument stays as the test and fixture primitive and takes no enrollment
 decision. No variable selects the mechanism.
 
+_Refinement (slice 6b, review of #818, S6B-A16):_ the switch stops intake by refusing new
+tickets (75). Tickets queued before it keep their budget and their place, and the switch waits
+for them. It first waits for the pool to drain of tickets and unreleased compute, then for the
+shell lock, so no waiter that has paid its wait is evicted. In concurrent mode, overlap is per
+type: a job is admitted beside unreleased compute only when its type and every running type are
+in the pool's `concurrencyEligible`. The guard is re-checked before launch; if its holder dies
+mid-run, the runs it covered are marked `attribution_incomplete`.
+
 **J13. Exit codes and `status` keep their contracts (F4).** The shim is an outer shell that
 runs the payload through Dash and returns its status, so a caller's `EXIT` trap runs once (the
 gate's trusted-launcher cleanup); 64/65/66/70/73/74/75/78, payload status pass-through and

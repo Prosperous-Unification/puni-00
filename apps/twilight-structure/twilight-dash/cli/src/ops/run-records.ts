@@ -67,6 +67,8 @@ export interface RunOutcome {
   ledgerFailure: string | null;
   attributionIncomplete: boolean;
   containers: ContainerVerdict[];
+  /** Why the singleton guard did not hold for this run (review H5); absent when it did. */
+  guardLost?: string;
 }
 
 /** A run record as `ops job status` and the tests read it. */
@@ -78,6 +80,8 @@ export interface RunRecord extends RunStart {
   ledgerFailure: string | null;
   attributionIncomplete: boolean;
   containers: ContainerVerdict[];
+  /** Why the singleton guard did not hold for this run (review H5); absent when it did. */
+  guardLost?: string;
   /** The largest `memory.peak` sampled, bytes; null before any counter was read. */
   peakMemoryBytes: number | null;
   /** The largest tmp sample, bytes: a lower bound, disk outside `TMPDIR` not covered (J7). */
@@ -140,6 +144,7 @@ const OutcomeShape = type({
   telemetryFailure: 'string | null',
   ledgerFailure: 'string | null',
   attributionIncomplete: 'boolean',
+  'guardLost?': 'string > 0',
   containers: type({
     id: 'string',
     verdict: "'bounded'|'unlabelled'|'unbounded'|'unverified'",
@@ -362,6 +367,7 @@ export class HostJobRunRecords {
       ledgerFailure: outcome?.ledgerFailure ?? null,
       attributionIncomplete: outcome?.attributionIncomplete ?? false,
       containers: outcome?.containers ?? [],
+      ...(outcome?.guardLost === undefined ? {} : { guardLost: outcome.guardLost }),
       peakMemoryBytes: peaks.length === 0 ? null : Math.max(...peaks),
       peakTmpBytes: tmp.length === 0 ? null : Math.max(...tmp),
       wallMs: outcome === null ? null : outcome.endedAt - start.startedAt,

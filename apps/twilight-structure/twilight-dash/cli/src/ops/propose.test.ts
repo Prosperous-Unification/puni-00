@@ -103,6 +103,30 @@ describe('ops job propose (task 4.1, J9)', () => {
     ).not.toContain('throttled');
   });
 
+  test('a record not measured in one dimension is not cited', () => {
+    // A complete calibration whose tmp directory was never sized: it feeds memory, CPU and
+    // duration, is named on the tmp line, and the provenance cites only records that fed every
+    // dimension they could (S4-A16).
+    const runs = calibrations(4.4, 4, 4, 4);
+    const records = runs.map((run) => runRecord(catalogue, { type: 'gate', ...run }));
+    const unsized = records.at(3);
+    if (unsized === undefined) throw new Error('fixture has four records');
+    const proposal = proposeEnvelope(
+      'gate',
+      catalogue,
+      [...records.slice(0, 3), { ...unsized, peakTmpBytes: null }],
+      partition,
+      NOW,
+    );
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.lines).toContain(
+      'excluded calibration calibration-4 from tmpDiskGib: not measured',
+    );
+    expect(
+      proposal.entry.provenance.kind === 'calibrated' && proposal.entry.provenance.recordIds,
+    ).toEqual(['calibration-1', 'calibration-2', 'calibration-3']);
+  });
+
   test('too few records', () => {
     const proposal = propose('release-build', [
       ...calibrations(1, 1.2),

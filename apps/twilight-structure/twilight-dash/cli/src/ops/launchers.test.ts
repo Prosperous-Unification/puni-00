@@ -100,6 +100,7 @@ import { appendFileSync } from 'node:fs';
 import { monotonicClock, wallClock } from ${JSON.stringify(join(DASH_SOURCE, 'clock'))};
 import { ampleHost } from ${JSON.stringify(join(DASH_SOURCE, 'resources', 'host-pool.test.fixture'))};
 import { runHostJob } from ${JSON.stringify(join(DASH_SOURCE, 'ops', 'job-run'))};
+import { productionLegacyLock } from ${JSON.stringify(join(DASH_SOURCE, 'resources', 'legacy-lock'))};
 import { fakeScopeTelemetry } from ${JSON.stringify(join(DASH_SOURCE, 'ops', 'ops.test.fixture'))};
 import { OpsRefusal } from ${JSON.stringify(join(DASH_SOURCE, 'ops', 'refusal'))};
 
@@ -130,6 +131,8 @@ try {
       sampleIntervalMs: 1000,
       settleBudgetMs: 20000,
       user: 'puni1',
+      // Inside the namespace /home/puni1/.cache is tmpfs: the canonical lock is a fixture.
+      legacyLock: productionLegacyLock(),
     },
   );
 } catch (cause) {
@@ -201,10 +204,22 @@ try {
       join(checkout, 'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts'),
       FIXTURE_DASH,
     );
-    const catalogue = catalogueOf([
+    const fixtureCatalogue = catalogueOf([
       { id: 'gate', cpuCores: 1, memoryGib: 1, exclusive: ['gate_tree'], argumentProfile: '<sha>' },
       { id: 'release-build', cpuCores: 1, memoryGib: 1 },
     ]);
+    // The real launchers as entrypoints, so `switch-mode` verifies they call `run_heavy_job`.
+    const entrypoints: Record<string, string> = {
+      gate: 'bin/h2puni-gate.sh',
+      'release-build': 'bin/publish-release.sh',
+    };
+    const catalogue = {
+      ...fixtureCatalogue,
+      jobs: fixtureCatalogue.jobs.map((job) => ({
+        ...job,
+        entrypoint: entrypoints[job.id] ?? job.entrypoint,
+      })),
+    };
     writeFileSync(
       join(checkout, 'infra/jobs/catalogue.json'),
       `${JSON.stringify(catalogue, null, 2)}\n`,
@@ -241,6 +256,9 @@ try {
         headroom: { cpuCores: 0, memoryGib: 0 },
         exclusiveUnits: { gate_tree: units },
         enrollmentId: 'enrollment-one',
+        // Slice 6b: the launcher checkout switch-mode verifies, and the types that may overlap.
+        launcherCheckouts: [checkout],
+        concurrencyEligible: ['gate', 'release-build'],
       }),
       { mode: 0o600 },
     );
@@ -358,7 +376,29 @@ try {
       expect(init.stderr.toString()).toBe('');
       expect(init.exitCode).toBe(0);
       expect(existsSync(LEDGER)).toBe(true);
-    }, 60000);
+      // A fresh pool is in observe mode, which serialises every job through the shell lock
+      // (slice 6b). The overlap cases below need concurrent mode; this suite runs no `watch`,
+      // so the singleton guard is released at once. Both steps go through the entrypoint.
+      for (const flags of [[], ['--release-guard']]) {
+        const switched = Bun.spawnSync(
+          [
+            process.execPath,
+            join(DASH_SOURCE, 'entrypoint.ts'),
+            'ops',
+            'pool',
+            'switch-mode',
+            'concurrent',
+            '--config',
+            CONFIG,
+            '--operator',
+            'launchers-test',
+            ...flags,
+          ],
+          { stdout: 'pipe', stderr: 'pipe' },
+        );
+        expect(switched.exitCode, switched.stderr.toString()).toBe(0);
+      }
+    }, 120000);
 
     test('two gates run at once, each in its own admitted gate tree, and return them', async () => {
       const barrier = barrierDirectory('two-gates');

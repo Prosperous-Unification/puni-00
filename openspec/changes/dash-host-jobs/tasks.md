@@ -74,8 +74,9 @@
       `src/compute` belonged to slice 5's worker (verify.md Slice 3, S3-A9). `watch` still
       settles a declared-bound job with `declaredContainersOnly` (S3-A10).
 - [x] 3.3 `ops job status` (J13) — test: the one-running-one-waiting scenario, exact lines,
-      settlement state shown. The scenario's `with-heavy-lock.sh status` half needs J12's
-      observe-mode queue protocol, which lands with `run_heavy_job` in 6.1 (S3-A12).
+      settlement state shown. The scenario's `with-heavy-lock.sh status` half landed with
+      slice 6b's observe mode: `ops job status` prints the shell lock's own lines, holder
+      `dash-job-<id> <label>` first (verify.md Slice 6b; S3-A12 resolved).
 
 ## 4. Calibration, proposal, audit (needs 3)
 
@@ -124,11 +125,11 @@
       passes unchanged against `with_heavy_lock`; the gate's trap-runs-once scenario; negative:
       let a variable choose the mechanism and watch the opt-out case fail. Done for the four
       launchers here (cases 40 to 45; verify.md Slice 6a); `puni-pr-00`'s `build-release.sh` is
-      owed by that repository. **Not in this slice, and no host may be enrolled before they
-      land:** J12's observe phase (a Dash job under the legacy queue protocol) and the
-      concurrent-mode singleton flock guard, both with `ops pool switch-mode` after slice 4
-      (S6-A2). The fixed pool root `/home/puni1/.local/share/dash/host-pool` is what 6.3's role
-      must write (S6-A1).
+      owed by that repository. Observe mode itself (a Dash job under the complete shell-lock
+      protocol, one wait budget) and the concurrent-mode singleton guard are Dash's side and
+      landed in slice 6b: `ops job run` queues through the library's own `with_heavy_lock`
+      (verify.md Slice 6b, S6B-A1). The fixed pool root `/home/puni1/.local/share/dash/host-pool`
+      is what 6.3's role must write (S6-A1).
 - [x] 6.2 Five-launcher conflict inventory (J3): canonical paths, ports, release artifacts,
       caches, build engines, cross-type pairs; each conflict isolated or an exclusive unit; the
       gate split into outer launcher and admitted payload reading `DASH_JOB_UNIT_GATE_TREE`
@@ -143,27 +144,48 @@
 - [ ] 6.3 `gate_host` role: linger on, pool config, ledger directory, second gate tree,
       `validate` runs `ops job audit`; h2puni disk cleaned first per the recorded order — proof:
       two converging applies, `changed=0` on the second.
-- [ ] 6.4 Enroll h2puni and h4claw in observe mode; run every launcher through `run_heavy_job`
+- [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
+      `Restart=on-failure` and `KillMode=process` (beside the observation units of 4.2). It
+      lands before 6.4, because observe mode needs a running `watch` (review H1 of #818). A host
+      job whose compute outlives its launcher keeps the shell lock until `watch`, or an
+      operator's `resources sweep`, removes its hold file. The concurrent-mode guard's holder
+      must outlive a restarted `watch`, which the default `KillMode=control-group` would kill
+      (S6B-A8). A `watch` stopped by a refusal past the host-job retry bound (S5-A20), or by any
+      other modelled stop, must come back, so the outbox and cleanup-request pulls do not
+      stall. The deploy order (WBS before Dash) is in
+      `apps/twilight-structure/twilight-dash/cli/docs/resources.md`. Proof: kill the process and
+      watch systemd restart it with the guard holder surviving; a converging `gate_host` apply
+      reports `changed=0` the second time.
+- [ ] 6.4 Enroll h2puni and h4claw in observe mode, **only once 6.7's `watch` unit is installed
+      and running on that host** (an observe-mode hold left by a dead launcher is released by
+      `watch` or `resources sweep`, nothing else); run every launcher through `run_heavy_job`
       for a week; calibrate the five types cold and warm; open the catalogue PRs from `propose`.
       During the first observe-mode gates, measure the peak memory and CPU of the solver smoke's
       four bounded containers (`wbs-solver`, `registry:2`, the two clients; `docker stats` through
       the run record's container samples) before any type runs with `enforcement: cap`: their
       `--memory 1g --cpus 1` is the declared `gate` bound, applied only inside a Dash job and not
       yet measured (slice 6a review F4).
-- [ ] 6.5 `ops pool switch-mode concurrent` on each host after the five-launcher checklist,
+- [x] 6.5a Code (slice 6b): `ops pool switch-mode concurrent|observe`, with `--release-guard`
+      and `--allow-empty`: the intake fence on new tickets (queued ones keep their place,
+      S6B-A16), the pool and shell-lock drain, launcher shim verification (library, `bin/`
+      clean, every `bin/*.sh` entrypoint calling `run_heavy_job`), the atomic flip with its
+      operator record; the `resources watch` singleton guard, with the guard re-checked before
+      launch and a lost guard marking the running jobs `attribution_incomplete`. In concurrent
+      mode a job is admitted beside unreleased **compute** only when its type and every
+      running type are in `concurrencyEligible`. Tree and tmp entries still charged do not
+      count, since a job whose compute has settled is no longer running. An id that no
+      launcher catalogue names is refused **64 at init and at every open**. Mode, guard,
+      eligibility and the shell lock appear in `status` and `inspect` (verify.md Slice 6b).
+- [ ] 6.5 Operator: `ops pool switch-mode concurrent` on each host after the five-launcher checklist,
       with the singleton guard held; two-job concurrent validation recorded in `verify.md`
       (planned proofs apart from observed evidence); decide when a failing `JOB-CATALOGUE`
       blocks `ops job run`; update `docs/runbook-h2-heavy-lock-owner.md`,
-      `docs/infra/gate-hosts.md`, `AGENTS.md` Gate and `LLM_README.md`. Before the switch,
-      admission enforces a per-type concurrency flag (slice 6a review F3; slice 6b owns
-      `switch-mode` and implements it): `host-pool.json` gains
-      `"concurrencyEligible": ["<type id>", …]`, default `[]`. `ops pool init` and every pool
-      open refuse 70 for an id the admitting checkout's catalogue does not name. In concurrent
-      mode a job whose type is not listed is admitted only when no other host job is reserved,
-      and no other job is admitted beside it. Today serialisation rests only on no host having
-      switched mode, and after #814 on the audit's `attribution_incomplete` finding, which refuses
-      nothing; `gate` and `test-queued` stay unlisted until their J16 gaps and their shared
-      checkout `.nx` cache are covered (`docs/infra/heavy-job-launchers.md`).
+      `docs/infra/gate-hosts.md`, `AGENTS.md` Gate and `LLM_README.md`. The per-type
+      concurrency flag the switch relies on (slice 6a review F3) is implemented in slice 6b
+      (6.5a): `host-pool.json`'s `concurrencyEligible`, default `[]`, refused **64 at init and
+      at every open** for an id no launcher catalogue names (S6B-A17, S6B-A22). `gate` and
+      `test-queued` stay unlisted until their J16 gaps and their shared checkout `.nx` cache
+      are covered (`docs/infra/heavy-job-launchers.md`).
 - [x] 6.6 Uninspectable same-user processes outside host jobs (review F1): hold inspection
       refuses any same-user process whose `/proc/<pid>/fd` is access-denied. Host-job settlement
       now records such a process outside the job's scope as `uninspectable_outside_scope`, but
@@ -174,12 +196,6 @@
       refuses until this is done. Done by J19 (design.md): `resource-holds.test.ts` outside any
       namespace; `ops pool init` now succeeds beside this workstation's own `systemd --user`
       (PID 2327) and `(sd-pam)` (verify.md Slice 6a).
-- [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
-      `Restart=on-failure` (beside the observation units of 4.2), so a `watch` stopped by a
-      refusal past the host-job retry bound (S5-A20) or any other modelled stop comes back and
-      the outbox and cleanup-request pulls do not stall; the deploy order WBS before Dash is in
-      `apps/twilight-structure/twilight-dash/cli/docs/resources.md` — proof: kill the process,
-      watch systemd restart it; a converging `gate_host` apply reports `changed=0` the second time.
 - [ ] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
       (slice 3, #809) carries `descriptorDigest` and no durable locator, so this needs a locator
       for the run record and a decision on which digest WBS keeps — test: a returned host job's
