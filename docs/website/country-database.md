@@ -33,8 +33,16 @@ privacy requirements.
    `release.json` with the release month, filename, identities, byte sizes,
    build time and provider checksums. Update the dated release in `NOTICE.txt`,
    retaining the source, attribution, licence and truthful modification statement.
-   Do not edit the MMDB bytes. The reader dependency remains pinned in the root
-   `package.json`, Bun lockfile and API portability package metadata.
+   Do not edit the MMDB bytes. Rename the exact archive entry in
+   `classificationPolicy.binaryDeclarations` in both
+   [`policy.json`](../wiki-policy/policy.json) and
+   [`bootstrap-policy.json`](../wiki-policy/bootstrap-policy.json) to the new
+   filename, and update its DB-IP release month and source authority. Keep
+   `format: application/gzip`, the `apps/website/be-01/src/country-database.ts`
+   consumer, and this maintenance reference. Keep an exact filename declaration;
+   do not replace it with a prefix or suffix allowance. The reader dependency
+   remains pinned in the root `package.json`, Bun lockfile and API portability
+   package metadata.
 3. Update the literal real-dataset tests and package month expectation for the new
    release, retaining IPv4, full IPv6, unmapped and startup-refusal coverage. Update
    the dataset month stated in the private site's `apps/website/site/src/pages/privacy.astro`

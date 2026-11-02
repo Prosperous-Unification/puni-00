@@ -484,6 +484,15 @@
     ],
     "binaryDeclarations": [
       {
+        "path": "apps/website/be-01/src/assets/country/dbip-country-lite-2026-11.mmdb.gz",
+        "format": "application/gzip",
+        "consumer": "apps/website/be-01/src/country-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "DB-IP IP to Country Lite monthly MMDB release: https://db-ip.com/db/download/ip-to-country-lite (2026-11); preserve the unchanged provider archive and follow docs/website/country-database.md."
+        }
+      },
+      {
         "path": "openspec/changes/burokrat-workflow-binding-validation/evidence/validator-proofs.json.gz",
         "format": "application/gzip",
         "consumer": "openspec/changes/burokrat-workflow-binding-validation/verify.md",
