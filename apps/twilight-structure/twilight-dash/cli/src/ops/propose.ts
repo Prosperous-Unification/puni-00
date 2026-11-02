@@ -111,6 +111,10 @@ export function proposeEnvelope(
     const take = (dimension: Dimension): void => {
       const value = measures[dimension];
       if (value === null) {
+        // A record missing from one dimension is not cited, as a throttled one is not (S4-A16).
+        // Proof: without it `a record not measured in one dimension is not cited`
+        // (propose.test.ts) found the record in recordIds (2026-11-02, Slice 6b, S3 follow-up a).
+        partial.add(record.jobId);
         lines.push(`excluded ${kind} ${record.jobId} from ${dimension}: not measured`);
         return;
       }

@@ -21,6 +21,7 @@ import { afterAll, afterEach, describe, expect, test } from 'bun:test';
 import { monotonicClock, wallClock } from '../clock';
 import { fakeCredential } from '../compute/testing/credential';
 import { ampleHost, fixtureGit, hostPoolFixture } from '../resources/host-pool.test.fixture';
+import { privateLegacyLock } from '../resources/legacy-lock.test.fixture';
 import { loadResourceConfiguration, ResourceRuntime } from '../resources/runtime';
 import { type OpsDependencies, opsHandlers, runOps } from './commands';
 import { type JobRunDependencies, type JobRunRequest, killSession, runHostJob } from './job-run';
@@ -102,6 +103,7 @@ if (insideOpsNamespace(import.meta.path)) {
       telemetry: linuxScopeTelemetry(),
       host: ampleHost,
       user: 'puni1',
+      legacyLock: () => privateLegacyLock(join(cwd, '..')),
     };
   }
 
@@ -160,6 +162,8 @@ if (insideOpsNamespace(import.meta.path)) {
       sampleIntervalMs: 10_000,
       settleBudgetMs: 20_000,
       user: 'puni1',
+      // Beside the checkout, in the pool fixture's own directory: one shell lock per pool.
+      legacyLock: privateLegacyLock(join(cwd, '..')),
       ...overrides,
     };
   }
@@ -452,6 +456,8 @@ if (insideOpsNamespace(import.meta.path)) {
         root,
         enrollmentId: 'enrollment-one',
         mode: 'observe',
+        guard: 'on',
+        concurrencyEligible: [],
         allocatable: { cpuCores: 4, memoryGib: 3, diskUnits: 16, workspaceSlots: 16 },
         units: [{ exclusiveId: 'gate_tree', path: trees[0], heldBy: null }],
         runRecords: `${root}/.dash/host-job-runs.sqlite`,
@@ -558,10 +564,14 @@ if (insideOpsNamespace(import.meta.path)) {
         const job = ledger(config).inspectHostJob(jobId);
         expect(job.exitCode).toBe(0);
         expect(job.state).toBe('released');
-        expect(report).toEqual([
+        // Observe mode (J12): the shell lock's own claim line, then settlement, then its release.
+        // The claim line counts whole seconds, so a loaded host may say 1s.
+        expect(report[0]).toMatch(/^heavy lock: waited \d+s behind 0 tickets$/);
+        expect(report.slice(1)).toEqual([
           `ops job: ${jobId} compute released: owned process group terminal and declared containers gone`,
           `ops job: ${jobId} tmp released: tmp directory removed and holds verified`,
           `ops job: ${jobId} unit gate_tree ${trees[0] ?? ''} released: tree clean at its resting commit`,
+          `ops job: ${jobId} released the shell lock`,
         ]);
       });
 
@@ -953,6 +963,12 @@ if (insideOpsNamespace(import.meta.path)) {
       'the installed entrypoint runs a job and passes its status',
       () => {
         const { config, checkout, base } = pool();
+        // The installed entrypoint takes the production shell lock in observe mode, the host's
+        // canonical path, which this test must not touch: the pool runs concurrent and unguarded.
+        const runtime = ledger(config);
+        runtime.beginModeSwitch('concurrent', 'test');
+        runtime.completeModeSwitch('concurrent', 'test', 'puni1', []);
+        runtime.releaseGuard('test', 'puni1', []);
         const payload = payloadScript(join(base, 'fail.sh'), 'echo payload-out; exit 65');
         const execution = Bun.spawnSync(
           [

@@ -28,6 +28,7 @@ import { runOps } from './ops/commands';
 import { linuxScopeTelemetry } from './ops/scope';
 import { recordBoundProgress, recordProgress } from './progress/record-progress';
 import { runResources } from './resources/command';
+import { productionLegacyLock } from './resources/legacy-lock';
 import { linuxHostFacts } from './resources/runtime';
 
 type PlanEnrollment = (argv: readonly string[]) => Promise<void>;
@@ -177,6 +178,7 @@ export const dashHandlers: Handlers = {
           timeoutMs: RESOURCE_CALL_TIMEOUT_MS,
           clientName: 'twilight-dash-resources',
         }),
+      productionLegacyLock,
     );
   },
   ops: async (command, deps) => {
@@ -190,6 +192,7 @@ export const dashHandlers: Handlers = {
       telemetry: linuxScopeTelemetry(),
       host: linuxHostFacts,
       user: userInfo().username,
+      legacyLock: productionLegacyLock,
     });
   },
 };

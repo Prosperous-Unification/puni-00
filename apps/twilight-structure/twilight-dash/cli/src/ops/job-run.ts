@@ -5,10 +5,17 @@ import { Readable, Writable } from 'node:stream';
 
 import type { Monotonic, WallClock } from '../clock';
 import {
+  holdLegacyLock,
+  jobHoldFile,
+  type LegacyHold,
+  type LegacyLock,
+} from '../resources/legacy-lock';
+import {
   type ContainerEvidence,
   declaredContainersOnly,
   type HostFacts,
   type HostJob,
+  HostPoolModeRefusal,
   loadResourceConfiguration,
   ResourceRuntime,
 } from '../resources/runtime';
@@ -20,7 +27,7 @@ import {
   toolchainOf,
 } from './catalogue';
 import { checkDockerAvailable, ContainerWatch, dockerContainerEvidence } from './containers';
-import { causeText, OpsRefusal } from './refusal';
+import { causeText, type OpsExitCode, OpsRefusal } from './refusal';
 import { HostJobRunRecords, type RunSample } from './run-records';
 import {
   checkScopeAvailable,
@@ -29,6 +36,7 @@ import {
   type ScopeTelemetry,
   scopeUnitOf,
 } from './scope';
+import { checkEligibleTypes } from './switch-mode';
 
 /** `ops job run`'s parsed command line (J7). */
 export interface JobRunRequest {
@@ -58,6 +66,8 @@ export interface JobRunDependencies {
   readonly settleBudgetMs: number;
   /** The account the linger fix names. */
   readonly user: string;
+  /** The shell lock every host job also queues on in observe mode (J12). */
+  readonly legacyLock: LegacyLock;
 }
 
 /**
@@ -338,6 +348,8 @@ async function executeHostJob(
   isCalibration: boolean,
 ): Promise<number> {
   const catalogued = readCataloguedJob(deps.cwd, request.type, request.argv);
+  // One total wait (J12): the pool's admission and, in observe mode, the shell lock's queue.
+  const arrivedAt = deps.clock.read();
   const toolchain = toolchainOf(deps.environment);
   const typeId = catalogued.descriptor.id;
   let runtime: ResourceRuntime;
@@ -349,6 +361,12 @@ async function executeHostJob(
       `ops job run: host pool ${request.config} unusable: ${causeText(cause)}`,
       { cause },
     );
+  }
+  try {
+    checkEligibleTypes(runtime.configuration, 'ops job run');
+  } catch (cause) {
+    runtime.close();
+    throw cause;
   }
   let records: HostJobRunRecords;
   try {
@@ -406,29 +424,152 @@ async function executeHostJob(
     }
     if (admission.kind === 'refused') throw new OpsRefusal(admission.exitCode, admission.reason);
     if (admission.kind === 'waiting') throw new Error('host job admission returned while waiting');
+    // The pool's mode cannot change under an admitted job: a switch waits for every unreleased
+    // compute entry, this one included (J12). Proof: skipping the shell lock here made `a Dash
+    // job never overlaps a legacy holder` (host-pool-mode.test.ts) see the runs overlap
+    // (2026-11-02, Slice 6b).
+    const legacyHold =
+      runtime.hostPoolTransition().mode === 'observe'
+        ? await queueOnLegacyLock(runtime, admission.job, request, arrivedAt, deps, interruption)
+        : null;
     const containers =
       docker === null ? declaredContainersOnly : dockerContainerEvidence(docker, deps.environment);
-    return await runAdmitted(
-      runtime,
-      records,
-      admission.job,
-      catalogued,
-      systemdRun,
-      docker,
-      containers,
-      request,
-      toolchain,
-      deps,
-      interruption,
-      (handler) => {
-        forward.to = handler;
-      },
-    );
+    try {
+      return await runAdmitted(
+        runtime,
+        records,
+        admission.job,
+        catalogued,
+        systemdRun,
+        docker,
+        containers,
+        request,
+        toolchain,
+        deps,
+        interruption,
+        (handler) => {
+          forward.to = handler;
+        },
+      );
+    } finally {
+      if (legacyHold !== null) await endLegacyHold(runtime, admission.job.id, legacyHold, deps);
+    }
   } finally {
     for (const signal of signals) process.removeListener(signal, onSignal);
     records.close();
     runtime.close();
   }
+}
+
+/**
+ * Observe mode (J12): queue the admitted job on the shell lock with what is left of its one wait
+ * budget, so legacy callers and Dash jobs share one order. The hold's ticket, deadline, holder
+ * record and label (`dash-job-<id> <label>`) are the shell lock's own; the job launches only
+ * once it holds. A refusal or an interruption there withdraws the job, which was never prepared
+ * or launched, releasing its reservation at once.
+ * @throws OpsRefusal 75 when the shell lock gives no turn within the budget left, 129/130/143
+ * when interrupted while queued there, 70 for any other refusal of the shell lock.
+ */
+async function queueOnLegacyLock(
+  runtime: ResourceRuntime,
+  job: HostJob,
+  request: JobRunRequest,
+  arrivedAt: number,
+  deps: JobRunDependencies,
+  interruption: Interruption,
+): Promise<LegacyHold> {
+  // Whole seconds, rounded up: the shell lock counts its budget in seconds, and a sub-second
+  // admission must not cost a caller its last second (S6B-A3).
+  const remaining = Math.max(
+    0,
+    Math.ceil((arrivedAt + request.waitSeconds * 1000 - deps.clock.read()) / 1000),
+  );
+  const outcome = await holdLegacyLock(
+    deps.legacyLock,
+    {
+      holdFile: jobHoldFile(runtime.configuration.root, job.id),
+      label: `dash-job-${job.id} ${request.label}`,
+      waitSeconds: remaining,
+      pollSeconds: request.pollSeconds,
+      signal: interruption.signal,
+      report: deps.report,
+    },
+    deps.environment,
+  );
+  if (outcome.kind === 'held') return outcome.hold;
+  const signal = interruption.received();
+  const [code, reason]: [OpsExitCode, string] =
+    outcome.kind === 'cancelled'
+      ? [
+          interruptedCode(signal ?? 'SIGTERM'),
+          `interrupted by ${signal ?? 'SIGTERM'} while queued on the shell lock (observe mode)`,
+        ]
+      : outcome.exitCode === 75
+        ? [
+            75,
+            `the shell lock gave no turn within the ${String(remaining)}s left of its wait budget (observe mode)`,
+          ]
+        : [
+            70,
+            `the shell lock refused it with exit ${String(outcome.exitCode)}${outcome.reason === undefined ? '' : `: ${outcome.reason}`} (observe mode)`,
+          ];
+  // Proof: without the withdrawal `a legacy deadline withdraws the Dash job`
+  // (host-pool-mode.test.ts) left the job starting with its cores reserved (2026-11-02, Slice 6b).
+  runtime.withdrawUnlaunchedHostJob(job.id, reason);
+  throw new OpsRefusal(
+    code,
+    `ops job run: ${job.descriptor.id} ${job.label} refused: ${reason}; its reservation is withdrawn`,
+  );
+}
+
+/**
+ * Let go of the shell lock once the job's compute is released (J12): the payload's processes
+ * are gone, which is what the lock serialised. A compute entry still outstanding keeps the hold
+ * file, and `watch` removes it when that entry settles, so a surviving child never runs beside
+ * a legacy caller.
+ */
+export async function endLegacyHold(
+  runtime: Pick<ResourceRuntime, 'inspectHostJob'>,
+  jobId: string,
+  hold: LegacyHold,
+  deps: JobRunDependencies,
+): Promise<void> {
+  let released: boolean;
+  try {
+    released = runtime.inspectHostJob(jobId).compute.state === 'released';
+  } catch (cause) {
+    deps.report(
+      `ops job: ${jobId} keeps the shell lock: its compute entry is unreadable (${causeText(cause)}); watch releases it`,
+    );
+    return;
+  }
+  // Proof: releasing regardless made `a surviving child keeps the shell lock until its compute
+  // settles` (host-pool-mode.test.ts) see the holder gone (2026-11-02, Slice 6b).
+  if (!released) {
+    deps.report(
+      `ops job: ${jobId} keeps the shell lock until its compute settles; watch releases it`,
+    );
+    return;
+  }
+  hold.release();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const ended = await Promise.race([
+    hold.exited.then(
+      () => true,
+      () => true,
+    ),
+    new Promise<boolean>((resolveGrace) => {
+      timer = setTimeout(() => {
+        resolveGrace(false);
+      }, 10_000);
+    }),
+  ]);
+  clearTimeout(timer);
+  deps.report(
+    ended
+      ? `ops job: ${jobId} released the shell lock`
+      : `ops job: ${jobId} removed its shell lock hold; holder ${String(hold.pid)} has not exited yet`,
+  );
 }
 
 /** Kill the whole session of `pid`; a session already gone is not an error. */
@@ -458,7 +599,17 @@ async function runAdmitted(
   interruption: Interruption,
   onSignal: (handler: (signal: NodeJS.Signals) => void) => void,
 ): Promise<number> {
-  const job = runtime.prepareHostJob(admitted.id);
+  let job: HostJob;
+  try {
+    job = runtime.prepareHostJob(admitted.id);
+  } catch (cause) {
+    if (!(cause instanceof HostPoolModeRefusal)) throw cause;
+    // Nothing was created: the guard was lost before preparation, so the job is withdrawn.
+    runtime.withdrawUnlaunchedHostJob(admitted.id, cause.message);
+    throw new OpsRefusal(75, `ops job run: ${cause.message}; its reservation is withdrawn`, {
+      cause,
+    });
+  }
   const unit = scopeUnitOf(job.id);
   let launched: Launched;
   try {
@@ -676,6 +827,24 @@ async function runAdmitted(
     deps.report(`ops job: ${job.id} ${ledgerFailure}`);
   }
   const telemetryFailure = failures.length === 0 ? null : failures.join('; ');
+  // A run during which the singleton guard's holder died had no guarantee against a stale
+  // launcher beside it: its attribution is incomplete (review H5).
+  // `watch` marks it when it notices; the launcher re-checks at exit itself, so a host whose
+  // `watch` is down still records the loss (review K4).
+  let guardLost: string | undefined;
+  try {
+    let lost = runtime.inspectHostJob(job.id).guardLost;
+    // Proof: without the exit re-check `a guard lost mid-run with no watch is still recorded`
+    // (host-pool-mode.test.ts) found the run complete (2026-11-02, review K4).
+    if (lost === undefined && !runtime.guardStillHeld())
+      lost = runtime.recordGuardLostFor(job.id).guardLost;
+    if (lost !== undefined)
+      guardLost = `the singleton guard (pid ${lost.holderPid === null ? 'unrecorded' : String(lost.holderPid)}) was lost during the run`;
+  } catch (cause) {
+    // Unknown is not "held": the run's attribution is incomplete either way.
+    guardLost = `the singleton guard could not be re-checked at exit (${causeText(cause)})`;
+  }
+  if (guardLost !== undefined) deps.report(`ops job: ${job.id} ${guardLost}`);
   if (telemetryFailure !== null)
     deps.report(`ops job: ${job.id} telemetry failure recorded: ${telemetryFailure}`);
   const incomplete = verdicts.filter((verdict) => verdict.verdict !== 'bounded');
@@ -690,8 +859,11 @@ async function runAdmitted(
       signal,
       telemetryFailure,
       ledgerFailure,
-      attributionIncomplete: incomplete.length > 0,
+      // Proof: without the guard term `a guard holder lost mid-run marks the running jobs`
+      // (host-pool-mode.test.ts) found the run complete in `ops job audit` (2026-11-02, H5).
+      attributionIncomplete: incomplete.length > 0 || guardLost !== undefined,
       containers: verdicts,
+      ...(guardLost === undefined ? {} : { guardLost }),
     });
   } catch (cause) {
     deps.report(`ops job: ${job.id} run record outcome unrecorded: ${causeText(cause)}`);

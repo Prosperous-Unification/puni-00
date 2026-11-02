@@ -18,6 +18,7 @@ import {
   hostPoolFixture,
   jobType,
 } from '../resources/host-pool.test.fixture';
+import { privateLegacyLock } from '../resources/legacy-lock.test.fixture';
 import {
   type HostJob,
   type HostJobRequest,
@@ -247,7 +248,13 @@ if (insideOpsNamespace(import.meta.path)) {
       // reservation. Proof: dropping either alone stayed green; dropping both admitted the
       // second beside the first (2026-11-02, Slice 4 review A13, verify.md).
       expect(runtime.pollHostJob(second, silent).kind).toBe('waiting');
-      const lines = formatHostPoolStatus(runtime.hostPoolStatus(), new Map(), clock.read());
+      const lines = formatHostPoolStatus(
+        runtime.hostPoolStatus(),
+        new Map(),
+        clock.read(),
+        null,
+        '/holds',
+      );
       // Proof: without the `calibration` word the running and waiting lines began
       // `running gate calibration pid` and `waiting website-dev-build` (2026-11-02, review A7).
       expect(lines[1]?.startsWith(`running calibration gate calibration pid -`)).toBe(true);
@@ -282,6 +289,28 @@ if (insideOpsNamespace(import.meta.path)) {
         diskUnits: 0,
         workspaceSlots: 1,
       });
+    });
+
+    test('a calibration row without its reservation is refused', () => {
+      const { config, root } = pool();
+      const runtime = runtimeOf(config);
+      const job = admitted(
+        runtime,
+        queue(runtime, {
+          descriptor: gate,
+          label: 'calibration',
+          waitSeconds: 0,
+          calibration: true,
+        }),
+      );
+      const ledger = new Database(join(root, '.dash', 'resources.sqlite'));
+      ledger.run("UPDATE host_jobs SET snapshot=json_remove(snapshot, '$.reserved') WHERE id=?", [
+        job.id,
+      ]);
+      ledger.close();
+      expect(() => runtime.inspectHostJob(job.id)).toThrow(
+        `host job ${job.id} is a calibration with no persisted reservation`,
+      );
     });
 
     test('a calibration naming an exclusive id with no units is refused 73', () => {
@@ -383,6 +412,7 @@ if (insideOpsNamespace(import.meta.path)) {
         telemetry,
         host: ampleHost,
         user: 'puni1',
+        legacyLock: () => privateLegacyLock(join(cwd, '..')),
       };
     }
 
@@ -667,6 +697,7 @@ if (insideOpsNamespace(import.meta.path)) {
             sampleIntervalMs: 10_000,
             settleBudgetMs: 20_000,
             user: 'puni1',
+            legacyLock: privateLegacyLock(join(checkout, '..')),
           },
         );
       } catch (cause) {
@@ -696,6 +727,7 @@ if (insideOpsNamespace(import.meta.path)) {
         sampleIntervalMs: 10_000,
         settleBudgetMs: 20_000,
         user: 'puni1',
+        legacyLock: privateLegacyLock(join(checkout, '..')),
       };
       let refused: unknown;
       try {
@@ -742,6 +774,7 @@ if (insideOpsNamespace(import.meta.path)) {
           sampleIntervalMs: 10_000,
           settleBudgetMs: 20_000,
           user: 'puni1',
+          legacyLock: privateLegacyLock(join(checkout, '..')),
         };
         expect(
           await calibrateHostJob(
