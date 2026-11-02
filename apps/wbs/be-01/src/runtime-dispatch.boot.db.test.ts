@@ -995,6 +995,16 @@ async function runTracePublicationProof(): Promise<void> {
     writeFileSync(configPath, JSON.stringify({ role: 'trace-publication', tracePath }), {
       mode: 0o600,
     });
+    // Proof: CI's inherited 48-byte forced-color Bun banner failed the strict receipt
+    // parser as out of order. After this private color override, the unchanged
+    // publication/malformed-JSON pair passed with outer FORCE_COLOR=1.
+    const environment: NodeJS.ProcessEnv = {
+      ...process.env,
+      NO_COLOR: '1',
+      TMPDIR: root,
+      PUNI_RUNTIME_DISPATCH_CHILD_CONFIG: configPath,
+    };
+    delete environment['FORCE_COLOR'];
     requireTime(workDeadline, 'child spawn');
     child = Bun.spawn(
       [
@@ -1007,7 +1017,7 @@ async function runTracePublicationProof(): Promise<void> {
       ],
       {
         cwd: resolve(import.meta.dir, '../../../..'),
-        env: { ...process.env, TMPDIR: root, PUNI_RUNTIME_DISPATCH_CHILD_CONFIG: configPath },
+        env: environment,
         detached: true,
         stdin: 'pipe',
         stdout: 'pipe',
