@@ -40,6 +40,11 @@
   cross-option rules run in the parser after `run` (D-A4); `mcp token`'s credential group is an
   Optique `or`; `resources` is nine nested commands. Pinned lines changed, faults and boot time:
   verify.md, _Dash typing_.
+- Follow-up (review T7): `plan-enrollment` and `ops` keep `flagValue`, which accepts a
+  whitespace-only value, while the fifteen retyped commands refuse it (`operand`); unify them in
+  one change that names the affected `ops` callers.
+- Follow-up (review T5): if `launchers.test.ts`' namespace wrapper fails again, record the inner
+  failing test from its printed output (the wrapper already prints it; D-A12 records the one seen).
 
 ## 2. Navigator (into main)
 

@@ -323,7 +323,9 @@ try {
       const barrier = barrierDirectory('legacy');
       // A forged verdict changes nothing: no code reads it (slice 6a review G1).
       const result = await launch(gate, barrier, 1, { HEAVY_JOB_ENROLLMENT: 'enrolled' });
-      expect(result.stderr).toContain('heavy lock: waited 0s behind 0 tickets');
+      // The wait is whole seconds of wall time, so a loaded host may print 1s; the queue is what
+      // this pins (it failed `waited 1s` once in a full run, 2026-11-02).
+      expect(result.stderr).toMatch(/heavy lock: waited \d+s behind 0 tickets/);
       expect(result.stderr).toContain(`h2puni gate: running on ${launchedSha}`);
       expect(result.exitCode).toBe(0);
       expect(

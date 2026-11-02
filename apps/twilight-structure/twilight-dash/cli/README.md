@@ -33,7 +33,9 @@ is typed there and refused before any handler runs, so a refused line reads no f
 store or connection. A refused command line prints one `error: ` line on stderr and exits 1 (64
 for an `ops` command): `Unsupported Dash command: <name>`, or the usage of the deepest command it
 names (`usage: twilight-dash resources cleanup …`) with the reason, which never quotes an operand.
-Options accept `--flag=value` as well as `--flag value`.
+Options accept `--flag=value` as well as `--flag value`, in any order around the positional
+operands: the generated usage lists options first, while the table above and the runbooks show the
+operands first, and both parse.
 
 ## Managed resource cleanup
 

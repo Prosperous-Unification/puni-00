@@ -119,9 +119,12 @@ ran with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, laptop, non-root.
 
 ### Assumptions
 
-- **D-A1. Two copies of this file.** This section is written into the change directory on
-  `plan/dash-host-jobs`; the copy on `plan/twilight-cli-optique` (Navigator) differs. They
-  reconcile when PR #805 reaches main; nothing here edits the Navigator or Burokrat sections.
+- **D-A1. Two copies of the change directory.** This branch's `verify.md`, `spec.md`,
+  `tasks.md` and `design.md` differ from `plan/twilight-cli-optique`'s (Navigator); they reconcile
+  when PR #805 reaches main. The shared spec lines (the refusal requirement and the Navigator and
+  Burokrat scenarios) now use that plan's wording verbatim, `one error: line whose message begins
+…`; the Dash additions (`--flag=value`, the handler and per-command help scenarios) stay.
+  Nothing here edits the Navigator or Burokrat sections of `verify.md`.
 - **D-A2. No pass-through remains.** Every command is a typed `command(...)` in `cli-parser.ts`;
   each handler takes `DashRequest<name>` (the `ops` model: modules import the type only, so
   `cli-parser.ts` still imports nothing but Optique). The module flag loops, `usage`/`USAGE`
@@ -133,7 +136,9 @@ ran with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, laptop, non-root.
   neither. `plan-enrollment` and `ops` keep their `flagValue` unchanged.
 - **D-A4. Reasons.** A refusal reason is Optique's wording, except the reasons a module's tests or
   runbooks name: `run-activation-checks` keeps `repeated --x`, `missing --x`, `--x has no value`
-  and `--candidate-sha is not a 40-hex sha`; `account-outcomes` keeps `period bounds must be UTC
+  and `--candidate-sha is not a 40-hex sha` when the faulty token is the last one or a flag value
+  that fails its own check; a valueless flag followed by another flag lets that flag be taken as
+  the value, and the word stranded after it is then the reported error (D-A11); `account-outcomes` keeps `period bounds must be UTC
 instants like 2026-10-15T00:00:00Z` and `--until must be after --since`. An unknown flag reads
   Optique's ``Unexpected option or subcommand: `--x`.`` everywhere (an object's
   `unexpectedInput` never fires under Dash's nested `or`). `account-outcomes`' two cross-option
@@ -161,6 +166,18 @@ resource command flags`, `invalid resource revision` and `resources exec/run req
   modules: they judge an operand's meaning, not the grammar.
 - **D-A9. `--flag=value`** is accepted by every option (Optique has no switch to refuse it); each
   module refused it before. Stated by `--flag=value is accepted and parses as the spaced spelling`.
+- **D-A11. A redacted operand names its position.** `redactOperands` writes `<word N>` (1-based
+  after the command words), with `after --flag` when a flag precedes it: `report-capacity /c`
+  refuses ``Unexpected option or subcommand: `<word 1>`.``, and
+  `run-activation-checks … --candidate-sha --candidate-policy p …` refuses
+  ``… `<word 5 after --candidate-policy>`.``, which points at the flag left without a value. A value
+  given twice is shown at its first position.
+- **D-A12. `launchers.test.ts` waits in whole seconds.** Run 1's failure was the inner test `an
+unenrolled host runs the gate on the legacy lock in the launcher checkout`, which expected
+  `heavy lock: waited 0s behind 0 tickets` and read `waited 1s` (its wrapper prints the inner
+  output on failure, so the full run's log had it). The assertion now pins `waited \d+s behind 0
+tickets`: the queue, not the wall-clock rounding. Alone, three runs passed before the change and
+  one after (`10 pass`, `0 fail` inner).
 - **D-A10. `parseDashRequest(name, args)`** is exported for tests that call one command's module
   with what the parser hands it; it refuses a line naming another command.
 
@@ -210,19 +227,23 @@ Each fault was written into the production source by a script that ran the named
 | G11 `onExit` removed from `run` (1.2 negative re-watched)                  | `the installed entrypoint refuses an apply command`                                                 | stderr lost the `error: Unsupported Dash command: apply` line                 |
 | G12 `checkRunOption`'s `duplicate` dropped                                 | `refuses grammar faults and unusable directories before any effect`                                 | ``(`--check-runs` cannot be used multiple times.)``                           |
 | G13 credential `or` replaced by three optional options                     | `token-command.test.ts` `refuses two credentials`; `cli.test.ts` `refuses two credentials, none, …` | the helper resolved and requested a token; `Dash accepted mcp token …`        |
+| G14 `payload()`'s `min: 1` dropped                                         | `refuses an empty payload, an invalid instant and an unknown selection`                             | `Dash accepted resources run --config c --use u --`                           |
+| G15 `instant()`'s `pattern` dropped                                        | the same                                                                                            | `Dash accepted account-outcomes … --since 2026-10-01 …`                       |
+| G16 `submit-admission`'s `choice` replaced by `string`                     | the same                                                                                            | `Dash accepted submit-admission r p frozen x`                                 |
+| G17 `placeholderOf` returns `…`                                            | `a stray word and a mid-line valueless flag name their position`                                    | ``(Unexpected option or subcommand: `…`.)``                                   |
 
 ### Commands
 
-| Command                                                                                     | Result                                                                                                                                                                                            |
-| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bunx nx run twilight-dash:test --skip-nx-cache` (run 1)                                    | 4322 pass, 1 fail, 140 files, 1979 s: `launchers.test.ts in a private user, mount and PID namespace` (44.3 s, under load); alone three times: `1 pass`, `0 fail` (inner `10 pass`, `0 fail`) each |
-| `bunx nx run twilight-dash:test --skip-nx-cache` (run 2)                                    | 4323 pass, 0 fail, 140 files, 1941 s; `Successfully ran target test for project twilight-dash` (at 0e7c78c74)                                                                                     |
-| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                       | `Successfully ran target typecheck for project twilight-dash`                                                                                                                                     |
-| `bunx nx run twilight-dash:lint --skip-nx-cache`                                            | `Successfully ran target lint for project twilight-dash`                                                                                                                                          |
-| `bunx nx run twilight-dash:build --skip-nx-cache`                                           | `Successfully ran target build for project twilight-dash`                                                                                                                                         |
-| `bunx prettier --check` on the touched files                                                | `All matched files use Prettier code style!`                                                                                                                                                      |
-| `bunx openspec validate twilight-cli-optique --json`                                        | `"valid": true`, `"issues": []`                                                                                                                                                                   |
-| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | exit 0                                                                                                                                                                                            |
+| Command                                                                                     | Result                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run twilight-dash:test --skip-nx-cache` (run 1)                                    | 4322 pass, 1 fail, 140 files, 1979 s: `launchers.test.ts in a private user, mount and PID namespace` (44.3 s; an inner assertion, D-A12, not a timeout); alone three times: `1 pass`, `0 fail` (inner `10 pass`, `0 fail`) each |
+| `bunx nx run twilight-dash:test --skip-nx-cache` (run 2)                                    | 4323 pass, 0 fail, 140 files, 1941 s; `Successfully ran target test for project twilight-dash` (at 0e7c78c74)                                                                                                                   |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                       | `Successfully ran target typecheck for project twilight-dash`                                                                                                                                                                   |
+| `bunx nx run twilight-dash:lint --skip-nx-cache`                                            | `Successfully ran target lint for project twilight-dash`                                                                                                                                                                        |
+| `bunx nx run twilight-dash:build --skip-nx-cache`                                           | `Successfully ran target build for project twilight-dash`                                                                                                                                                                       |
+| `bunx prettier --check` on the touched files                                                | `All matched files use Prettier code style!`                                                                                                                                                                                    |
+| `bunx openspec validate twilight-cli-optique --json`                                        | `"valid": true`, `"issues": []`                                                                                                                                                                                                 |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | exit 0                                                                                                                                                                                                                          |
 
 No file moved and no dependency changed, so the `tool-devsync` pilot-policy test was not rerun.
 
@@ -231,3 +252,22 @@ No file moved and no dependency changed, so the `tool-devsync` pilot-policy test
 - The h2puni gate (`bin/h2puni-gate.sh`) was not run; CI and the gate stay required.
 - Bash, zsh and fish completion scripts were not re-sourced; only `completion zsh`'s header is
   asserted, as in 1.3.
+
+### Review fixes (Fable review of 01ebcab17), 2026-11-03
+
+T1 positional placeholders (D-A11, G17); T2 shared spec wording and D-A1; T3 negatives and
+Proofs for the payload, instant, selection and blank operands of `resources init` and
+`mcp token` (G14–G16, G3's test); T4 the `ops` exit-code test's budget is 30 s on the measured
+basis (each of its three grammar refusals 104–117 ms idle; a `cli.ts` command such as
+`inspect-authority <absent repository>` 7.2 s, 2026-11-03); T5 D-A12; T6 the PR body; T7 a
+`tasks.md` follow-up; T8 the README notes the generated usage's option-first order. The full
+target was not rerun for these fixes; the commands below were.
+
+| Command                                                                                                                                           | Result                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `bun test --timeout=60000 src/cli.test.ts src/check-runs/run-activation-checks.test.ts src/mcp/token-command.test.ts src/mcp/pool-import.test.ts` | 167 pass, 0 fail, 4 files                              |
+| `bun test … src/ops/launchers.test.ts` (with the namespace preload)                                                                               | `10 pass`, `0 fail` inside; wrapper `1 pass`, `0 fail` |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`, `:lint`                                                                                    | `Successfully ran target …` each                       |
+| `bunx prettier --check` on the touched files                                                                                                      | `All matched files use Prettier code style!`           |
+| `bunx openspec validate twilight-cli-optique --json`                                                                                              | `"valid": true`, `"issues": []`                        |
+| Burokrat `check-indexes working . HEAD`                                                                                                           | exit 0                                                 |

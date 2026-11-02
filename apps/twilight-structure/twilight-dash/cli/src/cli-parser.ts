@@ -131,6 +131,8 @@ const authorityCommands = [
       packet: argument(operand('PACKET_JSON'), {
         description: message`The bound admission packet.`,
       }),
+      // Proof: a plain `string` here made `refuses an empty payload, an invalid instant and an
+      // unknown selection` accept `frozen` (2026-11-03).
       selection: argument(choice(['staged', 'committed'] as const, { metavar: 'SELECTION' }), {
         description: message`staged: freeze the staged tree on a base; committed: freeze a revision.`,
       }),
@@ -231,6 +233,8 @@ const progressFields = () => ({
 const instant = () =>
   string({
     metavar: 'INSTANT',
+    // Proof: dropping `pattern` made `refuses an empty payload, an invalid instant and an unknown
+    // selection` accept `--since 2026-10-01` (2026-11-03).
     pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/u,
     errors: {
       patternMismatch: message`period bounds must be UTC instants like 2026-10-15T00:00:00Z.`,
@@ -286,6 +290,8 @@ const payload = () =>
     argument(string({ metavar: 'COMMAND' }), {
       description: message`The command to run, after --.`,
     }),
+    // Proof: dropping `min: 1` made `refuses an empty payload, an invalid instant and an unknown
+    // selection` accept `resources run … --` (2026-11-03).
     { min: 1, errors: { tooFew: message`a command after -- is required.` } },
   );
 
@@ -720,28 +726,46 @@ function usageLine(path: CommandPath): string {
 }
 
 /**
- * `reason` with every operand of `args` replaced by `…` wherever Optique quotes it, so a refusal
- * never echoes a value: a key pasted after `--key-file`, an entry path, a `--flag=value` tail.
- * Option names stay, and so do the command words.
+ * The placeholder an operand gets in a refusal: its 1-based position after the command words,
+ * and the flag before it when there is one (`<word 5 after --candidate-policy>`), so the
+ * operator can find a stray word or a valueless flag without the line echoing the value.
+ */
+function placeholderOf(operands: readonly string[], index: number): string {
+  const before = operands.at(index - 1);
+  const flag = index > 0 && before?.startsWith('-') ? before.split('=')[0] : undefined;
+  return `<word ${String(index + 1)}${flag === undefined ? '' : ` after ${flag}`}>`;
+}
+
+/**
+ * `reason` with every operand of `args` replaced by its {@link placeholderOf} wherever Optique
+ * quotes it, so a refusal never echoes a value: a key pasted after `--key-file`, an entry path, a
+ * `--flag=value` tail. Option names stay, and so do the command words. A value given twice is
+ * shown at its first position.
  * Proof: returning `reason` unredacted failed `a refusal never quotes an operand` on the
  * conflicting `--key-file` and `--assertion-file` values (2026-11-02).
+ * Proof: a bare `…` placeholder failed `a stray word and a mid-line valueless flag name their
+ * position` (2026-11-03).
  */
 function redactOperands(reason: string, args: readonly string[], depth: number): string {
+  const operands = args.slice(depth);
   let redacted = reason;
-  for (const token of args.slice(depth)) {
+  operands.forEach((token, index) => {
     const equals = token.indexOf('=');
-    const quoted = token.startsWith('-')
+    const placeholder = placeholderOf(operands, index);
+    const replacements: readonly (readonly [string, string])[] = token.startsWith('-')
       ? equals < 0
         ? []
-        : [token, token.slice(equals + 1)]
-      : [token];
-    for (const value of quoted) {
-      const shown = value === token && equals >= 0 ? `${token.slice(0, equals)}=…` : '…';
+        : [
+            [token, `${token.slice(0, equals)}=${placeholder}`],
+            [token.slice(equals + 1), placeholder],
+          ]
+      : [[token, placeholder]];
+    for (const [value, shown] of replacements) {
       for (const quote of ['"', '`']) {
         redacted = redacted.replaceAll(`${quote}${value}${quote}`, `${quote}${shown}${quote}`);
       }
     }
-  }
+  });
   return redacted;
 }
 

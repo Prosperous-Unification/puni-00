@@ -518,10 +518,11 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
       expect(stderr.split('\n').length, args.join(' ')).toBe(2);
       expect(stderr, args.join(' ')).toStartWith('error: ');
     }
-    // `inspect-authority` refuses in its own module after `cli.ts` loads every command module
-    // (about 5 s on a loaded host, mostly the resource runtime and the activation store): the
-    // three runs need more than the target's 60 s only under extreme load, so 90 s.
-  }, 90000);
+    // All three are grammar refusals: none loads `cli.ts`'s command graph (about 7 s, measured
+    // 2026-11-03 with `inspect-authority <absent repository>`). Each run took 104–117 ms idle on
+    // the laptop (2026-11-03); three runs at 3 x idle (docs/test-budgets.md) need under 2 s, and
+    // 30 s leaves room for a cold Bun start on a loaded gate host.
+  }, 30000);
 });
 
 describe('Dash help and completion', () => {
@@ -949,6 +950,8 @@ describe('typed command grammars (tasks 1.5–1.9)', () => {
       ],
       ['report-capacity', '--config', ''],
       ['pool', 'import', 'f', '--store', '\t'],
+      ['resources', 'init', '--config', ' '],
+      ['mcp', 'token', '--resource', ' ', '--key-file', 'k'],
     ]) {
       expect(refusalLineOf(args), JSON.stringify(args)).toContain(
         'must be a non-blank value that does not begin with --.',
@@ -993,6 +996,69 @@ describe('typed command grammars (tasks 1.5–1.9)', () => {
     }
     // An unknown subcommand is named, not redacted.
     expect(refusalLineOf(['resources', 'teleport'])).toContain('`teleport`');
+  });
+
+  test('a stray word and a mid-line valueless flag name their position', () => {
+    const sha = 'a'.repeat(40);
+    // `--candidate-sha` takes `--candidate-policy` as its value, so `p` is the stranded word.
+    expect(
+      refusalLineOf([
+        'run-activation-checks',
+        '--candidate-repository',
+        'c',
+        '--candidate-sha',
+        '--candidate-policy',
+        'p',
+        '--check-runs',
+        'r',
+      ]),
+    ).toEndWith('(Unexpected option or subcommand: `<word 5 after --candidate-policy>`.)');
+    expect(refusalLineOf(['report-capacity', '/c'])).toEndWith(
+      '(Unexpected option or subcommand: `<word 1>`.)',
+    );
+    expect(refusalLineOf(['pool', 'import', 'f', '--store', 's', 'extra'])).toEndWith(
+      '(Unexpected option or subcommand: `<word 4>`.)',
+    );
+    expect(
+      refusalLineOf([
+        'run-activation-checks',
+        '--candidate-repository',
+        'c',
+        `--candidate-sha=${sha}`,
+        '--candidate-policy',
+        'p',
+        '--check-runs',
+        'r',
+        'extra',
+      ]),
+    ).toEndWith('(Unexpected option or subcommand: `<word 8>`.)');
+  });
+
+  test('refuses an empty payload, an invalid instant and an unknown selection', () => {
+    // Proof: dropping `payload()`'s `min: 1` made this accept `resources run … --` (2026-11-03).
+    expect(refusalLineOf(['resources', 'run', '--config', 'c', '--use', 'u', '--'])).toEndWith(
+      '(a command after -- is required.)',
+    );
+    expect(
+      refusalLineOf([
+        'account-outcomes',
+        '--repository',
+        'r',
+        '--since',
+        '2026-10-01',
+        '--until',
+        '2026-10-02T00:00:00Z',
+        '--rate-card',
+        'c',
+        '--output',
+        'o',
+        '--codex-sessions',
+        'x',
+      ]),
+    ).toEndWith('(`--since`: period bounds must be UTC instants like 2026-10-15T00:00:00Z.)');
+    expect(refusalLineOf(['submit-admission', 'r', 'p', 'frozen', 'x'])).toEndWith(
+      '(`SELECTION`: Expected one of "staged" and "committed", but got "<word 3>".)',
+    );
   });
 
   test('parseDashRequest refuses a line naming another command', () => {
