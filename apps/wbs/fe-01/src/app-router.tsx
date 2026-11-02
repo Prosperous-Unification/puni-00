@@ -10,6 +10,7 @@ import { lazy, type ReactNode, Suspense, useMemo, useState } from 'react';
 
 import { PageNav } from '@/components/chrome/page-nav';
 import { OrganizationPage } from '@/components/organization/organization-page';
+import { usePersonBindings } from '@/components/organization/person-binding';
 import { usePeopleCredentials } from '@/components/organization/person-credentials';
 import { loadWindowFrom, localToday } from '@/components/people/load-window';
 import { PersonLoadSummary, usePeopleLoad } from '@/components/people/people-load-summary';
@@ -68,6 +69,7 @@ const projectRoute = createRoute({
         presence={presence}
         account={account}
         nav={nav}
+        viewerAccountId={session.userId}
       />
     );
   },
@@ -103,6 +105,7 @@ const directoryRoute = createRoute({
     const [window] = useState(() => loadWindowFrom(localToday(new Date())));
     const load = usePeopleLoad(window, session.directory);
     const credentialsOf = usePeopleCredentials(session.userId);
+    const bindingOf = usePersonBindings(session.userId);
     return (
       // Nothing rather than a spinner: the chunk is fetched from the same
       // origin that just served the document, and a flash of "loading…"
@@ -118,6 +121,7 @@ const directoryRoute = createRoute({
             <PersonLoadSummary view={load} personId={person.id} personName={person.name} />
           )}
           {...(credentialsOf === null ? {} : { credentialsOf })}
+          {...(bindingOf === null ? {} : { bindingOf })}
         />
       </Suspense>
     );

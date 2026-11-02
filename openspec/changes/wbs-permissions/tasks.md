@@ -5,7 +5,9 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
 
 ## 0. Dany reads P1 to P18
 
-- [ ] 0.1 Dany confirms or amends design.md P1 to P18, in particular P17 (a machine
+- [ ] 0.1 Dany confirms or amends design.md P1 to P18 (P17 and P18 confirmed 2026-10-25 by the
+      coordinator under Dany's principles: flexibility, whatever allows the most
+      restrictiveness), in particular P17 (a machine
       credential is a grant subject and holds only its own grants; overrides P2 and answers
       E7's machine-principal grantee), P18 (renaming access roles at runtime is a non-goal;
       E7's "rename the roles" is the scope-prefixed vocabulary already adopted), P5 as revised
@@ -23,7 +25,7 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
 
 ## 1. Catalogue, grant tables and backfill
 
-- [x] 1.1 Migration `add_access_grants`: `access_role` (with `name`, nullable `level`, the built-in/custom CHECK) seeded with the nine roles, `access_role_permission` seeded with their sets from permission-matrix.md and the reserved-name trigger (`wbs-custom-permissions` 1.1),
+- [ ] 1.1 Migration `add_access_grants`: `access_role` (with `name`, nullable `level`, the built-in/custom CHECK) seeded with the nine roles, `access_role_permission` seeded with their sets from permission-matrix.md and the reserved-name trigger (`wbs-custom-permissions` 1.1),
       `access_group`, `access_group_member`, `access_grant` with the CHECKs, unique and
       composite foreign keys, the `organization_members` trigger, the two indexes, the
       backfill of memberships and work package owners (no project-scope row) and the
@@ -37,7 +39,7 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       guard and the ungranted role is deleted;
       drop the owner predicate and a non-member owner receives a grant; drop the cap in
       the credential copy and an `org-admin`'s credential receives `org-admin`; watched.
-- [x] 1.2 Red: `access-role.test.ts` in `@wbs/domain` for the pure catalogue,
+- [ ] 1.2 Red: `access-role.test.ts` in `@wbs/domain` for the pure catalogue,
       the `ScopeChain` value type shared with #698 (design.md P13) and
       `may(effective, permission)`: the matrix of permission-matrix.md as a
       property (every cell is a seeded set row), `may` as set membership, the kind rule

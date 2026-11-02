@@ -227,6 +227,10 @@ export async function buildDeployPlan(
   const beDeployedMigrations = beDeployedSha === null ? null : deps.listMigrations(beDeployedSha);
   const newMigrations = hasNewMigrations(beDeployedMigrations, headMigrations);
   const deployingBe = tiers.includes('be');
+  // Proof: with this refusal removed, `refuses --accept-breaking without the be
+  // tier` (deploy.test.ts) planned a gw swap carrying the flag; watched 2026-10-28.
+  if (args.acceptBreaking.length > 0 && !deployingBe)
+    throw new Error('--accept-breaking names audiences only a be swap checks; deploy be with it');
 
   if (deployingBe) {
     // Throws (and aborts the whole plan, before any tier touches the network)
@@ -319,9 +323,12 @@ export async function buildDeployPlan(
     // the exact string verified against the live host above — this change must
     // not alter a single byte of what a prod deploy sends.
     const envPrefix = args.layout.env === 'prod' ? '' : `WBS_ENV=${args.layout.env} `;
+    // Emitted only when given, so a deploy without it sends the same bytes as before.
+    const accept =
+      args.acceptBreaking.length > 0 ? ` --accept-breaking=${args.acceptBreaking.join(',')}` : '';
     const base =
       `cd ${args.layout.root} && ${envPrefix}bun bin/swap.js ${tiers.join(',')} ` +
-      `${imageArgs.join(' ')} --sha=${headSha}`;
+      `${imageArgs.join(' ')} --sha=${headSha}${accept}`;
     const remoteCmd = base + (args.dryRun ? '' : ' --execute');
     steps.push(`[plan] ssh ${host} ${JSON.stringify(remoteCmd)}`);
     commands.push(remoteCmd);

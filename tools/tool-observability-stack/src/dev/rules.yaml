@@ -1,0 +1,56 @@
+groups:
+  - name: puni-dev-observation
+    interval: 30s
+    rules:
+      - alert: DevProbeMissing
+        # Proof: removing absent() failed pinned-promtool no-probe-series fixture.
+        expr: absent(puni_dev_probe_observed_timestamp_seconds{environment="dev",service="be-01"})
+        labels: { environment: dev, service: be-01, severity: warning }
+      - alert: DevProbeStale
+        # Proof: disabling this expression failed its pinned-promtool scenario.
+        expr: time() - puni_dev_probe_observed_timestamp_seconds{environment="dev",service="be-01"} > 120
+        labels: { environment: dev, service: be-01, severity: warning }
+      - alert: DevProbeFailed
+        # Proof: disabling this expression failed its pinned-promtool scenario.
+        expr: puni_dev_probe_success{environment="dev",service="be-01"} == 0
+        labels: { environment: dev, service: be-01, severity: warning }
+      - alert: DevCollectorMissing
+        # Proof: removing each absent instance clause independently failed its pinned-promtool fixture.
+        expr: up{job="dev-collector"} == 0 or absent(up{job="dev-collector",instance="collector:8888"}) or absent(up{job="dev-collector",instance="gateway:8888"})
+        labels: { environment: dev, severity: warning }
+      - alert: DevExporterBacklog
+        # Proof: disabling this expression failed its pinned-promtool scenario.
+        expr: otelcol_exporter_queue_size / otelcol_exporter_queue_capacity > 0.8
+        labels: { environment: dev, severity: warning }
+      - alert: DevExporterLoss
+        # Proof: disabling this expression failed its pinned-promtool scenario.
+        expr: increase(otelcol_exporter_send_failed_spans[2m]) > 0 or increase(otelcol_exporter_send_failed_log_records[2m]) > 0 or increase(otelcol_exporter_enqueue_failed_spans[2m]) > 0 or increase(otelcol_exporter_enqueue_failed_log_records[2m]) > 0
+        labels: { environment: dev, severity: warning }
+      - alert: DevStoragePressure
+        # Proof: disabling this expression failed its pinned-promtool scenario.
+        expr: puni_dev_storage_available_bytes / puni_dev_storage_capacity_bytes < 0.15
+        labels: { environment: dev, severity: warning }
+      - alert: DevStorageObservationMissing
+        # Proof: disabling this expression failed its pinned-promtool scenario.
+        expr: absent(puni_dev_storage_observed_timestamp_seconds{environment="dev"}) or time() - puni_dev_storage_observed_timestamp_seconds{environment="dev"} > 120
+        labels: { environment: dev, severity: warning }
+      - alert: DevObservationCheckMissing
+        # Proof: disabling this expression failed its pinned-promtool backend/collection fixture.
+        expr: absent(puni_dev_observation_checked_timestamp_seconds{environment="dev",service="be-01"})
+        labels: { environment: dev, service: be-01, severity: warning }
+      - alert: DevObservationCheckStale
+        # Proof: disabling this expression failed its pinned-promtool backend/collection fixture.
+        expr: time() - puni_dev_observation_checked_timestamp_seconds{environment="dev",service="be-01"} > 120
+        labels: { environment: dev, service: be-01, severity: warning }
+      - alert: DevObservationIncomplete
+        # Proof: disabling this expression failed its pinned-promtool backend/collection fixture.
+        expr: puni_dev_observation_health{environment="dev",service="be-01",state!="complete"} == 1
+        labels: { environment: dev, service: be-01, severity: warning }
+      - alert: DevApplicationLogCollectionFailed
+        # Proof: removing failure, absence or staleness independently failed its pinned-promtool fixture.
+        expr: puni_dev_application_log_collection_state{environment="dev",state!="complete"} == 1 or absent(puni_dev_application_log_checked_timestamp_seconds{environment="dev",service="be-01"}) or time() - puni_dev_application_log_checked_timestamp_seconds{environment="dev",service="be-01"} > 120
+        labels: { environment: dev, service: be-01, severity: warning }
+      - alert: DevStorageCollectionFailed
+        # Proof: disabling this expression failed its pinned-promtool backend/collection fixture.
+        expr: puni_dev_storage_collection_state{environment="dev",state="unavailable"} == 1
+        labels: { environment: dev, severity: warning }

@@ -7,7 +7,6 @@ import { PickerList } from '../creatable-picker';
 import { cellIn } from '../editable-grid';
 import { POINTS } from '../estimate-draft';
 import { FoldedStepCard, type FoldedStepCardProps } from '../folded-step-card';
-import { initialsOf } from '../initials';
 import type { PlanLive } from '../plan-live';
 import { MismatchMark } from '../plan-mismatch';
 import { showDays } from '../plan-number-format';
@@ -242,9 +241,10 @@ export function EstimatePresentation({
         // `4.8 · VA`, and the whole name in the tooltip. 96px holds
         // a figure and about four characters of a person, which is
         // how this printed `vad…` and `kuc…` — two people who read
-        // identically. {@link initialsOf} is the same length every
-        // time, so the column lines up and nothing needs an
-        // ellipsis. Grey and in brackets where nobody is assigned
+        // identically. `assignInitials` is the same length
+        // every time and distinct among the plan's people, so the
+        // column lines up, nothing needs an ellipsis and `CC` is
+        // never two people (C22). Grey and in brackets where nobody is assigned
         // and somebody is assumed, exactly as the unfolded column
         // reads it.
         <span
@@ -275,7 +275,7 @@ export function EstimatePresentation({
           {/* `(AL)` with no dot when assumed, as the unfolded `by`
                       column writes it: the brackets already set it apart, and
                       the dot is what made `· (WW)` 40px in a 34px slot. */}
-          {doing.assumed ? `(${initialsOf(doing.name)})` : `· ${initialsOf(doing.name)}`}
+          {doing.assumed ? `(${doing.initials})` : `· ${doing.initials}`}
         </span>
       )}
       {doing === null && reading.anyAssignee && (

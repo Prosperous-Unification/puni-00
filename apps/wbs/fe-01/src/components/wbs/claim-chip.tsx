@@ -10,18 +10,19 @@ import {
   type LeaseView,
   leaseViewOf,
 } from './claim-lease-view';
-import { initialsOf } from './initials';
 import { type LeaseClock, useLeaseNow } from './lease-clock';
 
 /**
- * One claim the table or the cards draw: the claim, the subtree claim it is
- * delegated under (null when none), the clock its read was taken on, the
+ * One claim the table or the cards draw: the claim, its holder's initials, the
+ * subtree claim it is delegated under (null when none), the clock its read was taken on, the
  * plan's one lease clock it is read at, and the project's zone its instant is
  * printed in (null from a read that predates the zone, which leaves the instant
  * out rather than printing the reader's own).
  */
 export interface DrawnClaim {
   claim: ClaimView;
+  /** The holder's mark, distinct among the plan's people (C22). */
+  initials: string;
   parent: ClaimView | null;
   clock: ClaimsClock;
   leaseClock: LeaseClock;
@@ -131,7 +132,7 @@ export function ClaimChip({
       data-fact={form === 'full' ? sentence : undefined}
       style={chipStyle(lease.kind === 'releasing', tap, form === 'initials')}
     >
-      <span aria-hidden="true">{initialsOf(drawn.claim.holder.name)}</span>
+      <span aria-hidden="true">{drawn.initials}</span>
       {text !== null && (
         <span aria-hidden="true" data-claim-lease style={{ fontWeight: 400 }}>
           {text}

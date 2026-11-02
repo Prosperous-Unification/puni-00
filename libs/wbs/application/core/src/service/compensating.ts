@@ -48,7 +48,7 @@ export function stepOfRevisionKey(key: string): string | null {
  * `from` is what those entities read **before** that direction ran, and it
  * exists for one reason: an undo is itself a write. Undoing a rename moves the
  * row again, so the entry below — the rename before it — would be checking
- * against a revision that this account's own undo has just walked past, and a
+ * against a revision that this stack's own undo has just walked past, and a
  * second press of the key would refuse for no reason a reader could accept.
  *
  * `from` is what makes the difference between that and a genuine conflict

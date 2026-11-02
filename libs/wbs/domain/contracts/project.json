@@ -23,7 +23,12 @@
         "command": "bun test $(find src solver/src -name '*.test.ts' -o -name '*.test.tsx' | sort) --coverage --coverage-reporter=lcov --timeout=10000",
         "cwd": "libs/wbs/domain/contracts"
       },
-      "outputs": ["{projectRoot}/coverage"]
+      "outputs": ["{projectRoot}/coverage"],
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/mcp/testing/pool-keys.v1.json"
+      ]
     },
     "test:unit": {
       "executor": "nx:run-commands",
@@ -31,7 +36,12 @@
         "command": "bun test $(find src solver/src -name '*.test.ts' -o -name '*.test.tsx' | sort) --coverage --coverage-reporter=lcov --timeout=10000",
         "cwd": "libs/wbs/domain/contracts"
       },
-      "outputs": ["{projectRoot}/coverage"]
+      "outputs": ["{projectRoot}/coverage"],
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/mcp/testing/pool-keys.v1.json"
+      ]
     },
     "typecheck": {
       "executor": "nx:run-commands",

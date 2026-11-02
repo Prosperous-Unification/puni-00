@@ -1,11 +1,13 @@
 import type { CredentialPin } from '@wbs/contracts';
 
-export type { CredentialPair, CredentialPin } from '@wbs/contracts';
+export type { CredentialPin } from '@wbs/contracts';
 import type {
   Claim,
   LeaseReleaseReason,
   LeaseRenewal,
   OccupancyRow,
+  OrganizationOccupancyRow,
+  ResourceUnits,
   WorkItemPlacement,
 } from '@wbs/domain';
 
@@ -14,7 +16,7 @@ import type { ResourceAccess } from './organization-access';
 import type { ProgressKey } from './progress-store';
 import type { WriteStamp } from './write-stamp';
 
-export type { Claim, OccupancyRow, ResourceUnits } from '@wbs/domain';
+export type { Claim, OccupancyRow, OrganizationOccupancyRow, ResourceUnits } from '@wbs/domain';
 
 /**
  * One stored `claim_occupancy` row: the copy of its leaf's units of one
@@ -149,6 +151,31 @@ export interface ClaimStore extends ClaimIdentity {
    */
   occupancyOf(projectId: string): Promise<OccupancyRow[]>;
   /**
+   * Every occupancy row naming one of `resourceIds`, in every project of the
+   * resource's organization, each with its project and that organization
+   * (`wbs-shared-occupancy` S2), ordered as {@link occupancyOf}. A row whose
+   * project belongs to no organization or to another organization than the
+   * resource's is not answered, and neither is any row of a resource with no
+   * organization.
+   *
+   * Not fenced to a project: a working plan reads it straight through, uncached,
+   * on the batch's own connection, so inside the batch's write turn it answers
+   * every committed claim and the batch's own earlier ones.
+   */
+  organizationOccupancyOf(resourceIds: readonly string[]): Promise<OrganizationOccupancyRow[]>;
+  /**
+   * The units every leaf of the resource's organization holds of each of
+   * `resourceIds`: each leaf's largest copy, summed, in no promised order; a
+   * resource nobody holds has no entry. What the claim check and the startable
+   * read count (`wbs-shared-occupancy` S4), without materialising a row; the
+   * holders are {@link organizationOccupancyOf}'s, read only for a refusal.
+   * Read like it, on the batch's own connection.
+   *
+   * @throws when a resource some organization owns is held in a project that
+   * belongs to no organization: corrupt trusted state.
+   */
+  organizationUnitsOf(resourceIds: readonly string[]): Promise<ResourceUnits[]>;
+  /**
    * Inserts `claims` verbatim — id, run, parent and writing account included —
    * with the `occupancy` rows they carry, and states each of `stated`
    * `in_progress` at the stamp's instant. The free-units check is not the
@@ -170,14 +197,21 @@ export interface ClaimStore extends ClaimIdentity {
   /**
    * Moves every lease of `personId` that is in force, not revoked, and due
    * (`renewalAt`) to a fresh expiry, in every project (`wbs-claim-leases` L4,
-   * L5), and answers the person's standing after it. It reads `now` and the
+   * L5), and answers the person's standing after it. A `runId` scopes both to
+   * that person's leases of that run and the person's no-run leases (taken
+   * before it opted in; `wbs-mcp-agent-surface` M15, an assumption Dany may
+   * reverse); **null
+   * means every lease of the person, those of every run included**, never
+   * "`run_id IS NULL`": a caller with no run (a raw API key, a grant without
+   * `wbs_run`, a consent) keeps renewing what opted-in processes of its person
+   * hold. It reads `now` and the
    * due leases first, and takes the write turn only when one is due; inside
    * the turn it reads `now` again and decides against that instant, so a
    * heartbeat queued behind a long write never renews a lease that ran out
    * while it waited. The projects it answers are those whose leases that
    * decision moved.
    */
-  renewLeases(personId: string, now: () => number): Promise<LeaseRenewal>;
+  renewLeases(personId: string, runId: string | null, now: () => number): Promise<LeaseRenewal>;
   /**
    * The project's claims whose lease has run out at `at` (expiry at or before
    * it), in claim-id order, each with its reason: `credential_revoked` when
@@ -229,33 +263,34 @@ export interface ClaimIdentity {
    */
   boundAccountOf(personId: string): Promise<string | null>;
   /**
-   * The person the request's credential is pinned to: a machine credential's
-   * own person, or for an upstream pair `external_identity.person_id`; null
-   * for an unpinned one. A request with neither (a password or native
-   * session) is unpinned: pass null.
+   * The person the request's credential is pinned to: a machine or consent
+   * credential's own person; null for an unpinned request (pass null).
    */
   pinnedPersonOf(credential: CredentialPin | null): Promise<string | null>;
 }
 
 /**
- * The {@link ClaimIdentity} a directory answers: its binding and its pin reads
- * (`wbs-team-claims` D5, D6), so a claim reads the same rows `patchPerson`
- * and `link-credential-cli.ts` write.
- *
- * Proof: the pin read answering null made `refuses a pinned credential claiming
- * as another agent` (`claim-command.test.ts`, memory) and `claims as its
- * person and is refused as any other …` (`claim-identity.controller.db.test.ts`,
- * SQLite) accept the claim (watched 2026-10-20).
+ * The run a request's pin opted into (`wbs-mcp-agent-surface` M15): a machine
+ * grant's `wbs_run`, else null (a consent, a raw key, a grant without a run,
+ * or no pin).
  */
-export function claimIdentityOf(
-  directory: Pick<DirectoryStore, 'boundAccountOf' | 'credentialPinOf'>,
-): ClaimIdentity {
+export function pinnedRunOf(credential: CredentialPin | null): string | null {
+  return credential?.runId ?? null;
+}
+
+/**
+ * The {@link ClaimIdentity} a directory answers: its binding read
+ * (`wbs-team-claims` D5), so a claim reads the row `patchPerson` writes, and
+ * the credential's own pin.
+ *
+ * Proof: the pin answering null made `refuses a pinned credential claiming as
+ * another agent` (`claim-command.test.ts`, memory) and `claims as its person
+ * and is refused as any other …` (`machine-credential.controller.db.test.ts`,
+ * SQLite) accept the claim (watched 2026-10-25).
+ */
+export function claimIdentityOf(directory: Pick<DirectoryStore, 'boundAccountOf'>): ClaimIdentity {
   return {
     boundAccountOf: (personId) => directory.boundAccountOf(personId),
-    pinnedPersonOf: (credential) => {
-      if (credential === null) return Promise.resolve(null);
-      if ('personId' in credential) return Promise.resolve(credential.personId);
-      return directory.credentialPinOf(credential.issuer, credential.subject);
-    },
+    pinnedPersonOf: (credential) => Promise.resolve(credential?.personId ?? null),
   };
 }

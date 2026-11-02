@@ -419,6 +419,64 @@ describe('the CI gate scope', () => {
     );
   });
 
+  it('provisions and probes unshare before selected Dash runtime tests', async () => {
+    const workflow = await readCiWorkflow();
+    const name = 'Provision unshare for Dash resource tests';
+    const step = gateStep(workflow, 'gate_twilight', name);
+    expect(step.if).toBe(
+      "${{ needs.gate_mode.outputs.mode == 'full' || contains(fromJSON(needs.gate_mode.outputs.projects), 'twilight-dash') }}",
+    );
+    const steps = workflow.jobs?.gate_twilight?.steps ?? [];
+    expect(steps.indexOf(step)).toBeLessThan(
+      steps.indexOf(gateStep(workflow, 'gate_twilight', 'Twilight — test, typecheck, build, lint')),
+    );
+    expect(step).not.toHaveProperty('continue-on-error');
+    const script = commandsOf(step.run ?? '');
+    expect(script).toContain(
+      "'profile unshare /usr/bin/unshare flags=(unconfined) {' '  userns,' '}'",
+    );
+    expect(script).toContain('sudo tee /etc/apparmor.d/unshare > /dev/null');
+    const load = 'sudo apparmor_parser --replace /etc/apparmor.d/unshare';
+    const probe =
+      'unshare --user --map-root-user --pid --fork --mount-proc setpriv --bounding-set=-sys_ptrace true';
+    expect(script).toContain(load);
+    expect(script).toContain(`\n${probe}\n`);
+    expect(script.indexOf(load)).toBeLessThan(script.indexOf(probe));
+    expect(script).not.toMatch(/sysctl|sudo unshare|continue-on-error|\|\| true/);
+    for (const job of ['gate_mode', 'gate_docs', 'gate_workspace'] as const) {
+      expect(workflow.jobs?.[job]?.steps?.some((candidate) => candidate.name === name)).toBe(false);
+    }
+  });
+
+  it.each([
+    ['profile loader', 41, 0],
+    ['namespace probe', 0, 42],
+  ] as const)('refuses a failed Dash %s before runtime tests', async (_failure, loader, probe) => {
+    const step = gateStep(
+      await readCiWorkflow(),
+      'gate_twilight',
+      'Provision unshare for Dash resource tests',
+    );
+    // These shell boundaries never load a profile or touch /etc on the developer's machine.
+    const boundaries = `
+      sudo() {
+        case "$1" in
+          tee) cat > /dev/null ;;
+          apparmor_parser) return ${String(loader)} ;;
+          *) return 97 ;;
+        esac
+      }
+      unshare() { return ${String(probe)}; }
+    `;
+    const execution = Bun.spawnSync([
+      'bash',
+      '-c',
+      `${boundaries}\n${step.run ?? ''}\nprintf 'runtime-started\\n'`,
+    ]);
+    expect(execution.exitCode).toBe(loader || probe);
+    expect(execution.stdout.toString()).not.toContain('runtime-started');
+  });
+
   it('runs Burokrat packaging only for full gates or exact project membership', async () => {
     const workflow = await readCiWorkflow();
     for (const name of [
@@ -446,8 +504,8 @@ describe('the CI gate scope', () => {
 });
 
 /**
- * The three owner-maintained libraries are pinned exactly, because their report formats are
- * stored data: the diagnostic format changed twice in two days in September 2026.
+ * The owner-maintained libraries are pinned exactly: report formats are stored data, and
+ * coordination consumes the native CTT work-session contract.
  *
  * The second test reads lock KEYS and the version each key resolves, which is what the
  * lockfile can say. That the copies a duplicate would produce are actually one module at
@@ -456,9 +514,10 @@ describe('the CI gate scope', () => {
 // Proof (2026-09-26): reverting the manifest's di-bag pin to 0.5.0 failed the exact-pin test
 // with expected 0.5.1 and received 0.5.0; changing this expectation to 0.5.0 made it pass.
 const OWNER_PACKAGES = {
-  'di-bag': '0.5.1',
-  'application-exception': '0.7.0',
+  'di-bag': '0.5.2',
+  'application-exception': '0.8.1',
   'caught-object-report-json': '13.0.0',
+  'configurable-tree-traversal': '0.12.0',
 } as const;
 
 // Proof: `"di-bag": "^0.4.0"` failed `are pinned to exact versions in the root manifest` on the
@@ -481,6 +540,8 @@ describe('the owner-maintained libraries', () => {
     // Proof: on 2026-09-25, pinning di-bag to 0.4.0 failed 'are pinned to exact
     // versions in the root manifest' on `expect(received).toEqual(expected)`;
     // weakening this assertion to an object type check made the same fault pass.
+    // Proof: changing only the CTT manifest pin to ^0.12.0 failed this exact-map
+    // assertion with expected 0.12.0 and received ^0.12.0 (2026-10-31).
     expect(pinned).toEqual({ ...OWNER_PACKAGES });
   });
 
@@ -497,6 +558,28 @@ describe('the owner-maintained libraries', () => {
       return entry === null ? [] : [`${entry[1]}@${entry[2]}`];
     });
     expect(copies).toEqual(['caught-object-report-json@13.0.0']);
+  });
+
+  it('resolves to one copy of the coordination library, at the pinned version', async () => {
+    const lock = await read('bun.lock');
+    const copies = lock.split('\n').flatMap((line) => {
+      const entry =
+        /^ {4}"((?:[^"]+\/)?configurable-tree-traversal)": \["configurable-tree-traversal@([^"]+)"/.exec(
+          line,
+        );
+      return entry === null ? [] : [`${entry[1]}@${entry[2]}`];
+    });
+    // Proof: changing only CTT's locked identity to @0.11.0 failed this assertion
+    // with expected @0.12.0 and received @0.11.0 (2026-10-31).
+    expect(copies).toEqual(['configurable-tree-traversal@0.12.0']);
+  });
+
+  it('installs the coordination library at the pinned version', () => {
+    const fromRoot = createRequire(new URL('package.json', WORKSPACE));
+    const { version } = fromRoot('configurable-tree-traversal/package.json') as { version: string };
+    // Proof: changing only installed CTT package metadata to 0.11.0 failed this
+    // runtime-resolution assertion with expected 0.12.0 and received 0.11.0 (2026-10-31).
+    expect(version).toBe(OWNER_PACKAGES['configurable-tree-traversal']);
   });
 
   /**

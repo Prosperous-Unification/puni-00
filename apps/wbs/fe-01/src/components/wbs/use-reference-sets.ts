@@ -17,6 +17,7 @@ import {
   type ServiceTeamLabel,
   type TagLabel,
 } from './gantt-geometry';
+import { initialsIn } from './initials';
 import { type CommitOutcome } from './live-editing';
 import { type CardAssignee } from './plan-cards';
 import { assignedSteps, indexById } from './plan-indexes';
@@ -580,6 +581,9 @@ export function useReferenceSets({ run, commands }: { run: RunPlanWrite; command
   };
 }
 
+/** What an assignee the directory has not got is called: somebody is assigned, unnamed. */
+export const UNKNOWN_ASSIGNEE = '(unknown)';
+
 /**
  * Who does which step of which row, and the `@` that mints a person while
  * assigning them.
@@ -594,6 +598,7 @@ export function usePlanAssignments({
   services,
   people,
   flat,
+  initials,
 }: {
   effectiveTeams: Map<string, EffectiveTeams>;
   teams: TeamView[];
@@ -601,6 +606,8 @@ export function usePlanAssignments({
   services: ServiceView[];
   people: PersonView[];
   flat: TreeRow[];
+  /** The plan's initials (`planInitialsOf`), naming every person and {@link UNKNOWN_ASSIGNEE}. */
+  initials: ReadonlyMap<string, string>;
 }) {
   /**
    * The three vocabularies these two markers read, as lookups.
@@ -674,7 +681,7 @@ export function usePlanAssignments({
       const named = row.assignees[stepId];
       const shows = named ?? row.doesEveryStep;
       if (shows === null) return null;
-      const name = peopleById.get(shows)?.name ?? '(unknown)';
+      const name = peopleById.get(shows)?.name ?? UNKNOWN_ASSIGNEE;
       // The row's own answer, filtered to the person this cell shows — and that
       // covers the assumed assignee too, which is not obvious and is the reason
       // this is written down. An assumption is `assumedAssignee(row.assignees)`
@@ -694,13 +701,14 @@ export function usePlanAssignments({
       const teamNames = teamNamesOn(row);
       return {
         name,
+        initials: initialsIn(initials, name),
         assumed: named === undefined,
         outside: outsider
           ? `Assigned outside the team: ${name} is not in ${listed(teamNames)}.${MISMATCH_TAIL}`
           : null,
       };
     },
-    [peopleById, mismatchByRow, teamNamesOn],
+    [peopleById, mismatchByRow, teamNamesOn, initials],
   );
 
   /**

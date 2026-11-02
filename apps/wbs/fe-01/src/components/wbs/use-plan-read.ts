@@ -72,6 +72,13 @@ export interface WbsTableProps {
    * own in several of them. Absent, the sheet is exactly what it was.
    */
   savedPlansShelf?: ReactNode;
+  /**
+   * The signed-in account (`wbs-claim-display` 11.2), which a row's Claim
+   * names the bound person of ({@link claimantOf}). `ProjectPage` always passes
+   * it; absent — a suite drawing the table for nobody — the menus offer no
+   * claim item at all, which is the one state that is not a refusal.
+   */
+  viewerAccountId?: string;
 }
 
 export interface SubscriptionHandlers {

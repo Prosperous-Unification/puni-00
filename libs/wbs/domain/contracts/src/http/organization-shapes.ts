@@ -48,6 +48,7 @@ export const changeMemberRole = defineEndpointShape({
   method: 'PATCH',
   path: '/api/organization/members/:userId',
   operationId: 'patchApiOrganizationMembersByUserId',
+  humanOnly: true,
   policies: [...policies, { kind: 'organization-resource', operation: 'mutation' }],
   params: memberParams,
   body: requestSchema(type({ role })),
@@ -70,6 +71,7 @@ export const removeMember = defineEndpointShape({
   method: 'DELETE',
   path: '/api/organization/members/:userId',
   operationId: 'deleteApiOrganizationMembersByUserId',
+  humanOnly: true,
   policies: [...policies, { kind: 'organization-resource', operation: 'mutation' }],
   params: memberParams,
   responses: [{ kind: 'empty', status: 204 }],
@@ -93,6 +95,7 @@ export const listMembers = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/members',
   operationId: 'getApiOrganizationMembers',
+  humanOnly: true,
   policies: [
     { kind: 'organization-resource', operation: 'read' },
     { kind: 'identity', require: 'signed-in' },
@@ -133,6 +136,7 @@ export const listOrganizationMemberships = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/memberships',
   operationId: 'getApiOrganizationMemberships',
+  humanOnly: true,
   policies: [{ kind: 'organization-control' }, { kind: 'identity', require: 'signed-in' }],
   defaultResponseHeaders: [
     ['cache-control', 'no-store'],

@@ -320,9 +320,11 @@ describe('deleting blocked work items', () => {
     await progress.set({ workItemId: parent, stepId, state: 'done', statedAt: 99 }, WROTE);
     const current = await workItems.findById(parent);
     if (current === null) throw new Error('missing parent');
-    const entry = (await serviceOptions.journal.entriesFor(projectId, OWNER)).at(-1);
+    const entry = (
+      await serviceOptions.journal.entriesFor({ projectId, userId: OWNER, personId: null })
+    ).at(-1);
     if (entry === undefined) throw new Error('missing delete journal');
-    await serviceOptions.journal.flip(entry.id, false, {
+    await serviceOptions.journal.flip(entry, entry.id, false, {
       ...(entry.preconditions as Record<string, unknown>),
       expected: { [parent]: current.revision },
     });

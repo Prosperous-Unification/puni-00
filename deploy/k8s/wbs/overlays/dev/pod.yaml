@@ -49,6 +49,8 @@ spec:
         - { name: MCP_AUTH_MODE, value: standalone }
         - { name: WBS_API_URL, value: http://127.0.0.1:3100 }
         - { name: MCP_PUBLIC_URL, value: http://dev-environment.localhost/mcp }
+        # One hop: the lab's Ingress (ingress.yaml) in front of this Pod.
+        - { name: MCP_TRUSTED_PROXY_HOPS, value: '1' }
       readinessProbe:
         httpGet: { path: /health, port: 3100 }
         periodSeconds: 5

@@ -1,5 +1,6 @@
 import {
   createMachineCredential,
+  isUnderMcpAuthorizationServer,
   listMachineCredentials,
   revokeMachineCredential,
   rotateMachineCredential,
@@ -47,6 +48,19 @@ export async function sessionOrganizationOf(
 }
 
 /**
+ * The audience root of an active organization's request.
+ *
+ * @throws when it is not configured: boot refuses an activated store without
+ * `WBS_MCP_AUTHORIZATION_SERVER`, so a route past its activation check that
+ * meets none is a composition fault.
+ */
+export function activeAudienceRoot(audienceRoot: string | null): string {
+  if (audienceRoot === null)
+    throw new Error('an active organization was served without WBS_MCP_AUTHORIZATION_SERVER');
+  return audienceRoot;
+}
+
+/**
  * Machine credential administration (`wbs-machine-credentials` A7, A11, A15,
  * A17, A22) for the active organization's members and admins. A delegation —
  * an MCP session or a machine credential's direct context alike — answers
@@ -54,10 +68,14 @@ export async function sessionOrganizationOf(
  * (A12, A23). The store rechecks activation, the role and a member's own
  * account in each act's own transaction, so the route only names the
  * organization, mints ids and secrets, and never stores or logs a secret.
+ * An `oidc` credential's audience narrowing must equal `audienceRoot` (be-01's
+ * `WBS_MCP_AUTHORIZATION_SERVER`) or sit under it after a `/`, else
+ * `audience_not_wbs` (`wbs-mcp-agent-surface` M2).
  */
 export function machineCredentialRoutes(
   organizations: OrganizationAccess,
   credentials: MachineCredentialAdministration,
+  audienceRoot: string | null,
   clock: Pick<Clock, 'now'>,
   afterRevoke: () => void,
 ) {
@@ -110,6 +128,14 @@ export function machineCredentialRoutes(
         const id = crypto.randomUUID();
         if (body.source === 'oidc') {
           const audience = body.audience ?? null;
+          // Proof: with this refusal removed, `refuses a narrowing outside the
+          // authorization server audience_not_wbs` (oidc-credential.controller.db.test.ts)
+          // answered the first narrowing without the 400; watched 2026-10-27.
+          if (
+            audience !== null &&
+            !isUnderMcpAuthorizationServer(audience, activeAudienceRoot(audienceRoot))
+          )
+            return { ok: false, status: 400, body: { error: 'audience_not_wbs' } };
           const created = await credentials.createOidc(
             organizationId,
             principal.id,

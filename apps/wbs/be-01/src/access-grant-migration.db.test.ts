@@ -17,7 +17,7 @@ import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 const FOLDER = new URL('../drizzle', import.meta.url).pathname;
-const MIGRATION = '20261025100000_add_access_grants';
+const MIGRATION = '20261102120000_add_access_grants';
 const BASELINE = '20261023170000_add_work_item_budget';
 const MATRIX = parsePermissionMatrix(
   readFileSync(

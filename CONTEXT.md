@@ -7,8 +7,13 @@ a thing IS. Design decisions live in `docs/adr/`, behaviour lives in `openspec/`
 
 ### Checkout commit
 
-The commit the dev source tree on disk is at. It describes the checkout being served,
-not the commit captured when a process or container first started.
+The commit the dev source tree on disk is at. It describes the checkout, not the code a
+running process loaded; that is its boot commit.
+
+### Boot commit
+
+The checkout commit a process read once when it booted: the code it is running. It lags
+the checkout commit until a watcher reload or a restart boots the process again.
 
 ### MCP authentication
 
@@ -28,6 +33,22 @@ _Avoid_: refresh time, token issue time
 The short exclusive claim one mcp-01 process holds while replacing a refresh family's provider credential. It prevents concurrent tool calls from refreshing the same provider token twice.
 _Avoid_: lock, refresh mutex
 
+**Agent surface**:
+The one integration surface agents build on: mcp-01's `/mcp`, for consented and headless agents alike.
+_Avoid_: agent API, public API, REST for agents
+
+**Machine grant**:
+be-01's signed statement that one machine credential, acting in one run, was verified; mcp-01 presents it on every be-01 call it makes for that credential until it expires.
+_Avoid_: machine delegation, introspection token, service token
+
+**Human-only route**:
+An endpoint shape marked `humanOnly`, which mcp-01 never offers as a tool to any principal; organization administration and credential minting stay with people.
+_Avoid_: admin tool, excluded path
+
+**Agent pool**:
+An admin-approved set of agent persons and their machine credentials, created in one act, fixed after creation and revocable as a unit.
+_Avoid_: seat pool, fleet, swarm account
+
 ### Organization access
 
 **Organization**:
@@ -45,12 +66,20 @@ account or a machine principal.
 _Avoid_: user (alone), actor, identity, caller
 
 **Access grant**:
-One statement that a principal holds one access role at one grant scope of an organization. Grants add up and the strongest wins; nothing subtracts.
+One statement that a principal holds one access role at one grant scope of an organization. Grants add up; nothing subtracts.
 _Avoid_: permission (what a role implies), ACL entry, share, binding, role assignment
 
 **Access role**:
-A named rung of the seeded catalogue, prefixed by the object kind it governs (`org-`, `project-`, `package-`) and ranked by level. Code checks the permissions a role implies, never the role's name.
-_Avoid_: role (alone), permission set, custom role, scope
+A named set of permissions over one object kind and the kinds beneath it (organization, project, work package), either built-in or custom. An ordinary decision asks whether a permission is in the set, never the role's name; the restricted work package rule and the last super-admin rule are the only ones that name built-in roles.
+_Avoid_: role (alone), policy, rung, scope
+
+**Built-in access role**:
+One of the nine seeded access roles, prefixed by its object kind (`org-`, `project-`, `package-`); never edited or renamed.
+_Avoid_: managed policy, default role, system role
+
+**Custom access role**:
+An access role an organization defines and names for itself from the permission vocabulary; granted and revoked like a built-in one.
+_Avoid_: customer policy, user role, role template
 
 **Access group**:
 An organization's named set of member accounts that exists only to be named by access grants. Not a service team, and never a constraint on who may be assigned work.
@@ -60,9 +89,9 @@ _Avoid_: team, group (alone), user group, IdP group
 The organization, project or work package an access grant names; a grant at a scope reaches every object beneath it, including ones created later. Not the admitted turn's **Scope** below.
 _Avoid_: scope (alone), target, resource, level
 
-**Effective role**:
-The strongest access role a principal holds at one grant scope through every grant that reaches it, direct, via an access group or via the organization members subject, after the machine cap; null means the object is invisible to them.
-_Avoid_: permissions, computed role, access level
+**Effective permissions**:
+The permissions a principal holds at one grant scope, each with the grants it came from: the union over every grant that reaches the scope, direct, via an access group or via the organization members subject, after the machine cap. The object is invisible to them unless its read permission is among them.
+_Avoid_: effective role, strongest role, computed role, access level
 
 **Organization members subject**:
 The grant subject that stands for every current member of the organization, resolved at check time; how "every member may view every project" is one row.
@@ -74,7 +103,7 @@ credential, never those of its agent person's bound account, under the machine c
 _Avoid_: bot, service account, machine user, agent account
 
 **Machine cap**:
-The ceiling of contributor applied to every effective role of a machine principal, whatever its credential's grants name and whatever its bound account holds.
+The fixed permission boundary a machine principal's effective permissions are intersected with (the permissions the contributor roles hold), whatever its credential's grants name and whatever its bound account holds.
 _Avoid_: role cap, scope narrowing, member cap
 
 **Active organization**:
@@ -180,11 +209,11 @@ _Avoid_: claim row, active claim, slot
 ### Spaces
 
 **Space**:
-An organization-owned, named lens over an ordered set of that organization's projects, to which persons and teams may also belong. It owns nothing and grants nothing: removing a project, a person or a team from it, or deleting it, changes no project and no access.
-_Avoid_: portfolio, program, folder, workspace, department
+An organizational unit of the organization, a department or a team of people, that holds projects, persons and service teams and carries settings resolved by the projects beneath it. It owns no project lifecycle and grants no access: deleting it deletes no project. It holds its own local settings.
+_Avoid_: portfolio, program, folder, workspace
 
 **Space membership**:
-One project's, person's or team's place in one space: the pair and, for a project, its position. A project, a person or a team may sit in many spaces.
+One project's, person's or service team's place in one space: the pair and, for a project, its position. A project sits in one space or none; a person or a service team may sit in many spaces.
 _Avoid_: link, assignment, space access
 
 **All projects**:
@@ -240,13 +269,6 @@ One client engagement: an organization's named collection of work packages, owni
 settings they share, the dependencies between them and the budgets that bound several of
 them. Every project belongs to exactly one organization.
 _Avoid_: engagement, programme, portfolio, project (for one WBS)
-
-**Default project**:
-The one project of each organization that receives a work package created or imported without
-naming a project. Every organization has exactly one. It can be renamed, emptied and replaced
-by another project as the default; it cannot be deleted while it holds work packages or is the
-organization's only project.
-_Avoid_: root project, unfiled, inbox
 
 **Work item**:
 One unit of work in a work package, holding a name, notes and a place in the tree; once it has
@@ -311,25 +333,40 @@ together keeping their order. Frozen work items move with the rest; nothing chan
 _Avoid_: sort, reorder, sort by Gantt, sequence, sync with chart
 
 **Step**:
-A named kind of work a project defines once for all its work packages, each estimating it
-separately; unique by name within the project and carrying a **step code**; every project
-starts with `Dev` and `QA`
-([spec](openspec/changes/archive/2026-08-30-steps-not-phases/specs/wbs-domain/spec.md)). A
-definition, not an occurrence: its work within one leaf is a **step node**.
-_Avoid_: discipline, type, category
+A named kind of work defined once in an organization's step catalogue and bound, per work
+item type or for every type, at the organization, a space or a project; a leaf's steps are
+the bindings along its chain, and each work package keeps its own unit and allowance per
+step. A definition, not an occurrence: its work within one leaf is a **step node**. Its
+**default estimate unit** seeds a package's unit; the effective unit is the package's.
+_Avoid_: discipline, type, category, phase
+
+**Step binding**:
+One statement that one step applies, at one scope (organization, space or project), to work
+items of one work item type or of every type. Bindings add along the chain and never hide an
+inherited step. An every-type binding reaches typed leaves too; an untyped leaf is one that
+resolves only every-type bindings.
+_Avoid_: step assignment, step rule, step override
+
+**Default estimate unit**:
+The estimate unit a catalogue step proposes, copied into a work package's own row when the
+step first reaches that package; changing it later changes no package.
+_Avoid_: step unit, effective unit (which is the package's)
 
 **Step code**:
-A step's short, immutable name for references, unique within its project — `dev`, `qa`,
+A step's short, immutable name for references, unique within its organization's catalogue — `dev`, `qa`,
 `review`: a
 lowercase letter, then lowercase letters, digits or hyphens. Suggested from the name when the
 step is created; renaming the step keeps it. Codes shaped `s<digits>` or `s<digits>-…` are
-reserved for ordinal references.
+reserved for ordinal references. Who defines steps and their codes, the work package as
+today or the project, is pending the separate `wbs-step-catalogue` design (#698 E21,
+deferred 2026-10-25).
 _Avoid_: slug, step key, step id (which is the stored identity)
 
 **Step node**:
 One leaf work item's occurrence of one step — the addressable unit that carries that
 pair's estimate, actual, measures, progress, assignment and dependencies. It exists for every
-leaf and step whether or not anything is stored for it, and a parent has none. Not a work item:
+leaf and every step that leaf resolves, whether or not anything is stored for it, and a
+parent has none. Not a work item:
 no tree position, title, type or number of its own ([ADR
 0031](docs/adr/0031-a-step-node-is-a-pair-not-a-work-item.md)).
 _Avoid_: sub-item, step item, task, cell (which is only its table drawing)
@@ -378,21 +415,21 @@ the current address revision.
 _Avoid_: node id, path, step code alone as the canonical form
 
 **Step graph**:
-The ordering edges between one leaf's step nodes that come from the project's steps rather
-than from an authored dependency — today, finish-to-start in step order. Its edges are
+The ordering edges between one leaf's step nodes that come from that leaf's resolved step
+order rather than from an authored dependency — today, finish-to-start in step order. Its edges are
 **workflow** edges, told apart from **authored** and **legacy** ones.
 _Avoid_: internal dependencies, step chain (which is today's only shape of it), workflow (the future configurable definition)
 
 **Work-item boundary**:
-The single zero-time scheduling point a leaf has in a project with no steps, so whole-scope
+The single zero-time scheduling point a leaf has when it resolves no steps, so whole-scope
 dependencies still have something to join. Never a step node and never addressable by a
 step reference.
 _Avoid_: synthetic step, null step node
 
 **Step order**:
-The order a project works its steps in — `Dev` before `QA` before whatever was added
-after them. One order for the whole project, held per step, and the order every list of
-them is read in.
+The order a leaf works its resolved steps in — `Dev` before `QA` before whatever was
+added after them — set by each scope's binding positions, organization before space before
+project. Every list of a leaf's steps is read in it.
 _Avoid_: phase order, role order, sequence, priority
 
 **Assumed assignee**:
@@ -401,8 +438,10 @@ for. Read from the assignments rather than stored, so a second one ends the assu
 _Avoid_: default assignee, implicit owner, cover
 
 **Step usage**:
-What a step's removal would take with it: the estimates and assignments that hold it, and
-the work items whose assumed assignee it would change.
+What a step's removal from a leaf would take with it: the estimates, actuals, progress,
+measures, measure estimates, attempts and issued attempt numbers, assignments, claims,
+dependencies, blockages and parallelism overrides on that step node, and the work items whose
+assumed assignee it would change.
 _Avoid_: references, dependents, blast radius
 
 **Directory**:
@@ -413,9 +452,10 @@ _Avoid_: roster, address book, org chart, users
 
 **Service team**:
 A team work can be labelled with, unique by name across the directory: a label on the work,
-never a constraint on who may be assigned it. How many may be at work at once is a per-project
+never a constraint on who may be assigned it. How many may be at work at once is a per-work-package
 [Capacity](openspec/changes/archive/2026-08-30-capacity-per-project/specs/wbs-domain/spec.md),
-not a property of the team.
+not a property of the team. It is a label on the work, not an organizational unit; a
+department or a team of people is a space. A service team may be linked to a space.
 _Avoid_: department, squad, group
 
 **Service**:
@@ -566,6 +606,60 @@ who does the work. Refused where the step is blocked, held, done or already clai
 back is a **release**, which leaves progress as it is.
 _Avoid_: Lock, lease, reservation, checkout
 
+**Workflow binding**:
+The repository's mapping from work-item types and project step codes to named
+activity classes and their settings.
+_Avoid_: Workflow configuration, executor configuration
+
+**Workflow acceptance**:
+Burokrat's immutable static binding snapshot, complete project-step set and original
+prompt-byte identities; it grants no execution authority.
+_Avoid_: Approved binding, execution authorization
+
+**Run manifest**:
+The immutable execution configuration retained for a run, identified independently
+from its workflow acceptance.
+_Avoid_: Binding digest, workflow acceptance
+
+**Manifest binding**:
+A retained run manifest associated with workflow acceptance reconstructed from its
+original prompt artifacts.
+_Avoid_: Authorized manifest, execution grant
+
+**Runtime authority**:
+The receiver-owned owner label and generation for conditional writes in one organization,
+project and person's scope, separate from a coordinator's local owner epoch.
+_Avoid_: Credential, local lease
+
+**Runtime pin**:
+The retained complete organization/project/person address and receiver installation identity
+for runtime coordination.
+_Avoid_: Credential, current authority
+
+**Runtime intent**:
+The retained exact canonical identity and local ownership provenance of a receiver command,
+separate from its acceptance.
+_Avoid_: Dispatch acknowledgement, observed progress
+
+**Runtime basis**:
+The versioned digest of one coherent local project's ledger identity, project revision and
+complete work-item revision set, used as a conditional write precondition.
+_Avoid_: Global snapshot, authorization snapshot
+
+**Canonical runtime request**:
+The complete, ordered identity of one runtime operation, including its installation, scope,
+caller command and preconditions. Payload identity is separate from current permission and acceptance.
+_Avoid_: Artifact digest, binding digest, receipt
+
+**Runtime receipt**:
+The permanent, payload-bound acceptance of one runtime command, separate from undo history.
+_Avoid_: Journal entry, current grant
+
+**Receiver ledger**:
+The WBS installation's retained identity and counts of runtime authorities, execution
+bindings and accepted commands, distinct from Twilight's consumption ledger.
+_Avoid_: Run ledger, run store
+
 **Claim lease**:
 The instant by which a claim an agent took for itself must be renewed, or the coordinator
 releases it: every committed write of that agent, or its heartbeat, renews it; revoking the
@@ -656,6 +750,11 @@ How many units of one resource one project's plan may use, a fact about the pair
 same unstated and remembered states as a team's capacity.
 _Avoid_: Quota, limit, size
 
+**Directory capacity**:
+How many units of one resource exist for every project of its organization, stated on the
+resource; the number shared occupancy is counted against. Stated or unstated, never remembered.
+_Avoid_: Total, pool size, quota, share
+
 **Demand**:
 The units of one resource one work item states it needs while any of its steps runs. Plan data:
 levelled by the engines, acquired by a claim, and not inherited down the tree.
@@ -667,6 +766,12 @@ of the leaf's units, the leaf holds the largest copy, a later claim may raise it
 that claim lowers it, and the last release frees it. Clockless; read by the claim path and the
 startable read, never by a schedule.
 _Avoid_: Lease, hold, lock, allocation
+
+**Occupancy scope**:
+The widest set of leaves a claim's units of a resource are counted against. A claim is always
+counted against its project's leaves, and also against every project of the organization when
+the resource states a directory capacity.
+_Avoid_: Visibility, tenancy
 
 **Compute provider**:
 A kind of thing Twilight Dash can measure a resource on and run an agent against: a tenant's
@@ -686,6 +791,36 @@ usage in the resource's own unit, or that the provider was unreachable, with whe
 observed and which agent person reported it. Informational beside the declared capacity until
 an admin adopts it as a typed number.
 _Avoid_: Receipt (that is progress), heartbeat, usage report, telemetry
+
+**Resource use**:
+A particular resource consumed by an execution, with an owner and continuing capacity
+responsibility until it is released or accepted by another owner.
+_Avoid_: Occupancy, claim, allocation
+
+**Resource cleanup**:
+The work of settling resource uses after execution: preserving required work, ending access,
+and releasing or explicitly retaining what remains.
+_Avoid_: Claim release, completion, garbage collection
+
+**Resource release**:
+The verified return of specific runtime capacity after its resource use ends; distinct from
+releasing a WBS claim, recording work done, or publishing a software release.
+_Avoid_: Cleanup request, expiry, refund
+
+**Release record**:
+The attributable evidence of a resource release, naming the use, released capacity, verifier
+and time; a cleanup request or retention decision is not a release record.
+_Avoid_: Claim history, capacity report, receipt (without qualification)
+
+**Reported release**:
+An actor’s recorded statement that a resource use ended, with a reason and evidence reference;
+it does not itself prove physical capacity is available.
+_Avoid_: Verified release, free capacity, cleanup request
+
+**Retained resource**:
+A resource use kept for a stated purpose under a responsible owner and review deadline,
+with its capacity responsibility continuing.
+_Avoid_: Released resource, free capacity, abandoned resource
 
 **Directory usage**:
 What removing a person or a service team would take with it, named rather than counted:
@@ -707,13 +842,6 @@ is in the cell — a box holding the focus with no search open is where a reader
 moment after taking a value, and the `+` has to open from there. It never takes the keyboard
 itself.
 _Avoid_: plus, add affordance, new button, opener
-
-**Work package owner**:
-The account that created a work package. Under scoped grants it holds a direct
-`package-manager` grant from creation, which is what lets it keep editing a restricted work
-package; a super-admin's recovery is the audited clearing of the restriction, not an edit. An
-account, never a person from the directory. A project has no owner.
-_Avoid_: project owner, author, creator, user
 
 **Work package entry**:
 One work package as the picker offers it: the name it is chosen by, followed by its entry
@@ -940,6 +1068,124 @@ _Avoid_: step hold, step status, failed attempt
 The durable identity of the attended decision that admitted direct step blockage writers.
 _Avoid_: Activation acknowledgment, enable flag
 
+**Question**:
+An audited record, beside one step node and the attempt that raised it, of one thing the
+plan did not settle: what was asked, the agent's proposed answer, its declared risk facts and
+topics, who submitted it (always the attempt's executor), the disposition the policy gave it
+and, later, the reviewer's verdict. Never deleted by any command
+([ADR 0062](docs/adr/0062-a-question-is-a-satellite-fact-judged-by-the-plan.md)).
+_Avoid_: assumption (a disposition), ticket, issue, decision log, open point, needs-Dany
+
+**Question kind**:
+What a question is: a `decision` the plan left open, or a `blocker` the agent could not pass
+on its own, with a cause — `authorization`, `external` or `missing_input`.
+_Avoid_: type, category, severity
+
+**Risk fact**:
+One of six predicates an agent declares, each true or false and none absent, about what acting
+on its proposed answer would do: reversible, outward, spends, touches production, destructive,
+changes access. Judged by the policy, checked by the reviewer; a wrong fact is counted apart
+from a wrong answer.
+_Avoid_: risk level, risk class, impact, tag
+
+**Topic**:
+A name on a project's list of things its reviewers own — product, pricing, naming,
+architecture — with, per phase, whether a question on it is pushed to them. Decides notice,
+never permission.
+_Avoid_: area, domain, label, reserved topic, owner flag
+
+**Disposition**:
+What the policy answered when a question was submitted: `queued` (the agent proceeds on its
+proposed answer, the question waits for review), `notified` (the same, and the reviewers are
+told at once) or `blocked` (the agent may not proceed; the node carries a step blockage until a
+reviewer answers). Computed by the plan, never chosen by the agent, and kept with the policy
+basis that produced it.
+_Avoid_: assumed, auto-resolved, outcome, verdict (which is the review's), status
+
+**Review**:
+A verdict on a question by somebody permitted to edit the plan: `accepted`, `overturned` with
+the real answer, or, for a blocked question, `resolved` with the answer; any of them may mark
+declared facts wrong. Overturning creates one follow-up work item beside the leaf; resolving
+removes the step blockage the question owns in the same act. Never undone.
+_Avoid_: validation, approval, resolution (for the record), closing
+
+**Follow-up work item**:
+The work item an overturned question creates beside its leaf, under the same parent, carrying
+the question and the reviewer's answer, so a wrong assumption becomes planned work and not a
+note. An ordinary work item from then on.
+_Avoid_: revert task, correction, fix-up, comment
+
+**Question policy**:
+What a project uses to dispose of questions: a mode, a phase profile per phase, its topics
+with push flags, and its notice ages and digest. A project without its own holds the
+organization's; an organization without its own holds the deployment default. Hard gates are
+not part of it.
+_Avoid_: autonomy level, assumption config, agent freedom, rules
+
+**Policy mode**:
+Whether a project disposes of questions `by_step` (each step's phase picks the profile) or
+`offline` (profiles and topic pushes are bypassed: every question the hard gates allow is
+queued; a hard-gated one still blocks and still reaches the reviewers).
+_Avoid_: strictness, autonomy dial, away mode, blocker factor
+
+**Policy basis**:
+The snapshot a question keeps of what disposed of it — the policy's source and version, the
+hard-gate set, the phase, the mode, the profile applied and the pushed topics — so the
+disposition replays with no policy row and no current constant after any of them changes.
+_Avoid_: policy version (alone), audit, provenance
+
+**Fact condition**:
+One line of a phase profile: a risk fact and the value that matches it, such as "reversible is
+false".
+_Avoid_: rule, predicate, trigger, flag
+
+**Step phase**:
+A step definition's word for which profile its nodes' questions are judged under: `planning` or
+`implementation`. Every step is `implementation` until the project says otherwise.
+_Avoid_: stage, step kind, step type, period
+
+**Phase profile**:
+The part of a policy for one phase: the fact conditions that block and the fact conditions
+that notify. The planning profile is stricter by default so that questions arrive while they
+are cheap. Topic pushes sit on the topics, per phase, not here.
+_Avoid_: ruleset, level, preset
+
+**Hard gate**:
+A risk fact that blocks under every mode and profile and that no policy can name or lift:
+spends, touches production, destructive, changes access. Fixed per deployment; the basis
+records the set that applied. What acting would do cannot be reviewed after.
+_Avoid_: safety rule, forbidden action, always-block list
+
+**Reviewer**:
+An account a project lists to receive its notices, with a channel and address. Being listed
+decides notice only; answering a question is the permission to edit the plan, refused to an
+agent credential whatever it holds. A project with an empty list writes no notices.
+_Avoid_: author, approver, admin (which is a role), owner (a project has none)
+
+**Notice**:
+One row written for one reviewer when a question needs them — opened, aged past the
+unanswered age, or in the daily digest — leased by a delivery worker, reported attempt by
+attempt, rescheduled on a bounded schedule and never dropped. Delivered at least once: the
+lease owns the row, not the gateway.
+_Avoid_: notification, alert, push, message, event
+
+**Downstream reach**:
+How much unfinished work sits behind a step node: the distinct step nodes reachable from it
+over successor dependency edges whose reading is neither done nor skipped. A count of reach,
+not a promise that resolving anything makes them startable.
+_Avoid_: unlock count, sub-tree size, blast radius, impact
+
+**Question priority**:
+Where a question sorts in the review queue, read and never stored: its leaf's priority, then
+its node's downstream reach, then its age.
+_Avoid_: urgency, score, rank (which is the project's), weight
+
+**Unnoticed question**:
+A queued or notified question still without a verdict after the effective policy's unnoticed
+age. Blocked questions are never unnoticed; they carry blocked time instead. Counted per
+project and per submitter beside the overturn rate, the wrong-fact rate and blocked time.
+_Avoid_: stale, forgotten, overdue, backlog
+
 **Waiting**:
 A node reading: a node with no statement and no running attempt whose every predecessor
 node in the step graph reads done, and which has at least one. Work handed to it and not
@@ -1078,9 +1324,10 @@ A work package's five bands, in rank order: a vocabulary and never a constraint
 _Avoid_: priority scheme, priority config, priority scale
 
 **Project settings**:
-The configuration a project defines for all its work packages: timezone, calendar markers and
-PERT weights, which a work package may override, and step codes, work item types and budget
-factor, which it may not. Also the surface where they are edited.
+The configuration a project defines for all its work packages: timezone, calendar periods and
+PERT weights, which a work package may override, and the allowed work item types and budget
+factor, which it may not. Step codes are not a setting; who defines them waits for
+`wbs-step-catalogue`. Also the surface where they are edited.
 _Avoid_: project config, shared settings, defaults
 
 **Work package settings**:
@@ -1092,7 +1339,9 @@ _Avoid_: project settings (for this), settings dialog, Teams dialog, Priorities 
 
 **Setting provenance**:
 The level — organization, space, project, work package or the catalogue default — and the id
-a resolved setting value came from, answered with every settings read.
+a resolved setting value came from, answered with every settings read. A setting resolved
+nearest-wins has one provenance; an additive setting (calendar markers) has one per
+contribution, each marker naming the level that holds it.
 _Avoid_: source, origin, inherited flag
 
 **Rank**:
@@ -1180,10 +1429,28 @@ minutes per cell — offered only while the panel would draw at most 2,500 marks
 offered is a rendered state.
 _Avoid_: zoom level, slider position, minute view
 
-**Calendar marker**:
-A named annotation on an absolute calendar date, defined by a project for all its work
-packages or by one work package for itself. Not a work item and not visible to the scheduler.
-_Avoid_: milestone, date tag, annotation
+**Calendar period**:
+A named, coloured span of one or more absolute calendar days, end inclusive, defined at an
+organization, its optional space, a project or a work package for every work package beneath
+it. Not a work item; whether the scheduler sees it is its period kind's decision. The planning
+change is still named `wbs-calendar-ranges`.
+_Avoid_: range, marker, calendar marker, milestone, date tag
+
+**Period kind**:
+What a calendar period means to the schedule: `note`, which only labels the chart, or
+`non_working`, which takes its days out of the work calendar of every work package beneath its
+scope. In release 1 that covers every slice; the agent-kind exemption of ADR 0043 is release 2.
+_Avoid_: period type, marker type, category
+
+**Non-working period**:
+A calendar period of kind `non_working`: an organization holiday, a department's off-days, a
+project closure. In release 1 every slice beneath its scope skips it.
+_Avoid_: holiday (one use of it), blackout
+
+**Work calendar**:
+The set of dates a work package's slices may not occupy: weekends and the dates of its
+effective non-working periods. It is held as excluded dates, not as available days.
+_Avoid_: business calendar, holiday calendar, working-day set
 
 **Workday axis**:
 The Gantt panel's horizontal scale on a plan with **no** start date: one unit per workday,
@@ -1597,16 +1864,26 @@ token reaches with nothing but a name it already knows.
 _Avoid_: integration, link, external project
 
 **Command journal**:
-The last fifty reversible commands one account ran on one project, held on the server in the
-order they happened — one stack per account per project, because undo is personal
-([conditional-undo](openspec/changes/archive/2026-08-10-conditional-undo/specs/wbs-domain/spec.md)).
+The last fifty reversible commands one acting person ran on one project, held on the server in
+the order they happened — one stack per project, account and **acting person**, because undo is
+personal. Supersedes the per-account stack of
+[conditional-undo](openspec/changes/archive/2026-08-10-conditional-undo/specs/wbs-domain/spec.md);
+see [undo-per-acting-person](openspec/changes/undo-per-acting-person/proposal.md).
 Not the plan history.
 _Avoid_: history, audit log, activity, event log
+
+**Acting person**:
+Whom a request's undo stack belongs to besides its account: the agent person a machine or
+consent credential is pinned to, or none when the account acts as itself (a browser session, an
+upstream token). Two credentials pinned to one agent person share its stack. It is also the
+person a claim or release naming no person is for
+([wbs-claim-own-person](openspec/changes/wbs-claim-own-person/proposal.md)).
+_Avoid_: actor, principal, pin
 
 **Plan history**:
 Every command anybody ran on one project, kept — the plan's own record, per project
 rather than per account, added to and never edited, and thinned only by age. It is not
-the command journal, which is one account's fifty-deep undo stack and drops what it must
+the command journal, which is one actor's fifty-deep undo stack and drops what it must
 to stay one; and it is not the event log, which is the websocket's resume buffer.
 _Avoid_: audit log, activity feed, changelog, journal
 

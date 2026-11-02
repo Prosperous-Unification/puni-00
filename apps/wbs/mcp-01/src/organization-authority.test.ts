@@ -1,7 +1,10 @@
+import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
 import { describe, expect, it } from 'bun:test';
 
+import { McpDeploymentFault } from './deployment-fault';
 import {
   type DelegationOutcome,
+  mcpServiceHeaderOf,
   organizationAuthority,
   OrganizationAuthorityDefect,
 } from './organization-authority';
@@ -82,6 +85,69 @@ describe('organization authority client', () => {
     ]);
   });
 
+  // `wbs-mcp-agent-surface` M14, task 3.7: release N's be-01 admits either secret on
+  // `/internal/mcp/*`; this mcp-01 sends the dedicated one alone once it is configured.
+  it('sends only the dedicated secret once it is configured', async () => {
+    const dedicated = 'd'.repeat(32);
+    const calls: Record<string, string>[] = [];
+    const authority = organizationAuthority(
+      {
+        WBS_API_URL: 'https://be.test',
+        INTERNAL_AUTH_SECRET: SECRET,
+        MCP_BE_INTERNAL_SECRET: dedicated,
+      },
+      (_url, init) => {
+        calls.push(init.headers);
+        return Promise.resolve(Response.json({ token: 'delegation' }));
+      },
+    );
+    await authority.delegationFor('upstream', REQUEST);
+    expect(calls[0]?.[MCP_INTERNAL_SECRET_HEADER]).toBe(dedicated);
+    expect(calls[0]?.['x-internal-auth']).toBeUndefined();
+    expect(mcpServiceHeaderOf({ INTERNAL_AUTH_SECRET: SECRET })).toEqual({
+      'x-internal-auth': SECRET,
+    });
+    expect(() => mcpServiceHeaderOf({})).toThrow('MCP_BE_INTERNAL_SECRET or INTERNAL_AUTH_SECRET');
+  });
+
+  it('never follows a redirect, so the secret stays with be-01', async () => {
+    const seen: Headers[] = [];
+    const elsewhere = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch: (request) => {
+        seen.push(request.headers);
+        return Response.json({ state: 'pre_activation' });
+      },
+    });
+    const redirecting = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch: () =>
+        new Response(null, {
+          status: 307,
+          headers: { location: `http://127.0.0.1:${String(elsewhere.port)}/stolen` },
+        }),
+    });
+    try {
+      const authority = organizationAuthority({
+        WBS_API_URL: `http://127.0.0.1:${String(redirecting.port)}`,
+        MCP_BE_INTERNAL_SECRET: 'd'.repeat(32),
+      });
+      const outcome = await authority.organizationsFor('upstream').then(
+        (answer) => answer,
+        (cause: unknown) => cause,
+      );
+      expect(seen.map((headers) => headers.get(MCP_INTERNAL_SECRET_HEADER))).toEqual([]);
+      // The 3xx is unmodeled: a deployment fault, which /mcp reports and answers 502.
+      expect(outcome).toBeInstanceOf(OrganizationAuthorityDefect);
+      expect(outcome).toBeInstanceOf(McpDeploymentFault);
+    } finally {
+      await redirecting.stop(true);
+      await elsewhere.stop(true);
+    }
+  });
+
   it('reads each modeled delegation refusal and throws on the rest', async () => {
     const answers: [number, string, DelegationOutcome['kind']][] = [
       [401, 'unauthenticated', 'upstream_rejected'],
@@ -98,7 +164,7 @@ describe('organization authority client', () => {
       expect((await authority.delegationFor('upstream', REQUEST)).kind).toBe(kind);
     }
     for (const [status, body] of [
-      [401, { error: 'unauthorized' }],
+      [401, { error: 'internal_unauthorized' }],
       [401, 'Unauthorized'],
       [403, { error: 'delegation_inactive' }],
       [403, { error: 'no_active_organization' }],
@@ -148,7 +214,9 @@ describe('organization authority client', () => {
     expect(await before.authority.organizationsFor('upstream')).toEqual({ kind: 'pre_activation' });
     const unknown = client(() => Response.json({ error: 'unknown_identity' }, { status: 401 }));
     expect(await unknown.authority.organizationsFor('upstream')).toEqual({ kind: 'refused' });
-    const misconfigured = client(() => Response.json({ error: 'unauthorized' }, { status: 401 }));
+    const misconfigured = client(() =>
+      Response.json({ error: 'internal_unauthorized' }, { status: 401 }),
+    );
     expect(await rejection(misconfigured.authority.organizationsFor('upstream'))).toBeInstanceOf(
       OrganizationAuthorityDefect,
     );
@@ -191,7 +259,7 @@ describe('organization authority client', () => {
     }
     for (const [status, body] of [
       [201, { credentialId: 'another' }],
-      [401, { error: 'unauthorized' }],
+      [401, { error: 'internal_unauthorized' }],
       [403, { error: 'delegation_inactive' }],
       [500, { error: 'internal' }],
     ] as const) {
@@ -222,7 +290,7 @@ describe('organization authority client', () => {
       }).authority.reportConsentEnded(ended),
     ).toBe('unavailable');
     for (const answer of [
-      Response.json({ error: 'unauthorized' }, { status: 401 }),
+      Response.json({ error: 'internal_unauthorized' }, { status: 401 }),
       Response.json({ outcome: 'kept' }),
     ])
       expect(
@@ -296,7 +364,7 @@ describe('organization authority client', () => {
     expect(
       await rejection(
         client(() =>
-          Response.json({ error: 'unauthorized' }, { status: 401 }),
+          Response.json({ error: 'internal_unauthorized' }, { status: 401 }),
         ).authority.readRefreshAuthority(AUTHORITY),
       ),
     ).toBeInstanceOf(OrganizationAuthorityDefect);

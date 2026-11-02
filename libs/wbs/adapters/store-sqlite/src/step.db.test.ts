@@ -176,7 +176,7 @@ const ORGANIZATION_ROLE_COLUMNS = [
 ];
 
 /**
- * The access role catalogue of `20261025100000_add_access_grants` (`wbs-permissions`
+ * The access role catalogue of `20261102120000_add_access_grants` (`wbs-permissions`
  * E7): an access role is its own domain term, like an organization role, so its
  * table and its triggers are exempt by exact name and nothing else is.
  */

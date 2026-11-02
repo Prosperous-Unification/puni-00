@@ -532,7 +532,7 @@ describe('work item routes', () => {
     if (originalNodeId === undefined) throw new Error('original Dev node absent');
     const childId = await addWorkItem(send, token, projectId, { parentId, name: 'Child' });
     const childNodeId = `sn1.${childId}.${devId}`;
-    const entry = (await journal.entriesFor(projectId, actorId)).at(-1);
+    const entry = (await journal.entriesFor({ projectId, userId: actorId, personId: null })).at(-1);
     expect(entry?.payload).toMatchObject({
       forward: {
         do: 'batch',
@@ -664,7 +664,7 @@ describe('work item routes', () => {
     const { token, send, projectId, journal, actorId } = await setup();
     const parent = await addWorkItem(send, token, projectId, { parentId: null, name: 'Parent' });
     const child = await addWorkItem(send, token, projectId, { parentId: parent, name: 'Child' });
-    const entry = (await journal.entriesFor(projectId, actorId)).at(-1);
+    const entry = (await journal.entriesFor({ projectId, userId: actorId, personId: null })).at(-1);
     if (entry === undefined) throw new Error('create journal absent');
     const forward = (entry.payload as { forward: Record<string, unknown> }).forward;
     delete forward['stepNodeMapping'];

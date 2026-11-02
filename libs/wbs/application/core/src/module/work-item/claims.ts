@@ -61,6 +61,7 @@ export type PlainClaimReason =
   | 'resources_on_subtree'
   | 'person_not_bound'
   | 'credential_not_for_person'
+  | 'run_mismatch'
   | 'parent_claim_unknown'
   | 'parent_claim_foreign'
   | 'parent_claim_not_ancestor'

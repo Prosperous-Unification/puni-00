@@ -1,7 +1,7 @@
 # Twilight Dash
 
 Dash owns the runtime admission authority ([`src/authority`](src/authority/authority-store.ts))
-and exposes thirteen local commands:
+and exposes the local commands below, plus the managed resource runtime:
 
 | Command                                                                                                                                                                   | What it does                                                                                                                                                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -16,6 +16,16 @@ and exposes thirteen local commands:
 | `record-progress`, `record-progress-v2`                                                                                                                                   | record operator progress assertions as a receipt; see [`record-progress`](#record-progress)                                                                                                      |
 | `account-outcomes --repository <path> --since <instant> --until <instant> --rate-card <path> --output <new-dir> [--claude-projects <dir>]... [--codex-sessions <dir>]...` | writes the period's efficiency breakdown: cost per accepted outcome from harness logs; see [`account-outcomes`](#account-outcomes)                                                               |
 | `report-capacity --config <owner-only file>`                                                                                                                              | measures each bound resource through its compute provider and reports it to WBS until a refusal; see [`report-capacity`](#report-capacity)                                                       |
+| `mcp token --resource <url> (--key-file <path> \| --assertion-file <path> \| --github-actions-audience <aud>) [--run <id>]`                                               | prints a fresh WBS MCP bearer as a header map for Claude Code's `headersHelper`, from an API key or a workload token; see [`mcp token`](#mcp-token)                                              |
+| `pool import <pool-keys.json> --store <directory>`                                                                                                                        | stores an agent pool's keys for `mcp token`, each agent with its own MCP config and run, after every key issued a token; see [`pool import`](#pool-import)                                       |
+
+## Managed resource cleanup
+
+`resources init|create|exec|run|inspect|cleanup|sweep|sync|watch` manages Linux disposable
+directories, Git worktrees and their commands through a separate durable reservation ledger.
+Start with the [resource runbook](docs/resources.md) for the current-account setup and cleanup inspection requirements,
+owner-only enrollment, automatic Claude/Codex command wrappers, copied generated dependencies,
+WBS authority binding and truthful cleanup blockers. Existing unmanaged sessions are untracked.
 
 ## Activation controller
 
@@ -162,7 +172,10 @@ continues producing schema 1 for the existing conversion workflow.
 ## `report-capacity`
 
 Measures the resources a tenant's hosts fulfil and reports each to WBS as a capacity report
-(`openspec/changes/compute-providers` P8 to P11; port in [`src/compute`](src/compute/provider.ts)):
+(`openspec/changes/compute-providers` P8 to P11; port in [`src/compute`](src/compute/provider.ts)),
+through WBS's MCP endpoint with its API key, as every machine calls WBS
+(`openspec/changes/wbs-mcp-agent-surface` M9, M12; be-01's `/api` refuses the key itself
+`401 machine_bearer_not_accepted`):
 
 ```sh
 bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts report-capacity --config /path/to/reporter.json
@@ -174,8 +187,8 @@ credential:
 
 ```json
 {
-  "schemaVersion": 1,
-  "wbsOrigin": "https://wbs.example",
+  "schemaVersion": 2,
+  "mcpResource": "https://wbs.example/mcp",
   "credential": "<wbs_mk_ API key of an agent person>",
   "cadenceSeconds": 300,
   "instances": [
@@ -206,8 +219,10 @@ credential:
 }
 ```
 
-- `wbsOrigin` is an origin only: `https:`, or `http:` on loopback. `cadenceSeconds` defaults to
-  300 (30 to 86,400). A resource is bound once in the whole file.
+- `mcpResource` is WBS's MCP endpoint (`MCP_PUBLIC_URL`): `https:`, or `http:` on loopback,
+  with no user info, query or fragment. Schema version 1 named a `wbsOrigin` for `/api`; it is
+  refused `config_malformed`. `cadenceSeconds` defaults to 300 (30 to 86,400). A resource is
+  bound once in the whole file.
 - `ssh_host` reaches `host` through the `sshTransportFile` that fleet discovery uses
   ([`readSshTransport`](../../../../tools/tool-fleet/src/ssh-transport.ts)): the remote user, an
   owner-only `known_hosts` pinning `host`, and the agent in `SSH_AUTH_SOCK`. `ssh` must be on
@@ -243,16 +258,169 @@ credential:
   `provider_not_implemented` (`kubernetes`, whose adapter is a stub answering
   `not_implemented`), `unsupported_measure`, and the SSH transport's own refusals.
 
-Each tick observes every binding and `PUT`s one report per binding with `cadenceSeconds`; a tick
-runs every cadence and right after a run starts or ends. Each report prints one JSON line on
-stdout (instance, resource, `observedAt`, outcome, evidence or reason, WBS's answer). An
-unreachable host (connection refused, timeout, host-key mismatch, authentication failure, name
-or route fault) is reported as `unreachable`; any other answer the adapter cannot parse ends the
-command with that error. The command exits 1 with one `error:` line on: three consecutive
-`report_superseded` on one binding (`another_reporter`), any `4xx` or redirect (`refused`, with
-the status and WBS's error code), or a `5xx` or transport fault to WBS that repeats on the retry
-one cadence later (`wbs_unavailable`). The credential appears only in the `Authorization`
-header; no output, refusal or error carries it.
+The reporter takes an access token at `<mcpResource>/oauth/token` with its key
+(`client_credentials`, the key as HTTP Basic, as [`mcp token`](#mcp-token) does) and renews it
+on a 401; it never sends the key anywhere else, and never follows a redirect. Each tick observes
+every binding and calls the capacity report tool
+(`putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report`) once per binding with
+`cadenceSeconds`; a tick runs every cadence and right after a run starts or ends. Each report
+prints one JSON line on stdout (instance, resource, `observedAt`, outcome, evidence or reason,
+WBS's answer). An unreachable host (connection refused, timeout, host-key mismatch,
+authentication failure, name or route fault) is reported as `unreachable`; any other answer the
+adapter cannot parse ends the command with that error. The command exits 1 with one `error:`
+line on: three consecutive `report_superseded` on one binding (`another_reporter`); any refusal
+be-01 relays (`refused`, with the status and WBS's error code); mcp-01's
+`machine_credential_refused` (a revoked or expired key, also when the token endpoint refuses it
+`invalid_client`) or `insufficient_scope` (`refused`); or a call that got no answer, or that
+mcp-01 left uncompleted for another reason (`rate_limited`, `server_error`, …), repeating on the
+retry one cadence later (`wbs_unavailable`). An answer it cannot attribute ends the command at
+once. No output, refusal or error carries the key.
+
+## `mcp token`
+
+Prints `{"Authorization":"Bearer <token>"}` for a WBS MCP server (mcp-01), from a fresh token
+request on every run ([`src/mcp`](src/mcp/token-command.ts); `openspec/changes/wbs-mcp-agent-surface`
+M2, M10, M15). It is what headless agents use instead of the consent flow: Claude Code runs it as
+the server's `headersHelper` at every connection, and again after a 401 or 403, so a token that
+expired, or that a grant key rotation invalidated, is replaced on the retry.
+
+```sh
+bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts mcp token \
+  --resource https://wbs.example/mcp --key-file ~/.config/wbs/agent.key [--run <id>]
+```
+
+- `--resource` is the MCP endpoint (`MCP_PUBLIC_URL`): `https:`, or `http:` on loopback. The
+  token endpoint is its authorization server's, `<resource>/oauth/token`.
+- Exactly one credential:
+  - `--key-file`: a file holding one `wbs_mk_` API key of an agent person (an organization
+    admin issues it in WBS), owned by the running user with mode `0600`, or the command refuses
+    (`--key-file: the key file must be owned by this user with mode 0600`). It is sent once,
+    by HTTP Basic, as `client_credentials`.
+  - `--assertion-file`: a workload token reread on every run, such as a Kubernetes projected
+    service-account token (the kubelet rotates it in place), sent as the JWT-bearer grant.
+  - `--github-actions-audience`: a GitHub Actions OIDC token for that audience, fetched on
+    every run through `ACTIONS_ID_TOKEN_REQUEST_URL` and `ACTIONS_ID_TOKEN_REQUEST_TOKEN`
+    (the job needs `permissions: id-token: write`).
+- A value shaped like a key or a token given where a path belongs is refused naming only the
+  flag (`--key-file names a file, not a key`), and no refusal names the path: a pasted secret is
+  never echoed on stderr.
+- `--run` opts the token into a run (`wbs_run`, 1 to 256 characters): the run's claims and
+  leases are scoped to it.
+- **Why a file and never an argument or a variable holding the key.** An argument is visible
+  to every user in `ps`. An environment variable is inherited by every process Claude Code
+  starts, so the agent's own shell commands could print it into a transcript. Only the path
+  travels; the key stays in an owner-only file. **This design cannot hide the key from the
+  agent's own user**: the helper runs as that user, and the file must be owned by it (the
+  check requires the file's uid to equal the process's), so the agent's shell can read the file
+  too. It protects the key from other users and from transcripts, not from the agent.
+- **No cache.** Every run issues a new token; nothing is written to disk.
+- **No redirect.** A token request answered with a 3xx is refused, never followed: a followed
+  307 would re-send the form, the assertion included, to another origin.
+- **A `429`** (M10's issuance limits per mcp-01 replica: 300 a minute, burst 100, per
+  credential **and per source address**) is waited out
+  once: the `Retry-After` seconds, capped at what remains of Claude Code's 10 s helper budget
+  minus 1 s, then one retry. When nothing remains it does not retry. Any refusal exits 1 with
+  one `error:` line naming the HTTP status and the OAuth error (`invalid_client` for a
+  revoked or unknown key); no output or error carries the key, the assertion or the form.
+
+### Claude Code for a headless agent swarm
+
+**Today the helper needs a checkout of this repository with `bun install` run** on the host that
+runs the agents: it is started from `entrypoint.ts`, not a published binary or bundle.
+
+Put the key of each agent person in its own `0600` file on the host that runs the agents, then
+configure the server in the project's `.mcp.json` (or `--mcp-config` for `claude -p`):
+
+```json
+{
+  "mcpServers": {
+    "wbs": {
+      "type": "http",
+      "url": "https://wbs.example/mcp",
+      "headersHelper": "bun /srv/puni-00/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts mcp token --resource https://wbs.example/mcp --key-file /home/agent/.config/wbs/agent.key"
+    }
+  }
+}
+```
+
+- Claude Code runs a `headersHelper` only in a trusted folder: in `claude -p` and Agent SDK
+  sessions without folder trust it uses static headers alone, and the connection fails. Trust
+  the agents' working directory first.
+- A batch of `claude -p` runs on one key issues one token per run; 100 runs started within a
+  minute stay under the per-credential limit. **The per-source limit is the same size**: behind
+  one proxy hop every agent on one host or NAT shares one bucket of 100 a burst and 300 a
+  minute, whatever credential it holds, so a pool spread over several keys does not get more
+  issuances per minute from one address. To scope each run's claims, give each run its
+  own `--mcp-config` with `--run <id>`, and send the same id as the run in commands.
+- Claude Code subagents share their parent's connection, and so its token and run.
+- For an agent pool, [`pool import`](#pool-import) writes each agent's key file and a
+  `--mcp-config` file with its own run.
+
+For a long-lived Node or Bun process using the MCP SDK directly with a workload token,
+[`WorkloadJwtBearerProvider`](src/mcp/workload-provider.ts) is the `authProvider`: it keeps its
+token in memory, drops it on a 401, rereads the workload token for every request, and needs no
+dynamic registration. Pass its `tokenFetch(fetch)` as the transport's `fetch` so a token
+endpoint `429` is waited out (at most 60 s) once.
+
+## `pool import`
+
+Stores the keys of an agent pool for `mcp token` ([`src/mcp/pool-import.ts`](src/mcp/pool-import.ts);
+`openspec/changes/wbs-mcp-agent-surface` M7, M15). An admin creates or re-keys a pool in WBS and
+downloads its keys once as `pool-<id>.keys.json` (`wbs-agent-pool-keys` v1); this command turns
+that file into one key file, one MCP config and one run per agent.
+
+```sh
+chmod 600 ~/Downloads/pool-<id>.keys.json
+twilight-dash pool import ~/Downloads/pool-<id>.keys.json --store ~/.config/wbs/pools
+```
+
+`twilight-dash` stands for `bun <checkout>/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts`
+(the [checkout requirement](#claude-code-for-a-headless-agent-swarm)). The store directory
+documented here, `~/.config/wbs/pools`, is a convention: `--store` has no default.
+
+- **The file must be owned by you with mode `0600`.** A browser saves it `0644`; the command
+  refuses that, as `--key-file` does, and names the fix with your path:
+  `run: chmod 600 '<path>'`. Keys never come from an argument
+  or standard input, and a key pasted where the path belongs is refused without echoing it.
+- **Every key is proven before anything is written.** Each agent's key is exchanged for one
+  token at the document's authorization server, with the agent's run, exactly as `mcp token`
+  will. One refusal (a revoked key, an expired pool, a wrong server) aborts the import naming
+  that agent and the OAuth error, and the store is left as it was. The document's
+  `authorizationServer` must be `<mcpResource>/oauth`, the one `mcp token` asks.
+- **A pool of N spends N issuances** from mcp-01's per-source bucket (M10: a burst of 100, then
+  5 a second), shared with every agent on the host. A `429` is waited out per its `Retry-After`
+  (at most 60 s, three times per agent); beyond that the import aborts with `wait N s and rerun`.
+  After importing a large pool, wait about N/5 seconds before starting its agents, or their first
+  tokens meet the same limit.
+- **The store** (`--store`; created with any missing parents `0700`; refused if it is a link or
+  other users can enter it) holds
+  per pool a link `pool-<poolId>` to the current generation, with:
+  - `<personId>.key`: the agent's key, `0600`, for `mcp token --key-file`;
+  - `<personId>.mcp.json`: a config for `claude --mcp-config` whose `headersHelper` runs
+    `mcp token --resource <mcpResource> --key-file <that key> --run <its run>` with the `bun`
+    and checkout that ran the import (the [checkout requirement](#claude-code-for-a-headless-agent-swarm)
+    applies);
+  - `pool.json`: the agents, their runs and paths; no key.
+
+  The configs name the `bun` binary that ran the import (`process.execPath`). **After a Bun
+  upgrade** that moves it (a version manager installs each version at its own path), the
+  helpers fail to start: re-key the pool in WBS and import the new document (the old one was
+  deleted, and keys are shown once), or correct the `bun` path in each `<personId>.mcp.json`.
+
+- **Each agent has its own run**, `pool-<poolId>/<personId>`, so its claims and leases are
+  scoped to it (M15). The run does not change on a re-key, so a running agent's next token after
+  a re-key keeps its leases. Start one agent process per config; two processes on one config
+  share a run.
+- **Re-importing after a re-key** writes a new generation and switches the link in one rename:
+  a running helper reads either the old keys or the new ones, never a mix. An agent absent from
+  the new document (its key revoked alone) loses its key file. Every other generation of the
+  pool, the replaced one and any a crashed import left, is removed, so no stale key stays on
+  disk. Other pools are untouched. Run one import of a pool at a time: when another import
+  switches the pool while this one finishes, this one exits non-zero (`another import replaced
+pool … concurrently`) and its own generation is removed.
+- **Output** names the pool, each agent's person name, id, run and config path, and asks you to
+  delete the downloaded file; it never prints a key. Dash then holds every key of the pool: a
+  compromised Dash host is every agent until the pool is re-keyed or revoked (M7).
 
 ## `account-outcomes`
 

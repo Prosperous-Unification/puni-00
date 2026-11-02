@@ -65,6 +65,8 @@ export const WORK_ITEM_COMMAND_ROUTES = [
   'setBudget',
   'clearBudget',
   'unfreezeWorkItem',
+  'claimWorkItem',
+  'releaseWorkItem',
   'addDependency',
   'removeDependency',
   'addTeam',

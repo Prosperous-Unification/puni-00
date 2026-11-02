@@ -340,6 +340,9 @@ describe('StepNodeAttemptRepository', () => {
    * as `attempt_running` — and with both faults together the loser read
    * `threw: Failed query: insert … params: a,dev,1,…`, its primary-key
    * violation on a reused number.
+   * Proof, reobserved 2026-10-26: omitting only the running partial index
+   * made these actual workers answer `["started", "started"]`; restoring the
+   * migration's exact bytes restored `attempt_running` and one stored row.
    */
   it('lets one of two concurrent starts win and tells the other attempt_running', async () => {
     const barrier = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 2);
@@ -355,10 +358,14 @@ describe('StepNodeAttemptRepository', () => {
           worker.onerror = reject;
         });
       const outcomes = Promise.all([outcome(first), outcome(second)]);
-      const deadline = Date.now() + 5_000;
+      // Worker imports precede database-open readiness; bounded CPU contention
+      // spent 13.7s there, while opening the databases took only 6–11ms.
+      // Proof: four CPU rivals on two CPUs made the former 5s check see 0;
+      // this monotonic 20s allowance passed twice within the 30s test ceiling.
+      const deadline = performance.now() + 20_000;
       first.postMessage({ path, barrier, startedAt: 100 });
       second.postMessage({ path, barrier, startedAt: 101 });
-      while (Atomics.load(state, 0) < 2 && Date.now() < deadline) {
+      while (Atomics.load(state, 0) < 2 && performance.now() < deadline) {
         await Bun.sleep(5);
       }
       expect(Atomics.load(state, 0)).toBe(2);

@@ -340,12 +340,22 @@ describe('after activation', () => {
     expect((await h.callWith(token, 'GET', '/api/projects/absent')).status).toBe(401);
   });
 
-  it('refuses a gateway or unknown audience', async () => {
-    for (const aud of ['wbs-be-01/via-gw-01', 'somewhere-else']) {
-      expect(await h.callWith(await delegation({ aud }), 'GET', '/api/projects')).toMatchObject({
+  // Dispatch is by exact audience (`wbs-mcp-agent-surface` M3): only direct
+  // contexts and MCP delegations reach a verifier on a user route, and any
+  // other audience, a machine grant's included, is invalid_token unread.
+  // Proof: with every audience but the direct one dispatched to the
+  // via-mcp-01 verifier again (the former `directAudienceOf`), these answered
+  // 401 unauthenticated instead of invalid_token; watched 2026-10-26.
+  it('refuses a gateway, grant or unknown audience invalid_token', async () => {
+    for (const aud of ['wbs-be-01/via-gw-01', 'wbs-be-01/machine-grant', 'somewhere-else']) {
+      expect(await h.callWith(await delegation({ aud }), 'GET', '/api/projects')).toEqual({
         status: 401,
+        body: { error: 'invalid_token' },
       });
     }
+    expect(
+      h.sqlite.query<{ n: number }, []>('SELECT count(*) AS n FROM delegation_use').get()?.n,
+    ).toBe(0);
   });
 
   it('refuses a signed array audience that includes the MCP route', async () => {
@@ -355,7 +365,7 @@ describe('after activation', () => {
         'GET',
         '/api/projects',
       ),
-    ).toMatchObject({ status: 401 });
+    ).toEqual({ status: 401, body: { error: 'invalid_token' } });
   });
 
   it('refuses a gateway bearer beside a session cookie', async () => {
@@ -385,10 +395,13 @@ describe('after activation', () => {
     }
   });
 
+  // Also `wbs-mcp-agent-surface`'s "A long delegation stays refused": the
+  // machine grant's 24-hour cap is its own and never reaches a delegation.
   it('refuses a delegation longer than five minutes', async () => {
-    expect(
-      await h.callWith(await delegation({ lifetime: 3600 }), 'GET', '/api/projects'),
-    ).toMatchObject({ status: 401 });
+    expect(await h.callWith(await delegation({ lifetime: 3600 }), 'GET', '/api/projects')).toEqual({
+      status: 401,
+      body: { error: 'unauthenticated' },
+    });
   });
 
   it('refuses a delegation issued in the future, of no lifetime, or with no grant', async () => {

@@ -1,0 +1,244 @@
+import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
+import { type } from '@wbs/validation';
+
+import { McpDeploymentFault } from './deployment-fault';
+import type { Concealed } from './token-request';
+import { BE_CALL_TIMEOUT_MS, type FetchLike, untilAborted } from './wbs-client';
+
+/** One machine grant request, as mcp-01's token endpoint sends it to be-01 (M3). */
+export interface MachineGrantRequest {
+  /** mcp-01's canonical authorization server; be-01 compares it with its own setting. */
+  readonly issuer: string;
+  readonly credential:
+    | { readonly kind: 'api_key'; readonly key: Concealed }
+    | { readonly kind: 'oidc'; readonly assertion: Concealed };
+  /** The `exp` asked for, in seconds; be-01 caps it. */
+  readonly expiresAt: number;
+  readonly run: string | null;
+}
+
+/** A grant be-01 issued: the credential it names and the scopes derived from it alone. */
+export interface IssuedMachineGrant {
+  readonly kind: 'issued';
+  readonly grant: string;
+  readonly credentialId: string;
+  readonly personId: string;
+  readonly organizationId: string;
+  readonly scopes: readonly ('read' | 'write')[];
+  /** The grant's `exp`, in seconds. */
+  readonly expiresAt: number;
+  readonly runId: string | null;
+}
+
+/**
+ * be-01's answer to one grant request:
+ * - `issued`;
+ * - `refused`: the credential or assertion was refused, or nothing is issued
+ *   before activation. Each source answers its own single OAuth error, so the
+ *   cases stay indistinguishable to the client;
+ * - `unsupported_assertion_type`: the assertion declared this `typ`;
+ * - `run_refused`: the `wbs_run` looks like a secret;
+ * - `unavailable`: be-01 could not be reached, or failed (it reports its own failure).
+ */
+export type MachineGrantAnswer =
+  | IssuedMachineGrant
+  | { readonly kind: 'refused' }
+  | { readonly kind: 'run_refused' }
+  | { readonly kind: 'unavailable' }
+  | { readonly kind: 'unsupported_assertion_type'; readonly typ: string };
+
+/** mcp-01's client for be-01's `POST /internal/mcp/machine-grants`. */
+export interface MachineGrantClient {
+  issue(request: MachineGrantRequest): Promise<MachineGrantAnswer>;
+}
+
+/**
+ * be-01 answered the grant route with something this release does not model:
+ * a missing or wrong `MCP_BE_INTERNAL_SECRET` (`internal_unauthorized`), an
+ * answer impossible for the source asked, or a malformed body. A deployment
+ * fault, never a client's refusal: it propagates, so the token request fails
+ * as the server's and is reported, and no client is told its credential is bad.
+ */
+export class MachineGrantDefect extends McpDeploymentFault {}
+
+/**
+ * be-01 did not answer the grant route, body included, within the client's bound
+ * ({@link BE_CALL_TIMEOUT_MS} unless composed otherwise). A fault of the deployment, as a
+ * defect is: the token request answers `server_error` and is reported, and the request's
+ * pending slot and reservation end with it (`wbs-mcp-agent-surface` task 4.4).
+ */
+export class MachineGrantTimedOut extends MachineGrantDefect {}
+
+const ISSUED = type({
+  grant: 'string',
+  credentialId: 'string',
+  personId: 'string',
+  organizationId: 'string',
+  scopes: "('read' | 'write')[]",
+  expiresAt: 'number.integer',
+  runId: 'string | null',
+});
+const REFUSAL = type({ error: 'string', 'typ?': 'string' });
+
+const ROUTE = '/internal/mcp/machine-grants';
+
+/**
+ * Calls be-01's machine grant route with `MCP_BE_INTERNAL_SECRET` in
+ * `x-mcp-internal-auth` (M14), never `x-internal-auth`. The key or assertion
+ * goes in the JSON body alone; no error this client raises carries the body.
+ */
+export function machineGrantClient(
+  config: {
+    readonly WBS_API_URL: string;
+    readonly WBS_BASIC_AUTH?: string;
+    readonly MCP_BE_INTERNAL_SECRET: string;
+  },
+  fetchImpl: FetchLike = fetch,
+  timeoutMs: number = BE_CALL_TIMEOUT_MS,
+): MachineGrantClient {
+  const url = `${config.WBS_API_URL.replace(/\/+$/, '')}${ROUTE}`;
+  return {
+    async issue(request) {
+      const signal = AbortSignal.timeout(timeoutMs);
+      let response: Response;
+      let text: string;
+      try {
+        // Raced, so a fetch that ignores its signal, or a body that never ends, cannot hold the
+        // request's pending slot (M10).
+        // Proof: with the race removed (the signal only handed to a fetch that ignores it),
+        // `frees the pending slot of a grant request be-01 never answers, after the timeout`
+        // (machine-limits.test.ts) hung past its 5 s bound; watched 2026-10-28.
+        [response, text] = await untilAborted(signal, async () => {
+          const answered = await fetchImpl(url, {
+            signal,
+            method: 'POST',
+            // Never followed: the key and the secret stay with be-01, and a 3xx is a defect.
+            // Proof: following redirects made `never follows a redirect…` (machine-token.test.ts)
+            // see the secret at the other origin; watched 2026-10-27.
+            redirect: 'manual',
+            headers: {
+              // Proof: sending it as x-internal-auth failed `sends the key with the dedicated
+              // secret…` (machine-token.test.ts); watched 2026-10-27.
+              [MCP_INTERNAL_SECRET_HEADER]: config.MCP_BE_INTERNAL_SECRET,
+              'content-type': 'application/json',
+              ...(config.WBS_BASIC_AUTH === undefined
+                ? {}
+                : {
+                    'proxy-authorization': `Basic ${Buffer.from(config.WBS_BASIC_AUTH, 'utf8').toString('base64')}`,
+                  }),
+            },
+            body: JSON.stringify({
+              issuer: request.issuer,
+              credential:
+                request.credential.kind === 'api_key'
+                  ? { kind: 'api_key', key: request.credential.key.reveal() }
+                  : { kind: 'oidc', assertion: request.credential.assertion.reveal() },
+              expiresAt: request.expiresAt,
+              ...(request.run === null ? {} : { run: request.run }),
+            }),
+          });
+          return [answered, await answered.text()] as const;
+        });
+      } catch (cause) {
+        // Proof: without this mapping, `frees the pending slot…` (machine-limits.test.ts) was
+        // reported the misleading "could not send the request to be-01 …: TimeoutError" defect
+        // instead of MachineGrantTimedOut; watched 2026-10-28.
+        if (signal.aborted)
+          throw new MachineGrantTimedOut(
+            `be-01 ${ROUTE} did not answer within ${String(timeoutMs / 1_000)} s`,
+          );
+        // Proof: rethrowing failed `answers 503 temporarily_unavailable when be-01 fails or cannot
+        // be reached` (machine-token.test.ts); admitting every TypeError made `throws a defect…
+        // for a request fetch refused to send` answer 503; watched 2026-10-27.
+        if (isNetworkFailure(cause)) return { kind: 'unavailable' };
+        // A request fetch refused to send (a header it cannot carry) is this deployment's fault.
+        // The cause stays out: its message may quote the header, which holds the secret.
+        throw new MachineGrantDefect(
+          `could not send the request to be-01 ${ROUTE}: ${cause instanceof Error ? cause.name : typeof cause}`,
+        );
+      }
+      if (response.status === 200) return { kind: 'issued', ...parsedIssued(text) };
+      // Proof: with this removed, `answers 503 temporarily_unavailable…` (machine-token.test.ts)
+      // threw a defect; watched 2026-10-27.
+      if (response.status >= 500) return { kind: 'unavailable' };
+      const refusal = refusalOf(text);
+      const oidc = request.credential.kind === 'oidc';
+      // be-01's refusals of the presented source (`unknown_identity`; for an
+      // assertion also `invalid_token`) and `not_activated`, all one answer.
+      if (
+        // Proof: admitting invalid_token for a key, or dropping not_activated, failed `throws a
+        // defect, never a refusal…` (machine-token.test.ts) and the pre-activation test
+        // (machine-token.boot.test.ts); watched 2026-10-27.
+        (response.status === 401 &&
+          (refusal?.error === 'unknown_identity' ||
+            (oidc && refusal?.error === 'invalid_token'))) ||
+        (response.status === 409 && refusal?.error === 'not_activated')
+      )
+        return { kind: 'refused' };
+      if (
+        // Proof: reading the typ refusal for a key failed `throws a defect, never a refusal…`
+        // (machine-token.test.ts); watched 2026-10-27.
+        oidc &&
+        response.status === 401 &&
+        refusal?.error === 'unsupported_assertion_type' &&
+        // Proof: without the 401 or the typ condition, `answers a be-01 fault 502 server_error…`
+        // (machine-token.test.ts) mapped a 403, or a refusal naming no typ, to invalid_grant;
+        // watched 2026-10-27.
+        refusal.typ !== undefined
+      )
+        return { kind: 'unsupported_assertion_type', typ: refusal.typ };
+      // be-01's only `invalid_body` for a body mcp-01 built is a run shaped like a secret.
+      // Proof: without the run condition `throws a defect, never a refusal…`
+      // (machine-token.test.ts) answered invalid_request; watched 2026-10-27.
+      if (response.status === 400 && refusal?.error === 'invalid_body' && request.run !== null)
+        return { kind: 'run_refused' };
+      throw new MachineGrantDefect(
+        `be-01 ${ROUTE} answered unmodeled HTTP ${String(response.status)}${refusal === null ? '' : ` ${refusal.error}`}`,
+      );
+    },
+  };
+}
+
+/**
+ * An unreachable be-01: Bun's fetch rejects with a `TypeError` carrying a
+ * system error `code` (`ECONNREFUSED`, `ConnectionRefused`, ...); a request
+ * fetch refuses to build rejects with a `TypeError` that has none.
+ */
+function isNetworkFailure(cause: unknown): boolean {
+  return (
+    cause instanceof TypeError &&
+    'code' in cause &&
+    typeof cause.code === 'string' &&
+    cause.code !== ''
+  );
+}
+
+function parsedIssued(text: string): Omit<IssuedMachineGrant, 'kind'> {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch (cause) {
+    throw new MachineGrantDefect(`be-01 ${ROUTE} answered non-JSON`, { cause });
+  }
+  const issued = ISSUED(value);
+  // Proof: skipping this check made `throws a defect, never a refusal…` (machine-token.test.ts)
+  // answer invalid_scope for scopes ['admin']; watched 2026-10-27.
+  if (issued instanceof type.errors)
+    // The fields' names only: a summary quotes values, and the body holds the grant.
+    throw new MachineGrantDefect(
+      `be-01 ${ROUTE} answered an unexpected shape at ${[...new Set(issued.map((error) => error.path.join('.')))].join(', ')}`,
+    );
+  return issued;
+}
+
+function refusalOf(text: string): typeof REFUSAL.infer | null {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch (cause) {
+    if (cause instanceof SyntaxError) return null;
+    throw cause;
+  }
+  const refusal = REFUSAL(value);
+  return refusal instanceof type.errors ? null : refusal;
+}

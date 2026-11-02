@@ -56,6 +56,7 @@ export const readOrganizationLimits = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/limits',
   operationId: 'getApiOrganizationLimits',
+  humanOnly: true,
   policies: [
     { kind: 'organization-resource', operation: 'read' },
     { kind: 'identity', require: 'signed-in' },

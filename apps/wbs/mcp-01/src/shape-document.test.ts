@@ -43,17 +43,7 @@ function deriveTools(body: SchemaShape<unknown> = commands.body) {
     '/health',
     '/metrics',
     '/api/smoke/echo',
-    '/api/organization/memberships',
     '/api/organization/active',
-    '/api/organization/provisioning-tokens',
-    '/api/organization/provisioning-tokens/fixture',
-    '/api/organization/machine-credentials',
-    '/api/organization/machine-credentials/fixture',
-    '/api/organization/trusted-issuers',
-    '/api/organization/trusted-issuers/fixture',
-    '/api/organization/compute-providers',
-    '/api/organization/compute-providers/fixture',
-    '/api/compute-providers/fixture',
   ] as const;
   const shapes = [
     { ...commands, body },
@@ -73,7 +63,8 @@ function deriveTools(body: SchemaShape<unknown> = commands.body) {
   const file = join(directory, 'openapi.json');
   try {
     writeFileSync(file, JSON.stringify(documentFromShapes(shapes)));
-    return toolsFromDocument(readDocument(file));
+    // The fixture tags no shape humanOnly, so it asks for no humanOnly operation.
+    return toolsFromDocument(readDocument(file), []);
   } finally {
     rmSync(directory, { recursive: true });
   }

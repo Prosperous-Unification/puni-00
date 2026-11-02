@@ -32,6 +32,17 @@ export type TrustedIssuerRefusal = Extract<
   { kind: 'refusal' }
 >['body'];
 
+/**
+ * `audience_not_wbs` on a registration or a credential's narrowing
+ * (`wbs-mcp-agent-surface` M2), naming the root when the page read it (the
+ * admin-only trusted issuer list carries it), else asking for it.
+ */
+export function audienceNotWbsText(audienceRoot: string | null): string {
+  return audienceRoot === null
+    ? 'The audience must be WBS’s authorization server or a path under it (ask an admin for the value).'
+    : `The audience must be ${audienceRoot} or a path under it.`;
+}
+
 /** The act a machine credential refusal answers; a create names its source. */
 export type CredentialOperation = 'read' | 'create-api-key' | 'create-oidc' | 'rotate' | 'revoke';
 
@@ -47,6 +58,7 @@ export type CredentialOperation = 'read' | 'create-api-key' | 'create-oidc' | 'r
 export function credentialRefusal(
   refusal: MachineCredentialRefusal,
   operation: CredentialOperation,
+  audienceRoot: string | null,
 ): RefusalOutcome {
   switch (refusal.error) {
     case 'unauthenticated':
@@ -105,6 +117,8 @@ export function credentialRefusal(
       return said('This key is already rotating. Rotate again after its window ends.');
     case 'rotation_at_issuer':
       return said('This credential rotates at its issuer, not in WBS.');
+    case 'audience_not_wbs':
+      return said(audienceNotWbsText(audienceRoot));
     default:
       return unreachable(refusal);
   }
@@ -116,7 +130,10 @@ export function credentialRefusal(
  * Proof: 2026-10-22, dropping the count from `in_use` failed `shows in_use
  * with its count` in `trusted-issuers-section.test.tsx`.
  */
-export function trustedIssuerRefusal(refusal: TrustedIssuerRefusal): RefusalOutcome {
+export function trustedIssuerRefusal(
+  refusal: TrustedIssuerRefusal,
+  audienceRoot: string | null,
+): RefusalOutcome {
   switch (refusal.error) {
     case 'unauthenticated':
     case 'organization_context_changed':
@@ -159,6 +176,8 @@ export function trustedIssuerRefusal(refusal: TrustedIssuerRefusal): RefusalOutc
       );
     case 'trusted_issuer_limit':
       return said('This organization already trusts eight issuers. Remove one first.');
+    case 'audience_not_wbs':
+      return said(audienceNotWbsText(audienceRoot));
     case 'not_found':
       return said('This trusted issuer is no longer registered. Refresh the list.');
     case 'in_use':

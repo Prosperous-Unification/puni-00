@@ -19,6 +19,8 @@
         "{workspaceRoot}/.github/workflows/trusted-wiki.yml",
         "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/**/*",
         "{workspaceRoot}/apps/twilight-structure/twilight-navigator/cli/src/**/*",
+        "{workspaceRoot}/apps/wbs/be-01/src/**/*",
+        "{workspaceRoot}/apps/wbs/mcp-01/src/**/*",
         "{workspaceRoot}/libs/wbs/domain/contracts/src/**/*",
         "{workspaceRoot}/libs/wbs/domain/validation/src/**/*"
       ]

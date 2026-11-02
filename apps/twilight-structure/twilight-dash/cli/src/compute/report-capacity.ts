@@ -1,6 +1,8 @@
 import { type } from '@shared/validation';
 
 import type { WallClock } from '../clock';
+import type { ApiKey, McpEndpoint } from '../mcp/machine-token';
+import { type ToolAnswer, type WbsTools, WbsUnreachable } from '../mcp/wbs-tools';
 import {
   loadReporterConfiguration,
   type ProviderAdapters,
@@ -13,7 +15,13 @@ import type { Measurement, ResourceBinding } from './provider';
 const SUPERSEDED_LIMIT = 3;
 /** One retry after a cadence, then exit: bounded convergence for `5xx` and transport faults. */
 const TRANSIENT_LIMIT = 2;
-const REQUEST_TIMEOUT_MS = 30_000;
+/** Each tool call's deadline: a call past it is a transport fault. */
+export const REQUEST_TIMEOUT_MS = 30_000;
+/** The capacity report tool mcp-01 derives from be-01's route (`compute-providers` P5). */
+export const CAPACITY_REPORT_TOOL =
+  'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report';
+/** mcp-01's reasons for an uncompleted call that a retry cannot change: the credential's. */
+const REFUSING_REASONS = new Set(['machine_credential_refused', 'insufficient_scope']);
 const ErrorCode = /^[A-Za-z][A-Za-z_]{0,63}$/;
 
 export type ReporterExitReason = 'another_reporter' | 'refused' | 'wbs_unavailable';
@@ -31,8 +39,11 @@ export class ReporterExit extends Error {
 
 export interface ReporterDependencies {
   readonly clock: WallClock;
-  /** One HTTP exchange; the composition root passes `fetch`, tests a fake WBS. */
-  readonly send: (request: Request) => Promise<Response>;
+  /**
+   * WBS's tools for the configured endpoint and key; the composition root passes an
+   * `McpWbsTools` factory, tests a fake WBS.
+   */
+  readonly connect: (endpoint: McpEndpoint, key: ApiKey) => WbsTools;
   /** Waits `milliseconds`, resolving early once `interrupt` aborts. */
   readonly sleep: (milliseconds: number, interrupt: AbortSignal) => Promise<void>;
   readonly write: (text: string) => void;
@@ -50,11 +61,16 @@ const Superseded = type({ error: "'report_superseded'", storedObservedAt: 'numbe
 const RefusalBody = type({ error: 'string', 'providerId?': 'string | null', 'skewMs?': 'number' });
 
 /**
- * The body of one report: the measurement without its Dash-only evidence. A stub's
- * `not_implemented` is carried as it is, which WBS refuses `400 invalid_body`; the loader refuses
- * a stub before any observation, so only a broken loader reaches that refusal.
+ * The input of one report tool call: the path's ids and the measurement without its Dash-only
+ * evidence. A stub's `not_implemented` is carried as it is, which WBS refuses `400 invalid_body`;
+ * the loader refuses a stub before any observation, so only a broken loader reaches that refusal.
  */
-function reportBody(measurement: Measurement, cadenceSeconds: number): string {
+function reportInput(
+  instanceId: string,
+  binding: ResourceBinding,
+  measurement: Measurement,
+  cadenceSeconds: number,
+): Record<string, unknown> {
   let outcome: Record<string, unknown>;
   switch (measurement.kind) {
     case 'measured':
@@ -71,7 +87,13 @@ function reportBody(measurement: Measurement, cadenceSeconds: number): string {
       outcome = { kind: 'not_implemented' };
       break;
   }
-  return JSON.stringify({ observedAt: measurement.observedAt, cadenceSeconds, outcome });
+  return {
+    providerId: instanceId,
+    resourceId: binding.resourceId,
+    observedAt: measurement.observedAt,
+    cadenceSeconds,
+    outcome,
+  };
 }
 
 /**
@@ -92,72 +114,62 @@ function describeRefusal(status: number, body: unknown): string {
   return `HTTP ${String(status)} ${refusal.error}${detail}`;
 }
 
-async function readJson(response: Response): Promise<unknown> {
-  try {
-    return (await response.json()) as unknown;
-  } catch {
-    return undefined;
-  }
-}
-
-/** Sends one report and classifies WBS's answer; a malformed `200` throws. */
+/**
+ * Sends one report as a tool call and classifies the answer. No answer ({@link WbsUnreachable}),
+ * and an uncompleted call a retry may change (`rate_limited`, `server_error`, …), is transient;
+ * an uncompleted call the credential causes is refused. A malformed or unattributable answer
+ * throws.
+ */
 async function putReport(
   configuration: ReporterConfiguration,
   instanceId: string,
   binding: ResourceBinding,
   measurement: Measurement,
   stop: AbortSignal,
-  deps: ReporterDependencies,
+  tools: WbsTools,
 ): Promise<ReportAnswer> {
-  const url = `${configuration.wbsOrigin}/api/compute-providers/${encodeURIComponent(
-    instanceId,
-  )}/resources/${encodeURIComponent(binding.resourceId)}/capacity-report`;
-  let response: Response;
+  let answer: ToolAnswer;
   try {
-    response = await deps.send(
-      new Request(url, {
-        method: 'PUT',
-        headers: {
-          authorization: configuration.credential.authorization(),
-          'content-type': 'application/json',
-        },
-        body: reportBody(measurement, configuration.cadenceSeconds),
-        // A redirect is refused rather than followed with the credential.
-        redirect: 'manual',
-        // The timeout alone: a composite with the months-long `stop` signal would be retained by
-        // it on every request (Bun keeps `AbortSignal.any` dependents of a live source).
-        // Proof: composing it with `stop` again made `adds a fixed number of abort listeners
-        // whatever the number of ticks` count 16 composites instead of 0 (2026-10-22).
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      }),
+    answer = await tools.call(
+      CAPACITY_REPORT_TOOL,
+      reportInput(instanceId, binding, measurement, configuration.cadenceSeconds),
     );
   } catch (cause) {
-    if (stop.aborted) throw cause;
-    const name = cause instanceof Error ? cause.name : 'unknown';
+    // Only a call that got no answer is transient; an answer the client cannot read is a fault.
+    // Proof: treating every rejection as transient made `exits on an answer the tool client
+    // cannot attribute, never retrying it` retry it (2026-10-29).
+    if (stop.aborted || !(cause instanceof WbsUnreachable)) throw cause;
+    const name = cause.cause instanceof Error ? cause.cause.name : 'unknown';
     return { kind: 'transient', detail: `transport fault ${name}` };
   }
-  const body = await readJson(response);
-  if (response.status === 200) {
-    const stored = StoredReport(body);
-    // Proof: answering `stored` for any 200 made `throws on a 200 that carries no stored report`
-    // keep reporting (2026-10-22).
-    if (stored instanceof type.errors) {
-      throw new Error(
-        `WBS answered 200 without a stored report for resource ${binding.resourceId}`,
-      );
+  switch (answer.kind) {
+    case 'answered': {
+      const stored = StoredReport(answer.body);
+      // Proof: answering `stored` for any 200 made `throws on a 200 that carries no stored
+      // report` keep reporting (2026-10-22).
+      if (stored instanceof type.errors) {
+        throw new Error(
+          `WBS answered 200 without a stored report for resource ${binding.resourceId}`,
+        );
+      }
+      return { kind: 'stored' };
     }
-    return { kind: 'stored' };
-  }
-  if (response.status === 409) {
-    const superseded = Superseded(body);
-    if (!(superseded instanceof type.errors)) {
-      return { kind: 'superseded', storedObservedAt: superseded.storedObservedAt };
+    case 'refused': {
+      if (answer.status === 409) {
+        const superseded = Superseded(answer.body);
+        if (!(superseded instanceof type.errors)) {
+          return { kind: 'superseded', storedObservedAt: superseded.storedObservedAt };
+        }
+      }
+      return { kind: 'refused', detail: describeRefusal(answer.status, answer.body) };
     }
+    case 'not_called':
+      // Proof: retrying every uncompleted call made `exits when mcp-01 answers
+      // machine_credential_refused…` and `…insufficient_scope…` retry (2026-10-29).
+      return REFUSING_REASONS.has(answer.reason)
+        ? { kind: 'refused', detail: `mcp-01 ${answer.reason}` }
+        : { kind: 'transient', detail: `mcp-01 ${answer.reason}` };
   }
-  if (response.status >= 500) {
-    return { kind: 'transient', detail: `HTTP ${String(response.status)}` };
-  }
-  return { kind: 'refused', detail: describeRefusal(response.status, body) };
 }
 
 interface BindingStreaks {
@@ -176,6 +188,7 @@ async function reportInstance(
   instance: ReporterInstance,
   stop: AbortSignal,
   deps: ReporterDependencies,
+  tools: WbsTools,
 ): Promise<void> {
   const streaks = new Map<string, BindingStreaks>(
     instance.bindings.map((binding) => [binding.resourceId, { superseded: 0, transient: 0 }]),
@@ -206,7 +219,7 @@ async function reportInstance(
           binding,
           measurement,
           stop,
-          deps,
+          tools,
         );
         const streak = streaks.get(binding.resourceId);
         if (streak === undefined) throw new Error(`no streak for ${binding.resourceId}`);
@@ -286,14 +299,21 @@ export async function runReporter(
 ): Promise<never> {
   const stop = new AbortController();
   let first: { readonly cause: unknown } | undefined;
-  await Promise.all(
-    configuration.instances.map((instance) =>
-      reportInstance(configuration, instance, stop.signal, deps).catch((cause: unknown) => {
-        first ??= { cause };
-        stop.abort();
-      }),
-    ),
-  );
+  const tools = deps.connect(configuration.endpoint, configuration.credential);
+  try {
+    await Promise.all(
+      configuration.instances.map((instance) =>
+        reportInstance(configuration, instance, stop.signal, deps, tools).catch(
+          (cause: unknown) => {
+            first ??= { cause };
+            stop.abort();
+          },
+        ),
+      ),
+    );
+  } finally {
+    await tools.close();
+  }
   if (first === undefined) throw new Error('every reporting loop stopped without a cause');
   throw first.cause;
 }

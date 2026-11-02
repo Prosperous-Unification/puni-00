@@ -89,6 +89,7 @@ import { type RunDocker, runDockerBefore, runDockerCli } from './lib/docker-dead
 import { drain } from './lib/drain';
 import { waitForHealthy } from './lib/health';
 import { withLock } from './lib/lock';
+import { assertMcpSurfaceReady, parseAcceptBreaking } from './lib/mcp-preflight';
 import {
   type MigrationSetCapture,
   type MigrationSetIdentity,
@@ -1445,6 +1446,7 @@ export async function execute(
   sha: string,
   io: SwapExecutionIo = PRODUCTION_SWAP_IO,
   activateStepBlockage = false,
+  acceptBreaking: readonly string[] = [],
 ): Promise<void> {
   const { tier, from, to } = plan;
   // Proof: omitted the tier guard; the non-backend activation plan reached preflight instead of its named refusal.
@@ -1713,6 +1715,24 @@ export async function execute(
           };
           break;
         }
+        case 'mcp-preflight':
+          if (backendPrepared === null || writerIntent === null)
+            throw new Error('MCP preflight lacks the prepared candidate');
+          // While the outgoing colour still serves: a refusal here stops nothing.
+          await assertMcpSurfaceReady(
+            {
+              image,
+              root: ROOT,
+              databasePath: backendPrepared.databasePath,
+              envFiles: tierEnvFiles('be'),
+              acceptBreaking,
+            },
+            io.sh,
+            (line) => {
+              console.log(`[swap-${tier}] ${line}`);
+            },
+          );
+          break;
         case 'record-writer-stop':
           if (writerIntent === null) throw new Error('backend stop intent lacks preflight');
           // Proof: omitting persistence failed the exact-ID stop fixture before candidate start (ENOENT).
@@ -2309,7 +2329,8 @@ function describePlan(tier: Tier, plan: SwapPlan): string {
 
 const USAGE =
   'usage: swap <tier[,tier...]> --image-<tier>=<registry/name@sha256:…> --sha=<git-sha> ' +
-  '[--execute|--preflight] [--activate-step-blockage (be --execute only)]';
+  '[--execute|--preflight] [--activate-step-blockage (be --execute only)] ' +
+  '[--accept-breaking=<id,id> (be only)]';
 
 /**
  * Per-tier images. One invocation carries the whole run (see runSwaps), so
@@ -2340,6 +2361,11 @@ async function main(): Promise<void> {
       process.argv.includes('--check-backend-recovery'))
   )
     throw new Error('--activate-step-blockage requires only be with --execute');
+  const acceptBreaking = parseAcceptBreaking(argOf('accept-breaking'));
+  // Proof: with this refusal removed, `refuses gw --accept-breaking=ti-legacy`
+  // (swap-mcp-preflight.db.test.ts) went on to plan and failed reading Caddy; watched 2026-10-28.
+  if (acceptBreaking.length > 0 && !tiers.includes('be'))
+    throw new Error(`--accept-breaking names audiences only a be swap checks. ${USAGE}`);
 
   if (process.argv.includes('--check-backend-recovery')) {
     if (tiers.length !== 1 || tiers[0] !== 'be')
@@ -2401,7 +2427,7 @@ async function main(): Promise<void> {
     withLock,
     observe,
     execute: (plan, pinned, commit) =>
-      execute(plan, pinned, commit, PRODUCTION_SWAP_IO, activateStepBlockage),
+      execute(plan, pinned, commit, PRODUCTION_SWAP_IO, activateStepBlockage, acceptBreaking),
   });
 }
 

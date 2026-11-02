@@ -1,11 +1,17 @@
 import { CLAIM_LEASE_MS } from '@wbs/domain';
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
-import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
+import {
+  type Answer,
+  type HarnessMachineGrants,
+  OrganizationHarness,
+} from '../testing/organization-harness';
 
 const T = 1_900_000_000_000;
 let now = T;
+let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
 let projectId: string;
 let leaf: string;
@@ -18,13 +24,19 @@ let pushed: { subscription: string; seq?: number; message: { type: string } }[];
  * be-01's production composition and real SQLite, with the services clock
  * held at `now`: an agent's API-key claim carries a lease the reads show, its
  * heartbeat renews it, a session heartbeat is refused, and revoking its last
- * key releases its claims on the sweep tick the revoke asks for.
+ * key releases its claims on the sweep tick the revoke asks for. The agent's
+ * key reaches be-01 through mcp-01's forwarded grant ({@link callForwarded}).
  */
+beforeAll(async () => {
+  machineGrants = await forwardingMachineGrants();
+});
+
 beforeEach(async () => {
   now = T;
   pushed = [];
   h = OrganizationHarness.openComposedWith({
     now: () => now,
+    machineGrants,
     pushFetch: (_url, init) => {
       // The push client's body is the JSON string it serialized; read it back.
       if (typeof init?.body !== 'string') throw new Error('a push carried no JSON body');
@@ -60,7 +72,7 @@ afterEach(async () => {
 });
 
 function asAgent(method: string, path: string, body?: unknown): Promise<Answer> {
-  return h.callWith(key, method, path, body);
+  return callForwarded(h, key, method, path, body, { now });
 }
 
 async function claimAsAgent(): Promise<void> {

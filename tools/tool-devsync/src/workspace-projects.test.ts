@@ -4,7 +4,9 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'bun:test';
+import { fileDataDepTarget } from 'nx/src/config/project-graph';
 import { createProjectGraphAsync, type ProjectGraph } from 'nx/src/devkit-exports';
+import { getFileMap } from 'nx/src/project-graph/build-project-graph';
 
 import { APPLICATION_SUITES, productConstraints, readProjects } from '../workspace-projects.mjs';
 
@@ -54,6 +56,9 @@ const EXPECTED_PRODUCT_PROJECTS = [
   ['libs/wbs/domain/contracts', 'wbs-contracts'],
   ['libs/wbs/domain/domain', 'wbs-domain'],
   ['libs/wbs/domain/validation', 'wbs-validation'],
+  // Proof: omitting analytics failed both the destination-map and product-axis cases
+  // with this exact root/identity and its product:website tag (2026-10-26).
+  ['libs/website/adapters/analytics', 'website-analytics'],
   ['libs/website/adapters/portability-fixture', 'website-portability-fixture'],
   ['libs/website/adapters/store-sqlite', 'website-store-sqlite'],
   ['libs/website/domain/contracts', 'website-contracts'],
@@ -79,11 +84,20 @@ const ALLOWED_INFRA_TO_PRODUCT_EDGES = [
 // @tools/fleet-ssh-transport to `compute/`,
 // @tools/test-scratch to tests and @twilight-burokrat/judge to cli.ts, `authority/` and tests,
 // and refuse a sibling alias and a relative path into Burokrat.
+// Proof: omitting the WBS pair reported `twilight-dash -> wbs-contracts` in the real graph oracle.
+// Effective ESLint tests separately pin its public alias to the four runtime history consumers.
 const ALLOWED_DASH_EDGES = [
   ['twilight-dash', 'tool-fleet'],
   ['twilight-dash', 'tool-test-clock-reads'],
   ['twilight-dash', 'tool-test-scratch'],
   ['twilight-dash', 'twilight-burokrat'],
+  // The resources-only exact-alias ESLint regression pins this transport boundary.
+  // Proof: omitting this pair reported twilight-dash -> wbs-contracts (2026-10-25).
+  ['twilight-dash', 'wbs-contracts'],
+  // The coordination topology/facts exact-alias ESLint regression pins this boundary to
+  // `@wbs/domain` at three files. Proof: without this pair the real graph oracle reported
+  // twilight-dash -> wbs-domain (CI run 41244462158 and locally, 2026-11-01).
+  ['twilight-dash', 'wbs-domain'],
 ] as const;
 
 // Both suite apps' `no-ambient-clock.test.ts` apply the shared clock-read detector. Proof:
@@ -481,6 +495,19 @@ describe('productConstraints', () => {
             ...ALLOWED_NAVIGATOR_RECORD_EDGES,
           ].some(([source, reached]) => project.name === source && target.name === reached)
         ) {
+          continue;
+        }
+        if (project.name === 'wbs-be-01' && target.name === 'twilight-dash') {
+          const importers = getFileMap()
+            .fileMap.projectFileMap[project.name].filter((file) =>
+              file.deps?.some((dependency) => fileDataDepTarget(dependency) === target.name),
+            )
+            .map((file) => file.file)
+            .sort();
+          // The executable smoke composes both real applications; production WBS must not.
+          // Proof: an extra production importer and an unattributed implicit edge each
+          // failed this exact-file assertion (2026-10-25).
+          expect(importers).toEqual(['apps/wbs/be-01/scripts/resource-cleanup-smoke.ts']);
           continue;
         }
         // Excused only when the edge is reached through an allowed alias and through no

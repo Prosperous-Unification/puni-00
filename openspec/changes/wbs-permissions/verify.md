@@ -5,7 +5,7 @@ Commands, results and R5 proofs, per task. Tasks 1.1 and 1.2 also carry
 
 ## 1.1 Migration `add_access_grants` (2026-10-25, branch `feat/wbs-permissions-1`)
 
-`apps/wbs/be-01/drizzle/20261025100000_add_access_grants/{migration,down}.sql`, test
+`apps/wbs/be-01/drizzle/20261102120000_add_access_grants/{migration,down}.sql`, test
 `apps/wbs/be-01/src/access-grant-migration.db.test.ts` (19 cases).
 
 | Command                                                                                           | Result                                   |
@@ -38,7 +38,7 @@ script restored:
 | down guard: permission rows of no built-in made `0`                           | refuses rollback over a permission row of no built-in role (orphan deleted)      |
 
 Moved alongside: every store-sqlite and be-01 test that enumerates the migration stack
-gained `20261025100000_add_access_grants`; `step.db.test.ts`'s "role nowhere" sweep names
+gained `20261102120000_add_access_grants`; `step.db.test.ts`'s "role nowhere" sweep names
 the access role objects and `access_grant.role_id`, `access_role_permission.role_id` as
 exemptions by exact name; three table sweeps skip `access_*`.
 

@@ -9,6 +9,7 @@ const entry = (id: string): NewJournalEntry => ({
   id,
   projectId: 'p1',
   userId: 'owner',
+  personId: null,
   kind: 'estimate',
   payload: {},
   inverse: {},
@@ -134,18 +135,26 @@ describe('memory conformance fault controls', () => {
     // Proof: moving the barrier before the history push returned [] here.
     expect(control.observedJournalEventIds()).toEqual(['event-faulted']);
     // Proof: committing the staged state from the rejection path added `faulted` here.
-    expect((await source.stores.journal.entriesFor('p1', 'owner')).map(({ id }) => id)).toEqual([
-      'sentinel',
-    ]);
+    expect(
+      (
+        await source.stores.journal.entriesFor({ projectId: 'p1', userId: 'owner', personId: null })
+      ).map(({ id }) => id),
+    ).toEqual(['sentinel']);
     expect((await source.journalHistoryFor('p1')).map(({ id }) => id)).toEqual(['event-sentinel']);
     const restored = openMemorySourceWithFault(memoryLateWriteControl('journal-history-insert'));
     await restored.uow.run(async ({ stores }) => {
       await stores.journal.append(entry('restored'), event('restored'));
       return { commit: true, value: undefined };
     });
-    expect((await restored.stores.journal.entriesFor('p1', 'owner')).map(({ id }) => id)).toEqual([
-      'restored',
-    ]);
+    expect(
+      (
+        await restored.stores.journal.entriesFor({
+          projectId: 'p1',
+          userId: 'owner',
+          personId: null,
+        })
+      ).map(({ id }) => id),
+    ).toEqual(['restored']);
     expect((await restored.journalHistoryFor('p1')).map(({ id }) => id)).toEqual([
       'event-restored',
     ]);

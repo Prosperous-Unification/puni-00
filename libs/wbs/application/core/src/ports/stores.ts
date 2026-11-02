@@ -19,6 +19,7 @@ import type { StepProgressStore } from './progress-store';
 import type { ProjectRankStore, SharedPeopleStore } from './project-rank-store';
 import type { ProjectStore } from './project-store';
 import type { ResourceCapacityStore } from './resource-capacity-store';
+import type { RuntimeCommandStore } from './runtime-command-store';
 import type { SavedPlanCaptureStore } from './saved-plan-capture-store';
 import type { SavedPlanStore } from './saved-plan-store';
 import type { StepBlockageStore } from './step-blockage-store';
@@ -76,6 +77,8 @@ export interface PlanTransactionalStores {
   attempts: StepNodeAttemptStore;
   /** Who occupies a step or reserves a subtree now (`wbs-team-claims`). */
   claims: ClaimStore;
+  /** Permanent receiver identity, grants, exact bindings and accepted records. */
+  runtimeCommands: RuntimeCommandStore;
   /** What each work item needs of each resource (`wbs-resources`). */
   demands: DemandStore;
   dependencies: DependencyStore;

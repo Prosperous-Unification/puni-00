@@ -1,6 +1,7 @@
 import {
   isSecretShaped,
   ORGANIZATION_AUDIT_ACTIONS,
+  ORGANIZATION_AUDIT_SUBJECT_KINDS,
   type OrganizationAuditAction,
   type OrganizationAuditDetail,
   type OrganizationAuditLog,
@@ -13,18 +14,6 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 import { organizationAudit } from './schema';
 
 type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
-
-const SUBJECT_KINDS: readonly OrganizationAuditSubjectKind[] = [
-  'project',
-  'sso_connection',
-  'provisioning_token',
-  'scim_user',
-  'session_policy',
-  'machine_credential',
-  'trusted_issuer',
-  'organization_limits',
-  'compute_provider',
-];
 
 /**
  * Appends one row to `tx`, so it commits or rolls back with the act it
@@ -51,11 +40,7 @@ export function appendOrganizationAudit(
     readonly at: number;
   },
 ): void {
-  for (const value of Object.values(row.detail)) {
-    const strings = typeof value === 'string' ? [value] : Array.isArray(value) ? value : [];
-    if (strings.some((text: string) => isSecretShaped(text)))
-      throw new Error(`audit detail for ${row.action} would carry a secret or a full subject`);
-  }
+  assertAuditDetailHoldsNoSecret(row.action, row.detail);
   tx.insert(organizationAudit)
     .values({
       id: row.id,
@@ -68,6 +53,23 @@ export function appendOrganizationAudit(
       createdAt: row.at,
     })
     .run();
+}
+
+/**
+ * Refuses an audit detail any of whose values looks like a token, a digest or
+ * a full subject ({@link isSecretShaped}).
+ *
+ * @throws naming the action: a programming fault, and the act rolls back.
+ */
+export function assertAuditDetailHoldsNoSecret(
+  action: OrganizationAuditAction,
+  detail: OrganizationAuditDetail,
+): void {
+  for (const value of Object.values(detail)) {
+    const strings = typeof value === 'string' ? [value] : Array.isArray(value) ? value : [];
+    if (strings.some((text: string) => isSecretShaped(text)))
+      throw new Error(`audit detail for ${action} would carry a secret or a full subject`);
+  }
 }
 
 /** {@link OrganizationAuditLog} over the shared database. */
@@ -88,7 +90,7 @@ export class SqliteOrganizationAuditLog implements OrganizationAuditLog {
       .all();
     return rows.map((row) => {
       const actions: readonly string[] = ORGANIZATION_AUDIT_ACTIONS;
-      const kinds: readonly string[] = SUBJECT_KINDS;
+      const kinds: readonly string[] = ORGANIZATION_AUDIT_SUBJECT_KINDS;
       if (!actions.includes(row.action) || !kinds.includes(row.subjectKind))
         throw new Error(`organization audit row ${row.id} has a malformed action or kind`);
       const detail: unknown = JSON.parse(row.detail);

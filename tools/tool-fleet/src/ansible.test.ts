@@ -623,6 +623,121 @@ describe('the Ansible host and k3s contract', () => {
     );
   });
 
+  // Proof: deleting bubblewrap and busybox separately from the actual apt task
+  // failed this consumer; no synthetic replacement package list is used.
+  it('installs both system sandbox tools required by canonical gates', async () => {
+    const tasks = parse(
+      await readFile(
+        join(import.meta.dir, '../../../infra/ansible/roles/gate_host/tasks/main.yml'),
+        'utf8',
+      ),
+    ) as { name: string; 'ansible.builtin.apt'?: { name?: string[] } }[];
+    const prerequisites = tasks.find(({ name }) => name === 'Install gate prerequisites');
+    expect(prerequisites?.['ansible.builtin.apt']?.name).toContain('bubblewrap');
+    expect(prerequisites?.['ansible.builtin.apt']?.name).toContain('busybox');
+  });
+
+  it('requires system resolutions and both literal BusyBox paths in gate validation', async () => {
+    const tasks = parse(
+      await readFile(
+        join(import.meta.dir, '../../../infra/ansible/roles/gate_host/tasks/validate.yml'),
+        'utf8',
+      ),
+    ) as {
+      name: string;
+      become_user?: string;
+      changed_when?: boolean;
+      'ansible.builtin.command'?: { argv: string[] };
+      'ansible.builtin.assert'?: { that: string[] };
+    }[];
+    expect(
+      tasks.find(({ name }) => name === 'Require system sandbox tools')?.['ansible.builtin.assert']
+        ?.that,
+    ).toEqual([
+      "puni_gate_sandbox_probe.stdout_lines[0] == '/usr/bin/bwrap'",
+      "puni_gate_sandbox_probe.stdout_lines[1] is match('^bubblewrap [0-9]')",
+      "puni_gate_sandbox_probe.stdout_lines[2] == '/usr/bin/busybox'",
+    ]);
+    for (const path of ['/bin/busybox', '/usr/bin/busybox']) {
+      const probe = tasks.find((task) => task['ansible.builtin.command']?.argv[0] === path);
+      expect(probe?.['ansible.builtin.command']?.argv).toEqual([path, 'true']);
+      expect(probe?.become_user).toBe('{{ puni_gate_user }}');
+      expect(probe?.changed_when).toBe(false);
+    }
+  });
+
+  // This executes the unchanged parsed command with controlled PATH binaries.
+  // Healthy output proves shell propagation, not the separate system-path assert.
+  for (const fault of [
+    'healthy',
+    'bwrap-missing',
+    'bwrap-nonexecutable',
+    'bwrap-failed',
+    'busybox-missing',
+    'busybox-nonexecutable',
+    'busybox-failed',
+  ] as const) {
+    it(`propagates ${fault} from the exact gate sandbox PATH probe`, async () => {
+      const tasks = parse(
+        await readFile(
+          join(import.meta.dir, '../../../infra/ansible/roles/gate_host/tasks/validate.yml'),
+          'utf8',
+        ),
+      ) as {
+        name: string;
+        become_user?: string;
+        changed_when?: boolean;
+        'ansible.builtin.command'?: { argv: string[] };
+      }[];
+      const probe = tasks.find(
+        ({ name }) => name === 'Resolve sandbox tools the way a remote gate does',
+      );
+      const argv = probe?.['ansible.builtin.command']?.argv;
+      expect(argv).toBeDefined();
+      if (argv === undefined) throw Error('Required gate sandbox probe absent');
+      expect(probe?.become_user).toBe('{{ puni_gate_user }}');
+      expect(probe?.changed_when).toBe(false);
+      const home = await mkdtemp(join(tmpdir(), 'gate-sandbox-probe-'));
+      try {
+        const bin = join(home, 'bin');
+        await mkdir(bin);
+        await writeFile(join(home, '.bashrc'), 'export PATH="$PROBE_BIN"\n');
+        const log = join(home, 'probes');
+        for (const tool of ['bwrap', 'busybox']) {
+          if (fault === `${tool}-missing`) continue;
+          const path = join(bin, tool);
+          await writeFile(
+            path,
+            `#!/bin/sh\nprintf '%s\\n' '${tool}' >> "$PROBE_LOG"\n${fault === `${tool}-failed` ? 'exit 74' : tool === 'bwrap' ? "printf 'bubblewrap 0.0.0\\n'" : 'exit 0'}\n`,
+          );
+          await chmod(path, fault === `${tool}-nonexecutable` ? 0o600 : 0o700);
+        }
+        const execution = Bun.spawnSync(argv, {
+          env: { ...process.env, HOME: home, PROBE_BIN: bin, PROBE_LOG: log },
+          stdout: 'pipe',
+          stderr: 'pipe',
+          timeout: 5000,
+        });
+        if (fault === 'healthy') {
+          expect(execution.exitCode).toBe(0);
+          expect(execution.stdout.toString().trim().split('\n')).toEqual([
+            join(bin, 'bwrap'),
+            'bubblewrap 0.0.0',
+            join(bin, 'busybox'),
+          ]);
+          expect(await readFile(log, 'utf8')).toBe('bwrap\nbusybox\n');
+        } else {
+          expect(execution.exitCode).not.toBe(0);
+          if (fault.endsWith('-failed')) expect(execution.exitCode).toBe(74);
+          if (fault.startsWith('bwrap-'))
+            expect(execution.stdout.toString()).not.toContain(join(bin, 'busybox'));
+        }
+      } finally {
+        await rm(home, { recursive: true });
+      }
+    });
+  }
+
   it('configures a gate host whose lock and toolchain match the gate scripts', async () => {
     const root = join(import.meta.dir, '../../..');
     const defaults = parse(

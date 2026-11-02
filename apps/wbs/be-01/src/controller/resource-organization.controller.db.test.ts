@@ -84,7 +84,15 @@ describe('resources in an organization', () => {
       status: 200,
       body: {
         resources: [
-          { id: ram, name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB', providerId: null },
+          {
+            id: ram,
+            name: 'h2puni ram',
+            kind: 'divisible',
+            unitLabel: 'GB',
+            providerId: null,
+            // Unstated: no directory capacity (`wbs-shared-occupancy` S1).
+            directoryCapacity: null,
+          },
         ],
         capacities: [],
         demands: [],
@@ -107,7 +115,15 @@ describe('resources in an organization', () => {
       status: 200,
       body: {
         resources: [
-          { id: ram, name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB', providerId: null },
+          {
+            id: ram,
+            name: 'h2puni ram',
+            kind: 'divisible',
+            unitLabel: 'GB',
+            providerId: null,
+            // Unstated: no directory capacity (`wbs-shared-occupancy` S1).
+            directoryCapacity: null,
+          },
         ],
         capacities: [{ resourceId: ram, units: 32 }],
         demands: [{ workItemId: 'w-a', resourceId: ram, units: 4 }],

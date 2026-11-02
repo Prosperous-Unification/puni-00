@@ -1187,6 +1187,8 @@ describe('the browser writes through command batches (plan-commands)', () => {
       [() => api.freezeProject('p1'), 'freezeProject'],
       [() => api.unfreezeProject('p1'), 'unfreezeProject'],
       [() => api.unfreezeWorkItem('w1'), 'unfreezeWorkItem'],
+      [() => api.claimWorkItem('w1', 'person-k'), 'claimWorkItem'],
+      [() => api.releaseWorkItem('w1', 'person-k'), 'releaseWorkItem'],
       [() => api.setTeamCapacity('p1', 'team1', 3), 'setCapacity'],
       [() => api.setPriorityBands('p1', []), 'setPriorityBands'],
     ];
@@ -1214,6 +1216,11 @@ describe('the browser writes through command batches (plan-commands)', () => {
       }
       if (kind === 'removeTypedDependency') {
         expect(body.commands[0]).toEqual({ kind, dependencyId: 'd1' });
+      }
+      // A human claim names its person and nothing else: no steps (every step
+      // not done), no run, so be-01 writes no lease (`wbs-claim-display` 11.2).
+      if (kind === 'claimWorkItem' || kind === 'releaseWorkItem') {
+        expect(body.commands[0]).toEqual({ kind, workItemId: 'w1', personId: 'person-k' });
       }
     }
     // And the create answers the id the batch minted, as the route did.

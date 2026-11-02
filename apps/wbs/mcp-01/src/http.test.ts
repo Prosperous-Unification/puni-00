@@ -21,6 +21,7 @@ const CONFIG: McpConfig = {
   MCP_AUTH_MODE: 'standalone',
   WBS_API_URL: 'https://dev.wbs.bulletpoints.club',
   MCP_PUBLIC_URL: 'https://dev.wbs.bulletpoints.club/mcp',
+  MCP_TRUSTED_PROXY_HOPS: 1,
 };
 
 const unusedUnexpectedToolFailureReporter = () => ({
@@ -62,7 +63,7 @@ describe('oauthMetadataResponse', () => {
       jwks_uri: 'https://dev.wbs.bulletpoints.club/mcp/oauth/jwks',
       response_types_supported: ['code'],
       grant_types_supported: ['authorization_code', 'refresh_token'],
-      token_endpoint_auth_methods_supported: ['none'],
+      token_endpoint_auth_methods_supported: ['none', 'client_secret_basic', 'client_secret_post'],
       code_challenge_methods_supported: ['S256'],
       scopes_supported: ['wbs:read', 'wbs:write', 'wbs:editor'],
       authorization_response_iss_parameter_supported: true,
@@ -165,6 +166,38 @@ describe('mcpHttpResponse', () => {
 });
 
 describe('mcpFetchHandler', () => {
+  // Proof: passing null for the peer in `mcpFetchHandler` made this see [null]; watched
+  // 2026-10-27.
+  it("hands the OAuth routes the socket's address, which MCP_TRUSTED_PROXY_HOPS=0 reads", async () => {
+    const peers: (string | null)[] = [];
+    const server = Bun.serve({
+      port: 0,
+      hostname: '127.0.0.1',
+      fetch: mcpFetchHandler(
+        () => {
+          throw new Error('no MCP request is sent');
+        },
+        CONFIG,
+        { verify: () => Promise.reject(new Error('no token is verified')) },
+        {},
+        {
+          response: (_request, peer) => {
+            peers.push(peer);
+            return Promise.resolve(new Response('seen'));
+          },
+        },
+      ),
+    });
+    try {
+      expect(await (await fetch(`http://127.0.0.1:${String(server.port)}/oauth`)).text()).toBe(
+        'seen',
+      );
+      expect(peers).toEqual(['127.0.0.1']);
+    } finally {
+      await server.stop(true);
+    }
+  });
+
   const claims = {
     iss: 'https://idp.example',
     sub: 'caller',

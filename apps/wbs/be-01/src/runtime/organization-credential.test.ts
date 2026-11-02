@@ -94,3 +94,47 @@ test('legacy native token without jti and expired token cannot bind an organizat
   expect(await evidenceOf(expired, principal)).toBeNull();
   expect(await evidenceOf(unbounded, principal)).toBeNull();
 });
+
+// Proof: answering null here instead (the first slice 4 draft) left this
+// resolving; watched 2026-10-25.
+test('throws for groups-less upstream evidence behind an admitted principal', async () => {
+  const key = 'k'.repeat(64);
+  const auth = new AuthService({
+    clock: testClock,
+    users: inMemoryUsers(),
+    tokens: joseTokenCodec(key),
+    passwords: bunPasswordHasher,
+  });
+  const evidenceOf = organizationCredentialEvidence(auth, key, () =>
+    Promise.resolve({
+      kind: 'oidc',
+      identity: {
+        issuer: 'https://idp.test',
+        subject: 'claire-m2m@clients',
+        email: null,
+        emailVerified: false,
+        scopes: [],
+        groupsClaimed: false,
+      },
+      expiresAt: Date.now() + 60_000,
+      digest: 'd'.repeat(64),
+    }),
+  );
+  const principal = {
+    id: 'dany',
+    username: 'dany',
+    scopes: ['read' as const],
+    authentication: {
+      kind: 'upstream' as const,
+      issuer: 'https://idp.test',
+      subject: 'claire-m2m@clients',
+    },
+  };
+  const outcome = await evidenceOf('groupless-token', principal).then(
+    () => 'resolved',
+    (error: unknown) => (error instanceof Error ? error.message : String(error)),
+  );
+  expect(outcome).toBe(
+    'a groups-less token of the configured issuer reached organization evidence',
+  );
+});

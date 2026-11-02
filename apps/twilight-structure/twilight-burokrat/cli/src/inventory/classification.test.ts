@@ -648,6 +648,117 @@ describe('entry classification production CLI', () => {
   );
 
   test.each(['policy.json', 'bootstrap-policy.json'])(
+    'partitions fixture segments inside test directories with docs/wiki-policy/%s',
+    async (policyName) => {
+      const repository = createRepository();
+      const runtimeFixture = 'tools/tool-observability-stack/test/fixtures/runtime.json';
+      const neighboringTest = 'tools/tool-observability-stack/test/runtime.test.ts';
+      write(repository, runtimeFixture, '{"runtime":true}\n');
+      write(
+        repository,
+        neighboringTest,
+        'throw new Error("classification must not execute tests");\n',
+      );
+      write(repository, 'tests/__fixtures__/sample.json', '{"fixture":true}\n');
+      write(
+        repository,
+        'e2e/fixtures/sample.ts',
+        'throw new Error("classification must not execute fixtures");\n',
+      );
+      write(repository, 'src/main.ts', 'export const main = true;\n');
+      const revision = commitAll(repository);
+      const trustedPolicy = JSON.parse(
+        readFileSync(
+          join(import.meta.dir, '../../../../../..', 'docs/wiki-policy', policyName),
+          'utf8',
+        ),
+      ) as { classificationPolicy: object };
+      const invocation = await classify(
+        repository,
+        revision,
+        writePolicy(repository, trustedPolicy.classificationPolicy),
+      );
+
+      // Proof: omitting either fixture-segment test exclusion from either shipped policy
+      // made this positive hit `matched 2 classification rules` (four controlled faults).
+      expect(invocation.exitCode, output(invocation)).toBe(0);
+      const classified = JSON.parse(standardOutput(invocation)) as {
+        entries: { path: string; classification: { kind: string; contentClass: string } }[];
+      };
+      expect(
+        classified.entries.map(({ path, classification }) => ({ path, classification })),
+      ).toEqual([
+        {
+          path: 'e2e/fixtures/sample.ts',
+          classification: { kind: 'content', contentClass: 'fixture' },
+        },
+        {
+          path: 'src/main.ts',
+          classification: { kind: 'content', contentClass: 'source' },
+        },
+        {
+          path: 'tests/__fixtures__/sample.json',
+          classification: { kind: 'content', contentClass: 'fixture' },
+        },
+        {
+          path: runtimeFixture,
+          classification: { kind: 'content', contentClass: 'fixture' },
+        },
+        {
+          path: neighboringTest,
+          classification: { kind: 'content', contentClass: 'test' },
+        },
+      ]);
+    },
+  );
+
+  test.each([
+    ['fixtures', 'policy.json', 'tools/tool-observability-stack/test/fixtures/runtime.json'],
+    ['__fixtures__', 'policy.json', 'tests/__fixtures__/sample.json'],
+    [
+      'fixtures',
+      'bootstrap-policy.json',
+      'tools/tool-observability-stack/test/fixtures/runtime.json',
+    ],
+    ['__fixtures__', 'bootstrap-policy.json', 'tests/__fixtures__/sample.json'],
+  ])(
+    'refuses missing %s test exclusion with docs/wiki-policy/%s',
+    async (segment, policyName, path) => {
+      const repository = createRepository();
+      write(repository, path, '{"fixture":true}\n');
+      const revision = commitAll(repository);
+      const trustedPolicy = JSON.parse(
+        readFileSync(
+          join(import.meta.dir, '../../../../../..', 'docs/wiki-policy', policyName),
+          'utf8',
+        ),
+      ) as {
+        classificationPolicy: {
+          contentRules: { contentClass: string; exclude: { kind: string; value: string }[] }[];
+        };
+      };
+      const testRule = trustedPolicy.classificationPolicy.contentRules.find(
+        ({ contentClass }) => contentClass === 'test',
+      );
+      if (testRule === undefined) throw new Error('trusted test rule missing');
+      expect(testRule.exclude).toContainEqual({ kind: 'segment', value: segment });
+      testRule.exclude = testRule.exclude.filter(
+        (selector) => selector.kind !== 'segment' || selector.value !== segment,
+      );
+      const invocation = await classify(
+        repository,
+        revision,
+        writePolicy(repository, trustedPolicy.classificationPolicy),
+      );
+
+      expect(invocation.exitCode, output(invocation)).toBe(1);
+      expect(output(invocation).trim()).toBe(
+        `ordinary content ${path} matched 2 classification rules`,
+      );
+    },
+  );
+
+  test.each(['policy.json', 'bootstrap-policy.json'])(
     'classifies OpenSpec codec review scripts without absorbing runtime source with %s',
     async (policyName) => {
       const repository = createRepository();

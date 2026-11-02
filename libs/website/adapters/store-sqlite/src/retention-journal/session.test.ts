@@ -678,3 +678,104 @@ test('a journaled anchor resolution refuses an anchor after surviving content', 
     restored.close();
   }
 });
+
+test('restoring a pre-erasure snapshot clears scoping references and candidates before serving', async () => {
+  const { databasePath, directory, remote } = await fixture();
+  const snapshotPath = join(directory, 'scoping-snapshot.sqlite');
+  const database = open(databasePath);
+  database.run(`
+    INSERT INTO intake_draft (id, description, claim_hash, created_at, expires_at, scoping_version, start_conversation) VALUES ('scoping', 'Opening', 'claim-scoping', 1, 100000, 1, 1);
+    INSERT INTO draft_scoping (draft_id, reference_text, candidate_brief, created_at, updated_at, first_content_at) VALUES ('scoping', 'SECRET reference', 'SECRET candidate', 1, 2, 2);
+    UPDATE software_request SET draft_id = 'scoping' WHERE id = 'req-3';
+    INSERT INTO conversation (id, draft_id, source_hash, state, created_at) VALUES ('scoping-talk', 'scoping', 'source', 'open', 1);
+    INSERT INTO conversation_operation (id, conversation_id, idempotency_key, source_hash, body_hash, message, initial, stage, prompt_version, state, utc_day, reserved_micro_usd, created_at, reply_version) VALUES ('scoping-op', 'scoping-talk', 'key', 'source', 'hash', 'SECRET message', 1, 'clarify', 'v1', 'inflight', '1970-01-01', 500, 2, 1);
+  `);
+  database
+    .query(
+      "UPDATE conversation_operation SET initial = 0, request_json = ? WHERE id = 'scoping-op'",
+    )
+    .run(JSON.stringify({ message: 'SECRET raw retry explanation' }));
+  database
+    .query(
+      "INSERT INTO conversation_operation (id, conversation_id, idempotency_key, source_hash, body_hash, message, initial, stage, prompt_version, state, utc_day, reserved_micro_usd, settled_micro_usd, settlement, created_at, reply_version, reply) VALUES ('scoping-completed', 'scoping-talk', 'completed-key', 'source', 'completed-hash', 'SECRET completed message', 0, 'clarify', 'puni-scoping-v1', 'completed', '1970-01-01', 500, 50, 'usage', 3, 1, ?)",
+    )
+    .run(
+      JSON.stringify({
+        version: 1,
+        message: 'SECRET structured prose',
+        nextQuestionId: null,
+        brief: 'SECRET structured brief',
+      }),
+    );
+  database.run(`VACUUM INTO '${snapshotPath}'`);
+  const session = await openRetentionJournal(database, remote, options());
+  fenceSubject(database, subject('req-3'));
+  await session.append(subject('req-3'), erase);
+  database.close();
+  const restored = open(snapshotPath);
+  try {
+    await openRetentionJournal(restored, remote, options());
+    expect(() =>
+      restored
+        .query('UPDATE conversation_operation SET request_json = ?')
+        .run(JSON.stringify({ message: 'SECRET resurrected retry' })),
+    ).toThrow('fenced');
+    await openRetentionJournal(restored, remote, options());
+    expect(restored.query('SELECT request_json FROM conversation_operation').get()).toEqual({
+      request_json: null,
+    });
+    expect(
+      restored.query('SELECT reference_text, candidate_brief FROM draft_scoping').get(),
+    ).toEqual({ reference_text: null, candidate_brief: null });
+    expect(
+      restored
+        .query(
+          "SELECT state, reserved_micro_usd, settled_micro_usd, reply_version, request_json FROM conversation_operation WHERE id = 'scoping-op'",
+        )
+        .get(),
+    ).toEqual({
+      state: 'unknown',
+      reserved_micro_usd: 500,
+      settled_micro_usd: 500,
+      reply_version: 1,
+      request_json: null,
+    });
+    expect(
+      restored
+        .query(
+          "SELECT reply, reply_version, settled_micro_usd FROM conversation_operation WHERE id = 'scoping-completed'",
+        )
+        .get(),
+    ).toEqual({ reply: '', reply_version: 1, settled_micro_usd: 50 });
+    expect(() =>
+      restored
+        .query("UPDATE conversation_operation SET reply = ? WHERE id = 'scoping-completed'")
+        .run(
+          JSON.stringify({
+            version: 1,
+            message: 'SECRET restored envelope',
+            nextQuestionId: null,
+            brief: null,
+          }),
+        ),
+    ).toThrow('fenced');
+    expect(() => restored.run("UPDATE draft_scoping SET candidate_brief = 'SECRET late'")).toThrow(
+      'fenced',
+    );
+    await openRetentionJournal(restored, remote, options());
+    expect(
+      restored.query('SELECT reference_text, candidate_brief FROM draft_scoping').get(),
+    ).toEqual({ reference_text: null, candidate_brief: null });
+  } finally {
+    restored.close();
+  }
+  new WebsiteStore(snapshotPath).close();
+  const reopened = open(snapshotPath);
+  expect(reopened.query('SELECT request_json FROM conversation_operation').get()).toEqual({
+    request_json: null,
+  });
+  expect(reopened.query('SELECT reference_text, candidate_brief FROM draft_scoping').get()).toEqual(
+    { reference_text: null, candidate_brief: null },
+  );
+  reopened.close();
+});

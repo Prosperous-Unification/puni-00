@@ -55,6 +55,7 @@ export const listComputeProviders = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/compute-providers',
   operationId: 'getApiOrganizationCompute-providers',
+  humanOnly: true,
   policies: [...readPolicy, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     {
@@ -76,6 +77,7 @@ export const registerComputeProvider = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/compute-providers',
   operationId: 'postApiOrganizationCompute-providers',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   body: requestSchema(
     type({ kind: providerKind, name: '0 < string <= 80', locator: '0 < string <= 256' }),
@@ -94,6 +96,7 @@ export const updateComputeProvider = defineEndpointShape({
   method: 'PATCH',
   path: '/api/organization/compute-providers/:id',
   operationId: 'patchApiOrganizationCompute-providersById',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   body: requestSchema(type({ 'name?': '0 < string <= 80', 'locator?': '0 < string <= 256' })),
@@ -116,6 +119,7 @@ export const removeComputeProvider = defineEndpointShape({
   method: 'DELETE',
   path: '/api/organization/compute-providers/:id',
   operationId: 'deleteApiOrganizationCompute-providersById',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   query: requestSchema(type({ 'cascade?': "'true'" })),

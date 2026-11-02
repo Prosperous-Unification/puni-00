@@ -322,7 +322,7 @@ describe('reviewed module file selection', () => {
     expect(() => select(history)).toThrow();
   });
 
-  it('selects actual website contracts independently', () => {
+  it('uses explained module fallback for unreviewed references in actual website contracts', () => {
     const source = `${MODULE}/src/brief.ts`;
     const selection = selectTestFiles(
       ROOT,
@@ -338,7 +338,12 @@ describe('reviewed module file selection', () => {
       },
       'website-contracts',
     );
-    expect(selection).toMatchObject({ mode: 'files', files: [`${MODULE}/src/brief.test.ts`] });
+    // Proof: bypassing unsupported-impact widening selected only brief.test.ts and failed
+    // this actual-module regression with files mode instead of module mode (2026-10-26).
+    expect(selection).toMatchObject({ mode: 'module', project: 'website-contracts' });
+    expect(selection.reasons.join('\n')).toContain(
+      `Unsupported global/import reference Object in ${MODULE}/src/analytics.test.ts`,
+    );
   });
 });
 

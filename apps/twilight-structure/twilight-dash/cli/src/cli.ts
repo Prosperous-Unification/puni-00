@@ -13,10 +13,16 @@ import { runActivationChecksCommand, spawnCheck } from './check-runs/run-activat
 import type { Monotonic, WallClock } from './clock';
 import { dockerAdapter } from './compute/docker';
 import { kubernetesStubAdapter } from './compute/kubernetes';
-import { reportCapacityCommand, sleepUnlessInterrupted } from './compute/report-capacity';
+import {
+  reportCapacityCommand,
+  REQUEST_TIMEOUT_MS,
+  sleepUnlessInterrupted,
+} from './compute/report-capacity';
 import { sshHostAdapter } from './compute/ssh-host';
 import { accountOutcomes } from './ledger/account-outcomes';
+import { McpWbsTools } from './mcp/wbs-tools';
 import { recordBoundProgress, recordProgress } from './progress/record-progress';
+import { runResources } from './resources/command';
 
 const enrollmentFlags = [
   '--fleet',
@@ -30,6 +36,9 @@ const enrollmentFlags = [
 ] as const;
 
 type PlanEnrollment = (argv: readonly string[]) => Promise<void>;
+
+/** A resource runtime tool call's deadline, as its HTTP requests had. */
+const RESOURCE_CALL_TIMEOUT_MS = 15_000;
 
 /** Everything `runDash` reaches outside its arguments, composed once by `entrypoint.ts`. */
 export interface DashDependencies {
@@ -57,7 +66,8 @@ export async function runFleetPlan(argv: readonly string[]): Promise<void> {
  * through the stateless check runner, which spawns each check with {@link spawnCheck}.
  * `record-progress` and `record-progress-v2` record explicit operator assertions;
  * `account-outcomes` writes the period's efficiency breakdown; `report-capacity` runs the compute
- * providers' capacity reporter until it exits. Every other command refuses before any effect.
+ * providers' capacity reporter until it exits. Every other command refuses before any effect;
+ * `mcp` never reaches here, because `entrypoint.ts` dispatches it before loading this module.
  */
 export async function runDash(argv: readonly string[], deps: DashDependencies): Promise<void> {
   // A JavaScript caller can omit what the type requires; refuse rather than reach for a default.
@@ -70,6 +80,23 @@ export async function runDash(argv: readonly string[], deps: DashDependencies): 
     }
   }
   const [command, ...argumentsAfterCommand] = argv;
+  if (command === 'resources') {
+    process.exitCode = await runResources(
+      argumentsAfterCommand,
+      deps.clock,
+      (text) => deps.stdout.write(text),
+      (endpoint, key) =>
+        new McpWbsTools({
+          endpoint,
+          key,
+          send: (input, init) => fetch(input, init),
+          monotonic: deps.monotonic,
+          timeoutMs: RESOURCE_CALL_TIMEOUT_MS,
+          clientName: 'twilight-dash-resources',
+        }),
+    );
+    return;
+  }
   const commandDependencies = {
     clock: deps.clock,
     write: (text: string) => deps.stdout.write(text),
@@ -142,7 +169,15 @@ export async function runDash(argv: readonly string[], deps: DashDependencies): 
       },
       {
         clock: deps.clock,
-        send: (request) => fetch(request),
+        connect: (endpoint, key) =>
+          new McpWbsTools({
+            endpoint,
+            key,
+            send: (input, init) => fetch(input, init),
+            monotonic: deps.monotonic,
+            timeoutMs: REQUEST_TIMEOUT_MS,
+            clientName: 'twilight-dash-report-capacity',
+          }),
         sleep: sleepUnlessInterrupted,
         write: (text) => deps.stdout.write(text),
       },

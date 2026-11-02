@@ -1,6 +1,6 @@
-import type { UndoState } from './command-journal-values';
+import type { UndoStack, UndoState } from './command-journal-values';
 import type { PlanEvent } from './plan-event-store';
-export type { UndoState } from './command-journal-values';
+export type { UndoStack, UndoState } from './command-journal-values';
 
 /**
  * One command an account ran on one project, and what it takes to reverse it.
@@ -13,7 +13,12 @@ export interface JournalEntry {
   id: string;
   projectId: string;
   userId: string;
-  /** This entry's place in the account's stack for this project; higher is newer. */
+  /** The acting person whose stack holds this entry; see {@link UndoStack}. */
+  personId: string | null;
+  /**
+   * This entry's place among every entry of its project and account; higher is
+   * newer. Shared by the account's stacks, so one stack's numbers have gaps.
+   */
   seq: number;
   kind: string;
   /** `{label, forward}` — what to say about it, and what a redo re-applies. */
@@ -32,6 +37,7 @@ export interface NewJournalEntry {
   id: string;
   projectId: string;
   userId: string;
+  personId: string | null;
   kind: string;
   payload: unknown;
   inverse: unknown;
@@ -40,7 +46,7 @@ export interface NewJournalEntry {
 }
 
 /**
- * The last {@link JOURNAL_DEPTH} commands each account ran on each project.
+ * The last {@link JOURNAL_DEPTH} commands on each {@link UndoStack}.
  *
  * Deep enough to walk back through a working session, shallow enough that the
  * table does not grow without bound on a plan somebody edits every day. A
@@ -51,14 +57,16 @@ export const JOURNAL_DEPTH = 50;
 
 export interface CommandJournalStore {
   /**
-   * Appends a command to the account's stack for this project and the same
-   * command to the project's history, **clearing that account's redo branch**
-   * and pruning past {@link JOURNAL_DEPTH}, in one transaction.
+   * Appends a command to the entry's {@link UndoStack} and the same command to
+   * the project's history, **clearing that stack's redo branch** and pruning
+   * that stack past {@link JOURNAL_DEPTH}, in one transaction.
    *
    * The redo branch goes because it describes a future that no longer exists:
    * having undone a rename and then typed something else, re-applying the
    * rename would put back a value computed from a plan that has moved on. Only
-   * this account's branch goes — the stacks are per account.
+   * this stack's branch goes: an agent's edit leaves its human's redo, and the
+   * prune counts this stack's entries alone, so a busy agent never evicts its
+   * human's history.
    *
    * **`event` is a second argument rather than a second call**, and that is the
    * one thing this signature exists to guarantee. Two calls are two
@@ -78,14 +86,14 @@ export interface CommandJournalStore {
    */
   appendEvent(event: PlanEvent): Promise<void>;
   /**
-   * The whole of one account's stack for one project, **oldest first**.
+   * The whole of one {@link UndoStack}, **oldest first**.
    *
    * All of it rather than just the end being asked for, because applying one
    * entry re-stamps its neighbours: an undo is a write, and the entries below
-   * it hold revisions that this account's own undo has just walked past. It is
+   * it hold revisions that this stack's own undo has just walked past. It is
    * bounded by {@link JOURNAL_DEPTH}, so this is fifty rows at worst.
    */
-  entriesFor(projectId: string, userId: string): Promise<JournalEntry[]>;
+  entriesFor(stack: UndoStack): Promise<JournalEntry[]>;
   /**
    * Moves one entry between the two halves of the stack, and records the
    * revisions the direction just applied left behind.
@@ -95,8 +103,11 @@ export interface CommandJournalStore {
    * be checked against revisions the tree has deliberately moved past — every
    * redo would read as stale, and the redo half of the stack would be
    * decorative.
+   *
+   * @throws when `id` is not an entry of `stack`: the caller read it from that
+   * stack, so a miss is another actor's entry or a lost one, never a no-op.
    */
-  flip(id: string, undone: boolean, preconditions: unknown): Promise<void>;
+  flip(stack: UndoStack, id: string, undone: boolean, preconditions: unknown): Promise<void>;
   /**
    * Rewrites one entry's preconditions where it stands, without moving it
    * between the halves of the stack.
@@ -115,6 +126,6 @@ export interface CommandJournalStore {
    * nobody can reach any more.
    */
   discard(id: string): Promise<void>;
-  /** Whether either half of the account's stack has anything in it. */
-  stateOf(projectId: string, userId: string): Promise<UndoState>;
+  /** Whether either half of the stack has anything in it. */
+  stateOf(stack: UndoStack): Promise<UndoState>;
 }

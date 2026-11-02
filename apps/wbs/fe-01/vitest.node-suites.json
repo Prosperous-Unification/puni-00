@@ -27,6 +27,12 @@
       "file": "src/components/wbs/claim-limit-words.test.ts"
     },
     {
+      "file": "src/components/wbs/claim-offer.test.ts"
+    },
+    {
+      "file": "src/components/wbs/claim-refusal-words.test.ts"
+    },
+    {
       "file": "src/components/wbs/column-hints.test.ts"
     },
     {

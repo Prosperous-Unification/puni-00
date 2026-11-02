@@ -25,5 +25,11 @@ export function websiteMigrations(): { name: string; directory: string }[] {
       name: '010_retention_journal',
       directory: join(import.meta.dir, 'migrations/010_retention_journal'),
     },
+    { name: '011_scoping', directory: join(import.meta.dir, 'migrations/011_scoping') },
+    {
+      name: '012_conversation_request',
+      directory: join(import.meta.dir, 'migrations/012_conversation_request'),
+    },
+    { name: '013_reply_failure', directory: join(import.meta.dir, 'migrations/013_reply_failure') },
   ];
 }

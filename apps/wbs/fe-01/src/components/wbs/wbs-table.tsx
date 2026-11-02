@@ -21,6 +21,7 @@ import type { DemandStatement } from '@/lib/wbs-api';
 
 import { type CellCards, createCellCards } from './cell-card-store';
 import type { CellRef } from './cell-navigation';
+import { claimantOf, claimOfferOf, releaseWords } from './claim-offer';
 import { ClaimsSheet, useClaimsOffered } from './claims-sheet';
 import { type ColumnHintState, hintFor } from './column-hints';
 import { CompletionPrompt, type PromptedStatus } from './completion-prompt';
@@ -94,7 +95,7 @@ import {
   useEstimateMentions,
 } from './use-estimate-drafts';
 import { useMeasureDefinitions } from './use-measure-definitions';
-import { usePlanClaims } from './use-plan-claims';
+import { planInitialsOf, usePlanClaims } from './use-plan-claims';
 import { usePlanDependencies } from './use-plan-dependencies';
 import { usePlanFields } from './use-plan-fields';
 import { usePlanFilter, usePlanFilterState } from './use-plan-filter';
@@ -684,6 +685,7 @@ export function WbsTable({
   planImport,
   toastApi: toastApiOverride,
   savedPlansShelf,
+  viewerAccountId,
 }: WbsTableProps) {
   const interaction = usePlanInteractionScope();
   const isPlanActive = useCallback(() => interaction?.isPlanActive() ?? true, [interaction]);
@@ -1493,6 +1495,56 @@ export function WbsTable({
       createPersonFor,
     });
   const { hasSchedule, spanOf } = usePlanSchedule({ scheduleError });
+  /** Who this account claims as (C23), or null for a table drawn for no account. */
+  const claimant = useMemo(
+    () => (viewerAccountId === undefined ? null : claimantOf(people, viewerAccountId)),
+    [people, viewerAccountId],
+  );
+  /**
+   * A human claim or release from the row menu (`wbs-claim-display` 11.2):
+   * one command naming the bound person, which a session sends with no lease.
+   * It moves claims and, for a claim, the leaf's progress, so both are read
+   * again; a refusal is the writer's toast, worded by `claimRefusalSentence`.
+   *
+   * Proof: `perform(['tree'], …)` here made `offers Claim after the statuses,
+   * and claims for the bound person` fail on `expected to have a length of 2
+   * but got +0` (no chip drawn); watched 2026-10-27.
+   */
+  const claimRow = useCallback(
+    (rowId: string, personId: string) => {
+      void run((write) =>
+        write.perform(['tree', 'claims'], () => commands.claimWorkItem(rowId, personId)),
+      );
+    },
+    [commands, run],
+  );
+  /**
+   * Releases the person's claims on the row and says what went, the delegated
+   * claims be-01 releases with a subtree claim included (review of PR #763, S2).
+   *
+   * Proof: the toast saying only `Released your claim.` whatever `delegated`
+   * says made `says how many delegated claims Release takes with it` fail on
+   * `expected [ 'Released your claim.' ] to include 'Released your claim and 2
+   * under it.'`; watched 2026-10-27.
+   */
+  const releaseRow = useCallback(
+    (rowId: string, personId: string, delegated: number) => {
+      void (async () => {
+        const outcome = await run((write) =>
+          write.perform(['tree', 'claims'], () => commands.releaseWorkItem(rowId, personId)),
+        );
+        if (!didLand(outcome)) return;
+        pushToast({ kind: 'info', text: `Released ${releaseWords(delegated)}.` });
+      })();
+    },
+    [commands, run, pushToast],
+  );
+  /** One mark per person the plan prints (C22), shared by the assignee slot and every chip. */
+  const initials = useMemo(
+    // `flat`: every row of the tree, nested ones included, whatever is collapsed.
+    () => planInitialsOf(flat, indexById(people), claims),
+    [flat, people, claims],
+  );
   const { nonOwnerNoteOf, assigneeOn, anyAssigneeOn } = usePlanAssignments({
     effectiveTeams,
     teams,
@@ -1500,15 +1552,17 @@ export function WbsTable({
     services,
     people,
     flat,
+    initials,
   });
   /** The plan's one lease clock (C6), which every chip reads; no chip owns a timer. */
   const leaseClock = useLeaseClock();
-  const { stepClaimOn, subtreeClaimOn, anyClaimOn, leaseDeadlineOn } = usePlanClaims({
+  const { stepClaimOn, subtreeClaimOn, anyClaimOn, claimsOn, leaseDeadlineOn } = usePlanClaims({
     claims,
     rows: flat,
     steps,
     zone: chartRead.timezone,
     leaseClock,
+    initials,
   });
 
   /**
@@ -1666,6 +1720,10 @@ export function WbsTable({
         // it` fail on `expected [ 'CL14m' ] to deeply equal []`; watched
         // 2026-10-24.
         subtreeClaim: subtreeClaimOn(row.id),
+        claimOffer:
+          claimant === null
+            ? null
+            : claimOfferOf(claimant, claimsOn(row.id), row.status === 'done'),
         hasSchedule: hasSchedule(),
         finish: span.finish,
         nonOwnerNote: nonOwnerNoteOf(row),
@@ -1687,6 +1745,8 @@ export function WbsTable({
     anyClaimOn,
     assigneeOn,
     busy,
+    claimant,
+    claimsOn,
     causeLabels,
     chartRead.timezone,
     combinedProblem,
@@ -1756,6 +1816,8 @@ export function WbsTable({
     openMoveUnder: setMoveUnderFor,
     openMeasures: setMeasuresFor,
     openDemands: setDemandsFor,
+    claimRow,
+    releaseRow,
     deleteRow,
     commitNameCell,
     onKeyDown,
@@ -3032,6 +3094,16 @@ export function WbsTable({
                 },
                 chooseStatus,
                 statusOffers,
+                ...(claimant === null
+                  ? {}
+                  : {
+                      claims: {
+                        offerOf: (row) =>
+                          claimOfferOf(claimant, claimsOn(row.id), row.status === 'done'),
+                        claim: claimRow,
+                        release: releaseRow,
+                      },
+                    }),
               }}
             />
           ) : (

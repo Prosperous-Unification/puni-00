@@ -8,15 +8,27 @@ import { requestSchema, responseSchema } from './schema-shape';
  * The be-01 routes mcp-01 alone calls for organization delegation
  * (`organization-ownership-and-access` tasks 2.5, 6.4 and 6.6) and for a
  * consent that acts as an agent person (`wbs-machine-credentials` A20). Each
- * needs mcp-01's `x-internal-auth` secret first; the organization, consent
- * credential and delegation routes then verify the user's upstream access
- * token itself, so a leaked service secret alone names no user. None is ever
- * an MCP tool: `/internal/*` is excluded from mcp-01's derived tool table.
+ * needs mcp-01's service secret first: its dedicated `MCP_BE_INTERNAL_SECRET`
+ * or, until the cutover's second release, `x-internal-auth`
+ * (`wbs-mcp-agent-surface` M14); either missing or wrong is
+ * `401 internal_unauthorized`. The organization, consent credential and
+ * delegation routes then verify the user's upstream access token itself, so
+ * a leaked service secret alone names no user. None is ever an MCP tool:
+ * `/internal/*` is excluded from mcp-01's derived tool table.
  */
 const policies = [
-  { kind: 'identity', require: 'internal' },
+  { kind: 'identity', require: 'mcp-internal' },
   { kind: 'organization-control' },
 ] as const;
+
+/** The header carrying `MCP_BE_INTERNAL_SECRET`, mcp-01's own service secret (M14). */
+export const MCP_INTERNAL_SECRET_HEADER = 'x-mcp-internal-auth';
+
+/** mcp-01's service secret was missing or wrong: a deployment fault, never a user's refusal. */
+const internalUnauthorized = {
+  status: 401,
+  schema: responseSchema(type({ error: "'internal_unauthorized'" })),
+} as const;
 
 const role = "'super_admin' | 'admin' | 'member' | 'viewer'";
 
@@ -27,11 +39,11 @@ const malformed = {
   ),
 } as const;
 
-/** The upstream token is absent, invalid, expired or linked to nobody. */
+/** The upstream token is absent, invalid, expired or linked to nobody, or the secret was wrong. */
 const unauthenticated = {
   status: 401,
   schema: responseSchema(
-    type({ error: "'unauthorized' | 'unauthenticated' | 'unknown_identity'" }),
+    type({ error: "'internal_unauthorized' | 'unauthenticated' | 'unknown_identity'" }),
   ),
 } as const;
 
@@ -141,7 +153,7 @@ export const endMcpConsentCredential = defineEndpointShape({
       schema: responseSchema(type({ outcome: "'revoked' | 'already_revoked' | 'absent'" })),
     },
   ],
-  refusals: [malformed, { status: 401, schema: responseSchema(type({ error: "'unauthorized'" })) }],
+  refusals: [malformed, internalUnauthorized],
   document: { summary: 'Revoke a consent credential whose MCP family mcp-01 ended.' },
 });
 
@@ -234,6 +246,75 @@ export const readMcpAuthority = defineEndpointShape({
       ),
     },
   ],
-  refusals: [malformed, { status: 401, schema: responseSchema(type({ error: "'unauthorized'" })) }],
+  refusals: [malformed, internalUnauthorized],
   document: { summary: "Reread a bound MCP family's membership and credential rules." },
+});
+
+/**
+ * Issues a machine grant (`wbs-mcp-agent-surface` M3) to mcp-01's token
+ * endpoint for a presented API key (`client_credentials`) or trusted-issuer
+ * workload assertion (the JWT-bearer grant). Only the dedicated
+ * `MCP_BE_INTERNAL_SECRET` admits it, never `x-internal-auth`.
+ *
+ * `issuer` is mcp-01's canonical authorization server, which must equal
+ * be-01's `WBS_MCP_AUTHORIZATION_SERVER` (a mismatch is a reported server
+ * fault, never a refusal). `expiresAt` is the `exp` mcp-01 wants, in seconds;
+ * be-01 caps it at the grant cap and the assertion's `exp`. `run` is the
+ * opted-in `wbs_run` (M15), 1 to 256 characters that do not look like a secret.
+ *
+ * Answers the grant with the credential, person and organization it names and
+ * the scopes derived from the credential alone. Every credential failure is
+ * `401 unknown_identity`, an assertion of no trusted issuer or an unverifiable
+ * one `401 invalid_token`, an assertion `typ` other than none or `JWT`
+ * `401 unsupported_assertion_type` naming it; before activation
+ * `409 not_activated`.
+ */
+export const issueMcpMachineGrant = defineEndpointShape({
+  method: 'POST',
+  path: '/internal/mcp/machine-grants',
+  operationId: 'postInternalMcpMachineGrants',
+  policies: [{ kind: 'identity', require: 'mcp-dedicated' }, { kind: 'organization-control' }],
+  body: requestSchema(
+    type({
+      issuer: 'string',
+      credential: type({ kind: "'api_key'", key: 'string' }).or({
+        kind: "'oidc'",
+        assertion: 'string',
+      }),
+      expiresAt: 'number.integer',
+      'run?': 'string',
+    }),
+  ),
+  responses: [
+    {
+      kind: 'json',
+      status: 200,
+      schema: responseSchema(
+        type({
+          grant: 'string',
+          credentialId: 'string',
+          personId: 'string',
+          organizationId: 'string',
+          scopes: "('read' | 'write')[]",
+          expiresAt: 'number',
+          runId: 'string | null',
+        }),
+      ),
+    },
+  ],
+  refusals: [
+    malformed,
+    {
+      status: 401,
+      schema: responseSchema(
+        type({ error: "'internal_unauthorized' | 'unknown_identity' | 'invalid_token'" }),
+      ),
+    },
+    {
+      status: 401,
+      schema: responseSchema(type({ error: "'unsupported_assertion_type'", typ: 'string' })),
+    },
+    { status: 409, schema: responseSchema(type({ error: "'not_activated'" })) },
+  ],
+  document: { summary: 'Issue a machine grant for an MCP token request, for mcp-01.' },
 });

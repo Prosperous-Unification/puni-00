@@ -1,0 +1,204 @@
+rule_files: [rules.yaml]
+evaluation_interval: 30s
+tests:
+  - name: no probe series has ever existed
+    interval: 30s
+    input_series: []
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DevProbeMissing
+        exp_alerts:
+          - exp_labels: { environment: dev, service: be-01, severity: warning }
+  - name: expired observation
+    interval: 30s
+    input_series:
+      - series: 'puni_dev_probe_observed_timestamp_seconds{environment="dev",service="be-01"}'
+        values: 0+0x10
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: DevProbeStale
+        exp_alerts: []
+      - eval_time: 2m30s
+        alertname: DevProbeStale
+        exp_alerts:
+          - exp_labels: { environment: dev, service: be-01, severity: warning }
+  - name: exporter backlog then drained
+    interval: 30s
+    input_series:
+      - series: 'otelcol_exporter_queue_size{exporter="otlp",instance="collector:8888",job="dev-collector"}'
+        values: 90+0x4 0+0x4
+      - series: 'otelcol_exporter_queue_capacity{exporter="otlp",instance="collector:8888",job="dev-collector"}'
+        values: 100+0x10
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DevExporterBacklog
+        exp_alerts:
+          - exp_labels:
+              {
+                environment: dev,
+                severity: warning,
+                exporter: otlp,
+                instance: 'collector:8888',
+                job: dev-collector,
+              }
+      - eval_time: 3m
+        alertname: DevExporterBacklog
+        exp_alerts: []
+  - name: collector independently absent while gateway exists
+    interval: 30s
+    input_series:
+      - series: 'up{job="dev-collector",instance="gateway:8888"}'
+        values: 1+0x5
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DevCollectorMissing
+        exp_alerts:
+          - exp_labels:
+              {
+                environment: dev,
+                severity: warning,
+                job: dev-collector,
+                instance: 'collector:8888',
+              }
+  - name: gateway independently absent while collector exists
+    interval: 30s
+    input_series:
+      - series: 'up{job="dev-collector",instance="collector:8888"}'
+        values: 1+0x5
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DevCollectorMissing
+        exp_alerts:
+          - exp_labels:
+              { environment: dev, severity: warning, job: dev-collector, instance: 'gateway:8888' }
+  - name: measured failure then recovered
+    interval: 30s
+    input_series:
+      - series: 'puni_dev_probe_success{environment="dev",service="be-01"}'
+        values: 0+0x4 1+0x4
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DevProbeFailed
+        exp_alerts:
+          - exp_labels: { environment: dev, service: be-01, severity: warning }
+      - eval_time: 3m
+        alertname: DevProbeFailed
+        exp_alerts: []
+  - name: storage observation missing
+    interval: 30s
+    input_series: []
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DevStorageObservationMissing
+        exp_alerts:
+          - exp_labels: { environment: dev, severity: warning }
+  - name: low storage and exporter loss
+    interval: 30s
+    input_series:
+      - series: 'puni_dev_storage_available_bytes{environment="dev"}'
+        values: 10+0x5
+      - series: 'puni_dev_storage_capacity_bytes{environment="dev"}'
+        values: 100+0x5
+      - series: 'otelcol_exporter_send_failed_spans{exporter="otlp"}'
+        values: 0+10x5
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DevStoragePressure
+        exp_alerts:
+          - exp_labels: { environment: dev, severity: warning }
+      - eval_time: 1m
+        alertname: DevExporterLoss
+        exp_alerts:
+          - exp_labels: { environment: dev, severity: warning, exporter: otlp }
+  - name: storage observation expired
+    interval: 30s
+    input_series:
+      - series: 'puni_dev_storage_observed_timestamp_seconds{environment="dev"}'
+        values: 0+0x10
+    alert_rule_test:
+      - eval_time: 2m30s
+        alertname: DevStorageObservationMissing
+        exp_alerts:
+          - exp_labels: { environment: dev, severity: warning }
+  - name: backend health check never existed
+    interval: 30s
+    input_series: []
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DevObservationCheckMissing
+        exp_alerts:
+          - exp_labels: { environment: dev, service: be-01, severity: warning }
+  - name: backend health check is stale despite request success
+    interval: 30s
+    input_series:
+      - series: 'puni_dev_observation_checked_timestamp_seconds{environment="dev",service="be-01"}'
+        values: 0+0x10
+      - series: 'puni_dev_probe_success{environment="dev",service="be-01"}'
+        values: 1+0x10
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: DevObservationCheckStale
+        exp_alerts: []
+      - eval_time: 2m30s
+        alertname: DevObservationCheckStale
+        exp_alerts:
+          - exp_labels: { environment: dev, service: be-01, severity: warning }
+  - name: backend query incomplete then recovered
+    interval: 30s
+    input_series:
+      - series: 'puni_dev_observation_health{environment="dev",service="be-01",state="incomplete"}'
+        values: 1+0x4 0+0x4
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DevObservationIncomplete
+        exp_alerts:
+          - exp_labels: { environment: dev, service: be-01, severity: warning, state: incomplete }
+      - eval_time: 3m
+        alertname: DevObservationIncomplete
+        exp_alerts: []
+  - name: application collection absent
+    interval: 30s
+    input_series: []
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DevApplicationLogCollectionFailed
+        exp_alerts:
+          - exp_labels: { environment: dev, service: be-01, severity: warning }
+  - name: application collection stale
+    interval: 30s
+    input_series:
+      - series: 'puni_dev_application_log_checked_timestamp_seconds{environment="dev",service="be-01"}'
+        values: 0+0x10
+    alert_rule_test:
+      - eval_time: 2m30s
+        alertname: DevApplicationLogCollectionFailed
+        exp_alerts:
+          - exp_labels: { environment: dev, service: be-01, severity: warning }
+  - name: application collection malformed then recovered independently
+    interval: 30s
+    input_series:
+      - series: 'puni_dev_application_log_collection_state{environment="dev",service="be-01",state="incomplete"}'
+        values: 1+0x4 0+0x4
+      - series: 'puni_dev_application_log_checked_timestamp_seconds{environment="dev",service="be-01"}'
+        values: 0+30x10
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DevApplicationLogCollectionFailed
+        exp_alerts:
+          - exp_labels: { environment: dev, service: be-01, severity: warning, state: incomplete }
+      - eval_time: 3m
+        alertname: DevApplicationLogCollectionFailed
+        exp_alerts: []
+  - name: storage reader fails independently
+    interval: 30s
+    input_series:
+      - series: 'puni_dev_storage_collection_state{environment="dev",state="unavailable"}'
+        values: 1+0x4 0+0x4
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DevStorageCollectionFailed
+        exp_alerts:
+          - exp_labels: { environment: dev, severity: warning, state: unavailable }
+      - eval_time: 3m
+        alertname: DevStorageCollectionFailed
+        exp_alerts: []

@@ -54,6 +54,49 @@
   # task itself; the earlier `| head -n 1` form had swallowed that status (rc 0, empty output).
   # The host state behind the third live gate's 60 failures was exactly this missing file.
 
+# Tool availability only: the unchanged canonical gate owns the namespace probe.
+# Proof: replacing the version probe's && with ; masked an exit-74 bwrap;
+# skipping busybox true masked its exit 74. Both actual extracted-command
+# harness cases then failed their nonzero assertions; missing/nonexecutable
+# PATH controls also refuse. This is shell propagation, not host capability.
+- name: Resolve sandbox tools the way a remote gate does
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -c
+      - >-
+        . "$HOME/.bashrc" && command -v bwrap && bwrap --version &&
+        command -v busybox && busybox true
+  register: puni_gate_sandbox_probe
+  changed_when: false
+
+# Proof (locked controller, 2026-10-25): this actual Ansible assertion accepted
+# healthy recorded output and refused wrong paths, malformed version and absent/
+# truncated output. Removing each corresponding condition admitted its bad input.
+# These are evaluator proofs, separate from live host and namespace acceptance.
+- name: Require system sandbox tools
+  ansible.builtin.assert:
+    that:
+      - puni_gate_sandbox_probe.stdout_lines[0] == '/usr/bin/bwrap'
+      - puni_gate_sandbox_probe.stdout_lines[1] is match('^bubblewrap [0-9]')
+      - puni_gate_sandbox_probe.stdout_lines[2] == '/usr/bin/busybox'
+    fail_msg: 'The gate sandbox tools report {{ puni_gate_sandbox_probe.stdout_lines }}'
+
+# Proof: removing either literal-path argv failed the parsed task contract.
+# Both real local paths execute true; absolute-binary faults were not injected.
+- name: Execute BusyBox at the mount caller path
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv: [/bin/busybox, 'true']
+  changed_when: false
+
+- name: Execute BusyBox at the process caller path
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv: [/usr/bin/busybox, 'true']
+  changed_when: false
+
 # The spec grants the account Docker and nothing else; a pre-existing sudo membership or a
 # sudoers drop-in would survive `append: true`, so the probes check the result, not the task.
 - name: Try to escalate as the gate account

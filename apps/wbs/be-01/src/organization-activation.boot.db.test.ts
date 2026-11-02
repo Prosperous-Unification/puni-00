@@ -1,6 +1,7 @@
 import { afterEach, expect, setDefaultTimeout, test } from 'bun:test';
 
 import { BOOTED_ORIGIN, BootedBrowserProcess } from './testing/booted-browser-process';
+import { TEST_MACHINE_GRANT_ENV } from './testing/machine-grant-fixture';
 import { writeMcpStoreFixture } from './testing/mcp-store-fixture';
 
 setDefaultTimeout(30_000);
@@ -118,7 +119,11 @@ async function activateLegacyStore(process: BootedBrowserProcess): Promise<void>
       '--apply',
     ],
     {
-      env: { ...globalThis.process.env, DB_PATH: process.databasePath() },
+      env: {
+        ...globalThis.process.env,
+        ...TEST_MACHINE_GRANT_ENV,
+        DB_PATH: process.databasePath(),
+      },
       stdout: 'pipe',
       stderr: 'pipe',
     },
@@ -216,7 +221,11 @@ test('a member reads a restricted project it does not own and cannot edit it, be
       '--apply',
     ],
     {
-      env: { ...globalThis.process.env, DB_PATH: process.databasePath() },
+      env: {
+        ...globalThis.process.env,
+        ...TEST_MACHINE_GRANT_ENV,
+        DB_PATH: process.databasePath(),
+      },
       stdout: 'pipe',
       stderr: 'pipe',
     },

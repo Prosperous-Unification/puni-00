@@ -16,15 +16,17 @@ test('serves collector success and failure as declared Prometheus text', async (
   }
 });
 
-test('keeps deploy commit metadata on a dependency refusal', async () => {
+test('keeps both deploy commits on a dependency refusal', async () => {
   const response = await testApp({
     migrationsApplied: false,
     deployedCommit: () => '0123456789abcdef',
+    bootCommit: 'fedcba9876543210',
   }).handle(new Request('http://localhost/health'));
   expect(response.status).toBe(503);
   expect(await response.json()).toEqual({
     error: 'dependency_unavailable',
     status: 'migrating',
     commit: '0123456789abcdef',
+    bootCommit: 'fedcba9876543210',
   });
 });

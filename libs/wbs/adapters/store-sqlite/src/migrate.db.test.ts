@@ -412,7 +412,15 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
-        '20261025100000_add_access_grants',
+        '20261102120000_add_access_grants',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
+        '20261026130000_widen_organization_audit_machine_tokens',
+        '20261026120000_add_command_journal_person',
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',
@@ -422,6 +430,7 @@ describe('the WBS domain migration', () => {
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
+        '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -800,7 +809,15 @@ describe('the capacity migrations', () => {
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
       expect(reversed).toEqual([
-        '20261025100000_add_access_grants',
+        '20261102120000_add_access_grants',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
+        '20261026130000_widen_organization_audit_machine_tokens',
+        '20261026120000_add_command_journal_person',
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',
@@ -810,6 +827,7 @@ describe('the capacity migrations', () => {
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
+        '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -1326,7 +1344,15 @@ describe('the work item team migration', () => {
       // migration's business, and named rather than filtered out so the list stays
       // the literal answer `rollbackTo` gave.
       expect(reversed).toEqual([
-        '20261025100000_add_access_grants',
+        '20261102120000_add_access_grants',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
+        '20261026130000_widen_organization_audit_machine_tokens',
+        '20261026120000_add_command_journal_person',
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',
@@ -1336,6 +1362,7 @@ describe('the work item team migration', () => {
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
+        '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -1619,7 +1646,15 @@ describe('the priority band migration', () => {
       // filtered, so the list is the literal answer `rollbackTo` gave and not a
       // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
-        '20261025100000_add_access_grants',
+        '20261102120000_add_access_grants',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
+        '20261026130000_widen_organization_audit_machine_tokens',
+        '20261026120000_add_command_journal_person',
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',
@@ -1629,6 +1664,7 @@ describe('the priority band migration', () => {
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
+        '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -1964,7 +2000,15 @@ describe('the plan event migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
-        '20261025100000_add_access_grants',
+        '20261102120000_add_access_grants',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
+        '20261026130000_widen_organization_audit_machine_tokens',
+        '20261026120000_add_command_journal_person',
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',
@@ -1974,6 +2018,7 @@ describe('the plan event migration', () => {
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
+        '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -2247,7 +2292,15 @@ describe('the actual migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
-        '20261025100000_add_access_grants',
+        '20261102120000_add_access_grants',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
+        '20261026130000_widen_organization_audit_machine_tokens',
+        '20261026120000_add_command_journal_person',
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',
@@ -2257,6 +2310,7 @@ describe('the actual migration', () => {
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
+        '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -2574,7 +2628,15 @@ describe('the step progress migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([
-        '20261025100000_add_access_grants',
+        '20261102120000_add_access_grants',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
+        '20261026130000_widen_organization_audit_machine_tokens',
+        '20261026120000_add_command_journal_person',
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',
@@ -2584,6 +2646,7 @@ describe('the step progress migration', () => {
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
+        '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -2885,7 +2948,15 @@ describe('the not-before reason migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_PROGRESS)).toEqual([
-        '20261025100000_add_access_grants',
+        '20261102120000_add_access_grants',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
+        '20261026130000_widen_organization_audit_machine_tokens',
+        '20261026120000_add_command_journal_person',
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',
@@ -2895,6 +2966,7 @@ describe('the not-before reason migration', () => {
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
+        '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -3187,7 +3259,15 @@ describe('the tag migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([
-        '20261025100000_add_access_grants',
+        '20261102120000_add_access_grants',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
+        '20261026130000_widen_organization_audit_machine_tokens',
+        '20261026120000_add_command_journal_person',
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',
@@ -3197,6 +3277,7 @@ describe('the tag migration', () => {
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
+        '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -3594,7 +3675,15 @@ describe('the service migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([
-        '20261025100000_add_access_grants',
+        '20261102120000_add_access_grants',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
+        '20261026130000_widen_organization_audit_machine_tokens',
+        '20261026120000_add_command_journal_person',
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',
@@ -3604,6 +3693,7 @@ describe('the service migration', () => {
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
+        '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -3793,7 +3883,15 @@ describe('the work-item-service migration', () => {
   function atTheColumnOnly(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, SERVICE)).toEqual([
-      '20261025100000_add_access_grants',
+      '20261102120000_add_access_grants',
+      '20261101100100_add_resource_directory_capacity',
+      '20261101100000_widen_organization_audit_directory_capacity',
+      '20261028100100_widen_organization_audit_agent_pools',
+      '20261028100000_add_agent_pool',
+      '20261026130000_widen_organization_audit_machine_tokens',
+      '20261026120000_add_command_journal_person',
+      '20261025130000_add_resource_runtime',
+      '20261025120000_add_resource_use',
       '20261023170000_add_work_item_budget',
       '20261023160000_add_measure_estimate',
       '20261023150000_key_step_measure',
@@ -3803,6 +3901,7 @@ describe('the work-item-service migration', () => {
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
       '20261022130000_add_organization_limits',
+      '20261022121000_add_runtime_commands',
       '20261022120000_scope_trusted_issuer_audience',
       '20261022110100_check_machine_credential_id',
       '20261022110000_widen_organization_audit_machine_credentials',
@@ -4003,7 +4102,15 @@ describe('the work-item-service migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, SERVICE)).toEqual([
-        '20261025100000_add_access_grants',
+        '20261102120000_add_access_grants',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
+        '20261026130000_widen_organization_audit_machine_tokens',
+        '20261026120000_add_command_journal_person',
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',
@@ -4013,6 +4120,7 @@ describe('the work-item-service migration', () => {
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
+        '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -4346,7 +4454,15 @@ describe('the step measure migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, WORK_ITEM_SERVICE)).toEqual([
-        '20261025100000_add_access_grants',
+        '20261102120000_add_access_grants',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
+        '20261026130000_widen_organization_audit_machine_tokens',
+        '20261026120000_add_command_journal_person',
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',
@@ -4356,6 +4472,7 @@ describe('the step measure migration', () => {
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
+        '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -4488,7 +4605,15 @@ describe('the person kind migration', () => {
   function beforeTheColumn(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, STEP_MEASURE)).toEqual([
-      '20261025100000_add_access_grants',
+      '20261102120000_add_access_grants',
+      '20261101100100_add_resource_directory_capacity',
+      '20261101100000_widen_organization_audit_directory_capacity',
+      '20261028100100_widen_organization_audit_agent_pools',
+      '20261028100000_add_agent_pool',
+      '20261026130000_widen_organization_audit_machine_tokens',
+      '20261026120000_add_command_journal_person',
+      '20261025130000_add_resource_runtime',
+      '20261025120000_add_resource_use',
       '20261023170000_add_work_item_budget',
       '20261023160000_add_measure_estimate',
       '20261023150000_key_step_measure',
@@ -4498,6 +4623,7 @@ describe('the person kind migration', () => {
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
       '20261022130000_add_organization_limits',
+      '20261022121000_add_runtime_commands',
       '20261022120000_scope_trusted_issuer_audience',
       '20261022110100_check_machine_credential_id',
       '20261022110000_widen_organization_audit_machine_credentials',
@@ -4770,7 +4896,15 @@ describe('the person kind migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_MEASURE)).toEqual([
-        '20261025100000_add_access_grants',
+        '20261102120000_add_access_grants',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
+        '20261026130000_widen_organization_audit_machine_tokens',
+        '20261026120000_add_command_journal_person',
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',
@@ -4780,6 +4914,7 @@ describe('the person kind migration', () => {
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
+        '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -5013,7 +5148,15 @@ describe('the step allowance migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, STEP_CODE)).toEqual([
-        '20261025100000_add_access_grants',
+        '20261102120000_add_access_grants',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
+        '20261026130000_widen_organization_audit_machine_tokens',
+        '20261026120000_add_command_journal_person',
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',
@@ -5023,6 +5166,7 @@ describe('the step allowance migration', () => {
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
+        '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -5094,7 +5238,15 @@ describe('the step allowance migration', () => {
       seededBeforeAllowances(db.path);
 
       expect(rollbackTo(db.path, FOLDER, STEP_CODE)).toEqual([
-        '20261025100000_add_access_grants',
+        '20261102120000_add_access_grants',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
+        '20261026130000_widen_organization_audit_machine_tokens',
+        '20261026120000_add_command_journal_person',
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',
@@ -5104,6 +5256,7 @@ describe('the step allowance migration', () => {
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
+        '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',

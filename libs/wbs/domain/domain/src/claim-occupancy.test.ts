@@ -33,7 +33,7 @@ function leafClaim(
         { stepId: 'review', progress: 'unknown' },
       ],
     },
-    caller: { accountId: F, isAdmin: true, pinnedPersonId: null },
+    caller: { accountId: F, isAdmin: true, pinnedPersonId: null, pinnedRunId: null },
     claimant: { personId: person, boundAccountId: F },
     stepIds: null,
     runId: run,
@@ -45,6 +45,8 @@ function leafClaim(
     resources: null,
     capacities: [],
     occupancy: [],
+    directoryCapacities: [],
+    organizationOccupied: [],
     ...rest,
   };
 }
@@ -159,6 +161,8 @@ describe('a claim occupies its leaf’s demand vector', () => {
           { resourceId: WORKTREE, units: 1 },
         ],
         occupancy,
+        directoryCapacities: [],
+        organizationOccupied: [],
       }),
     ).toEqual({
       reason: 'resources_exhausted',
@@ -317,7 +321,7 @@ describe('a claim occupies its leaf’s demand vector', () => {
     const releaseOf = (person: string, held: readonly Claim[]) => {
       const decided = decideRelease({
         target: { workItemId: 'leaf', isLeaf: true },
-        caller: { accountId: F, isAdmin: true, pinnedPersonId: null },
+        caller: { accountId: F, isAdmin: true, pinnedPersonId: null, pinnedRunId: null },
         claimant: { personId: person, boundAccountId: F },
         stepIds: null,
         claims: held,
@@ -482,6 +486,8 @@ describe('a claim occupies its leaf’s demand vector', () => {
         asked: [{ resourceId: RAM, units: 4 }],
         capacities: [{ resourceId: RAM, units: 2 }],
         occupancy,
+        directoryCapacities: [],
+        organizationOccupied: [],
       }),
     ).toBeNull();
     expect(freeUnitsOf([{ resourceId: RAM, units: 2 }], occupancy)).toEqual([
@@ -580,7 +586,7 @@ describe('free units under any sequence of claims and releases', () => {
           } else {
             const decided = decideRelease({
               target: { workItemId, isLeaf: true },
-              caller: { accountId: F, isAdmin: true, pinnedPersonId: null },
+              caller: { accountId: F, isAdmin: true, pinnedPersonId: null, pinnedRunId: null },
               claimant: { personId: person, boundAccountId: F },
               stepIds: null,
               claims: claims.filter((claim) => claim.workItemId === workItemId),

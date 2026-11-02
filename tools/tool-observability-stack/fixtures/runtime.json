@@ -1,0 +1,671 @@
+{
+  "h3": {
+    "hostname": "ubuntu-8gb-hel1-1-8GB-FIN42",
+    "memory": 12563664896,
+    "storage": "Filesystem     1024-blocks     Used Available Capacity Mounted on\n/dev/sda1        157149496 23608712 127119944      16% /",
+    "dockerVersion": "29.7.2",
+    "listeners": "LISTEN 0      4096       127.0.0.1:10428 0.0.0.0:*\nLISTEN 0      4096         0.0.0.0:22    0.0.0.0:*\nLISTEN 0      4096       127.0.0.1:10256 0.0.0.0:*\nLISTEN 0      4096       127.0.0.1:10248 0.0.0.0:*\nLISTEN 0      4096       127.0.0.1:10249 0.0.0.0:*\nLISTEN 0      4096         0.0.0.0:111   0.0.0.0:*\nLISTEN 0      4096       127.0.0.1:19093 0.0.0.0:*\nLISTEN 0      4096       127.0.0.1:19090 0.0.0.0:*\nLISTEN 0      4096       127.0.0.1:3000  0.0.0.0:*\nLISTEN 0      4096       127.0.0.1:19200 0.0.0.0:*\nLISTEN 0      4096       127.0.0.1:9428  0.0.0.0:*\nLISTEN 0      4096   127.0.0.53%lo:53    0.0.0.0:*\nLISTEN 0      4096       127.0.0.1:10010 0.0.0.0:*\nLISTEN 0      4096       127.0.0.1:8428  0.0.0.0:*\nLISTEN 0      4096       127.0.0.1:15601 0.0.0.0:*\nLISTEN 0      4096        10.1.0.2:9428  0.0.0.0:*\nLISTEN 0      4096      127.0.0.54:53    0.0.0.0:*\nLISTEN 0      4096       127.0.0.1:6444  0.0.0.0:*\nLISTEN 0      4096       127.0.0.1:14318 0.0.0.0:*\nLISTEN 0      4096       127.0.0.1:4318  0.0.0.0:*\nLISTEN 0      4096       127.0.0.1:5000  0.0.0.0:*\nLISTEN 0      4096            [::]:22       [::]:*\nLISTEN 0      4096            [::]:111      [::]:*\nLISTEN 0      4096           [::1]:6444     [::]:*\nLISTEN 0      4096               *:10250       *:*",
+    "checks": [
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/a1ffe27e7/alertmanager.yaml",
+        "expected": "ed705c05334fd3363b5f0a9c258444433c3134a70e2efa53ce13f1b8e09b0496",
+        "actual": "ed705c05334fd3363b5f0a9c258444433c3134a70e2efa53ce13f1b8e09b0496"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/a1ffe27e7/baseline.json",
+        "expected": "c7991717c1ae0f2003f9f2e94018f5338c5d3cb04badad70be6b1ef1a5886712",
+        "actual": "c7991717c1ae0f2003f9f2e94018f5338c5d3cb04badad70be6b1ef1a5886712"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/a1ffe27e7/collector.yaml",
+        "expected": "438ec6ccd455770fadcf5775c85bffd310d095089af572ad28757a0d7d79ee8b",
+        "actual": "438ec6ccd455770fadcf5775c85bffd310d095089af572ad28757a0d7d79ee8b"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/a1ffe27e7/compose.json",
+        "expected": "9b5820426359e814f497b0507624e3bc8d66aad5d56352fa6abe848d12f74a9f",
+        "actual": "9b5820426359e814f497b0507624e3bc8d66aad5d56352fa6abe848d12f74a9f"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/a1ffe27e7/elasticsearch.yaml",
+        "expected": "5058a6977095b59a606e4aedfe6f6bb1c158ffc3f92fa246587ee16b6a04ed22",
+        "actual": "5058a6977095b59a606e4aedfe6f6bb1c158ffc3f92fa246587ee16b6a04ed22"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/a1ffe27e7/gateway.yaml",
+        "expected": "117bcf21438176e6a5659f85d4e93ee394c15f9d232ea05cca09ab4d973a575c",
+        "actual": "117bcf21438176e6a5659f85d4e93ee394c15f9d232ea05cca09ab4d973a575c"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/a1ffe27e7/health.mjs",
+        "expected": "3f841c7da42ef118f4734c3b24f6fcc3ea02fa2ad27bfc9bf5498260eaa07fba",
+        "actual": "3f841c7da42ef118f4734c3b24f6fcc3ea02fa2ad27bfc9bf5498260eaa07fba"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/a1ffe27e7/kibana.yaml",
+        "expected": "566ac5269d418f2f65b12bac6f1155f5bab098b2bba8f8da31883628dc1f5f50",
+        "actual": "566ac5269d418f2f65b12bac6f1155f5bab098b2bba8f8da31883628dc1f5f50"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/a1ffe27e7/prometheus.yaml",
+        "expected": "3c01f23926ba0892d51a4ee39ca19eb7b972b289ff94af16e7f6ea2375673666",
+        "actual": "3c01f23926ba0892d51a4ee39ca19eb7b972b289ff94af16e7f6ea2375673666"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/a1ffe27e7/retention.sh",
+        "expected": "3446aab2e2e1c9ef0d37ecea62de3c5412042af53eaa37c52198b18429c1bcb2",
+        "actual": "3446aab2e2e1c9ef0d37ecea62de3c5412042af53eaa37c52198b18429c1bcb2"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/a1ffe27e7/rollback.json",
+        "expected": "c3d912e85573b7d211e8ecaaaa7273f97b8acdc945ccace0ec6927440a145b57",
+        "actual": "c3d912e85573b7d211e8ecaaaa7273f97b8acdc945ccace0ec6927440a145b57"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/a1ffe27e7/rules.yaml",
+        "expected": "6eea11d9c6d9a0a761cd8105bfd20909c43406873f1ead55a737ffbbcea389a8",
+        "actual": "6eea11d9c6d9a0a761cd8105bfd20909c43406873f1ead55a737ffbbcea389a8"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/c811f34bf/alertmanager.yaml",
+        "expected": "ed705c05334fd3363b5f0a9c258444433c3134a70e2efa53ce13f1b8e09b0496",
+        "actual": "ed705c05334fd3363b5f0a9c258444433c3134a70e2efa53ce13f1b8e09b0496"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/c811f34bf/collector.yaml",
+        "expected": "438ec6ccd455770fadcf5775c85bffd310d095089af572ad28757a0d7d79ee8b",
+        "actual": "438ec6ccd455770fadcf5775c85bffd310d095089af572ad28757a0d7d79ee8b"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/c811f34bf/compose.grafana-query.json",
+        "expected": "d14e4c99c4935c2818220d7af7d3c2bed4e692ff29f4e37b478afd9805b3c267",
+        "actual": "d14e4c99c4935c2818220d7af7d3c2bed4e692ff29f4e37b478afd9805b3c267"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/c811f34bf/compose.json",
+        "expected": "eb39f134ea41c0da5d9b4bdcd87d6abdc474555a302987c461c63b0f9a41c93d",
+        "actual": "eb39f134ea41c0da5d9b4bdcd87d6abdc474555a302987c461c63b0f9a41c93d"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/c811f34bf/elasticsearch.yaml",
+        "expected": "5058a6977095b59a606e4aedfe6f6bb1c158ffc3f92fa246587ee16b6a04ed22",
+        "actual": "5058a6977095b59a606e4aedfe6f6bb1c158ffc3f92fa246587ee16b6a04ed22"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/c811f34bf/gateway.yaml",
+        "expected": "117bcf21438176e6a5659f85d4e93ee394c15f9d232ea05cca09ab4d973a575c",
+        "actual": "117bcf21438176e6a5659f85d4e93ee394c15f9d232ea05cca09ab4d973a575c"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/c811f34bf/health.mjs",
+        "expected": "3f841c7da42ef118f4734c3b24f6fcc3ea02fa2ad27bfc9bf5498260eaa07fba",
+        "actual": "3f841c7da42ef118f4734c3b24f6fcc3ea02fa2ad27bfc9bf5498260eaa07fba"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/c811f34bf/kibana.yaml",
+        "expected": "566ac5269d418f2f65b12bac6f1155f5bab098b2bba8f8da31883628dc1f5f50",
+        "actual": "566ac5269d418f2f65b12bac6f1155f5bab098b2bba8f8da31883628dc1f5f50"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/c811f34bf/prometheus.yaml",
+        "expected": "4c35387d0277d8a043bd0857648d91a01d46cf14fe10e7563810a0be84870c32",
+        "actual": "4c35387d0277d8a043bd0857648d91a01d46cf14fe10e7563810a0be84870c32"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/c811f34bf/retention.sh",
+        "expected": "3446aab2e2e1c9ef0d37ecea62de3c5412042af53eaa37c52198b18429c1bcb2",
+        "actual": "3446aab2e2e1c9ef0d37ecea62de3c5412042af53eaa37c52198b18429c1bcb2"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/c811f34bf/rollback.json",
+        "expected": "c3d912e85573b7d211e8ecaaaa7273f97b8acdc945ccace0ec6927440a145b57",
+        "actual": "c3d912e85573b7d211e8ecaaaa7273f97b8acdc945ccace0ec6927440a145b57"
+      },
+      {
+        "path": "/home/monitor/puni-dev-observability/releases/c811f34bf/rules.yaml",
+        "expected": "67fac2d1820a5a0c9844c5da16389974998dfa16673dacbe92d28d9062904c28",
+        "actual": "67fac2d1820a5a0c9844c5da16389974998dfa16673dacbe92d28d9062904c28"
+      },
+      {
+        "path": "/home/monitor/observability/compose.yml",
+        "expected": "020d7e9341425f079313da73415a0d5a827adda6d7bd979f27ea95cea94dd63c",
+        "actual": "020d7e9341425f079313da73415a0d5a827adda6d7bd979f27ea95cea94dd63c"
+      },
+      {
+        "path": "/home/monitor/observability/otel-collector.yaml",
+        "expected": "154c15cae86f9bbed198ed82a44a09502e43642cd3372a915c7ec12e7b555adc",
+        "actual": "154c15cae86f9bbed198ed82a44a09502e43642cd3372a915c7ec12e7b555adc"
+      },
+      {
+        "path": "/home/monitor/observability/grafana/provisioning/datasources/datasources.yaml",
+        "expected": "2889c952e1bbf60675bdae3b28f5f485050474df4b3455be9ab3057f945af4c2",
+        "actual": "2889c952e1bbf60675bdae3b28f5f485050474df4b3455be9ab3057f945af4c2"
+      },
+      {
+        "path": "/home/monitor/observability/grafana/provisioning/dashboards/dashboards.yaml",
+        "expected": "11daa5256f658cd4f63ffb6e8e72fca2730a31cd3d5898851d7914cf687c140a",
+        "actual": "11daa5256f658cd4f63ffb6e8e72fca2730a31cd3d5898851d7914cf687c140a"
+      }
+    ],
+    "manifests": [
+      {
+        "schemaVersion": 1,
+        "environment": "dev",
+        "host": "h3mon",
+        "project": "puni-dev-observability",
+        "sourceCommit": "a1ffe27e740965d9020b819f50f17a1f1ce4329f",
+        "files": {
+          "alertmanager.yaml": "ed705c05334fd3363b5f0a9c258444433c3134a70e2efa53ce13f1b8e09b0496",
+          "baseline.json": "c7991717c1ae0f2003f9f2e94018f5338c5d3cb04badad70be6b1ef1a5886712",
+          "collector.yaml": "438ec6ccd455770fadcf5775c85bffd310d095089af572ad28757a0d7d79ee8b",
+          "compose.json": "9b5820426359e814f497b0507624e3bc8d66aad5d56352fa6abe848d12f74a9f",
+          "elasticsearch.yaml": "5058a6977095b59a606e4aedfe6f6bb1c158ffc3f92fa246587ee16b6a04ed22",
+          "gateway.yaml": "117bcf21438176e6a5659f85d4e93ee394c15f9d232ea05cca09ab4d973a575c",
+          "health.mjs": "3f841c7da42ef118f4734c3b24f6fcc3ea02fa2ad27bfc9bf5498260eaa07fba",
+          "kibana.yaml": "566ac5269d418f2f65b12bac6f1155f5bab098b2bba8f8da31883628dc1f5f50",
+          "prometheus.yaml": "3c01f23926ba0892d51a4ee39ca19eb7b972b289ff94af16e7f6ea2375673666",
+          "retention.sh": "3446aab2e2e1c9ef0d37ecea62de3c5412042af53eaa37c52198b18429c1bcb2",
+          "rollback.json": "c3d912e85573b7d211e8ecaaaa7273f97b8acdc945ccace0ec6927440a145b57",
+          "rules.yaml": "6eea11d9c6d9a0a761cd8105bfd20909c43406873f1ead55a737ffbbcea389a8"
+        }
+      },
+      {
+        "schemaVersion": 1,
+        "environment": "dev",
+        "host": "h3mon",
+        "project": "puni-dev-observability",
+        "sourceCommit": "c811f34bf21a5be0a07a3bebf043f651556e50dc",
+        "previousRelease": "a1ffe27e7",
+        "scope": "prometheus scrape/rules and Grafana query membership only",
+        "files": {
+          "alertmanager.yaml": "ed705c05334fd3363b5f0a9c258444433c3134a70e2efa53ce13f1b8e09b0496",
+          "collector.yaml": "438ec6ccd455770fadcf5775c85bffd310d095089af572ad28757a0d7d79ee8b",
+          "compose.grafana-query.json": "d14e4c99c4935c2818220d7af7d3c2bed4e692ff29f4e37b478afd9805b3c267",
+          "compose.json": "eb39f134ea41c0da5d9b4bdcd87d6abdc474555a302987c461c63b0f9a41c93d",
+          "elasticsearch.yaml": "5058a6977095b59a606e4aedfe6f6bb1c158ffc3f92fa246587ee16b6a04ed22",
+          "gateway.yaml": "117bcf21438176e6a5659f85d4e93ee394c15f9d232ea05cca09ab4d973a575c",
+          "health.mjs": "3f841c7da42ef118f4734c3b24f6fcc3ea02fa2ad27bfc9bf5498260eaa07fba",
+          "kibana.yaml": "566ac5269d418f2f65b12bac6f1155f5bab098b2bba8f8da31883628dc1f5f50",
+          "prometheus.yaml": "4c35387d0277d8a043bd0857648d91a01d46cf14fe10e7563810a0be84870c32",
+          "retention.sh": "3446aab2e2e1c9ef0d37ecea62de3c5412042af53eaa37c52198b18429c1bcb2",
+          "rollback.json": "c3d912e85573b7d211e8ecaaaa7273f97b8acdc945ccace0ec6927440a145b57",
+          "rules.yaml": "67fac2d1820a5a0c9844c5da16389974998dfa16673dacbe92d28d9062904c28"
+        }
+      }
+    ],
+    "baseline": {
+      "hostname": "ubuntu-8gb-hel1-1-8GB-FIN42",
+      "containers": [
+        {
+          "id": "d9c49e4664cc7fd01113e640c1618a10ab652bf927bfa02adfeda7a16670b3e3",
+          "name": "/h3mon-observability-mlflow-1",
+          "startedAt": "2026-10-19T09:08:42.345358982Z",
+          "restartCount": 0,
+          "status": "running",
+          "project": "h3mon-observability"
+        },
+        {
+          "id": "ad26831ff55c804a47a3e839ce2e53dcb95e7f1d0e281e9d961b407bc0341c0b",
+          "name": "/h3mon-observability-otel-collector-1",
+          "startedAt": "2026-10-19T09:08:42.352016505Z",
+          "restartCount": 0,
+          "status": "running",
+          "project": "h3mon-observability"
+        },
+        {
+          "id": "d3dcd35b1ca20c8e876b57a7c96b1b02d9a0079b2bcc357e486b17a0c0d170a4",
+          "name": "/h3mon-observability-victorialogs-1",
+          "startedAt": "2026-10-19T09:08:42.356750216Z",
+          "restartCount": 0,
+          "status": "running",
+          "project": "h3mon-observability"
+        },
+        {
+          "id": "ffa2f44964445a0128a9b104171e0ab9fda06ecb1dad66f459b55f5a87e8ee0f",
+          "name": "/h3mon-observability-victoriatraces-1",
+          "startedAt": "2026-10-19T09:08:42.35829113Z",
+          "restartCount": 0,
+          "status": "running",
+          "project": "h3mon-observability"
+        },
+        {
+          "id": "27f655207ebff0eb70145e824142e8a5ab9677a03813a718882750d0714886f5",
+          "name": "/h3mon-observability-victoriametrics-1",
+          "startedAt": "2026-10-19T09:08:42.355430461Z",
+          "restartCount": 0,
+          "status": "running",
+          "project": "h3mon-observability"
+        },
+        {
+          "id": "19fefffefca2c20e5a4c3b9dc3371909fc20daa5a6f7df1c195f0bcff1299c50",
+          "name": "/h3mon-observability-vmauth-1",
+          "startedAt": "2026-10-19T09:08:42.356109998Z",
+          "restartCount": 0,
+          "status": "running",
+          "project": "h3mon-observability"
+        },
+        {
+          "id": "f7fce9ef017ea81eb8baa554fa236c92ced377895ae2944df95311b4233e4972",
+          "name": "/h3mon-observability-grafana-1",
+          "startedAt": "2026-10-19T09:08:42.357629292Z",
+          "restartCount": 0,
+          "status": "running",
+          "project": "h3mon-observability"
+        }
+      ],
+      "preservedHashes": {
+        "/home/monitor/observability/compose.yml": "020d7e9341425f079313da73415a0d5a827adda6d7bd979f27ea95cea94dd63c",
+        "/home/monitor/observability/otel-collector.yaml": "154c15cae86f9bbed198ed82a44a09502e43642cd3372a915c7ec12e7b555adc",
+        "/home/monitor/observability/grafana/provisioning/datasources/datasources.yaml": "2889c952e1bbf60675bdae3b28f5f485050474df4b3455be9ab3057f945af4c2",
+        "/home/monitor/observability/grafana/provisioning/dashboards/dashboards.yaml": "11daa5256f658cd4f63ffb6e8e72fca2730a31cd3d5898851d7914cf687c140a"
+      }
+    },
+    "containers": [
+      {
+        "id": "4c5f5169b87ecb8dc625843407c9434d6ea37933e1c0208b7ea11133eb600f57",
+        "name": "/puni-dev-observability-prometheus-1",
+        "startedAt": "2026-10-25T15:22:10.939528119Z",
+        "restartCount": 0,
+        "status": "running",
+        "image": "quay.io/prometheus/prometheus:v3.14.0-distroless@sha256:50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a",
+        "memory": 805306368,
+        "cpuQuota": 1000000000,
+        "pidsLimit": 256,
+        "networks": ["h3mon-observability_query", "puni-dev-observability_dev"],
+        "project": "puni-dev-observability",
+        "service": "prometheus",
+        "ports": [
+          {
+            "target": 9090,
+            "ip": "127.0.0.1",
+            "port": 19090
+          }
+        ],
+        "volumes": ["puni-dev-observability_prometheus"],
+        "aliases": ["puni-dev-observability-prometheus-1", "prometheus", "puni-dev-prometheus"]
+      },
+      {
+        "id": "2a55f996651fbb8bc3b8d407a47a97b38b8d64a5f5b0e5874a979e1b27b9974b",
+        "name": "/puni-dev-observability-kibana-1",
+        "startedAt": "2026-10-25T14:11:13.500097172Z",
+        "restartCount": 0,
+        "status": "running",
+        "image": "docker.elastic.co/kibana/kibana:9.3.8@sha256:a9f4af21536422d9a3bb924bad5990b24859db0c9a0474558f283244a2bcd481",
+        "memory": 1073741824,
+        "cpuQuota": 1000000000,
+        "pidsLimit": 256,
+        "networks": ["puni-dev-observability_dev"],
+        "project": "puni-dev-observability",
+        "service": "kibana",
+        "ports": [
+          {
+            "target": 5601,
+            "ip": "127.0.0.1",
+            "port": 15601
+          }
+        ],
+        "volumes": ["puni-dev-observability_kibana"],
+        "aliases": []
+      },
+      {
+        "id": "433e88117965fa760c68ab186dff9dbe23212258084b88834578136b58456cec",
+        "name": "/puni-dev-observability-elasticsearch-1",
+        "startedAt": "2026-10-25T14:08:49.499844005Z",
+        "restartCount": 0,
+        "status": "running",
+        "image": "docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540",
+        "memory": 2147483648,
+        "cpuQuota": 2000000000,
+        "pidsLimit": 256,
+        "networks": ["puni-dev-observability_dev"],
+        "project": "puni-dev-observability",
+        "service": "elasticsearch",
+        "ports": [
+          {
+            "target": 9200,
+            "ip": "127.0.0.1",
+            "port": 19200
+          }
+        ],
+        "volumes": ["puni-dev-observability_elasticsearch"],
+        "aliases": []
+      },
+      {
+        "id": "07fffa4389851f533ad4565af4d590c4a13cd4d47a3d33ca0ba12698848ff808",
+        "name": "/puni-dev-observability-gateway-1",
+        "startedAt": "2026-10-25T14:11:13.493665263Z",
+        "restartCount": 0,
+        "status": "running",
+        "image": "docker.elastic.co/elastic-agent/elastic-agent:9.3.8@sha256:0b85d58ffa0e87c30baf3ab9cc3aab1e64da47607c6c1e10e9529d0665a54afd",
+        "memory": 1073741824,
+        "cpuQuota": 1000000000,
+        "pidsLimit": 256,
+        "networks": ["puni-dev-observability_dev"],
+        "project": "puni-dev-observability",
+        "service": "gateway",
+        "ports": [],
+        "volumes": ["puni-dev-observability_gateway"],
+        "aliases": []
+      },
+      {
+        "id": "bb6f6d736033e278afefd87a5041d0b66ceb371604c9e2456565816fb8e579e6",
+        "name": "/puni-dev-observability-alertmanager-1",
+        "startedAt": "2026-10-25T14:11:13.484296436Z",
+        "restartCount": 0,
+        "status": "running",
+        "image": "quay.io/prometheus/alertmanager:v0.34.0@sha256:690c7b525f4367aa91f73e2f91c632206d32e97c6384bdbf2fb7a861b420340d",
+        "memory": 268435456,
+        "cpuQuota": 1000000000,
+        "pidsLimit": 256,
+        "networks": ["puni-dev-observability_dev"],
+        "project": "puni-dev-observability",
+        "service": "alertmanager",
+        "ports": [
+          {
+            "target": 9093,
+            "ip": "127.0.0.1",
+            "port": 19093
+          }
+        ],
+        "volumes": ["puni-dev-observability_alertmanager"],
+        "aliases": []
+      },
+      {
+        "id": "4793410721da80a9512961eda1a02f237f5e4118162a92f690ef29514e03c0c1",
+        "name": "/puni-dev-observability-collector-1",
+        "startedAt": "2026-10-25T14:11:13.501756373Z",
+        "restartCount": 0,
+        "status": "running",
+        "image": "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.160.0@sha256:799dc6cf12c96192af37b5bdba804da8c10b3bc563b43cb90c3f3c58d9572ad6",
+        "memory": 536870912,
+        "cpuQuota": 1000000000,
+        "pidsLimit": 256,
+        "networks": ["puni-dev-observability_dev"],
+        "project": "puni-dev-observability",
+        "service": "collector",
+        "ports": [
+          {
+            "target": 4318,
+            "ip": "127.0.0.1",
+            "port": 14318
+          }
+        ],
+        "volumes": ["puni-dev-observability_collector"],
+        "aliases": []
+      },
+      {
+        "id": "d9c49e4664cc7fd01113e640c1618a10ab652bf927bfa02adfeda7a16670b3e3",
+        "name": "/h3mon-observability-mlflow-1",
+        "startedAt": "2026-10-19T09:08:42.345358982Z",
+        "restartCount": 0,
+        "status": "running",
+        "image": "ghcr.io/mlflow/mlflow:v3.7.0@sha256:09c02b39a2f7217ec8d8746909878aa90eeeb0b8b7a01cba6a18907c3326518c",
+        "memory": 536870912,
+        "cpuQuota": 1000000000,
+        "pidsLimit": null,
+        "networks": ["h3mon-observability_ingest"],
+        "project": "h3mon-observability",
+        "service": "mlflow",
+        "ports": [
+          {
+            "target": 5000,
+            "ip": "127.0.0.1",
+            "port": 5000
+          }
+        ],
+        "volumes": ["h3mon-observability_mlflow-data"],
+        "aliases": []
+      },
+      {
+        "id": "ad26831ff55c804a47a3e839ce2e53dcb95e7f1d0e281e9d961b407bc0341c0b",
+        "name": "/h3mon-observability-otel-collector-1",
+        "startedAt": "2026-10-19T09:08:42.352016505Z",
+        "restartCount": 0,
+        "status": "running",
+        "image": "otel/opentelemetry-collector-contrib:0.159.0@sha256:1f2c54a30e713fac6b3ae77a1ec84010c2007e29ced8ec666214fc2f6739c1cc",
+        "memory": 201326592,
+        "cpuQuota": 500000000,
+        "pidsLimit": null,
+        "networks": ["h3mon-observability_ingest"],
+        "project": "h3mon-observability",
+        "service": "otel-collector",
+        "ports": [
+          {
+            "target": 4318,
+            "ip": "127.0.0.1",
+            "port": 4318
+          }
+        ],
+        "volumes": ["h3mon-observability_collector-queue"],
+        "aliases": []
+      },
+      {
+        "id": "d3dcd35b1ca20c8e876b57a7c96b1b02d9a0079b2bcc357e486b17a0c0d170a4",
+        "name": "/h3mon-observability-victorialogs-1",
+        "startedAt": "2026-10-19T09:08:42.356750216Z",
+        "restartCount": 0,
+        "status": "running",
+        "image": "victoriametrics/victoria-logs:v1.52.0@sha256:47b820890d64c4575a2a0a46415dcd8a4fd59a0f1fcd6a377693d7aea639442e",
+        "memory": 805306368,
+        "cpuQuota": 1000000000,
+        "pidsLimit": null,
+        "networks": ["h3mon-observability_ingest", "h3mon-observability_query"],
+        "project": "h3mon-observability",
+        "service": "victorialogs",
+        "ports": [
+          {
+            "target": 9428,
+            "ip": "127.0.0.1",
+            "port": 9428
+          }
+        ],
+        "volumes": ["h3mon-observability_logs-data"],
+        "aliases": ["h3mon-observability-victorialogs-1", "victorialogs"]
+      },
+      {
+        "id": "ffa2f44964445a0128a9b104171e0ab9fda06ecb1dad66f459b55f5a87e8ee0f",
+        "name": "/h3mon-observability-victoriatraces-1",
+        "startedAt": "2026-10-19T09:08:42.35829113Z",
+        "restartCount": 0,
+        "status": "running",
+        "image": "victoriametrics/victoria-traces:v0.11.0@sha256:9947b14b6b9baa61b8efef64467a7118ee54ccd6be6b7c1849f6fdd65d8e17fd",
+        "memory": 402653184,
+        "cpuQuota": 1000000000,
+        "pidsLimit": null,
+        "networks": ["h3mon-observability_ingest", "h3mon-observability_query"],
+        "project": "h3mon-observability",
+        "service": "victoriatraces",
+        "ports": [
+          {
+            "target": 10428,
+            "ip": "127.0.0.1",
+            "port": 10428
+          }
+        ],
+        "volumes": ["h3mon-observability_traces-data"],
+        "aliases": ["h3mon-observability-victoriatraces-1", "victoriatraces"]
+      },
+      {
+        "id": "27f655207ebff0eb70145e824142e8a5ab9677a03813a718882750d0714886f5",
+        "name": "/h3mon-observability-victoriametrics-1",
+        "startedAt": "2026-10-19T09:08:42.355430461Z",
+        "restartCount": 0,
+        "status": "running",
+        "image": "victoriametrics/victoria-metrics:v1.150.0@sha256:54467c7764a3e6579199af1914bb779f01ce32265cd552eb5ae0d4f8a2b80a97",
+        "memory": 268435456,
+        "cpuQuota": 1000000000,
+        "pidsLimit": null,
+        "networks": ["h3mon-observability_ingest", "h3mon-observability_query"],
+        "project": "h3mon-observability",
+        "service": "victoriametrics",
+        "ports": [
+          {
+            "target": 8428,
+            "ip": "127.0.0.1",
+            "port": 8428
+          }
+        ],
+        "volumes": ["h3mon-observability_metrics-data"],
+        "aliases": ["h3mon-observability-victoriametrics-1", "victoriametrics"]
+      },
+      {
+        "id": "19fefffefca2c20e5a4c3b9dc3371909fc20daa5a6f7df1c195f0bcff1299c50",
+        "name": "/h3mon-observability-vmauth-1",
+        "startedAt": "2026-10-19T09:08:42.356109998Z",
+        "restartCount": 0,
+        "status": "running",
+        "image": "victoriametrics/vmauth:v1.150.0@sha256:ad60659fadc0b7c364836e11d9cbffa14137ac8d95608cf5c71407d89f27c64f",
+        "memory": 67108864,
+        "cpuQuota": 250000000,
+        "pidsLimit": null,
+        "networks": ["h3mon-observability_ingest"],
+        "project": "h3mon-observability",
+        "service": "vmauth",
+        "ports": [
+          {
+            "target": 8427,
+            "ip": "10.1.0.2",
+            "port": 9428
+          }
+        ],
+        "volumes": [],
+        "aliases": []
+      },
+      {
+        "id": "f7fce9ef017ea81eb8baa554fa236c92ced377895ae2944df95311b4233e4972",
+        "name": "/h3mon-observability-grafana-1",
+        "startedAt": "2026-10-19T09:08:42.357629292Z",
+        "restartCount": 0,
+        "status": "running",
+        "image": "grafana/grafana:13.0.7@sha256:e78917cdd3336d0d679d345b2e6d0f60a0fe85ed7ac3882b68f089fdb6ff2ace",
+        "memory": 402653184,
+        "cpuQuota": 1000000000,
+        "pidsLimit": null,
+        "networks": ["h3mon-observability_query"],
+        "project": "h3mon-observability",
+        "service": "grafana",
+        "ports": [
+          {
+            "target": 3000,
+            "ip": "127.0.0.1",
+            "port": 3000
+          }
+        ],
+        "volumes": ["h3mon-observability_grafana-data"],
+        "aliases": ["h3mon-observability-grafana-1", "grafana"]
+      }
+    ],
+    "volumes": [
+      {
+        "name": "puni-dev-observability_elasticsearch",
+        "project": "puni-dev-observability",
+        "volume": "elasticsearch"
+      },
+      {
+        "name": "puni-dev-observability_kibana",
+        "project": "puni-dev-observability",
+        "volume": "kibana"
+      },
+      {
+        "name": "puni-dev-observability_collector",
+        "project": "puni-dev-observability",
+        "volume": "collector"
+      },
+      {
+        "name": "puni-dev-observability_gateway",
+        "project": "puni-dev-observability",
+        "volume": "gateway"
+      },
+      {
+        "name": "puni-dev-observability_prometheus",
+        "project": "puni-dev-observability",
+        "volume": "prometheus"
+      },
+      {
+        "name": "puni-dev-observability_alertmanager",
+        "project": "puni-dev-observability",
+        "volume": "alertmanager"
+      }
+    ],
+    "network": {
+      "Id": "a8c94b425b03ae71d4d5a72cd6947310ee97431358f7e62b4e0cdbb29bd10311",
+      "Driver": "bridge",
+      "Internal": false
+    },
+    "observedAt": 1792941943318
+  },
+  "h1": {
+    "hostname": "ubuntu-4gb-ash-1",
+    "user": "claw",
+    "arch": "x86_64",
+    "memory": 4341542912,
+    "manifest": {
+      "sourceCommit": "ab4f7cf6e3023f2f2851bbf85dfb920c7de0859d",
+      "binarySha256": "281c51a2542784f8b46df5ad8f7a22ab4f29b738a90b15a7bd1c9937a743374c",
+      "binaryBytes": 109467824,
+      "target": "bun-linux-x64",
+      "builtOn": "local",
+      "bunVersion": "1.4.4"
+    },
+    "binaryHash": "281c51a2542784f8b46df5ad8f7a22ab4f29b738a90b15a7bd1c9937a743374c",
+    "binaryBytes": 109467824,
+    "baseline": {
+      "host": "ubuntu-4gb-ash-1",
+      "observedAt": 1792940292833,
+      "existingTunnelHash": "1efb7824b3902a962a5f68b60cd9c384afa651c7ac99d1b8e9350a78a3ac67f4",
+      "existingTunnel": "MainPID=1406810\nActiveState=active",
+      "pathsInitiallyAbsent": [
+        "/home/claw/.local/lib/puni-dev-observability",
+        "/home/claw/.local/state/puni-dev-observability"
+      ],
+      "portsInitiallyFree": [14318, 19200, 19090]
+    },
+    "existingTunnelHash": "1efb7824b3902a962a5f68b60cd9c384afa651c7ac99d1b8e9350a78a3ac67f4",
+    "existingTunnel": "MainPID=1406810\nActiveState=active",
+    "linger": "yes",
+    "probe": {
+      "source": {
+        "kind": "ssh-dev-container",
+        "containerValidated": true,
+        "containerId": "42d27c3ff342ae131a9697af82c6cb5f3d0d7c9ebf5cabec79a9c53816409623"
+      },
+      "observedAt": 1792940535818,
+      "producerVersion": "ab4f7cf6e3023f2f2851bbf85dfb920c7de0859d"
+    },
+    "health": {
+      "checkedAt": 1792940539320,
+      "health": {
+        "state": "incomplete",
+        "signals": {
+          "log": ["unavailable: source-not-validated"],
+          "metric": ["unavailable: source-not-validated"],
+          "trace": ["unavailable: source-not-validated"]
+        }
+      },
+      "storage": {
+        "state": "complete",
+        "checkedAt": 1792940537905,
+        "observedAt": 1792940537000,
+        "availableBytes": 130281742336,
+        "capacityBytes": 160921083904
+      },
+      "application": {
+        "state": "complete",
+        "reason": "collected",
+        "checkedAt": 1792940536373,
+        "containerId": "42d27c3ff342ae131a9697af82c6cb5f3d0d7c9ebf5cabec79a9c53816409623",
+        "accepted": 0,
+        "unsupported": 0,
+        "invalid": 0
+      }
+    },
+    "listeners": "LISTEN 0      128                      127.0.0.1:9428  0.0.0.0:* users:((\"ssh\",pid=1406810,fd=6))             \nLISTEN 0      4096                     127.0.0.1:46427 0.0.0.0:*                                              \nLISTEN 0      4096                 127.0.0.53%lo:53    0.0.0.0:*                                              \nLISTEN 0      128                      127.0.0.1:4318  0.0.0.0:* users:((\"ssh\",pid=1406810,fd=4))             \nLISTEN 0      128                      127.0.0.1:8428  0.0.0.0:* users:((\"ssh\",pid=1406810,fd=5))             \nLISTEN 0      511                      127.0.0.1:45529 0.0.0.0:* users:((\"node-MainThread\",pid=473896,fd=66)) \nLISTEN 0      511                      127.0.0.1:33349 0.0.0.0:* users:((\"node-MainThread\",pid=473896,fd=83)) \nLISTEN 0      4096                       0.0.0.0:22    0.0.0.0:*                                              \nLISTEN 0      128                      127.0.0.1:10428 0.0.0.0:* users:((\"ssh\",pid=1406810,fd=7))             \nLISTEN 0      512                      127.0.0.1:6420  0.0.0.0:* users:((\"backlog\",pid=1471589,fd=13))        \nLISTEN 0      10                       127.0.0.1:18900 0.0.0.0:* users:((\"chrome\",pid=613819,fd=75))          \nLISTEN 0      511                      127.0.0.1:18899 0.0.0.0:* users:((\"node-MainThread\",pid=473896,fd=140))\nLISTEN 0      511                      127.0.0.1:18889 0.0.0.0:* users:((\"node-MainThread\",pid=473896,fd=68)) \nLISTEN 0      4096                 100.115.41.98:36996 0.0.0.0:*                                              \nLISTEN 0      4096                    127.0.0.54:53    0.0.0.0:*                                              \nLISTEN 0      4096                 100.115.41.98:443   0.0.0.0:*                                              \nLISTEN 0      4096   [fd7a:115c:a1e0::d532:2963]:443      [::]:*                                              \nLISTEN 0      4096   [fd7a:115c:a1e0::d532:2963]:51173    [::]:*                                              \nLISTEN 0      4096                          [::]:22       [::]:*                                              \nLISTEN 0      511                          [::1]:18889    [::]:* users:((\"node-MainThread\",pid=473896,fd=69))",
+    "observedAt": 1792941946167,
+    "units": {
+      "puni-dev-observability.service": null,
+      "puni-dev-observability-tunnel.service": null
+    },
+    "tunnelPid": 0,
+    "storage": "Filesystem     1024-blocks     Used Available Capacity Mounted on\n/dev/sda1         78425224 55099076  20081408      74% /"
+  }
+}

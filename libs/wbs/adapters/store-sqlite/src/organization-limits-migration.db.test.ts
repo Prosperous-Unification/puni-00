@@ -21,7 +21,7 @@ const MEASURE_FACTS = '20261023150000_key_step_measure';
 /** The measure estimates, which reverse first over single-point token trios alone. */
 const MEASURE_ESTIMATES = '20261023160000_add_measure_estimate';
 const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
-const ACCESS_GRANTS = '20261025100000_add_access_grants';
+const ACCESS_GRANTS = '20261102120000_add_access_grants';
 const BASELINE = '20261022120000_scope_trusted_issuer_audience';
 /** The newer compute-provider migrations, which reverse before the limits ones. */
 const RESOURCE_PROVIDER = '20261022140000_add_resource_provider';
@@ -123,6 +123,14 @@ describe(MIGRATION, () => {
             MEASURE_FACTS,
             MEASURE_ESTIMATES,
             WORK_ITEM_BUDGETS,
+            '20261025120000_add_resource_use',
+            '20261025130000_add_resource_runtime',
+            '20261026120000_add_command_journal_person',
+            '20261026130000_widen_organization_audit_machine_tokens',
+            '20261028100000_add_agent_pool',
+            '20261028100100_widen_organization_audit_agent_pools',
+            '20261101100000_widen_organization_audit_directory_capacity',
+            '20261101100100_add_resource_directory_capacity',
             ACCESS_GRANTS,
           ].includes(name),
       ),
@@ -132,6 +140,14 @@ describe(MIGRATION, () => {
   it('rolls back when empty and comes forward again', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
       ACCESS_GRANTS,
+      '20261101100100_add_resource_directory_capacity',
+      '20261101100000_widen_organization_audit_directory_capacity',
+      '20261028100100_widen_organization_audit_agent_pools',
+      '20261028100000_add_agent_pool',
+      '20261026130000_widen_organization_audit_machine_tokens',
+      '20261026120000_add_command_journal_person',
+      '20261025130000_add_resource_runtime',
+      '20261025120000_add_resource_use',
       WORK_ITEM_BUDGETS,
       MEASURE_ESTIMATES,
       MEASURE_FACTS,
@@ -141,6 +157,7 @@ describe(MIGRATION, () => {
       RESOURCE_PROVIDER,
       LIMITS_AUDIT,
       MIGRATION,
+      '20261022121000_add_runtime_commands',
     ]);
     expect(
       db.query("SELECT name FROM sqlite_master WHERE name = 'organization_limits'").all(),

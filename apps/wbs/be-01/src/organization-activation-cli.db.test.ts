@@ -7,12 +7,16 @@ import { runMigrations } from '@wbs/store-sqlite/migrate';
 import { OWNED_ROOT_KINDS } from '@wbs/store-sqlite/organization-ownership';
 import { afterEach, beforeEach, describe, expect, it, setDefaultTimeout } from 'bun:test';
 
+import { TEST_MACHINE_GRANT_ENV } from './testing/machine-grant-fixture';
 import { writeMcpStoreFixture } from './testing/mcp-store-fixture';
 
 setDefaultTimeout(30_000);
 
 const cli = new URL('./organization-activation-cli.ts', import.meta.url).pathname;
 const migrations = new URL('../drizzle', import.meta.url).pathname;
+
+/** be-01's machine grant settings, which activation requires beside it (exit 8 without). */
+const GRANT_SETTINGS: Record<string, string> = { ...TEST_MACHINE_GRANT_ENV };
 
 let directory: string;
 let path: string;
@@ -95,17 +99,24 @@ function count(table: string): number {
  * Runs the CLI with `DB_PATH` set to `dbPath`, or unset when it is null, and `--mcp-store`
  * naming the advanced fixture unless `args` names one or `isWithoutMcpStore`.
  */
-function run(args: readonly string[], dbPath: string | null = path, isWithoutMcpStore = false) {
+function run(
+  args: readonly string[],
+  dbPath: string | null = path,
+  isWithoutMcpStore = false,
+  grantSettings: Record<string, string> = GRANT_SETTINGS,
+) {
   const inherited = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => key !== 'DB_PATH'),
+    Object.entries(process.env).filter(
+      ([key]) => key !== 'DB_PATH' && !Object.hasOwn(GRANT_SETTINGS, key),
+    ),
   );
   const store = isWithoutMcpStore || args.includes('--mcp-store') ? [] : ['--mcp-store', mcpStore];
   const spawned = Bun.spawnSync([process.execPath, cli, ...store, ...args], {
     // FORCE_COLOR as Nx sets it in the gate, so terminal styling on either stream fails here.
     env:
       dbPath === null
-        ? { ...inherited, FORCE_COLOR: '1' }
-        : { ...inherited, FORCE_COLOR: '1', DB_PATH: dbPath },
+        ? { ...inherited, ...grantSettings, FORCE_COLOR: '1' }
+        : { ...inherited, ...grantSettings, FORCE_COLOR: '1', DB_PATH: dbPath },
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -438,6 +449,45 @@ describe('organization-activation-cli', () => {
     });
     expect(writable()).toEqual(before);
     expect(rows('SELECT * FROM organization_activation')).toEqual(PRE_ACTIVATION);
+  });
+
+  it('refuses activation without the machine grant settings, naming them, writing nothing', () => {
+    const before = writable();
+    const refused = run(APPLY, path, false, {
+      WBS_MCP_AUTHORIZATION_SERVER: GRANT_SETTINGS['WBS_MCP_AUTHORIZATION_SERVER'] ?? '',
+    });
+    expect(refused.exitCode).toBe(8);
+    expect(refused.stdout).toBe('');
+    expect(refusalOf(refused.stderr)).toEqual({
+      refusal: 'machine_grant_settings_missing',
+      missing: ['MCP_BE_INTERNAL_SECRET', 'WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT'],
+    });
+    expect(writable()).toEqual(before);
+    expect(rows('SELECT * FROM organization_activation')).toEqual(PRE_ACTIVATION);
+  });
+
+  it('refuses activation with a weak grant key or secret, naming it', () => {
+    for (const [name, message] of [
+      ['WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT', 'WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT must hold'],
+      ['MCP_BE_INTERNAL_SECRET', 'MCP_BE_INTERNAL_SECRET must hold'],
+    ] as const) {
+      const refused = run(APPLY, path, false, { ...GRANT_SETTINGS, [name]: 'g'.repeat(32) });
+      expect(refused.exitCode).toBe(8);
+      expect(refusalOf(refused.stderr)).toEqual({
+        refusal: 'machine_grant_settings_invalid',
+        invalid: [expect.stringContaining(message)],
+      });
+    }
+    expect(rows('SELECT * FROM organization_activation')).toEqual(PRE_ACTIVATION);
+  });
+
+  it('rehearses without the machine grant settings, then reports the refusal', () => {
+    const rehearsed = run(['--name', 'default', '--super-admin', 'dany'], path, false, {});
+    expect(rehearsed.exitCode).toBe(8);
+    expect(JSON.parse(rehearsed.stdout)).toMatchObject({ mode: 'dry_run', activatedAt: null });
+    expect(refusalOf(rehearsed.stderr)).toMatchObject({
+      refusal: 'machine_grant_settings_missing',
+    });
   });
 
   it('rehearses while the MCP epoch is 0, then reports the refusal', () => {

@@ -53,6 +53,8 @@ describe('planSwap', () => {
   it('stops and proves the outgoing writer before candidate start and exposure', () => {
     const steps = planSwap('be', base).steps;
     expect(steps.indexOf('preflight-green')).toBe(0);
+    // The MCP preflight refuses while the outgoing writer still serves.
+    expect(steps.indexOf('mcp-preflight')).toBe(1);
     expect(steps.indexOf('record-writer-stop')).toBeLessThan(steps.indexOf('stop-blue'));
     expect(steps.indexOf('stop-blue')).toBeLessThan(steps.indexOf('verify-blue-stopped'));
     expect(steps.indexOf('verify-blue-stopped')).toBeLessThan(steps.indexOf('start-green'));

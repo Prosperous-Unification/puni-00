@@ -51,6 +51,7 @@ export const switchCapacityMode = defineEndpointShape({
   method: 'PATCH',
   path: '/api/organization',
   operationId: 'patchApiOrganization',
+  humanOnly: true,
   policies: [
     { kind: 'organization-resource', operation: 'mutation' },
     { kind: 'origin', when: 'always-unsafe-with-session-cookie' },

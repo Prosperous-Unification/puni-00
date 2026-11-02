@@ -18,7 +18,7 @@ import {
   PERSON_KINDS,
   type PersonKind,
 } from '@wbs/domain';
-import { and, asc, count, eq, inArray } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -295,6 +295,14 @@ export class ComputeProviderRepository implements ComputeProviderAdministration,
       // and delete` in `compute-provider.controller.db.test.ts` renamed B's
       // instance (200); watched 2026-10-22.
       if (row === undefined) return 'unknown_provider';
+      // Proof: the late-cause request test observed deletion 204 before pending acknowledgments joined this predicate (2026-10-25).
+      const outstanding = tx.all<{
+        id: string;
+        name: string;
+      }>(sql`SELECT DISTINCT json_extract(snapshot,'$.resourceId') AS id,json_extract(snapshot,'$.resourceName') AS name FROM resource_use
+        WHERE organization_id=${organizationId} AND json_extract(snapshot,'$.providerId')=${id} AND json_extract(snapshot,'$.source')='runtime' AND (state!='release_verified' OR json_extract(snapshot,'$.pendingCleanupRequest')=1)`);
+      // Proof: disabling this guard allowed cascading deletion in the unresolved-runtime-use controller test (2026-10-25).
+      if (outstanding.length > 0) return { kind: 'in_use', resources: outstanding } as const;
       const fulfilled = tx
         .select({ id: resource.id, name: resourceOrganization.name })
         .from(resource)

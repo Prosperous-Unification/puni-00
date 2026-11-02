@@ -3,10 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
+import { mcpAuthorizationServerOf } from '@wbs/contracts';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 
 import { bootBe01, type RunningBe } from '../boot';
+import { loadMcpServiceSettings } from '../config';
 import { openDatabase } from '../repository/db';
 import { runMigrations } from '../repository/migrate';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
@@ -16,6 +18,7 @@ import {
   insertMembership,
   insertOrganization,
 } from '../testing/booted-browser-process';
+import { TEST_MACHINE_GRANT_ENV } from '../testing/machine-grant-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits-fixture';
 
 /** Printed on start so a reader finds this process's banner in mixed logs. */
@@ -24,35 +27,53 @@ const OWNER = { username: 'owner', password: 'correct-horse' } as const;
 const ORGANIZATION = 'org-local';
 /** Loopback only: the JWT key and the owner's password are public fixtures. */
 const HOSTNAME = '127.0.0.1';
+/** The public fixture mcp-01 must be started with, printed in the banner. */
+const MCP_SECRET = TEST_MACHINE_GRANT_ENV['MCP_BE_INTERNAL_SECRET'];
 
 /**
- * `--port` (0 picks a free one), `--gw-url` and `--app-origin`, each required.
+ * `--port` (0 picks a free one), `--gw-url`, `--app-origin` and `--mcp-url`
+ * (the `MCP_PUBLIC_URL` of the local mcp-01 agents connect to), each required.
  *
  * @throws naming the flag when one is missing, or when the port is not a
  *   non-negative integer.
  */
-function listenerFromArguments(): { port: number; gwUrl: string; appOrigin: string } {
+function listenerFromArguments(): {
+  port: number;
+  gwUrl: string;
+  appOrigin: string;
+  mcpUrl: string;
+} {
   const { values } = parseArgs({
     options: {
       port: { type: 'string' },
       'gw-url': { type: 'string' },
       'app-origin': { type: 'string' },
+      'mcp-url': { type: 'string' },
     },
     strict: true,
   });
-  const required = (name: 'port' | 'gw-url' | 'app-origin'): string => {
+  const required = (name: 'port' | 'gw-url' | 'app-origin' | 'mcp-url'): string => {
     const value = values[name];
     if (value === undefined || value === '') throw new Error(`--${name} is required`);
     return value;
   };
   const port = Number(required('port'));
   if (!Number.isInteger(port) || port < 0) throw new Error('--port must be a non-negative integer');
-  return { port, gwUrl: required('gw-url'), appOrigin: new URL(required('app-origin')).origin };
+  return {
+    port,
+    gwUrl: required('gw-url'),
+    appOrigin: new URL(required('app-origin')).origin,
+    mcpUrl: required('mcp-url'),
+  };
 }
 
 /**
  * Serves be-01 with one activated organization on a workstation, for running
- * agents with API keys against a local stack (issue #669 F5).
+ * agents with API keys against a local stack (issue #669 F5). Agents connect
+ * over MCP: a local mcp-01 at `--mcp-url` exchanges each key for a token
+ * (`wbs-mcp-agent-surface` task 7.0), so this composes machine grants with
+ * {@link TEST_MACHINE_GRANT_ENV}'s public fixture secret and grant key, and
+ * that mcp-01's authorization server.
  *
  * `main.ts` cannot do this alone: `AUTH_MODE=local` makes every request the
  * fixed `local-dev` identity, so an API key never authenticates, and nothing
@@ -74,6 +95,7 @@ async function serveActivatedOrganization({
   port,
   gwUrl,
   appOrigin,
+  mcpUrl,
 }: ReturnType<typeof listenerFromArguments>): Promise<void> {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-activated-organization-'));
   const dbPath = join(directory, 'local.db');
@@ -91,6 +113,14 @@ async function serveActivatedOrganization({
         internalAuthSecret: BOOTED_INTERNAL_SECRET,
         browserSessionAuthority: 'enabled',
         organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
+        // Proof: without these settings, `issues an agent's key a token at the local
+        // mcp-01…` (activated-organization-server.test.ts) saw `mcp token` exit 1 on the
+        // token endpoint's HTTP 502 server_error; watched 2026-10-29.
+        mcpService: loadMcpServiceSettings({
+          ...TEST_MACHINE_GRANT_ENV,
+          WBS_MCP_AUTHORIZATION_SERVER: mcpAuthorizationServerOf(mcpUrl),
+          INTERNAL_AUTH_SECRET: BOOTED_INTERNAL_SECRET,
+        }),
       },
       {
         openSource: openSqliteSource,
@@ -112,7 +142,7 @@ async function serveActivatedOrganization({
       sqlite.close();
     }
     console.log(
-      `${BANNER}: ${origin}; sign in as ${OWNER.username} / ${OWNER.password}; organization ${ORGANIZATION}; database ${dbPath}`,
+      `${BANNER}: ${origin}; sign in as ${OWNER.username} / ${OWNER.password}; organization ${ORGANIZATION}; database ${dbPath}; mcp-01 at ${mcpUrl} with MCP_BE_INTERNAL_SECRET=${MCP_SECRET}`,
     );
   } catch (cause) {
     // Proof: with this cleanup removed, `deletes its database directory when

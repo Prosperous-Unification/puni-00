@@ -346,7 +346,15 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
-        '20261025100000_add_access_grants',
+        '20261102120000_add_access_grants',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
+        '20261026130000_widen_organization_audit_machine_tokens',
+        '20261026120000_add_command_journal_person',
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',
@@ -356,6 +364,7 @@ describe('the optimizer migration', () => {
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
+        '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -434,6 +443,10 @@ describe('the optimizer migration', () => {
             name !== 'organization_trusted_issuer' &&
             name !== 'machine_credential' &&
             name !== 'machine_credential_secret' &&
+            name !== 'runtime_ledger' &&
+            name !== 'runtime_authority' &&
+            name !== 'runtime_claim_binding' &&
+            name !== 'runtime_command_receipt' &&
             name !== 'organization_limits' &&
             name !== 'measure' &&
             name !== 'measure_estimate' &&
@@ -441,6 +454,14 @@ describe('the optimizer migration', () => {
             !name.startsWith('access_') &&
             name !== 'compute_provider' &&
             name !== 'resource_capacity_report' &&
+            name !== 'resource_authority' &&
+            name !== 'resource_cleanup_request' &&
+            name !== 'resource_runtime_event' &&
+            name !== 'resource_runtime_use' &&
+            name !== 'resource_use' &&
+            name !== 'agent_pool' &&
+            name !== 'resource_use_event' &&
+            name !== 'resource_directory_capacity' &&
             name !== 'shared_people_restore_operation' &&
             name !== 'shared_people_restore_receipt' &&
             name !== 'shared_people_restore_consumption' &&
