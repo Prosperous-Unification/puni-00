@@ -1411,4 +1411,15 @@ Each fault was applied by script, watched red, and restored with SHA-256 equal b
 
 #### Commands (review fixes, fresh)
 
-REVIEW_RESULTS
+| Command                                                                                                                                  | Result                                       |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `bash bin/heavy-lock.test.sh`                                                                                                            | `all heavy-lock checks passed` (1–28, 40–47) |
+| `bash bin/h2puni-gate.test.sh`                                                                                                           | `all cases passed` (44a–i, 45a–d, 46, 47)    |
+| shellcheck on every edited or new script                                                                                                 | exit 0                                       |
+| `bun test src/ops src/cli.test.ts src/no-ambient-clock.test.ts` plus host-jobs, host-jobs.model, host-job-holds, resource-holds, runtime | exit 0, no `(fail)`                          |
+| `solver-image-smoke.test.ts`, tool-devsync `poller` + `solver-binding-runtime`, tool-dagger `heavy-lock`, Burokrat `whole tree`          | 40, 39, 9, 1 pass                            |
+| `twilight-dash:typecheck`, `:lint`                                                                                                       | succeeded                                    |
+| prettier on touched files                                                                                                                | clean                                        |
+| `openspec validate dash-host-jobs`                                                                                                       | 1 passed, 0 failed                           |
+| `check-indexes working . HEAD`                                                                                                           | exit 0                                       |
+| `bunx nx run twilight-dash:test --skip-nx-cache` at `1173437ce` (after the re-merge)                                                     | 4230 pass, 0 fail across 136 files, 29m 8s   |
