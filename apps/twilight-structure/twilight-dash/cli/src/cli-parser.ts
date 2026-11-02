@@ -9,6 +9,7 @@ import {
   multiple,
   object,
   option,
+  optional,
   or,
   type Parser,
   passThrough,
@@ -181,6 +182,45 @@ const poolConfig = () =>
     description: message`The owner-only host pool configuration (resource configuration schema 3).`,
   });
 
+/** `--type`, the job type as the checkout's catalogue at HEAD names it. */
+const jobTypeOption = () =>
+  option('--type', flagValue('NAME'), {
+    description: message`The job type, as the checkout's infra/jobs/catalogue.json at HEAD names it.`,
+  });
+
+/** The admission and payload fields `ops job run` and `ops job calibrate` share (J7, J9). */
+const launchFields = (label: string, waitSeconds: number) => ({
+  config: poolConfig(),
+  type: jobTypeOption(),
+  label: withDefault(
+    option('--label', flagValue('NAME'), {
+      description: message`The lane label status and refusals name, as HEAVY_LOCK_LABEL is; default ${label}.`,
+    }),
+    label,
+  ),
+  waitSeconds: withDefault(
+    option('--wait-seconds', integer({ min: 0, metavar: 'SECONDS' }), {
+      description:
+        waitSeconds === 0
+          ? message`How long to wait for room; 0 (the default) refuses 75 while anyone is ahead.`
+          : message`How long to wait for the pool to drain; default ${String(waitSeconds)}, then 75.`,
+    }),
+    waitSeconds,
+  ),
+  pollSeconds: withDefault(
+    option('--poll-seconds', integer({ min: 1, max: 30, metavar: 'SECONDS' }), {
+      description: message`Seconds between admission polls, 1 to 30; default 5.`,
+    }),
+    5,
+  ),
+  argv: multiple(
+    argument(string({ metavar: 'COMMAND' }), {
+      description: message`The payload, after --: its program, then arguments matching the type's argument profile.`,
+    }),
+    { min: 1 },
+  ),
+});
+
 /** One `ops` command: its words after `ops` are its discriminant in `src/ops/commands.ts`. */
 function opsCommand<const Words extends string, const Fields extends Record<string, Parser>>(
   name: string,
@@ -196,7 +236,7 @@ function opsCommand<const Words extends string, const Fields extends Record<stri
 /**
  * `ops`, the first typed namespace (`dash-host-jobs` J17): host jobs and the host pool. The
  * grammar is parsed here, not in its module, because it has no hand-written parser to keep.
- * `calibrate`, `propose`, `audit` and `switch-mode` arrive with slices 4 and 6.
+ * `switch-mode` arrives with slice 6.
  */
 const opsNamespace = command(
   'ops',
@@ -208,35 +248,64 @@ const opsNamespace = command(
           'run',
           'job run',
           'Admit a host job from the host pool, run it measured in its own scope, settle it.',
+          launchFields('unlabeled', 0),
+        ),
+        opsCommand(
+          'calibrate',
+          'job calibrate',
+          'Wait for the pool to drain, hold all of it, run the job unbounded and record a calibration.',
+          launchFields('calibration', 7200),
+        ),
+        opsCommand(
+          'propose',
+          'job propose',
+          'Print a catalogue patch for a job type from its run records; write nothing.',
           {
             config: poolConfig(),
-            type: option('--type', flagValue('NAME'), {
-              description: message`The job type, as the checkout's infra/jobs/catalogue.json at HEAD names it.`,
+            type: jobTypeOption(),
+            hostClass: optional(
+              option('--host-class', flagValue('NAME'), {
+                description: message`The host class to propose for; default this host's.`,
+              }),
+            ),
+            toolchain: optional(
+              option('--toolchain', flagValue('NAME'), {
+                description: message`The toolchain to propose for, as run records name it; default the bun on PATH.`,
+              }),
+            ),
+          },
+        ),
+        opsCommand(
+          'audit',
+          'job audit',
+          'Name every envelope drift in the run records; exit 1 on any, print no drift otherwise.',
+          {
+            config: poolConfig(),
+            now: optional(
+              option('--now', flagValue('NAME'), {
+                description: message`The ISO-8601 UTC instant estimates are judged at; default now.`,
+              }),
+            ),
+          },
+        ),
+        opsCommand(
+          'render-audit-units',
+          'job render-audit-units',
+          'Write the weekly systemd user timer and service for ops job audit; install nothing.',
+          {
+            config: poolConfig(),
+            bun: option('--bun', flagValue('PATH'), {
+              description: message`The bun the service runs Dash with.`,
             }),
-            label: withDefault(
-              option('--label', flagValue('NAME'), {
-                description: message`The lane label status and refusals name, as HEAVY_LOCK_LABEL is; default unlabeled.`,
-              }),
-              'unlabeled',
-            ),
-            waitSeconds: withDefault(
-              option('--wait-seconds', integer({ min: 0, metavar: 'SECONDS' }), {
-                description: message`How long to wait for room; 0 (the default) refuses 75 while anyone is ahead.`,
-              }),
-              0,
-            ),
-            pollSeconds: withDefault(
-              option('--poll-seconds', integer({ min: 1, max: 30, metavar: 'SECONDS' }), {
-                description: message`Seconds between admission polls, 1 to 30; default 5.`,
-              }),
-              5,
-            ),
-            argv: multiple(
-              argument(string({ metavar: 'COMMAND' }), {
-                description: message`The payload, after --: its program, then arguments matching the type's argument profile.`,
-              }),
-              { min: 1 },
-            ),
+            dash: option('--dash', flagValue('PATH'), {
+              description: message`Dash's entrypoint.`,
+            }),
+            checkout: option('--checkout', flagValue('PATH'), {
+              description: message`The checkout whose catalogue the audit judges; its working directory.`,
+            }),
+            outputDirectory: option('--output-directory', flagValue('PATH'), {
+              description: message`Where to write the two unit files; neither may exist.`,
+            }),
           },
         ),
         opsCommand(

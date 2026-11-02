@@ -659,3 +659,140 @@ All of R1–R9 are applied. The plan head is still `056466709`.
 #### Commands (second pass, fresh; no full target)
 
 See the PR body for the trimmed outputs of the touched test files, `cli.test.ts`, typecheck, lint, prettier and `openspec validate`.
+
+## Slice 4 — calibration, proposal, audit (tasks 4.1–4.2)
+
+Branch `feat/dash-host-jobs-4-calibrate` from `feat/dash-host-jobs-3-run` at `f5f36c760`
+(slice 3, PR #809), 2026-11-02, on the 24-core workstation (Linux 7.0, systemd 255, a working
+user manager). Code: `apps/twilight-structure/twilight-dash/cli/src/ops/` (new `measures.ts`,
+`propose.ts`, `audit.ts`, `audit-units.ts`; `job-run.ts`, `scope.ts`, `catalogue.ts`,
+`run-records.ts`, `commands.ts` extended), the `ops job calibrate|propose|audit|
+render-audit-units` grammar in `src/cli-parser.ts`, and calibration admission in
+`src/resources/runtime.ts` (request and use flag, drain fit, whole-vector reservation, every
+unit). `moveHostJobEvents`, `publishEvent`, `src/compute`, WBS, be-01 and fe-01 are untouched
+(slice 5's). Tests: `src/ops/propose.test.ts`, `src/ops/audit.test.ts` (synthetic records,
+fixture `src/ops/run-record.test.fixture.ts`), `src/ops/audit-units.test.ts`,
+`src/ops/calibrate.test.ts` (real ledger, fake scope seam, one real-scope test) and the parity
+list in `src/cli.test.ts`.
+
+### Assumptions (open decisions taken per design.md; overrulable by id)
+
+- **S4-A1 Calibration admission.** A `calibration: true` flag on the runtime's `HostJobRequest`
+  and `HostJob`, not a second admission path. The ticket queues like any waiter, so it can be
+  overtaken and becomes a barrier after three (J6). It fits only when the pool has drained:
+  every dimension of the reserved vector is zero, no unit is held, no host job is `starting` or
+  `held`, every unit is ready and measured free space covers the whole disk budget. Admitted,
+  it reserves all four `allocatable` dimensions (cores, memory, disk units, slots) and every
+  unit of every exclusive id. That is J9's "whole `allocatable` vector" read literally, so on a
+  host with long-lived worktree uses it waits until they are released. `ops job calibrate`
+  defaults to `--wait-seconds 7200` and `--label calibration`; its payload gets the first unit
+  of each id its type names.
+- **S4-A2 Toolchain identity.** `bun <version>+<revision>` from `bun --revision` of the first
+  `bun` on the payload's `PATH`, or `no bun on PATH`. A `bun` that does not answer is 70 before
+  anything is reserved. `ops job run` records it too, so ordinary runs feed memory and tmp.
+- **S4-A3 Oversize.** A calibration skips the cores, memory and tmp oversize refusal (73), so an
+  envelope too large for the pool can be measured. It still refuses an exclusive id with no
+  units.
+- **S4-A4 Records.** The run-record schema stays version 1. `toolchain` and `calibration` are
+  optional keys of the start. A record without `toolchain` was written by slice 3 and is named
+  and excluded as not comparable. A record without `calibration` is an ordinary run, because
+  only `calibrate` writes the flag.
+- **S4-A5 Dimension sources and minimum.** Memory comes from every complete record that was
+  neither throttled (largest `memory.events high` > 0) nor capped (`enforcement: cap`, ordinary
+  runs only). CPU and duration come from calibration records alone. Tmp disk comes from every
+  complete record, since J9 does not say which. The minimum is three records per dimension in
+  its own source; the spec's "two calibration records for CPU and duration" scenario implies
+  memory and tmp may count ordinary runs. CPU is the largest rate over the window from each
+  sample to the first sample at least ten seconds later; a run shorter than one window is
+  measured over its whole span. A refusal prints the lines, one `error:` line, and exits 1.
+- **S4-A6 Complete.** Ended with status 0, no telemetry failure, no ledger failure, container
+  attribution complete, and an exit sample with counters.
+- **S4-A7 Output.** `propose` prints the **replacement entry** for `jobs[i]`, not an RFC 6902
+  patch: one line per dimension with the p95, the source and the record ids, each excluded
+  record with why, then the entry as JSON. The entry is validated by Burokrat's catalogue
+  contract. Envelope values are ⌈p95 × 1.25⌉, at least one core and one GiB. Provenance is
+  `calibrated` with the host class, the clock's instant, the p95s rounded to hundredths (always
+  below the envelope) and the union of record ids. Duration is printed but has no catalogue
+  field. Burokrat stays reachable only from `catalogue.ts` (the lint boundary of slice 3).
+- **S4-A8 Audit scope and overrun.** The audit reads the current checkout's catalogue at HEAD
+  plus the catalogue of every checkout a record names, each at its HEAD. A missing checkout or
+  catalogue refuses (64 or 70), never skips. An overrun is a peak above the envelope the run was
+  admitted under, in memory, CPU or tmp, for any ended run including a failed one. It is
+  superseded only when the HEAD entry covers the peak, or the entry's digest changed since the
+  run and its provenance is `calibrated`.
+- **S4-A9 Waste.** Judged over complete runs whose descriptor digest equals the HEAD entry's,
+  per dimension. Memory excludes throttled and capped runs. A zero tmp envelope is skipped.
+  At least ten values are needed.
+- **S4-A10 Attribution.** `attribution_incomplete` is kept until a later ended run of the same
+  type and catalogue saw containers, every one `bounded`, with attribution complete: positive
+  evidence of coverage. J16 does not say how it ends.
+- **S4-A11 Estimates and notes.** `estimate_expired` reads every catalogue the audit read and
+  treats `until` as valid through its last UTC millisecond, as `JOB-CATALOGUE` does. `--now`
+  must be `YYYY-MM-DDTHH:MM:SS[.sss]Z`, else 64. Runs without an outcome, and runs of a type no
+  longer catalogued, print `note: not judged …` and are not drift.
+- **S4-A12 Weekly units.** `ops job render-audit-units` is a fifth `ops job` word beside J17's
+  list. It writes a systemd **user** oneshot service (`WorkingDirectory` the checkout,
+  `ExecStart` bun, Dash, `ops job audit --config …`) and a timer (`OnCalendar=weekly`,
+  `Persistent=true`, `RandomizedDelaySec=1h`). The templates are embedded in TypeScript, so the
+  build bundle carries no `.tmpl` assets. Paths use the observation units' grammar, and an
+  existing file is never replaced. A drift fails the unit, which `systemctl --user --failed`
+  shows. Installing is the operator step in `docs/resources.md`; nothing was installed.
+- **S4-A13 Exit codes.** Audit drift and a refused proposal exit 1. They are outcomes, not
+  `OpsRefusal`s, whose codes keep the shell lock's contract (J13).
+
+### Fault injection
+
+Each fault was applied by exact text replacement from a scratch script outside the repository.
+The named test file was run (`bun test`, `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; the
+namespace wrapper reruns `calibrate.test.ts` inside), then the file was restored byte for byte
+and its SHA-256 compared with the original: equal in every row. Proof comments were reworded
+afterwards, with no code change, to match what was observed.
+
+| Fault injected                                                     | Test that went red                                                                                       | Observed                                             |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| minimum records lowered to one (`measures.ts`)                     | `too few records`                                                                                        | expected `refused`, received `proposed`              |
+| throttled runs taken into memory (`propose.ts`)                    | `a throttled run does not lower the proposal`                                                            | memoryGib expected 6, received 5                     |
+| overruns aged out after five later runs of the type (`audit.ts`)   | `an overrun is drift eight runs later` (and the superseded-by-envelope test)                             | the overrun line missing: no drift                   |
+| `until` judged from the start of its day                           | `an expired estimate is drift, valid through its until day`                                              | `estimate_expired` named at 2026-12-01T23:59:59.999Z |
+| `waste` never named                                                | `a p95 below half the envelope over ten runs is waste`                                                   | no drift                                             |
+| `attribution_incomplete` never named                               | `a run with an unbounded container is attribution_incomplete …`                                          | no drift                                             |
+| unit path check returns at once (`audit-units.ts`)                 | `refuses a unit path with a systemd specifier`                                                           | `/home/%u/bun` rendered, no throw                    |
+| existing-file pre-check dropped                                    | `writes both files and replaces neither`                                                                 | the service written beside the operator's timer      |
+| CPU of a run shorter than one window left null (`measures.ts`)     | `three calibrations record calibration records; propose …`, `propose refuses naming the count …`         | propose exit 1, not 0; the count line changed        |
+| calibration scope keeps `MemoryHigh`/`MemoryMax` (`scope.ts`)      | `a calibration scope sets no memory bound …`, real-scope `a calibration runs with no MemoryHigh`         | `MemoryHigh=6G`, `MemoryMax=6G` present              |
+| any `bun --revision` answer accepted (`catalogue.ts`)              | `a bun that cannot name its revision refuses 70 before anything is reserved`                             | no refusal: the job ran                              |
+| `--now` unchecked (`commands.ts`)                                  | `--now must be an ISO instant`                                                                           | exit 0, not 64                                       |
+| calibration admitted on the envelope fit, no drain (`runtime.ts`)  | `a calibration waits for the pool to drain`, `a calibration measures an envelope larger than the pool …` | expected `waiting`, received `admitted`              |
+| calibration charged its envelope, not `allocatable` (`runtime.ts`) | `a calibration holds the whole allocatable vector`                                                       | reserved 2 cores, 0 disk units, not 8 and 16         |
+| calibration claims only its envelope's units (`runtime.ts`)        | `… waits for the pool to drain`, `… holds the whole allocatable vector`, the end-to-end calibrate test   | units `[]`, not both gate trees                      |
+
+The brief's negatives are rows 1 (minimum one), 2 (throttled run included: the proposal drops)
+and 3 (overruns aged out after five runs: the eight-runs-later fixture passes without drift).
+
+### Commands (fresh, 2026-11-02, `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset for tests)
+
+| Command                                                                                                                                                     | Result                                                                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `bun test src/ops/propose.test.ts src/ops/audit.test.ts src/ops/audit-units.test.ts src/ops/calibrate.test.ts src/cli.test.ts src/no-ambient-clock.test.ts` | 76 pass, 0 fail (6 files); the namespace rerun of `calibrate.test.ts`: 9 pass, 0 fail        |
+| `bun test` on `status`, `job-run`, `containers`, `host-jobs`, `host-job-holds`, `host-jobs.model` (callers of the changed runtime and launcher)             | 5, 44, 3 pass; the namespaced `host-jobs`, `host-job-holds`, `host-jobs.model` wrappers pass |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                                                                                            | 4213 pass, 0 fail, 132 files, 1751.92 s; no flake rerun needed                               |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`, `:lint --skip-nx-cache`, `:build --skip-nx-cache`                                                    | each `Successfully ran target`                                                               |
+| `bunx prettier --check` on every touched file                                                                                                               | `All matched files use Prettier code style!`                                                 |
+| `bunx openspec validate dash-host-jobs --json`                                                                                                              | `valid: true`, 1 passed, 0 failed (the existing compute-provider warning only)               |
+| `bun …/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                       | exit 0; review debt only the two existing WBS indexes                                        |
+
+### Skipped or unverified
+
+- Not host-proven: nothing ran on h2puni or h4claw, and no unit was installed anywhere. The real
+  scope test ran on this workstation's user manager; CI skips it, named, without one.
+- The `tool-devsync` pilot-policy test was not run: every new file is under `src/ops/`.
+- `host-jobs.model.test.ts` does not yet generate calibrations (J18 lists them); the slice adds
+  example tests of drain, whole-vector hold and every unit, not a model. Follow-up.
+- Slice 5's `resourceRuntimeUse` v2 mapping (PR #811) must charge a calibration use the event's
+  `reserved` vector, which this slice already writes, not its descriptor's envelope. Follow-up
+  for that slice; `runtime.ts`'s `moveHostJobEvents` and `publishEvent` are untouched.
+- Two invariant guards have no production-path negative, because only a corrupted ledger or run
+  record reaches them: `jobEnvironment`'s "holds no `<id>` unit" and `checkoutOfCatalogue`'s
+  malformed catalogue path.
+- `ops job status` shows a calibration's catalogue envelope on its running line. The pool line's
+  `reserved` shows the whole vector; no `calibration` marker was added.

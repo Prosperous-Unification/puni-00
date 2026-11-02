@@ -1,7 +1,17 @@
 import type { DashCommand } from '../cli-parser';
 import type { Monotonic, WallClock } from '../clock';
 import { type HostFacts, loadResourceConfiguration, ResourceRuntime } from '../resources/runtime';
-import { runHostJob } from './job-run';
+import { auditDrift } from './audit';
+import { renderAuditUnits, writeAuditUnits } from './audit-units';
+import {
+  checkoutOfCatalogue,
+  type CommittedCatalogue,
+  hostClassOf,
+  readCommittedCatalogue,
+  toolchainOf,
+} from './catalogue';
+import { calibrateHostJob, type JobRunDependencies, runHostJob } from './job-run';
+import { proposeEnvelope } from './propose';
 import { causeText, OpsRefusal } from './refusal';
 import { HostJobRunRecords } from './run-records';
 import type { ScopeTelemetry } from './scope';
@@ -38,26 +48,132 @@ function openPool(config: string, clock: WallClock): ResourceRuntime {
   }
 }
 
+/** What `ops job run` and `ops job calibrate` reach, from the `ops` dependencies. */
+function launcherDependencies(deps: OpsDependencies): JobRunDependencies {
+  return {
+    clock: deps.clock,
+    monotonic: deps.monotonic,
+    environment: deps.environment,
+    cwd: deps.cwd,
+    report: (line) => {
+      deps.stderr(`${line}\n`);
+    },
+    telemetry: deps.telemetry,
+    host: deps.host,
+    sampleIntervalMs: 10_000,
+    settleBudgetMs: 30_000,
+    user: deps.user,
+  };
+}
+
+/**
+ * Every run record of the pool at `config`, read without creating anything.
+ * @throws OpsRefusal 70 when the pool or its run records are unusable.
+ */
+function readRunRecords(config: string, deps: OpsDependencies, command: string) {
+  const runtime = openPool(config, deps.clock);
+  try {
+    const records = HostJobRunRecords.openForReading(runtime.configuration.root);
+    try {
+      return records.list();
+    } finally {
+      records.close();
+    }
+  } catch (cause) {
+    throw new OpsRefusal(70, `${command}: ${causeText(cause)}`, { cause });
+  } finally {
+    runtime.close();
+  }
+}
+
+/**
+ * The instant `--now` names, or the injected clock's.
+ * @throws OpsRefusal 64 when `--now` is not an ISO-8601 UTC instant.
+ */
+function auditInstant(now: string | undefined, clock: WallClock): number {
+  if (now === undefined) return clock.read();
+  const instant = Date.parse(now);
+  // Proof: without it `--now must be an ISO instant` (calibrate.test.ts) exited 0, not 64:
+  // `tomorrow` became NaN and nothing expired (2026-11-02, Slice 4).
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(now) || !Number.isFinite(instant))
+    throw new OpsRefusal(
+      64,
+      `ops job audit: --now ${JSON.stringify(now)} is not an ISO-8601 UTC instant`,
+    );
+  return instant;
+}
+
 /**
  * One handler per `ops` command, keyed by its words after `ops`; each returns its exit code.
  * `cli.test.ts` holds this table equal to the parser's `ops` commands.
  */
 export const opsHandlers: OpsHandlers = {
-  'job run': (command, deps) =>
-    runHostJob(command, {
-      clock: deps.clock,
-      monotonic: deps.monotonic,
-      environment: deps.environment,
-      cwd: deps.cwd,
-      report: (line) => {
-        deps.stderr(`${line}\n`);
+  'job run': (command, deps) => runHostJob(command, launcherDependencies(deps)),
+  'job calibrate': (command, deps) => calibrateHostJob(command, launcherDependencies(deps)),
+  'job propose': (command, deps) => {
+    const catalogue = readCommittedCatalogue(deps.cwd, 'ops job propose');
+    const jobType = catalogue.jobs.find((job) => job.id === command.type);
+    if (jobType === undefined)
+      throw new OpsRefusal(
+        64,
+        `ops job propose: job type ${command.type} is not in ${catalogue.cataloguePath} at ${catalogue.revision}`,
+      );
+    const records = readRunRecords(command.config, deps, 'ops job propose');
+    const proposal = proposeEnvelope(
+      command.type,
+      catalogue,
+      records,
+      {
+        argumentProfile: jobType.argumentProfile,
+        hostClass: command.hostClass ?? hostClassOf(deps.host),
+        toolchain: command.toolchain ?? toolchainOf(deps.environment),
       },
-      telemetry: deps.telemetry,
-      host: deps.host,
-      sampleIntervalMs: 10_000,
-      settleBudgetMs: 30_000,
-      user: deps.user,
-    }),
+      deps.clock.read(),
+    );
+    for (const line of proposal.lines) deps.stdout(`${line}\n`);
+    if (proposal.kind === 'refused') {
+      deps.stderr(`error: ${proposal.reason}\n`);
+      return 1;
+    }
+    deps.stdout(`${JSON.stringify(proposal.entry, null, 2)}\n`);
+    return 0;
+  },
+  'job audit': (command, deps) => {
+    const now = auditInstant(command.now, deps.clock);
+    const records = readRunRecords(command.config, deps, 'ops job audit');
+    const catalogues = new Map<string, CommittedCatalogue>();
+    const own = readCommittedCatalogue(deps.cwd, 'ops job audit');
+    catalogues.set(own.cataloguePath, own);
+    for (const record of records) {
+      if (catalogues.has(record.cataloguePath)) continue;
+      const catalogue = readCommittedCatalogue(
+        checkoutOfCatalogue(record.cataloguePath),
+        'ops job audit',
+      );
+      catalogues.set(record.cataloguePath, catalogue);
+    }
+    const { drifts, notes } = auditDrift(records, catalogues, now);
+    for (const note of notes) deps.stdout(`note: ${note}\n`);
+    if (drifts.length === 0) {
+      deps.stdout('no drift\n');
+      return 0;
+    }
+    for (const drift of drifts) deps.stdout(`${drift.line}\n`);
+    return 1;
+  },
+  'job render-audit-units': (command, deps) => {
+    const written = writeAuditUnits(
+      command.outputDirectory,
+      renderAuditUnits({
+        bun: command.bun,
+        dash: command.dash,
+        config: command.config,
+        checkout: command.checkout,
+      }),
+    );
+    for (const path of written) deps.stdout(`${path}\n`);
+    return 0;
+  },
   'job status': (command, deps) => {
     const runtime = openPool(command.config, deps.clock);
     try {
