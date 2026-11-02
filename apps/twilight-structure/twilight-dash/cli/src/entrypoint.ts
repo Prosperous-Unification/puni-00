@@ -18,7 +18,10 @@ function refusalLine(cause: unknown): string {
 
 const argv = process.argv.slice(2);
 try {
-  if (argv[0] === 'mcp') {
+  if (argv[0] === 'ops') {
+    const { runOpsCommand } = await import('./ops/release');
+    process.exitCode = await runOpsCommand(argv.slice(1), (text) => process.stdout.write(text));
+  } else if (argv[0] === 'mcp') {
     // `mcp token` runs as Claude Code's `headersHelper`, whose 10 s budget counts from spawn:
     // it loads only its own modules (about 0.1 s), not `cli.ts`'s command graph (about 2.5 s,
     // measured 2026-10-27).

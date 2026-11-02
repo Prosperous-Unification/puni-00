@@ -19,6 +19,14 @@ and exposes the local commands below, plus the managed resource runtime:
 | `mcp token --resource <url> (--key-file <path> \| --assertion-file <path> \| --github-actions-audience <aud>) [--run <id>]`                                               | prints a fresh WBS MCP bearer as a header map for Claude Code's `headersHelper`, from an API key or a workload token; see [`mcp token`](#mcp-token)                                              |
 | `pool import <pool-keys.json> --store <directory>`                                                                                                                        | stores an agent pool's keys for `mcp token`, each agent with its own MCP config and run, after every key issued a token; see [`pool import`](#pool-import)                                       |
 
+## Release operations
+
+`ops release plan|run TARGET --config PATH --environment development|production --profile dev-fast|full`
+selects an owner-configured adapter with optional `--ref REF` and `--public-ref REF` overrides.
+`dev-fast` is development-only and carries a distinct acceptance claim from `full`.
+See [release operations](docs/releases.md) for protected configuration, source selection and the
+adapter protocol. `ops release --help` prints the command grammar without loading any configuration.
+
 ## Managed resource cleanup
 
 `resources init|create|exec|run|inspect|cleanup|sweep|sync|watch` manages Linux disposable

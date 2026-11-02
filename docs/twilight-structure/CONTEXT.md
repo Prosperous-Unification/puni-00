@@ -733,3 +733,15 @@ _Avoid_: Proven cause, automatic repair authority
 **Delivery observation health**:
 The freshness, coverage and collection status of delivery evidence, independent of whether the observed application or verification passed.
 _Avoid_: Application health, successful deployment
+
+**Release profile**:
+The named verification and build policy selected for a release. Fast development acceptance and full acceptance are distinct claims.
+_Avoid_: Force, unsafe mode, skip checks
+
+**Composite release**:
+The selection of immutable service artifacts that together form one environment release, with the requested source identities recorded separately from reused artifact origins.
+_Avoid_: One source revision for every artifact
+
+**Service artifact**:
+An immutable deployable service image with its own source and build identity, reusable by a later compatible composite release.
+_Avoid_: Latest image
