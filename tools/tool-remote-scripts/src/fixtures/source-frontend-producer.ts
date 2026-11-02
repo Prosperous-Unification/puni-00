@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { lstatSync, writeSync } from 'node:fs';
 import { chmod, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
@@ -201,6 +202,36 @@ function describeProducerStream(bytes: Uint8Array) {
   };
 }
 
+/** Optional synchronous allocation identity; unavailable telemetry never authorizes cleanup or consumption. */
+function publishProducerAllocation(directory: string) {
+  try {
+    const status = lstatSync(directory, { bigint: true });
+    const line =
+      'SOURCE_FRONTEND_ROOT: ' +
+      JSON.stringify({
+        owner: 'producer',
+        event: 'allocated',
+        atMs: performance.now(),
+        root: directory,
+        identity: {
+          kind: status.isDirectory()
+            ? 'directory'
+            : status.isSymbolicLink()
+              ? 'symlink'
+              : status.isFile()
+                ? 'file'
+                : 'other',
+          device: String(status.dev),
+          inode: String(status.ino),
+        },
+      }) +
+      '\n';
+    return { status: writeSync(2, line) === Buffer.byteLength(line) ? 'written' : 'unavailable' };
+  } catch {
+    return { status: 'unavailable' };
+  }
+}
+
 /**
  * Refuses an unsuccessful captured producer before reading observations or invoking its consumer.
  * The diagnostic describes only the returned capture; it establishes no additional process or pipe custody.
@@ -227,6 +258,46 @@ export function requireSourceFrontendProducerSuccess(
     );
 }
 
+/**
+ * Consumes an already-settled capture, then awaits its single required cleanup even after rejection.
+ * Sole arbitrary throws retain their identity; dual failures stay private and ordered consumer/cleanup.
+ * Cleanup rejection may follow partial removal. Caller establishes settlement; no producer start or retry occurs.
+ */
+export async function consumeSourceFrontendCapture<T>(
+  consume: () => Promise<T>,
+  cleanup: () => Promise<void>,
+): Promise<T> {
+  let consumption:
+    | { readonly status: 'fulfilled'; readonly value: T }
+    | { readonly status: 'rejected'; readonly failure: unknown };
+  try {
+    consumption = { status: 'fulfilled', value: await consume() };
+  } catch (failure) {
+    consumption = { status: 'rejected', failure };
+  }
+  let removal:
+    { readonly status: 'fulfilled' } | { readonly status: 'rejected'; readonly failure: unknown };
+  // Proof: FRC4 omitted this call; 'frontend cleanup accounting settled capture success'
+  // found its real fresh root still present; exact restoration passed (2026-11-02).
+  try {
+    await cleanup();
+    removal = { status: 'fulfilled' };
+  } catch (failure) {
+    removal = { status: 'rejected', failure };
+  }
+  // Proof: FRC2/FRC3 dropped the primary/cleanup slot; unchanged 'frontend cleanup accounting
+  // settled capture both-errors' failed the matching original identity assertion, then exact restores passed.
+  // Both errors are modeled dependencies after real rm; this proves private ordered retention (2026-11-02).
+  if (consumption.status === 'rejected' && removal.status === 'rejected')
+    throw new AggregateError(
+      [consumption.failure, removal.failure],
+      'settled frontend capture and removal failed',
+    );
+  if (consumption.status === 'rejected') throw consumption.failure;
+  if (removal.status === 'rejected') throw removal.failure;
+  return consumption.value;
+}
+
 /** Captures one immutable Git SHA and binds its selected source blobs to the original admitted live paired epoch through closing, then joins the actual Node/Vite child and both pipes before invoking a consumer. Unknown producer/cleanup outcomes retain scratch and throw. */
 export async function withSourceFrontendProducer<T>(
   consume: (
@@ -239,6 +310,7 @@ export async function withSourceFrontendProducer<T>(
   if (!/^[a-f0-9]{40}$/.test(sourceSha))
     throw new Error('curated producer source identity malformed');
   const directory = await mkdtemp(join(tmpdir(), 'puni-source-frontend-wire-'));
+  const allocationDiagnostic = publishProducerAllocation(directory);
   let settled = false;
   try {
     const snapshot = join(directory, 'snapshot');
@@ -320,6 +392,7 @@ export async function withSourceFrontendProducer<T>(
       JSON.stringify(
         {
           head: sourceSha,
+          allocationDiagnostic,
           epoch: selected.epoch,
           files: sourcePins,
           selectedInputs: selected.selectedInputs,
@@ -435,11 +508,12 @@ export async function withSourceFrontendProducer<T>(
     )
       throw new Error('actual source frontend transported text unsupported');
     settled = true;
-    return await consume(observations, directory);
+    return await consumeSourceFrontendCapture(
+      () => consume(observations, directory),
+      () => rm(directory, { recursive: true }),
+    );
   } catch (cause) {
     if (!settled) throw new Error(`frontend producer scratch retained: ${directory}`, { cause });
     throw cause;
-  } finally {
-    if (settled) await rm(directory, { recursive: true });
   }
 }

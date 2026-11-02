@@ -4,6 +4,9 @@
 
 **Status:** Implementation in progress; only recorded completed slices are verified.
 
+Latest focused backend correction: [held trace publication](verify-ci-held-trace-publication.md).
+The atomic-publication proof passed; the subsequent existing caller pair has an unresolved deadline failure.
+
 Latest isolated source reconciliation: [main reconciliation, 2026-10-25](verify-main-20261025.md).
 Its local checkpoint does not establish feature release or architectural adoption.
 
@@ -7839,3 +7842,13 @@ The eight prospective cases remain four RED candidates/four controls, not observ
 Skipped at scope preparation: project parser/compiler/import, configured format/type/lint/OpenSpec checks, tests, Bun/helper/native invocation, physical dependency omissions, Git/WBS/host/CI actions and gate. Only source/text/JSON/byte/hash/mode reads and /tmp proposal writes occurred. Record future commands, exact results, joins and skips only after they occur.
 
 The delta spec stays unchanged (207676 bytes, SHA256 `7b698049c2535726ca28ad966a159f867baedfc0e5acbea35fbad0d8f4b940cb`, mode0664); no new delta requirement, ADR or MAIN adoption follows. Separate graph CI placement and its five paths, current Graph source/test bytes, Graph closure evidence, immutable original HOLD, narrow manual fifth-pair acceptance and strict scalar UNMET/UNOBSERVED remain unchanged. Full228/current CI, UC1–UC5, future parked-HOLD/groups4–8, Source4 and production custody/backup/scanner/transport, H0–H8/Successor74/native/capacity/gates/main/deploy remain open or held.
+
+## Private Graph/frontend/product union — 2026-11-02
+
+This reversible integration joins exact published Graph0573451cb7cf31192b06a57acbbef09eb046d5cb and frontend/productf9d68946d34e4621e249802cad507708029602bd, common basefac53629fa79af47a237ebdc892034aeabbfe475, on a new private branch in the existing isolated2eee worktree. Primary plan/dash-host-jobs05646670939e11213fe946f7672096ec3e5e70aa stays untouched. The sole Git conflict was tasks.md; both complete appendices were retained in order. Spec/verify and ci-leaf auto-merged. All39 changed paths equal the exact parent path union,35 nonoverlap files match their selected parent bytes, and both parents' nonblank spec/tasks/verify sequences remain. Graph routing and staged backup implementation remain; frontend runtime-marker repair, producer cleanup and capable mounted-import acceptance remain. Backup source/static-only limits are preserved, not promoted to real storage/native acceptance.
+
+The ci-leaf overlap adds only frontend N1–N5 Proof comments at unchanged complete-activation checks. An EXTRA strict TypeScript removeComments emission comparison FAILED: its only two emitted differences are line breaks after conditional question marks, before the same array and numeric39 true arms. Original script and emitted artifacts remain immutable in `/tmp/puni-private-union-source-check-20261102/`; no successful byte bridge, normalizer or rerun is claimed. Independent materialized-source review674850612dfff474b51e40f653e1e6e234b3ad20445bf5d269cf39cdad825633 accepted those concrete safe expression layouts and exact comment-only source union. It adds no new Graph-guard necessity credit.
+
+Merged-epoch scoped statics then passed with no source writes: configured forced uncached typecheck for tool-remote-scripts,tool-git-hooks,wbs-be-01,wbs-store-sqlite,tool-devsync and the actual backend module prerequisite; populated-Nx lint21 source/config paths with empty output/no skips; exact39-path format check; OpenSpec320/320 (301changes,19specs). All four original process/read pairs joined normally without alarm/signal/overflow/retry. Static packet `/tmp/puni-private-union-scoped-static-20261102/`, report037b5b7657768765b9e6dcbfc463a50244178f44897d68c82fb33f910ad3f4a7, retains exact argv/environments/raw outcomes. Final39 file bytes/modes remained unchanged and35 parent pins exact before this factual documentation append.
+
+Actual component tests keep their original epochs: harmless80, real Graph202/11/15 composition228callbacks/25helpers, frontend11 plus four dependency pairs, and capable mounted incoming4/109assertions. They are not fabricated union runtime executions. No runtime repeat was needed solely for byte-identical behavior integration. This union does not include the later mounted rollback WIP in8291. Canonical/rest frontend/Vite remains unqualified; remaining caller/activation/backup/held-reader/fullCI/host gates, all parent delivery tasks, architectural main adoption and deployment remain open or held. This private integration completes no feature or main rollout.

@@ -610,3 +610,145 @@ Serial final preparation passed scoped ESLint with unchanged Nx boundary enforce
 Earlier mixed-source/overrun commands and the first frozen expected3/actual4 id-count failure remain separate unaccepted epochs. Their original handles were joined; they are not credited to this final source. No budget was enlarged retrospectively. Joined direct handles do not prove descendant extinction.
 
 The actual local actor was1000:1000; explicit1001 models are not a measurement of the failed CI actor or native deployment qualification. API-absence/effective-ID/copy-corruption fault injections were not performed. Nine system-tool owner observations differ across reviewer sandbox contexts while bytes/device/inode/mode/size match; historical same-context command identity comparisons passed, but the cause was not natively probed. The frozen source/dependency/build and selected-tool closure is not a hermetic OS image. No new physical R5 necessity campaign, full repository/host gate, current corrected-head CI, architectural main adoption or deployment is accepted here. All held campaigns and parent implementation obligations remain open.
+
+### Complete39 finite necessity witnesses — 2026-11-02
+
+Independent combined actual review
+`/tmp/puni-ci8-task27-nine-pairs-actual-independent-review-20261102.md`, SHA256
+`204d55d914c436ddc0341d22968c3b767e53533cdc267b57722753f7922b455f`,
+accepts all nine planned physical dependency pairs: nine intended negatives and
+nine exact-restored positives across exactly18 outer Bun invocations. No negative
+was replayed. This completes the finite physical-evidence portion of task27;
+it does not turn either stopped controller into a successful uninterrupted run.
+
+The retained V3 source review
+`feea1d19dafb4e52e2816ffc80a5d2535defc1064897b4870ae16366c01cd4d4`
+and manifest
+`23cc836ce2f9d118a83a65b51b73ce9405d07fc49059b18e811b45e41ef066f8`
+already bind187 ordinary passing tests, scoped formatting/lint, configured
+remote/hooks typechecks and remote build. Command receipts SHA256
+`2dd12a1f7fdf7c721e2fdeb8564361c091c9cf1d8d059e17241c5e3a7183c607`
+records the original joined outputs. Root OpenSpec receipt
+`/tmp/puni-ci8-root-openspec-20261101.json`, SHA256
+`45604a56aa3004524ebdf5c80052d8009c4c415685db9bfc927dc47aee376142`,
+reports310/310 valid, with ci-remote-capacity valid and no issues. Those are the
+actual frozen-source checks, not freshly rerun checks of this comment/document
+update. The accepted pairs restore those same eight original source bodies and
+mode0664 before factual adjacent Proof comments are added.
+
+| Pair / invocation numbers | Owning observed consumer                                                                                   | Physical negative → exact-restored positive and accepted limit                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| N1 /01–02                 | `complete-activation owner refuses invalid parent before actual child selection: missing/unreadable/alias` | 3fail→3pass. Removing the complete required-file entry admits dispatch attempts. Missing/unreadable fail marker assertions; alias first receives exit0 at the nonzero-exit assertion. Markers establish attempts, not inner PIDs. Faulted loops stop at the first complete attempt; faulted rest coverage is not claimed.                                                                                                                                  |
+| N2 /03–04                 | `all leaves refuse malformed complete-activation target before actual children: absent/inputs/environment` | 3fail→3pass. Removing complete from target validation lets the first model execute despite each malformed target. Restored validation refuses all tested leaf attempts; later faulted attempts are not observed.                                                                                                                                                                                                                                           |
+| N3 /05–06                 | `fresh fixed leaves preserve real canonical Bun discovery including future and collision files`            | 1fail→1pass. Widening complete's filename admits the collision, yielding40cases/twofiles. Production receipt refusal first breaks the complete-exit assertion; no later membership assertion failure is claimed.                                                                                                                                                                                                                                           |
+| N4 /07–08                 | Same canonical-discovery consumer                                                                          | 1fail→1pass. Removing only complete's exact remainder exclusion executes the owner in the complement and fails its exclusion assertion.                                                                                                                                                                                                                                                                                                                    |
+| N5 /09–10                 | `complete complete-activation outer receipts reject successful but incomplete execution`                   | 1fail→1pass. Removing the complete expected-count registration accepts the first changed-pass-count receipt: expected exit1, actual0. This proves the grouped registration, not separate removal of every generic parser/count/skip/todo/filter predicate. Restored execution rejects all seven existing transformations. Preceding source assertions establish nested-child and once-transformed markers; they are not separately printed inner receipts. |
+| N6 /11–12                 | `runtime refuses an absent selected raw target before actual Nx canonical fallback`                        | 1fail→1pass. Physical admission-call removal permits actual canonical sentinel execution, successful Nx completion and runtime exit0 before the named marker assertion expectsfalse/receivestrue. Restored guard refuses before that work. This is the absent-selected-target surface, not independent removal evidence for every configuration branch.                                                                                                    |
+| N7 /13–14                 | `fixed remote leaves retain one logical owner and explicit static/dependency execution`                    | 1fail→1pass. Complete-to-policy misrouting fails the actual affected-mode exact command ledger. Only restored execution covers both affected and full; no faulted full-mode observation is claimed.                                                                                                                                                                                                                                                        |
+| N8 /15–16                 | `isolated remote matrix is exactly six independent whole-file runners`                                     | 1fail→1pass. Removing the sixth member fails the exact parsed workflow roster. This is definition membership evidence, not GitHub scheduling or reducer execution.                                                                                                                                                                                                                                                                                         |
+| N9 /17–18                 | `every isolated matrix execution remains mandatory for selected work`                                      | 1fail→1pass. A complete-only execution condition fails the existing undefined-condition assertion; exact restoration passes. This proves mandatory execution in the parsed definition, not scheduler or shell execution.                                                                                                                                                                                                                                   |
+
+N1/N2 select3 parents per invocation; the other14 invocations select1 each.
+Their observed outer filtered counts are54 for N1/N2,56 for N3–N6 and7 for N8/N9;
+N7 reports only its actual emitted count, with absence remaining unreported.
+Nested summaries do not provide these final outer censuses. All original test,
+child and phase bounds remain unchanged, including CLI10000ms and the120s
+observational alarms. CI retains75m phase/90m job/30s termination cleanup,
+canonical ownership, exact Node subset and once-only rest static/Caddy work.
+
+The raw evidence is retained in three numbered chains:
+
+- `/tmp/puni-ci8-task27-necessity-harness-r1-preparation-20261102/execution/`,
+  invocations01–11; packet manifest SHA256
+  `bc34ab419afc28674fc9c4679c48d6a7c7ccbe4648c0377413dd5c86f5d4dc31`.
+- `/tmp/puni-ci8-task27-remaining-seven-preparation-20261102/execution/`,
+  invocations12–17; packet manifest SHA256
+  `0a14e0a8f69798f148cbbefb48e58fd21fa63d9e9d75108e95dc2d66fd35eedb`.
+- `/tmp/puni-ci8-task27-final-restored-preparation-20261102/execution/18-N9-restored/`,
+  invocation18; wrapper manifest SHA256
+  `96680db8dd7d35c4f632a963e75202bf75034bc4050d23069a2af653d43cbcef`.
+
+Each numbered directory retains stdout.raw.log, stderr.raw.log and its actual
+outer-closure.json. Sixteen also have classifications; the two original STOPs
+retain their independently accepted actual output instead of invented successful
+classifications. The final wrapper's100-file prior-seventeen index SHA256 is
+`689a6601ce9b5030933af682601cc437a67d64d4ea7fb483c8dc29b42e2ce0af`.
+Final18 stderr SHA256 is
+`9c1c53886eaeaeddd77152470a4559e6c224a5169587683a4cd3471083e90e23`;
+its original closure is
+`47832fdae34c0ba81ea102b263ef7b2b8950e57576261dee028c919b54cc83b1`.
+The combined review checked all36 raw streams against their actual closure
+lengths/full hashes:21,639bytes total, without retention overflow. All18 original
+outer Bun processes and all36 original readers reached known joined/EOF/closed
+outcomes with no reader error, below the unchanged observation alarms.
+
+Inner closure remains qualified by the inspected blocking spawnSync contract
+and synchronous tiny-fixture source flow. No unprinted inner PID, signal,
+native-close or full descendant-extinction result is invented. The actual tests
+use tiny owned fixtures; this evidence is not native deployment qualification.
+Seventeen dedicated scratch directories are empty. N6 faulted scratch retains
+only its named node-compile-cache top-level entry, independently classified as
+regular on-disk cache with no surviving fixture root. It is retained, not deleted
+or executed; the other runs' empty-scratch rule was not relaxed.
+
+Preserve the historical N6 STOP
+`/tmp/puni-ci8-task27-necessity-harness-r1-preparation-20261102/execution/STOP-1793584513105503144.json`,
+SHA256 `2886533880779ccf15fce995de2efd42dd19da6ee8b6da2f3d25cd6685b36a5d`:
+its strict scratch check stopped before automatic classification/restoration.
+N9's suffix STOP likewise remains under the second execution chain as
+`STOP-1793585401364654529.json`, SHA256
+`dcfe83a10a427497e9691f67e8a73b2f7f387cdb046306f582223d59fe4b7cdf`:
+Bun emitted the actual received skip condition
+and toBeUndefined error, while the recognizer demanded an absent Expected
+literal. Neither STOP was rewritten or replayed. Actual N6 and N9 negatives were
+accepted separately from controller status, then followed by their sole restored
+positives. The observed sequence is the original17 calls plus final restored18.
+
+Root restoration receipt SHA256s are
+`9c52874fa0c8181e39929bbedf3e6acdc9983433d56e7e0ae3f0f6f33bc4ca64`
+(N6, `/tmp/puni-ci8-task27-n6-exact-restoration-20261102.json`) and
+`5a556dd8e3535979157c2f25e18012068b83ff19e4e4cb302e8e88918f7a0047`
+(N9, `/tmp/puni-ci8-task27-n9-exact-restoration-20261102.json`). They attribute
+separate SIGTERM disposition of the idle controllers owned by Root sessions16563/62001 and exit143
+after actual test children/readers had closed, followed by exact bytes/mode
+restoration. These controller exits are neither test failures nor successful
+campaign exits. First-controller provenance used Root's exact UID/full-argv
+lookup; it is not an originally emitted PID receipt. No signal or process lookup
+is attributed to the independent actual audit.
+
+The supporting independent actual reviews are
+`/tmp/puni-ci8-task27-n1-n6-actual-independent-review-20261102.md`, SHA256
+`fed657a24a755db0fffd561436095bb5dddb34a3f5066c3c3857fca8397ce426`, and
+`/tmp/puni-ci8-task27-n6-n9-actual-independent-review-20261102.md`, SHA256
+`12842f67beaf3ae38b3f5e11868d57f0aa094d6318db068e4928ba82c605a457`.
+The combined204d review confirms all eight original source hashes/lengths and
+mode0664 restored, plus all support pins. Git identity and unrelated-WIP custody
+remain Root's preflight attestation; this record does not inspect that WIP.
+
+Task27 can record the retained source/static/OpenSpec evidence together with
+these reviewed physical pairs and factual adjacent comments. The comment/doc
+materialization and its final review belong to Root; no fresh check of that
+materialization is claimed by these historical commands. Policy tasks21–24 and
+task28 remain unchecked. Root's current full CI report for1eb02f8 remains failed
+on the separate backend colored proof-helper issue; its separate repair is not
+CI8 acceptance or a new full CI result. Task28 still requires one final candidate's
+complete39, remainder, all required peers and strict aggregate within unchanged
+bounds. This record grants no Source4, held Reader, native campaign, architectural
+main, merge, deployment, host or CI execution authority.
+
+### Root checks after adding the evidence comments
+
+The seven reviewed source/document paths passed Prettier formatting. The full
+OpenSpec validator then passed 320/320 entries (301 changes and 19 specs), exit 0.
+Installed TypeScript transpilation with comments removed produced identical
+canonical JavaScript for both annotated CI scripts and the independently tested
+backend fixture; parsed workflow objects were identical before/after annotation.
+The first flat-token comparison was unsuitable for template-rescan context and
+was superseded by this compiler-emission comparison. Tooling modules only were
+loaded; no application or fixture module was imported by that comparison.
+
+The annotation edits introduced no executable behavior. Fixture runs were not
+repeated after these comments; their actual proof results above remain the
+runtime evidence. Required full CI and the final exact-SHA host gate are still
+open. Fresh check records are retained in
+`/tmp/puni-ci-proof-records-materialization-20261102/`.

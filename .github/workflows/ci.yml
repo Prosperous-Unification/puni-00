@@ -697,13 +697,14 @@ jobs:
       fail-fast: false
       matrix:
         # Proof: dropping restoration failed the parsed exact-matrix consumer; restored passed (2026-10-30).
-        partition:
-          [
+        partition: [
             remote-model,
             remote-model-continuation,
             remote-source,
             remote-source-restoration,
             remote-participant-policy,
+            # Proof: N8 sixth-member omission failed the exact parsed-matrix test;
+            # restored passed. This is definition evidence, not scheduler execution (2026-11-02).
             remote-complete-activation,
           ]
     steps:
@@ -774,6 +775,8 @@ jobs:
 
       # The shared runner records the validated project roster, commands and elapsed time.
       # A failed or timed-out Nx phase remains failed after annotation and log upload.
+      # Proof: N9 adding a complete-only skip failed the mandatory-execution test's
+      # undefined-condition assertion; restored passed. Parsed definition only (2026-11-02).
       - name: Remote isolated leaf — test
         id: nx_gate
         env:

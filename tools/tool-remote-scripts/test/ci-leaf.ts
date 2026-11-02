@@ -142,6 +142,8 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
     'source',
     'source-restoration',
     'participant-policy',
+    // Proof: N2 complete-target entry omission failed the malformed-target tests
+    // on the first model exit0; restored passed. Later faulted leaves were not reached (2026-11-02).
     'complete-activation',
     'rest',
   ] as const) {
@@ -188,6 +190,9 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
     ...SOURCE,
     RESTORATION,
     POLICY,
+    // Proof: N1 complete-owner entry omission failed the owner-refusal tests:
+    // missing/unreadable dispatch-marker assertions and alias exit0 at the first complete
+    // attempt; restored passed. The markers prove attempts, not inner PIDs (2026-11-02).
     COMPLETE,
     ...DISCOVERY.slice(1),
   ])
@@ -210,7 +215,9 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
           : leaf === 'participant-policy'
             ? ['test', `./${POLICY}`, ...OPTIONS]
             : leaf === 'complete-activation'
-              ? ['test', `./${COMPLETE}`, ...OPTIONS]
+              ? // Proof: N3 widening the complete filename failed the canonical-discovery
+                // test at receipt refusal after forty cases/two files; restored passed (2026-11-02).
+                ['test', `./${COMPLETE}`, ...OPTIONS]
               : [
                   'test',
                   ...DISCOVERY,
@@ -222,6 +229,8 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
                   // in rest; disjointness failed, then passed after exact restoration.
                   `--path-ignore-patterns=${RESTORATION}`,
                   `--path-ignore-patterns=${POLICY}`,
+                  // Proof: N4 complete-ignore omission failed the canonical-discovery
+                  // test's complement exclusion assertion; restored passed (2026-11-02).
                   `--path-ignore-patterns=${COMPLETE}`,
                   `--path-ignore-patterns=${GRAPH_FILE}`,
                 ];
@@ -325,7 +334,10 @@ export async function runRemoteTests(
       : leafName === 'participant-policy'
         ? 8
         : leafName === 'complete-activation'
-          ? 39
+          ? // Proof: N5 complete-count entry omission failed the complete outer-receipts
+            // test at its first pass-count transformation (exit0, expected1); restored passed.
+            // This proves the grouped registration, not individual parser predicates (2026-11-02).
+            39
           : undefined;
   // Proof: bypassing the source file count admitted an actual six-parent receipt transformed exactly once from six to five (2026-10-29).
   // Proof: dropping the positive-pass check accepted an actual empty Bun file as fresh success.

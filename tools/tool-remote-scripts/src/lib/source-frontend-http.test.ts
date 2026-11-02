@@ -1,6 +1,6 @@
 import { rejects, throws } from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { lstatSync, realpathSync, writeFileSync } from 'node:fs';
+import { lstatSync, realpathSync, writeFileSync, writeSync } from 'node:fs';
 import { access, cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
@@ -9,6 +9,7 @@ import { expect, spyOn, test } from 'bun:test';
 
 import type * as ProducerModule from '../fixtures/source-frontend-producer';
 import {
+  consumeSourceFrontendCapture,
   requireSourceFrontendProducerSuccess,
   withSourceFrontendProducer,
 } from '../fixtures/source-frontend-producer';
@@ -510,9 +511,125 @@ function decodeProducerField(value: unknown): Buffer {
   return Buffer.from(base64, 'base64');
 }
 
+type ClosingCapture = Pick<ReturnType<typeof Bun.spawnSync>, 'success' | 'signalCode' | 'exitCode'>;
+
+/** Keeps the original child untouched; only a successful unsignalled exit-zero capture may mutate the epoch. */
+function mutateClosingEpoch<Capture extends ClosingCapture>(
+  child: Capture,
+  mutate: () => void,
+): Capture {
+  // Proof: G1 removed this return and G3 copied the capture; "closing spy inert failed
+  // child preserves original refusal before mutation or consumer" failed, then restores passed.
+  if (!child.success || child.signalCode !== undefined || child.exitCode !== 0) return child;
+  mutate();
+  return child;
+}
+
+/** Propagates the original infrastructure refusal before the intended epoch-negative oracle. */
+function propagateClosingFailure(fault: unknown, child: ClosingCapture | undefined): void {
+  if (
+    child !== undefined &&
+    (!child.success || child.signalCode !== undefined || child.exitCode !== 0)
+  )
+    // Proof: G2 removed this rethrow; "closing spy inert failed child preserves original
+    // refusal before mutation or consumer" failed at missing exception, then restored PASS.
+    throw fault;
+}
+
+type CloseStubMode = 'close-contract' | 'close-rejections' | 'close-sink-failure' | 'close-caps';
+
+/** Owns only inert close functions/native promises; the generated production probe supplies the instrumenter. */
+function createCloseStub(mode: CloseStubMode, events: string): string {
+  return `
+import assert from 'node:assert/strict';
+import fs, { appendFileSync } from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
+const mode=${JSON.stringify(mode)};
+const events=${JSON.stringify(events)};
+const counts={watcher:0,ws:0,client:0,ssr:0,runner:0,http:0};
+const sentinel={};
+const argumentsExpected=[sentinel,undefined,Symbol('TEST close argument')];
+const rejected=new Error('TEST original close rejection');
+const callbackFault=new Error('TEST original callback throw');
+const callbackReceiver={};
+const callbackArguments=[undefined,sentinel,undefined];
+const callbackReturn={};
+const repeat=mode==='close-caps'?3:1;
+let unhandled=0;
+let identities=0;
+let callbackReturns=0;
+let callbackThrows=0;
+process.on('unhandledRejection',()=>{unhandled++;throw new Error('TEST unexpected observer rejection');});
+if(mode==='close-sink-failure'){
+ const writeSync=fs.writeSync;
+ fs.writeSync=(fd,bytes,...args)=>{
+  if(fd===2&&typeof bytes==='string'&&(bytes.startsWith('SOURCE_FRONTEND_CLOSE: ')||bytes.startsWith('SOURCE_FRONTEND_CLOSE_ROSTER: ')))throw new Error('TEST close sink unavailable');
+  return writeSync(fd,bytes,...args);
+ };
+ syncBuiltinESMExports();
+}
+function boundary(name){
+ const owner={last:undefined,close(...args){
+  assert.equal(this,owner,'TEST close contract: method receiver');
+  counts[name]++;
+  if(name==='watcher'&&args.length===0){assert.equal(counts.watcher,repeat+1);owner.closed=true;}
+  else {assert.equal(args.length,3,'TEST close contract: method arguments length');args.forEach((argument,index)=>assert.equal(argument,argumentsExpected[index],'TEST close contract: method argument identity'));}
+  owner.last=mode==='close-rejections'&&name==='ws'?Promise.reject(rejected):Promise.resolve(sentinel);
+  return owner.last;
+ }};
+ return owner;
+}
+export const version='TEST inert close contract stub';
+export async function createServer(options){
+ const watcher=boundary('watcher');watcher.closed=false;
+ const ws=boundary('ws'),client=boundary('client'),ssr=boundary('ssr'),runner=boundary('runner');
+ const http={listening:false,last:undefined,close(callback,...args){
+  assert.equal(this,http,'TEST close contract: method receiver');counts.http++;http.last=sentinel;
+  assert.equal(args.length,3,'TEST close contract: method arguments length');args.forEach((argument,index)=>assert.equal(argument,argumentsExpected[index],'TEST close contract: method argument identity'));
+  const completion=Reflect.apply(callback,callbackReceiver,callbackArguments);
+  assert.equal(completion,callbackReturn,'TEST close contract: callback return identity');callbackReturns++;
+  return http.last;
+ }};
+ watcher.getWatched=()=>{
+  appendFileSync(events,JSON.stringify({counts,identities,callbackReturns,callbackThrows,unhandled})+'\\n');
+  return {};
+ };
+ return {config:{root:options.root,envDir:options.envDir,server:{host:'127.0.0.1',port:0,strictPort:true,hmr:true,open:false},env:{VITE_BE_URL:'http://127.0.0.1:9',VITE_GW_URL:'ws://127.0.0.1:9'}},watcher,ws,httpServer:http,environments:{client,ssr},_ssrCompatModuleRunner:runner,
+ async close(){
+  for(let turn=0;turn<repeat;turn++){
+   for(const owner of [watcher,ws,client,ssr,runner]){
+    const completion=owner.close(...argumentsExpected);assert.equal(completion,owner.last,'TEST close contract: promise return identity');identities++;
+    if(mode==='close-rejections'&&owner===ws)await assert.rejects(completion,(cause)=>cause===rejected,'TEST close contract: promise rejection identity');
+    else assert.equal(await completion,sentinel,'TEST close contract: promise fulfillment identity');
+   }
+   const callback=function(...args){
+    assert.equal(this,callbackReceiver,'TEST close contract: callback receiver');assert.equal(args.length,3,'TEST close contract: callback arguments length');
+    args.forEach((argument,index)=>assert.equal(argument,callbackArguments[index],'TEST close contract: callback argument identity'));
+    if(mode==='close-rejections')throw callbackFault;
+    return callbackReturn;
+   };
+   if(mode==='close-rejections'){
+    assert.throws(()=>http.close(callback,...argumentsExpected),(cause)=>cause===callbackFault,'TEST close contract: callback throw identity');callbackThrows++;
+   }else {assert.equal(http.close(callback,...argumentsExpected),http.last,'TEST close contract: http return identity');identities++;}
+  }
+  // Stub-only one-turn checkpoint lets a rejected observer promise reach the throwing guard.
+  await new Promise((complete)=>setImmediate(complete));
+  assert.equal(unhandled,0);
+  if(mode==='close-rejections')throw rejected;
+ }};
+}
+`;
+}
+
 /** Executes the exact generated program against a clearly test-owned Vite module; this qualifies diagnostic ordering only. */
 async function withStubFrontendProducer(
-  mode: 'unsettled' | 'settled' | 'secondary-failure' | 'telemetry-unavailable' | 'bounded-primary',
+  mode:
+    | 'unsettled'
+    | 'settled'
+    | 'secondary-failure'
+    | 'telemetry-unavailable'
+    | 'bounded-primary'
+    | CloseStubMode,
   consume: (
     child: Bun.SyncSubprocess<'pipe', 'pipe'>,
     execution: { node: string; elapsedMs: number; timeoutMs: number },
@@ -562,7 +679,12 @@ async function withStubFrontendProducer(
         : '';
     await writeFile(
       join(vite, 'dist/node/index.js'),
-      `
+      mode === 'close-contract' ||
+        mode === 'close-rejections' ||
+        mode === 'close-sink-failure' ||
+        mode === 'close-caps'
+        ? createCloseStub(mode, join(directory, 'stub-close-events.log'))
+        : `
 import fs, { appendFileSync } from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
 const events=${JSON.stringify(join(directory, 'stub-close-events.log'))};
@@ -621,6 +743,187 @@ export async function createServer(options) {
       );
   }
 }
+
+test('closing spy inert failed child preserves original refusal before mutation or consumer', () => {
+  const node = Bun.which('node');
+  if (node === null) throw new Error('Node closing-spy fixture runtime absent');
+  const stderr = Buffer.from('TEST closing-spy original child\n');
+  const started = performance.now();
+  const child = Bun.spawnSync(
+    [node, '-e', "process.stderr.write('TEST closing-spy original child\\n');process.exitCode=23;"],
+    {
+      env: { PATH: '/usr/bin:/bin' },
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 5000,
+    },
+  );
+  const execution = { node, elapsedMs: performance.now() - started, timeoutMs: 5000 };
+  expect(child.success).toBe(false);
+  expect(child.exitCode).toBe(23);
+  expect(child.signalCode).toBeUndefined();
+  expect(child.stdout.byteLength).toBe(0);
+  expect(child.stderr).toEqual(stderr);
+  let mutations = 0;
+  let consumers = 0;
+  let epochAcceptances = 0;
+  let originalRefusal: Error | undefined;
+  const returned = mutateClosingEpoch(child, () => {
+    mutations++;
+  });
+  expect(returned).toBe(child);
+  expect(mutations).toBe(0);
+  throws(
+    () => {
+      expect(returned).toBe(child);
+      requireSourceFrontendProducerSuccess(returned, execution);
+      consumers++;
+    },
+    (fault: unknown) => {
+      if (!(fault instanceof Error)) return false;
+      originalRefusal = fault;
+      const prefix =
+        'actual frontend producer failed or custody unproved\nsource-frontend-producer-child ';
+      expect(fault.message.startsWith(prefix)).toBe(true);
+      const diagnostic = readFields(JSON.parse(fault.message.slice(prefix.length)));
+      expect(diagnostic['exitCode']).toBe(23);
+      expect(diagnostic['stderr']).toEqual({
+        bytes: stderr.byteLength,
+        sha256: createHash('sha256').update(stderr).digest('hex'),
+        truncated: false,
+        base64: stderr.toString('base64'),
+      });
+      return true;
+    },
+  );
+  if (originalRefusal === undefined) throw new Error('original closing child refusal absent');
+  const retainedRefusal = originalRefusal;
+  throws(
+    () => {
+      propagateClosingFailure(retainedRefusal, returned);
+      epochAcceptances++;
+    },
+    (fault: unknown) => fault === retainedRefusal,
+  );
+  expect(consumers).toBe(0);
+  expect(epochAcceptances).toBe(0);
+  expect(returned.stderr).toEqual(stderr);
+}, 10000);
+
+for (const mode of [
+  'close-contract',
+  'close-rejections',
+  'close-sink-failure',
+  'close-caps',
+] as const)
+  test(`generated producer inert close proof ${mode}`, async () => {
+    await withStubFrontendProducer(mode, async (child, execution, directory) => {
+      expect(child.exitCode).toBe(1);
+      expect(child.signalCode).toBeUndefined();
+      expect(child.stderr.toString()).not.toContain('TEST close contract: ');
+      expect(child.stderr.toString()).not.toContain('TEST close sink unavailable');
+      expect(child.stderr.toString()).not.toContain('TEST unexpected observer rejection');
+      expect(child.stderr.toString()).not.toContain('Detected unsettled top-level await');
+      const observation = readFields(
+        JSON.parse(await readFile(join(directory, 'observation.json'), 'utf8')),
+      );
+      const cleanup = readFields(observation['cleanup']);
+      expect(readFields(observation['failure'])['name']).toBe('AssertionError');
+      expect(readFields(observation['failure'])['message']).toContain('true !== false');
+      expect(observation['diagnostic']).toEqual({ status: 'written' });
+      expect(cleanup['closeReturned']).toBe(mode === 'close-rejections' ? undefined : true);
+      expect(cleanup['explicitWatcherCloseReturned']).toBe(true);
+      expect(cleanup['httpListening']).toBe(false);
+      expect(cleanup['watcherClosed']).toBe(true);
+      expect(cleanup['watchedDirectoryCount']).toBe(0);
+      const repeat = mode === 'close-caps' ? 3 : 1;
+      expect(JSON.parse(await readFile(join(directory, 'stub-close-events.log'), 'utf8'))).toEqual({
+        counts: {
+          watcher: repeat + 1,
+          ws: repeat,
+          client: repeat,
+          ssr: repeat,
+          runner: repeat,
+          http: repeat,
+        },
+        identities: repeat * (mode === 'close-rejections' ? 5 : 6),
+        callbackReturns: mode === 'close-rejections' ? 0 : repeat,
+        callbackThrows: mode === 'close-rejections' ? repeat : 0,
+        unhandled: 0,
+      });
+      const diagnostic = readFields(observation['closeDiagnostic']);
+      expect(diagnostic['status']).toBe(
+        mode === 'close-sink-failure' ? 'unavailable' : 'available',
+      );
+      expect(diagnostic['boundaries']).toEqual({
+        watcher: 'installed',
+        ws: 'installed',
+        'environment-client': 'installed',
+        'environment-ssr': 'installed',
+        'ssr-runner': 'installed',
+        http: 'installed',
+      });
+      const records = child.stderr
+        .toString()
+        .split('\n')
+        .filter((line) => line.startsWith('SOURCE_FRONTEND_CLOSE: '));
+      const rosters = child.stderr
+        .toString()
+        .split('\n')
+        .filter((line) => line.startsWith('SOURCE_FRONTEND_CLOSE_ROSTER: '));
+      if (mode === 'close-sink-failure') {
+        expect(records).toHaveLength(0);
+        expect(rosters).toHaveLength(0);
+      } else {
+        expect(rosters).toHaveLength(1);
+        expect(records.length + rosters.length).toBeLessThanOrEqual(25);
+        const events = records.map((line) =>
+          readFields(JSON.parse(line.slice('SOURCE_FRONTEND_CLOSE: '.length))),
+        );
+        const labels = [
+          'watcher',
+          'ws',
+          'environment-client',
+          'environment-ssr',
+          'ssr-runner',
+          'http',
+        ];
+        expect([...new Set(events.map((event) => event['boundary']))].sort()).toEqual(
+          [...labels].sort(),
+        );
+        for (const label of labels) {
+          const selected = events.filter((event) => event['boundary'] === label);
+          expect(selected.filter((event) => event['event'] === 'entered')).toHaveLength(
+            label === 'watcher' ? 2 : 1,
+          );
+          expect(
+            selected.filter(
+              (event) =>
+                event['event'] ===
+                (mode === 'close-rejections' && label === 'ws' ? 'rejected' : 'fulfilled'),
+            ),
+          ).toHaveLength(label === 'watcher' ? 2 : 1);
+        }
+        expect(events.filter((event) => event['event'] === 'threw')).toHaveLength(
+          mode === 'close-rejections' ? 1 : 0,
+        );
+        expect(records).toHaveLength(mode === 'close-rejections' ? 15 : 14);
+      }
+      if (mode === 'close-rejections') {
+        expect(child.stderr.toString()).toContain(
+          'AggregateError: producer refusal or cleanup unproved',
+        );
+        expect(child.stderr.toString()).toContain('TEST original close rejection');
+        expect(child.stderr.toString().indexOf('AssertionError')).toBeLessThan(
+          child.stderr.toString().indexOf('TEST original close rejection'),
+        );
+      }
+      throws(() => {
+        requireSourceFrontendProducerSuccess(child, execution);
+      }, /actual frontend producer failed or custody unproved/);
+    });
+  });
 
 test('generated producer exposes its primary before an actually unsettled close', async () => {
   await withStubFrontendProducer('unsettled', async (child, execution, directory) => {
@@ -834,10 +1137,103 @@ const describeBytes = (bytes: Uint8Array) => ({
   sha256: createHash('sha256').update(bytes).digest('hex'),
 });
 
+/** Optional synchronous owned-root chronology; absence is observed, never accepted as cleanup. */
+function publishProvenanceRoot(
+  owner: 'provenance' | 'producer',
+  event: 'allocated' | 'prepared' | 'pre-remove' | 'post-remove' | 'remove-failed',
+  root: string,
+) {
+  let identity:
+    | { kind: 'directory' | 'symlink' | 'file' | 'other'; device: string; inode: string }
+    | { kind: 'unavailable'; reason: 'ENOENT' | 'EACCES' | 'other' };
+  try {
+    const status = lstatSync(root, { bigint: true });
+    identity = {
+      kind: status.isDirectory()
+        ? 'directory'
+        : status.isSymbolicLink()
+          ? 'symlink'
+          : status.isFile()
+            ? 'file'
+            : 'other',
+      device: String(status.dev),
+      inode: String(status.ino),
+    };
+  } catch (cause) {
+    const code = cause instanceof Error && 'code' in cause ? cause.code : undefined;
+    identity = {
+      kind: 'unavailable',
+      reason: code === 'ENOENT' || code === 'EACCES' ? code : 'other',
+    };
+  }
+  try {
+    const line =
+      'SOURCE_FRONTEND_ROOT: ' +
+      JSON.stringify({ owner, event, root, atMs: performance.now(), identity }) +
+      '\n';
+    return { status: writeSync(2, line) === Buffer.byteLength(line) ? 'written' : 'unavailable' };
+  } catch {
+    return { status: 'unavailable' };
+  }
+}
+
+/** Preserves the original required rm, its error object, and the caller's sequential cleanup order. */
+async function removeProvenanceRoot(owner: 'provenance' | 'producer', root: string) {
+  const before = publishProvenanceRoot(owner, 'pre-remove', root);
+  const status = (after: { status: string }) => {
+    try {
+      writeSync(
+        2,
+        JSON.stringify({ boundary: 'provenance-cleanup-telemetry', owner, before, after }) + '\n',
+      );
+    } catch {
+      /* Optional telemetry remains unavailable; required rm/error propagation below is unchanged. */
+    }
+  };
+  try {
+    await rm(root, { recursive: true });
+  } catch (cause) {
+    const failed = publishProvenanceRoot(owner, 'remove-failed', root);
+    status(failed);
+    throw cause;
+  }
+  const after = publishProvenanceRoot(owner, 'post-remove', root);
+  status(after);
+}
+
+type FrontendRootOwner = 'provenance' | 'producer';
+
+/** Attempts the fixed settled pair once in order, retaining each original failure until both attempts finish. */
+async function removeFrontendRoots(
+  provenance: string,
+  producer: string | undefined,
+  remove: (owner: FrontendRootOwner, root: string) => Promise<void>,
+): Promise<void> {
+  const failures: unknown[] = [];
+  try {
+    await remove('provenance', provenance);
+  } catch (failure) {
+    // Proof: FRC1 restored fail-fast here; 'frontend cleanup accounting settled roots first-missing'
+    // found the real second root retained; exact attempt-all restoration passed (2026-11-02).
+    failures.push(failure);
+  }
+  if (producer !== undefined) {
+    try {
+      await remove('producer', producer);
+    } catch (failure) {
+      failures.push(failure);
+    }
+  }
+  if (failures.length === 1) throw failures[0];
+  if (failures.length === 2)
+    throw new AggregateError(failures, 'frontend owned root removals failed');
+}
+
 async function prepareOwnedProducer(historicalCommit: boolean) {
   const repository = resolve(import.meta.dir, '../../../..');
   const root = await mkdtemp(join(tmpdir(), 'frontend-owned-provenance-'));
-  console.error(JSON.stringify({ boundary: 'provenance-preparation', root }));
+  const allocationDiagnostic = publishProvenanceRoot('provenance', 'allocated', root);
+  console.error(JSON.stringify({ boundary: 'provenance-preparation', root, allocationDiagnostic }));
   const archive = Bun.spawnSync(['git', 'archive', 'HEAD', ...CURATED_SOURCE], {
     cwd: repository,
     stdout: 'pipe',
@@ -917,6 +1313,7 @@ async function prepareOwnedProducer(historicalCommit: boolean) {
       archive: describeBytes(archive.stdout),
       sourceSha,
       historicalCommit,
+      rootDiagnostic: publishProvenanceRoot('provenance', 'prepared', root),
       rosterSha256: describeBytes(Buffer.from(roster)).sha256,
     }),
   );
@@ -1006,8 +1403,7 @@ test('producer rejects separately supported Git and live epochs before Node', as
   } finally {
     spy.mockRestore();
     if (settled) {
-      await rm(prepared.root, { recursive: true });
-      if (retained !== undefined) await rm(retained, { recursive: true });
+      await removeFrontendRoots(prepared.root, retained, removeProvenanceRoot);
     }
   }
 }, 10000);
@@ -1066,17 +1462,19 @@ test('producer rejects a different supported live epoch after the actual child c
       probes++;
       returned = child;
       probeDirectory = directory;
-      expect(child.success).toBe(true);
-      expect(child.signalCode).toBeUndefined();
-      expect(child.exitCode).toBe(0);
-      for (const [path, bytes] of prepared.historical) {
-        const target = join(prepared.root, path);
-        expect(lstatSync(target).isFile()).toBe(true);
-        expect(lstatSync(target).isSymbolicLink()).toBe(false);
-        expect(realpathSync(target)).toBe(target);
-        expect(realpathSync(prepared.root)).toBe(prepared.root);
-        writeFileSync(target, bytes);
-      }
+      return mutateClosingEpoch(child, () => {
+        expect(child.success).toBe(true);
+        expect(child.signalCode).toBeUndefined();
+        expect(child.exitCode).toBe(0);
+        for (const [path, bytes] of prepared.historical) {
+          const target = join(prepared.root, path);
+          expect(lstatSync(target).isFile()).toBe(true);
+          expect(lstatSync(target).isSymbolicLink()).toBe(false);
+          expect(realpathSync(target)).toBe(target);
+          expect(realpathSync(prepared.root)).toBe(prepared.root);
+          writeFileSync(target, bytes);
+        }
+      });
     }
     return child;
   }) as typeof Bun.spawnSync);
@@ -1090,6 +1488,7 @@ test('producer rejects a different supported live epoch after the actual child c
       (fault: unknown) => {
         const refusal = readProducerRefusal(fault);
         retained = refusal.directory;
+        propagateClosingFailure(fault, returned);
         expect(refusal.cause.message).toBe('source frontend producer selected epoch changed');
         return true;
       },
@@ -1163,8 +1562,9 @@ test('producer rejects a different supported live epoch after the actual child c
   } finally {
     spy.mockRestore();
     if (settled) {
-      await rm(prepared.root, { recursive: true });
-      if (retained !== undefined) await rm(retained, { recursive: true });
+      await removeFrontendRoots(prepared.root, retained, (_owner, root) =>
+        rm(root, { recursive: true }),
+      );
     }
   }
 }, 130000);
@@ -1189,3 +1589,233 @@ function reconstructHistoricalInput(path: 'package.json' | 'bun.lock', bytes: Ui
   expect(describeBytes(reconstructed)).toEqual(HISTORICAL_PAIR[path]);
   return reconstructed;
 }
+
+/** Test-owned existence observation; only exact ENOENT denotes a known already-removed root. */
+async function hasFrontendCleanupRoot(root: string): Promise<boolean> {
+  try {
+    await access(root);
+    return true;
+  } catch (cause) {
+    if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return false;
+    throw cause;
+  }
+}
+
+async function removeFrontendTestRoot(root: string): Promise<void> {
+  if (await hasFrontendCleanupRoot(root)) await rm(root, { recursive: true });
+}
+
+type FrontendCleanupOutcome =
+  | { readonly kind: 'returned'; readonly value: unknown }
+  | { readonly kind: 'threw'; readonly failure: unknown };
+
+const frontendCaptureCleanupCases = [
+  'success',
+  'primary-only',
+  'cleanup-only-missing-root',
+  'both-errors',
+  'undefined-primary',
+  'undefined-cleanup',
+] as const;
+test.each([...frontendCaptureCleanupCases])(
+  'frontend cleanup accounting settled capture %s',
+  async (fault) => {
+    const root = await mkdtemp(join(tmpdir(), 'frontend-capture-cleanup-case-'));
+    const value = Object.freeze({ marker: 'same private consumer object' });
+    const primary: unknown =
+      fault === 'undefined-primary' ? undefined : new Error('modeled private consumer refusal');
+    const cleanup: unknown =
+      fault === 'undefined-cleanup' ? undefined : new Error('modeled removal dependency refusal');
+    const calls: string[] = [];
+    let consumeCalls = 0;
+    let cleanupCalls = 0;
+    const cleanupFailures: unknown[] = [];
+    try {
+      let outcome: FrontendCleanupOutcome;
+      try {
+        const returned = await consumeSourceFrontendCapture(
+          async () => {
+            consumeCalls++;
+            calls.push('consume');
+            if (fault === 'cleanup-only-missing-root') await rm(root, { recursive: true });
+            if (fault !== 'success' && fault !== 'cleanup-only-missing-root') throw primary;
+            return value;
+          },
+          async () => {
+            cleanupCalls++;
+            calls.push('cleanup');
+            try {
+              await rm(root, { recursive: true });
+              // These three dependency refusals are modeled after an actual successful root removal.
+              if (
+                fault === 'both-errors' ||
+                fault === 'undefined-primary' ||
+                fault === 'undefined-cleanup'
+              )
+                throw cleanup;
+            } catch (failure) {
+              cleanupFailures.push(failure);
+              throw failure;
+            }
+          },
+        );
+        outcome = { kind: 'returned', value: returned };
+      } catch (failure) {
+        outcome = { kind: 'threw', failure };
+      }
+      expect(await hasFrontendCleanupRoot(root), 'required settled capture root removal').toBe(
+        false,
+      );
+      expect(consumeCalls, 'settled consumer invocation count').toBe(1);
+      expect(cleanupCalls, 'settled removal invocation count').toBe(1);
+      expect(calls).toEqual(['consume', 'cleanup']);
+      if (fault === 'success') {
+        expect(outcome.kind).toBe('returned');
+        if (outcome.kind !== 'returned') throw new Error('settled capture unexpectedly refused');
+        expect(outcome.value === value, 'same consumer value after cleanup').toBe(true);
+        expect(cleanupFailures).toHaveLength(0);
+      } else {
+        expect(outcome.kind).toBe('threw');
+        if (outcome.kind !== 'threw') throw new Error('required settled capture refusal absent');
+        if (fault === 'primary-only') {
+          expect(outcome.failure === primary, 'original primary-only identity').toBe(true);
+          expect(cleanupFailures).toHaveLength(0);
+        } else {
+          expect(cleanupFailures).toHaveLength(1);
+          if (fault === 'cleanup-only-missing-root') {
+            expect(
+              outcome.failure === cleanupFailures[0],
+              'original actual missing-root rejection identity',
+            ).toBe(true);
+            expect(
+              outcome.failure instanceof Error &&
+                'code' in outcome.failure &&
+                outcome.failure.code === 'ENOENT',
+              'actual missing-root refusal',
+            ).toBe(true);
+          } else {
+            expect(
+              outcome.failure instanceof AggregateError,
+              'both settled failures retained privately',
+            ).toBe(true);
+            if (!(outcome.failure instanceof AggregateError))
+              throw new Error('dual settled failure aggregate absent');
+            expect(
+              outcome.failure.message === 'settled frontend capture and removal failed',
+              'fixed private aggregate message',
+            ).toBe(true);
+            expect(
+              outcome.failure.errors[0] === primary,
+              'original primary identity retained first',
+            ).toBe(true);
+            expect(
+              outcome.failure.errors[1] === cleanupFailures[0],
+              'original cleanup identity retained second',
+            ).toBe(true);
+            expect(outcome.failure.errors.length).toBe(2);
+          }
+        }
+      }
+    } finally {
+      await removeFrontendTestRoot(root);
+    }
+  },
+);
+
+const frontendPairCleanupCases = [
+  'both-success',
+  'first-missing',
+  'second-missing',
+  'both-missing',
+  'no-retained-producer',
+] as const;
+test.each([...frontendPairCleanupCases])(
+  'frontend cleanup accounting settled roots %s',
+  async (fault) => {
+    const provenance = await mkdtemp(join(tmpdir(), 'frontend-provenance-cleanup-case-'));
+    const producer =
+      fault === 'no-retained-producer'
+        ? undefined
+        : await mkdtemp(join(tmpdir(), 'frontend-producer-cleanup-case-'));
+    const calls: { owner: FrontendRootOwner; root: string }[] = [];
+    const failures = new Map<FrontendRootOwner, unknown>();
+    try {
+      if (fault === 'first-missing' || fault === 'both-missing')
+        await rm(provenance, { recursive: true });
+      if (fault === 'second-missing' || fault === 'both-missing') {
+        if (producer === undefined) throw new Error('required missing-producer fixture absent');
+        await rm(producer, { recursive: true });
+      }
+      let outcome: FrontendCleanupOutcome;
+      try {
+        await removeFrontendRoots(provenance, producer, async (owner, root) => {
+          calls.push({ owner, root });
+          try {
+            await rm(root, { recursive: true });
+          } catch (failure) {
+            failures.set(owner, failure);
+            throw failure;
+          }
+        });
+        outcome = { kind: 'returned', value: undefined };
+      } catch (failure) {
+        outcome = { kind: 'threw', failure };
+      }
+      expect(await hasFrontendCleanupRoot(provenance), 'required provenance root removal').toBe(
+        false,
+      );
+      if (producer !== undefined)
+        expect(
+          await hasFrontendCleanupRoot(producer),
+          'attempt-all producer root after provenance failure',
+        ).toBe(false);
+      expect(calls.map((call) => call.owner)).toEqual(
+        producer === undefined ? ['provenance'] : ['provenance', 'producer'],
+      );
+      expect(calls.at(0)?.root === provenance, 'original provenance root argument').toBe(true);
+      if (producer !== undefined)
+        expect(calls.at(1)?.root === producer, 'original producer root argument').toBe(true);
+      if (fault === 'both-success' || fault === 'no-retained-producer') {
+        expect(outcome.kind).toBe('returned');
+        expect(failures.size).toBe(0);
+      } else {
+        expect(outcome.kind).toBe('threw');
+        if (outcome.kind !== 'threw') throw new Error('required root-removal refusal absent');
+        if (fault === 'both-missing') {
+          expect(failures.has('provenance')).toBe(true);
+          expect(failures.has('producer')).toBe(true);
+          expect(
+            outcome.failure instanceof AggregateError,
+            'both original root failures retained',
+          ).toBe(true);
+          if (!(outcome.failure instanceof AggregateError))
+            throw new Error('dual root-removal aggregate absent');
+          expect(
+            outcome.failure.message === 'frontend owned root removals failed',
+            'fixed private root aggregate message',
+          ).toBe(true);
+          expect(outcome.failure.errors.length).toBe(2);
+          expect(
+            outcome.failure.errors[0] === failures.get('provenance'),
+            'first original removal identity',
+          ).toBe(true);
+          expect(
+            outcome.failure.errors[1] === failures.get('producer'),
+            'second original removal identity',
+          ).toBe(true);
+        } else {
+          const owner = fault === 'first-missing' ? 'provenance' : 'producer';
+          expect(failures.size).toBe(1);
+          expect(failures.has(owner)).toBe(true);
+          expect(
+            outcome.failure === failures.get(owner),
+            'single original removal failure identity',
+          ).toBe(true);
+        }
+      }
+    } finally {
+      await removeFrontendTestRoot(provenance);
+      if (producer !== undefined) await removeFrontendTestRoot(producer);
+    }
+  },
+);
