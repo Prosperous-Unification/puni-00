@@ -108,9 +108,27 @@ fleet_ansible --limit h4claw --extra-vars @"$OPS/gate.json" playbooks/gate-host.
 
 Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in this order:
 
+0. **Onboard h2puni to the role (h2puni only, once).** h2puni has never been role-managed and is
+   not in `gate_hosts`; only h4claw is. Its first apply is a larger change than enrollment, and it
+   is owed by task 6.3's operator half, which Dany sees before it runs:
+   - Add h2puni to `gate_hosts` in its inventory, with `"puni_gate_host_pool_enroll": false` first.
+   - Take the base backup the role's touched state needs (accounts, package selections, and
+     `puni1`'s current `~/.bashrc`), as in [Add a gate host](#add-a-gate-host).
+   - Expect the first apply to replace `~/.bashrc` with the role's, install the pinned Bun, Node
+     and gh, the apt packages and `~/.venv-solver`, and change any of those that differ from the
+     pins.
+   - Before applying, check that the live shared `~/puni-00-gate-tbf` reports
+     `git remote get-url origin` = `https://github.com/Prosperous-Unification/puni-00.git`, is not
+     shallow or blobless, and has an empty `git status --porcelain`. `validate` refuses anything
+     else, and a refusal mid-apply leaves the host half-configured.
+   - Run it with no gate in flight (`bin/with-heavy-lock.sh status` reads `holder none`), twice,
+     the second with `changed=0`.
 1. **Disk.** On h2puni, free space first: the recorded cleanup order is the "h2puni DISK, FOR DANY"
    entry of 2026-11-02 in the private `puni-plan` `RESUME.md`, and Dany approves it. The role
-   refuses to clone below its threshold either way.
+   refuses to clone below 5 GiB per missing checkout plus 10 GiB. On h2puni, which lacks two
+   checkouts, that means at least **20 GiB free** before the apply; a fresh host lacking all three
+   needs **25 GiB**. The `/var/tmp` and dangling-image cleanup alone (about 13 GB) is not enough
+   from today's 8 GB: the clean, pushed clone deletions in that entry are needed too.
 2. **Inputs.** WBS is deployed before Dash (`resources.md`, deploy order). An organization admin
    binds the host's machine credential to its provider, authority and epoch. Add to the host's
    `$OPS/gate.json`, mode 0600:
@@ -118,22 +136,36 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
 "providerId": …, "mcpResource": "https://…/mcp", "credential": "wbs_mk_…", "diskBudgetUnits": …}`.
    Units are GiB. The budget must leave `headroomBytes` (10 GiB) free beyond it whenever a
    calibration runs.
-3. **Drain.** Stop intake and let the host's heavy queue drain (`bin/with-heavy-lock.sh status`
-   reads `holder none`). Enrolling while a gate is queued is operator error (S6-A14).
+3. **Drain.** Stop intake, including unattended intake: on h2puni the dev poller's
+   `solver-image-publish` launches heavy jobs by itself, so stop the poller first. Then let the
+   host's heavy queue drain (`bin/with-heavy-lock.sh status` reads `holder none`). Enrolling while
+   a gate is queued is operator error (S6-A14).
 4. **Apply.** Run the playbook twice as in [Add a gate host](#add-a-gate-host). The second run
    must print `changed=0`. The configuration now exists, so the host is enrolled; until step 5 a
    launcher refuses, because the ledger is missing.
-5. **Initialize, then start the watch (6.4, 6.7).** As `puni1`, in `~/puni-00-gate-launcher`:
-   `bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops pool init --config ~/.config/dash/host-pool.json`,
-   then `systemctl --user start dash-resources-watch.service dash-job-audit.timer`. Prove the
-   restart once: kill the watch process and watch systemd start it again
+5. **Initialize, then start the watch (6.4, 6.7).** Prerequisite: the `dash-host-jobs` plan is
+   on `main`, so the launcher checkout's HEAD (it clones `origin/HEAD`, which is `main`) carries
+   `infra/jobs/catalogue.json` and `run_heavy_job`. As `puni1`, in `~/puni-00-gate-launcher`, run
+   as one line so the watch starts only on a successful init and before any job:
+
+   ```sh
+   bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops pool init --config ~/.config/dash/host-pool.json && systemctl --user start dash-resources-watch.service dash-job-audit.timer
+   ```
+
+   Prove the restart once: kill the watch process and watch systemd start it again
    (`journalctl --user -u dash-resources-watch.service`). Rerun `--tags validate`.
+
 6. **Observe for a week (6.4).** Every launcher goes through `run_heavy_job` in observe mode. Gates
-   launch from `~/puni-00-gate-launcher`. Move its head only while no job runs from it:
-   `git fetch -q origin && git checkout -q --detach origin/main`. Then restart the watch, which
+   launch from `~/puni-00-gate-launcher`. Its freshness is manual for now (a timer is owed,
+   task 6.9): move its head only while no job runs from it,
+   `git fetch -q origin && git checkout -q --detach origin/main`, then restart the watch, which
    runs from the same checkout.
 7. **Calibrate and propose (6.4).** Run `ops job calibrate` cold and warm for each type, then
-   `ops job propose`, and land the catalogue PRs.
+   `ops job propose`, and land the catalogue PRs. Budgets and headroom are pinned at step 5: once
+   the pool is initialized, a changed `nproc`, MemTotal GiB, headroom, unit list, enrollment id or
+   disk input stops the role before it rewrites the configuration ("pinned field differs from
+   the ledger"). Choose headroom before init; changing it later needs re-enrollment, which with
+   the fixed root means retiring the ledger first.
 8. **Switch (6.5).** Run `ops pool switch-mode concurrent` after the five-launcher checklist, with
    the types allowed to overlap listed in `puni_gate_pool_concurrency_eligible`. Reapply the role
    to write them.
@@ -144,6 +176,10 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
 ssh puni1@<h4claw public address> \
   'cd ~/puni-00-gate-tbf && git fetch -q origin && bin/h2puni-gate.sh <sha>' > gate-<sha8>.log 2>&1
 ```
+
+Once the host is enrolled, launch from `~/puni-00-gate-launcher` instead of `~/puni-00-gate-tbf`.
+A launcher working in a unit holds it (J19, S6-A6), so the pool would always hand out `tbf2`, and
+two gates would serialise without saying why.
 
 The [Gate](../../AGENTS.md#gate) rules are the same as on h2puni:
 

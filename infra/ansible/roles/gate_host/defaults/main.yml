@@ -59,8 +59,9 @@ puni_gate_pool_dagger_unit: '{{ puni_gate_pool_units_root }}/dagger_engine'
 puni_gate_pool_exclusive_units:
   gate_tree: ['{{ puni_gate_checkout }}', '{{ puni_gate_second_checkout }}']
   dagger_engine: ['{{ puni_gate_pool_dagger_unit }}']
-# Kept back from the host's `nproc` and MemTotal for everything outside host jobs (S6C-A5);
-# provisional until task 6.4's calibration. A host with other tenants (h4claw's k3s) may raise it.
+# Kept back from the host's `nproc` and MemTotal for everything outside host jobs (S6C-A5). The
+# ledger pins it at `ops pool init`: choose it per host before then (h4claw's k3s may want more),
+# because changing it afterwards stops the role (S6C-A15) and needs re-enrollment.
 puni_gate_pool_headroom: { cpuCores: 1, memoryGib: 2 }
 puni_gate_pool_disk_unit_bytes: 1073741824
 puni_gate_pool_headroom_bytes: 10737418240

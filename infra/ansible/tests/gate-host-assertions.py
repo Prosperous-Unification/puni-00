@@ -1,0 +1,304 @@
+"""Controller-image evaluator for the gate_host role's Ansible-side checks (dash-host-jobs 6c).
+
+Runs each named task of `roles/gate_host/tasks/*.yml` unchanged against localhost, with the
+registered values it reads recorded through `set_fact` (or produced by fake commands first on
+PATH), then once per fault with one condition removed, and requires the fault's bad input to get
+through. Prints one line per case and exits 1 if any expectation fails. Run from the repository
+root with the digest-locked controller (see tools/tool-fleet/src/check.ts):
+
+    docker run --rm --network none --read-only --tmpfs /tmp:exec --tmpfs /runner/.ansible \\
+      -v "$PWD/infra/ansible:/work/ansible:ro" --entrypoint python3 \\
+      ghcr.io/prosperous-unification/fleet-controller:0.1.0 /work/ansible/tests/gate-host-assertions.py
+
+Results and the fault table are in openspec/changes/dash-host-jobs/verify.md, Slice 6c.
+"""
+
+import copy
+import json
+import os
+import shutil
+import subprocess
+import sys
+
+import yaml
+
+ROLE = "/work/ansible/roles/gate_host/tasks"
+WORK = "/tmp/gate-host-assertions"
+TASKS = {name: yaml.safe_load(open(os.path.join(ROLE, name))) for name in
+         ("main.yml", "host-pool.yml", "validate.yml")}
+
+BASE = {
+    "puni_gate_user": "root",
+    "puni_gate_home": WORK + "/home",
+    "puni_gate_pool_root": "/home/puni1/.local/share/dash/host-pool",
+    "puni_gate_pool_config": "/home/puni1/.config/dash/host-pool.json",
+    "puni_gate_pool_ledger": "/home/puni1/.local/share/dash/host-pool/.dash/resources.sqlite",
+    "puni_gate_launcher_checkout": "/home/puni1/puni-00-gate-launcher",
+    "puni_gate_dash_entrypoint": "/home/puni1/puni-00-gate-launcher/entrypoint.ts",
+    "puni_gate_clone_bytes": 5368709120,
+    "puni_gate_clone_floor_bytes": 10737418240,
+    "puni_gate_checkouts": [WORK + "/home/tbf", WORK + "/home/tbf2", WORK + "/home/launcher"],
+}
+POOL = {"authorityId": "a", "epoch": "e", "providerId": "p", "mcpResource": "https://wbs.invalid/mcp",
+        "credential": "c", "diskBudgetUnits": 16}
+
+
+def task(file, name):
+    found = [t for t in TASKS[file] if t.get("name") == name]
+    if len(found) != 1:
+        raise SystemExit(f"{file}: expected one task named {name!r}, found {len(found)}")
+    return copy.deepcopy(found[0])
+
+
+def stat(item, **fields):
+    return {"item": item, "stat": {"exists": bool(fields), **fields}}
+
+
+def run(tasks, variables, facts=None, fake=None, pre=None):
+    """Run `tasks` on localhost; returns (rc, combined output)."""
+    shutil.rmtree(WORK, ignore_errors=True)
+    os.makedirs(WORK + "/home")
+    os.makedirs(WORK + "/bin")
+    for name, body in (fake or {}).items():
+        path = os.path.join(WORK, "bin", name)
+        with open(path, "w") as handle:
+            handle.write("#!/bin/sh\n" + body + "\n")
+        os.chmod(path, 0o755)
+    for path, body in (pre or {}).items():
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as handle:
+            handle.write(body)
+    setup = [{"name": "Read the evaluating account", "ansible.builtin.getent":
+              {"database": "passwd", "key": "root"}}]
+    if facts:
+        setup.append({"name": "Record the registered values", "ansible.builtin.set_fact": facts})
+    play = [{"name": "evaluate", "hosts": "localhost", "connection": "local", "gather_facts": False,
+             "vars": {**BASE, **variables}, "tasks": setup + tasks}]
+    with open(WORK + "/play.yml", "w") as handle:
+        yaml.safe_dump(play, handle, sort_keys=False)
+    env = {"PATH": WORK + "/bin:/usr/local/bin:/usr/bin:/bin", "HOME": WORK + "/home",
+           "ANSIBLE_LOCAL_TEMP": "/tmp/ansible-local", "ANSIBLE_REMOTE_TEMP": "/tmp/ansible-remote",
+           "ANSIBLE_NOCOLOR": "1", "ANSIBLE_FORCE_COLOR": "0", "ANSIBLE_DEPRECATION_WARNINGS": "0"}
+    completed = subprocess.run(["ansible-playbook", "-i", "localhost,", WORK + "/play.yml"],
+                               env=env, capture_output=True, text=True, timeout=300, check=False)
+    return completed.returncode, completed.stdout + completed.stderr
+
+
+def drop_that(index):
+    def mutate(tasks):
+        for t in tasks:
+            if "ansible.builtin.assert" in t:
+                del t["ansible.builtin.assert"]["that"][index]
+                if not t["ansible.builtin.assert"]["that"]:
+                    t["ansible.builtin.assert"]["that"] = ["true"]
+                return
+        raise SystemExit("no assert to mutate")
+    mutate.label = f"assert condition {index} removed"
+    return mutate
+
+
+def drop_key(key, task_name=None):
+    def mutate(tasks):
+        for t in tasks:
+            if (task_name is None or t["name"] == task_name) and key in t:
+                del t[key]
+                return
+        raise SystemExit(f"no {key} to drop")
+    mutate.label = f"`{key}` removed" + (f" from {task_name!r}" if task_name else "")
+    return mutate
+
+
+# Each family: the exact tasks, cases (id, variables, recorded facts, fakes, expectation) and
+# faults (mutation, the case whose bad input must then get through).
+FAMILIES = []
+
+
+def family(fid, tasks, cases, faults):
+    FAMILIES.append((fid, tasks, cases, faults))
+
+
+def refused(message):
+    return ("refused", message)
+
+
+ACCEPTED = ("accepted", None)
+
+inputs = [task("host-pool.yml", "Require the host pool inputs of an enrolled host")]
+REFUSAL = "An enrolled gate host needs puni_gate_host_pool"
+family("E1 enrolled host pool inputs", inputs, [
+    ("valid", {"puni_gate_host_pool_enroll": True, "puni_gate_host_pool": POOL}, None, None, ACCEPTED),
+    ("unenrolled skips", {"puni_gate_host_pool_enroll": False}, None, None, ACCEPTED),
+    ("undefined", {"puni_gate_host_pool_enroll": True}, None, None, refused(REFUSAL)),
+    ("not a mapping", {"puni_gate_host_pool_enroll": True, "puni_gate_host_pool": "x"}, None, None,
+     refused(REFUSAL)),
+    ("extra key", {"puni_gate_host_pool_enroll": True, "puni_gate_host_pool": {**POOL, "mode": "o"}},
+     None, None, refused(REFUSAL)),
+    ("http endpoint", {"puni_gate_host_pool_enroll": True,
+                       "puni_gate_host_pool": {**POOL, "mcpResource": "http://wbs.invalid/mcp"}},
+     None, None, refused(REFUSAL)),
+    ("string budget", {"puni_gate_host_pool_enroll": True,
+                       "puni_gate_host_pool": {**POOL, "diskBudgetUnits": "16"}}, None, None,
+     refused(REFUSAL)),
+    ("zero budget", {"puni_gate_host_pool_enroll": True,
+                     "puni_gate_host_pool": {**POOL, "diskBudgetUnits": 0}}, None, None,
+     refused(REFUSAL)),
+], [(drop_that(0), "undefined"), (drop_that(1), "not a mapping"), (drop_that(2), "extra key"),
+    (drop_that(3), "http endpoint"), (drop_that(4), "string budget"), (drop_that(5), "zero budget"),
+    (drop_key("when"), "unenrolled skips")])
+
+disk = [task("main.yml", "Measure free space for the gate checkouts still to clone"),
+        task("main.yml", "Require free space for the gate checkouts still to clone")]
+family("E2 free-space refusal wiring", disk, [
+    ("room", {}, None, {"df": "printf '     Avail\\n26843545600\\n'"}, ACCEPTED),
+    ("low", {}, None, {"df": "printf '     Avail\\n7516192768\\n'"},
+     refused("Not cloning: clones=3 avail=7516192768 need=26843545600")),
+], [(drop_that(0), "low"), (drop_key("failed_when", disk[0]["name"]), "low")])
+
+paths = [task("validate.yml", "Require the pool root and the Dash user units")]
+ROOT = stat("root", isdir=True, mode="0700", pw_name="root")
+UNIT = stat("unit", isreg=True)
+NONE = stat("absent")
+
+
+def recorded(root=ROOT, units=(UNIT, UNIT, UNIT)):
+    return {"puni_gate_pool_paths": {"results": [root, NONE, NONE, *units]}}
+
+
+PATHS = "The pool root or a Dash user unit is missing"
+family("E3 pool root and unit files", paths, [
+    ("as written", {}, recorded(), None, ACCEPTED),
+    ("root missing", {}, recorded(root=NONE), None, refused(PATHS)),
+    ("root 0755", {}, recorded(root=stat("root", isdir=True, mode="0755", pw_name="root")), None,
+     refused(PATHS)),
+    ("root foreign", {}, recorded(root=stat("root", isdir=True, mode="0700", pw_name="nobody")), None,
+     refused(PATHS)),
+    ("watch unit missing", {}, recorded(units=(NONE, UNIT, UNIT)), None, refused(PATHS)),
+    ("audit service missing", {}, recorded(units=(UNIT, NONE, UNIT)), None, refused(PATHS)),
+    ("audit timer missing", {}, recorded(units=(UNIT, UNIT, NONE)), None, refused(PATHS)),
+], [(drop_that(0), "root missing"), (drop_that(1), "root 0755"), (drop_that(2), "root foreign"),
+    (drop_that(3), "watch unit missing"), (drop_that(4), "audit service missing"),
+    (drop_that(5), "audit timer missing")])
+
+unenrolled = [task("validate.yml", "Require no host pool state on a host that is not enrolled")]
+
+
+def state(config, ledger):
+    return {"puni_gate_pool_paths": {"results": [ROOT, stat("c", isreg=True) if config else NONE,
+                                                 stat("l", isreg=True) if ledger else NONE,
+                                                 UNIT, UNIT, UNIT]}}
+
+
+STATE = "puni_gate_host_pool_enroll is false, but the configuration exists"
+family("E4 no pool state on an unenrolled host", unenrolled, [
+    ("clean", {"puni_gate_host_pool_enroll": False}, state(False, False), None, ACCEPTED),
+    ("enrolled skips", {"puni_gate_host_pool_enroll": True}, state(True, True), None, ACCEPTED),
+    ("configuration left", {"puni_gate_host_pool_enroll": False}, state(True, False), None,
+     refused(STATE)),
+    ("ledger left", {"puni_gate_host_pool_enroll": False}, state(False, True), None, refused(STATE)),
+], [(drop_that(0), "configuration left"), (drop_that(1), "ledger left"),
+    (drop_key("when"), "enrolled skips")])
+
+enabled = [task("validate.yml", "Read whether the Dash user units are enabled")]
+
+
+def systemctl(states, rc):
+    return {"systemctl": "printf '%s\\n' " + " ".join(states) + f"; exit {rc}"}
+
+
+family("E5 user units enabled", enabled, [
+    ("both enabled", {"puni_gate_host_pool_enroll": True}, None, systemctl(["enabled", "enabled"], 0),
+     ACCEPTED),
+    ("unenrolled skips", {"puni_gate_host_pool_enroll": False}, None,
+     systemctl(["disabled", "disabled"], 1), ACCEPTED),
+    ("timer static", {"puni_gate_host_pool_enroll": True}, None, systemctl(["enabled", "static"], 0),
+     refused("Read whether the Dash user units are enabled")),
+], [(drop_key("failed_when"), "timer static"), (drop_key("when"), "unenrolled skips")])
+
+dash = [task("validate.yml", "Name the Dash probes this host skips"),
+        task("validate.yml", "Inspect the host pool and audit its envelopes")]
+BUN = 'printf "%s\\n" "$*" >> ' + WORK + '/bun.log; case "$*" in *"job audit"*) exit "$(cat ' + \
+    WORK + '/audit-rc)";; esac'
+BASHRC = {WORK + "/home/.bashrc": "", WORK + "/home/launcher/.keep": ""}
+LAUNCHER = {"puni_gate_launcher_checkout": WORK + "/home/launcher"}
+
+
+def ledger(exists, audit_rc=0):
+    pre = {**BASHRC, WORK + "/audit-rc": str(audit_rc)}
+    return {"puni_gate_pool_paths": {"results": [ROOT, NONE, stat("l", isreg=True) if exists else NONE,
+                                                 UNIT, UNIT, UNIT]}}, pre
+
+
+SKIP = "Skipped `ops pool inspect` and `ops job audit`"
+present, present_pre = ledger(True)
+absent, absent_pre = ledger(False)
+drift, drift_pre = ledger(True, 1)
+family("E6 ledger-gated inspect, audit and skip line", dash, [
+    ("initialized", LAUNCHER, present, {"bun": BUN}, ("ran", present_pre)),
+    ("not initialized", LAUNCHER, absent, {"bun": BUN}, ("skipped", absent_pre)),
+    ("drift", LAUNCHER, drift, {"bun": BUN}, ("refused-pre", drift_pre)),
+], [(drop_key("when", dash[1]["name"]), "not initialized"),
+    (drop_key("when", dash[0]["name"]), "initialized")])
+
+pinned = [task("host-pool.yml", "Require the pinned fields to equal the live configuration's")]
+
+
+def live(stdout, rc=0, stderr=""):
+    return {"puni_gate_pool_live": {"results": [stat("l", isreg=True), stat("c", isreg=True)]},
+            "puni_gate_pool_pinned": {"rc": rc, "stdout": stdout, "stderr": stderr}}
+
+
+PINNED = "pinned field differs from the ledger; re-enrollment under a new root is required"
+family("E7 pinned fields unchanged", pinned, [
+    ("unchanged", {"puni_gate_host_pool_enroll": True}, live("[]"), None, ACCEPTED),
+    ("memory moved", {"puni_gate_host_pool_enroll": True}, live('["memoryGib"]'), None,
+     refused(PINNED)),
+    ("unreadable live file", {"puni_gate_host_pool_enroll": True},
+     live("", 2, "jq: error: Could not open host-pool.json"), None, refused(PINNED)),
+], [(drop_that(0), "memory moved"), (drop_that(0), "unreadable live file")])
+
+
+def judge(expectation, rc, output):
+    kind, detail = expectation
+    log = WORK + "/bun.log"
+    if kind == "accepted":
+        return rc == 0
+    if kind == "refused":
+        return rc != 0 and detail in output
+    if kind == "ran":
+        return rc == 0 and SKIP not in output and os.path.exists(log) and \
+            open(log).read().split("\n")[:2] == [
+                f"{BASE['puni_gate_dash_entrypoint']} ops pool inspect --config {BASE['puni_gate_pool_config']}",
+                f"{BASE['puni_gate_dash_entrypoint']} ops job audit --config {BASE['puni_gate_pool_config']}"]
+    if kind == "skipped":
+        return rc == 0 and SKIP in output and not os.path.exists(log)
+    if kind == "refused-pre":
+        return rc != 0 and "Inspect the host pool and audit its envelopes" in output
+    raise SystemExit(kind)
+
+
+def pre_of(expectation):
+    kind, detail = expectation
+    return detail if kind in ("ran", "skipped", "refused-pre") else None
+
+
+failures = 0
+for fid, tasks, cases, faults in FAMILIES:
+    by_id = {case[0]: case for case in cases}
+    for cid, variables, facts, fake, expectation in cases:
+        rc, output = run(copy.deepcopy(tasks), variables, facts, fake, pre_of(expectation))
+        ok = judge(expectation, rc, output)
+        failures += not ok
+        print(f"{'ok  ' if ok else 'FAIL'} {fid}: {cid} (rc {rc})")
+        if not ok:
+            print(output[-1500:])
+    for mutate, cid in faults:
+        _, variables, facts, fake, expectation = by_id[cid]
+        mutated = copy.deepcopy(tasks)
+        mutate(mutated)
+        rc, output = run(mutated, variables, facts, fake, pre_of(expectation))
+        caught = judge(expectation, rc, output)
+        failures += caught
+        print(f"{'FAIL' if caught else 'ok  '} {fid}: fault ({mutate.label})"
+              f" lets {cid!r} through (rc {rc})")
+print(json.dumps({"failures": failures}))
+sys.exit(1 if failures else 0)

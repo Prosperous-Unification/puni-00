@@ -20,7 +20,7 @@ export const AUDIT_TIMER = 'dash-job-audit.timer';
 
 const SERVICE_TEMPLATE = `[Unit]
 Description=Twilight Dash host-job envelope audit (dash-host-jobs J9)
-Documentation=file://@CHECKOUT@/docs/resources.md
+Documentation=file://@CHECKOUT@/apps/twilight-structure/twilight-dash/cli/docs/resources.md
 
 [Service]
 Type=oneshot

@@ -543,8 +543,8 @@ A host pool runs in one of two modes (`dash-host-jobs` J12, J13). The ledger (ve
 records the mode, the guard, the guard's holder, a `switch-mode` in progress, any hold
 corruption and every operator mode record.
 
-**Before enrolling a host in observe mode, `resources watch` must be installed and running as
-its user unit (task 6.7, `Restart=on-failure`, `KillMode=process`).** Without it, a job whose
+**Before the first observe-mode job on a host, `resources watch` must be installed and running
+as its user unit (task 6.7, `Restart=on-failure`, `KillMode=process`).** Without it, a job whose
 payload outlives its launcher keeps the shell lock until an operator runs
 `resources sweep --config <path>`. That covers a surviving child past the 30 s settle budget,
 and a launcher killed after launch. Until then every legacy gate and Dash job refuses 75.

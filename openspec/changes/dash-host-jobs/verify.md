@@ -2056,6 +2056,40 @@ converging applies with `changed=0`, the restart proof and `ops pool init` all s
   `heavy lock:`, then exit 143 when the case times out. No file of this slice takes part. The
   fix belongs to the merge of #818 after #816: switch the fixture pool to concurrent mode with
   both types eligible, or expect serialisation. It is left to the owners of those slices.
+- **S6C-A15 Pinned fields stop the role (review Q1).** Once a ledger and a configuration both
+  exist, the role renders the candidate configuration on the controller and passes it on stdin,
+  never to disk. A `jq` probe compares it with the live file on the thirteen fields
+  `ResourceRuntime.binding` pins: root, authority, epoch, provider, disk unit, disk budget, slots,
+  headroom bytes, cores, memory, headroom, units and enrollment id. The probe prints only the
+  names of differing fields. An assert stops the play before the template task, with "pinned
+  field differs from the ledger; re-enrollment under a new root is required". `mcpResource`,
+  `credential`, `launcherCheckouts` and `concurrencyEligible` may still change. "Provisional" is
+  gone from the headroom default: it is chosen per host before init.
+- **S6C-A16 What the guard compares.** It compares with the live file, not the ledger, which is
+  what every open compares with. A configuration missing beside a ledger is rewritten from the
+  inputs. That restores a broken enrollment, and the next open checks it against the ledger. The
+  assert has one condition (`stdout == '[]'`): a `jq` failure prints nothing, so a separate
+  `rc == 0` could never fail on its own, and the evaluator showed exactly that.
+- **S6C-A17 h2puni onboarding is its own step (review Q2).** h2puni is not in `gate_hosts` and has
+  never been role-managed. Its first apply replaces `~/.bashrc`, installs the pins, packages and
+  solver venv, and requires the live shared `~/puni-00-gate-tbf` to be a full clean clone of the
+  canonical URL. That is a larger change than this slice. It is owed by 6.3's operator half,
+  **for Dany to see before it runs**, as step 0 of gate-hosts.md "Enroll a host in the host pool".
+- **S6C-A18 Controller-image evaluator.** `infra/ansible/tests/gate-host-assertions.py` runs the
+  role's exact tasks in the digest-locked controller, on localhost, with recorded registered
+  values or fake commands. It runs by hand, not in CI: it needs the controller image and
+  `--tmpfs /tmp:exec` for the fakes. A fault counts as caught when its bad input gets past the
+  named refusal. Either the play passes, or it fails with Ansible's own error instead of the
+  task's message: E1 conditions 0, 1 and 4, E2's `failed_when`, E3 condition 0.
+- **S6C-A19 Audit documentation path (review Q9).** `renderAuditUnits` (slice 4) now names
+  `<checkout>/apps/twilight-structure/twilight-dash/cli/docs/resources.md`, a path that exists.
+  `audit-units.test.ts`'s expected text and the role's template follow it, and the equality test
+  keeps the two in step.
+- **S6C-A20 Launcher freshness is manual (review Q6).** After enrollment, gates launch from
+  `~/puni-00-gate-launcher`. AGENTS.md's gate line and gate-hosts.md's launch section say so.
+  Its head moves only by hand (`git checkout --detach origin/main` while no job runs from it); task
+  6.9 owes a timer. `validate`'s header now says that `ops pool inspect` and `ops job audit` can
+  migrate an older ledger forward (review Q5).
 
 ### Commands (fresh, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, this workstation)
 
@@ -2097,8 +2131,48 @@ restored. Its SHA-256 matched before and after in every row. "Red" lists the fai
 | F13 shape probe's mode and owner check dropped                      | the shape-probe case (the group-readable copy passed)                                  |
 | F14 a second module added to the linger task in `host-pool.yml`     | `ansible-playbook --syntax-check playbooks/gate-host.yml` rc 4, naming the task's line |
 
+### Review fixes (Fable, PR #819): commands and evaluator
+
+Rerun fresh after the fixes; results are below the evaluator table.
+
+`docker run --rm --network none --read-only --tmpfs /tmp:exec --tmpfs /runner/.ansible -v "$PWD/infra/ansible:/work/ansible:ro" --entrypoint python3 ghcr.io/prosperous-unification/fleet-controller:0.1.0 /work/ansible/tests/gate-host-assertions.py`
+exited 0 and printed `{"failures": 0}`. It ran 30 cases and 24 faults:
+
+| Family (exact task)                                         | Cases (each as expected)                                                                     | Faults, each letting its bad input through                     |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| E1 `Require the host pool inputs of an enrolled host`       | valid passes; unenrolled skips; undefined, non-mapping, extra key, http, `"16"`, `0` refused | each of the six conditions removed; `when` removed             |
+| E2 free-space probe and `Require free space …` (fake `df`)  | 26843545600 free passes; 7516192768 refused naming `clones=3 avail=7516192768 need=…`        | assert condition removed; probe's `failed_when: false` removed |
+| E3 `Require the pool root and the Dash user units`          | as written passes; root missing, 0755, foreign, each unit file missing refused               | each of the six conditions removed                             |
+| E4 `Require no host pool state on a host that is not …`     | clean passes; enrolled skips; configuration or ledger left refused                           | each condition removed; `when` removed                         |
+| E5 `Read whether the Dash user units are enabled` (fake)    | `enabled enabled` passes; unenrolled skips; `enabled static` (exit 0) refused                | `failed_when` removed; `when` removed                          |
+| E6 skip line and `Inspect the host pool and audit …` (fake) | ledger: inspect then audit run, no skip line; none: skip line, nothing run; audit 1 refused  | either `when` removed                                          |
+| E7 `Require the pinned fields to equal the live …`          | `[]` passes; `["memoryGib"]` and a jq failure (rc 2, empty) refused                          | its one condition removed (both bad inputs through)            |
+
+| Fault                                                            | Red in `gate-host-pool.test.ts`                                      |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------- |
+| F15 `memoryGib` dropped from the pinned-field probe's list       | `the pinned-field probe names a changed budget, never a value`       |
+| F16 audit template's `Documentation=` back to `<checkout>/docs/` | `every unit names documentation that exists …`, the audit units case |
+
+Both were restored with their SHA-256 equal. The new probe case also shows that a changed
+headroom or inventory name is named (`["headroom"]`, `["enrollmentId"]`), that a changed
+credential, launcher list or eligibility list prints `[]`, and that a missing live file exits
+nonzero.
+
+Fresh after the fixes, with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`:
+
+- `gate-host-pool.test.ts` and `audit-units.test.ts`: 15 pass, 0 fail.
+- `bunx nx run tool-fleet:check --skip-nx-cache`: exit 0 (`ansible: 15 playbooks syntax-checked`,
+  `every family passed`).
+- `ansible-playbook --syntax-check -i localhost, playbooks/gate-host.yml` in the controller: rc 0.
+- `bunx prettier --check` on every touched Markdown, YAML and TypeScript file: clean. Prettier has
+  no parser for `.j2` and `.py`.
+- `bunx openspec validate dash-host-jobs --json`: passed, 1 of 1, with the same 11 warnings.
+- ESLint on the changed TypeScript and twilight-dash `tsc --build --force`: exit 0.
+
 ### Skipped and unverified
 
+- **h2puni's first apply (S6C-A17)** is a larger change than this slice, owed by 6.3's operator
+  half, for Dany to see first.
 - **On a host:** the apply itself; linger; `wait_for` on the user manager socket;
   `systemctl --user daemon-reload`; enabling with `systemd_service`; the facts arithmetic; the
   clones and installs. The two-converging-applies proof (`changed=0`), killing the watch to see

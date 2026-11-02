@@ -268,6 +268,10 @@
   changed_when: false
   failed_when: false
 
+# Proof: in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py, E2) the probe and this assert, run together
+# against a fake `df`, refused 7516192768 free bytes naming `clones=3 avail=7516192768
+# need=26843545600` and passed 26843545600; without the condition, or without the probe's
+# `failed_when: false`, the named refusal was lost (verify.md Slice 6c).
 - name: Require free space for the gate checkouts still to clone
   tags: [gate_host]
   ansible.builtin.assert:

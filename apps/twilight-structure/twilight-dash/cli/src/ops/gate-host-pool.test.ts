@@ -264,6 +264,66 @@ describe('the gate host role prepares the host pool (dash-host-jobs 6.3, 6.7)', 
     expect(run(argv).exitCode).not.toBe(0);
   });
 
+  // Proof: with `memoryGib` dropped from the probe's pinned list, the budget case printed `[]`
+  // (verify.md Slice 6c, F15).
+  test('the pinned-field probe names a changed budget, never a value', () => {
+    const { variables } = enrolledHost();
+    const live = writeConfig(variables);
+    const argv = roleTask(
+      'host-pool.yml',
+      'Compare the pinned fields with the live configuration',
+    ).map((word) => renderRole(word, variables));
+    const probe = (candidate: RoleVariables) => {
+      const execution = Bun.spawnSync(argv, {
+        stdin: Buffer.from(renderTemplate('host-pool.json', candidate)),
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      return { exitCode: execution.exitCode, stdout: execution.stdout.toString().trim() };
+    };
+    expect(probe(variables)).toEqual({ exitCode: 0, stdout: '[]' });
+    expect(probe({ ...variables, puni_gate_pool_memory_gib: 9 })).toEqual({
+      exitCode: 0,
+      stdout: '["memoryGib"]',
+    });
+    expect(
+      probe({ ...variables, puni_gate_pool_headroom: { cpuCores: 1, memoryGib: 3 } }).stdout,
+    ).toBe('["headroom"]');
+    expect(probe({ ...variables, inventory_hostname: 'h4claw-renamed' }).stdout).toBe(
+      '["enrollmentId"]',
+    );
+    // What the ledger does not pin may change without stopping the role.
+    const credential = fakeCredential();
+    const unpinned = probe({
+      ...variables,
+      puni_gate_pool_launcher_checkouts: ['/home/puni1/wbs-dev/src'],
+      puni_gate_pool_concurrency_eligible: ['release-build'],
+      puni_gate_host_pool: {
+        ...(variables['puni_gate_host_pool'] as Record<string, RoleValue>),
+        credential,
+      },
+    });
+    expect(unpinned).toEqual({ exitCode: 0, stdout: '[]' });
+    rmSync(live);
+    expect(probe(variables).exitCode).not.toBe(0);
+  });
+
+  test('every unit names documentation that exists in the checkout', () => {
+    const { home, variables } = enrolledHost();
+    // Proof: the renderer's earlier `<checkout>/docs/resources.md` failed this (verify.md
+    // Slice 6c, F16).
+    for (const unit of ['dash-job-audit.service', 'dash-resources-watch.service']) {
+      const documentation = unitDirectives(renderTemplate(unit, variables)).get(
+        'Unit.Documentation',
+      );
+      const path = documentation?.[0]?.replace(`file://${home}/puni-00-gate-launcher`, REPOSITORY);
+      expect({ unit, exists: path !== undefined && existsSync(path) }).toEqual({
+        unit,
+        exists: true,
+      });
+    }
+  });
+
   test('the audit units are the ones `ops job render-audit-units` renders', () => {
     const { variables } = enrolledHost();
     const paths = {

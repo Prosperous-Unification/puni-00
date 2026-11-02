@@ -1,6 +1,8 @@
 ---
 # Each probe runs as the gate account through its ~/.bashrc, the environment `ssh puni1@host CMD`
-# gives a gate, and fails the play when its condition is broken; none of them changes the host.
+# gives a gate, and fails the play when its condition is broken. None of them changes the host,
+# with one exception: on an initialized pool, `ops pool inspect` and `ops job audit` open the
+# ledger, and an open migrates an older ledger version forward in place (resources.md).
 - name: Resolve Bun the way a remote gate does
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:
@@ -254,6 +256,9 @@
     - '{{ puni_gate_user_unit_directory }}/dash-job-audit.timer'
   register: puni_gate_pool_paths
 
+# Proof: in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py, E3) recorded stat results with the root
+# missing, 0755, foreign-owned, or any unit file missing were each refused; each condition
+# removed let its input through (verify.md Slice 6c).
 - name: Require the pool root and the Dash user units
   ansible.builtin.assert:
     that:
@@ -268,6 +273,9 @@
       {{ puni_gate_pool_paths.results | map(attribute='item') | zip(puni_gate_pool_paths.results
       | map(attribute='stat.exists')) | list }}
 
+# Proof: in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py, E4) a configuration or a ledger left on an
+# unenrolled host was refused and an enrolled host skipped; each condition removed, or `when`,
+# turned one of those around (verify.md Slice 6c).
 - name: Require no host pool state on a host that is not enrolled
   ansible.builtin.assert:
     that:
@@ -319,6 +327,10 @@
   changed_when: false
   when: puni_gate_host_pool_enroll
 
+# `is-enabled` exits 0 for `static` too, hence the exact pairing.
+# Proof: in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py, E5) a fake `systemctl` printing `enabled
+# static` with exit 0 was refused and `enabled enabled` passed; without `failed_when` the static
+# timer passed (verify.md Slice 6c).
 - name: Read whether the Dash user units are enabled
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:
@@ -330,6 +342,10 @@
   failed_when: puni_gate_unit_probe.stdout_lines != ['enabled', 'enabled']
   when: puni_gate_host_pool_enroll
 
+# Proof: in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py, E6) a recorded ledger ran a fake `bun` for
+# `ops pool inspect` then `ops job audit` with no skip line, a missing ledger printed the skip
+# line and ran nothing, and an audit exiting 1 failed the play; removing either `when` turned
+# one around (verify.md Slice 6c).
 - name: Name the Dash probes this host skips
   ansible.builtin.debug:
     msg: >-

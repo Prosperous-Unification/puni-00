@@ -151,7 +151,7 @@
       the file enrolls the host. `validate` reads linger, the checkouts, the token unit, the
       configuration's mode, owner and shape, and the units, then runs `ops pool inspect` and
       `ops job audit` once a ledger exists. No host was touched; the apply, the h2puni cleanup
-      and the converging proof stay in 6.3 (verify.md Slice 6c, S6C-A1 to S6C-A14).
+      and the converging proof stay in 6.3 (verify.md Slice 6c, S6C-A1 to S6C-A20).
 - [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
       `Restart=on-failure` and `KillMode=process` (beside the observation units of 4.2). It
       lands before 6.4, because observe mode needs a running `watch` (review H1 of #818). A host
@@ -213,6 +213,10 @@
       refuses until this is done. Done by J19 (design.md): `resource-holds.test.ts` outside any
       namespace; `ops pool init` now succeeds beside this workstation's own `systemd --user`
       (PID 2327) and `(sd-pam)` (verify.md Slice 6a).
+- [ ] 6.9 A user timer that keeps `~/puni-00-gate-launcher` fresh (`git fetch` and
+      `checkout --detach origin/main` while no job runs from it, then a watch restart); until it
+      lands that is a manual operator step (`docs/infra/gate-hosts.md`, S6C-A20) — test: the
+      timer refuses while a job launched from the checkout runs.
 - [ ] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
       (slice 3, #809) carries `descriptorDigest` and no durable locator, so this needs a locator
       for the run record and a decision on which digest WBS keeps — test: a returned host job's
