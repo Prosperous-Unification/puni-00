@@ -6274,3 +6274,268 @@ subtotals as measured startup demand or replace the unchanged physical-host
 floor and complete coexistence obligations. Existing Task82 reader output
 already binds the published packet; `/tmp/puni-task96-next.md` records its actual
 source-only conditional totals and the remaining initial-creation seam.
+
+## Task98: current declared Secret key presence — 2026-11-02
+
+One bounded read-only connection through the previously authorized enrollment
+operator/context produced three successful metadata queries at12:10:29–12:10:32UTC
+in2.630s. `observability` exists with zero Secrets; `observability-dev` is absent,
+so no Secret query was attempted in the absent namespace. Four Flux bootstrap
+Secrets have the declared key names; their contents, validity and grants remain
+unverified. No Secret values/encoded values, raw kubeconfigs or private keys were
+requested or retained. No TLS probe, credentials, grants or resources changed.
+
+Exact safe projections, source declarations, observed UIDs/resourceVersions,
+commands, timestamps and hashes are in `/tmp/puni-task98-secret-metadata/`;
+`report.md` SHA256 is
+`a39b24d5adf0eb761b38ba9a14f4fc2b79c11c0b5b0cf0e0b5159ad0490bb198`.
+Root verified all nine evidence-manifest files and absence of raw Secret-value
+fields in the retained JSON. The production projection is reused verbatim; only
+metadata type/resourceVersion were added to its closed safe envelope.
+
+All25 source-declared production Secret/key requirements are currently absent;
+22 shared/dev requirements are unavailable under the absent namespace. These
+include controller-generated objects and are not25 manual provisioning requests.
+The separate externally-provided list also names two absent OTLP trust objects
+without declaring key sets; no keys were invented. Source comparison details
+belong to the report, not duplicated here. No complete preflight, live readiness,
+new expected UID approval or credential authorization follows. Canonical3.2/4.2
+remain open; persistent material changes still require separate authorization.
+
+## Task97: bounded guest inputs and remaining tool check — 2026-11-02
+
+Artifact preparation has established signed source facts, package controls and
+image geometry. No guest, ISO or raw conversion has run. The existing full-lab
+image lock is unchanged; this small Noble/Docker baseline is not proof of that
+separate full-lab compatibility or stack readiness. The concrete plan is
+`/tmp/puni-task97-guest/plan.md`.
+
+The artifact worker uses256MiB/zero swap/half CPU/64PID/900s bounds. Three
+outside processes have128MiB hard address-space ceilings each; the640MiB total
+allowance gives a16.625GiB preflight threshold while preserving the existing
+16GiB minimum. Output, CPU and wall limits are explicit. New inputs share1.25GiB
+with category caps: image1GiB, archives96MiB, extraction8MiB, metadata32MiB and
+scripts8MiB. Earlier Task92/95 history is separately measured and preserved.
+These are containment/accounting figures, not measured guest startup demand.
+
+Actual bounded attempts and partial outcomes are retained separately:
+
+- Initial native preparation copied126125B cached metadata, then stopped on an
+  unintended DEVNULL O_RDWR request; no binary download. The next attempt
+  refused fresh capacity before launch. `/tmp/puni-task97-guest/preparation-report.md`.
+- Reviewed v4 completed Ubuntu archive/index and cloud checksum/manifest trust,
+  then stopped on the native parser's missing initialization after3.244s.
+  Receipt `artifact-v4/runs/6d2990f9b1588c83eacbc925cb0ba0ae/artifacts.json`.
+- The actual pinned native production closure reproduced that ValueError and
+  passed all11 dependency edges after init_system alone, under write-denied
+  Landlock. No APT configuration/cache API or signature replay was used.
+  `artifact-v5/native-closure.json`.
+- Reviewed v6 reused immutable metadata, verified containerd28151546B, then
+  stopped on dpkg-deb --field's temporary-directory requirement after5.246s.
+  Receipt `artifact-v6/runs/97dae9a99382893b689b76723347bfef/artifacts.json`.
+- Reviewed v7 used the native-proven read-only --ctrl-tarfile operation. All four
+  archives/control projections and the signed image/hash/header/QEMU geometry
+  checks succeeded. It stopped after69.679s because Python's old payload reader
+  did not support the geniso package's data.tar.zst. Receipt
+  `artifact-v7/runs/59e6de5efb430249c5ff2fab583fd23e/artifacts.json`.
+- The replacement --fsys-tarfile operation and exact ELF selection passed
+  natively under write-denied Landlock. Only that exact command receives an
+  8MiB bounded pipe allowance; other helpers remain64KiB. The actual target
+  extraction/loader/version component remains pending. Reviewed v8 refused
+  capacity before launch; its receipt is
+  `artifact-v8/runs/2a05e2f9971836c996ee26bca7f398d0/artifacts.json`.
+
+All paths in that list are relative to `/tmp/puni-task97-guest/`. Failed whole
+phases remain failed. Immutable positive source facts are consumed with exact
+file/stream/native-receipt/signer/index bindings and runtime_authority=false;
+no old artifact is copied or downloaded again. Focused negatives and targeted
+fault controls cover redirect-before-request, omitted helper/parser identities,
+metadata reuse, package controls, retained archives, payload selection/output
+bounds and historical category charging. Native and logical proof limits are
+explicit in each frozen report. Scoped review reports are
+`/tmp/puni-task97-artifact-v{3,4,5,6,7,8}-review.md`; findings were fixed before
+subsequent native attempts. No earlier pressure/signature/parser matrix was
+replayed for review.
+
+The image is621284352B, SHA256
+`04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94`;
+QEMU8.2.2 independently reported QCOW2 virtual3758096384B/cluster65536, one chain
+member, no backing/encryption/external/corrupt/dirty state. Guest archives are
+`docker.io 29.1.3-0ubuntu3~24.04.2`, `containerd 2.2.1-0ubuntu1~24.04.4` and
+`runc 1.3.4-0ubuntu1~24.04.1`. Their actual control fields match the signed index.
+The geniso package is377720B; its exact selected ELF is694424B, SHA256
+`9bacc5951ca0767701cfd8e6b47537f199977e51a6e943f4edfdcf9d639d99d2`.
+No package installation or maintainer script executed.
+
+Observed RAM fluctuated with another worktree's Bun activity; only PID, cwd,
+comm and cgroup were read, without arguments/environment or intervention.
+Source observations are in `/tmp/puni-task97-host-pressure*.json`. A precheck
+passing does not replace the entrypoint's fresh capacity gate. No running
+workload was stopped, no floor weakened, and no purchase/resize was made.
+Task97 and canonical runtime/migration tasks remain open. Full coexistence,
+actual guest/startup overhead, stored signals/views/history and persistent
+material authorization are still unresolved.
+
+## Implementation CI result — 2026-11-02
+
+At pushed head `a360713623f044c0d73e9ea690def7d97d9ca7b1`,
+[CI41436594395](https://github.com/Prosperous-Unification/puni-00/actions/runs/41436594395)
+completed successfully: stable gate, pixels/all four shards, workspace and
+Twilight. Workspace job ran11:25:03–13:12:46UTC (107m43s); Twilight ran
+11:25:02–12:30:03UTC (65m01s).
+[Infra41436594521](https://github.com/Prosperous-Unification/puni-00/actions/runs/41436594521)
+also succeeded. This is the existing run, with no manual rerun or duplicate
+host gate. The ordinary k3s check is not full observability acceptance.
+
+Raw API/log evidence is `/tmp/puni-resumed-push/ci-current.json`,
+`ci-jobs-current.json`, `infra-progress3.json` and `workspace-live.log`.
+The workspace gate command produced no intermediate published log lines for
+about101m12s, then emitted buffered target output. That silence does not prove
+idle time or per-module duration; job time cannot be labeled entirely as test
+execution. Local evidence-only commits remain distinct from this green remote
+head and are being batched with the next source publication.
+
+## Task97 final tool component and approval-service checkpoint — 2026-11-02
+
+The reviewed GENISO-only component completed successfully in2.184s at
+`artifact-v10/runs/c9be69dc44705eb6414a687ba2b1a138/artifacts.json`, relative
+to `/tmp/puni-task97-guest/`. Its creator identity was verified and its native
+service finished explicitly unloaded/empty without cleanup uncertainty. It
+extracted exactly the694424B ELF, resolved and hashed six loader/library paths,
+and observed `genisoimage 1.1.11 (Linux)` with exit0 and empty stderr.
+V7 remains a failed whole phase; the final success is scope geniso-only. No
+signature, package, image or pressure matrix was replayed. All downloads and
+prior receipts remain retained. The physical floor is unchanged.
+
+V8 refused capacity before launch; the first mechanical replacement copied a
+runtime directory and was rejected in review before execution. The corrected
+v10 left the runtime path absent, preserved both old versions and passed scoped
+review. Manifest SHA256:
+`6ef7ce71f104a43cb0d6a7c5fe6fcebb1de039bddf483ed18e84aa553c47ef00`.
+Review: `/tmp/puni-task97-artifact-v10-review.md`.
+
+Root then rehashed the actual six image/archive/tool inputs and final six
+loader dependencies without invoking binaries. Source-only checkpoint:
+`/tmp/puni-observability-checkpoint-20261102/artifact-inputs.json`. These
+identities support later reuse; they are not a bearer admission receipt. Guest
+boot, filesystem/inode constraints, private Docker and full candidate/runtime
+acceptance remain unverified. Task97 stays open until its concrete baseline
+writer/envelope preparation is complete. Shared BuildKit remains untouched.
+
+The subsequent exact-owned failed-unit metadata reconciliation command was
+NOT executed: automatic approval review failed because its usage limit was
+exhausted. This was a review-service failure, not a determination of unsafe
+cleanup. Per-attempt receipts already prove terminal empty services; final
+failed-unit metadata reset remains pending. No approval bypass or alternative
+execution route was attempted. Further host/worktree mutations await restored
+review capacity; the read-only checkpoint and unapplied evidence patch live in
+`/tmp/puni-observability-checkpoint-20261102/`. No final merge, deployment,
+persistent Secret change or production activation occurred.
+
+## Task100: guest baseline protocol refusal corrections — 2026-11-02
+
+The offline guest preparation's independent review found four concrete false
+successes: persistent Docker ID could hide a service replacement/socket
+reactivation, duplicate JSON keys could erase a failure kind, boolean/float zero
+could pass integer container-count checks, and poweroff-request errors could
+leave a success frame without failure evidence. Task99 remains preserved.
+
+The corrected private capsule requires active service state before a Docker
+query and compares InvocationID/MainPID/process-start/cgroup/socket identities
+across the query and measurement window. The receiver strictly validates the
+new fields, rejects duplicate JSON keys at every nesting and requires an exact
+integer zero at both boundaries. A shutdown-request exception emits a failure
+frame even after measurement completion. The collector reads through EOF; its
+positive return still has native_cleanup_verified=false. These provider details
+remain in the concrete guest adapter; no shared domain/progress type changed.
+
+Frozen preparation: `/tmp/puni-task100-guest-baseline/report.md`; manifest SHA256
+`0ddb115965fabf9b97407233c2de1a5d29f580eff4a06375ca1c938cb1a58be2`.
+Evidence records51 passing focused checks,23 targeted guard-removal witnesses
+and10 old-source false-acceptance reproductions. Tests used actual function
+bodies under controlled guest boundaries and real anonymous pipes; synthetic
+time/metrics are not actual guest measurements. Root verified all167 manifest
+files, final receipt outcomes/restored hashes and exact seed/script binding.
+Independent scoped review approved the corrections without replaying tests:
+`/tmp/puni-task100-review.md`. All15 frozen Task99 files remain unchanged.
+
+The corrected guest script SHA256 is
+`e6da405f5c1d22f043e5f9f3f89f992b58c2276eebe58c6b1c00d98967cc114a`;
+its exact bytes are embedded in the seed. The new attempt marker matches both
+scripts and metadata. No guest, service, Docker command, QEMU, conversion, ISO,
+raw allocation, package installation, network or worktree mutation ran for these
+proofs. No prior native package/image/pressure matrix or source gate was repeated.
+
+The native supervisor/ACK, allocation/FIEMAP, ancestry/resource/FD/KVM rights,
+cloud-init26.1/ISO integration, real startup/geometry/measurement, cancellation
+and original-binding empty cleanup remain incomplete. Proposed host headroom is
+17.875GiB: unchanged16GiB floor plus1536MiB service and three128MiB outside
+helpers; it is not a new universal floor or a memory reservation. Automatic
+approval-review usage remains unresolved; no rejected host command was retried.
+This approval covers preparation only. Task97 and all seven canonical runtime
+tasks remain open; the full goal is active and incomplete.
+
+## Task102/103: versioned cloud-init seed contract — 2026-11-02
+
+Primary-source inspection used the exact upstream26.1 tag and Ubuntu packaging
+tag26.1-0ubuntu1_24.04.1, matching the signed image manifest. Upstream's SSH
+generation-list schema requires at least one entry, so the old empty list is
+invalid under that field contract even though the runtime honors it. A new seed
+variant removes only ssh_genkeytypes:[] and adds ssh_keys:{}; the supplied-key
+branch is selected by key presence and does not generate keys from an empty
+mapping. This is source reasoning, not installed schema or runtime proof.
+
+Source notes with exact links and limitations: `/tmp/puni-task102-cloud-init.md`.
+The configured SSH field contract is supported by the versioned
+[26.1 schema](https://raw.githubusercontent.com/canonical/cloud-init/26.1/cloudinit/config/schemas/schema-cloud-config-v1.json)
+and [handler](https://raw.githubusercontent.com/canonical/cloud-init/26.1/cloudinit/config/cc_ssh.py).
+The separate NoCloud, module-order and Ubuntu patch observations do not establish
+the image's actual merged configuration. Cloud-init's610-second power_state
+wait is not an overall boot watchdog; native containment must supply that.
+
+`/tmp/puni-task103-seed/report.md` records the minimal new configuration and
+scoped review at `/tmp/puni-task103-review.md`. Existing AJV8.20.0 under Bun
+validated only a semantic projection of the two official SSH schema fields,
+not the complete cloud-init schema. RED:2pass/2fail before the edit; GREEN:
+4pass/0fail/7assertions after it. Removing the minItems constraint makes the
+unchanged old-list refusal fail. No native key generation or SSH behavior was
+executed. Full installed schema CLI, ISO and boot validation remain open.
+
+New seed SHA256:
+`c7fc1ee44a0abc8ffa0949f5d419ebce4f53b755fdd0002067bc122bce75b952`.
+Task103 manifest SHA256:
+`152718a3ad58b00ad06ca0249a2a298da69c68c726abfeaf4d065ddb3277cda2`.
+The reviewed Task100 embedded guest, marker, metadata and network configuration
+are unchanged. Future native inputs must bind this variant explicitly; no
+existing frozen capsule was edited. Preparation review approved the narrow
+change without replaying tests. No new dependency or application gate ran.
+
+## Native approval/preflight recovery — 2026-11-02
+
+A new read-only native preflight through the normal approval path succeeded
+at18:57:37UTC; the earlier review-service quota blocker is no longer current.
+It read device metadata and capacity only. KVM is the root-owned character
+device10:232, mode0660, dev7/inode916; null is root-owned1:3, mode0666,
+dev7/inode5. No device was opened or guest started. Exact safe output is retained
+in `/tmp/puni-observability-checkpoint-20261102/native-preflight-restored.json`.
+These are observations, not a fresh launch authority or access-success proof.
+
+Physical MemAvailable was16654572KiB, below the unchanged16GiB minimum and
+the proposed17.875GiB baseline threshold. Backing free was129126694912B.
+No baseline was launched and no capacity floor or unrelated workload changed.
+The previously rejected cleanup command was then executed through normal
+approval: `python3 /tmp/puni-task97-reconcile-final.py`. It inspected the five
+exact retained creator receipts, reset only three empty failed-unit records
+after matching identities, and verified all five units unloaded with absent
+cgroups. Receipt: `/tmp/puni-task97-guest/owned-unit-reconciliation-final.json`.
+All prior receipts remain unchanged; no telemetry or download was removed.
+
+Task101 has prepared logical ordering/concurrent-pipe supervision seams with
+a refusing native entrypoint. Its initial28-test/22-fault record did not prove
+whole-wrapper correctness: independent review found phase double-reservation,
+unsafe refusal-persistence and cached terminal-observation defects. The
+original frozen proposal and `/tmp/puni-task101-review.md` are preserved;
+corrections are proceeding in a new private capsule. No native-ready or
+canonical completion claim follows. Actual creator/ledger, descriptor and
+Landlock/KVM binding, conversion/seed execution, effective Linux ISO namespace
+closure and real guest/runtime acceptance remain incomplete.
