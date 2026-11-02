@@ -19,7 +19,10 @@ const readPolicies = [{ kind: 'identity', require: 'signed-in' }] as const;
  * name for every reader, never its locator (task 5.3), its latest
  * capacity report, when there is one, and `measurement`: this project's
  * declared units beside the measured ones and the report's state (P7).
- * Neither is ever a planning input: `capacities` alone is.
+ * `hostJobs`, present only when there is one, lists the host jobs that instance's
+ * resource authority published and has not seen returned (`dash-host-jobs` J10),
+ * the names beside a report's `reservedUnits`.
+ * None of these is ever a planning input: `capacities` alone is.
  */
 export const readProjectResources = defineEndpointShape({
   method: 'GET',
@@ -47,6 +50,13 @@ export const readProjectResources = defineEndpointShape({
               measuredAt: 'number | null',
               state: "'no_report' | 'measured' | 'unreachable' | 'stale'",
             }),
+            'hostJobs?': type({
+              useId: 'string',
+              label: 'string',
+              type: 'string',
+              host: 'string',
+              reservations: type({ dimension: 'string', units: 'number' }).array(),
+            }).array(),
           }).array(),
           capacities: type({ resourceId: 'string', units: 'number' }).array(),
           demands: type({ workItemId: 'string', resourceId: 'string', units: 'number' }).array(),
@@ -69,6 +79,6 @@ export const readProjectResources = defineEndpointShape({
   document: {
     summary: 'List the resources, this project’s resource capacities, and its demands.',
     description:
-      'resources: every resource the caller’s directory holds, with its kind (exclusive: identical units demanded one at a time; divisible: demanded k at a time), unit label, and providerId (the compute provider instance that fulfils it, or null); one with a providerId also carries provider (that instance’s kind and name, never its locator), its latest capacity report, if any, and measurement (declared units of this project, measured units, measuredAt, and state no_report, measured, unreachable or stale past three report cadences), shown only, never used to plan. capacities: the stated pairs of this project, in resource-id order; a resource absent here is unstated and constrains nothing, and a stated 0 means the plan may use none. demands: what each work item needs of each resource while any of its steps runs, never inherited down the tree. Write them with postApiDirectoryCommands kinds createResource, patchResource, deleteResource and postApiProjectsByIdCommands kinds setResourceCapacity, setDemand.',
+      'resources: every resource the caller’s directory holds, with its kind (exclusive: identical units demanded one at a time; divisible: demanded k at a time), unit label, and providerId (the compute provider instance that fulfils it, or null); one with a providerId also carries provider (that instance’s kind and name, never its locator), its latest capacity report, if any, and measurement (declared units of this project, measured units, measuredAt, and state no_report, measured, unreachable or stale past three report cadences), and hostJobs (the host jobs that instance’s resource authority published and has not seen returned: label, type, host and reservations per dimension, beside the report’s reservedUnits), shown only, never used to plan. capacities: the stated pairs of this project, in resource-id order; a resource absent here is unstated and constrains nothing, and a stated 0 means the plan may use none. demands: what each work item needs of each resource while any of its steps runs, never inherited down the tree. Write them with postApiDirectoryCommands kinds createResource, patchResource, deleteResource and postApiProjectsByIdCommands kinds setResourceCapacity, setDemand.',
   },
 });

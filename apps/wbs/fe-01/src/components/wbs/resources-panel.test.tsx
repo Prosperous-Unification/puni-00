@@ -174,6 +174,56 @@ describe('resources section states', () => {
     );
   });
 
+  // `dash-host-jobs` 5.3, "Reserved by two jobs": beside the measured figure, adopt unchanged.
+  it('renders reserved units and the two gates holding them beside the measurement', async () => {
+    const reservations = [{ dimension: 'memoryGib', units: 6 }];
+    serve({
+      [READ]: [
+        readOf([
+          resourceOf({
+            unitLabel: 'GiB',
+            report: measured({
+              outcome: {
+                kind: 'measured',
+                capacityUnits: 15,
+                usageUnits: 8,
+                reservedUnits: 12,
+                reservedDimension: 'memoryGib',
+              },
+            }),
+            hostJobs: [
+              {
+                useId: 'j1',
+                label: 'gate 1a2b3c4',
+                type: 'puni-00-gate',
+                host: 'h2puni',
+                reservations,
+              },
+              {
+                useId: 'j2',
+                label: 'gate 5d6e7f8',
+                type: 'puni-00-gate',
+                host: 'h2puni',
+                reservations,
+              },
+            ],
+          }),
+        ]),
+      ],
+      [PROVIDERS]: [providersOf(h2puni)],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    expect(ram.getAttribute('data-report')).toBe('measured');
+    expect(within(ram).getByText('Measured 15 GiB, 8 in use, 12 reserved by 2 jobs')).toBeDefined();
+    expect(
+      within(ram).getByText('Reserved by gate 1a2b3c4 and gate 5d6e7f8. Observed 2 min ago.'),
+    ).toBeDefined();
+    expect(within(ram).getByRole('button', { name: /^Adopt 15 GiB/ })).toHaveTextContent(
+      'Adopt 15 GiB',
+    );
+  });
+
   it('renders an unreachable report with its reason and no adopt', async () => {
     serve({
       [READ]: [

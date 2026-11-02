@@ -659,3 +659,233 @@ All of R1–R9 are applied. The plan head is still `056466709`.
 #### Commands (second pass, fresh; no full target)
 
 See the PR body for the trimmed outputs of the touched test files, `cli.test.ts`, typecheck, lint, prettier and `openspec validate`.
+
+## Slice 5 — WBS projection (tasks 5.1–5.3)
+
+Branch `feat/dash-host-jobs-5-projection` from `plan/dash-host-jobs` at `056466709`, 2026-11-01.
+Code: be-01 migration `20261101120000_add_host_job_projection`; contracts
+`compute-provider-shapes.ts` (`reservedUnits`), `resource-runtime-shapes.ts`
+(`resourceRuntimeHostJobUse`, evidence `returned`), `resource-shapes.ts` (`hostJobs`); domain
+`compute-provider.ts`; store-sqlite `compute-provider.ts`, `resource-runtime.ts` (`ingestHostJob`),
+`schema.ts`; core `compute-providers.ts`, `compute-provider.routes.ts`; Dash
+`src/compute/{host-pool-ledger.ts,configuration.ts,provider.ts,report-capacity.ts}` and
+`moveHostJobEvents` in `src/resources/runtime.ts`; fe-01 `compute-provider-words.ts`,
+`resources-panel.tsx`. Tests: `host-job-projection-migration.db.test.ts`,
+`host-job-use.controller.db.test.ts`, `compute-provider.controller.db.test.ts` (two cases),
+`report-capacity.host-pool.test.ts`, `host-job-publication.test.ts`,
+`compute-provider-words.test.ts`, `resources-panel.test.tsx`. This section is self-contained; a
+parallel worker appends Slice 3 to this file.
+
+### Assumptions (open decisions taken per design.md; overrulable by id)
+
+- **S5-A1** One migration, `20261101120000_add_host_job_projection`, carries 5.1's
+  `resource_capacity_report.reserved_units` and 5.2's `resource_host_job` table: one ledger
+  entry, one rollback guard. Its `down.sql` refuses while any host job row exists (the
+  authority's sequence already counts those events, so Dash would never send them again) and
+  drops the column freely (display state each report replaces). The 53 test files that pin the
+  migration ledger were updated mechanically (new name after `…agent_pools`, `slice(-16)`).
+- **S5-A2** `reservedUnits` sits inside the measured outcome beside `usageUnits`; an unreachable
+  report never carries it (contract and CHECK). The same-body idempotency compares it, so the
+  same instant with other reserved units is `report_superseded`.
+- **S5-A3** The ledger's change notification is the cheapest honest seam: the reporter reads
+  `MAX(host_job_events.sequence)` on a read-only connection every 2 s. Every admission and every
+  settlement commits one `host_job_events` row in the same transaction as the reservation
+  change, so a new sequence is exactly a new reservation state. A file watch on the WAL was
+  rejected: it fires on checkpoints and other writers' unrelated commits, and inotify is
+  per-host plumbing for a 2 s gain.
+- **S5-A4** The reporter configuration names the ledger file, `"hostPool": {"ledger":
+"<root>/.dash/resources.sqlite"}`, exactly when a binding's source is `host_pool` (either
+  without the other is `config_malformed`). The reporter must run on the pool's host; an
+  absent ledger or one whose `user_version` is not 1 throws at load.
+- **S5-A5** A `host_pool` dimension pairs with one measure: `cpuCores`/`cpu_cores`,
+  `memoryGib`/`memory_gib`, `tmpDiskGib`/`disk_gib`, an exclusive id/`agent_slots`; `source`
+  and `dimension` come together or not at all.
+- **S5-A6** The reserved sum mirrors the runtime's `reservations()` for host jobs only: cores
+  and memory while the compute entry is unreleased, tmp GiB while the tmp entry is, one per
+  unreleased unit of an exclusive id. Worktree uses reserve disk units, never `tmpDiskGib`.
+- **S5-A7** v2 is the union `resourceRuntimeUse | resourceRuntimeHostJobUse`, discriminated by
+  `kind: 'host_job'`; no separate version field. A v1 use is unchanged byte for byte. The
+  admission contract takes a v1 use only: WBS never admits a host job (J10).
+- **S5-A8** Ownership is stamped by WBS from the authority binding the event arrives through
+  (`authority_id`, `organization_id`, `provider_id` columns), never carried in the body, so a
+  body cannot claim another tenant.
+- **S5-A9** Planning links (`projectId`, `workItemId`, `responsiblePersonId`) are optional,
+  kept in the declaration as sent, and never resolved or validated; nothing that deletes a
+  planning row touches `resource_host_job`. Dash sends none yet (the host pool admits without
+  them).
+- **S5-A10** A host job has two WBS events: `registered` at revision 1 and `release_verified` at
+  revision 2, the latter with the same declaration; any other kind is `400 invalid_body`.
+  Dash maps `admitted` to `registered` and the settlement that leaves every entry released to
+  `release_verified`; launches, partial and blocked settlements stay local.
+- **S5-A11** Settlement evidence (J2'): the digest is the SHA-256 of the settling
+  `host_job_events` row, the ledger's durable record of that settlement; the locator is
+  `dash-host-job://<authorityId>/<jobId>/<revision>`; disposition `returned`. WBS requires
+  `returned` for a host job and refuses it for a v1 use. The run record of slice 3 (#809)
+  carries `descriptorDigest` and no durable locator, so replacing the row digest with the run
+  record's is follow-up task 6.8, not part of slice 3 (review fix, 2026-11-02).
+- **S5-A12** `host` is the pool's `enrollmentId`. `launcherSha` (renamed from `payloadSha`
+  with #809's run-record field) is the HEAD of the checkout that launched the job; for a gate
+  the tested SHA is in its argv, not here. Dash sends null until the launcher records the HEAD
+  on the job (review fix, 2026-11-02).
+- **S5-A13** One authority sequence: `synchronize` first moves unmoved `host_job_events` rows into
+  the existing `events` outbox (next sequence, one transaction, oldest first) and the existing
+  loop publishes them, because WBS requires each authority's sequence to be gap-free. A moved
+  row is `published=1`.
+- **S5-A14** Where WBS shows host jobs, and where the chip's names come from: the project
+  resources read gains `hostJobs` on each resource whose provider instance is the authority's
+  (`resource.provider_id = resource_host_job.provider_id`), listing jobs in state `registered`
+  (not returned), oldest registration first, with `label`, `type`, `host` and `reservations`.
+  The project-scoped resource uses list keeps v1 uses only: its `resourceUse` shape requires a
+  project, resource and work item a host job need not have. The read lists every unreturned
+  host job of the instance; the chip names only those reserving the report's dimension
+  (S5-A16).
+- **S5-A15** The brief's "`kind` CHECK widened": `resource_use` has no SQL CHECK on kind (kind
+  lives in the JSON declaration), so the variant gets its own table; `returned` is added to the
+  contract's evidence enum.
+- **S5-A16** The chip keeps `data-report="measured"` and adopt-by-command. The report carries
+  `reservedDimension` beside `reservedUnits` (both or neither: contract, route `invalid_body`,
+  and a CHECK on `reserved_dimension` in the same migration), and a job holds the resource only
+  when one of its reservation entries names that dimension with units above 0. So a gate with
+  no tmp disk on a `disk_gib` resource reads `none reserved`, and a build with no exclusive id
+  is no holder of a `gate_tree` resource. The headline gains `, 12 reserved by 2 jobs`
+  (`1 job`), the detail line names the holders (`Reserved by gate a and gate b.`); reserved units
+  with no holder read `12 reserved` and `Jobs not yet published by Dash.`; zero reads `none
+reserved`. `stale`, `unreachable` and `No report yet` read as before (review fix,
+  2026-11-02).
+- **S5-A17** The WBS-down scenario drives the real ledger through the `WbsTools` port with no
+  answer and then a transient mcp-01 refusal, rather than an HTTP fixture server: the outbox
+  reaches WBS only through that port, and slice 2 already proves admission against a refusing
+  HTTP server.
+- **S5-A18** Outside the outbox publication, `runtime.ts` changed in one type annotation:
+  `declaration()` returns `ResourceRuntimeAdmission['use']`, because the event's `use` is now a
+  union (and `hostJobOutbox`'s JSDoc).
+- **S5-A19** The reporter tests over a real ledger run in the private namespace the runtime's
+  `/proc` inspection needs, as `host-jobs.test.ts` does.
+- **S5-A20** Bounded retry across a blue/green window (review P1): an outgoing be-01 without v2
+  answers the first host-job event `400`, and before this fix `watch` stopped and every later
+  worktree event and cleanup-request pull stalled. A host-job event refused `400` is now retried
+  (as `ResourceWbsUnavailable`, one stderr line per retry) for 30 minutes from its first refusal,
+  then the refusal throws as before. The first-refusal instant is kept per event id in the
+  process only: a restarted `watch` starts the bound again, which the bound's purpose (outlasting
+  a swap) tolerates. A v1 event's `400` still stops `watch` at once. `answeredBody` now throws
+  `ResourceWbsRefusal` (status attached) for refused answers. Task 6.7 adds a restarting unit for
+  `watch`; `docs/resources.md` states the deploy order WBS before Dash.
+- **S5-A21** The reporter opens the host-pool ledger before any adapter and refuses an absent or
+  unknown ledger `config_malformed` (naming `resources init`), so nothing is open when it fails;
+  an adapter failing afterwards closes the ledger. `reserved()` reads only unreleased jobs, and
+  the projection index is `(provider_id, state)`, the columns `hostJobsOf` filters on (review
+  P5, P6, P7).
+- **S5-A22** Trusted-state throws without negatives: `hostJobsOf`'s
+  `resourceRuntimeHostJobUse.assert` on a stored declaration (ingestion stored only what the
+  contract accepted) and `moveHostJobEvents`'s `HostJobChangeShape.assert` on a ledger row (only
+  the runtime writes it) throw rather than default; neither has a fault-injected test (review
+  P4).
+
+### Fault injection
+
+Each fault went in as an exact text replacement through a scratch script outside the
+repository. The script ran the named test, restored the file and checked its SHA-256. Every
+fault ran against the final code.
+
+| Fault injected                                             | Test that went red                                                                                                       | Observed                                           |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| reservations overwrite `usageUnits` in `reportInput`       | `reports the ledger's reservation beside the measured usage` (report-capacity.host-pool.test.ts)                         | `usageUnits` 12 for 8                              |
+| ledger change subscription dropped from `reportInstance`   | `re-observes on the ledger's change, outside its cadence`                                                                | `waited out the cadence`                           |
+| dimension/measure pairing check disabled                   | `refuses a host pool binding the loader cannot honour, config_malformed`                                                 | configuration loaded, no refusal                   |
+| `projectId` made required in `resourceRuntimeHostJobUse`   | `projects two gates with no planning link…` (be-01); both tests of host-job-publication.test.ts                          | 400 on registration; Dash's move refused the event |
+| host-job rows moved newest first                           | `a gate run while WBS is down publishes registered then returned, in order`; `a job still held…`                         | outbox `release_verified` ahead of `registered`    |
+| `returned`-only-for-host-jobs check made `false` (store)   | `refuses what a host job cannot be…` (host-job-use.controller.db.test.ts)                                                | `removed` host job answered 200 for 400            |
+| declaration comparison dropped from the host-job return    | same                                                                                                                     | return under another label 200 for 409             |
+| `stored !== undefined` dropped from host-job registration  | same                                                                                                                     | second registration 500 (primary key) for 409      |
+| rollback guard count replaced by `0` (`down.sql`)          | `refuses rollback over one host job, keeping it` (host-job-projection-migration.db.test.ts)                              | rollback exit 0                                    |
+| reserved figure dropped from the measured headline (fe-01) | `reads reserved units and both job names…` (compute-provider-words.test.ts); `renders reserved units and the two gates…` | headline `Measured 15 GiB, 8 in use`               |
+
+Not fault-injected: the "planning never reads `reservedUnits`" check
+(`changes no schedule and no claim…`, compute-provider.controller.db.test.ts). It asserts that
+the optimization hash and the startable read stay the same after a report that reserves all 15
+units. Nothing in planning reads the column, so the only fault to inject would be adding a
+reader.
+
+### Commands
+
+Fresh on 2026-11-01/02 on the 24-core workstation. Another worker shared it (load average 5 to 9).
+Run from the worktree root against commit `79f525520` plus the lint-only test fix. `CLAUDECODE`
+was unset for every test. Output is trimmed.
+
+| Command                                                                                                                                                                                                                     | Result                                                                                                                                                                                                                                           |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                                                                 | exit 0. Review debt listed is pre-existing (store-memory 53/40, plan-commands 48/40)                                                                                                                                                             |
+| `bunx nx run-many -t typecheck,typecheck:module -p wbs-core,wbs-store-sqlite,wbs-contracts,wbs-store-memory,wbs-domain,wbs-auth,wbs-gw-01,wbs-mcp-01,wbs-realtime,wbs-runtime-portable,wbs-conformance,wbs-be-01,wbs-fe-01` | every library target ✔. `wbs-be-01:typecheck` first failed on Dash's `declaration()` return type (S5-A18); after the fix, `bunx tsc -p apps/wbs/be-01/tsconfig.{lib,spec}.json` was clean                                                        |
+| `bunx nx run wbs-store-sqlite:test --skip-nx-cache`                                                                                                                                                                         | exit 0, `Ran 2016 tests across 151 files [981.46s]`, `Successfully ran target test`. The first run failed 4: three table-list filters lacked `resource_host_job` (fixed), and the performance certification saw my `git add -N` mid-run          |
+| `bunx nx run wbs-contracts:test --skip-nx-cache`                                                                                                                                                                            | exit 0                                                                                                                                                                                                                                           |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                                                                                                                                                | `Ran 3862 tests across 266 files [2665.74s]`, 3 fail, all in `runtime-dispatch.boot.db.test.ts` (inner-deadline timing under load). Run alone: `14 pass, 0 fail`                                                                                 |
+| `bunx nx run wbs-fe-01:test:unit --skip-nx-cache`                                                                                                                                                                           | `Tests 1 failed / 1079 passed`; the failure is `playwright-config.test.ts` `spawnSync bun ETIMEDOUT`. Run alone with `src/test-tiers.test.ts`: `2 passed, 25 tests`. The first attempt died on an Nx DB `FOREIGN KEY` error before any test      |
+| `bunx nx run wbs-mcp-01:test --skip-nx-cache`                                                                                                                                                                               | exit 0. The tool count is unchanged (no route added), so the README's `76 tools in all` stands                                                                                                                                                   |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                                                                                                                                                            | `Ran 4183 tests across 126 files [1956.61s]`, 2 fail, in `src/runs/testing/store-directory-cleanup.db.test.ts` (cleanup budget) and `src/runs/sqlite/snapshot.db.test.ts` (timeout). Both rerun alone with the target's flags: `15 pass, 0 fail` |
+| `bun test src/compute src/resources/host-job-publication.test.ts src/resources/runtime-wbs.test.ts` (Dash, after the lint fix)                                                                                              | `81 pass, 0 fail`                                                                                                                                                                                                                                |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`, `:lint`                                                                                                                                                              | `Successfully ran target …` each (after the TS2698 and dot-notation fixes in report-capacity.host-pool.test.ts)                                                                                                                                  |
+| `bunx nx run tool-devsync:test --skip-nx-cache`                                                                                                                                                                             | exit 0, `Ran 982 tests across 50 files [1167.91s]`                                                                                                                                                                                               |
+| migration lint (`tools/tool-git-hooks/src/hooks/migration-lint.ts` on the pair; lefthook on commit)                                                                                                                         | clean; lefthook `migration-lint` ✔                                                                                                                                                                                                               |
+| `TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test …/pilot-policy.test.ts`                                                                                                                                          | `24 pass, 0 fail, 430 expect() calls, Ran 24 tests across 1 file. [325.24s]`                                                                                                                                                                     |
+| `bunx prettier --check` on the touched files                                                                                                                                                                                | `All matched files use Prettier code style!` (the 75 non-SQL files of the diff)                                                                                                                                                                  |
+| `./node_modules/.bin/openspec validate dash-host-jobs --json`                                                                                                                                                               | `passed: 1, failed: 0`                                                                                                                                                                                                                           |
+
+`docs/code-organization/kinds.json`: no file under a backend `service/` directory was added.
+`audit.test.ts`: the one new `tx.update` targets the exempt `resourceHostJobRecord`, whose
+exemption is listed there. `plan-refusal.ts`: no parser refusal code was added.
+
+### Skipped or unverified
+
+- Eye review of the resources section's reserved-units line is Dany's (UI acceptance rule). Task
+  5.3 stays unticked until then. The rendering tests pass.
+- No end-to-end run of Dash's outbox against a composed be-01 and mcp-01. The Dash tests check
+  each published event with the shared contract (`resourceRuntimeEvent.assert`), and the be-01
+  tests send the same shapes through mcp-01's forwarded grant.
+- The h2puni gate (`bin/h2puni-gate.sh`) is not run for a slice PR into `plan/dash-host-jobs`;
+  task 0.1 schedules it before the plan reaches main.
+- The settlement digest covers the ledger row, not the run record (S5-A11, task 6.8).
+  `launcherSha` is null until the launcher records it (S5-A12).
+- The pre-existing flakes above (`runtime-dispatch.boot.db.test.ts`, `playwright-config.test.ts`,
+  two Dash `src/runs` files) failed under the loaded full runs and passed alone. Nothing they
+  cover changed.
+
+### Review fixes (Fable, PR #811, MERGE AFTER FIXES)
+
+P1 bounded retry (S5-A20; tasks renumbered 6.7 and 6.8 when #809 landed its 6.6), P2 `reservedDimension` (S5-A16), P3 `launcherSha` (S5-A11, S5-A12),
+P4 host-job ingest refusals (S5-A22), P5 ledger before adapters, P6 unreleased-only scan, P7
+index order (S5-A21), P8 the no-holder sentence. Faults, each injected against the fixed code
+with the file restored and its SHA-256 checked:
+
+| Fault injected                               | Test that went red                                                                          | Observed                                      |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| host-job 400 rethrown instead of retried     | `a host-job event refused 400 twice publishes in order once WBS accepts it`; the bound test | stopped at the first refusal                  |
+| retry bound never reached                    | `a host-job event refused past the bound stops watch`                                       | still `ResourceWbsUnavailable` past 30 min    |
+| registration evidence check made unreachable | `refuses what a host job cannot be…`                                                        | registration with evidence 200 for 400        |
+| registration revision check dropped          | same                                                                                        | revision-2 registration 200 for 409           |
+| registration `requestId` check dropped       | same                                                                                        | 200 for 409                                   |
+| `resource_use` id lookup dropped             | same                                                                                        | host job over a worktree use's id 200 for 409 |
+| return incarnation comparison dropped        | same                                                                                        | 200 for 409                                   |
+| return `requestId` check dropped             | same                                                                                        | 200 for 409                                   |
+| return authority comparison dropped          | same                                                                                        | another authority's return 200 for 409        |
+| route reserved pair check made unreachable   | `refuses reserved units without their dimension, and either alone, invalid_body`            | not `400 invalid_body`                        |
+| ledger refusal rethrown unwrapped            | `refuses a host pool binding the loader cannot honour, config_malformed`                    | plain Error, not `ConfigurationRefusal`       |
+| holder filter keeps every listed job (fe-01) | `names only the jobs reserving the report's dimension`                                      | `none reserved` with a holder named           |
+
+P6 (`WHERE state != 'released'`) and P7 (index columns) change no behaviour: a released job
+already reserved nothing, and the index only serves the query. Neither got a negative.
+
+Commands, fresh on 2026-11-02, from the worktree root:
+
+| Command                                                                                                                                                                 | Result                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `bun test src/controller/host-job-use.controller.db.test.ts src/controller/compute-provider.controller.db.test.ts src/host-job-projection-migration.db.test.ts` (be-01) | `42 pass, 0 fail, Ran 42 tests across 3 files. [40.22s]`                                   |
+| `bun test src/compute src/resources/host-job-publication.test.ts src/resources/runtime-wbs.test.ts --timeout=60000` (Dash)                                              | `81 pass, 0 fail, Ran 81 tests across 8 files. [44.18s]` (both namespace wrappers pass)    |
+| `bunx vitest run src/lib/compute-provider-words.test.ts src/components/wbs/resources-panel.test.tsx src/test-tiers.test.ts` (fe-01)                                     | `Test Files 3 passed (3)`, `Tests 79 passed (79)`                                          |
+| `bun test src/calendar-marker-migration.db.test.ts src/migrate-down.db.test.ts src/audit.test.ts` (store-sqlite)                                                        | `29 pass, 0 fail, Ran 29 tests across 3 files.`                                            |
+| `bunx nx run-many -t typecheck -p wbs-contracts,wbs-domain,wbs-core,wbs-store-sqlite,wbs-be-01,wbs-fe-01,twilight-dash`                                                 | `Successfully ran target typecheck for 7 projects and 3 tasks they depend on`              |
+| `bunx nx run twilight-dash:lint`; `bunx eslint` on the touched WBS files                                                                                                | `Successfully ran target lint for project twilight-dash`; eslint on the 14 WBS files clean |
+| `bunx prettier --check` on the touched files                                                                                                                            | `All matched files use Prettier code style!`                                               |
+| migration lint on the pair (and lefthook on commit)                                                                                                                     | clean                                                                                      |
+| `./node_modules/.bin/openspec validate dash-host-jobs --json`                                                                                                           | `passed: 1, failed: 0`                                                                     |
+
+No full Nx test target was rerun for the review fixes (coordinator's instruction).

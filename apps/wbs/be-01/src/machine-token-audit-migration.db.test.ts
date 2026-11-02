@@ -154,7 +154,7 @@ describe(MACHINE_TOKENS, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: 20261028100100_widen_organization_audit_agent_pools, 20261028100000_add_agent_pool, ${MACHINE_TOKENS}\n`,
+      `rolled back: 20261101120000_add_host_job_projection, 20261028100100_widen_organization_audit_agent_pools, 20261028100000_add_agent_pool, ${MACHINE_TOKENS}\n`,
     );
     expect(auditActions(dbPath)).toEqual(['compute_provider_registered']);
     expect(() => {

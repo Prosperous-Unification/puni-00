@@ -70,14 +70,20 @@ function reportInput(
   binding: ResourceBinding,
   measurement: Measurement,
   cadenceSeconds: number,
+  reserved: { readonly units: number; readonly dimension: string } | null,
 ): Record<string, unknown> {
   let outcome: Record<string, unknown>;
   switch (measurement.kind) {
     case 'measured':
+      // Proof: sending the reserved sum as `usageUnits` made `reports the ledger's reservation
+      // beside the measured usage` (report-capacity.test.ts) read 12 in use (2026-11-01).
       outcome = {
         kind: 'measured',
         capacityUnits: measurement.capacityUnits,
         usageUnits: measurement.usageUnits,
+        ...(reserved === null
+          ? {}
+          : { reservedUnits: reserved.units, reservedDimension: reserved.dimension }),
       };
       break;
     case 'unreachable':
@@ -132,7 +138,13 @@ async function putReport(
   try {
     answer = await tools.call(
       CAPACITY_REPORT_TOOL,
-      reportInput(instanceId, binding, measurement, configuration.cadenceSeconds),
+      reportInput(
+        instanceId,
+        binding,
+        measurement,
+        configuration.cadenceSeconds,
+        reservedOf(configuration, binding),
+      ),
     );
   } catch (cause) {
     // Only a call that got no answer is transient; an answer the client cannot read is a fault.
@@ -172,6 +184,25 @@ async function putReport(
   }
 }
 
+/**
+ * What the host pool's ledger reserves of a `host_pool` binding's dimension, and that
+ * dimension, read when the report is sent; null for any other binding (`dash-host-jobs` J10).
+ * WBS names as holders only the jobs reserving that dimension (S5-A16).
+ * @throws when a host pool binding has no ledger, which the loader refuses.
+ */
+function reservedOf(
+  configuration: ReporterConfiguration,
+  binding: ResourceBinding,
+): { units: number; dimension: string } | null {
+  if (binding.source === undefined) return null;
+  if (configuration.hostPool === undefined || binding.dimension === undefined)
+    throw new Error(`resource ${binding.resourceId} names the host pool, which is not open`);
+  return {
+    units: configuration.hostPool.reserved(binding.dimension),
+    dimension: binding.dimension,
+  };
+}
+
 interface BindingStreaks {
   superseded: number;
   transient: number;
@@ -179,7 +210,8 @@ interface BindingStreaks {
 
 /**
  * One instance's loop: every binding observed and reported once per tick, a tick every
- * `cadenceSeconds` and right after a run starts or ends. Returns only when `stop` aborts; every
+ * `cadenceSeconds`, right after a run starts or ends, and, for an instance with a `host_pool`
+ * binding, right after the host pool's ledger changes. Returns only when `stop` aborts; every
  * other end throws: a {@link ReporterExit} for a modelled refusal, the provider's own error for an
  * observation it could not parse.
  */
@@ -202,6 +234,16 @@ async function reportInstance(
   const unsubscribe = instance.provider.onRunChange(() => {
     wake.abort();
   });
+  // Every admission and settlement re-observes the host pool's bindings (`dash-host-jobs` J10).
+  const pooled = instance.bindings.some((binding) => binding.source === 'host_pool');
+  // Proof: leaving this subscription out made `re-observes on the ledger's change, outside its
+  // cadence` (report-capacity.test.ts) wait the full cadence (2026-11-01, verify.md Slice 5).
+  const unsubscribeLedger =
+    pooled && configuration.hostPool !== undefined
+      ? configuration.hostPool.onChange(() => {
+          wake.abort();
+        })
+      : () => undefined;
   const onStop = (): void => {
     wake.abort();
   };
@@ -280,6 +322,7 @@ async function reportInstance(
   } finally {
     stop.removeEventListener('abort', onStop);
     unsubscribe();
+    unsubscribeLedger();
   }
 }
 
@@ -313,6 +356,7 @@ export async function runReporter(
     );
   } finally {
     await tools.close();
+    configuration.hostPool?.close();
   }
   if (first === undefined) throw new Error('every reporting loop stopped without a cause');
   throw first.cause;

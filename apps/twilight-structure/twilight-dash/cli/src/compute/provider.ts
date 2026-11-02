@@ -20,6 +20,11 @@ export type Measure = (typeof MEASURES)[number];
  * (the operator's ceiling). A `disk_gib` binding carries `path` (the mount an `ssh_host`
  * measures) or, for a `docker` instance, `ceilingGib` (the operator's ceiling, since
  * `docker system df` states usage only); the loader refuses any other combination.
+ *
+ * `source: 'host_pool'` with a `dimension` (`dash-host-jobs` J10) adds what this host's
+ * managed-resource ledger reserves of that dimension as the report's `reservedUnits`; the
+ * adapter's measurement stays `usageUnits`. `cpuCores` pairs with `cpu_cores`, `memoryGib` with
+ * `memory_gib`, `tmpDiskGib` with `disk_gib`, an exclusive id with `agent_slots`.
  */
 export interface ResourceBinding {
   readonly resourceId: string;
@@ -27,6 +32,8 @@ export interface ResourceBinding {
   readonly path?: string;
   readonly slots?: number;
   readonly ceilingGib?: number;
+  readonly source?: 'host_pool';
+  readonly dimension?: string;
 }
 
 /** What a stub adapter answers from every method; WBS accepts no report carrying it. */
