@@ -92,6 +92,12 @@ function measuringProvider(): ComputeProvider {
   };
 }
 
+/** What one refusal case adds to the file: top-level fields and the instance's own. */
+interface ConfigurationEdit {
+  top?: Record<string, unknown>;
+  instance?: Record<string, unknown>;
+}
+
 const pooledRam: ResourceBinding = {
   resourceId: 'h2puni-ram',
   measure: 'memory_gib',
@@ -241,7 +247,7 @@ if (insideLinuxNamespace(import.meta.path))
 
     test('refuses a host pool binding the loader cannot honour, config_malformed', async () => {
       const { fixture } = await h2puniLedger(0);
-      const write = (body: Record<string, unknown>) => {
+      const write = (body: ConfigurationEdit) => {
         const path = join(fixture.base, 'report.json');
         writeFileSync(
           path,
@@ -254,10 +260,10 @@ if (insideLinuxNamespace(import.meta.path))
                 instanceId: 'h2puni',
                 kind: 'ssh_host',
                 bindings: [pooledRam],
-                ...body['instance'],
+                ...body.instance,
               },
             ],
-            ...body['top'],
+            ...body.top,
           }),
         );
         chmodSync(path, 0o600);
@@ -271,7 +277,7 @@ if (insideLinuxNamespace(import.meta.path))
         },
       };
       const ledger = { ledger: join(fixture.root, '.dash', 'resources.sqlite') };
-      const refusals: [Record<string, unknown>, string][] = [
+      const refusals: [ConfigurationEdit, string][] = [
         [{ top: {} }, 'hostPool.ledger is required by a binding whose source is host_pool'],
         [
           {
