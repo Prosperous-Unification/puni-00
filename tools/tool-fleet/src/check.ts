@@ -103,8 +103,19 @@ export const LINTED_WORKFLOWS = [
 /** Directories whose YAML the check parses strictly (duplicate keys and syntax errors fail). */
 const YAML_ROOTS = ['infra', 'deploy/k8s', '.github/workflows'] as const;
 
-/** Scripts outside `infra/` and `deploy/` that this check shellchecks. */
-const EXTRA_SHELL_SCRIPTS = ['bin/publish-release.sh'] as const;
+/**
+ * Scripts outside `infra/` and `deploy/` that this check shellchecks: the release launcher and
+ * the heavy-job launchers and payloads beside it (`dash-host-jobs` slice 6a).
+ */
+const EXTRA_SHELL_SCRIPTS = [
+  'bin/h2puni-gate-payload.sh',
+  'bin/publish-release-payload.sh',
+  'bin/publish-release.sh',
+  'bin/solver-image-publish-payload.sh',
+  'bin/solver-image-publish.sh',
+  'bin/test-queued-payload.sh',
+  'bin/test-queued.sh',
+] as const;
 
 async function trackedFiles(root: string, run: CheckRunner): Promise<string[]> {
   const listed = await run(['git', '-C', root, 'ls-files', '-s', '-z'], { timeoutMs: 60_000 });

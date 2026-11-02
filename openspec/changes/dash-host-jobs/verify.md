@@ -1187,6 +1187,321 @@ before any request`, at its 5 s default timeout. It spawns the entrypoint, which
     this branch. It is the import-cost follow-up of task 3.1 (review R6).
 - `twilight-dash:typecheck` and `:lint` (`--skip-nx-cache`) succeed.
 
+## Slice 6a — launchers through `run_heavy_job`, conflict inventory, J19 (tasks 6.1, 6.2, 6.6)
+
+Branch `feat/dash-host-jobs-6a-launchers` from `plan/dash-host-jobs` at `c01dae8d5`. Nothing here
+touched a real host: no ssh, no Ansible, no enrollment (tasks 6.3 to 6.5). The inventory is
+[`docs/infra/heavy-job-launchers.md`](../../../docs/infra/heavy-job-launchers.md); J19 is in
+design.md after J18.
+
+### Assumptions (overrulable by id)
+
+- **S6-A1 Fixed pool root.** The configuration path is J12's
+  `/home/puni1/.config/dash/host-pool.json`. The ledger that proves a host was enrolled is
+  `<root>/.dash/resources.sqlite`, and `root` comes from the configuration, so a missing
+  configuration leaves the ledger unlocatable. The root is therefore fixed too, at
+  `/home/puni1/.local/share/dash/host-pool`. `run_heavy_job` refuses 70 for a configuration naming
+  another root, read with `jq`, which the gate host role already installs. Task 6.3's role must
+  write that root.
+- **S6-A2 Not enrolled yet.** J12's observe phase (Dash jobs under the legacy queue protocol) and
+  the concurrent-mode singleton flock guard are not in this slice; they land with
+  `ops pool switch-mode` after slice 4. Until both land no gate host may get a pool
+  configuration. tasks.md 6.1 and the inventory say so. Both landed with slice 6b (merged
+  into it at `994512439`), which also moves the remaining precondition to task 6.7 (the `watch`
+  unit) before enrollment.
+- **S6-A3 Type required everywhere.** `run_heavy_job` refuses 64 without a catalogue-shaped
+  `HEAVY_LOCK_JOB_TYPE` on unenrolled hosts too, so a launcher that forgets its type fails before
+  any host enrolls. A prefix assignment (`HEAVY_LOCK_JOB_TYPE=gate run_heavy_job …`) is how every
+  launcher passes it.
+- **S6-A4 Dash location.** Dash is `bun <checkout>/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts`,
+  where `<checkout>` is the directory above the sourced `heavy-lock-lib.sh`. That makes it the
+  launcher's own revision, which is also the revision whose catalogue Dash reads. `bun` comes
+  from `PATH`, as every gate step's does; a missing entrypoint or `bun` is 70. The tests use a
+  fixture checkout, not an override.
+- **S6-A5 Payload scripts.** `ops job run` checks the payload's arguments against the type's
+  profile, so each launcher splits into an outer half and a payload script whose arguments fit
+  (`<sha>`, or none): `bin/h2puni-gate-payload.sh`, `bin/publish-release-payload.sh`,
+  `bin/test-queued-payload.sh`, `bin/solver-image-publish-payload.sh`. Unenrolled, the payload
+  runs under `with_heavy_lock` exactly as the old inline command did. The gate's trusted wiki
+  launcher copy and the solver candidate's Bun and root go through the environment
+  (`H2PUNI_GATE_TRUSTED_LAUNCHER`, `SOLVER_PUBLISH_BUN`, `SOLVER_PUBLISH_ROOT`). `test:queued`
+  is now `bin/test-queued.sh`, and its payload runs `bunx nx run-many -t test`.
+- **S6-A6 Enrolled gate tree.** The payload gates `DASH_JOB_UNIT_GATE_TREE` on an enrolled host
+  and refuses 64 without it, or when it names the launcher checkout itself. A missing gated
+  commit is fetched from the launcher checkout. The payload restores the tree to its resting
+  commit after a pass as well as after a failure, so settlement can release the unit; an
+  unenrolled gate still keeps the gated commit. An unenrolled payload refuses 64 when an
+  inherited `DASH_JOB_UNIT_GATE_TREE` is set. The launcher refuses an unresolvable sha 64 before
+  queueing; that refusal used to belong to `gate_with_pinned_head`, which keeps its own for
+  fixtures.
+- **S6-A7 `dagger_engine` unit.** Host pool units must be Git work trees (slice 2), so the
+  `dagger_engine` unit that `release-build` and `solver-image-publish` name can only be a token
+  Git tree that the role creates. A non-tree unit kind is a Dash follow-up.
+- **S6-A8 Release arguments.** `release-build`'s profile is `""`, so an enrolled host refuses
+  `bin/publish-release.sh` with arguments (64). Unenrolled, they pass through as before.
+- **S6-A9 Solver publish from the live checkout.** `bin/solver-image-publish.sh` runs from the
+  live checkout `~/wbs-dev/src`, the only Git checkout in that path, because Dash reads the
+  catalogue there. Its poller can move HEAD while the job waits, and Dash then refuses 64 at the
+  gate; the publish fails loudly and runs nothing.
+- **S6-A10 J16 coverage.** The solver smoke's four direct `docker run`s now carry `--memory 1g
+--cpus 1` (the `gate` bound) and, inside a Dash job, `--label puni.job=$DASH_JOB_ID`. Other
+  containers stay unlabelled or unbounded: the supervisor's managed solver containers, the orphan
+  proc tests and Caddy in `mcp-body-limit.test.ts`. So `gate` stays serialised by J16
+  (`attribution_incomplete`) until they are covered (follow-up).
+- **S6-A11 J19 leader.** A use that never ran a command has no leader, so its creator stands in.
+  "Dash-owned process group" means the session of any unreleased use or host job in the ledger.
+  "Dash-owned scope" means any `dash-job-*.scope` cgroup component. Host-job settlement keeps its
+  own job-scope rule unchanged.
+- **S6-A12 Signals.** Dash runs in the background of the launcher shell, which forwards INT,
+  TERM and HUP to it; a signal arriving before Dash has a pid is held and forwarded once it does.
+  Dash's own 129/130/143 or the payload's 128 + signal is the launcher's status.
+
+### Commands (fresh, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`)
+
+| Command                                                                                                              | Result                                                                                 |
+| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `bash bin/heavy-lock.test.sh`                                                                                        | `all heavy-lock checks passed` (cases 1-28 unchanged, 40-45 new)                       |
+| `bash bin/h2puni-gate.test.sh`                                                                                       | `all cases passed` (44a-44h, 45a-45d new)                                              |
+| `shellcheck -x` on every edited or new `bin/*.sh`; `shellcheck -s bash apps/wbs/be-01/scripts/solver-image-smoke.sh` | exit 0                                                                                 |
+| `bun test src/ops/launchers.test.ts` (namespace)                                                                     | 7 inner pass, outer pass                                                               |
+| `bun test` resource-holds, host-job-holds, host-jobs, host-jobs.model, host-pool, runtime, no-ambient-clock          | 22 pass after renaming a `self` local the clock detector flagged                       |
+| `bun test scripts/solver-image-smoke.test.ts` (be-01)                                                                | 40 pass                                                                                |
+| `bun test src/heavy-lock.test.ts` (tool-dagger)                                                                      | 9 pass                                                                                 |
+| `bun test src/policy/gate-entrypoints.test.ts` (Burokrat)                                                            | 56 pass, 2 fail; the same 2 fail on untouched `origin/plan/dash-host-jobs` (see below) |
+| `bunx nx run tool-devsync:test --skip-nx-cache`                                                                      | 982 pass, 0 fail                                                                       |
+| `bunx nx run twilight-dash:typecheck` / `:lint` (`--skip-nx-cache`)                                                  | both succeeded                                                                         |
+| `bunx prettier --check` on every touched `.ts`, `.md`, `.json`                                                       | all formatted                                                                          |
+| `bunx openspec validate dash-host-jobs --json`                                                                       | 1 passed, 0 failed                                                                     |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` (files staged)           | exit 0                                                                                 |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                                                     | 4202 pass, 0 fail across 130 files, 28m 15s; no flake this run                         |
+
+### Fault injection
+
+Every fault was applied by script, watched red, then restored. The file's SHA-256 was checked
+equal before and after (`restored=yes` for every row).
+
+SHA-256 is the first 12 hex digits of the file at fault time; four proof comments were reworded
+afterwards, so the current files hash differently.
+
+| Fault injected                                                          | File (SHA-256 before = after)                    | Went red                                                                                                 | Observed                                                                    |
+| ----------------------------------------------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| ledger check in `read_host_pool_enrollment` → `if false`                | `bin/heavy-lock-lib.sh` `f72dd976338a`           | heavy-lock 40a                                                                                           | `want exit 70, got 0`; ran on the legacy lock beside the ledger             |
+| readability check dropped (`-r`)                                        | same                                             | heavy-lock 40c                                                                                           | still 70, but `names no root` (jq) instead of `is not a readable file`      |
+| root check → `if false`                                                 | same                                             | heavy-lock 40e, 40c-40f                                                                                  | `want exit 70, got 0`; Dash ran over a foreign root                         |
+| `read_path_presence` unknown → `absent`                                 | same                                             | heavy-lock 41                                                                                            | `want exit 70, got 0`; legacy lock beside a hidden ledger                   |
+| `HEAVY_LOCK_MECHANISM=legacy` chooses the legacy lock                   | same                                             | heavy-lock 42b                                                                                           | `want 'dash', got 'legacy'`                                                 |
+| type refusal → `if false`                                               | same                                             | heavy-lock 43a, 43b                                                                                      | `want exit 64, got 0`; the payload ran without a type                       |
+| `env -u HEAVY_LOCK_WAIT_SECONDS -u HEAVY_LOCK_POLL_SECONDS` → `env`     | same                                             | heavy-lock 44c, 44d                                                                                      | payload saw `1800 7`                                                        |
+| TERM forwarding trap → `trap ':' TERM`                                  | same                                             | heavy-lock 45b                                                                                           | `want exit 143, got 97`; Dash never got TERM                                |
+| enrolled refusal in `resolve_gate_tree` → gate the launcher checkout    | `bin/h2puni-gate-lib.sh` `bdd9e16bcba3`          | gate 44a                                                                                                 | `want exit 64, got 0`                                                       |
+| unenrolled refusal → `if false`                                         | same                                             | gate 44d                                                                                                 | `want exit 64, got 0`                                                       |
+| launcher-checkout refusal → `if false`                                  | same                                             | gate 44c                                                                                                 | `want exit 64, got 0`                                                       |
+| `restore` read as `keep` in `run_pinned_checkout`                       | same                                             | gate 45a, 45b                                                                                            | tree left detached at the gated commit                                      |
+| `DASH_JOB_UNIT_<ID>` not set by `jobEnvironment` (`src/ops/job-run.ts`) | `job-run.ts` `39c47189ebba`                      | launchers: two gates, gate beside release, failing gate                                                  | every enrolled gate exited 64 (`Received: 64`)                              |
+| enrolled refusal removed (end to end)                                   | `bin/h2puni-gate-lib.sh` `bb77be6616df`          | launchers: `the enrolled payload run without an admission refuses 64`                                    | exit 0                                                                      |
+| `restore` read as `keep` (end to end)                                   | same                                             | launchers: two gates (unit not at resting commit), gate beside release and failing gate (120 s timeouts) | units stayed charged, so later gates waited for a tree                      |
+| solver smoke registry run without the bound                             | `solver-image-smoke.sh` `46dad3701e46`           | both J16 cases in `solver-image-smoke.test.ts`                                                           | registry `run` lacked `--memory 1g --cpus 1`                                |
+| label dropped                                                           | same                                             | `runs every container it starts bounded and labelled`                                                    | no `puni.job=`                                                              |
+| `initScopeOf` owns every cgroup (the old refusal)                       | `runtime.ts` `a70da101351b` (rerun after rename) | resource-holds: the three pool-init cases                                                                | refused on this host's own `systemd --user`, PID 2327                       |
+| start comparison dropped in `outsideScope`                              | `runtime.ts` `171ad7972b39`                      | resource-holds: init-after, cleanup-after; host-job-holds: started-after, left-for-another-scope         | released / initialized beside a later holder                                |
+| session test dropped                                                    | same                                             | resource-holds: another use's process group                                                              | released                                                                    |
+| owned-scope test dropped                                                | same                                             | resource-holds: pool init and cleanup beside a `dash-job-*` scope                                        | exit 0 / released                                                           |
+| `useScope` owns every cgroup (the old refusal)                          | same                                             | resource-holds: the four cleanup cases                                                                   | every cleanup blocked on this host's own `systemd --user` before the holder |
+
+### Skipped or unverified
+
+- No real host: J19 and `ops pool init` were proven on this workstation (systemd 255, its own
+  `systemd --user` PID 2327 and `(sd-pam)` PID 2328), not on h2puni or h4claw (systemd 259).
+- The launcher concurrency test runs Dash over the fake scope seam inside a user namespace, so no
+  real `systemd-run` scope measured those gates. The real-scope path is slice 3's
+  `job-run.test.ts`.
+- The real solver smoke was not run with the new bounds. Whether the solver run and the Bun
+  clients fit in 1 GiB and one CPU is unverified until the next real gate, on h2puni or in CI's
+  solver-image-smoke step.
+- `bin/heavy-lock.test.sh` cases 40c and 41 skip when run as root, where mode 000 hides nothing.
+- `puni-pr-00`'s `build-release.sh` is not converted (another repository; owed).
+- `gate-entrypoints.test.ts` has two failures on this workstation, `the host gate fails
+specifically at wiki lint for a stale enforced blob` (78 for 1) and `the real Nx target reruns
+an omitted-input mutation …`. Both fail identically on an untouched `origin/plan/dash-host-jobs`
+  worktree, so they are pre-existing and environmental. The test this slice changed (`Nx, host
+gate, CI and lefthook select the whole tree`) passes.
+- Follow-ups: a non-tree unit kind for `dagger_engine`; J16 bounds and labels for the remaining
+  containers; a `test-queued` unit or isolation for the shared `.nx` cache; the gate host role
+  must provide a launcher-only checkout and the fixed root (6.3); Dash itself could refuse a pool
+  root other than the fixed one.
+
+### Review fixes (Fable, PR #816 at `f14b78dd8`, MERGE AFTER FIXES)
+
+All of F1–F11 are applied on `feat/dash-host-jobs-6a-launchers` after re-merging the plan at
+`dabffed86` (slices 4 and 5). That merge conflicted only in `tasks.md` and `verify.md`; both sides
+were kept. `runtime.ts` and `docs/resources.md` merged cleanly, and the J19 code compiles against
+their `HostJob`.
+
+- **F1 (J19 amendment).** A process whose cgroup is exactly
+  `/user.slice/user-<uid>.slice/session-<id>.scope` is outside Dash-owned work whenever it
+  started, in every position. A Dash-owned session still wins. Written into design.md J19.
+- **F2.** `docs/infra/heavy-job-launchers.md` gains a `website-dev-build` row and a direct
+  `bin/with-heavy-lock.sh -- …` row, both legacy-only and bypassing Dash on an enrolled host
+  until slice 6b; the opening sentence is corrected.
+- **F3.** Catalogue `basis` strings for `gate` and `test-queued` are updated. The inventory says
+  serialisation today rests only on no mode switch. tasks.md 6.5 specifies `concurrencyEligible`.
+- **F4.** The solver smoke applies `--memory 1g --cpus 1` and the label only when `DASH_JOB_ID`
+  is set; outside a Dash job the argv is the pre-PR one. Task 6.4 measures the peaks first.
+- **F6.** Negatives and Proofs added for: the entrypoint, `bun`, `jq` and `--` refusals (46a–d);
+  `resolve_gate_commit` (44g, 44h); the "neither" enrollment (44i); the real launcher's
+  non-commit (47); the solver and test-queued launchers and payloads (47a–e).
+  - **Uninjectable:** `initScopeOf`'s `pool initializer identity unavailable` (needs the running
+    process's own `/proc/self/stat` gone) and `outsideScope`'s `has no session` (needs a
+    `/proc/<pid>/stat` with fewer than four fields after the comm). Neither condition can be
+    produced from a test without editing the code. Both throw rather than default.
+- **F7.** Exit 66 on an enrolled gate names the unit and says `chmod -R go+rX -- <unit>`, because
+  a rerun may be admitted to the other tree (case 46).
+- **F8.** A unit off its resting commit names `git -C <unit> checkout --detach <resting>` in its
+  blocked reason, in `docs/resources.md` and in the inventory.
+- **F9.** The known gap (a non-dumpable consumer released by birth or placement that opens the
+  locator's files later) is written beside J19 and in `docs/resources.md`.
+- **F10.** Applied, then dropped by review G1 (below). The payload judges enrollment under the
+  lock again.
+- **F11.** `the shim's exact argv gets past the real Dash parser` runs the real
+  `bin/heavy-lock-lib.sh` and `entrypoint.ts`, and expects the post-parse refusal `is not inside
+a Git checkout with a job catalogue`.
+
+#### Assumptions (review fixes)
+
+- **S6-A13 Login-session shape.** Only the exact four-component path is a login session. A
+  sub-cgroup beneath a session scope, or any `session-*.scope` under `user@<uid>.service`, is not.
+- **S6-A14 Enrollment while a gate is queued (revised by review G1).** Enrolling a host while a gate
+  is queued is operator error. The enrollment procedure in 6.4 drains the queue first (J12's stop
+  intake and drain). A configuration that appears while a gate is queued makes the gate's payload
+  refuse 64; that refusal is tested and kept. F10's `HEAVY_JOB_ENROLLMENT` is dropped: nothing
+  exports it and nothing reads it. An inherited value is ignored both ways, by tests and by a
+  grep (heavy-lock case 48).
+- **S6-A15 `concurrencyEligible`.** The field is a list of type ids, default `[]`, validated
+  against the admitting checkout's catalogue. An unlisted type is admitted in concurrent mode
+  only into an otherwise empty pool. Slice 6b implements it.
+- **S6-A16 Solver smoke bound.** The bound is unmeasured, so it is applied only inside a Dash
+  job, where the catalogue's `containers` declaration governs. CI and unenrolled gates keep the
+  old argv.
+- **S6-A17 `runtime.test.ts` runs with `--cgroup`.** Every process in its namespace reads `0::/`,
+  so the suite behaves the same in a login session (this workstation) and on a CI runner.
+  Without it, its protected process sat in `session-3.scope` and was released over.
+  The login-session cases in `resource-holds.test.ts` and `host-job-holds.test.ts` run only where
+  the suite itself runs in a logind login session (this workstation, an ssh gate). **On CI they
+  skip** with that reason in the test name, because runners have no login session. What still
+  runs everywhere is a pure test of `isForeignLoginSession`'s shape. No fake `/proc` seam was
+  added: the real-process cases depend on real cgroup membership (review G3).
+- **S6-A18 `HEAVY_LOCK_TEST_SUITES=jobs`.** This test-only knob in `bin/heavy-lock.test.sh` runs
+  cases 40 to 47 alone, for fault runs. CI and the default run everything.
+- **S6-A19 Remedies.** The enrolled exit-66 remedy is `chmod -R go+rX -- <unit>`. The
+  resting-commit remedy is `checkout --detach <resting>`, which settlement accepts because it
+  compares the commit, not the branch.
+
+#### Fault injection (review fixes)
+
+Each fault was applied by script, watched red, and restored with SHA-256 equal before and after.
+
+| Fault                                               | Went red                                                                                | Observed                                             |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| login-session test removed (`outsideScope`)         | resource-holds: init and cleanup login-session cases; host-job-holds login-session case | `blocked` / refused                                  |
+| login-session test also matches user-manager scopes | the three "in the user manager" / "outside its scope, still holds" cases                | released                                             |
+| resting-commit remedy dropped                       | host-jobs `a dirty tree is not returned`                                                | no `git -C … checkout`                               |
+| `HEAVY_JOB_ENROLLMENT` export removed               | launchers `a configuration that appears while a gate is queued …`                       | payload refused `DASH_JOB_UNIT_GATE_TREE is not set` |
+| shim flag renamed `--wait`                          | launchers: shim argv, two gates, gate beside release, failing gate                      | `Unexpected option or subcommand: --wait`, 64        |
+| `--cgroup` removed from runtime.test.ts             | `existing account runs work despite an unreadable process …`                            | released                                             |
+| entrypoint check removed                            | heavy-lock 46a                                                                          | `want exit 70, got 0`                                |
+| `bun` check removed                                 | heavy-lock 46b                                                                          | `got 127` (`env: ‘bun’: No such file`)               |
+| `jq` check removed                                  | heavy-lock 46c                                                                          | refused as `names no root`                           |
+| `--` made optional                                  | heavy-lock 46d                                                                          | `want exit 64, got 0`                                |
+| solver launcher usage removed                       | heavy-lock 47a                                                                          | `got 1` (unset `$1`)                                 |
+| solver payload 40-hex test removed                  | heavy-lock 47b                                                                          | `got 0`                                              |
+| solver payload absolute-path test removed           | heavy-lock 47e                                                                          | `got 1`, `Module not found`                          |
+| test-queued launcher refusal removed                | heavy-lock 47c                                                                          | `got 70` (went to the lock)                          |
+| test-queued payload refusal removed                 | heavy-lock 47d                                                                          | `got 0`                                              |
+| fetch removed from `resolve_gate_commit`            | gate 44g                                                                                | `got ''`                                             |
+| `resolve_gate_commit` refusal → print the sha       | gate 44h                                                                                | `want exit 64, got 0`                                |
+| "neither" enrollment refusal removed                | gate 44i                                                                                | `want exit 64, got 0`                                |
+| launcher non-commit refusal removed                 | gate 47                                                                                 | `want exit 64, got 70`                               |
+| enrolled exit-66 remedy removed                     | gate 46                                                                                 | told to rerun with `H2PUNI_GATE_REPAIR_MODES=1`      |
+| solver bound applied unconditionally                | `leaves its containers unbounded outside a Dash job`                                    | bound present outside a job                          |
+| registry run without the bound                      | `runs every container it starts bounded and labelled inside a Dash job`                 | no bound                                             |
+| label dropped                                       | same                                                                                    | no `puni.job=`                                       |
+
+#### Commands (review fixes, fresh)
+
+| Command                                                                                                                                  | Result                                       |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `bash bin/heavy-lock.test.sh`                                                                                                            | `all heavy-lock checks passed` (1–28, 40–47) |
+| `bash bin/h2puni-gate.test.sh`                                                                                                           | `all cases passed` (44a–i, 45a–d, 46, 47)    |
+| shellcheck on every edited or new script                                                                                                 | exit 0                                       |
+| `bun test src/ops src/cli.test.ts src/no-ambient-clock.test.ts` plus host-jobs, host-jobs.model, host-job-holds, resource-holds, runtime | exit 0, no `(fail)`                          |
+| `solver-image-smoke.test.ts`, tool-devsync `poller` + `solver-binding-runtime`, tool-dagger `heavy-lock`, Burokrat `whole tree`          | 40, 39, 9, 1 pass                            |
+| `twilight-dash:typecheck`, `:lint`                                                                                                       | succeeded                                    |
+| prettier on touched files                                                                                                                | clean                                        |
+| `openspec validate dash-host-jobs`                                                                                                       | 1 passed, 0 failed                           |
+| `check-indexes working . HEAD`                                                                                                           | exit 0                                       |
+| `bunx nx run twilight-dash:test --skip-nx-cache` at `1173437ce` (after the re-merge)                                                     | 4230 pass, 0 fail across 136 files, 29m 8s   |
+
+### Second review pass (Fable on `1173437ce`, DO NOT MERGE AS IS)
+
+- **G1 (S1).** F10's exported `HEAVY_JOB_ENROLLMENT` reached every descendant of the gate. That
+  included `launchers.test.ts`, which failed under it. It also let an inherited `unenrolled`
+  defeat J15's enrolled-payload refusal.
+  - Fix: the variable is removed from the launcher and the payload. The payload judges
+    enrollment under the lock (S6-A14, revised).
+  - Tests: `the enrolled payload ignores an inherited verdict` (payload given `unenrolled`
+    still refuses 64); the unenrolled launcher with `enrolled` set still takes the legacy path;
+    heavy-lock case 48 greps that no script reads or exports the variable.
+  - `HEAVY_JOB_ENROLLMENT=unenrolled bun test src/ops/launchers.test.ts` now passes (1 pass).
+- **G2 (S2).** A login session is exempt only when it is not the owning Dash process's own
+  (`ownCgroup`; null for host jobs). The design.md J19 amendment is rewritten.
+  - New: `pool init refuses beside a non-dumpable process of its own login session started
+after it`; `a setsid descendant in Dash's own login session still holds`.
+  - The foreign-session case is `pool init succeeds beside a non-dumpable process of another
+login session`, with the initializer run under `systemd-run --user --scope`.
+- **G3 (S3).** The CI skip is stated in S6-A17; `isForeignLoginSession` has a pure test that runs
+  everywhere.
+- **G4 (S3).** The PR body's solver-smoke bullet now says "only inside a Dash job".
+- **G5 (S3).** All four smoke `docker run` argv are pinned outside a Dash job. They were compared
+  against the `c01dae8d5` script under the same harness and are identical after normalising
+  ids.
+
+| Fault (each restored, SHA-256 equal)                      | Went red                                                                                                                 |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `export HEAVY_JOB_ENROLLMENT` put back in `run_heavy_job` | heavy-lock 48                                                                                                            |
+| payload reads an inherited `HEAVY_JOB_ENROLLMENT`         | launchers: `an unenrolled host runs the gate …` (forged `enrolled`); `the enrolled payload ignores an inherited verdict` |
+| owner comparison dropped from `isForeignLoginSession`     | predicate test; `pool init refuses … its own login session …`; `a setsid descendant … still holds`                       |
+| foreign-session exemption removed                         | `pool init succeeds beside … another login session`; host-job-holds login-session case                                   |
+| smoke bound applied unconditionally                       | `leaves its containers unbounded outside a Dash job` (pinned argv)                                                       |
+
+### h2puni gate (unenrolled host, `af8cdd00342918a2fc64b834d17ff03ad4d42f49`)
+
+The gate ran in the isolated worktree `~/puni-00-gate-467-9b552fa8`, which was clean at that SHA,
+with 7.8 GB free on `/` before it started. Nothing on the host was deleted.
+
+- **First attempt.** It printed `heavy lock: waited 0s behind 0 tickets` and `h2puni gate: running
+on af8cdd00342918a2fc64b834d17ff03ad4d42f49`. My SSH session then dropped after about an hour
+  (`Timeout, server … not responding`, exit 255). The orphaned gate's output went to a dead pipe,
+  so it has no readable verdict; it ran to its end and the lock is free.
+- **Rerun.** I started it under `setsid nohup` with its log at
+  `/var/tmp/gate-6a-af8cdd00-rerun2.log`, where it exited `GATE-EXIT 1`.
+  - It printed `heavy lock: waited 1337s behind 0 tickets` (queued behind the orphan) and then
+    `h2puni gate: running on af8cdd00342918a2fc64b834d17ff03ad4d42f49`.
+  - The only failed task was `wbs-be-01:test`, and the only failing test in the 11,034-line log
+    was `✗ reads a space of 30 projects and their roll-ups within the budget [1721.91ms]`
+    (`apps/wbs/be-01/src/controller/space-roll-up-performance.db.test.ts`). Nx marked the task
+    flaky.
+  - This budget test is a recorded flake: it failed the same way on an h2puni gate for a Dash-only
+    PR on 2026-11-01. It is unrelated to this diff.
+- **Single-file rerun.** I ran it in the same worktree with no gate running (`heavy lock: holder
+none`): `env -u CLAUDECODE bunx nx run wbs-be-01:test --skip-nx-cache --
+src/controller/space-roll-up-performance.db.test.ts`. Result: `✓ reads a space of 30 projects
+and their roll-ups within the budget [886.18ms]`, 1 pass, 0 fail, exit 0, tree still clean.
+- **Not reached on h2puni.** The steps run under `set -e`, so the gate stopped after the first
+  `nx run-many`. The Burokrat and Dash split, the two source lints, and
+  `wbs-be-01:solver-image-smoke` (with this PR's unchanged argv outside a Dash job) did not run.
+  `twilight-dash:test` passed on the workstation at `1173437ce`. Nothing ran the solver smoke
+  against this SHA.
+
 ## Slice 6b — observe mode, switch-mode, singleton guard (tasks 6.1 observe half, 6.5a)
 
 Branch `feat/dash-host-jobs-6b-transition` from slice 4's `efd168e40`. It implements J12 and
@@ -1379,46 +1694,29 @@ Not provable alone, so stated rather than tested:
   unguarded mode (S6B-A14). The observe path through the production entrypoint is not
   exercised.
 
-### Follow-up for slice 6a (`launchers.test.ts`, not edited here)
+### Slice 6a's launcher suite on the combined tree (`launchers.test.ts`)
 
-Whichever of #816 and this PR merges second needs this change, or 6a's launcher suite fails
-to typecheck (`legacyLock` is a required `JobRunDependencies` field). Its two-gates and
-gate-beside-release cases would also serialise, because a fresh pool is in observe mode:
+6a's `src/ops/launchers.test.ts` was written against a pool that admitted host jobs side by
+side. Since 6b, a fresh pool is in observe mode and serialises every host job through the shell
+lock. Merged at `994512439`, three cases therefore timed out (exit 143): "two gates run at once",
+"a gate runs beside a release build" and "a failing enrolled gate's status". The merge applies
+this change to that file:
 
-```diff
---- a/apps/twilight-structure/twilight-dash/cli/src/ops/launchers.test.ts
-+++ b/apps/twilight-structure/twilight-dash/cli/src/ops/launchers.test.ts
-@@ FIXTURE_DASH
- import { runHostJob } from ${JSON.stringify(join(DASH_SOURCE, 'ops', 'job-run'))};
-+import { productionLegacyLock } from ${JSON.stringify(join(DASH_SOURCE, 'resources', 'legacy-lock'))};
-@@
-       user: 'puni1',
-+      // Inside the namespace /home/puni1/.cache is tmpfs, so the canonical lock is a fixture.
-+      legacyLock: productionLegacyLock(),
-     },
-@@ function writeConfig()
-         exclusiveUnits: { gate_tree: units },
-         enrollmentId: 'enrollment-one',
-+        launcherCheckouts: [checkout],
-+        concurrencyEligible: ['gate', 'release-build'],
-       }),
-@@ test('ops pool init enrolls the host at the fixed path', …)
-       expect(existsSync(LEDGER)).toBe(true);
-+      // Two jobs overlap only in concurrent mode; the guard needs a running `watch`, which
-+      // this suite does not start, so it is released at once (both through the entrypoint).
-+      for (const flags of [[], ['--release-guard']]) {
-+        const switched = Bun.spawnSync(
-+          [process.execPath, join(DASH_SOURCE, 'entrypoint.ts'), 'ops', 'pool', 'switch-mode',
-+           'concurrent', '--config', CONFIG, '--operator', 'launchers-test', ...flags],
-+          { stdout: 'pipe', stderr: 'pipe' },
-+        );
-+        expect(switched.exitCode, switched.stderr.toString()).toBe(0);
-+      }
-```
+1. The fixture Dash passes `legacyLock: productionLegacyLock()`. Inside the suite's namespace
+   `/home/puni1/.cache` is tmpfs, so the canonical lock is a fixture.
+2. The fixture catalogue's entrypoints are the real launchers: `bin/h2puni-gate.sh` for `gate`
+   and `bin/publish-release.sh` for `release-build`. `switch-mode` verifies that each calls
+   `run_heavy_job` (S6B-A20). The fixture default `bin/payload.sh` does not exist in this
+   checkout, so with it the switch refuses 70.
+3. `writeConfig` adds `launcherCheckouts: [checkout]` and
+   `concurrencyEligible: ['gate', 'release-build']`.
+4. Right after `ops pool init`, the init case runs `ops pool switch-mode concurrent --operator
+launchers-test` through the entrypoint, then the same with `--release-guard`, since the
+   suite runs no `watch`. Its timeout is now 120 s.
 
-The fixture checkout must hold a committed `bin/heavy-lock-lib.sh` defining `run_heavy_job`,
-which 6a's fixture checkout copies. Its catalogue must name `gate` and `release-build`. The
-unenrolled-host case before `ops pool init` is unaffected.
+The fixture checkout already satisfies the remaining launcher checks: a committed, clean `bin/`
+whose library defines `run_heavy_job`. With the change, the suite passes 10 of 10 on the
+combined tree (commands below).
 
 ### Review fixes (Fable, PR #818 at `0073937d1`, MERGE AFTER FIXES)
 

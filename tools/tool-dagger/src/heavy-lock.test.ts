@@ -199,7 +199,7 @@ describe('with-heavy-lock', () => {
          printf 'shell=%s\\n' "$HEAVY_LOCK_WAIT_SECONDS"
          bash -c 'printf "child=%s\\nlabel=%s\\n" "\${HEAVY_LOCK_WAIT_SECONDS-unset}" "$HEAVY_LOCK_LABEL"'
        }
-       gate_with_pinned_head() { with_heavy_lock; }
+       run_heavy_job() { with_heavy_lock; }
       `,
     );
     for (const args of [

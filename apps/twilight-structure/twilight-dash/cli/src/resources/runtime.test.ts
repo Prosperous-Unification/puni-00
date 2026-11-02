@@ -42,6 +42,9 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
         '--pid',
         '--fork',
         '--mount-proc',
+        // A private cgroup namespace: every process reads `0::/`, never the login session scope
+        // this suite may run in, which J19 exempts (review F1) and would release over.
+        '--cgroup',
         // Match an ordinary account: inspection cannot override a process's dumpability.
         'setpriv',
         '--bounding-set=-sys_ptrace',
@@ -134,6 +137,18 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
       clock,
       linuxHostFacts,
     );
+    const use = await create(runtime, request);
+    expect(use.state).toBe('active');
+    const started = join(use.locator, 'started');
+    const release = join(use.locator, 'release');
+    // The command waits, so the protected process starts after the use's leader: J19 keeps an
+    // uninspectable process that predates the leader from blocking (resource-holds.test.ts).
+    const running = runtime.run(use.id, [
+      '/bin/sh',
+      '-c',
+      `: > ${started}; while [ ! -e ${release} ]; do sleep 0.05; done; rm -f started release; printf finished > output`,
+    ]);
+    while (!existsSync(started)) await Bun.sleep(5);
     const protectedProcess = Bun.spawn(
       [
         'python3',
@@ -146,9 +161,8 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
       const ready = await protectedProcess.stdout.getReader().read();
       expect(new TextDecoder().decode(ready.value)).toContain('ready');
       expect(() => readFileSync(`/proc/${String(protectedProcess.pid)}/maps`)).toThrow('EACCES');
-      const use = await create(runtime, request);
-      expect(use.state).toBe('active');
-      expect(await runtime.run(use.id, ['/bin/sh', '-c', 'printf finished > output'])).toBe(0);
+      writeFileSync(release, '');
+      expect(await running).toBe(0);
       const blocked = runtime.inspect(use.id);
       expect(blocked.state).toBe('blocked');
       expect(readFileSync(join(use.locator, 'output'), 'utf8')).toBe('finished');

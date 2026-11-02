@@ -118,13 +118,95 @@ resolve_tool_wiki_modules() {
   printf '%s\n' "$trusted_modules"
 }
 
+# The tree the gate payload checks out and gates, given the launcher's checkout `$1` and the
+# host's enrollment `$2` (`dash-host-jobs` J15).
+#
+# On an enrolled host it is the gate tree the admission handed the job as
+# `DASH_JOB_UNIT_GATE_TREE`, and nothing else: 64 without it, because gating the launcher's
+# own checkout there would move a tree no admission reserved, under a job beside which another
+# gate may already run. It must be a canonical directory other than the launcher's checkout:
+# Dash reads the job catalogue at that checkout's HEAD and refuses the job if the HEAD moved,
+# so a launcher started from one of the pool's own units is refused here rather than racing a
+# gate that checks that unit out. On an unenrolled host it is the launcher's checkout, as it
+# always was, and a `DASH_JOB_UNIT_GATE_TREE` nobody admitted is refused rather than believed.
+#
+# Proof (observed 2026-11-02): with the enrolled refusal removed, the payload gated the
+# launcher's checkout without the variable — `44a: want exit 64, got 0`; with the unenrolled
+# refusal removed, an inherited variable chose the tree — `44d: want exit 64, got 0`; with the
+# launcher-checkout refusal removed, the launcher's own checkout was accepted as the admitted
+# tree — `44c: want exit 64, got 0` (bin/h2puni-gate.test.sh, case 44).
+resolve_gate_tree() {
+  local checkout=${1:?checkout is required}
+  local enrollment=${2:?enrollment is required}
+  local admitted=${DASH_JOB_UNIT_GATE_TREE:-}
+  if [[ $enrollment == unenrolled ]]; then
+    if [[ -n $admitted ]]; then
+      printf 'h2puni gate: DASH_JOB_UNIT_GATE_TREE is %s on a host that is not enrolled; no admission handed it out\n' \
+        "$admitted" >&2
+      return 64
+    fi
+    printf '%s\n' "$checkout"
+    return 0
+  fi
+  # Proof (observed 2026-11-02): removed, `maybe` was read as enrolled and gated the admitted
+  # tree — `44i … want exit 64, got 0` (bin/h2puni-gate.test.sh, case 44i).
+  if [[ $enrollment != enrolled ]]; then
+    printf 'h2puni gate: enrollment %q is neither enrolled nor unenrolled\n' "$enrollment" >&2
+    return 64
+  fi
+  if [[ -z $admitted ]]; then
+    printf 'h2puni gate: this host is enrolled and DASH_JOB_UNIT_GATE_TREE is not set; the gate runs only in the gate tree its admission hands it, so launch bin/h2puni-gate.sh <sha> rather than its payload\n' >&2
+    return 64
+  fi
+  local canonical
+  if ! canonical=$(realpath -e -- "$admitted" 2>/dev/null) || [[ $canonical != "$admitted" || ! -d $admitted ]]; then
+    printf 'h2puni gate: DASH_JOB_UNIT_GATE_TREE %s is not a canonical directory\n' "$admitted" >&2
+    return 64
+  fi
+  if [[ $canonical == "$(realpath -e -- "$checkout")" ]]; then
+    printf 'h2puni gate: the admitted gate tree %s is the launcher checkout itself; launch from a checkout that is not one of the host pool units\n' \
+      "$admitted" >&2
+    return 64
+  fi
+  printf '%s\n' "$admitted"
+}
+
+# The full commit id of `$3` in tree `$1`, fetched from the launcher's checkout `$2` when the
+# tree does not have it yet: an admitted gate tree is a separate clone, and the sha the launcher
+# resolved need not be in it. 64 when neither has it.
+#
+# Proof (observed 2026-11-02): with the fetch removed, an admitted tree without the commit was
+# refused — `44g … want '<sha>', got ''`; with the refusal replaced by printing the sha, a commit
+# neither tree has was handed to the checkout — `44h … want exit 64, got 0`
+# (bin/h2puni-gate.test.sh, case 44).
+resolve_gate_commit() {
+  local tree=${1:?tree is required}
+  local checkout=${2:?checkout is required}
+  local sha=${3:?sha is required}
+  local pinned
+  if pinned=$(git -C "$tree" rev-parse --verify --quiet "${sha}^{commit}"); then
+    printf '%s\n' "$pinned"
+    return 0
+  fi
+  if [[ $tree != "$checkout" ]] &&
+    git -C "$tree" fetch --quiet --no-tags "$checkout" "$sha" &&
+    pinned=$(git -C "$tree" rev-parse --verify --quiet "${sha}^{commit}"); then
+    printf '%s\n' "$pinned"
+    return 0
+  fi
+  printf 'h2puni gate: %s is not a commit in %s\n' "$sha" "$tree" >&2
+  return 64
+}
+
 # Check `$sha` out in `$repo` under the heavy lock at `$lock_path`, then run
 # `command [arg ...]` there with that head pinned for the whole run.
 #
 # The lock path is an argument for the reason `heavy-lock-lib.sh` gives at
 # length: a caller that can name its own lock is a caller that can opt out of
-# the lock, so there is no environment override and production passes
-# `resolve_heavy_lock_path`.
+# the lock, so there is no environment override. This is the fixture primitive
+# `bin/h2puni-gate.test.sh` drives; production enters through
+# `bin/h2puni-gate.sh`, whose payload calls {@link run_pinned_checkout} under
+# `run_heavy_job`.
 gate_with_pinned_head() {
   local repo=${1:?repo is required}
   local lock_path=${2:?lock path is required}
@@ -145,6 +227,30 @@ gate_with_pinned_head() {
     return 64
   fi
 
+  with_heavy_lock "$lock_path" -- run_pinned_checkout "$repo" "$pinned" keep "$@"
+}
+
+# Check commit `$2` out in tree `$1`, refuse a tree whose bytes are not that
+# commit's, then run `command [arg ...]` there; `$3` is `keep` to leave the tree
+# at that commit after a pass, as an unenrolled gate always has, or `restore` to
+# return it to the commit it rested on before (`dash-host-jobs` J15): an enrolled
+# gate tree is a host pool unit, and settlement returns it only at its resting
+# commit. A failed run restores it either way. Called inside the heavy lock or,
+# on an enrolled host, as the admitted payload; never on its own.
+#
+# Proof (observed 2026-11-02): with `restore` read as `keep`, an enrolled gate
+# left its unit detached at the gated commit, where settlement keeps it charged —
+# `45a: the enrolled gate tree is back at its resting commit` failed
+# (bin/h2puni-gate.test.sh, case 45).
+run_pinned_checkout() {
+  local repo=${1:?tree is required}
+  local pinned=${2:?commit is required}
+  local settle=${3:?settle mode is required}
+  shift 3
+  if [[ $settle != keep && $settle != restore ]]; then
+    printf 'usage: run_pinned_checkout tree commit keep|restore command [arg ...]\n' >&2
+    return 64
+  fi
   # `git checkout` runs inside the locked payload, not before it. Everything the
   # steps read is therefore chosen and consumed under one mutex.
   #
@@ -191,11 +297,16 @@ gate_with_pinned_head() {
   # directory with the directory scan removed; case 39 exited 0 and ran the steps
   # when a failing file scan was folded into one substitution with the directory
   # scan; case 40 exited 66 with the repair branch removed.
-  with_heavy_lock "$lock_path" -- bash -c '
+  # Proof (observed 2026-11-02): with the enrolled remedy removed, an enrolled
+  # payload over a 0600 tracked file told its caller to rerun with
+  # H2PUNI_GATE_REPAIR_MODES=1, which may be admitted to the other tree — case 46
+  # failed on `the enrolled refusal names the unit to repair`.
+  bash -c '
     set -euo pipefail
     repo=$1
     pinned=$2
-    shift 2
+    settle=$3
+    shift 3
     umask 022
     original_commit=$(git -C "$repo" rev-parse HEAD)
     original_ref=
@@ -210,7 +321,7 @@ gate_with_pinned_head() {
     restore_rejected_checkout() {
       status=$?
       trap - EXIT
-      if [[ $status -ne 0 ]]; then
+      if [[ $status -ne 0 || $settle == restore ]]; then
         if [[ -n $original_ref ]]; then
           current_ref_commit=$(git -C "$repo" rev-parse --verify --quiet "${original_ref}^{commit}") || current_ref_commit=
           if [[ $current_ref_commit != "$original_commit" ]]; then
@@ -291,7 +402,11 @@ EOF
         xargs -0 -r sh -c "find -P \"\$@\" -maxdepth 0 -type d ! -perm -0005 -print" find-closed-directories
     )
     if [[ -n $unreadable_files || -n $closed_directories ]]; then
-      printf "h2puni gate: %s has tracked paths other users cannot read after checking out %s; containers that run as the host uid would not see them. Rerun as H2PUNI_GATE_REPAIR_MODES=1 bin/h2puni-gate.sh %s to widen them under the lock:\n" "$repo" "$pinned" "$pinned" >&2
+      if [[ $settle == restore ]]; then
+        printf "h2puni gate: %s has tracked paths other users cannot read after checking out %s; containers that run as the host uid would not see them. This host is enrolled and a rerun may be admitted to the other gate tree, so repair this unit itself while no gate holds it: chmod -R go+rX -- %s\n" "$repo" "$pinned" "$repo" >&2
+      else
+        printf "h2puni gate: %s has tracked paths other users cannot read after checking out %s; containers that run as the host uid would not see them. Rerun as H2PUNI_GATE_REPAIR_MODES=1 bin/h2puni-gate.sh %s to widen them under the lock:\n" "$repo" "$pinned" "$pinned" >&2
+      fi
       if [[ -n $unreadable_files ]]; then list_bounded "$unreadable_files"; fi
       if [[ -n $closed_directories ]]; then list_bounded "$closed_directories"; fi
       exit 66
@@ -299,5 +414,5 @@ EOF
     printf "h2puni gate: running on %s\n" "$(git -C "$repo" rev-parse HEAD)" >&2
     cd "$repo"
     "$@"
-  ' h2puni-gate-under-lock "$repo" "$pinned" "$@"
+  ' h2puni-gate-under-lock "$repo" "$pinned" "$settle" "$@"
 }
