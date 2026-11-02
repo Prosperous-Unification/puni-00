@@ -58,11 +58,11 @@ test('the validator and executable bundles carry no activation runtime', async (
 
 /**
  * `dist/bin.mjs` as built at the Optique migration (twilight-cli-optique C1), in bytes: 9,639,774
- * before, 10,332,756 after, measured on 2026-11-02 with Bun 1.4.4. A build outside this band
+ * before, 10,333,764 after, measured on 2026-11-02 with Bun 1.4.4. A build outside this band
  * changed what the executable carries; measure it and record the new size here and in the
  * change's verify.md.
  */
-const RECORDED_EXECUTABLE_BYTES = 10_332_756;
+const RECORDED_EXECUTABLE_BYTES = 10_333_764;
 
 test('the executable bundle carries the Optique parser, at its recorded size', async () => {
   // Proof: marking `@optique/*` external in this build failed the first assertion: the bundle no

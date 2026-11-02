@@ -207,16 +207,25 @@ either spelling`.
 - **B-A16. Commit attribution.** Commits carry `Co-Authored-By: Claude Opus 5.5`, the model that
   wrote them, rather than the brief's Fable line.
 
+- **B-A17. A help footer for the delegated grammars.** Optique shows a delegated command's
+  usage as `[...]`; the packaged help tests pin the documented grammars
+  (`twilight-burokrat check <committed|staged|working>`, `explain <rule-id>`,
+  `template <list|show`, `[--performance-evidence <json>]`), so the help ends with
+  "Commands that parse their own arguments:" and each grammar, wrapped at 100 columns so no
+  line carries a trailing space.
+
 ### Changed pinned lines
 
-| Test                                                                  | Before                                           | After                                                                         |
-| --------------------------------------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------- |
-| `cli.test.ts` `submit-admission is an unknown command` (both entries) | contains `unknown command: submit-admission`     | contains `error: Unsupported Burokrat command: submit-admission`              |
-| `invoke-cli.test.ts` `invokeCli captures a refusal …`                 | contains `unknown command: not-a-command`        | exactly `error: Unsupported Burokrat command: not-a-command\n`                |
-| `packaging/build.test.ts` (built executable, `not-a-command`)         | contains `unknown command`                       | exactly `error: Unsupported Burokrat command: not-a-command\n`                |
-| `packaging/installed-dispatch.test.ts`                                | not contains `unknown command: <command>`        | not contains `Unsupported Burokrat command` (the old text could never appear) |
-| `contracts/progress-receipt.test.ts` (in-process and process entry)   | contains `usage: twib validate-progress-receipt` | contains `usage: twilight-burokrat validate-progress-receipt` (B-A2)          |
-| `contracts/plan-tasks.test.ts` (in-process and process entry)         | contains `usage: twib validate-plan-tasks`       | contains `usage: twilight-burokrat validate-plan-tasks` (B-A2)                |
+| Test                                                                                                              | Before                                                                                                                                                  | After                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `cli.test.ts` `submit-admission is an unknown command` (both entries)                                             | contains `unknown command: submit-admission`                                                                                                            | contains `error: Unsupported Burokrat command: submit-admission`                                                                                                   |
+| `invoke-cli.test.ts` `invokeCli captures a refusal …`                                                             | contains `unknown command: not-a-command`                                                                                                               | exactly `error: Unsupported Burokrat command: not-a-command\n`                                                                                                     |
+| `packaging/build.test.ts` (built executable, `not-a-command`)                                                     | contains `unknown command`                                                                                                                              | exactly `error: Unsupported Burokrat command: not-a-command\n`                                                                                                     |
+| `packaging/installed-dispatch.test.ts`                                                                            | not contains `unknown command: <command>`                                                                                                               | not contains `Unsupported Burokrat command` (the old text could never appear)                                                                                      |
+| `contracts/progress-receipt.test.ts` (in-process and process entry)                                               | contains `usage: twib validate-progress-receipt`                                                                                                        | contains `usage: twilight-burokrat validate-progress-receipt` (B-A2)                                                                                               |
+| `contracts/plan-tasks.test.ts` (in-process and process entry)                                                     | contains `usage: twib validate-plan-tasks`                                                                                                              | contains `usage: twilight-burokrat validate-plan-tasks` (B-A2)                                                                                                     |
+| `packaging/build.test.ts` (`--help`)                                                                              | contains `… validate-plan-tasks <plan-reference.json> <tasks.json>` and `… validate-progress-receipt <receipt.json> <plan-reference.json> <tasks.json>` | contains `… validate-plan-tasks PLAN-REFERENCE-JSON TASKS-JSON` and `… validate-progress-receipt RECEIPT-JSON PLAN-REFERENCE-JSON TASKS-JSON` (generated metavars) |
+| `evidence/coverage-runtime.test.ts` `built executable registers coverage before the installed authority boundary` | `inspect-evaluation-coverage` with no operands reaches `installed package manifest is unreadable`                                                       | the same with its four operands: `bin.ts` refuses an incomplete line before the toolkit (B-A10)                                                                    |
 
 Every other pinned usage prefix (`usage: twilight-burokrat <command>` in the evidence, manual,
 rules, templates, scenarios and installed-dispatch tests) and every `--now` message holds
@@ -224,11 +233,11 @@ unchanged.
 
 ### Bundle and package size (Bun 1.4.4, `nx run twilight-burokrat:pack`)
 
-| Artifact                      | cd95ce82d (before) | this branch (after) | Change   |
-| ----------------------------- | ------------------ | ------------------- | -------- |
-| `dist/bin.mjs`                | 9,639,774 B        | BINAFTER B          | BINDELTA |
-| `dist/toolkit/validator.mjs`  | 10,770,250 B       | VALAFTER B          | VALDELTA |
-| `twilight-burokrat-0.1.0.tgz` | 29,995,780 B       | TGZAFTER B          | TGZDELTA |
+| Artifact                      | cd95ce82d (before) | this branch (after) | Change            |
+| ----------------------------- | ------------------ | ------------------- | ----------------- |
+| `dist/bin.mjs`                | 9,639,774 B        | 10,333,764 B        | +693,990 (+7.2 %) |
+| `dist/toolkit/validator.mjs`  | 10,770,250 B       | 11,459,958 B        | +689,708 (+6.4 %) |
+| `twilight-burokrat-0.1.0.tgz` | 29,995,780 B       | 30,242,260 B        | +246,480 (+0.8 %) |
 
 ### Commands and results
 
@@ -236,7 +245,35 @@ RESULTS
 
 ### Fault table
 
-FAULTS
+Each fault was injected into the production source (or README, or the build config) by
+`faults/run.py`, which ran the named test with `bun test <file> -t <name>`, wrote the original
+bytes back and compared their SHA-256; all 22 restorations matched. Final run on 2026-11-02
+against the tree of this section's commit.
+
+| Fault                                                                   | Test that went red                                                                                 | Observed                                                                            |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| F1 `onExit` dropped from `run` (it calls `process.exit`)                | `Burokrat without --now refuses in one usage line`                                                 | spawned stderr `""` instead of the `error: usage: …` line                           |
+| F2 `--now` wrapped in `optional`                                        | `Burokrat without --now refuses in one usage line`                                                 | the handler refused bare `inspect-manual requires --now <UTC instant>; …`, no usage |
+| F3 `maxWidth: 120` dropped                                              | `help parity holds under any terminal width and colour request`                                    | 80-column `process.stdout` help: `- Expected - 61`, `+ Received + 134`              |
+| F4 `colors: false` dropped                                              | same test                                                                                          | under `FORCE_COLOR=1` all 119 help lines differed                                   |
+| F5 `usageOf` formats with `colors: true`                                | `Burokrat without --now refuses in one usage line`                                                 | ANSI bytes in the refusal line                                                      |
+| F6 unknown-command reason returned unmapped                             | `an unknown command refuses in one line, exit 1, through both entries`                             | ``error: Unexpected option or subcommand: `apply`.``                                |
+| F7 `help`/`completion` branch of `refusalOf` dropped                    | `help <unknown> and completion without a shell refuse in one line`                                 | `error: Unsupported Burokrat command: help`                                         |
+| F8 `jsonPath` `pattern` dropped                                         | `refuses invalid operands ["","absent"] before reads` (plan-tasks.test.ts)                         | read the empty path: `cannot read JSON input : ENOENT`                              |
+| F9 level-mode `choice` replaced by `string`                             | `a wrong operand count or mode refuses with the command usage before any read`                     | reached the reader: `not a readable Git repository`                                 |
+| F10 `check` word-count guard dropped                                    | `check refuses an odd flag tail and explain a two-word tail before reading`                        | ran the check, `not a readable Git repository`                                      |
+| F11 `runCli` handler-table guard dropped                                | `runCli refuses a command no handler takes`                                                        | `handler is not a function`                                                         |
+| F12 `stdout` newline wrapper dropped                                    | `twib --version prints the manifest version; the validator has none`                               | `0.1.0` without its newline                                                         |
+| F13 `Printed` no longer caught                                          | `help, help <command> and bash, zsh and fish completion print on stdout`                           | fail                                                                                |
+| F14 `cli.ts` `error: ` prefix dropped                                   | `an unknown command refuses in one line, exit 1, through both entries`                             | `Unsupported Burokrat command: apply` bare                                          |
+| F15 `bin.ts` `error: ` prefix dropped                                   | same test, installed entry                                                                         | `- Expected - 1`, `+ Received + 1`                                                  |
+| F16 source-only commands added to `installedGrammar`                    | `help names every dispatched command and no other`                                                 | `+ Received + 2` (`candidate-identity`, `inspect-browser`)                          |
+| F17 README help block reworded                                          | `the README shows the generated help`                                                              | `- Expected - 1`, `+ Received + 1`                                                  |
+| F18 `@optique/*` external in `executableBuildConfig`                    | `the executable bundle carries the Optique parser, at its recorded size`                           | no `Unexpected option or subcommand` in the bundle                                  |
+| F19 `Date.now()` appended to `cli-parser.ts`                            | `the Burokrat package reads no clock` (unchanged test)                                             | listed `"path": "cli-parser.ts"`, `"text": "Date"`                                  |
+| F20 `inspect-level-facts` removed from the parser, kept in the handlers | `help names every dispatched command and no other`                                                 | `- Expected - 1`                                                                    |
+| F21 `validate workflow-binding` branch removed                          | `routes an incomplete binding command before generic record validation` (workflow-binding.test.ts) | RecordKind refusal `(was "workflow-binding")` instead of `invalid_arguments`        |
+| F22 help footer dropped                                                 | `buildPackage > builds the canonical executable for use outside the repository` (build.test.ts)    | help lacked `twilight-burokrat check <committed                                     | staged | working>` |
 
 ### Not verified
 
