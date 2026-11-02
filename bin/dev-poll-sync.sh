@@ -44,11 +44,11 @@ if [ "$("$BUN" --version)" != "$EXPECTED_BUN_VERSION" ]; then
 fi
 
 # The candidate is the target's complete committed tree, checked out detached
-# at the exact SHA from a local clone. A local clone hard-links loose and pack
-# objects instead of using an alternates file: source `git gc` may unlink its
-# names, but the candidate's links keep those objects alive for its bounded
-# 24-hour recovery window. Two things
-# need the whole tree rather than the deployer's module graph alone:
+# at the exact SHA from a local clone. Local objects are hard-linked; objects
+# the source itself borrows are copied after checkout. Source `git gc` may
+# unlink its names, but the candidate keeps its own objects for its bounded
+# 24-hour recovery window. Two things need the whole tree rather than the
+# deployer's module graph alone:
 #
 # - The deployer reaches the deploy contract through the workspace tsconfig
 #   `paths`, and Bun resolves those from the tsconfig nearest the importing
@@ -76,6 +76,19 @@ trap cleanup_candidate EXIT HUP INT TERM
 CANDIDATE_NEXT=$(mktemp -d "$BIN/sync.${SHA}.XXXXXXXX")
 git clone --quiet --local --no-checkout "$SRC" "$CANDIDATE_NEXT"
 git -C "$CANDIDATE_NEXT" checkout --quiet --detach "$SHA"
+# A local clone inherits the source's alternates file when the source borrows
+# objects. Check out the requested SHA before dissociating: it may exist only
+# at the source's remote ref, outside the cloned branch tips. Copying earlier
+# can drop that target. A failed copy must leave cleanup in charge and prevent
+# promotion or execution of a candidate that still depends on another store.
+# Proof: poller.test.ts's borrowed non-HEAD target loses `git show` with exit
+# 128 after its backing stores disappear when this branch is bypassed, or
+# when repack alone is removed while pointer removal stays (2026-11-02).
+# Its injected repack exit 17 also proves refusal and private-tree cleanup.
+if [ -f "$CANDIDATE_NEXT/.git/objects/info/alternates" ]; then
+  git -C "$CANDIDATE_NEXT" repack -a -d
+  rm -- "$CANDIDATE_NEXT/.git/objects/info/alternates"
+fi
 # NO INSTALL IS LINKED IN, AND THAT IS THE CONTRACT (TASK-376).
 #
 # Until 2026-09-08 this linked `$SRC/node_modules` into the candidate. The

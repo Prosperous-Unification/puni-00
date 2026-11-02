@@ -565,3 +565,24 @@ restore exactly, aborts startup without discarding the recovery state.
 QA credentials live only in `/home/puni1/wbs-dev/qa-accounts.env` on the
 deployment host, with mode 600, as `QA_USER` and `QA_PASS`. Never copy their
 values into the repository, logs, tests, or issue text.
+
+### Browser sign-in recovery
+
+An old browser cookie that cannot be verified can prevent a replacement session
+from being issued. Password sign-in returns `unauthenticated`; a valid,
+browser-bound SSO callback redirects to
+`/?auth_error=browser_session_unverified`. Reloading preserves the HttpOnly
+cookies and does not resolve this symptom.
+
+Choose **Reset browser session** on the sign-in card, wait for confirmation,
+then start a fresh password or SSO sign-in. The card never retries credentials
+or treats reset as authentication. While reset is pending, sign-in choices are
+held so a late cookie expiration cannot erase a newly issued session. Failed
+reset remains visible and retryable.
+
+The explicit same-origin `POST /api/auth/reset` expires only
+`__Host-wbs_access`, `__Host-wbs_session`, and `__Host-wbs_organization`.
+This is local cookie recovery: it neither verifies identity nor ends or revokes
+a durable server session. Ordinary **Sign out** continues to use the durable
+logout endpoint and its acknowledgment. This recovery does not sign out other
+browsers, provider sessions, or API clients.

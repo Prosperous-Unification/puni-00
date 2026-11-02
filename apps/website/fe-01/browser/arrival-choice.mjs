@@ -67,6 +67,11 @@ for (const classic of [false, true]) {
               body: readFileSync(`${directory}${path}`),
               contentType,
             });
+          } else if (url.hostname === 'dev.puni.dev' && url.pathname === '/api/analytics/region') {
+            await route.fulfill({
+              json: { region: 'unknown', database: null },
+              headers: { 'Access-Control-Allow-Origin': 'https://dev.app.puni.dev' },
+            });
           } else if (url.hostname === 'dev.api.puni.dev') {
             if (url.pathname === '/entry' && route.request().method() === 'GET')
               await route.fulfill({ json: { available: true, reason: null } });
@@ -195,10 +200,13 @@ for (const classic of [false, true]) {
           await question.scrollIntoViewIfNeeded();
           assert.ok(await question.isVisible(), 'Saved question is readable before choice');
           const questionBox = await question.boundingBox();
+          // Native scrollTop rounds CSS pixels; the unavailable phone case ends 0.15625px below
+          // the viewport after scrolling. One pixel permits rounding while preserving reachability.
+          // Proof: resetting the actual shell scrollTop to zero clipped 11.15625px and failed this bound.
           assert.ok(
             questionBox &&
               questionBox.y >= 0 &&
-              questionBox.y + questionBox.height <= viewport.height,
+              questionBox.y + questionBox.height <= viewport.height + 1,
             'Saved question scrolls into the phone viewport',
           );
           const composer = page.getByPlaceholder('Reply to PUNI…', { exact: true });
@@ -221,6 +229,13 @@ for (const classic of [false, true]) {
             'Footer controls remain reachable',
           );
           await footer.getByRole('button', { name: 'Privacy choices', exact: true }).click();
+          assert.equal(
+            await page
+              .getByRole('link', { name: 'IP Geolocation by DB-IP', exact: true })
+              .getAttribute('href'),
+            'https://db-ip.com',
+            'Build exposes visible dataset attribution beside its privacy controls',
+          );
           const answer = thread
             .getByRole('group', { name: 'Suggested answers', exact: true })
             .getByRole('button')
