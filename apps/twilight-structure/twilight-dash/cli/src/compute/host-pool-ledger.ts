@@ -42,6 +42,13 @@ const ReservingJob = type({
       tmpDiskGib: 'number.integer >= 0',
     },
   },
+  // What the job reserved, persisted at admission since slice 4's review (`HostJob.reserved`):
+  // a calibration's whole pool. A row written before it carries none and charges its envelope.
+  'reserved?': {
+    cpuCores: 'number.integer >= 0',
+    memoryGib: 'number.integer >= 0',
+    tmpDiskGib: 'number.integer >= 0',
+  },
   compute: { state: 'string' },
   tmpDisk: { state: 'string' },
   units: type({ exclusiveId: 'string', state: 'string' }).array(),
@@ -92,11 +99,14 @@ export function openHostPoolLedger(path: string, pollMs = LEDGER_POLL_MS): HostP
         .all()) {
         // Only the runtime writes this owner-only ledger; a malformed snapshot throws.
         const job = ReservingJob.assert(JSON.parse(row.snapshot));
-        const { envelope } = job.descriptor;
+        // Proof: summing the envelope here made `a calibration's ledger port reads the whole pool
+        // reserved` (report-capacity.host-pool.test.ts) report the build's 2 cores, not 8
+        // (2026-11-02, Slice 4, S4-A18).
+        const charged = job.reserved ?? job.descriptor.envelope;
         if (dimension === 'cpuCores' || dimension === 'memoryGib') {
-          if (job.compute.state !== 'released') total += envelope[dimension];
+          if (job.compute.state !== 'released') total += charged[dimension];
         } else if (dimension === 'tmpDiskGib') {
-          if (job.tmpDisk.state !== 'released') total += envelope.tmpDiskGib;
+          if (job.tmpDisk.state !== 'released') total += charged.tmpDiskGib;
         } else
           total += job.units.filter(
             (unit) => unit.exclusiveId === dimension && unit.state !== 'released',

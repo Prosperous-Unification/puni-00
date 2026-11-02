@@ -7,10 +7,17 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { fakeCredential } from '../compute/testing/credential';
 import { scriptedTools, type ToolCall } from '../mcp/testing/scripted-tools';
 import { type ToolAnswer, WbsUnreachable } from '../mcp/wbs-tools';
-import { ampleHost, gate, hostPoolFixture, insideLinuxNamespace } from './host-pool.test.fixture';
+import {
+  ampleHost,
+  build,
+  gate,
+  hostPoolFixture,
+  insideLinuxNamespace,
+} from './host-pool.test.fixture';
 import {
   HOST_JOB_REFUSAL_RETRY_MS,
   type HostJob,
+  type HostJobRequest,
   loadResourceConfiguration,
   ResourceRuntime,
   ResourceWbsRefusal,
@@ -41,22 +48,29 @@ if (insideLinuxNamespace(import.meta.path)) {
   const clock = { read: () => now };
   const silent = (): void => undefined;
 
-  function pool() {
-    const fixture = hostPoolFixture({
-      cpuCores: 8,
-      memoryGib: 15,
-      headroom: { cpuCores: 0, memoryGib: 2 },
-      gateTrees: 2,
-      credential: fakeCredential(),
-    });
+  function pool(overrides: Record<string, unknown> = {}) {
+    const fixture = hostPoolFixture(
+      {
+        cpuCores: 8,
+        memoryGib: 15,
+        headroom: { cpuCores: 0, memoryGib: 2 },
+        gateTrees: 2,
+        credential: fakeCredential(),
+      },
+      overrides,
+    );
     fixtures.push(fixture);
     return ResourceRuntime.initialize(loadResourceConfiguration(fixture.config), clock, ampleHost);
   }
 
   /** Admits a gate, runs a payload until its launch is recorded, and sweeps until it returned. */
-  async function runGate(runtime: ResourceRuntime, label: string): Promise<HostJob> {
+  async function runGate(
+    runtime: ResourceRuntime,
+    label: string,
+    request: Partial<HostJobRequest> = {},
+  ): Promise<HostJob> {
     const outcome = await runtime.admitHostJob(
-      { descriptor: gate, label, waitSeconds: 1 },
+      { descriptor: gate, label, waitSeconds: 1, ...request },
       { pollMs: 5, signal: new AbortController().signal, report: silent },
     );
     if (outcome.kind !== 'admitted') throw new Error(`expected admission, got ${outcome.kind}`);
@@ -157,6 +171,45 @@ if (insideLinuxNamespace(import.meta.path)) {
       await runtime.synchronize(again);
       expect(published(again.calls)).toEqual([]);
       runtime.close();
+    }, 60000);
+
+    test('a calibration projects the whole allocatable vector', async () => {
+      // Two 1 GiB disk units, so the drain's whole-budget free-space check passes on any runner.
+      const runtime = pool({ diskBudgetUnits: 2 });
+      const job = await runGate(runtime, 'calibration', { descriptor: build, calibration: true });
+      const up = scriptedTools(answering);
+      await runtime.synchronize(up);
+      const [registered, returned] = published(up.calls);
+      // The build's own envelope is 2 cores and 2 GiB; its calibration held the whole pool.
+      expect(registered.use).toEqual({
+        kind: 'host_job',
+        type: 'website-dev-build',
+        label: 'calibration',
+        host: 'enrollment-one',
+        launcherSha: null,
+        reservations: [
+          { dimension: 'cpuCores', units: 8 },
+          { dimension: 'memoryGib', units: 13 },
+          { dimension: 'tmpDiskGib', units: 2 },
+        ],
+      });
+      expect(returned.kind).toBe('release_verified');
+      expect(returned.use).toEqual(registered.use);
+      expect(returned.useId).toBe(job.id);
+      runtime.close();
+    }, 60000);
+
+    test('a calibration of a gate declares every gate tree it holds', async () => {
+      const runtime = pool({ diskBudgetUnits: 2 });
+      await runGate(runtime, 'calibration', { calibration: true });
+      const up = scriptedTools(answering);
+      await runtime.synchronize(up);
+      const [registered] = published(up.calls);
+      // Proof: counting `envelope.exclusive` made this declare `gate_tree` 1 for the two trees
+      // the calibration held (2026-11-02, Slice 4, S4-A18).
+      const use = registered.use;
+      if (use.kind !== 'host_job') throw new Error('expected a host_job use');
+      expect(use.reservations.at(-1)).toEqual({ dimension: 'gate_tree', units: 2 });
     }, 60000);
 
     test('a job still held publishes registered alone; its return follows later', async () => {

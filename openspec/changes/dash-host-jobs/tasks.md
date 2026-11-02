@@ -79,15 +79,25 @@
 
 ## 4. Calibration, proposal, audit (needs 3)
 
-- [ ] 4.1 `ops job calibrate` (drain, whole `allocatable`, no `MemoryHigh`, calibration record)
+- [x] 4.1 `ops job calibrate` (drain, whole `allocatable`, no `MemoryHigh`, calibration record)
       and `ops job propose` (nearest-rank p95 per dimension over complete comparable records,
       throttled runs excluded from memory, three-calibration minimum, 1.25, record ids) — test:
       the spec scenarios; negative: lower the minimum to one and watch the refusal test fail;
-      include a throttled run and watch the proposal drop.
-- [ ] 4.2 `ops job audit` with the four drift kinds, overruns kept until superseded, and the
+      include a throttled run and watch the proposal drop. Calibration admission is a
+      `calibration` flag on the runtime's host-job request and use (`runtime.ts`: drain fit,
+      whole-vector reservation, every unit), not a second path; records gain `calibration` and
+      a `toolchain` (`bun <version>+<revision>`). `propose` prints the replacement entry, not a
+      JSON patch; duration is reported but has no catalogue field (verify.md Slice 4, S4-A1 to
+      S4-A7). Review fixes (#814): each host job persists its `reserved` vector, a
+      calibration holds every unit of its type's ids only (S4-A14), and the model generates
+      calibrations (J18). Follow-up after #811: slice 5's `hostJobDeclaration` reads
+      `job.reserved` and groups `job.units` by exclusive id.
+- [x] 4.2 `ops job audit` with the four drift kinds, overruns kept until superseded, and the
       weekly timer units rendered beside the observation units — test: one fixture per kind,
       `no drift` on a clean ledger; negative: age overruns out after five runs and the
-      eight-runs-later fixture passes.
+      eight-runs-later fixture passes. Units: `ops job render-audit-units` writes the systemd
+      user service and weekly timer; installing them is the operator step in
+      `docs/resources.md`. Nothing was installed on a host (S4-A8 to S4-A11).
 
 ## 5. WBS projection (needs 2; contracts, be-01, fe-01, Dash compute)
 

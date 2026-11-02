@@ -8,6 +8,7 @@ import { scriptedTools } from '../mcp/testing/scripted-tools';
 import type { ToolAnswer } from '../mcp/wbs-tools';
 import {
   ampleHost,
+  build,
   gate,
   hostPoolFixture,
   insideLinuxNamespace,
@@ -139,6 +140,43 @@ if (insideLinuxNamespace(import.meta.path))
         ).toEqual([8, 12, 0, 2]);
         const reserved = runtime.hostPoolStatus().reserved;
         expect([reserved.cpuCores, reserved.memoryGib]).toEqual([8, 12]);
+      } finally {
+        port.close();
+        runtime.close();
+      }
+    });
+
+    test("a calibration's ledger port reads the whole pool reserved", async () => {
+      // Two 1 GiB disk units, so the drain's whole-budget free-space check passes anywhere.
+      const fixture = hostPoolFixture(
+        {
+          cpuCores: 8,
+          memoryGib: 15,
+          headroom: { cpuCores: 0, memoryGib: 2 },
+          gateTrees: 2,
+          credential: CREDENTIAL,
+        },
+        { diskBudgetUnits: 2 },
+      );
+      fixtures.push(fixture);
+      const runtime = ResourceRuntime.initialize(
+        loadResourceConfiguration(fixture.config),
+        { read: () => Date.now() },
+        ampleHost,
+      );
+      const outcome = await runtime.admitHostJob(
+        { descriptor: build, label: 'calibration', waitSeconds: 1, calibration: true },
+        { pollMs: 5, signal: new AbortController().signal, report: silent },
+      );
+      if (outcome.kind !== 'admitted') throw new Error(`expected admission, got ${outcome.kind}`);
+      const port = openHostPoolLedger(join(fixture.root, '.dash', 'resources.sqlite'));
+      try {
+        // The build's envelope is 2 cores, 2 GiB, no tree; its calibration holds the pool.
+        expect(
+          ['cpuCores', 'memoryGib', 'tmpDiskGib', 'gate_tree'].map((dimension) =>
+            port.reserved(dimension),
+          ),
+        ).toEqual([8, 13, 2, 0]);
       } finally {
         port.close();
         runtime.close();

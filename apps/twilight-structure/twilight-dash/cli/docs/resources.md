@@ -429,7 +429,95 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
   waiting website-dev-build build:site pid 4343 age 55s budget 1m05s overtakes 0
   ```
 
-Not yet: `ops job calibrate|propose|audit` (slice 4) and `ops pool switch-mode` (slice 6). In
-observe mode `ops job run` does not yet take the shell lock's queue protocol (J12); that
-arrives with `run_heavy_job` in slice 6, before any host is enrolled. Run records live in their
-own file because the ledger's job snapshot is the runtime's closed shape.
+Not yet: `ops pool switch-mode` (slice 6). In observe mode `ops job run` does not yet take the
+shell lock's queue protocol (J12); that arrives with `run_heavy_job` in slice 6, before any host
+is enrolled. Run records live in their own file because the ledger's job snapshot is the
+runtime's closed shape. Each record pins the host class (`linux-<arch>-<cores>c-<GiB>g`) and,
+from slice 4, the toolchain: `bun <version>+<revision>` of the first `bun` on the payload's
+`PATH`, or `no bun on PATH`. A `bun` that cannot name its revision refuses 70 before anything is
+reserved.
+
+### Calibration, proposal and audit (slice 4)
+
+The loop that changes an envelope (J9). Nothing here writes any `infra/jobs/catalogue.json`;
+a proposal lands as a reviewed commit. The 1.25 headroom, the three-record minimum, the
+ten-run waste window and the ten-second CPU window are provisional (`HEURISTICS` in
+`src/ops/measures.ts`, labelled in [`infra/jobs/README.md`](../../../../../infra/jobs/README.md)).
+
+```sh
+bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job calibrate --config /path/to/host-pool.json \
+  --type gate -- bin/h2puni-gate.sh <sha>
+bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job propose --config /path/to/host-pool.json --type gate
+bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --config /path/to/host-pool.json [--now <instant>]
+```
+
+- **`ops job calibrate`** takes the flags of `ops job run` (`--wait-seconds` defaults to 7200,
+  `--label` to `calibration`). Its ticket is admitted only once the pool has drained: nothing
+  reserved in any dimension, no starting or held host job, free space for the whole disk
+  budget, and every unit of each exclusive id its type names free and ready. A refusal at the
+  end of the wait names a free-space shortfall with both figures. Until then younger jobs may
+  pass it, and after three it is a barrier like any waiter (J6). Admitted, it reserves the whole
+  `allocatable` vector (cores, memory, disk units, slots), persisted on the job, and every unit
+  of each id its type names, so nothing runs beside it; units of other ids are left alone
+  (S4-A14). `ops job status` shows it as `running calibration <type> …`, and its ticket as
+  `waiting calibration <type> …`. Its envelope is not checked against
+  `allocatable`: a calibration is how an envelope too big for this pool gets measured. The
+  payload runs as in `ops job run` (same gate, samples and settlement), in a scope with no
+  `MemoryHigh` or `MemoryMax`. It gets the first unit of each id its type names. The run record
+  is flagged `calibration`.
+- **`ops job propose --type <id> [--host-class <c>] [--toolchain <t>]`** reads the catalogue
+  at the current checkout's HEAD and the run records. The partition defaults to the HEAD entry's
+  argument profile, this host's class and the `bun` on `PATH`. Records of the type from that
+  catalogue and partition are compared if complete: ended with status 0, every sample read, no
+  ledger failure, attribution complete, an exit sample. Each record left out is named with why,
+  including records of the type admitted from another checkout's catalogue. J9's "window" is,
+  for now, the partition's entire history: no window is designed yet (S4-A15). It takes the
+  nearest-rank p95 per dimension:
+  - memory from every uncapped, unthrottled record (`memory.events high` 0);
+  - CPU, the peak rate of `usage_usec` over a ten-second window, from calibration records alone;
+  - tmp disk from every complete record;
+  - duration from calibration records alone, reported only, because the catalogue has no
+    duration field.
+
+  With fewer than three records in any dimension it prints the lines, then
+  `error: … has 2 calibration records for cpuCores and durationSeconds; …` and exits 1 with no
+  patch. Otherwise it prints one line per dimension with the record ids, then the **replacement
+  entry** for that job as JSON. The entry has the new envelope (p95 × 1.25 rounded up, at least
+  one core and one GiB) and `calibrated` provenance (host class, instant, p95s, record ids),
+  validated against `JobType`. The provenance cites only records that fed every dimension they
+  were eligible for; a throttled or capped run, left out of memory, is cited on the dimension
+  lines alone (S4-A16). Exit 0.
+
+- **`ops job audit [--now <ISO instant>]`** judges every run record, by its job id, against
+  the catalogue of the checkout holding the current directory, at its HEAD. It never re-reads
+  the checkout a record ran from, which may be a deleted scratch worktree: the record pins the
+  envelope it was admitted under. It prints one line per drift and exits 1, or prints
+  `no drift` and exits 0. `--now` (default: the clock) is the instant estimates are judged at;
+  one that is malformed or names no real instant (`2026-02-30T00:00:00Z`) is 64.
+  - `overrun`: a peak above the envelope the run was admitted under, in memory, CPU or tmp disk.
+    It stays visible however many runs follow until the HEAD entry's envelope is at least the
+    peak. A new provenance alone, `calibrated` included, does not clear it.
+  - `waste`: a dimension's p95 below half the HEAD envelope over at least ten complete runs of
+    the HEAD entry.
+  - `estimate_expired`: `estimated` provenance whose `until` day has ended.
+  - `attribution_incomplete`: a run during which a container ran unlabelled, unbounded or
+    unverified (J16). It stays until a later run of the type sees containers and every one
+    bounded.
+  - Runs without an outcome, and runs of a type the catalogue does not name, print a
+    `note: not judged` line.
+- **`ops job render-audit-units --config <path> --bun <path> --dash <path> --checkout <path>
+--output-directory <dir>`** writes `dash-job-audit.service` (a oneshot running
+  `ops job audit` in the checkout, so a drift fails the unit) and `dash-job-audit.timer`
+  (`OnCalendar=weekly`, `Persistent=true`). These are systemd **user** units, beside the
+  observation units that `render-observation-units` renders for the system manager. It installs
+  nothing, refuses a path systemd would expand and replaces no existing file. To install as the
+  pool's account (the user manager needs linger, J8):
+
+  ```sh
+  install -m 0644 <dir>/dash-job-audit.service <dir>/dash-job-audit.timer ~/.config/systemd/user/
+  systemctl --user daemon-reload
+  systemctl --user enable --now dash-job-audit.timer
+  systemctl --user list-timers dash-job-audit.timer   # next run
+  systemctl --user --failed                           # a drift shows here
+  journalctl --user -u dash-job-audit.service         # the drift lines
+  ```
