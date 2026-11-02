@@ -91,6 +91,7 @@ describe('materialize', () => {
     skipBuild: false,
     withMigrations: false,
     stopTheWorld: false,
+    acceptBreaking: [],
     layout: envLayout('dev'),
   };
 
@@ -182,6 +183,32 @@ describe('buildDeployPlan', () => {
     );
     expect(plan.preflightCommands[0]).toContain('--caller-name=be-01-green');
     expect(plan.preflightCommands[0]).toContain(`--image=${image}`);
+  });
+
+  it('passes --accept-breaking to the be swap, and sends no flag without it', async () => {
+    const accepted = await buildDeployPlan(
+      ['be', '--execute', '--accept-breaking=ti-legacy,00000000-0000-4000-8000-000000000001'],
+      [],
+      HEAD,
+      fakeDeps(),
+    );
+    expect(accepted.commands[0]).toEndWith(
+      '--accept-breaking=ti-legacy,00000000-0000-4000-8000-000000000001 --execute',
+    );
+    const plain = await buildDeployPlan(['be', '--execute'], [], HEAD, fakeDeps());
+    expect(plain.commands[0]).not.toContain('--accept-breaking');
+    expect(() => parseDeployArgs(['--accept-breaking=ti a'])).toThrow(
+      '--accept-breaking must be distinct ids',
+    );
+  });
+
+  it('refuses --accept-breaking without the be tier', async () => {
+    expect(
+      await buildDeployPlan(['gw', '--accept-breaking=ti-legacy'], [], HEAD, fakeDeps()).then(
+        () => 'planned',
+        (e: unknown) => String(e),
+      ),
+    ).toContain('only a be swap checks');
   });
 
   it('does not make non-backend deploys depend on the solver supervisor', async () => {

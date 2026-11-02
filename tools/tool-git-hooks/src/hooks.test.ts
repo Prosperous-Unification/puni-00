@@ -55,6 +55,39 @@ describe('plaintext-secrets.scan', () => {
     expect(await scan(shape)).toBeNull();
   });
 
+  // The hook as lefthook runs it (`lefthook.yml`, `{staged_files}`), over a
+  // staged key in a scratch repository (`wbs-machine-credentials` task 4.2).
+  // Proof: with the `wbs_mk_` pattern made unmatchable, the staged key exited
+  // 0; watched 2026-10-25.
+  it('aborts a commit staging a WBS API key, exit 1, never printing the key', async () => {
+    const repository = await scratchAsync('hooks-staged-');
+    const git = (...args: string[]) =>
+      Bun.spawnSync(['git', '-C', repository, ...args], { stdout: 'pipe', stderr: 'pipe' });
+    expect(git('init', '-q').exitCode).toBe(0);
+    // Assembled at runtime for the reason the AWS fixture above is; a made-up
+    // value, never a real key.
+    const secret = 'Z'.repeat(43);
+    const plantedKey = ['wbs_mk_', '7c9e6679-7425-40de-944b-e07fc1f90ae7', '.', secret].join('');
+    await writeFile(join(repository, 'fleet.env'), `WBS_API_KEY=${plantedKey}\n`, 'utf8');
+    await writeFile(join(repository, 'clean.env'), 'PORT=3000\n', 'utf8');
+    expect(git('add', 'fleet.env', 'clean.env').exitCode).toBe(0);
+    const staged = git('diff', '--cached', '--name-only').stdout.toString().trim().split('\n');
+    expect(staged.toSorted()).toEqual(['clean.env', 'fleet.env']);
+    const hook = join(import.meta.dir, 'hooks', 'plaintext-secrets.ts');
+    const run = (files: string[]) =>
+      Bun.spawnSync([process.execPath, 'run', hook, ...files], {
+        cwd: repository,
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+
+    const leaked = run(staged);
+    expect(leaked.exitCode).toBe(1);
+    expect(leaked.stderr.toString()).toContain('fleet.env: WBS API key (wbs_mk_)');
+    expect(leaked.stderr.toString() + leaked.stdout.toString()).not.toContain(secret);
+    expect(run(['clean.env']).exitCode).toBe(0);
+  });
+
   it('returns null for clean files', async () => {
     const d = await scratchAsync('hooks-');
     const f = join(d, 'clean.env');

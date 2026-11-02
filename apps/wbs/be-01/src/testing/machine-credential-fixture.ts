@@ -2,6 +2,15 @@ import { digestMachineSecret, newMachineKey } from '@wbs/core';
 import type { Database } from 'bun:sqlite';
 
 /** What {@link issueApiKey} stores: an API-key credential of `organizationId` pinned to `personId`. */
+/**
+ * be-01's answer to a machine bearer (a `wbs_mk_` key, a trusted issuer's JWT) on any `/api`
+ * route (`wbs-mcp-agent-surface` M9).
+ */
+export const MACHINE_BEARER_NOT_ACCEPTED = {
+  status: 401,
+  body: { error: 'machine_bearer_not_accepted', endpoint: '/mcp' },
+} as const;
+
 export interface ApiKeyFixture {
   readonly organizationId: string;
   readonly personId: string;

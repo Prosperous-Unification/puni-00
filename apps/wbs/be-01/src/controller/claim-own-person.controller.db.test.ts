@@ -1,10 +1,16 @@
 import { CLAIM_LEASE_MS } from '@wbs/domain';
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
-import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
+import {
+  type Answer,
+  type HarnessMachineGrants,
+  OrganizationHarness,
+} from '../testing/organization-harness';
 
 const T = 1_900_000_000_000;
+let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
 let projectId: string;
 let leaf: string;
@@ -14,10 +20,15 @@ let codexKey: string;
  * A `claimWorkItem` or `releaseWorkItem` naming no person (`wbs-claim-own-person`)
  * over be-01's production composition and real SQLite: an API key acts as its
  * own agent person, exactly as if it named it, and a session, which acts as its
- * account, is refused `person_required`.
+ * account, is refused `person_required`. The key reaches be-01 as an agent's
+ * does, through mcp-01's forwarded grant ({@link callForwarded}).
  */
+beforeAll(async () => {
+  machineGrants = await forwardingMachineGrants();
+});
+
 beforeEach(async () => {
-  h = OrganizationHarness.openComposedWith({ now: () => T });
+  h = OrganizationHarness.openComposedWith({ now: () => T, machineGrants });
   await h.register('dany');
   h.organization('org-a');
   h.member('org-a', 'dany', 'super_admin');
@@ -47,7 +58,14 @@ afterEach(async () => {
 });
 
 function asCodex(commands: unknown[]): Promise<Answer> {
-  return h.callWith(codexKey, 'POST', `/api/projects/${projectId}/commands`, { commands });
+  return callForwarded(
+    h,
+    codexKey,
+    'POST',
+    `/api/projects/${projectId}/commands`,
+    { commands },
+    { now: T },
+  );
 }
 
 function asDany(commands: unknown[]): Promise<Answer> {
@@ -101,7 +119,11 @@ describe('a claim or release naming no person', () => {
       { kind: 'release', person: 'codex' },
     ]);
 
-    expect(await h.callWith(codexKey, 'POST', `/api/projects/${projectId}/undo`)).toMatchObject({
+    expect(
+      await callForwarded(h, codexKey, 'POST', `/api/projects/${projectId}/undo`, undefined, {
+        now: T,
+      }),
+    ).toMatchObject({
       status: 200,
     });
     expect(claimRows().map(({ person }) => person)).toEqual(rows.map(() => 'codex'));

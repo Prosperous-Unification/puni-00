@@ -106,6 +106,14 @@ function readOutbound(body) {
 /** Deterministic catalogue fixture only; never substitutes model judgment evidence. */
 function scopedReply(context, visitor) {
   if (/invalid envelope/i.test(visitor)) return '{broken';
+  if (/different starting offer/i.test(visitor))
+    return JSON.stringify({
+      version: 1,
+      message:
+        'Moving reports between tools could fit automation. Choose the starting point that fits.',
+      nextQuestionId: 'route-selection',
+      brief: null,
+    });
   const starting = context.scoping.startingChoice ?? 'unsure';
   const first = {
     launch: 'launch-purpose',

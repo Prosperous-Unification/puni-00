@@ -29,7 +29,9 @@ export type DirectoryRefusal =
   /** `patchResource.providerId` naming no provider instance (`compute-providers` P3). */
   | 'unknown_provider'
   /** `patchResource.providerId` naming another organization's provider instance. */
-  | 'provider_not_in_organization';
+  | 'provider_not_in_organization'
+  /** `setDirectoryCapacity` on a resource no organization owns (`wbs-shared-occupancy` S2). */
+  | 'organization_required';
 
 /**
  * What a directory write answered.

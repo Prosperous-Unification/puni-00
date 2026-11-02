@@ -72,6 +72,12 @@ for (const fault of ['none', 'migration-interruption'] as const) {
         if (args[0] === 'image' && args[3] === '{{json .}}')
           return JSON.stringify({ Id: `sha256:${'b'.repeat(64)}` });
         if (args[0] === 'image') return image;
+        // The MCP preflight (swap-mcp-preflight.db.test.ts): a store before activation.
+        if (
+          args[0] === 'run' &&
+          (args.at(-1) ?? '').includes('src/mcp-service-settings-check-cli.ts')
+        )
+          return '{"activation":"pre_activation","authorizationServer":null}';
         if (args[0] === 'run') return '[]';
         if (args[0] === 'ps') return oldId;
         if (

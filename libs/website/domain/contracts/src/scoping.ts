@@ -451,7 +451,7 @@ export function scopingReplyText(reply: ScopingReply): string {
     : `${reply.message}\n\n${getScopingQuestion(reply.nextQuestionId).label}`;
 }
 
-/** Explicit visitor projection of a validated raw reply; exact v6/v7 identities opt into omission. */
+/** Explicit visitor projection of a validated raw reply; exact v6/v7/v8 identities opt into omission. */
 export type ScopingPresentation =
   | { kind: 'message_only'; text: string }
   | { kind: 'acknowledgement_present'; text: string }
@@ -463,9 +463,12 @@ export function presentScopingReply(
 ): ScopingPresentation {
   // Proof: blanking this branch failed the mounted concern-only/candidate fresh reply before a retry.
   if (reply.nextQuestionId === null) return { kind: 'message_only', text: reply.message };
+  // Proof: excluding v8 failed mounted v8 fresh stream with duplicate question prose; restored v8 passes stream/store/replay and v1–v7 history.
   // Proof: the v7 mounted stream/store/replay failed with a duplicate question when v7 was absent; bypassing the identity fence failed historical v1–v5/opaque mounted replay.
   if (
-    (promptVersion === 'puni-scoping-v6' || promptVersion === 'puni-scoping-v7') &&
+    (promptVersion === 'puni-scoping-v6' ||
+      promptVersion === 'puni-scoping-v7' ||
+      promptVersion === 'puni-scoping-v8') &&
     /[?？؟]/u.test(reply.message)
   )
     // Proof: bypassing omission failed the mounted duplicate-question sole-visible-question assertion.

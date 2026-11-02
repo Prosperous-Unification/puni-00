@@ -2201,3 +2201,1161 @@ Not run:
 - the per-IP failure overshoot under concurrency (the flood was sent one by one);
 - a run of the production `main.ts` be-01 (the harness composition was used);
 - a repeat of the 100-agent run on a quiet host.
+
+## Slice 12: be-01 call capacity (task 4.5)
+
+**Result.** One be-01 now carries **120.6 calls a second** at 100 agents on h2puni, up from
+**86.2** in the same lock window on the plan head (+40%). Every M10 fence holds exactly in both
+runs; the design rate (200 a second) still does not, so M10's sizing is restated in design.md
+(about 60 agents per be-01). No request-time security state is cached across requests; the
+one precomputed value is each configured service secret's digest, derived from configuration
+for the process's lifetime (there is no reload path).
+
+### What changed, and why it is safe
+
+1. **Statements stay compiled** (`libs/wbs/adapters/store-sqlite/src/db.ts`,
+   `STATEMENT_CACHE_SIZE`). Drizzle's Bun adapter compiles through `Database.query`, whose
+   per-connection cache held 20; one call issues about 80 distinct statements, so nearly every
+   statement was compiled again (a local count over a 20-agent run: 80 distinct SQL texts,
+   55,902 executions). The bound is now 1,024. The cache is private to its `Database`, so a
+   replaced handle starts empty, and SQLite recompiles a cached statement after another
+   connection's schema change (both observed in `db.db.test.ts`).
+2. **Observation connections are reused** (`poolReadConnections`, wired in `source.ts`). After
+   (1), `prepare` was still 10% of be-01's samples: every claims read and live-plan
+   observation opened a read-only connection (a local count: 931 `BEGIN DEFERRED` compiles in
+   10 s at 20 agents), compiled its statements and closed it. The pool lends an idle connection
+   to one caller at a time. A connection released inside a transaction, beyond eight idle, or
+   after the pool closed is closed, so no snapshot outlives its observation, and each
+   observation's `BEGIN DEFERRED` reads what was committed by then. The source's `close` drains
+   it. This is not the reader pool the ports-and-adapters history declined (2026-09-05 §10):
+   no read runs in parallel, the same per-observation connections are kept open between uses.
+   The two schedule handoff tests now count open snapshots (connections in a read
+   transaction), since an idle pooled connection is open by design.
+3. **Endpoint lookup is indexed** (`apps/wbs/be-01/src/http/endpoint-index.ts`). `mount.ts`
+   matched every endpoint and sorted the matches per request; `indexEndpoints` buckets the table
+   once by method (`HEAD` also reaching `GET`) and segment count, each bucket sorted by the same
+   precedence, and takes the first match. The JSDoc states why that equals the old choice. Both
+   production tables (145 and 151 endpoints) hold no two same-method paths one request could
+   both match.
+4. **Configured secrets are digested once** (`secretMatcher` in `http/identity.ts`). The
+   presented secret is still digested and compared with `timingSafeEqual` per request.
+5. `M10_LOAD_BE_PROFILE_DIR` lets the driver write a be-01 `--cpu-prof-md` profile.
+
+**Not changed, on purpose.** The credential row, revocation, pool expiry, membership and
+organization access are reread on every request, as before. The activation marker is not
+cached: it is read inside the transactions it guards (about 60 call sites), and a cache would
+need an invalidation proof across processes (blue/green share the file), so it was skipped. Its
+two reads are now compiled once, which removes most of their cost. Durability is unchanged:
+`synchronous` stays 2 (FULL) under WAL. `COMMIT`'s `run` is about 7% of be-01's samples, much
+of it the WAL sync, and is left as is.
+
+**Claim and release.** `EXPLAIN QUERY PLAN` over every hot statement found no table scan on a
+per-request path except `SCAN project` (covering index) in `findCrossReferences` and
+`SCAN step_blockage` in the step-blockage read, both over tiny tables here; no index was added.
+Their 140 ms p50 at 40 agents (slice 11) was queueing: they load the whole project and run the
+cross-reference check inside one serialized write turn. Locally at 40 agents they now take
+p50 13 ms (73 ms on the plan head).
+
+### Profile (local, 40 agents, before and after)
+
+`prepare` fell from 12.8% of be-01's samples to under 0.1%; endpoint lookup (`matchPath` and
+the mount filter) from about 6% to about 1.5%. What is left is mostly drizzle building SQL and
+mapping rows for each query (about 25% self time in drizzle-orm), SQLite executing (`values`,
+`all`, about 16%), `COMMIT` (about 7%) and Elysia's request handling. Removing drizzle's per-query build means `.prepare()` with placeholders for each hot
+query, a per-repository change not made here.
+
+Laptop runs (24 threads, not quiet; `--agents=40 --steady-seconds=60`, 80 calls a second
+each), be-01 process CPU per call: plan head 9.97 ms; after (1)+(3) 8.57 ms; after all 8.25 ms
+(a run with only the pool experiment added gave 7.61 ms). Laptop noise is about ±0.5 ms.
+
+### h2puni, 100 agents, 300 s
+
+`~/m10-load-runs/run12.sh` under `nohup setsid`: one `bin/with-heavy-lock.sh` session
+(label `m10-load:04c774afb`, `HEAVY_LOCK_WAIT_SECONDS=14400`) ran
+`env -u CLAUDECODE bun apps/wbs/mcp-01/src/load/m10-load.ts --agents=100 --steady-seconds=300`
+in two detached worktrees of the gate tree's repository, `~/puni-00-load-tbf` at **04c774afb**
+(this branch) and then `~/puni-00-load-base-tbf` at **5c403a1d9** (plan head), each with
+`bun install --frozen-lockfile`. Both worktrees have been removed. A first attempt gave up after
+its 3600 s queue behind the plan branch's gate (exit 75, nothing ran). Host: AMD EPYC-Genoa,
+8 vCPU, shared; load average 8.8 at the first start, 7.0 at the last end.
+
+| Measure                     | plan head 5c403a1d9           | this branch 04c774afb          |
+| --------------------------- | ----------------------------- | ------------------------------ |
+| calls, achieved rate        | 26,196 in 303.8 s, **86.2/s** | 36,480 in 302.4 s, **120.6/s** |
+| outcomes                    | 26,196 ok                     | 36,480 ok                      |
+| latency all p50 / p95 / p99 | 1,175 / 1,702 / 2,003 ms      | **809 / 1,158 / 1,447 ms**     |
+| commands p50 / p99          | 1,439 / 2,096 ms              | 873 / 1,481 ms                 |
+| heartbeat p50 / p99         | 1,117 / 1,901 ms              | 795 / 1,434 ms                 |
+| claims read p50 / p99       | 731 / 1,784 ms                | 711 / 1,384 ms                 |
+| be-01 CPU mean / peak       | 114.6% / 182%                 | 117.1% / 178.9%                |
+| be-01 CPU per call          | 13.3 ms                       | **9.7 ms**                     |
+| be-01 RSS peak / end        | 1,454 / 1,337 MiB             | 1,390 / 1,187 MiB              |
+| mcp-01 CPU mean, RSS peak   | 15.8%, 464 MiB                | 20.9%, 470 MiB                 |
+| org-a in flight peak, mean  | 100, 99.3                     | 100, 98.8                      |
+| expectations                | 17 of 18 (design rate fails)  | 17 of 18 (design rate fails)   |
+| exit                        | 1                             | 1                              |
+
+Both runs saturate be-01 (100 agents always in flight), so the achieved rate is be-01's
+capacity: 1 / 120.6 s is about 8.3 ms per call at saturation (from throughput). Every fence observed the same as in
+slice 11 in both runs: per credential 20 admitted and 20 HTTP 429; the batch 20 ran and 10
+tool errors; in flight exactly 128 and 22 HTTP 429, org-b 40 ok; failures 30 × 401 then 10 ×
+429; `(client_id, IP)` 5 × 401 then 429, holder elsewhere 200; 0 error lines, 0 SQLite busy.
+
+### Proofs
+
+| Check                                                  | Fault injected                                                       | Observed                                                                                                      |
+| ------------------------------------------------------ | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| statement cache keeps a request's statements           | `Database.MAX_QUERY_CACHE_SIZE` assignment removed                   | `keeps a request-sized set of statements compiled` failed `toBe`                                              |
+| index precedence (synthetic ambiguous table)           | buckets sorted `comparePaths(right, left)`                           | property failed, counterexample `GET /api/projects/active`                                                    |
+| index takes the first match                            | last match returned                                                  | property failed, counterexample `GET /api/projects/%E0%A4%A`                                                  |
+| `HEAD` reaches `GET` (synthetic)                       | `methods.add('HEAD')` dropped                                        | property failed, counterexample `HEAD /api/projects/active`                                                   |
+| index over both production tables                      | `methods.add('HEAD')` dropped; bucketing the untrimmed pathname      | failed on `HEAD /api/projects/register/runtime-commands/0`; on `GET /health/`                                 |
+| production tables and precedence                       | reverse sort (as above)                                              | passed: no ambiguous pair exists there, so precedence is proved on the synthetic table only                   |
+| pool never keeps a snapshot                            | pooled regardless of `isInTransaction`                               | `closes a connection released inside a transaction` counted 1 open, expected 0                                |
+| pool idle limit                                        | `idle.length >= idleLimit` dropped                                   | `keeps at most its idle limit…` counted 3 open, expected 2                                                    |
+| pool closes late releases                              | `closed` test dropped                                                | the same test counted 1 open after close, expected 0                                                          |
+| source drains its pool                                 | `reads.close()` dropped from the source's `close`                    | `reuses one read connection and closes every pooled one with the source` counted 1, expected 0                |
+| no snapshot at the optimizer handoffs (schedule tests) | `observeCommitted`'s commit omitted **and** the pool's guard dropped | both `closes the …` cases failed (Retry 500; [1, 1] snapshots at the handoffs)                                |
+| (same, single faults)                                  | commit omitted alone; guard dropped alone                            | both passed: either layer alone leaves no snapshot (the pool closes a connection released in its transaction) |
+| secret matcher uses the configured secret              | compared the presented digest with itself                            | 3 failed: both machine-grant `internal_unauthorized` cases and the internal-secret identity test              |
+| an absent configured secret matches nothing            | absent expected digested as `''`                                     | `matches a secret only against a configured one…` failed on `''`                                              |
+| an absent presented secret matches nothing             | presented-absent test dropped                                        | the same test threw on `null`                                                                                 |
+
+Revocation, pool expiry, member removal and deactivation still take effect on the next request
+because nothing about them is cached; their existing tests ran unchanged in CI. No new cache of security state was added, so no new negative of that kind was
+needed.
+
+### Commands and results, slice 12
+
+All on 2026-10-28 with `env -u CLAUDECODE`, on the laptop unless marked:
+
+| Command                                                                                                                              | Result                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| h2puni, under the heavy lock: the two 100-agent runs above                                                                           | exit 1 each, 17 of 18 (the design rate)      |
+| `bun apps/wbs/mcp-01/src/load/m10-load.ts --agents=40 --steady-seconds=60`, plan head, this branch at each step                      | exit 0 each; CPU per call above              |
+| the same with `M10_LOAD_BE_PROFILE_DIR` (before and after)                                                                           | exit 0; profiles above (not committed)       |
+| `bun nx run wbs-store-sqlite:test --skip-nx-cache`                                                                                   | 2012 tests across 150 files, success         |
+| `bun test` on be-01's `src/http/`, `src/app.routes.test.ts`, `schedule-organization`, `machine-grant`, elysia `identity`, `internal` | 132 pass; 73 pass; 45 pass; 0 fail           |
+| `bun nx run-many -t typecheck lint -p wbs-be-01 wbs-store-sqlite wbs-mcp-01 --skip-nx-cache`                                         | success                                      |
+| CI `ci` on 04c774afb (run 40656467339)                                                                                               | success                                      |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                          | exit 0                                       |
+| `bunx openspec validate --all --json`                                                                                                | 301 items, 301 passed                        |
+| `bunx prettier --check` on every changed file                                                                                        | "All matched files use Prettier code style!" |
+
+### Review of PR #776
+
+A Fable-high review found no S1. Its findings and what was done:
+
+| Finding                                                                            | Change                                                                                                                                                                                                                                                                                                                                                                        | Proof                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1: the pool's lent/idle/closed ownership needs a model-based test               | `db.pool.model.db.test.ts`: `fc.modelRun` over acquire, a read transaction on a lent connection, release (committed or inside its transaction), a second release, a failing `open` and pool close; idle limit 0–3; 300 runs. States, events and invariants added to the `poolReadConnections` JSDoc. Named `.db.test.ts` so `test:api` runs it beside the other SQLite tests. | Each sabotage failed (fast-check's shrunk counterexample, first element the idle limit; seeds vary): released guard dropped → `[3, acquire, release(0, as is), releaseAgain(0), closePool]` (the second release closed it again, so open fell below idle plus lent); `closed` test dropped → `[3, acquire, closePool, release(0, as is)]`; idle limit dropped → `[2, acquire, acquire, acquire, release(0, …) × 3]`; in-transaction test dropped → `[2, acquire, read(0), release(0, as is)]` |
+| S3-2: `observeCommitted`'s JSDoc let a read keep the handle, which a pool lends on | JSDoc corrected (answers are plain data and must not keep `db`); a lent handle is a proxy that throws on any use after its release                                                                                                                                                                                                                                            | handing out the connection's own `db` made `refuses a pooled handle used after its release` read through it                                                                                                                                                                                                                                                                                                                                                                                   |
+| S3-3: no negative for the common path, a thrown read whose rollback succeeds       | `reuses a connection after a failed read and sees later commits`: pooled and reused (`{ now: 1, ever: 1 }`), the next observation sees the writer's insert, a full checkpoint runs                                                                                                                                                                                            | closing every released connection gave `{ now: 0, ever: 2 }`; omitting the rollback gave `{ now: 1, ever: 2 }` (released inside its transaction, so closed)                                                                                                                                                                                                                                                                                                                                   |
+| S4: wording                                                                        | verify.md: the configured secret's digest is precomputed for the process's lifetime; design M10: "about 8.3 ms per call at saturation (from throughput)"; JSDoc: `MAX_QUERY_CACHE_SIZE` is a process-global static set on import, and pooled readers keep the old file on a rename-replace (a restore stops be-01 first)                                                      | none needed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Optional: a failed rollback masked the read's failure in `observeCommitted`        | an AggregateError of both, as `observeNow` does                                                                                                                                                                                                                                                                                                                               | rethrowing the read's failure alone failed `reports a read failure and its failed rollback together`                                                                                                                                                                                                                                                                                                                                                                                          |
+| Optional: drop the `$client` cast                                                  | kept: the exported `Drizzle` type has no `$client`, and widening `Connection.db` to carry it would let every caller reach the raw client                                                                                                                                                                                                                                      | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+
+Not run:
+
+- the h2puni gate;
+- be-01's and mcp-01's whole suites on the laptop (CI ran them);
+- a two-be-01 run, so the restated sizing's second process is unmeasured;
+- drizzle `.prepare()` per hot query, the next step if more is needed;
+- a run on a quiet host.
+
+## Slice 13 — pool swarm rehearsal (8.1 pre-dev)
+
+Task 8.1's scenario on a throwaway stack, every part a real process over loopback HTTP, so the dev
+run (waiting on a pool in the dev web app) is a formality. 8.1 stays open.
+
+- be-01: `apps/wbs/be-01/src/testing/pool-swarm-backend.ts`, the composed harness (production
+  `buildServices` and `buildApp`, fresh migrated SQLite in a temp directory), machine grants with
+  a generated key, the claim lease sweep started as boot starts it, one activated organization.
+  Its admin acts only through be-01's routes, as a browser session.
+- mcp-01: the production entrypoint `src/main.ts`, standalone, `MCP_PUBLIC_URL`
+  `http://127.0.0.1:<port>/mcp`, M10 limits, `MCP_TRUSTED_PROXY_HOPS=0`.
+- Dash: the real CLI. `pool import` writes the store, and each agent's stored `headersHelper`
+  runs `mcp token`.
+- Agents: `apps/wbs/mcp-01/src/load/pool-swarm-agent.ts`, one process each, MCP SDK 1.31.0
+  Streamable HTTP clients. Each runs its `<personId>.mcp.json` `headersHelper` through `sh -c` the
+  way Claude Code does: when connecting, and again on an HTTP 401, then resends; never on an
+  in-band tool error.
+- Driver: `apps/wbs/mcp-01/src/load/pool-swarm-rehearsal.ts`. It exits 1 on any failed
+  expectation. Boot test: `apps/wbs/mcp-01/src/pool-swarm.boot.test.ts` runs it clean, then with
+  `--fault=skip-revoke`, in about 21 s.
+
+The resource model:
+
+- two divisible resources, RAM (capacity 24 GiB) and disk (40 GiB);
+- six leaves, each demanding 8 GiB RAM and 10 GiB disk, so exactly three fit at once;
+- each agent claims with `assign: true`;
+- each agent registers a reported resource use (its disk copy) under its run.
+
+### Timeline (laptop, 0b3d13127, 2026-10-28)
+
+Times are milliseconds from the driver's start; the first 4.2 s is boot.
+
+| ms   | Actor       | Event                                                                                                                                    |
+| ---- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 4335 | admin       | `agent_pool_created`: pool `fleet`, 3 persons, 3 keys (201)                                                                              |
+| 4520 | Dash        | `pool import`: exit 0, every key issued one proof token, no key printed                                                                  |
+| 4726 | agents (3)  | `headersHelper` → `mcp token` issues; tools listed                                                                                       |
+| 5240 | agents      | claimed: three distinct leaves, the losers of each race met `already_claimed` and took the next                                          |
+| 5275 | agents      | resource uses registered (`active`)                                                                                                      |
+| 5280 | agents      | heartbeat × 3: `leases: 2` each (its own two step claims, not the pool's six)                                                            |
+| 5996 | agents      | released; resource uses → `cleanup_pending`                                                                                              |
+| 6080 | agents      | claimed again (round 2)                                                                                                                  |
+| 6087 | admin       | `agent_pool_rekeyed` (201): same persons, 3 new credentials                                                                              |
+| 6218 | Dash        | `mcp token` with an old key: exit 1, `HTTP 401 invalid_client`                                                                           |
+| 6393 | Dash        | `pool import` of the new document into the same store: exit 0                                                                            |
+| 6402 | each agent  | heartbeat with its old bearer: tool error `machine_credential_refused`                                                                   |
+| 6404 | each agent  | next heartbeat: HTTP 401, helper re-runs (new key through the store link), new jti, heartbeat ok                                         |
+| 6831 | agents      | heartbeat × 3 ok; the claims kept their ids, holders and runs                                                                            |
+| 7522 | agents      | released                                                                                                                                 |
+| 7586 | agents      | claimed (round 3), copies registered, heartbeat × 3 ok                                                                                   |
+| 8255 | admin       | `agent_pool_revoked` (200): `revokedCredentials: 3, removedPersons: 0`                                                                   |
+| 8268 | be-01       | the lease sweep settled: 0 claims left. Leases ended in the revoke, and the tick the revoke asked for released them                      |
+| 8298 | each agent  | heartbeat: `machine_credential_refused`, then HTTP 401, then the helper exits 1 (`HTTP 401 invalid_client`)                              |
+| 8900 | 2 agents    | one more helper run the agents did not ask for (origin not traced; likely the SDK transport after the failed call), refused the same way |
+| 8974 | admin, Dash | spare pool of 1 created and imported; its agent claims                                                                                   |
+| 9231 | admin       | `agent_pool_revoked` with `removePersons=true`: `revokedCredentials: 1, removedPersons: 1`                                               |
+
+### Assertions (136, all held; laptop and h2puni)
+
+| Area          | Assertion                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Create        | 201; `pool import` exits 0 and prints no key; the cap's `agentPersons` rises by 3; the listing shows 3 live credentials; each run is `pool-<poolId>/<personId>`                                                                                                                                                                                                                                                                                                                                                                            |
+| Tools         | each agent lists `getApiProjectsByIdStartable`, `postApiProjectsByIdCommands`, `postApiClaimsRenew` and `postApiProjectsByIdResourceUses`, and none of `HUMAN_ONLY_OPERATIONS`; the four pool operations are in that set                                                                                                                                                                                                                                                                                                                   |
+| Claims        | every claim succeeds on a distinct leaf, acquiring 8 GiB RAM and 10 GiB disk; the admin's `/claims` shows each held by its pool person under its own distinct run; `/startable` shows the holder as assignee; RAM 24 and disk 30 occupied; the other three leaves `doesNotFit`; person work lists the claim under the run                                                                                                                                                                                                                  |
+| Heartbeat     | each answers `ok` with `leases` equal to its own claim count (run scoping, M15)                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Release       | every unit is freed, no claim is left, and each resource use goes to `cleanup_pending`                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Re-key        | 201, the same persons with disjoint credentials; no agent person consumed; the old key issues nothing; the listing shows exactly the new credentials; each agent's sequence is `[machine_credential_refused, ok]` with one 401 and one `after_401` helper run between; the claims keep id, holder and run, are unrevoked, and their lease is not earlier                                                                                                                                                                                   |
+| Revoke        | 200 `{revokedCredentials: 3, removedPersons: 0}`; after the sweep settles there are no claims, every unit is free, and the cap counts 0 claims; claim history has a `credential_revoked` release per agent under its run; each resource use is `cleanup_pending` (never released automatically, per `wbs-resource-release-tracking`); each agent sees `[machine_credential_refused, helper_failed:1]`; the latest key issues nothing; the listing shows `revokedAt` and no live credential; the revoked persons still count toward the cap |
+| removePersons | 200 `{revokedCredentials: 1, removedPersons: 1}`; `agentPersons` drops by 1 and the claim goes with the person                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Audit         | `agent_pool_created` × 2, `agent_pool_rekeyed` × 1, `agent_pool_revoked` × 2; `machine_token_issued` names all six fleet credentials of both generations, with exactly one row per credential and run however many times the helper ran; no row carries a key                                                                                                                                                                                                                                                                              |
+
+What the design says about re-keying, and what was observed: re-key revokes the old keys without
+ending leases (`AgentPoolRepository.rekey` never calls `endLeasesOfUncredentialed`), so the claims
+continue. An outstanding bearer of an old key is refused on its next call. be-01 rereads the
+credential on every call, so that call is an in-band `machine_credential_refused`; it does not
+live until its TTL. Its `jti` then enters mcp-01's refused set, so the next request is HTTP 401
+and the helper re-runs. Revocation follows the same path, except the re-run cannot issue.
+
+### Proofs (R5)
+
+| Injected fault                                                                                                                                 | Observed                                                                                                                                                                                                                                                                                |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--fault=skip-reimport`: re-key without importing the new document                                                                             | exit 1. Every agent got `[machine_credential_refused, helper_failed:1]`, the round-2 heartbeats and releases failed, and audit counted 4 of 6 credentials. The three round-2 claims were stranded until their lease runs out, which is what a fleet that misses the re-import would see |
+| `--fault=skip-revoke`                                                                                                                          | exit 1 on the lease checks: claims left, RAM 24 / disk 30 held, the cap at 3, no `credential_revoked` history, uses `active`, the agents still `ok`                                                                                                                                     |
+| production fault: `endLeasesOfUncredentialed` commented out of `AgentPoolRepository.revoke` (libs/wbs/adapters/store-sqlite/src/agent-pool.ts) | exit 1 on the same nine lease checks (the revoke answered 200, but nothing ended); reverted                                                                                                                                                                                             |
+
+`Proof:` comments sit beside the two checks in `pool-swarm-rehearsal.ts`. The boot test runs
+`--fault=skip-revoke` on every CI run, so the lease checks stay breakable.
+
+### Commands and results, slice 13
+
+All on 2026-10-28 with `env -u CLAUDECODE`:
+
+| Command                                                                                                                                                                                                                                                        | Result                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| laptop: `bun apps/wbs/mcp-01/src/load/pool-swarm-rehearsal.ts` at 0b3d13127                                                                                                                                                                                    | exit 0, 136 of 136                                                                         |
+| laptop: the same with `--fault=skip-reimport`, `--fault=skip-revoke`, and the production fault above                                                                                                                                                           | exit 1 each                                                                                |
+| laptop: `bun test --timeout=10000` in `apps/wbs/mcp-01` (whole suite, the boot test included)                                                                                                                                                                  | 723 pass, 0 fail                                                                           |
+| h2puni (`ubuntu-8gb-hel1-1`, bun 1.4.4), 0b3d13127 in a detached worktree of `~/puni-00-gate-tbf` (removed after), `bun install --frozen-lockfile`, under `bin/with-heavy-lock.sh` (waited 0 s): the rehearsal, then `--fault=skip-revoke`, then the boot test | exit 0, 136 of 136 (revoke at 10155 ms, sweep settled at 10173 ms); exit 1; 2 pass, 0 fail |
+| `bunx tsc --build --force` for `apps/wbs/mcp-01` and `apps/wbs/be-01`                                                                                                                                                                                          | exit 0                                                                                     |
+| `bunx eslint` on the four new files                                                                                                                                                                                                                            | no problems                                                                                |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                                                                                                    | exit 0                                                                                     |
+| `bunx openspec validate --all --json`                                                                                                                                                                                                                          | 301 items, 301 passed                                                                      |
+| `bunx prettier --check` on every changed file                                                                                                                                                                                                                  | "All matched files use Prettier code style!"                                               |
+
+Not run:
+
+- the dev run itself (8.1), which waits on a pool in the dev web app;
+- real Claude Code. The agent replays its `headersHelper` contract (run at connect and on HTTP 401)
+  with the SDK, so Claude Code's actual retry timing is unobserved;
+- lease expiry by time (15 minutes) and pool expiry (`expiresAt`); covered by existing tests, not
+  by this run;
+- several mcp-01 replicas. Each replica learns a revocation at its own first refused call (M3);
+  one replica ran here;
+- the h2puni gate (`bin/h2puni-gate.sh`); CI runs the full suites;
+- the origin of the unrequested helper run after a failed helper, which was not traced.
+
+## Slice 14 — prod runbook (task 8.2)
+
+`docs/runbook-prod-deploy.md` gains "MCP agent surface": the three settings and where each
+lives per target, how to generate them, the cutover order (bundle, be-01 before mcp-01,
+activation, key rotation, the pool swap-window rule, task 3.8's timing), the audience
+preflight, post-swap checks, rollback of the pool and machine-token migrations, capacity, and
+what Kubernetes still lacks. `docs/runbook-organization-activation.md` step 2c now names the
+real env root, `/home/puni1/wbs` (it said `/srv/wbs`, the stale copy).
+
+Docs only; nothing was run on any host. Every name the section cites was read in code at
+25b873b1d:
+
+| Runbook claim                                                     | Code                                                                                                                                      |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Compose deploys be, gw, fe only                                   | `tools/tool-remote-scripts/src/lib/deploy-contract.ts:24` `TIERS`                                                                         |
+| prod never routes `/mcp`                                          | `tools/tool-remote-scripts/src/swap.ts:151` `readMcpExposure`                                                                             |
+| the secrets ride be's derived file; the server rides `be-01.env`  | `tools/tool-remote-scripts/src/lib/docker.ts:134–140` `SECRET_KEYS`, `:256` `APP_ENV_ALLOWED_KEYS`                                        |
+| the swap checks only the 32-character floor                       | `docker.ts:458–460` `VALUE_RULES`; not in `APP_ENV_REQUIRED_KEYS` or `SECRET_REQUIRED_KEYS`                                               |
+| boot refuses an activated store without them                      | `apps/wbs/be-01/src/boot.ts:519–522`; `config.ts:111–116` `missingMcpServiceSettings`                                                     |
+| strength, distinctness, `_PREVIOUS` needs `_CURRENT`              | `apps/wbs/be-01/src/runtime/machine-grant.ts:15,22,67`; `config.ts:79–96`                                                                 |
+| `kid` derived from the key                                        | `machine-grant.ts:28,47–49`                                                                                                               |
+| the server's canonical form                                       | `libs/wbs/domain/contracts/src/mcp-authorization-server.ts:34–54`                                                                         |
+| either secret on `/internal/mcp/*`, the dedicated one for grants  | `apps/wbs/be-01/src/http/identity.ts:97–111`                                                                                              |
+| activation exit 8                                                 | `apps/wbs/be-01/src/organization-activation-cli.ts:95,102`                                                                                |
+| keep `_PREVIOUS` 24 h 60 s                                        | `libs/wbs/application/core/src/service/machine-grant.ts:8` `MOST_MACHINE_GRANT_SECONDS`                                                   |
+| `MCP_ACCESS_TOKEN_TTL` defaults to 3,600 s; 3.8's branch          | `apps/wbs/mcp-01/src/oauth.ts:98,627–631`                                                                                                 |
+| preflight: read-only, exit 3, the message, the accepted-ids parse | `apps/wbs/be-01/src/trusted-issuer-audience-check-cli.ts:11–45`; `libs/wbs/adapters/store-sqlite/src/db.ts:348`                           |
+| the schema Job runs capture, migrate, rollback only               | `tools/tool-deploy/src/k8s/execute.ts:777,812,813`                                                                                        |
+| mcp-01 offers grants only standalone with the secret              | `apps/wbs/mcp-01/src/config.ts:83`; the probe's grant list, `bin/dev-mcp-probe.sh:76–97`                                                  |
+| mcp-01 at epoch 1 without either secret refuses                   | `apps/wbs/mcp-01/src/oauth.ts:419`                                                                                                        |
+| pool revoke with persons removed                                  | `libs/wbs/domain/contracts/src/http/agent-pool-shapes.ts:179`; `apps/wbs/fe-01/src/components/organization/agent-pools-panel.tsx:118–121` |
+| the three guarded downs and the append-only audit                 | each `down.sql` CHECK name; `organization_audit_no_delete`, `20261028100100_…/migration.sql:93`                                           |
+| `bootCommit` is null without a checkout                           | `apps/wbs/be-01/src/deployed-commit.ts:90–110`                                                                                            |
+| prod overlay: `MCP_TRUSTED_PROXY_HOPS=1`, `MCP_PUBLIC_URL`        | `deploy/k8s/wbs/overlays/prod/kustomization.yaml:38,40`                                                                                   |
+| capacity                                                          | slice 12 above (120.6 calls a second)                                                                                                     |
+
+Gaps found, filed as task 8.3:
+
+1. No deploy CLI runs the audience preflight or takes `--accept-breaking`. Neither the Compose
+   swap nor the schema Job (`BACKEND_TASK_SCRIPT`) calls `trusted-issuer-audience-check-cli.ts`;
+   the only reference to `--accept-breaking` is the CLI's own JSDoc. The runbook gives a
+   manual `docker run` with the candidate image instead.
+2. `deploy/k8s/wbs/base/mcp.yaml` gives mcp-01 neither `MCP_BE_INTERNAL_SECRET` nor
+   `INTERNAL_AUTH_SECRET`, so a Kubernetes mcp-01 offers no machine grant and refuses to start
+   at credential epoch 1. The prod and staging `wbs-backend-config` lack
+   `WBS_MCP_AUTHORIZATION_SERVER` (only the local overlay sets it, inside a Secret).
+3. The Compose swap preflight does not know whether the store is activated, so a missing grant
+   setting surfaces as a be-01 boot refusal after migration. The runbook adds a `grep -c`
+   check before every be swap of an activated store.
+
+## Slice 15 — deploy wiring (task 8.3)
+
+The three gaps slice 14 filed, wired. Nothing ran on any host; every check below ran on the
+laptop against the real be-01 CLIs, migrations and manifests.
+
+**What changed.**
+
+- **Compose be swap.** `planSwap('be')` gains `mcp-preflight` right after `preflight-green`,
+  while the outgoing colour still serves (`tools/tool-remote-scripts/src/lib/mcp-preflight.ts`,
+  `assertMcpSurfaceReady`). It runs the candidate image (`docker run --rm --pull never
+--network none`, the data directory bound writable for the live `-shm`, be-01's own env
+  files by path, `DB_PATH` pinned) twice:
+  1. the new `apps/wbs/be-01/src/mcp-service-settings-check-cli.ts`: exit 4 on an activated
+     store whose env lacks `MCP_BE_INTERNAL_SECRET`, `WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT` or
+     `WBS_MCP_AUTHORIZATION_SERVER`, or holds one boot would refuse
+     (`machineGrantSettingsFaultsOf`); it reports the activation and the server;
+  2. `trusted-issuer-audience-check-cli.ts`, when the server is named, with
+     `WBS_ACCEPT_BREAKING_AUDIENCES` from `swap.js --accept-breaking=<ids>`; exit 3 refuses.
+     Either refusal is the Docker failure carrying the CLI's stderr; no writer has stopped.
+- **Compose deploy CLI.** `tool-deploy:deploy -- be --execute --accept-breaking=<ids>` appends
+  the flag to the one remote swap command, only when given (a deploy without it sends the same
+  bytes as before); refused without the be tier. Ids are parsed once
+  (`parseAcceptBreaking`, `[A-Za-z0-9._:-]`, distinct), because they cross an SSH shell.
+- **Kubernetes.** The capture Job's `BACKEND_TASK_SCRIPT` runs the settings CLI, then the
+  audience CLI, before its snapshot (revised after the review below). The Job gets
+  `wbs-backend-secrets` by `envFrom`, the candidate overlay's `WBS_MCP_AUTHORIZATION_SERVER` as
+  a plain value (`deploy-k3s` renders `settings.overlay` before the transaction,
+  `readCandidateAuthorizationServer`), and `WBS_ACCEPT_BREAKING_AUDIENCES` from
+  `deploy-k3s --accept-breaking <ids>` (`KubectlSettings.acceptBreakingAudiences`).
+  `mcp.yaml` gives mcp-01 `MCP_BE_INTERNAL_SECRET` from `wbs-mcp-secrets` (required); prod and
+  staging `wbs-backend-config` carry the server; the local overlay's server moved from the
+  Secret to the ConfigMap; `lab.ts` writes the backend's lab secret into `wbs-mcp-secrets`.
+- **Before migration.** Both CLIs read the ledger: a store that has not reached
+  `20260927180000_add_organization_activation` reads `not_migrated` (the migration about to run
+  seeds `pre_activation`), and one before `20261022100000_add_machine_credential` holds no
+  registration (`notMigrated`). A ledger naming either migration without its table, or a store
+  without a ledger, throws (`libs/wbs/adapters/store-sqlite/src/migration-ledger.ts`,
+  `readOrganizationActivationBeforeMigration`).
+- **Docs.** `docs/runbook-prod-deploy.md` "MCP agent surface": the `grep -c` check and the
+  manual `docker run` are gone, replaced by the wired steps and the flag; the Kubernetes
+  subsection now lists what the overlays carry and what the operator still provisions.
+  `runbook-organization-activation.md` step 2c and `docs/infra/deployment.md` follow.
+
+**Decisions (assumed, per the brief's "record assumptions").**
+
+1. **Where the Compose check runs.** Before `record-writer-stop`, not beside the other
+   pre-boot admissions after the stop: a refusal there leaves the outgoing colour serving and
+   needs no attended recovery. That is why the data bind is writable (the runbook's reason: a
+   WAL reader beside the live writer maps its `-shm`); both CLIs open the file `readonly`.
+2. **Activation without writing.** A second read-only CLI in the candidate image, like the
+   audience check, rather than the host reading the marker: the image owns the marker's
+   meaning and the settings' boot rules. Unknown never reads as "not activated": only the
+   ledger's proof that the marker migration never ran does.
+3. **Which server judges.** Compose: the candidate's own `be-01.env`; without a server the
+   audience check is skipped and logged, since the settings check has already refused an
+   activated store without one. Kubernetes: the candidate overlay's ConfigMap value, rendered
+   before the transaction and refused there when absent; never the live ConfigMap, which the
+   candidate's replaces only at `reconcile-desired` (review S2-1).
+4. **Older candidates refuse (review S2-2, R5).** A missing CLI is an absent tool: Compose
+   exits 74 (`candidate image lacks src/…`), 73 for a nonregular path, with no escape hatch;
+   Kubernetes refuses unless the deploy declares `--allow-downgrade` or `--recovers`
+   (`KubectlSettings.olderCandidateDeclared`, `PUNI_OLDER_CANDIDATE=1`), and then skips that
+   CLI loudly. Not done: advertising `audience-preflight-v1` from `migrate-capabilities-cli.ts`;
+   the file test already names the missing tool.
+5. **mcp-01 gets `MCP_BE_INTERNAL_SECRET` only.** `apps/wbs/mcp-01/src/oauth.ts:419` accepts
+   either secret at credential epoch 1, and M14 sends the dedicated one alone, so mcp-01 needs
+   no `INTERNAL_AUTH_SECRET` (gw-01's). The ref is required: a missing key stops the pod at
+   `CreateContainerConfigError` instead of silently offering no machine grants.
+6. **The Kubernetes flag is not journaled.** It lives in `KubectlSettings`, not the
+   `ReleaseRequest`, so the resume equality check is unchanged; a resumed run that has not
+   captured yet needs the flag again (review: left as is).
+7. **Kubernetes checks stay in the capture Job (review S3-1).** Both now run there, after
+   `writes-closed` and `writer-stopped`, not in a read-only phase before them: `runJob` refuses
+   every schema Job while a writer pod runs, and admitting a read-only one beside the writer is
+   a new Job kind this change does not add. A refusal captures nothing, so the rollback
+   restarts the previous release with no schema to undo; the cost is the outage window. A boot
+   failure after migration for another reason still takes the captured-schema rollback, and a
+   table-guarded `down.sql` refusing there parks the release in `rollback-failed` (manual
+   recovery). The runbook says so.
+8. **The Compose run (review S4).** `bind-propagation=rprivate` on the data mount, each CLI
+   bounded by `runDockerBefore` at 120 s, and the JSDoc now says what a `readonly` open still
+   does (an empty `-wal`/`-shm`, read marks) and that `docker run --env-file` passes values
+   raw.
+
+9. **Dev.** The dev poller (`tool-devsync`) never runs `swap.js`; it imports only the solver
+   supervisor constants from `@tools/deploy-contract`, which gained one re-export.
+
+**Proofs.** Each check was watched failing with the fault injected, then restored; the
+`Proof:` comment sits beside it.
+
+| Check                                                              | Fault injected                                       | Test that observed it failing                                                                                                                          |
+| ------------------------------------------------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mcp-preflight` in `planSwap('be')` (the brief's negative)         | step left out of the plan                            | `refuses an unaccepted wbs:org registration before any writer stops` (swap-mcp-preflight.db.test.ts): the swap reached `stop-blue`                     |
+| swap `--accept-breaking` needs the be tier                         | refusal removed                                      | `refuses gw --accept-breaking=ti-legacy` (swap-mcp-preflight.db.test.ts): went on to plan                                                              |
+| deploy `--accept-breaking` needs the be tier                       | refusal removed                                      | `refuses --accept-breaking without the be tier` (deploy.test.ts): planned                                                                              |
+| `parseAcceptBreaking`                                              | refusal removed                                      | `refuses a malformed accept list` (mcp-preflight.test.ts): parsed an empty id                                                                          |
+| settings report shape                                              | activation membership removed                        | `refuses a malformed settings report` (mcp-preflight.test.ts)                                                                                          |
+| activated report without a server                                  | refusal removed                                      | `refuses an activated store reported without a server` (mcp-preflight.test.ts): resolved                                                               |
+| audience report shape                                              | check removed                                        | `refuses a malformed audience check` (mcp-preflight.test.ts): raw TypeError                                                                            |
+| settings CLI refusal on an activated store                         | condition replaced by `false`                        | `refuses an activated store without a setting…` and `…with a weak grant key` (mcp-service-settings-check-cli.db.test.ts): exit 0                       |
+| settings CLI argument check                                        | check removed                                        | `refuses arguments before opening the database`: reported the missing file                                                                             |
+| `readOrganizationActivationBeforeMigration`                        | whole condition `false`; then the ledger test alone  | `reads a store the marker migration has not reached as not migrated` (absent-marker refusal); `refuses a ledger that names…without its table` (exit 0) |
+| `isMigrationApplied` ledger refusal                                | refusal removed                                      | `refuses a store without a migration ledger`: raw `no such table`                                                                                      |
+| audience CLI before the trusted issuer migration                   | branch removed                                       | `passes a store the trusted issuer migration has not reached` (trusted-issuer-audience-check-cli.db.test.ts): exit 1                                   |
+| capture Job audience preflight (the brief's negative)              | script block disabled                                | `refuses an unaccepted wbs:org registration before the snapshot` (execute-adapter.test.ts): took the snapshot                                          |
+| capture Job server, older-candidate and accept env, backend Secret | each removed in turn                                 | `passes the candidate overlay's server and the backend Secret, never the live ConfigMap` (execute-adapter.test.ts)                                     |
+| candidate overlay without the server (review S2-1)                 | refusal removed                                      | `refuses a candidate overlay without the server` (execute-adapter.test.ts): returned undefined                                                         |
+| Compose candidate without a CLI (review S2-2)                      | absent CLI answered with a passing report again      | `refuses a candidate that ships no settings CLI` (swap-mcp-preflight.db.test.ts): the swap reached `stop-blue`                                         |
+| Kubernetes candidate without a CLI (review S2-2)                   | refusal replaced by the skip                         | `refuses a candidate without the preflight CLIs unless an older candidate is declared` (execute-adapter.test.ts): took the snapshot                    |
+| `mcp.yaml` `MCP_BE_INTERNAL_SECRET` ref (the brief's negative)     | ref removed                                          | `mounts a retained single-writer store and sources rotating keys from a Secret` (mcp-manifest.test.ts)                                                 |
+| prod/staging `WBS_MCP_AUTHORIZATION_SERVER`                        | prod literal removed; staging given a trailing slash | `gives every overlay's backend ConfigMap mcp-01's canonical authorization server` (mcp-manifest.test.ts)                                               |
+
+**Review of PR #781** (Fable, high effort; no S1; Compose placement, the writable mount,
+secrets and shell quoting confirmed clean):
+
+| Finding                                                                                                                                                                              | Resolution                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| S2-1 the capture Job judged against the live ConfigMap's server, so a server change passed unjudged and a cluster whose ConfigMap predates this change failed after `writer-stopped` | `deploy-k3s` renders the candidate overlay before the transaction and refuses one without the server; the Job gets it as a plain value; the `configMapKeyRef` is gone. Negative: `judges stored audiences against the candidate overlay's server, not the live one` (a row valid under the live server, no flag, refused; passes against the live server). Decision 3, runbook |
+| S2-2 `"cli-absent"` passed an absent tool                                                                                                                                            | Compose refuses (74/73), no escape hatch; Kubernetes refuses unless `--allow-downgrade` or `--recovers` is declared. Negatives in the proof table. Decision 4, runbook                                                                                                                                                                                                         |
+| S3-1 no Kubernetes settings preflight; checks after `writer-stopped`                                                                                                                 | the settings CLI runs in the capture Job with `wbs-backend-secrets`; the phase did not move (decision 8 says why and what remains, including the `rollback-failed` path)                                                                                                                                                                                                       |
+| S3-2 runbook and task 8.2 text                                                                                                                                                       | runbook "Wired into both deploys" names the candidate server and where each check runs relative to the writer stop; task 8.2's bullet no longer says manual `docker run`                                                                                                                                                                                                       |
+| S4 "Nothing here writes"; mount propagation; no deadline; env-file semantics; flag journaling                                                                                        | JSDoc corrected; `bind-propagation=rprivate`; `runDockerBefore` 120 s per CLI; `--env-file` raw values noted; journaling left as is (decision 6)                                                                                                                                                                                                                               |
+
+Not covered by a test: `deploy-k3s` calling `readCandidateAuthorizationServer` before
+`executeRelease` (apply mode needs the locked kubectl); the parser it calls is tested.
+
+**Commands** (laptop, `env -u CLAUDECODE`, 2026-10-28, on top of 2784d2376):
+
+| Command                                                                                                         | Result                                 |
+| --------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `bunx nx run tool-remote-scripts:test --skip-nx-cache`                                                          | 805 pass, 0 fail (807 tests, 45 files) |
+| `bunx nx run tool-deploy:test --skip-nx-cache`                                                                  | 836 pass, 0 fail                       |
+| `bunx nx run tool-devsync:test --skip-nx-cache`                                                                 | 979 pass, 0 fail                       |
+| `bunx nx run wbs-store-sqlite:test --skip-nx-cache`                                                             | 2015 pass, 1 skip, 0 fail              |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                                    | 3847 pass, 3 skip, 0 fail              |
+| `bunx nx run-many -t typecheck,lint -p wbs-be-01,tool-remote-scripts,tool-deploy,tool-devsync,wbs-store-sqlite` | success                                |
+| Prettier `--check` on every changed file; `openspec validate --all --json`                                      | clean; 301 of 301 valid                |
+| Burokrat `check-indexes working . HEAD`                                                                         | exit 0                                 |
+
+After the review fixes (on main via 9411987): `tool-deploy:test` 840 pass, 0 fail;
+`tool-remote-scripts:test` 805 pass, 2 skip, 0 fail; typecheck and lint clean on both; the
+be-01, store-sqlite and devsync code did not change in that round, so their runs above stand.
+
+Not run: the h2puni gate (the caller runs it), fe-01, gw-01, mcp-01's suites (untouched), the
+k3d lab (`lab.ts` changed; it needs a cluster), and any deploy on a host.
+
+## Slice 16 — 7.0 (the raw-key `/api` suites on MCP)
+
+No production behaviour changed: `/api` still admits a `wbs_mk_` bearer until 7.1. Agents in
+the named suites now take the path they take in a deployment, and every test that still sends
+a key itself to `/api` names "removed by 7.1 (M9)" in its describe or an adjacent comment, so
+7.1 flips exactly those.
+
+**Two test paths.**
+
+- _A real mcp-01._ `apps/wbs/be-01/src/testing/mcp-agent-stack.ts` (`startMcpAgentStack`)
+  serves the composed harness on loopback with machine grants under a per-run secret and grant
+  key, and spawns `mcp-01-loopback.ts` (standalone, throwaway store) in front of it. Agents
+  POST `client_credentials` to `/mcp/oauth/token` (HTTP Basic, as `twilight-dash mcp token`)
+  and call tools with the MCP SDK client; `toolAnswerOf` reads each answer as be-01's
+  success or refusal (status and body from mcp-01's D7 text), mcp-01's own tool error, or an
+  HTTP refusal, and throws on anything else.
+- _be-01's half, in process._ `apps/wbs/be-01/src/testing/mcp-forwarded-call.ts`
+  (`callForwarded`) posts the key to `/internal/mcp/machine-grants` with the dedicated
+  secret and sends the call with the grant and secret, exactly what mcp-01 forwards. Used by
+  the per-test-harness suites, where a process per test would cost seconds each.
+
+**Per file** (fresh runs, `env -u CLAUDECODE bun test <file>` in `apps/wbs/be-01`, 2026-10-29):
+
+| File                                        | Before | After | Moved to MCP                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Kept on `/api`, and why                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------- | -----: | ----: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `swarm-end-to-end.db.test.ts`               |      7 |     7 | every agent request, through the real mcp-01: each key's token and session, `getApiProjects`, the capacity report tool, the four-agent `claimWorkItem` swarm, the work read, the pin and claim-cap refusals, finish and release, the retry, the other agents' startable reads. The spare key and step 10's revoked holder now show the M3/M5 sequence: in-band `machine_credential_refused`, then HTTP 401, then `invalid_client` at the token endpoint (was one `401 unknown_identity` on `/api`). The leak check also covers tool and token answers | Dany's administration (directory, credentials, providers, limits, reads, `assignSubtree`): a human's browser-equivalent session                                                                                                                                                                                                                                                                                     |
+| `machine-credential.controller.db.test.ts`  |     27 |    41 | new `an API key on the MCP path` (9): projects of its organization only, a batch as the bound account, no administration, revoked, wrong secret or id, crossed secret, expired secret, an account that left (`unknown_identity` at the grant, not `/api`'s `not_a_member`), before activation (`409 not_activated`, not `403 no_active_organization`); `a key pinned to one person` runs over both paths (`describe.each`, 5 + 5)                                                                                                                     | `an API key as a Bearer on /api, removed by 7.1 (M9)` (18, unchanged: key routing, header and cookie carriers, malformed keys, malformed stored state, last use) and `recording an API key's last use on /api, removed by 7.1 (M9)` (3): `/api`'s own key admission. The pinned suite's `/api` half is named `as a Bearer on /api, removed by 7.1 (M9)`. The bound account's session case moved to its own describe |
+| `compute-provider.controller.db.test.ts`    |     31 |    32 | every agent report (`report()` is the forwarded grant), the super-admin agent's resource removal, the 12 GB claim; the humanOnly admin routes are also refused to the forwarded grant                                                                                                                                                                                                                                                                                                                                                                 | the admin routes' raw-key refusal, inside the same case, marked removed by 7.1 (M9); the delegation cases (`reportBearing`); new `stores a report bearing the key itself on /api, removed by 7.1 (M9)`, because Dash's `report-capacity` still sends the key itself until 7.2                                                                                                                                       |
+| `dev/activated-organization-server.test.ts` |      2 |     3 | new `issues an agent's key a token at the local mcp-01 and answers its tool call`: owner makes an agent person and key over HTTP, `twilight-dash mcp token` prints the header, an MCP tool call lists the organization's project                                                                                                                                                                                                                                                                                                                      | the owner's session (human)                                                                                                                                                                                                                                                                                                                                                                                         |
+| `testing/mcp-agent-stack.test.ts` (new)     |      0 |     6 | `toolAnswerOf`'s readings and refusals                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |                                                                                                                                                                                                                                                                                                                                                                                                                     |
+
+**The dev server and its doc.** `activated-organization-server.ts` takes a required
+`--mcp-url` and composes machine grants with `TEST_MACHINE_GRANT_ENV`'s public fixture secret
+and grant key and that URL's authorization server; its banner prints the secret mcp-01 needs.
+`docs/local-dev.md` "An activated organization with MCP agents" (renamed from "…with API-key
+agents"; `auth-integration.md`'s link follows) starts mcp-01 beside it and shows an agent's
+`.mcp.json` with the `twilight-dash mcp token` `headersHelper`. The four documented processes
+were run by hand on the laptop: both served, mcp-01's metadata answered 200. The signing key
+line pipes `openssl pkcs8 -topk8`, because `genpkey -outform DER` alone wrote a key mcp-01's
+PKCS8 DER read refused (`DECODE_ERROR`, OpenSSL 3.0.13).
+
+**Dash's compute tests.** `report-capacity.test.ts` tests the reporter's own HTTP client
+against a fake `/api`; a comment marks the suite as flipping in 7.2. Nothing in Dash moved.
+
+**Proofs.** Each watched failing with the fault injected, then restored.
+
+| Check                                                                      | Fault injected                                  | Test that observed it failing                                                                                                                                                |
+| -------------------------------------------------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `credentialPinOf` on the MCP path                                          | answers null for a machine credential           | `a key pinned to one person, through mcp-01`: the claim as `codex` and the delegated claim (2 of 5 failed)                                                                   |
+| `machinePrincipalOf`'s direct context on the MCP path                      | `delegation` removed                            | `an API key on the MCP path`: organization-only projects, the batch write, the administration refusal (3 of 9)                                                               |
+| `organizationRoleOf` on the MCP path                                       | answers the stored role for a machine           | `a key pinned to one person, through mcp-01`: patchPerson, the other account's person, the claim-admin bypass (3 of 5)                                                       |
+| `decideCapacityReport`'s organization comparison through a forwarded grant | comparison disabled                             | `answers another tenant's Dash unknown_provider, naming nothing of A`                                                                                                        |
+| the swarm's capacity race, through mcp-01's tools                          | `decideClaim` ignores `refuseOccupancy`         | step 7: 34 GiB of 32 held                                                                                                                                                    |
+| the swarm's key leak check                                                 | the four create answers pushed into `answered`  | `never answers a key outside its create response`                                                                                                                            |
+| the dev server's machine grants                                            | `mcpService` left out of `bootBe01`             | `issues an agent's key a token at the local mcp-01…`: `mcp token` exited 1 on HTTP 502 `server_error`                                                                        |
+| `toolAnswerOf` no-content line; JSON success; unattributable tool error    | each branch removed or answered loosely in turn | `reads mcp-01's no-content line as an empty success`; `reads a success as be-01's body` and `refuses a success that is not JSON`; `refuses a tool error it cannot attribute` |
+
+The `Proof:` comments of `credentialPinOf`, `machinePrincipalOf` and `organizationRoleOf` now
+name the MCP-path tests too, so 7.1's removal of the `/api` cases leaves each check a
+watched negative.
+
+**Found while sweeping, outside 7.0's named files.** These be-01 suites also send a key itself
+to `/api`, and 7.1 must move or mark them before M9 lands: `agent-pool.controller`,
+`claim-lease.controller`, `resource-use.controller`, `machine-grant-run.controller`,
+`machine-credential-admin.controller`, `trusted-issuer.controller`, `claim-own-person.controller`,
+`undo-acting-person.controller`, `runtime-principal-cap`, `oidc-credential.controller` and
+`organization-credential-rules.controller` (all `*.db.test.ts`; found by `issueApiKey` or a
+key passed to `callWith`, not yet read case by case), and fe-01's `e2e/agent-pools.spec.ts`.
+`docs/auth-integration.md` "Fleets and the MCP endpoint" still says an MCP agent exists only
+through consent; that is 7.3's (M12).
+
+**Decisions (assumed).**
+
+1. Raw-key `/api` cases are kept and marked, not deleted or converted, while be-01 still admits
+   them; where the same rule holds on both paths, one suite runs over both
+   (`describe.each(TRANSPORTS)`), so 7.1 drops one entry.
+2. The per-test-harness suites use the in-process forwarded call rather than a real mcp-01;
+   the swarm and the dev server test run the real process.
+3. be-01's `test` target does not list mcp-01's or Dash's sources as inputs, though its suites
+   spawn them: adding them changed the nx-target facts Burokrat pins
+   (`docs/wiki-policy/relationships.json`) and failed CI, and mcp-01's boot tests already spawn
+   be-01 files the same way without declaring them. A cached be-01 test result can therefore
+   outlive an mcp-01 or Dash change (unchanged from before this slice).
+
+**Commands** (laptop, `env -u CLAUDECODE`, 2026-10-29, on top of 50862bc37):
+
+| Command                                                                                                | Result                                      |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                           | 3869 pass, 3 skip, 0 fail (3872, 265 files) |
+| the five files above, one by one                                                                       | 7, 41, 32, 3 and 6 pass, 0 fail             |
+| `bun test src/compute/report-capacity.test.ts` (Dash)                                                  | 21 pass, 0 fail                             |
+| `bunx nx run-many -t typecheck,lint -p wbs-be-01 wbs-contracts wbs-core twilight-dash --skip-nx-cache` | success                                     |
+| Prettier `--check` on every changed file; `openspec validate --all --json`                             | clean; 304 of 304 valid                     |
+| Burokrat `check-indexes working . HEAD`                                                                | exit 0                                      |
+
+Not run: mcp-01's suites (no mcp-01 file changed), Dash's other suites (one comment changed),
+fe-01 and its e2e, the h2puni gate, and anything on a host.
+
+## Slice 17 — 7.0 remaining suites
+
+No production behaviour changed: `/api` still admits a `wbs_mk_` bearer and a trusted
+issuer's token until 7.1. The suites slice 16 listed as found while sweeping now send every
+agent call the way mcp-01 forwards it. Each case that still sends a key or a workload token
+itself to `/api` is named "removed by 7.1 (M9)" in its describe or in an adjacent comment.
+
+**Helper.** `callForwarded` (`apps/wbs/be-01/src/testing/mcp-forwarded-call.ts`) takes
+`options.now`. A harness with a fixed clock (`T` = 2030, or a clock moved forward
+mid-test) asks for the grant's `exp` from that clock, as mcp-01 asks from its own. Without
+it, be-01 answered the grant `401 unknown_identity` because its `exp` was behind the
+harness clock. `callForwardedAssertion` is the same call for a workload's `jwt-bearer`
+assertion (`credential: { kind: 'oidc' }`). Both share one grant request. No check was
+added, so neither needs its own negative.
+
+**Per file** (fresh runs, `env -u CLAUDECODE bun test <file>` in `apps/wbs/be-01`,
+2026-10-29; "before" is the file at 6bf1a34e9, run the same way):
+
+| File (`src/controller/`)                              | Before | After | Moved to the forwarded grant                                                                                                                                                                                                                                       | Kept on `/api` and marked for 7.1 (M9)                                                                                                                              |
+| ----------------------------------------------------- | -----: | ----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent-pool.controller.db.test.ts`                    |     20 |    20 | every pool key's call (`asAgent`): reads, claims, the heartbeat, revoked, re-keyed and expired keys. Its private grant keys and secret became `forwardingMachineGrants`. The audit assertions leave out each grant's `machine_token_issued` row                    | the raw-key half of `refuses a machine principal insufficient_scope on every pool route`. The forwarded grant is refused too, although the routes are `humanOnly`   |
+| `claim-lease.controller.db.test.ts`                   |     12 |    12 | `asAgent` (claims, the heartbeat, a heartbeat with a body or a query, the announcements) at the moving clock                                                                                                                                                       | none                                                                                                                                                                |
+| `resource-use.controller.db.test.ts`                  |     41 |    41 | all 80 key calls: the agent's resource uses, and the runtime controller's events, admissions and cleanup reads                                                                                                                                                     | none                                                                                                                                                                |
+| `machine-grant-run.controller.db.test.ts`             |     14 |    14 | (already on grants)                                                                                                                                                                                                                                                | the raw-key half of `parity with a raw key` (`asKey` and the key's renew): marked, and the grant half stays                                                         |
+| `machine-credential-admin.controller.db.test.ts`      |     30 |    30 | `asAgent` for every key: reads, scope cap, last use, rotation window, revocation, person removal. `auditRows` leaves out the grant's row; the no-secret check serializes every audit row                                                                           | the raw-key half of `refuses a machine key every credential route`; a raw-key line added to the rotation case at T0 + 25 h (see the proofs)                         |
+| `trusted-issuer.controller.db.test.ts`                |     24 |    24 | the forwarded grant's refusal on every route                                                                                                                                                                                                                       | the raw-key half of `refuses a machine key every trusted issuer route`                                                                                              |
+| `claim-own-person.controller.db.test.ts`              |      4 |     4 | the agent's claim, release and undo, at `T`                                                                                                                                                                                                                        | none                                                                                                                                                                |
+| `undo-acting-person.controller.db.test.ts`            |      6 |     6 | both agents' calls                                                                                                                                                                                                                                                 | none                                                                                                                                                                |
+| `runtime-principal-cap.db.test.ts`                    |     23 |    23 | the real key's restricted read and acquisition, and the machine half of `person_not_bound`                                                                                                                                                                         | none. The consent cases stub a consent principal on `/api`; that is not a machine bearer                                                                            |
+| `oidc-credential.controller.db.test.ts`               |     24 |    39 | `a trusted issuer token` runs over both transports (`describe.each`, 15 + 15): through mcp-01's `jwt-bearer` grant, and as a Bearer on `/api`. The revoked-credential case in creation uses the grant. The narrowing case (it sends no token) moved under creation | the `/api` entry of the 15; `a stored audience on /api, removed by 7.1 (M9)` (the M2 legacy `wbs:org` audience, which 7.1 flips with task 1.5's enforcement at use) |
+| `organization-credential-rules.controller.db.test.ts` |     17 |    19 | `machine credentials` (enforced SSO, session policy) over both transports on a composed harness (2 + 2)                                                                                                                                                            | the `/api` entry. Human session, password, direct-context and MCP-delegation cases are not machine bearers                                                          |
+
+fe-01's `e2e/agent-pools.spec.ts` sends no key: `page.route('**/api/**')` stubs every
+response, and its `wbs_mk_` value is the stubbed keys document that the test checks never
+reaches the page. It needs no change.
+
+**Proofs re-watched on the forwarded path.** Each fault was injected and then restored with
+`git diff` clean. Every failure named below includes the forwarded variant.
+
+| Check                                                                           | Fault                                | Failed                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| RCAP-01 `organizationRoleOf` in `fanout-capture.ts`                             | authentication passed as `undefined` | `refuses real machine key restricted-project read/acquire` (forwarded): 200 with runtime state                                                                                                                                                                                                                          |
+| `admitTrustedIssuerToken` configured-issuer comparison                          | removed                              | `never consults trusted issuers…`, both transports                                                                                                                                                                                                                                                                      |
+| no-registration refusal                                                         | answered `configured_path`           | `refuses a stranger issuer…` and `stops authenticating once its issuer is removed`, both. Through the grant, `configured_path` answers `unknown_identity`                                                                                                                                                               |
+| two-audience `length > 1`                                                       | removed                              | `refuses a token naming two organizations' audiences`, both                                                                                                                                                                                                                                                             |
+| credential audience over the registration's                                     | registration's alone                 | `refuses a wrong audience…`, both                                                                                                                                                                                                                                                                                       |
+| non-`verified` verdict                                                          | only `key_set_unavailable` refused   | `signed by another key`, `wrong audience`, `expired or not-yet-valid`, `unknown kid inside the cooldown`, both                                                                                                                                                                                                          |
+| `findOidcCredential` organization predicate                                     | removed                              | `refuses a credential that names another organization's trusted issuer`, both                                                                                                                                                                                                                                           |
+| `TrustedIssuerKeySets.verify` unavailable key set                               | rethrown                             | `refuses invalid_token when the key set answers 503`, both                                                                                                                                                                                                                                                              |
+| `credentialRuleRefusal` machine branch (A10)                                    | removed                              | both `machine credentials` cases, both transports                                                                                                                                                                                                                                                                       |
+| `sessionOrganizationOf` delegation guard                                        | removed                              | `refuses a machine key every credential route` (its forwarded half runs first)                                                                                                                                                                                                                                          |
+| revoke route's `afterRevoke()`                                                  | removed                              | `releases a revoked agent's claims on the tick the revoke asks for`                                                                                                                                                                                                                                                     |
+| heartbeat's 400 refusal shape                                                   | removed                              | `refuses a heartbeat carrying a body or a query as a typed 400`                                                                                                                                                                                                                                                         |
+| `undoStackOf` person; `recordCollected` person; `runCommandBatch` acting person | `null`                               | 5, 6 and 5 of the 6 undo cases                                                                                                                                                                                                                                                                                          |
+| `undoState` person; `runCommandBatchAfter` acting person                        | `null`                               | `agent B's edit keeps agent A's redo`; `an agent's step allowance edit…`                                                                                                                                                                                                                                                |
+| claim batch acting person; `claimant`'s acting-person default                   | `null`; removed                      | the claim-own-person success cases (2 of 4 each)                                                                                                                                                                                                                                                                        |
+| `admitMachineCredential` secret expiry                                          | `unexpired = true`                   | **not observed through mcp-01**: the grant's lifetime cap at the matched secret's expiry (`no_lifetime` → `unknown_identity`) refuses the old key too. So a raw-key `/api` line was added to the rotation case, which failed. After 7.1, `machine-credential.test.ts` is this check's negative, and its comment says so |
+
+The production `Proof:` comments of the re-watched trusted-issuer, A10 and RCAP-01 checks
+now name the 2026-10-29 forwarded watch, so 7.1's removal of the `/api` entries leaves each
+check a watched negative.
+
+**Repo-wide sweep** (`git grep wbs_mk_|issueApiKey`, then each hit read for a bearer on
+`/api`):
+
+| Hit                                                                                                                                                                                                                                                                | Disposition                                                                                                                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the 11 suites above, the 4 of slice 16                                                                                                                                                                                                                             | moved, or marked "removed by 7.1 (M9)"                                                                                                                                                                                                 |
+| Dash `compute/report-capacity.ts` (+ its test, README `report-capacity`)                                                                                                                                                                                           | 7.2, untouched                                                                                                                                                                                                                         |
+| **Dash `resources/runtime.ts`** (`ResourceRuntime`: `PUT /api/resource-authorities/:id/{admissions,events}`, `GET …/cleanup-requests`, `Authorization: Bearer <key>` via `WbsCredential`), and `apps/wbs/be-01/scripts/resource-cleanup-smoke.ts`, which drives it | **not in 7.2's named scope. M9 would refuse it.** 7.1/7.2 must make it an MCP client too, or scope M9 so it is not refused. Not changed here (Dash is 7.2's)                                                                           |
+| `controller/runtime-credential-pin.db.test.ts`                                                                                                                                                                                                                     | sends no key. It stubs `authenticateOrRefuse` to answer a machine principal (`audience: wbs-be-01/direct`) for a fixed token on `/api`. Whether 7.1 breaks it depends on where M9's refusal sits relative to that seam: 7.1 must check |
+| `machine-grant.controller`, `machine-grant.boot`, `machine-credential.controller` (slice 16), `testing/mcp-load-backend.ts`, `testing/mcp-machine-grant-backend.ts`, `testing/mcp-agent-stack.ts`                                                                  | grants, or keys exchanged by a real mcp-01                                                                                                                                                                                             |
+| mcp-01 `machine-admission.boot`, `machine-limits`, `machine-token.boot`, `load/m10-load.ts`, `token-request.ts`, `caller-auth.ts`, README                                                                                                                          | keys go to mcp-01's token endpoint; tokens to `/mcp`                                                                                                                                                                                   |
+| Dash `mcp/*` (`token-command`, `machine-token`, `pool-import`, testing fixtures), `compute/configuration.ts`, `compute/provider.test.ts`, `compute/testing/credential.ts`                                                                                          | MCP token clients; `configuration.ts`'s `WbsCredential` is shared by report-capacity (7.2) and the resource runtime (above)                                                                                                            |
+| fe-01 `e2e/agent-pools.spec.ts`, `agent-pools-panel.test.tsx`, `machine-credentials-panel.test.tsx`                                                                                                                                                                | stubbed keys documents and responses only                                                                                                                                                                                              |
+| `middleware/authenticated.ts`, core `authentication.feature.ts`, `compose.ts`, `machine-key*`, contracts shapes, `refusal.ts`, `organization-audit.ts`, store tests, migrations, `tool-git-hooks` secret patterns, `docs/code-organization/kinds.json`             | production admission, parsing, shapes and secret detection; no test sending a key to `/api`                                                                                                                                            |
+| `docs/auth-integration.md` "Fleets and the MCP endpoint"                                                                                                                                                                                                           | 7.3, untouched                                                                                                                                                                                                                         |
+| `openspec/changes/*` design, spec, verify text                                                                                                                                                                                                                     | history; no change                                                                                                                                                                                                                     |
+
+**Commands** (laptop, `env -u CLAUDECODE`, 2026-10-29, on top of 6bf1a34e9):
+
+| Command                                                                                                         | Result                                      |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                                    | 3886 pass, 3 skip, 0 fail (3889, 265 files) |
+| the eleven files above, one by one, before and after                                                            | as in the table; 0 fail                     |
+| `bunx nx run-many -t typecheck,lint -p wbs-be-01 wbs-auth wbs-store-sqlite wbs-core wbs-domain --skip-nx-cache` | success                                     |
+| `bunx nx run-many -t typecheck,lint -p wbs-fe-01 --skip-nx-cache`                                               | success                                     |
+| Prettier `--check` on every changed file; `openspec validate --all --json`                                      | clean; 304 of 304 valid                     |
+| Burokrat `check-indexes working . HEAD`                                                                         | exit 0                                      |
+
+Not run, and why:
+
+- the five libraries' own test suites: only `Proof:` comments changed there;
+- fe-01's e2e: no fe-01 file changed;
+- mcp-01's and Dash's suites: no file of theirs changed;
+- `twilight-burokrat:test`: no `project.json` or docs index changed;
+- the h2puni gate, and anything on a host.
+
+## Slice 18 — REST off
+
+**Task 8.1 passed on dev on 2026-10-29** (see "8.1 dev run" below), so this PR is ready for
+review. #731 (M9's precondition for the groups-less half) and Dany's 0.2 (e) decision are
+still open.
+
+### 8.1 dev run
+
+Run by the coordinating session on 2026-10-29, about 23:20–23:35Z, on
+`dev.wbs.bulletpoints.club`, with pool `647d216b` ("tst pool", 3 agents) and project
+`7bac29a3`. This record is that session's report; it was not re-observed from this branch.
+
+- **Import and tools.** The pool was imported with the real `twilight-dash pool import`. Each
+  agent connected through `headersHelper` on `/mcp` and saw 76 tools, none of them human-only.
+- **Claims and capacity.** The agents made 3 distinct claims with `assign: true`; each holder
+  was its assignee, under distinct runs `pool-<id>/<person>`. The resource RAM reached 24 of
+  24, after which other tasks answered `doesNotFit`.
+- **Heartbeats.** Each run renewed its own leases (2 leases each). A release, then a reclaim,
+  worked.
+- **Re-key.** The old keys' helper failed (`helper_failed:1`). After a re-import, the same claim
+  ids were kept and renewed.
+- **Revoke.** Every helper failed (`helper_failed:1`), and the lease sweep released all 6 claims
+  with reason `credential_revoked`. RAM and disk usage went back to 0.
+- **Observed, by design:** assignees stay assigned after a revoke.
+
+Tasks 7.1, 7.2 and 7.3 in one PR (design M9, M12, task 1.5).
+
+**What changed.**
+
+- _M9's refusal._ `AuthService.authenticateOrRefuse`, the one method every `/api` session path
+  uses (`userOrRefusalFromHeaders`, `authenticate`, the bearer-context and password
+  endpoints), answers a new `BearerRefusal`, `machine_bearer_not_accepted`, for:
+  - a token with the `wbs_mk_` prefix, well-formed or not, with no read at all;
+  - once trusted issuers are wired, a JWT whose `iss` is not the configured issuer but some
+    organization's trusted issuer, after only that issuer's registrations are read: no
+    credential read, no key set fetched, no last use.
+
+  (Since the review of PR #785, the second bullet is any JWT whose `iss` is not the sign-in
+  issuer, with no read at all: see that review below.)
+
+  `identity.ts` answers it `401 {"error":"machine_bearer_not_accepted","endpoint":"/mcp"}`,
+  and `mount.ts` answers it whole on every route, as the other bearer-level refusals. A
+  machine grant presented with mcp-01's secret is judged before this path and is unchanged.
+  The cookie carrier stays `unknown_identity` with no read (A13). The `/api` verification
+  methods (`authenticateMachineKey`, `authenticateTrustedIssuerToken`) are deleted, so the
+  API-key and trusted-issuer verifiers are reached only by `admitMachineProof`, the grant
+  route's.
+
+- _Task 1.5 at use._ `admitTrustedIssuerToken` takes the authorization server
+  (`admitMachineProof(presented, audienceRoot)`, passed by `machineGrantAuthority` from
+  `WBS_MCP_AUTHORIZATION_SERVER`) and refuses `invalid_token` (mcp-01's `invalid_grant`) when
+  the audience it would verify with, the credential's or the registration's, is not under it
+  (`isUnderMcpAuthorizationServer`). It refuses after the credential read and before any key
+  set fetch or last use.
+- _Dash._ `src/mcp/wbs-tools.ts` (`WbsTools`, `McpWbsTools`, `toolAnswerOf`) and
+  `src/mcp/api-key-provider.ts` (`ApiKeyClientProvider`, the SDK `client_credentials`
+  provider for a `wbs_mk_` key) make Dash an MCP client:
+  - `report-capacity` calls `putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report`.
+    Its configuration is schema 2, with `mcpResource` in place of `wbsOrigin`.
+  - `resources` (`ResourceRuntime`, the slice 17 finding) calls
+    `putApiResourceAuthoritiesByAuthorityIdAdmissions`, `…Events` and
+    `getApiResourceAuthoritiesByAuthorityIdCleanupRequests`. All three are tools: none is
+    `humanOnly` (`resource-runtime-shapes.ts`), so nothing was exposed beyond the design. Its
+    configuration is also schema 2 with `mcpResource`, and the credential must be a `wbs_mk_`
+    key. `watch` retries `ResourceWbsUnavailable` (no answer, a `429`, or a transient
+    uncompleted call) and stops on everything else.
+  - `WbsCredential` (the raw Bearer) is deleted.
+  - `apps/wbs/be-01/scripts/resource-cleanup-smoke.ts` drives the runtime through Dash's tool
+    port over be-01's forwarded grant (`callForwarded`).
+- _Docs (M12)._ `docs/auth-integration.md` "Fleets and the MCP endpoint" is rewritten (it
+  reverses PR #738's "consent only" text). `docs/import-with-ai.md` gains "Headless agents"
+  with the dated client facts. `docs/platform-map.md` marks the OpenAPI document as an
+  internal contract. Dash's README `report-capacity` and `docs/resources.md` describe the MCP
+  path.
+
+**Decisions (assumed).**
+
+1. _The groups-less half of M9 waits for #731._ The design makes #731 the precondition, and
+   #731 is open (held for 4.3). Refusing groups-less configured-issuer tokens here would
+   retire operator links on `/api` ahead of #731 and break `swarm-rehearsal.boot.db.test.ts`
+   and `fleet-credential.controller.db.test.ts`, which #731 rewrites. Until #731 lands, a
+   groups-less token keeps the D6b linked path. After it lands, that path answers
+   `unknown_identity` with no read, and a one-line follow-up renames it
+   `machine_bearer_not_accepted` on `/api`.
+2. _Superseded by the review (S3-3):_ a stranger issuer was first kept `invalid_token` on `/api`
+   at the cost of one registration read. It is now refused like a trusted one with no read, and
+   the spec scenario says so.
+3. _No test-only seam._ M9 allows a composition seam for raw-key `/api` tests. Every such
+   test was flipped or deleted (below), so none is needed, and `authenticateOrRefuse` has no
+   switch.
+4. _The refusal body names the path, not a URL:_ `endpoint: "/mcp"`, where deployments serve
+   mcp-01 beside `/api`. be-01 does not hold `MCP_PUBLIC_URL`.
+5. _Dash maps the token endpoint's `invalid_client` to `machine_credential_refused`._ This is
+   mcp-01's in-band answer for the same credential, so a reporter started with a revoked key
+   exits `refused` at once instead of retrying for one cadence.
+6. _`runtime-credential-pin.db.test.ts` is unchanged._ It stubs `authenticateOrRefuse`, the
+   method that holds the refusal, so its machine principal stands for the one a forwarded
+   grant yields (`admitMachineGrant`, which uses the same `machinePrincipalOf` shape). Its
+   comment now says so.
+
+**The slice 16/17 checklist, flipped** (each "removed by 7.1 (M9)" case):
+
+| File                                                                             | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `machine-credential.controller.db.test.ts` `an API key as a Bearer on /api` (18) | replaced by `an API key as a Bearer on /api` (5): refused before any credential read, with the table renamed away and no last use, while the same key's grant verifies; one answer for revoked, expired, crossed, unknown and malformed keys; before activation; a custom header is no credential; the cookie stays `unknown_identity` with no read. The rest moved to `an API key's stored state on the MCP path` (5): the last-use fault at the grant route itself, three malformed stored states, last use once a minute. The other cases already ran on the MCP path |
+| `recording an API key's last use on /api` (3)                                    | moved to the MCP path (`recording an API key's last use on the MCP path`), with the injected clock passed to the grant                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `a key pinned to one person`, the `/api` entry                                   | dropped; the MCP entry stays                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `compute-provider.controller.db.test.ts`                                         | the admin routes' raw-key line now expects `machine_bearer_not_accepted`; `stores a report bearing the key itself on /api` is inverted: refused, nothing stored                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `oidc-credential.controller.db.test.ts`                                          | the `/api` transport entry (15) dropped. New `a trusted issuer token on /api` (2): refused before any credential read, key set fetch or last use, while the grant admits the token; a stranger stays `invalid_token`, fetching nothing. `a stored audience on /api` is inverted as task 1.5 at use: `invalid_token` through the grant, no fetch, no last use, and `machine_bearer_not_accepted` on `/api`                                                                                                                                                                |
+| `organization-credential-rules.controller.db.test.ts`                            | `/api` entry dropped                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `agent-pool`, `trusted-issuer`, `machine-credential-admin` controller suites     | each raw-key half now expects `machine_bearer_not_accepted`. The rotation case's `/api` line is removed, and the domain unit test is `admitMachineCredential`'s expiry negative (its comment says so)                                                                                                                                                                                                                                                                                                                                                                    |
+| `machine-grant-run.controller.db.test.ts` parity case                            | the raw-key half became a second grant of the same key without a run (one person, leased, renewed, same cap)                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `bootBe01` stranger issuer case                                                  | inverted by the review (S3-3): `machine_bearer_not_accepted`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| core `machine-key.test.ts`                                                       | the `authenticateOrRefuse` key and trusted-issuer cases became `admitMachineProof` cases; new M9 cases (key, trusted issuer, stranger, `authenticate` answering null) and task 1.5 cases (three non-conforming audiences, one equal to the root)                                                                                                                                                                                                                                                                                                                         |
+| Dash `report-capacity.test.ts`                                                   | the fake `/api` is now a fake tool port (`scriptedTools`). The entrypoint case moved to `report-capacity.boot.test.ts` against the real be-01 and mcp-01 (`startWbsMcpStack`)                                                                                                                                                                                                                                                                                                                                                                                            |
+
+**Proofs.** Each fault was injected, watched failing, then restored (laptop, 2026-10-29).
+
+| Check                                                              | Fault injected                                                       | Observed failing                                                                                                                                                                                   |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M9 key refusal before any read                                     | **moved after the key's admission** (`admitMachineKey`, then refuse) | `an API key as a Bearer on /api > is refused machine_bearer_not_accepted before any credential read, recording no use` (be-01): the use was recorded, then the renamed table answered 500          |
+| M9 key refusal                                                     | removed                                                              | core `refuses a live, a malformed or an unwired key machine_bearer_not_accepted, reading nothing`                                                                                                  |
+| M9 trusted-issuer refusal                                          | removed; separately, the credential admitted and verified before it  | core `refuses a trusted issuer’s JWT…`; be-01 `a trusted issuer token on /api > is refused … before any credential read or key set fetch`                                                          |
+| stranger issuer stays `invalid_token`                              | every foreign `iss` answered `machine_bearer_not_accepted`           | core `keeps a stranger issuer’s JWT invalid_token`                                                                                                                                                 |
+| `mount.ts` answers the refusal whole                               | `machine_bearer_not_accepted` left out of its condition              | be-01 trusted-issuer `/api` case answered 500 `undeclared refusal` (observed on the first run, before the line existed)                                                                            |
+| task 1.5 at use                                                    | the `isUnderMcpAuthorizationServer` check disabled                   | core `refuses a stored audience outside the authorization server…` (key set asked); be-01 `a stored audience outside the authorization server > is refused invalid_token through the grant…`       |
+| `admitMachineKey`'s last-use fault (re-watched on the grant route) | the touch's rejection caught and dropped                             | `fails as a server error when its last use cannot be recorded`, now judged at `/internal/mcp/machine-grants` (`requestGrant`): through a forwarded call, `admitMachineGrant`'s own touch masked it |
+| `findById`'s three shape checks (re-watched on the grant route)    | each removed in turn                                                 | its `fails as a server error on a malformed stored …` case                                                                                                                                         |
+| `services.ts` real credential store                                | an inert `findById`                                                  | every MCP-path admitting case of `machine-credential.controller.db.test.ts` (19 of 28)                                                                                                             |
+| Dash: the old HTTP path                                            | (no fault: the observation itself)                                   | `report-capacity.boot.test.ts > the key itself on be-01’s /api is refused machine_bearer_not_accepted`, against the real be-01 process; nothing stored                                             |
+| Dash `ApiKeyClientProvider.addClientAuthentication` bound          | written as a method                                                  | `stores a report through the tool…` (boot) ended `wbs_unavailable`: the SDK calls it detached, a TypeError reading `this` (found that way)                                                         |
+| Dash `invalid_client` → `machine_credential_refused`               | the mapping disabled                                                 | `exits refused at once for a revoked key…` (boot): retried a cadence, ended `wbs_unavailable`                                                                                                      |
+| Dash no redirect                                                   | the transport's `fetch` passed `init` unchanged                      | `calls a tool and never lets a request follow a redirect`                                                                                                                                          |
+| Dash `toolAnswerOf` no-content line; unattributable error          | read as JSON; answered `not_called`                                  | `reads mcp-01’s no-content line as an empty success`; `refuses a tool error it cannot attribute`                                                                                                   |
+| reporter: only `WbsUnreachable` is transient                       | every rejection treated as transient                                 | `exits on an answer the tool client cannot attribute, never retrying it`                                                                                                                           |
+| reporter: refusing reasons                                         | every uncompleted call retried                                       | `exits when mcp-01 answers machine_credential_refused…`, `…insufficient_scope…`                                                                                                                    |
+| runtime: refusing reasons                                          | every uncompleted call `ResourceWbsUnavailable`                      | `runtime-wbs.test.ts > stops on a refused credential`                                                                                                                                              |
+
+**Commands** (laptop, `env -u CLAUDECODE`, 2026-10-29, on top of 8fd51f869):
+
+| Command                                                                                                                                            | Result                                                                                           |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                                                                       | 3858 pass, 3 skip, 0 fail (3861, 265 files; 3889 before: the `/api` key and token cases went)    |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                                                                                   | 4056 pass, 0 fail (118 files; the namespace runtime test included)                               |
+| `bunx nx run wbs-mcp-01:test --skip-nx-cache`                                                                                                      | 723 pass, 0 fail (no mcp-01 file changed)                                                        |
+| `bunx nx run-many -t test -p wbs-core wbs-contracts wbs-domain wbs-store-sqlite --skip-nx-cache`                                                   | success                                                                                          |
+| `bunx nx run-many -t typecheck,lint -p wbs-be-01 wbs-mcp-01 twilight-dash wbs-core wbs-contracts wbs-domain wbs-store-sqlite`                      | success (Dash's lint after two fixes: import order, the fake MCP fetch moved out of `testing/`)  |
+| `unshare --user --map-root-user --pid --fork --mount-proc setpriv --bounding-set=-sys_ptrace bun apps/wbs/be-01/scripts/resource-cleanup-smoke.ts` | exit 0, every flag `true`; the two `transport refusal` lines are its intended rejected admission |
+| Prettier `--check` on every changed file; `openspec validate --all --json`                                                                         | clean; 304 of 304 valid                                                                          |
+| Burokrat `check-indexes working . HEAD`                                                                                                            | exit 0                                                                                           |
+
+Not run, and why:
+
+- `twilight-burokrat:test`: no `project.json` or docs index changed;
+- fe-01: no fe-01 file changed;
+- the h2puni gate, and anything on a host (task 8.1 is the dev run this PR waits for).
+
+### Review of PR #785 (Fable, high), how each item is addressed
+
+No S1. The review confirmed the refusal order, that no human is misclassified, that there is
+no bypass, the Dash client, task 1.5 at use, and test coverage.
+
+| Item                                                          | Addressed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1 `runbook-prod-deploy.md` said stored rows keep verifying | "Audience preflight" now says a listed row is refused at use (`invalid_grant`), gives the re-registration steps, and says `--accept-breaking` lets the swap proceed while the named rows stop verifying at once. "MCP agent surface" says machine credentials have no working surface on Compose prod until `/mcp` is routed (M9)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| S2-2 0.2 (e) and the two halves                               | 0.2 (e) is recorded in tasks.md as **ASSUMED** (Dany may reverse): keys and non-sign-in JWTs now, the groups-less half after #731. design.md M9 says the precondition applies to the groups-less half only. The spec delta's requirement and the groups-less scenario are marked "after #731". An unticked sub-item under 7.1 tracks that half. 0.3 stays unticked                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| S3-3 issuer enumeration oracle                                | `/api` refuses **any** JWT whose `iss` is not the sign-in issuer with no read (the `trustedRegistrationsOf` lookup is gone; `isForeignIssuerToken` reads only the unverified claims and the configured issuer). Why: a stranger/trusted split answers which issuers some organization trusts, and EKS and GKE issuer URLs embed account and cluster ids. Flipped: core `refuses any other issuer’s JWT … reading and verifying nothing` (trusted and stranger), be-01 `refuses a stranger issuer’s token the same, fetching nothing`, `bootBe01 … machine_bearer_not_accepted once booted`, and the spec scenarios. Human paths: registering the sign-in issuer as trusted is refused `issuer_reserved` (`trusted-issuer.routes.ts`), mcp-01 forwards only configured-issuer human tokens, and native sessions carry no `iss`. The full be-01 run (human OIDC, password and delegation suites) passes |
+| S3-4 resources schema 1 said only "malformed"                 | schema 1 answers `schemaVersion 1 is retired; write schemaVersion 2 with mcpResource … in place of wbsOrigin`; any other shape failure names the field paths (`parseSecretsOrThrow`), never a value; tests in `runtime-wbs.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| S4 `client.close()` could mask the cause                      | a failing close throws `WbsUnreachable` whose cause is an `AggregateError` of the call's failure and the close's (no test: the SDK's close does not fail on demand)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| S4 PR body heading                                            | now "Slice 18 — REST off"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| S4 proactive token renewal                                    | skipped: the SDK renews on a 401, and the provider stops serving a token 5 minutes before `exp`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+
+Proofs of the review's changes (watched 2026-10-30):
+
+| Check                                  | Fault                                       | Failed                                                                                           |
+| -------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| no read before the non-sign-in refusal | a registration read put back in front of it | core `refuses any other issuer’s JWT machine_bearer_not_accepted, reading and verifying nothing` |
+| the refusal itself                     | disabled                                    | the same test                                                                                    |
+| schema 1 message                       | check skipped                               | `refuses schema 1, saying what to write instead`                                                 |
+| field paths in the refusal             | bare `malformed`                            | `names the failing fields, never the credential`                                                 |
+
+Commands after the review (laptop, `env -u CLAUDECODE`, 2026-10-30, merged with main
+80174a65c):
+
+| Command                                                                                       | Result                                     |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                  | 3858 pass, 3 skip, 0 fail (3861 tests)     |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                              | 4058 pass, 0 fail                          |
+| `bunx nx run wbs-mcp-01:test --skip-nx-cache`                                                 | 723 pass, 0 fail                           |
+| `bunx nx run wbs-core:test --skip-nx-cache`                                                   | success                                    |
+| `bunx nx run-many -t typecheck,lint -p wbs-be-01 twilight-dash wbs-core wbs-contracts`        | success (after `{ cause }` on one refusal) |
+| Prettier `--check`; `openspec validate --all --json`; Burokrat `check-indexes working . HEAD` | clean; 304 of 304; exit 0                  |
+
+The suites ran before the `{ cause }` lint fix in `loadResourceConfiguration`; after it, its
+file (`runtime-wbs.test.ts`, 8 pass) and Dash's typecheck and lint were rerun.
+
+## Slice 19 — task 3.8: consent tokens must carry `token_use`
+
+- **Change:** `consentClaimsOf` (`apps/wbs/mcp-01/src/oauth.ts`) refuses any `token_use` but
+  `consent`, including none. `admitCaller`'s JSDoc, design M5 and the prod runbook's step 6 say so.
+- **Timing:** slice 2 (PR #761) reached dev with #751 on 2026-10-27, so one
+  `MCP_ACCESS_TOKEN_TTL` (3,600 s) had long passed. The Compose prod swap deploys only be, gw and
+  fe and routes no `/mcp` (slice 14), and the Kubernetes cutover is prepared but not authorized
+  (`docs/infra/cutover-plan.md`), so prod's first mcp-01 already issues `token_use: consent`.
+- **Review (Fable high):** no S1–S3; S4 wording fixes applied (design M5 tense, tasks 3.8 past
+  tense, the Kubernetes clause here and in the runbook).
+- **Proof:** `refuses a consent session token of any use but consent` (`oauth.test.ts`) now
+  expects a re-signed token without `token_use` to be refused. With the pre-3.8 guard
+  `use !== undefined &&` restored, it received `"admitted"` and failed (1 fail); with the fix,
+  1 pass. Watched 2026-10-30 (`env -u CLAUDECODE bun test src/oauth.test.ts -t "of any use but consent"`).
+
+## Slice 20 — confidential DCR clients (task 3.9)
+
+- **Live failure (2026-10-31, dev):** the AS metadata lists `none`, `client_secret_basic` and
+  `client_secret_post` since #751; claude.ai's connector registered `client_secret_post` with
+  `grant_types: ['authorization_code', 'refresh_token']` and was answered
+  `400 invalid_client_metadata` (`mcp_oauth_route POST /mcp/oauth/register status 400`);
+  `client_secret_basic` was refused the same way and `none` answered 201. Probed by the
+  coordinator.
+- **Change:** design M17. `src/consent-client.ts` (`presentedClientOf`, `authenticatesClient`,
+  `issueClientSecret`); `register`, `token` and `refreshGrant` in `src/oauth.ts`;
+  `RegisteredClient.authentication` in `src/session-store.ts`; migration
+  `20261031120000_mcp_client_secret` with a rollback preflight. `basicCredentialsOf` is shared
+  with the machine parser. `/authorize`, `/revoke` and `bin/dev-mcp-probe.sh` are unchanged;
+  the metadata lists all three auth methods everywhere since the review below.
+- **Choice:** real confidential support, not answering `none` in the `201`: RFC 7591 lets a
+  client reject a replaced method, and claude.ai's handling of one is unobserved.
+
+Proofs, each watched on 2026-10-31 by applying the fault, running the named test with
+`env -u CLAUDECODE bun test --timeout=10000 <file> -t <name>`, seeing it fail, and restoring:
+
+| Fault injected                                                            | Test (file)                                                                                       | Observed                                     |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| registration accepts only `none`                                          | `registers a client_secret_post and a client_secret_basic client…` (oauth.test.ts)                | 400, expected 201                            |
+| same                                                                      | `a claude.ai-shaped confidential connector consents, calls a tool and refreshes` (boot)           | SDK `InvalidClientMetadataError`             |
+| token endpoint's code refusal skipped                                     | `refuses a confidential client's code without its secret or with a wrong one, and burns it`       | 200, expected 401                            |
+| digest compare returns `true`                                             | same                                                                                              | 200 for the wrong secret                     |
+| `authenticatesClient` ignores the method                                  | `refuses a secret sent by the method it was not registered with…`                                 | 200, expected 401                            |
+| `authenticatesClient` returns `true`                                      | `an API key never authenticates a consent grant…`                                                 | 200 for the key as the client's secret       |
+| `refreshGrant`'s refusal skipped                                          | `refreshes a confidential client only with its secret…`                                           | 200, expected 401                            |
+| `routeEvidenceOf` records the form's `client_secret`                      | `records no client secret in route evidence`                                                      | the secret appeared in the evidence          |
+| parser admits any secret on `client_credentials`                          | `a confidential consent client's secret never authenticates a machine grant` (machine-token.test) | be-01 asked, 502, expected 401               |
+| `client_assertion` refusal removed; malformed header read as `none`       | `refuses a client_assertion and a non-Basic Authorization header invalid_client` (consent-client) | a presented client, expected invalid_client  |
+| two-method, repeated-field and Basic-user refusals removed (each in turn) | `refuses two methods, a repeated field and a Basic user unlike the body client_id…`               | a presented client, expected invalid_request |
+| `CHECK (1)` on the method column, then on the digest column               | `refuses a confidential client row without its secret digest…` (store-migrations.test)            | 1, then 3 rows stored                        |
+| malformed authentication read as public                                   | `refuses a stored client whose authentication is malformed`                                       | did not throw                                |
+| rollback preflight removed                                                | `refuses to roll back the client secret migration while a confidential client is live`            | rolled back                                  |
+| down `DELETE` turned into a `SELECT`                                      | `rolls back the client secret migration once no confidential client is live`                      | expired confidential client remained         |
+
+Not a separate check: dropping the `presented.clientId === grant.clientId` guard only turns
+the API key's own id from `invalid_grant` into `invalid_client`, because the main condition
+compares it again.
+
+Existing behaviour kept: the whole public-client suite (`oauth.test.ts`, every other mcp-01
+test) passes unchanged except that hand-built `RegisteredClient` literals now carry
+`authentication: { method: 'none' }` and the migration lists name the fifth migration.
+
+Not run here: the hosted claude.ai connector on dev (needs the deploy; task 3.6), the h2puni
+gate, and be-01 (not touched).
+
+Commands, 2026-10-31, in the slice worktree (laptop):
+
+- `env -u CLAUDECODE bunx nx run-many -t test,typecheck,lint -p wbs-mcp-01 --skip-nx-cache`:
+  exit 0; 749 pass, 0 fail across 34 files.
+- `bun tools/tool-git-hooks/src/hooks/migration-lint.ts` on the new `migration.sql` and
+  `down.sql`: exit 0 (a first draft's `IS NOT NULL` inside the `ADD COLUMN` CHECK was refused
+  as a required column and rewritten with `coalesce(length(…))`).
+- `bunx prettier --check` on every changed non-SQL file: clean.
+- `bunx openspec validate --all --json`: 304 of 304 passed.
+- `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`:
+  exit 0.
+
+### Review of PR #791 (Fable, high), how each item is addressed
+
+No S1. Separation from the machine grants, secret handling and the migration were confirmed.
+
+| Item                                                                    | Change                                                                                                                                                                                                                                                                       | Proof (watched 2026-10-31)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1 refresh fails open when a confidential family's client row is gone | `mcp_family.client_auth_method` (same migration, CHECK, `down.sql`, preflight); `refreshGrant` refuses a confidential family without a live client of its method; the exchange signs first, then `createFamily` writes the family and promotes the client in one transaction | family refusal removed, or the method not recorded: `refuses a confidential family's refresh once its client row is gone` answered 200 (row deleted, and row rewritten public); promotion outside the transaction: `commits the family and the client's promotion together` found 1 family row; family `CHECK (1)`: `refuses a family client method outside the confidential two` stored it; preflight without the family count: `… while a confidential family is usable` rolled back. `keeps a public family's refresh once its client row is gone` stays 200 |
+| S3-1 RFC 7591 §2 default                                                | an absent method registers as `client_secret_basic`; spec requirement and scenario                                                                                                                                                                                           | refusing absent: `registers an absent method as client_secret_basic (RFC 7591 §2)` answered 400                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| S3-2 SHA-256 boundary                                                   | R3 comment at `secretSha256Of` (32 CSPRNG bytes, not a password; as `digestOf`)                                                                                                                                                                                              | none needed (comment only); CodeQL alert #90 is left to the owner to dismiss                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| S4 blue-green wording                                                   | migration header and M17 now say Recreate, one replica, and an older release refusing the newer ledger                                                                                                                                                                       | none (wording)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| S4 boot test order                                                      | the claude.ai-shaped test runs last, as grace, and creates and lists its own project                                                                                                                                                                                         | registration accepting only `none` again still fails it (`InvalidClientMetadataError`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| S4 public clients and `Authorization`                                   | M17 states any `Authorization` header from a public client is now `401`                                                                                                                                                                                                      | covered by `refuses a secret sent by the method …`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| S4 `Basic :secret` leniency                                             | removed: an empty Basic user is `invalid_client`                                                                                                                                                                                                                             | check removed: `refuses a client_assertion and a non-Basic Authorization header invalid_client` read `Basic :secret` as a client named `''`                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| S4 `client_secret_expires_at`                                           | M17 states it mirrors `client_id_expires_at`                                                                                                                                                                                                                                 | none (wording)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| S4 metadata                                                             | `token_endpoint_auth_methods_supported` lists all three unconditionally; `grant_types_supported` unchanged                                                                                                                                                                   | listing only `none` without machine grants: `omits them without the secret and in gateway mode` failed (machine-token.test.ts)                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+
+After the review fixes, 2026-10-31: `nx run-many -t test,typecheck,lint -p wbs-mcp-01
+--skip-nx-cache` exit 0, 756 pass, 0 fail; migration lint exit 0; prettier clean; `openspec
+validate --all` 304 of 304; `check-indexes working . HEAD` exit 0.
+
+## Slice 21 — groups-less half of M9 (with PR #731)
+
+Lands in PR #731 (`wbs-machine-credentials` slice 4), its precondition, after that branch was
+merged with main 7e0c05d82 (2026-10-31). Dany approved landing #731; dev had no operator-linked
+fleet (`wbs-machine-credentials` verify.md "Task 4.3 pre-swap evidence").
+
+- **Change.** `AuthService.authenticateOrRefuse` answers a verified configured-issuer token
+  without `wbs_groups` `machine_bearer_not_accepted` (was `unknown_identity`), so `/api`
+  answers `401 { error: 'machine_bearer_not_accepted', endpoint: '/mcp' }`. It still reads no
+  mapping, mints no account and writes nothing; only the issuer's own verification runs, since
+  the groups claim is read from the verified token. Browser `sessionUser` (no session) and the
+  refresh path (refused) are #731's and unchanged.
+- **The internal delegation route.** `boot.ts` already turned a machine bearer into "no
+  upstream sign-in", so a groups-less token posted to `/internal/mcp/delegation` now answers
+  `401 unauthenticated` (was `unknown_identity`). mcp-01 treats the two alike
+  (`organization-authority.ts` `isUserRefusal`). Assumed acceptable: the route takes human
+  tokens only. `mcp-delegation.boot.db.test.ts` expects the new answer.
+- **Spec.** `wbs-machine-credentials`' own `fleet-credentials` delta ("A machine token is
+  scoped by its linked account…") now states the M9 answer; it is the one restatement (the
+  review of the merge, S3-2, removed a second copy here). This change's `machine-credentials`
+  delta keeps its groups-less sentence and scenario. design.md's table row and M9's "two
+  halves" note say both halves landed; task 7.1's sub-item ticked; 0.2 (e) notes it.
+- **Docs.** `docs/auth-integration.md` (groups-less token) and `docs/runbook-prod-deploy.md`
+  (swap window; fleets call through `/mcp`) name the new refusal.
+- **Merge fixes found by the suites** (`wbs-machine-credentials` verify.md "Slice 4 merge with
+  main"): the swarm rehearsal now calls through machine grants; `runtime-state.db.test.ts` and
+  `runtime-authority.db.test.ts` (main) pinned through `external_identity.person_id`, which
+  #731 retires: their pin cases now use a machine credential's person.
+
+**Proofs (R5).**
+
+| Guard                                                                  | Injected fault                                      | Observed failure (2026-10-31, `env -u CLAUDECODE bun test`)                                                                                                                                         |
+| ---------------------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `authentication.feature.ts` groups-less refusal                        | `unknown_identity` answered again (the pre-M9 line) | `refuses a groups-less token of the sign-in issuer machine_bearer_not_accepted, reading no mapping` (machine-key.test.ts): 1 of 15 failed; `fleet-credential.controller.db.test.ts`: 5 of 8 failed  |
+| `principal.ts` `credentialPinOf` machine pin (rewritten runtime tests) | the machine branch never taken                      | `enforces real credential pins even for an admin` (runtime-state) and `checks project, organization person, account binding and credential pin on every entry` (runtime-authority) failed (2 of 47) |
+
+Each fault was reverted and the file's diff checked.
+
+**Commands** (laptop, `env -u CLAUDECODE`, 2026-10-31, the merged branch):
+
+| Command                                                                                                                                        | Result                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                                                                   | 3847 pass, 3 skip, 2 fail: the two runtime pin cases above, fixed; their files and the other touched suites then 92 pass, 0 fail |
+| `bunx nx run-many -t test -p wbs-fe-01 wbs-core wbs-contracts wbs-store-sqlite wbs-store-memory wbs-conformance wbs-mcp-01 --parallel=1`       | 7 projects succeeded                                                                                                             |
+| `bunx nx run-many -t typecheck -p` be-01, fe-01, mcp-01, contracts, core, store-sqlite, store-memory, conformance, domain, auth, twilight-dash | success                                                                                                                          |
+| `bunx nx run-many -t typecheck lint -p wbs-be-01 wbs-core wbs-contracts`                                                                       | first run: 4 lint errors in the new test code (unused `sqlite`, an `any` return, one needless guard); fixed, then success        |
+| Prettier on touched files; `openspec validate --all --json`; Burokrat `check-indexes working . HEAD`                                           | clean; 304 of 304; exit 0                                                                                                        |
+
+Not rerun after the last fixes: the whole be-01 suite (only the fixed files and the touched
+suites were); CI carries it. No migration touched, so no migration lint. No h2puni/h4claw gate.
+
+### Review of #731 merge (Fable, high), how each item is addressed
+
+No S1 or S2. Confirmed by the review: the conflict resolution, run scoping, absent vs empty
+groups (`Object.hasOwn`), the delegation route and the rewritten tests.
+
+| Item                                                                                                             | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S3-1 the login callback minted a session from a groups-less access token (a sign-in loop: every `/api` call 401) | `auth-oidc-endpoints.ts`: with a browser lifecycle, an access token whose `groupsClaimed` is not true is refused `302 /?auth_error=groups_claim_missing` before any account read or write. fe-01 `auth-form.tsx` renders a message for the code. `docs/auth-integration.md` says a missing claim is a refused session, unlike a wrong prefix. Red first: `refuses a sign-in whose access token has no groups claim, issuing no session` (`oidc-identity.controller.db.test.ts`) redirected to `/`. fe-01: with the entry renamed away, `names the missing access groups and the administrator` failed (1 of 31). |
+| S3-2 two deltas restated one requirement with different answers                                                  | `wbs-machine-credentials/specs/fleet-credentials/spec.md` now states the M9 answer and the callback refusal; this change's copy is deleted. `wbs-machine-credentials` tasks 4.1 says what was built: `readExistingOidcIdentity` is kept and guarded by the groups check, not deleted.                                                                                                                                                                                                                                                                                                                            |
+| S3-3 the provider requirements did not say the claim must be present                                             | `docs/auth-integration.md` "The provider must supply": the claim must be present on every access token, refreshed ones included; an empty array is fine.                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| S4 tautological `'personId' in pin`                                                                              | Dropped in `claim-lease.routes.ts` and `plan-commands.feature.ts`; the adjacent proofs stand, since the guarded behaviour is unchanged. `authenticated.ts` JSDoc names the groups-less token as a machine bearer.                                                                                                                                                                                                                                                                                                                                                                                                |
+| S4 runtime-authority combination                                                                                 | `checks project, organization person, account binding and credential pin…` used to test the pin with the agent unbound and the actor admin, where an upstream pair's admin bypass of the binding let the pin check run. A machine principal gets no such bypass, so the test now binds the agent again before the pin case. The order unbound → `person_not_bound`, then bound + foreign pin → `credential_not_for_person` is what it asserts now.                                                                                                                                                               |
+
+After the review fixes (`env -u CLAUDECODE`, 2026-10-31): `nx run-many -t test -p wbs-be-01
+wbs-fe-01 wbs-core --parallel=1 --skip-nx-cache` exited 0 (the full be-01 suite included; the
+per-test counts were lost with the log file); `nx run-many -t typecheck lint -p wbs-be-01
+wbs-core wbs-fe-01` succeeded; the oidc-identity suite ran 81 pass and fe-01's auth-form 31
+pass; Prettier clean; `openspec validate --all` 304 of 304; Burokrat `check-indexes` exit 0.
+
+## Launch gate fixture synchronization repair (2026-10-29)
+
+The actual `wbs-mcp-01:test` target at `9f3d50b0f` failed two top-level tests on h2puni:
+the swarm's strict re-key recovery event count and the in-flight property's expected 3 calls
+versus 2. Both originals passed in a fresh local worktree under Bun 1.4.4 with coverage
+(3 tests, 948 expectations); that isolated pass did not explain or waive the host failures.
+The same source's public CI also passed both tests. Controlled real-path timing faults below
+established the two fixture synchronization defects; no production/authentication behavior
+needed changing. The relevant recent main delta added the swarm and indexed be-01 routing;
+`http.ts`, `server.ts`, `wbs-client.ts`, `machine-limits.ts`, `in-flight-counter.ts` and the
+in-flight property itself were unchanged between `083fb6801` and `9f3d50b0f`.
+
+### Causes and repaired observations
+
+**In-flight model.** `End` resolved the fixture's fetch and slept five 1 ms timers. The real
+`callTool` still had to consume its response body, unwind `untilAborted`, and return through
+`server.ts`'s `finally` before its slot was free. A 25 ms streamed successful body on the
+reported sequence `[Send(org-b,2), End(org-b,ok), Send(org-b,3), End(org-b,throw), Send(org-b,1)]`
+made the original assertion fail with exactly expected 3 / received 2. The counter correctly
+held the slot while the response body was unfinished.
+
+The model now decorates the real `MachineTrafficLimits` boundary to observe every admission
+attempt and completed release. `Send` waits for all its messages to enter admission; `End`
+waits for the actual production release, including a call inside a still-unfinished batch.
+The decorator neither admits nor releases on its own. A missing transition rejects after a
+bounded 1 s observation wait, rather than advancing the model by elapsed time. The oracle
+still counts the calls held at be-01, with limit 3, two independent organizations, all batch
+messages and success/500/thrown completions. The 60 runs, seed 20261027, 60 s property deadline
+and every reached-branch assertion are unchanged. The same 25 ms body fault now passes.
+
+**Swarm client.** The SDK starts a GET SSE probe after `initialized` without awaiting it.
+SDK 1.31.0 accepts that GET in stateless mode; this server closes its per-request transport,
+so the real HTTP response is 200 with an ended SSE body. The SDK then schedules another GET.
+A background GET and foreground heartbeat can both meet the old bearer's refused-set 401
+and independently run the helper. Holding the SDK's actual GET until the first in-band
+re-key refusal, then rendezvousing its 401 with the foreground POST, reproduced the exact
+host trace for all three agents: `helper_issued, http_401, http_401, helper_issued, helper_issued`
+while the heartbeat outcomes remained `[tool_error:machine_credential_refused, ok]`.
+
+This task-8.1 rehearsal now explicitly uses a foreground-helper client profile:
+`StreamableHTTPClientTransport`'s public `reconnectionOptions.maxRetries = 0` (the SDK requires
+the complete options shape; its unchanged default delay values are unused), plus an EOF
+barrier on the initial **real** GET 200 before commands begin. It does not cover background
+notifications or SSE recovery, and establishes no claim about general clients' reconnect
+behavior. HTTP, SDK framing, helper invocation, real credentials, re-keying, claims and
+leases all remain real. No server route or authentication behavior changed. The initial
+405 inference was incorrect; an intermediate candidate failed its new 405 assertion and was
+corrected after observing the actual response, rather than changing the server.
+
+The driver checks that startup completed its GET, then snapshots each agent's re-key episode.
+That episode must be exactly `[http_401, helper_issued]`, the helper reason `after_401`, and the
+same two strict heartbeat outcomes. Extra 401s, refreshes or unrelated events fail. Revocation,
+lease cleanup and skip-reimport/skip-revoke checks keep their existing strict outcomes. The
+initial GET barrier is bounded by the driver's existing 60 s command deadline; no service
+TTL, retry allowance, helper budget or test deadline was increased.
+
+### Production-path and fixture negatives
+
+All five counter sabotages were rerun individually against the real `/mcp` property at
+seed 20261027, with coverage and the unchanged reached-branch assertions, then each source
+file was restored byte for byte:
+
+| Fault                                            | Observed rejection                                                                                            |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `count > limit`                                  | expected 3 / held 4; `[Send(org-a,1), Send(org-a,3)]`                                                         |
+| Release deletes the whole key count              | `TypeError: undefined is not an object (evaluating 'reply.result.isError')`; `[Send(org-a,1), Send(org-a,1)]` |
+| One in-flight counter key for both organizations | expected 3 / held 2; `[Send(org-b,1), Send(org-a,3)]`                                                         |
+| Release before the call                          | expected 3 / held 4; `[Send(org-a,1), Send(org-a,3)]`                                                         |
+| Release only when the call succeeds              | `missing release 1; observed 0`; `[Send(org-b,1), End(org-b,fail)]`                                           |
+
+The synchronization/profile and existing scenario controls are recorded below with their
+actual final command outcomes. Raw diagnostics, fault scripts and byte-restoration manifests
+are retained in `/tmp/puni-launch-mcp-gate-repair/`; the owning task's final report records
+the selected commit and exact local verification. These local checks do not replace a new
+canonical host gate or public CI for that commit.
+
+| Synchronization/scenario fault                                                                                | Observed rejection                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Remove the probe barrier; delay completion of the real initial GET by 100 ms                                  | All three startup checks fail before re-key: only `helper_issued` observed when `tools` returns; exit 1                                         |
+| Restore SDK reconnects; hold the second real GET until re-key and rendezvous its 401 with the foreground POST | All three exact re-key episodes fail: POST and GET carry the same old jti, both receive 401, two new helpers issue; exit 1                      |
+| Hold the initial probe readiness forever after receiving its real response                                    | Existing `ask` deadline reports `did not answer tools within 60 s`; rehearsal exits 1 and cleans up its child processes                         |
+| `--fault=skip-reimport`                                                                                       | Exit 1: all three agents see `[machine_credential_refused, helper_failed:1]`, and strict round-2 recovery/heartbeat/release/audit checks reject |
+| `--fault=skip-revoke` in the focused boot test                                                                | Boot test passes only because the child exits 1 and names the original no-claim-left lease check                                                |
+
+All three synchronization/profile faults were restored byte for byte. The failed initial
+405 candidate is retained as a diagnostic failure; it is not counted as a successful check.
+
+### Local commands and results
+
+All runs used Bun 1.4.4, frozen locked dependencies in a fresh isolated worktree of
+`9f3d50b0f`, synthetic stores/keys and loopback-only traffic. The two relevant specs validated
+with their existing warning/info diagnostics (agent surface: 1 warning, 3 info; machine
+credentials: 14 warnings, 1 info). No specification behavior was changed.
+
+| Command                                                                                                                                                                   | Observed result                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `bun install --frozen-lockfile`                                                                                                                                           | exit 0, 1493 packages installed                                                                     |
+| `bun test apps/wbs/mcp-01/src/in-flight-counter.model.test.ts apps/wbs/mcp-01/src/pool-swarm.boot.test.ts --coverage --coverage-reporter=lcov --timeout=10000` (original) | 3 pass, 0 fail, 948 expectations; isolation control only                                            |
+| Same focused command after synchronization repair                                                                                                                         | 3 pass, 0 fail, 948 expectations; model 527.70 ms, clean swarm 11256.73 ms, skip-revoke 10930.82 ms |
+| `bun apps/wbs/mcp-01/src/load/pool-swarm-rehearsal.ts` (final SDK profile)                                                                                                | exit 0, 139/139 expectations; positive timeline retained                                            |
+| Same driver with `--fault=skip-reimport`                                                                                                                                  | exit 1, 20 failed expectations; strict refusal/helper failure outcomes retained                     |
+| All five model production sabotages with coverage                                                                                                                         | exit 1 each; source restored byte for byte                                                          |
+| Probe barrier, background reconnect and never-ready probe faults, repeated after the complete SDK option shape was supplied                                               | exit 1 each; final fixtures restored byte for byte                                                  |
+| `bunx nx run wbs-mcp-01:build --skip-nx-cache`                                                                                                                            | exit 0, MCP plus 7 declared dependency tasks; no production source changed                          |
+| `bunx nx run-many --targets=lint,typecheck --projects=wbs-mcp-01 --skip-nx-cache --parallel=2`                                                                            | exit 0; both targets passed after the SDK-required unused default fields were supplied              |
+| `bunx openspec validate wbs-mcp-agent-surface --json`                                                                                                                     | valid, 1 passed / 0 failed; existing diagnostics above                                              |
+| `bunx openspec validate wbs-machine-credentials --json`                                                                                                                   | valid, 1 passed / 0 failed; existing diagnostics above                                              |
+
+An intermediate typecheck rejected `{ maxRetries: 0 }` because this SDK requires the complete
+option shape; adding its unchanged unused delay defaults fixed the type contract. That failed
+output and the earlier incorrect-405 candidate are retained, separate from intentional
+negative proofs. The final declared target, `bunx nx run wbs-mcp-01:test --skip-nx-cache`, passed 723 tests
+across 33 files with 0 failures and 9724 expectations in 67.83 s. It ran the declared
+`bun test --coverage --coverage-reporter=lcov --timeout=10000` command: the strict model
+passed in 486.57 ms and the clean swarm in 11424.85 ms. An earlier runtime pass before
+the unused SDK shape fields were added was 723/0 with 9552 expectations; a second run
+verified the exact final source after that type correction. The different total expectation
+counts are whole-suite observations; no assertion or property run count was removed.
+
+Named-file formatting and `git diff --check` passed. No host gate, new-source public CI,
+provider, deployment or Fleet operation ran in this scoped repair. Those exact-commit
+release checks remain the owning task's responsibility; the older failed host receipt and
+successful public receipt remain unchanged.
+
+_Merge note 2026-11-01 (integration/puni-launch-funnel-main-20261101): the swarm re-key assertion above was superseded by main's effeb1017 form, which requires a completed `after_401` helper refresh without a global event count; the in-flight model decoration below is unchanged and carried forward._

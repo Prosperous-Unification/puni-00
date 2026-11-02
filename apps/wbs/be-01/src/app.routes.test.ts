@@ -16,6 +16,7 @@ import { AuthService } from '@wbs/core/service/auth.service';
 import { inMemorySpaces } from '@wbs/store-memory/space-fixture';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it, spyOn } from 'bun:test';
+import fc from 'fast-check';
 
 import type { AppOptions } from './app';
 import { buildApp, mountedEndpoints } from './app';
@@ -25,6 +26,7 @@ import {
   type EndpointReply,
   type RequestFailure,
 } from './http/endpoint';
+import { indexEndpoints } from './http/endpoint-index';
 import { bunPasswordHasher, joseTokenCodec } from './runtime/bun-runtime';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from './testing/auth-fixture';
 import { testCalendarMarkerService } from './testing/calendar-marker-fixture';
@@ -38,6 +40,7 @@ import {
   refusingTestEmailDelivery,
 } from './testing/email-verification-fixture';
 import { testHistoryService } from './testing/history-fixture';
+import { linearEndpointLookup, requestsFor } from './testing/linear-endpoint-lookup';
 import { testLoginThrottle } from './testing/login-throttle-fixture';
 import {
   legacyOrganizationAccess,
@@ -198,6 +201,7 @@ const PUBLIC_OPERATIONS = [
   'postApiAuthLogout',
   'postApiAuthRefresh',
   'postApiAuthRegister',
+  'postApiAuthReset',
   'postApiSmokeEcho',
 ] as const;
 const SIGNED_IN_OPERATIONS = [
@@ -309,6 +313,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiOrganizationProjectsByIdRank',
   'postApiOrganizationProvisioningTokens',
   'postApiOrganizationProvisioningTokensByIdRotate',
+  'postApiOrganizationResourcesByResourceIdDirectory-capacityPreview',
   'postApiOrganizationSharedPeopleRestoreApprovals',
   'postApiOrganizationSso-connections',
   'postApiOrganizationTrusted-issuers',
@@ -363,6 +368,7 @@ const ALWAYS_ORIGIN_OPERATIONS = [
   'deleteApiOrganizationInvitationsById',
   'postApiAuthLogin',
   'postApiAuthRegister',
+  'postApiAuthReset',
   'postApiOnboardingEmailChallenges',
   'postApiOnboardingEmailChallengesConfirm',
   'postApiOnboardingInvitationsAccept',
@@ -416,6 +422,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiOrganizationProjectsByIdRank',
   'postApiOrganizationProvisioningTokens',
   'postApiOrganizationProvisioningTokensByIdRotate',
+  'postApiOrganizationResourcesByResourceIdDirectory-capacityPreview',
   'postApiOrganizationSharedPeopleRestoreApprovals',
   'postApiOrganizationSso-connections',
   'postApiOrganizationTrusted-issuers',
@@ -753,6 +760,30 @@ it('binds each shared HTTP shape once in every configuration that owns it', () =
     for (const shape of shapes) {
       expect(endpoints.filter((endpoint) => endpoint.shape === shape)).toHaveLength(1);
     }
+  }
+});
+
+// The production tables hold no two same-method paths one request could both match, so
+// precedence is proved in `http/endpoint-index.test.ts`; this proves the buckets.
+// Proof: dropping `methods.add('HEAD')` failed this on `HEAD
+// /api/projects/register/runtime-commands/0`, and bucketing the untrimmed pathname failed it on
+// `GET /health/` (watched 2026-10-28).
+it('selects the endpoint the linear lookup selects, over every production table', () => {
+  for (const endpoints of [
+    mountedEndpoints(options()),
+    mountedEndpoints({ ...options(), oidc: oidcOptions() }),
+  ]) {
+    const lookup = indexEndpoints(endpoints);
+    const linear = linearEndpointLookup(endpoints);
+    fc.assert(
+      fc.property(requestsFor(endpoints), ({ method, pathname }) => {
+        const indexed = lookup(method, pathname);
+        const expected = linear(method, pathname);
+        expect(indexed?.endpoint).toBe(expected?.endpoint);
+        expect(indexed?.params).toEqual(expected?.params);
+      }),
+      { numRuns: 5000 },
+    );
   }
 });
 
@@ -1109,4 +1140,162 @@ it('returns explicit unavailability for admission in a composition without runti
   } finally {
     authentication.mockRestore();
   }
+});
+
+describe('browser reset', () => {
+  const expiredCookies = [
+    '__Host-wbs_access=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0',
+    '__Host-wbs_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0',
+    '__Host-wbs_organization=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0',
+  ];
+  const cookieJars = [
+    '',
+    '__Host-wbs_access=expired; __Host-wbs_session=old; __Host-wbs_organization=old; theme=dark',
+    '__Host-wbs_access=%ZZ; __Host-wbs_session=%; __Host-wbs_organization=broken',
+    '__Host-wbs_access=one; __Host-wbs_access=two; __Host-wbs_session=one; __Host-wbs_session=two',
+    '__Host-wbs_access; __Host-wbs_session=; __Host-wbs_organization=foreign',
+  ];
+
+  function resetApp(mode: 'local' | 'oidc' = 'local') {
+    return buildApp({
+      ...options(),
+      appOrigin: ORIGIN,
+      ...(mode === 'oidc' ? { oidc: oidcOptions() } : {}),
+      ...(mode === 'local'
+        ? {
+            browserSession: {
+              verifyNativeBrowserCredential: () => Promise.resolve(null),
+              revocations: {
+                revoke: () => Promise.reject(new Error('reset must not revoke credentials')),
+              },
+            },
+          }
+        : {}),
+    });
+  }
+
+  it('expires only the three browser session cookies on explicit same-origin reset', async () => {
+    for (const mode of ['local', 'oidc'] as const) {
+      const app = resetApp(mode);
+      for (const cookie of cookieJars) {
+        const response = await app.handle(
+          new Request(`${ORIGIN}/api/auth/reset`, {
+            method: 'POST',
+            headers: { origin: ORIGIN, cookie },
+          }),
+        );
+        expect(response.status).toBe(204);
+        expect(await response.text()).toBe('');
+        expect(response.headers.get('cache-control')).toBe('no-store');
+        expect(response.headers.getSetCookie()).toEqual(expiredCookies);
+      }
+    }
+  });
+
+  it('refuses reset without the exact Origin', async () => {
+    const app = resetApp();
+    for (const origin of [undefined, 'https://foreign.test', `${ORIGIN}/`, 'null', '']) {
+      const headers = new Headers({ cookie: '__Host-wbs_access=broken' });
+      if (origin !== undefined) headers.set('origin', origin);
+      for (const body of [undefined, '{']) {
+        const response = await app.handle(
+          new Request(`${ORIGIN}/api/auth/reset`, {
+            method: 'POST',
+            headers,
+            body,
+          }),
+        );
+        expect(response.status).toBe(403);
+        expect(await response.json()).toEqual({ error: 'invalid_origin' });
+        expect(response.headers.getSetCookie()).toEqual([]);
+      }
+    }
+  });
+
+  it('refuses API carriers without clearing browser cookies', async () => {
+    const app = resetApp();
+    for (const carrier of ['authorization', 'x-wbs-token']) {
+      for (const value of ['', 'Bearer broken']) {
+        const response = await app.handle(
+          new Request(`${ORIGIN}/api/auth/reset`, {
+            method: 'POST',
+            headers: { origin: ORIGIN, cookie: '__Host-wbs_access=broken', [carrier]: value },
+          }),
+        );
+        expect(response.status).toBe(400);
+        expect(await response.json()).toEqual({ error: 'invalid_client' });
+        expect(response.headers.getSetCookie()).toEqual([]);
+      }
+    }
+  });
+
+  it('refuses reset bodies, queries and unsupported methods', async () => {
+    const app = resetApp();
+    for (const [suffix, body, error] of [
+      ['', '{}', 'invalid_body'],
+      ['', ' ', 'invalid_body'],
+      ['', '{', 'invalid_body'],
+      ['?unexpected=1', undefined, 'invalid_query'],
+      ['?unexpected=1&unexpected=2', undefined, 'invalid_query'],
+    ] as const) {
+      const response = await app.handle(
+        new Request(`${ORIGIN}/api/auth/reset${suffix}`, {
+          method: 'POST',
+          headers: { origin: ORIGIN },
+          body,
+        }),
+      );
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error });
+      expect(response.headers.getSetCookie()).toEqual([]);
+    }
+    for (const method of ['GET', 'HEAD', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']) {
+      const response = await app.handle(
+        new Request(`${ORIGIN}/api/auth/reset`, {
+          method,
+          headers: { origin: ORIGIN, cookie: '__Host-wbs_access=broken' },
+        }),
+      );
+      expect(response.status).toBe(404);
+      expect(response.headers.getSetCookie()).toEqual([]);
+    }
+  });
+
+  it('password validation is reachable after resetting a stale cookie jar', async () => {
+    const app = resetApp();
+    const jar = new Map([
+      ['__Host-wbs_access', 'broken'],
+      ['__Host-wbs_session', 'stale'],
+      ['__Host-wbs_organization', 'stale'],
+      ['theme', 'dark'],
+    ]);
+    const cookies = () => [...jar].map(([name, value]) => `${name}=${value}`).join('; ');
+    const login = () =>
+      app.handle(
+        new Request(`${ORIGIN}/api/auth/login`, {
+          method: 'POST',
+          headers: { origin: ORIGIN, cookie: cookies(), 'content-type': 'application/json' },
+          body: JSON.stringify({ username: 'unknown', password: 'wrong-password' }),
+        }),
+      );
+    const stale = await login();
+    expect(stale.status).toBe(401);
+    expect(await stale.json()).toEqual({ error: 'unauthenticated' });
+    const reset = await app.handle(
+      new Request(`${ORIGIN}/api/auth/reset`, {
+        method: 'POST',
+        headers: { origin: ORIGIN, cookie: cookies() },
+      }),
+    );
+    expect(reset.status).toBe(204);
+    for (const cookie of reset.headers.getSetCookie()) {
+      expect(cookie).toContain('Max-Age=0');
+      jar.delete(cookie.split('=')[0] ?? '');
+    }
+    expect([...jar]).toEqual([['theme', 'dark']]);
+    const normal = await login();
+    expect(normal.status).toBe(401);
+    expect(await normal.json()).toEqual({ error: 'invalid_credentials' });
+    expect(normal.headers.getSetCookie()).toEqual([]);
+  });
 });

@@ -42,13 +42,13 @@ absolute home path; JSON does not expand `$HOME` or `~`:
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "root": "/home/alex/.local/share/dash/resources",
   "authorityId": "linux-builder-one",
   "epoch": "initial-enrollment",
   "providerId": "provider-one",
-  "wbsOrigin": "https://wbs.example.invalid",
-  "credential": "ADMIN_BOUND_MACHINE_CREDENTIAL",
+  "mcpResource": "https://wbs.example.invalid/mcp",
+  "credential": "<wbs_mk_ API key of the admin-bound machine credential>",
   "diskUnitBytes": 1073741824,
   "diskBudgetUnits": 32,
   "workspaceSlots": 4,
@@ -65,8 +65,17 @@ chmod 0600 "$HOME/.config/dash/resources.json"
 An organization admin first binds the **exact** machine credential to this provider, authority
 and epoch using `PUT /api/organization/resource-authorities/:authorityId` with
 `{providerId,credentialId,epoch}`. An ordinary worker credential cannot certify release. The
-configuration's credential is never printed by Dash. HTTP is accepted only on loopback for an
-explicit tunnel or test server; other origins require HTTPS and redirects are refused.
+configuration's credential is never printed by Dash. Dash calls WBS's MCP endpoint
+(`mcpResource`) with it: a `client_credentials` token at `<mcpResource>/oauth/token`, then the
+tools `putApiResourceAuthoritiesByAuthorityIdAdmissions`,
+`putApiResourceAuthoritiesByAuthorityIdEvents` and
+`getApiResourceAuthoritiesByAuthorityIdCleanupRequests`
+(`openspec/changes/wbs-mcp-agent-surface` M9: be-01's `/api` refuses the key itself
+`401 machine_bearer_not_accepted`). Schema version 1 named a `wbsOrigin` and is refused. HTTP is
+accepted only on loopback for an explicit tunnel or test server; other endpoints require HTTPS
+and redirects are refused. `watch` keeps retrying while WBS does not answer, answers `429` or
+mcp-01 leaves a call uncompleted (`rate_limited`, `server_error`, …); a refused credential
+(`machine_credential_refused`) or any other refusal stops it.
 
 Commands below abbreviate the source entrypoint as `dash`:
 
@@ -207,7 +216,8 @@ dash resources watch --config "$HOME/.config/dash/resources.json"
 Each tick reconciles dead owners and pending cleanup, publishes ordered durable events, and
 consumes scoped WBS requests. WBS downtime preserves the outbox and does not prevent local
 cleanup. Authentication/schema/identity failures stop the watcher visibly for operator repair;
-network failures and HTTP 429/5xx remain visible retry obligations. Normal watch cadence is one
+no answer, a `429` and a call mcp-01 left uncompleted for a transient reason remain visible
+retry obligations. Normal watch cadence is one
 second. Provider subprocesses have 30-second kill deadlines; each cleanup has at most six
 attempts with exponential backoff (one second through a one-minute cap). Exhaustion stays
 blocked and charged until explicit retry. A retention review date requests another preservation

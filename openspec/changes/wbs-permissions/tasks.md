@@ -5,7 +5,9 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
 
 ## 0. Dany reads P1 to P18
 
-- [ ] 0.1 Dany confirms or amends design.md P1 to P18, in particular P17 (a machine
+- [ ] 0.1 Dany confirms or amends design.md P1 to P18 (P17 and P18 confirmed 2026-10-25 by the
+      coordinator under Dany's principles: flexibility, whatever allows the most
+      restrictiveness), in particular P17 (a machine
       credential is a grant subject and holds only its own grants; overrides P2 and answers
       E7's machine-principal grantee), P18 (renaming access roles at runtime is a non-goal;
       E7's "rename the roles" is the scope-prefixed vocabulary already adopted), P5 as revised
@@ -16,44 +18,58 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       its backfill mapping is P7's decision on what E8 keeps; slice 2 also for P16; slice 3
       for P3, P4, P5 and P10; slice 4 for P11 and P17; slice 6 for P5, P7, P15 and P17.
       Slices 3 to 7 run after #698 slice 1; 3.2 (its listing statement joins
-      `work_package.project_id`) and 3.4 (slice 3's project rules) after #698 slice 2.
+      `work_package.project_id`) and 3.4 (slice 3's project rules) after #698 slice 2. The
+      full order is #698 design.md's "Dependency graph" (#698 E41): 4.1 lands before 3.3
+      (creation grants are audited as `access_granted`), and 3.3 and 4.1 land before #698
+      slice 2.
 
 ## 1. Catalogue, grant tables and backfill
 
-- [ ] 1.1 Migration `add_access_grants`: `access_role` seeded with the nine roles,
+- [ ] 1.1 Migration `add_access_grants`: `access_role` (with `name`, nullable `level`, the built-in/custom CHECK) seeded with the nine roles, `access_role_permission` seeded with their sets from permission-matrix.md and the reserved-name trigger (`wbs-custom-permissions` 1.1),
       `access_group`, `access_group_member`, `access_grant` with the CHECKs, unique and
       composite foreign keys, the `organization_members` trigger, the two indexes, the
       backfill of memberships and work package owners (no project-scope row) and the
       machine credentials' copies capped at contributor (P17), and a
-      `down.sql` refusing while a non-backfill grant or a group exists — test:
-      `access-grant-migration.db.test.ts` forward (counts per role equal memberships and
-      owned work packages), back on a backfill-only store, refusal over one route-origin
-      grant; negatives: drop the refusal and the rollback silently deletes a route grant;
+      `down.sql` refusing while a non-backfill grant, a group, a custom role or a custom
+      role's permission row exists, then dropping the five tables in dependency order —
+      test: `access-grant-migration.db.test.ts` forward (counts per role equal memberships
+      and owned work packages, seed ids equal the matrix's), back on a backfill-only store,
+      refusal over one route-origin grant and over one ungranted custom role; negatives:
+      drop the refusal and the rollback silently deletes a route grant; drop the custom-role
+      guard and the ungranted role is deleted;
       drop the owner predicate and a non-member owner receives a grant; drop the cap in
       the credential copy and an `org-admin`'s credential receives `org-admin`; watched.
 - [ ] 1.2 Red: `access-role.test.ts` in `@wbs/domain` for the pure catalogue,
       the `ScopeChain` value type shared with #698 (design.md P13) and
-      `may(effective, permission)`: the 9 × 21 table of permission-matrix.md as a
-      property (every cell), kind filtering (a project role never satisfies an
-      organization permission), and the cap — test: one case per permission plus the
-      table; negative: lower `package.claim_for_others` to level 2 and the machine case
+      `may(effective, permission)`: the matrix of permission-matrix.md as a
+      property (every cell is a seeded set row), `may` as set membership, the kind rule
+      (a project role never satisfies an organization permission) and `CONTRIBUTOR_CAP`
+      as a set, the P5 transformation (`wbs-custom-permissions` 1.2, CP16, CP18) — test:
+      one case per permission plus the table, ids compared with `PERMISSIONS`; negatives:
+      widen the cap with `project.manage_budgets` and the machine case manages budgets; add
+      `package.claim_for_others` to `package-contributor`'s seed and the machine case
       passes; watched.
 - [ ] 1.3 Green: port `AccessDecisions` (`effectiveRoleAt`, `readablePackageIds`) in
       `@wbs/core`, SQLite implementation with the two statements of design.md, exposed on
       the admitted turn's stores and the read stores; provenance returned; work package
       targets without a project until #698 slice 2 (design.md, "The `may` port") — test:
-      `access-decisions.db.test.ts`: direct, group, members subject, strongest wins, the
-      kind filter, the restricted rule (org-admin and org-super-admin read, org-viewer,
-      organization-scope project and package roles and the members subject skipped),
-      membership gone, cap 2 and 5, a machine principal holding only its credential's
-      grants (P17), one statement per call (statement counter);
-      negatives: remove the membership `EXISTS` and a removed member keeps access; remove
-      the kind filter and the case "a package role at organization scope satisfies a
-      project permission" passes where it must fail; remove the P5 clause and an
-      `org-viewer` reads a restricted work package; remove the `CASE` and an `org-admin`
-      writes one; replace `MIN(…, :cap)` with `MAX` and the machine case is manager;
-      drop the `:machine = 0` guards and an `org-admin`'s agent writes a package no grant
-      of its credential names; watched.
+      `access-decisions.db.test.ts`: direct, group, members subject, grants adding up,
+      the kind rule on stored rows, the restricted rule (built-in org-admin and
+      org-super-admin read only, org-viewer, custom organization roles, organization-scope
+      project and package roles and the members subject skipped), visibility needing the
+      read permission, membership gone, the cap set and no cap, injected corrupt rows
+      throwing `UnknownPermissionRow`, `PermissionKindRow` and `EmptyRoleSet` on both
+      statements (`wbs-custom-permissions` 1.3), a machine principal holding only its
+      credential's grants (P17), one statement per call (statement counter, query plan);
+      negatives: remove the membership `EXISTS` and a removed member keeps access; add
+      `project.manage_settings` to `package-manager`'s seed and the case "a package role at
+      organization scope satisfies a project permission" passes unless
+      `PermissionKindRow` throws; remove the P5 skip and an `org-viewer` reads a restricted
+      work package; return a built-in admin's set unchanged instead of intersecting it with
+      the read-only set and an `org-admin` writes one; widen the cap set and the machine
+      case is manager; catch-and-skip the unknown row and the throw test fails; drop the
+      `:machine = 0` guards and an `org-admin`'s agent writes a package no grant of its
+      credential names; watched.
 - [ ] 1.4 Grant store `AccessGrants` (`grant`, `revoke`, `list`, groups and members) with
       the in-transaction invariants (`role_scope_mismatch`, scope ownership through
       `work_package_organization`, today's `project_organization`; `not_a_member`,
@@ -65,12 +81,21 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       granted in A; skip the credential cascade and a revoked credential's grant row
       survives; watched.
 
+- [ ] 1.5 `access-grant-cli.ts grant-super-admin|revoke-super-admin --organization=<id> --user=<id>`
+      (P21) over the grant store of 1.4 — test: `access-grant-cli.db.test.ts`: grant to a
+      current member writes the grant and one `access_granted` row (origin `operator`, actor
+      `operator:<os login>`) and prints the count; a non-member, a machine credential, an
+      unknown organization, a missing database and an unreadable database each refuse
+      separately with nothing written; revoke of the last direct human holder refuses
+      `last_super_admin`; negatives: drop the membership check and a non-member is granted;
+      drop the CP14 count from the revoke and the organization is left with none; catch
+      the unreadable database and the command exits 0 having written nothing; watched.
+
 ## 2. `may()` wired into core, the old checks removed
 
 - [ ] 2.1 `authorize(decisions, principal, scope, permission)` in `@wbs/core` with the
       P10 answers; `resolve` answers membership, `delegated` and the cap
-      (`OrganizationScope.role` stays for the old helpers until 2.4); `scopesOfRoles`
-      reads the organization-kind level — test: `authorize.test.ts` (not_found, forbidden-with-permission, ok) and the
+      (`OrganizationScope.role` stays for the old helpers until 2.4); `scopesOfRoles` is left to `wbs-machine-credentials` slice 4 (#731), which deletes it, so no rewiring here whichever lands first — test: `authorize.test.ts` (not_found, forbidden-with-permission, ok) and the
       existing `authentication.feature` tests with grants; negative: answer `forbidden`
       where the level is null and the "invisible is 404" controller case leaks; watched.
 - [ ] 2.2 Rewire the work-package sites, old helpers kept: batches
@@ -134,8 +159,9 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       through `listForInOrganization` and the hidden work package appears in the roll-up;
       answer `403` on the plain member's `GET /api/spaces` and the `[]` case fails;
       watched.
-- [ ] 3.3 Restricted work packages (P5, P6): the evaluator's read-only rule, creation
-      grants for creators, the flag clear through `organization.recover_restricted` with
+- [ ] 3.3 Restricted work packages (P5, P6), with work package targets built from
+      `InterimPackageChain` (P13): the evaluator's read-only rule, creation
+      grants for creators (each with its `access_granted` row, after 4.1), the flag clear through `organization.recover_restricted` with
       one `restricted_work_package_recovery` row, every other super-admin write refused —
       test: `restricted-work-package.controller.db.test.ts` for the five scenarios of the
       spec and organization-access's three; negatives: drop the creation grant and the
@@ -147,7 +173,9 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       names; `moveWorkPackage` at both projects; the `/api/projects` family
       (`organization.create_project`, `project.read` with the P3 shell,
       `project.manage_settings` for patch, delete, settings, project steps and the type
-      allow-list); `createProject` writes the creator's `project-manager` grant (P6) —
+      allow-list); `InterimPackageChain` replaced by `ProjectChain` and `WorkPackageChain`;
+      the creator's `project-manager` grant, written by #698 slice 2's `createProject` in its
+      transaction (#698 E41), is honoured —
       test: `project-permission.controller.db.test.ts` for every project row of
       permission-matrix.md and the "Moving a work package needs both projects" and "A
       role counts only for the kinds it governs" scenarios; negatives: check the move at

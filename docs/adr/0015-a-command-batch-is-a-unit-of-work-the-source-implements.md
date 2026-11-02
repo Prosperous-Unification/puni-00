@@ -81,6 +81,21 @@ at all, and meets terminal atomicity by staging, acting and one atomic rename, w
 memory source with a persist hook. Neither is built; both fit the three interfaces without
 core changing.
 
+**Amended 2026-10-25 (`wbs-shared-occupancy` design S4, accepted by Dany 2026-11-01): a check
+that reads across projects needs the source's lock to cover the organization.** A claim on a
+resource with a directory capacity reads every project's occupancy of it inside its batch
+and refuses or writes on what it read; `claim_limit` already counts across projects the same
+way. Both hold only if no batch of another project of the organization commits between the
+read and the write. The process-wide SQLite coordinator and `BEGIN IMMEDIATE` give that
+today, and the memory source's single queue does. A source that keys its coordinator by
+project, as the Postgres sketch above does, must take the organization's lock (or a
+resource's) for such a batch, before its first read; a per-project lock alone admits two
+claims that together exceed the directory capacity. Unit-of-work case (m) asserts only what
+every source has today: a store-wide turn, so two concurrent batches never overlap. It cannot
+express the per-project fault, because `UnitOfWork.run` takes no key; the source that first
+keys its coordinator by project adds the key and a case where a batch of project A reading the
+organization excludes a batch of project B.
+
 ## Considered options
 
 **Transactions stay SQL-only; swappability promised only among SQL sources.** Rejected

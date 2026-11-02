@@ -2,6 +2,7 @@ import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs';
 
 import { parseSecretsOrThrow, type } from '@shared/validation';
 
+import { ApiKey, type McpEndpoint, mcpEndpointOf } from '../mcp/machine-token';
 import {
   type ComputeProvider,
   type Measure,
@@ -35,32 +36,6 @@ export class ConfigurationRefusal extends Error {
   }
 }
 
-/**
- * A WBS API key (`wbs_mk_<id>.<secret>`, `wbs-machine-credentials` A22). The key is held in a
- * private field, so stringifying, logging or serialising the configuration that carries it prints
- * `[credential]`; only {@link WbsCredential.authorization} reveals it, for the one request header.
- */
-export class WbsCredential {
-  readonly #key: string;
-
-  public constructor(key: string) {
-    this.#key = key;
-  }
-
-  /** The `Authorization` header value for one WBS request. */
-  public authorization(): string {
-    return `Bearer ${this.#key}`;
-  }
-
-  public toString(): string {
-    return '[credential]';
-  }
-
-  public toJSON(): string {
-    return '[credential]';
-  }
-}
-
 /** One configured provider instance, its adapter opened and its bindings validated. */
 export interface ReporterInstance {
   readonly instanceId: string;
@@ -70,9 +45,9 @@ export interface ReporterInstance {
 
 /** A loaded `report-capacity` configuration (`compute-providers` P10, P11). */
 export interface ReporterConfiguration {
-  /** The WBS origin, `https:` or loopback `http:`, with no path, query or user info. */
-  readonly wbsOrigin: string;
-  readonly credential: WbsCredential;
+  /** WBS's MCP endpoint, `https:` or loopback `http:` (`wbs-mcp-agent-surface` M12). */
+  readonly endpoint: McpEndpoint;
+  readonly credential: ApiKey;
   readonly cadenceSeconds: number;
   readonly instances: readonly ReporterInstance[];
 }
@@ -142,8 +117,8 @@ const Instance = type({
 }).onUndeclaredKey('reject');
 
 const Configuration = type({
-  schemaVersion: '1',
-  wbsOrigin: 'string',
+  schemaVersion: '2',
+  mcpResource: 'string',
   credential: MachineKey,
   'cadenceSeconds?': '30 <= number.integer <= 86400',
   instances: Instance.array().atLeastLength(1),
@@ -202,38 +177,33 @@ export function readOwnerOnly(path: string): string {
 }
 
 /**
- * The origin requests go to. Plain HTTP would carry the credential readable on the wire, so only
- * a loopback origin may use it (a local tunnel or a test server).
+ * The MCP endpoint reports go to (`mcpResource`, e.g. `https://wbs.example/mcp`). The key crosses
+ * the wire to its token endpoint, so plain HTTP is accepted only on loopback (a local tunnel or a
+ * test server), and user info, a query or a fragment is refused.
  */
-function readOrigin(path: string, source: string): string {
-  let origin: URL;
+function readMcpResource(path: string, source: string): McpEndpoint {
+  let url: URL;
   try {
-    origin = new URL(source);
+    url = new URL(source);
   } catch {
-    throw new ConfigurationRefusal('config_malformed', `${path}: wbsOrigin is not a URL`);
+    throw new ConfigurationRefusal('config_malformed', `${path}: mcpResource is not a URL`);
   }
-  const plainLoopback = origin.protocol === 'http:' && LOOPBACK_HOSTS.has(origin.hostname);
+  const plainLoopback = url.protocol === 'http:' && LOOPBACK_HOSTS.has(url.hostname);
   // Proof: accepting any `http:` origin made `refuses a plain-HTTP origin that is not loopback`
   // load a configuration that would send the key in clear text (2026-10-22).
-  if (origin.protocol !== 'https:' && !plainLoopback) {
+  if (url.protocol !== 'https:' && !plainLoopback) {
     throw new ConfigurationRefusal(
       'config_malformed',
-      `${path}: wbsOrigin must be https, or http on loopback`,
+      `${path}: mcpResource must be https, or http on loopback`,
     );
   }
-  if (
-    origin.username !== '' ||
-    origin.password !== '' ||
-    origin.pathname !== '/' ||
-    origin.search !== '' ||
-    origin.hash !== ''
-  ) {
+  if (url.username !== '' || url.password !== '' || url.search !== '' || url.hash !== '') {
     throw new ConfigurationRefusal(
       'config_malformed',
-      `${path}: wbsOrigin must be an origin without user info, path, query or fragment`,
+      `${path}: mcpResource must be a URL without user info, query or fragment`,
     );
   }
-  return origin.origin;
+  return mcpEndpointOf(source);
 }
 
 /**
@@ -299,7 +269,7 @@ export async function loadReporterConfiguration(
     const fields = cause instanceof Error ? cause.message : 'the value itself';
     throw new ConfigurationRefusal('config_malformed', `${path}: ${fields}`);
   }
-  const wbsOrigin = readOrigin(path, parsed.wbsOrigin);
+  const endpoint = readMcpResource(path, parsed.mcpResource);
   const instanceIds = new Set<string>();
   const resourceIds = new Set<string>();
   for (const instance of parsed.instances) {
@@ -366,8 +336,8 @@ export async function loadReporterConfiguration(
     });
   }
   return {
-    wbsOrigin,
-    credential: new WbsCredential(parsed.credential),
+    endpoint,
+    credential: ApiKey.of(parsed.credential, `${path}: credential`),
     cadenceSeconds: parsed.cadenceSeconds ?? DEFAULT_CADENCE_SECONDS,
     instances,
   };

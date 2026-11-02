@@ -10,9 +10,16 @@ import {
   resolveHarness,
   startOverUrl,
 } from './build-contract';
-import { HeroMedia, SiteHeader, siteOrigin, useHeadingFocus, usePageTitle } from './chrome';
+import {
+  AnalyticsCredit,
+  HeroMedia,
+  SiteHeader,
+  siteOrigin,
+  useHeadingFocus,
+  usePageTitle,
+} from './chrome';
 import { LiveHarness, PausedHarness } from './conversation-harness';
-import { PrivacyChoices } from './privacy-choices';
+import { ArrivalChoice, PrivacyChoices } from './privacy-choices';
 import { clearRequestEditor, RequestEditor } from './request-editor';
 
 /** Renders an impossible app state explicitly instead of a blank page. */
@@ -268,9 +275,9 @@ export function BuildPage() {
   return (
     <div className="page-shell build-page night-shell">
       <HeroMedia />
-      <SiteHeader buildCurrent="page" tone="night" rail="overlay" />
+      <SiteHeader buildCurrent="page" tone="night" placement="overlay" />
       <main className="harness" id="main">
-        <PrivacyChoices />
+        <ArrivalChoice />
         <h1 ref={heading} tabIndex={-1} className="visually-hidden">
           {load.kind === 'ready' ? 'Shape the work together.' : 'Build'}
         </h1>
@@ -320,6 +327,10 @@ export function BuildPage() {
           />
         )}
       </main>
+      <PrivacyChoices />
+      <footer className="build-credit">
+        <AnalyticsCredit />
+      </footer>
     </div>
   );
 }

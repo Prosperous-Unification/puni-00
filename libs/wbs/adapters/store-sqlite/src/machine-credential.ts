@@ -69,7 +69,8 @@ export class MachineCredentialRepository implements MachineCredentials {
    *
    * Proof: each of the three shape checks removed in turn made its case of
    * `fails as a server error on a malformed stored …` in
-   * `machine-credential.controller.db.test.ts` fail; watched 2026-10-22.
+   * `machine-credential.controller.db.test.ts` fail; watched 2026-10-22, and
+   * again through the grant route mcp-01 calls 2026-10-29.
    */
   async findById(id: string): Promise<MachineCredentialRecord | null> {
     await Promise.resolve();
@@ -170,7 +171,8 @@ export class MachineCredentialRepository implements MachineCredentials {
           // Proof: with this predicate removed, `refuses a credential that
           // names another organization's trusted issuer` in
           // `oidc-credential.controller.db.test.ts` admitted B's credential
-          // through A's trusted issuer; watched 2026-10-22.
+          // through A's trusted issuer; watched 2026-10-22, and again through
+          // mcp-01's jwt-bearer grant 2026-10-29.
           eq(organizationTrustedIssuer.organizationId, machineCredential.organizationId),
           eq(organizationTrustedIssuer.issuer, machineCredential.issuer),
         ),

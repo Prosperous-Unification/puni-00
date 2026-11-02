@@ -1,4 +1,4 @@
-import type { Tier } from '@tools/deploy-contract';
+import { parseAcceptBreaking, type Tier } from '@tools/deploy-contract';
 import { type EnvLayout, envLayout } from '@tools/env';
 
 // Re-exported because every module in this project takes `Tier` from here.
@@ -21,6 +21,12 @@ export interface DeployArgs {
   withMigrations: boolean;
   /** Acknowledges the deploy carries a migration too risky for blue/green; plain restart, brief outage. */
   stopTheWorld: boolean;
+  /**
+   * Stored audiences the operator accepts as breaking the MCP authorization
+   * server (`--accept-breaking=<id,id>`), passed to the be swap's audience
+   * preflight as `WBS_ACCEPT_BREAKING_AUDIENCES`. Empty accepts none.
+   */
+  acceptBreaking: string[];
 }
 
 function parseTierArg(v: string): Tier[] {
@@ -43,6 +49,7 @@ export function parseDeployArgs(argv: string[]): DeployArgs {
     dryRun: true,
     withMigrations: false,
     stopTheWorld: false,
+    acceptBreaking: [],
   };
   const positional: string[] = [];
 
@@ -70,6 +77,7 @@ export function parseDeployArgs(argv: string[]): DeployArgs {
     else if (key === 'execute') result.dryRun = false;
     else if (key === 'with-migrations') result.withMigrations = true;
     else if (key === 'stop-the-world') result.stopTheWorld = true;
+    else if (key === 'accept-breaking') result.acceptBreaking = parseAcceptBreaking(val);
     // --since, --version and --skip-build were accepted and then read by
     // nothing: `grep -rn '\.since\b' tools/` matches this parser and no other
     // line. `--version=v1.2.3` looked like a rollback and deployed HEAD, which

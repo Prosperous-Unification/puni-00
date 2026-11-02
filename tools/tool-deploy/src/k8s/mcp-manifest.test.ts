@@ -4,6 +4,8 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'bun:test';
 import { parseAllDocuments, parseDocument } from 'yaml';
 
+import { LAB_MCP_BE_INTERNAL_SECRET } from './lab';
+
 const root = resolve(import.meta.dir, '../../../..');
 
 function manifest(path: string): unknown {
@@ -65,6 +67,12 @@ describe('MCP deployment persistence', () => {
                         key: 'MCP_SIGNING_KEY_PREVIOUS',
                         optional: true,
                       },
+                    },
+                  },
+                  {
+                    name: 'MCP_BE_INTERNAL_SECRET',
+                    valueFrom: {
+                      secretKeyRef: { name: 'wbs-mcp-secrets', key: 'MCP_BE_INTERNAL_SECRET' },
                     },
                   },
                 ],
@@ -188,4 +196,55 @@ describe('public MCP OAuth discovery ingress', () => {
         expect(routedService(overlay, host, path)).toBe('wbs-frontend');
     },
   );
+});
+
+interface GeneratedLiterals {
+  readonly name: string;
+  readonly literals: readonly string[];
+}
+
+/** One generator's literals as a map; a later duplicate would be a kustomize error anyway. */
+function literalsOf(
+  overlay: string,
+  kind: 'configMapGenerator' | 'secretGenerator',
+  name: string,
+): Map<string, string> {
+  const generators = (
+    manifest(`deploy/k8s/wbs/overlays/${overlay}/kustomization.yaml`) as Record<
+      string,
+      GeneratedLiterals[] | undefined
+    >
+  )[kind];
+  const generator = generators?.find((entry) => entry.name === name);
+  if (generator === undefined) throw new Error(`${overlay} has no ${kind} ${name}`);
+  return new Map(
+    generator.literals.map((literal) => {
+      const eq = literal.indexOf('=');
+      return [literal.slice(0, eq), literal.slice(eq + 1)];
+    }),
+  );
+}
+
+describe('MCP machine grant settings', () => {
+  it("gives every overlay's backend ConfigMap mcp-01's canonical authorization server", () => {
+    for (const overlay of ['local', 'staging', 'prod']) {
+      const publicUrl = literalsOf(overlay, 'configMapGenerator', 'wbs-mcp-config').get(
+        'MCP_PUBLIC_URL',
+      );
+      if (publicUrl === undefined) throw new Error(`${overlay} names no MCP_PUBLIC_URL`);
+      // `mcpAuthorizationServerOf` in @wbs/contracts, which this buildable tool cannot import;
+      // mcp-01 refuses to boot a public URL whose derived server is not canonical.
+      expect(
+        literalsOf(overlay, 'configMapGenerator', 'wbs-backend-config').get(
+          'WBS_MCP_AUTHORIZATION_SERVER',
+        ),
+      ).toBe(`${publicUrl}/oauth`);
+    }
+  });
+
+  it("gives the lab's mcp-01 the backend's own MCP_BE_INTERNAL_SECRET", () => {
+    expect(
+      literalsOf('local', 'secretGenerator', 'wbs-backend-secrets').get('MCP_BE_INTERNAL_SECRET'),
+    ).toBe(LAB_MCP_BE_INTERNAL_SECRET);
+  });
 });

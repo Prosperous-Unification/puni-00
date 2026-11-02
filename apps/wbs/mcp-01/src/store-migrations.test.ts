@@ -26,6 +26,7 @@ const BASELINE = '20260921090000_mcp_refresh_family';
 const BINDING = '20260927120000_mcp_credential_binding';
 const CLIENT = '20261021120000_mcp_client';
 const PERSON = '20261022130000_mcp_family_person';
+const SECRET = '20261031120000_mcp_client_secret';
 const roots: string[] = [];
 
 /** The exact constructor schema every store written before the ledger carries. */
@@ -121,7 +122,7 @@ describe('MCP store migrations', () => {
     const reopened = new McpSessionStore(path, [KEY]);
     expect(reopened.familyForSession('session-1', NOW)?.credentialEpoch).toBe(0);
     reopened.close();
-    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON]);
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON, SECRET]);
     expect(withDb(path, readCredentialEpoch)).toBe(0);
   });
 
@@ -144,7 +145,7 @@ describe('MCP store migrations', () => {
       db.run('DETACH DATABASE scratch');
     });
     const store = new McpSessionStore(path, [KEY]);
-    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON]);
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON, SECRET]);
     const legacy = store.familyForSession('legacy-session', NOW);
     expect(legacy?.upstreamAccessToken).toBe('legacy-access');
     expect(legacy?.upstreamRefreshToken).toBe('legacy-refresh');
@@ -178,7 +179,7 @@ describe('MCP store migrations', () => {
       ).toEqual([...DEV_STORE_SCHEMA].sort(bySqliteMasterOrder));
     });
     new McpSessionStore(path, [KEY]).close();
-    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON]);
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON, SECRET]);
   });
 
   it.each([
@@ -315,7 +316,7 @@ describe('MCP store migrations', () => {
     );
     for (const output of outputs) expect(output).toMatch(/^opened|^refused.*exists but is empty/);
     new McpSessionStore(path, [KEY]).close();
-    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON]);
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON, SECRET]);
   });
 });
 
@@ -667,7 +668,7 @@ describe('MCP store rollback', () => {
     const { path, at } = bound('live', 'without');
     withDb(path, (db) => {
       expect(() => rollbackMcpStore(db, BASELINE, at)).toThrow(/1 usable bound families/);
-      expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON]);
+      expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON, SECRET]);
     });
   });
 
@@ -690,7 +691,7 @@ describe('MCP store rollback', () => {
   it('purges dead bound credentials, preserves legacy ones and reaches the baseline', () => {
     const { path, at } = bound('expired', 'with');
     withDb(path, (db) => {
-      expect(rollbackMcpStore(db, BASELINE, at)).toEqual([PERSON, CLIENT, BINDING]);
+      expect(rollbackMcpStore(db, BASELINE, at)).toEqual([SECRET, PERSON, CLIENT, BINDING]);
       expect(db.query('SELECT family_id FROM mcp_family').all()).toEqual([{ family_id: 'legacy' }]);
       expect(db.query('SELECT jti FROM mcp_session').all()).toEqual([{ jti: 'legacy-session' }]);
       expect(db.query('SELECT family_id FROM mcp_refresh').all()).toEqual([
@@ -828,7 +829,7 @@ describe('MCP family-person migration', () => {
     withDb(path, (db) => {
       expect(() => rollbackMcpStore(db, CLIENT, NOW)).toThrow(/1 families acting as a person/);
     });
-    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON]);
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON, SECRET]);
     const reopened = new McpSessionStore(path, [KEY]);
     expect(reopened.endedConsents(NOW, 10)).toEqual([
       { familyId: 'claire', credentialId: CLAIRE.credentialId },
@@ -837,7 +838,7 @@ describe('MCP family-person migration', () => {
     expect(reopened.endedConsents(NOW, 10)).toEqual([]);
     reopened.close();
     withDb(path, (db) => {
-      expect(rollbackMcpStore(db, CLIENT, NOW)).toEqual([PERSON]);
+      expect(rollbackMcpStore(db, CLIENT, NOW)).toEqual([SECRET, PERSON]);
       // The dead, reported family is purged; the legacy one stays.
       expect(db.query('SELECT family_id FROM mcp_family').all()).toEqual([{ family_id: 'legacy' }]);
       expect(db.query('SELECT family_id FROM mcp_refresh').all()).toEqual([
@@ -846,7 +847,7 @@ describe('MCP family-person migration', () => {
     });
     expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT]);
     const forward = new McpSessionStore(path, [KEY]);
-    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON]);
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON, SECRET]);
     expect(forward.familyForSession('legacy-session', NOW)?.familyId).toBe('legacy');
     forward.close();
   });
@@ -895,6 +896,7 @@ describe('MCP registered-client migration', () => {
       clientId,
       source: '203.0.113.1',
       redirectUris: ['https://claude.ai/api/mcp/auth_callback'],
+      authentication: { method: 'none' },
       proven: false,
       expiresAt,
       unprovenExpiresAt: expiresAt + 60_000,
@@ -919,14 +921,14 @@ describe('MCP registered-client migration', () => {
     admit(store, client('client-a'));
     store.close();
     withDb(path, (db) => {
-      expect(rollbackMcpStore(db, BINDING, NOW)).toEqual([PERSON, CLIENT]);
+      expect(rollbackMcpStore(db, BINDING, NOW)).toEqual([SECRET, PERSON, CLIENT]);
       expect(
         db.query("SELECT name FROM sqlite_master WHERE name LIKE 'mcp_client%'").all(),
       ).toEqual([]);
     });
     expect(ledger(path)).toEqual([BASELINE, BINDING]);
     const reopened = new McpSessionStore(path, [KEY]);
-    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON]);
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON, SECRET]);
     expect(reopened.client('client-a', NOW)).toBeNull();
     expect(reopened.familyForSession('legacy-session', NOW)?.familyId).toBe('legacy');
     admit(reopened, client('client-b'));
@@ -989,5 +991,158 @@ describe('MCP registered-client migration', () => {
     withDb(path, (db) => db.run(fault));
     expect(() => store.client('client-a', NOW)).toThrow(/MCP client/);
     store.close();
+  });
+});
+
+describe('MCP client-secret migration', () => {
+  const DIGEST = 'a'.repeat(64);
+
+  function confidential(clientId: string, expiresAt = NOW + 60_000): RegisteredClient {
+    return {
+      clientId,
+      source: '203.0.113.1',
+      redirectUris: ['https://claude.ai/api/mcp/auth_callback'],
+      authentication: { method: 'client_secret_post', secretSha256: DIGEST },
+      proven: false,
+      expiresAt,
+      unprovenExpiresAt: expiresAt + 60_000,
+    };
+  }
+
+  function admitted(path: string, registered: RegisteredClient): McpSessionStore {
+    const store = new McpSessionStore(path, [KEY]);
+    store.admitClient(
+      registered.source,
+      NOW,
+      () => true,
+      () => registered,
+    );
+    return store;
+  }
+
+  it('keeps a confidential client and its digest across a reopen', () => {
+    const path = storePath();
+    admitted(path, confidential('client-a')).close();
+    const reopened = new McpSessionStore(path, [KEY]);
+    expect(reopened.client('client-a', NOW)).toEqual(confidential('client-a'));
+    reopened.close();
+  });
+
+  it.each([
+    [
+      'a confidential method without its digest',
+      "UPDATE mcp_client SET token_endpoint_auth_method = 'client_secret_post'",
+    ],
+    ['a digest on a public client', `UPDATE mcp_client SET client_secret_sha256 = '${DIGEST}'`],
+    [
+      'an unknown method',
+      `UPDATE mcp_client SET token_endpoint_auth_method = 'private_key_jwt', client_secret_sha256 = '${DIGEST}'`,
+    ],
+    [
+      'a short digest',
+      "UPDATE mcp_client SET token_endpoint_auth_method = 'client_secret_basic', client_secret_sha256 = 'abc'",
+    ],
+  ])(
+    'refuses a confidential client row without its secret digest, or a public one with one: %s',
+    (_label, fault) => {
+      const path = storePath();
+      const store = admitted(path, {
+        ...confidential('client-a'),
+        authentication: { method: 'none' },
+      });
+      expect(() => withDb(path, (db) => db.run(fault))).toThrow(/CHECK constraint failed/);
+      store.close();
+    },
+  );
+
+  it.each([
+    ['an upper-case digest', `UPDATE mcp_client SET client_secret_sha256 = '${'A'.repeat(64)}'`],
+    ['a digest without its method', 'UPDATE mcp_client SET token_endpoint_auth_method = NULL'],
+  ])('refuses a stored client whose authentication is malformed: %s', (_label, fault) => {
+    const path = storePath();
+    const store = admitted(path, confidential('client-a'));
+    withDb(path, (db) => {
+      db.run('PRAGMA ignore_check_constraints = ON');
+      db.run(fault);
+    });
+    expect(() => store.client('client-a', NOW)).toThrow(/authentication is malformed/);
+    store.close();
+  });
+
+  // Proof: 2026-10-31, `CHECK (1)` on `mcp_family.client_auth_method` stored this row.
+  it('refuses a family client method outside the confidential two', () => {
+    const path = storePath();
+    const store = new McpSessionStore(path, [KEY]);
+    store.createFamily(familyInput('fam-a'), 'session-a', NOW + 60_000, 'refresh-a', NOW);
+    expect(() =>
+      withDb(path, (db) => db.run("UPDATE mcp_family SET client_auth_method = 'none'")),
+    ).toThrow(/CHECK constraint failed/);
+    store.close();
+  });
+
+  it('records a confidential family method and reads it back for its refresh token', () => {
+    const store = new McpSessionStore(':memory:', [KEY]);
+    store.createFamily(
+      { ...familyInput('fam-c'), clientMethod: 'client_secret_basic' },
+      'session-c',
+      NOW + 60_000,
+      'refresh-c',
+      NOW,
+    );
+    store.createFamily(familyInput('fam-p'), 'session-p', NOW + 60_000, 'refresh-p', NOW);
+    expect(store.refreshClientMethod('refresh-c')).toBe('client_secret_basic');
+    expect(store.refreshClientMethod('refresh-p')).toBe('none');
+    expect(store.refreshClientMethod('refresh-unknown')).toBeNull();
+    expect(store.family('fam-c')?.clientMethod).toBe('client_secret_basic');
+    store.close();
+  });
+
+  it('refuses to roll back the client secret migration while a confidential family is usable', () => {
+    const path = storePath();
+    const store = new McpSessionStore(path, [KEY]);
+    store.createFamily(
+      { ...familyInput('fam-c'), clientMethod: 'client_secret_post' },
+      'session-c',
+      NOW + 60_000,
+      'refresh-c',
+      NOW,
+    );
+    store.close();
+    withDb(path, (db) => {
+      expect(() => rollbackMcpStore(db, PERSON, NOW)).toThrow(/1 usable confidential families/);
+    });
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON, SECRET]);
+  });
+
+  it('refuses to roll back the client secret migration while a confidential client is live', () => {
+    const path = storePath();
+    admitted(path, confidential('client-a')).close();
+    withDb(path, (db) => {
+      expect(() => rollbackMcpStore(db, PERSON, NOW)).toThrow(/1 live confidential clients/);
+    });
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON, SECRET]);
+  });
+
+  it('rolls back the client secret migration once no confidential client is live', () => {
+    const path = storePath();
+    const store = admitted(path, confidential('client-a', NOW + 1_000));
+    store.admitClient(
+      '203.0.113.1',
+      NOW,
+      () => true,
+      () => ({ ...confidential('client-b'), authentication: { method: 'none' } }),
+    );
+    store.close();
+    withDb(path, (db) => {
+      expect(rollbackMcpStore(db, PERSON, NOW + 1_000)).toEqual([SECRET]);
+      expect(db.query('SELECT client_id FROM mcp_client ORDER BY client_id').all()).toEqual([
+        { client_id: 'client-b' },
+      ]);
+    });
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON]);
+    const reopened = new McpSessionStore(path, [KEY]);
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON, SECRET]);
+    expect(reopened.client('client-b', NOW)?.authentication).toEqual({ method: 'none' });
+    reopened.close();
   });
 });

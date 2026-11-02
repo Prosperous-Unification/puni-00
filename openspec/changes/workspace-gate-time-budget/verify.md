@@ -74,3 +74,67 @@ because no cached project graph exists in the isolated checkout; no graph/full N
 Full local Nx, Burokrat and
 browser checks remain intentionally skipped for laptop RAM. Exact-head hosted CI and the canonical
 h2puni gate remain release requirements. No complete aggregate gate pass is claimed.
+
+## 120-minute repair local evidence
+
+2026-10-30 implementation BASE: `da98bb93784747641de8ac1ecd2c9c67786a3b9b`.
+Earlier sections are historical 60/90-minute evidence; their 50-minute Twilight references
+describe the old assertion. Current production Twilight stays at 75 minutes. No old incomplete
+hosted run is relabeled as passed. The chosen 120-minute workspace allowance is not a measured
+completed gate duration.
+
+### Both 90-minute hosted attempts remained incomplete
+
+[Run 40959508633](https://github.com/Prosperous-Unification/puni-00/actions/runs/40959508633)
+used source `b3b594dab4f0153d2ef00a2989bbeb02ea0cbbda`, not this repair branch.
+Attempt 1 workspace `123748477125` was canceled in solver smoke after its Nx step passed.
+Attempt 2 workspace `124066899303` was canceled during lint after test/typecheck/build passed
+in 80m32s; aggregate `124109679034` failed. Both annotations report maximum execution
+`1h30m0s`. There was no third retry and no complete gate pass.
+
+Raw logs: `/tmp/puni-r2-ci-workspace-40959508633-attempt{1,2}.log`.
+Artifacts: `/tmp/puni-ci-workspace-duration-20261030-9b061932-099e-461d-92a4-738d092a7a2e/{attempt1,attempt2}/nx-gate.log`;
+the derived `analysis.json` distinguishes phase summaries from expected diagnostic logs.
+
+### Focused production-path proof and scoped checks
+
+The existing test expectation changed first while the production workflow still read 90.
+Serial RED then GREEN command (Bun 1.4.4):
+
+```sh
+bun --no-env-file test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/policy/gate-entrypoints.test.ts --test-name-pattern 'CI gives the complete uncached gate its chosen finite allowance' --timeout=60000
+```
+
+- RED exit 1: Expected 120 / Received 90; 0 pass, 1 fail, 57 filtered, 1 assertion.
+  Production workflow SHA256: `f32006c3ee19f3fb2e671349df9614deb7be6edd23e06d4068db708e744b6e15`.
+- GREEN exit 0 after choosing production workspace 120: 1 pass, 0 fail, 57 filtered,
+  2 assertions (workspace 120 and Twilight 75). Adjacent Proof comment records the failure.
+- `bun /tmp/puni-ci-budget-compare.ts` exit 0: installed YAML parser reported no errors or
+  warnings; complete parsed objects were deeply equal after changing only BASE workspace
+  90 to 120. Twilight remained 75; every other parsed value matched.
+- `bunx --no-install eslint apps/twilight-structure/twilight-burokrat/cli/src/policy/gate-entrypoints.test.ts`
+  exit 0, both streams empty; no boundary-rule warning or skip was reported.
+- `bunx --no-install openspec validate workspace-gate-time-budget --type change --json`
+  exit 0: 1 passed, 0 failed, no issues.
+
+Commands were captured with `bun /tmp/puni-ci-budget-task1.ts run <label> <command...>`,
+which independently awaited process exit and both complete streams. Raw streams and command,
+exit and SHA256 receipts: `/tmp/puni-ci-budget-task1-{red,green,equivalence,eslint,openspec}.{stdout,stderr,json}`.
+No temporary production fault was introduced: RED used the unchanged obsolete production value;
+the intended production repair remains. No dependency or lockfile change was made.
+
+Full local Nx/browser/Burokrat checks remain intentionally skipped. Independent review,
+exact-head hosted CI and the canonical host gate are controller-owned and remain pending.
+The GitHub 120-minute cancellation boundary was not exercised locally.
+
+Exact-path formatting check (exit 0, both streams empty):
+
+```sh
+bunx --no-install prettier --check .github/workflows/ci.yml apps/twilight-structure/twilight-burokrat/cli/src/policy/gate-entrypoints.test.ts openspec/changes/workspace-gate-time-budget/tasks.md openspec/changes/workspace-gate-time-budget/verify.md
+```
+
+`git diff --check` exited 0 with both streams empty. Receipts and complete streams are
+`/tmp/puni-ci-budget-task1-{prettier,diff-check}.{json,stdout,stderr}`.
+Self-review found only the four owned paths changed, no dependency/lockfile changes and no
+transient production mutation. Normal commit-hook outcomes are retained in the implementation
+report and `/tmp/puni-ci-budget-task1-commit.{json,stdout,stderr}`.

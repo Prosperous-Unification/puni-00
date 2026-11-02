@@ -5,8 +5,9 @@ The inventory [design.md](design.md) ("Permission vocabulary") summarises. Read 
 Fable review PM-2, PM-3) from `libs/wbs/domain/contracts/src/commands/definitions.ts`
 (61 plan-command kinds, 21 of them directory commands) and from every
 `defineEndpointShape` in `libs/wbs/domain/contracts/src/http/*-shapes.ts` (133 endpoints,
-bound in `libs/wbs/application/core/src/http/*.routes.ts`), plus the 14 endpoints
-`wbs-work-packages` (PR #698) adds.
+bound in `libs/wbs/application/core/src/http/*.routes.ts`), plus the 18 endpoints
+`wbs-work-packages` (PR #698) adds (14, and its 2026-10-25 amendment's four organization and
+space settings routes, P19).
 
 Paths and names are those after #698's fixes: today's `/api/projects/:id…` is
 `/api/work-packages/:id…` (a **work package**), `/api/projects…` is the new engagement
@@ -19,6 +20,11 @@ membership and nothing else. Slices 3 to 7 enforce this matrix and run after #69
 (design.md, "Order against #698").
 
 ## Roles and the permissions they imply
+
+This table is the seed of `access_role_permission` (`wbs-custom-permissions` CP7): a "yes"
+cell is a row, a blank cell is absent, "shell only" is `organization.navigate`; a test
+asserts the seed equals the table cell by cell and that its permission ids equal
+`PERMISSIONS`' (ids, never a count; CP4).
 
 | Permission                               | org-super-admin | org-admin | org-viewer | project-manager | project-contributor | project-viewer | package-manager | package-contributor | package-viewer  |
 | ---------------------------------------- | --------------- | --------- | ---------- | --------------- | ------------------- | -------------- | --------------- | ------------------- | --------------- |
@@ -43,6 +49,7 @@ membership and nothing else. Slices 3 to 7 enforce this matrix and run after #69
 | `package.write`                          | yes             | yes       |            | yes             | yes                 |                | yes             | yes                 |                 |
 | `package.manage_settings`                | yes             | yes       |            | yes             |                     |                | yes             |                     |                 |
 | `package.claim_for_others`               | yes             | yes       |            | yes             |                     |                | yes             |                     |                 |
+| `organization.manage_settings` (P19)     | yes             | yes       |            |                 |                     |                |                 |                     |                 |
 
 A machine credential's row is the contributor row of the grants naming it (P12, P17); its
 bound account's grants, groups and the organization-members subject do not reach it. On a
@@ -50,8 +57,8 @@ restricted work package, organization-scope grants are skipped except `org-admin
 `org-super-admin` held directly or through a group, which count as viewer; an
 `org-super-admin` may also clear the flag through `organization.recover_restricted` (P5).
 A `package-*` or `project-*` role granted at organization scope counts only for the kinds
-it governs (P9). Sizes: 9 roles × 21 permissions; 61 command kinds and 155 endpoints
-below.
+it governs (P9). Sizes: 9 roles × 22 permissions (P19 added `organization.manage_settings`);
+61 command kinds and 159 endpoints below.
 
 ## Plan-command kinds (`POST /api/work-packages/:id/commands`, 40)
 
@@ -86,7 +93,7 @@ credentials keeps A24's reach rule, now read from `organization.manage_directory
 item types stay directory-global (#698 E22); a project's allow-list of them is a project
 setting, below.
 
-## Routes (155)
+## Routes (159)
 
 ### Membership only, pre-membership, or infrastructure (`M`, 38)
 
@@ -121,14 +128,15 @@ persons in `GET /api/people`.
 `GET /api/work-packages` and `GET /api/projects` are lists too and follow the same rule;
 they are counted under `package.read` and `project.read` below.
 
-### `organization.read` (4)
+### `organization.read` (5)
 
-| Method and path                       | Endpoint                 | Today                                    |
-| ------------------------------------- | ------------------------ | ---------------------------------------- |
-| `GET /api/organization/members`       | `listMembers`            | admin (P4 widens it to `org-viewer`)     |
-| `GET /api/organization/limits`        | `readOrganizationLimits` | admin                                    |
-| `GET /api/organization/grants`        | `listGrants`             | new; `?subject=me` needs membership only |
-| `GET /api/organization/access-groups` | `listAccessGroups`       | new                                      |
+| Method and path                       | Endpoint                   | Today                                    |
+| ------------------------------------- | -------------------------- | ---------------------------------------- |
+| `GET /api/organization/members`       | `listMembers`              | admin (P4 widens it to `org-viewer`)     |
+| `GET /api/organization/limits`        | `readOrganizationLimits`   | admin                                    |
+| `GET /api/organization/grants`        | `listGrants`               | new; `?subject=me` needs membership only |
+| `GET /api/organization/access-groups` | `listAccessGroups`         | new                                      |
+| `GET /api/organization/settings`      | `readOrganizationSettings` | new (#698 E18; P19)                      |
 
 ### `organization.manage_members` (7)
 
@@ -148,7 +156,7 @@ they are counted under `package.read` and `project.read` below.
 | `POST /api/directory/commands`                                           | `applyDirectoryCommands`                                                                            | member |
 | `GET`/`POST /api/organization/compute-providers`, `PATCH`/`DELETE …/:id` | `listComputeProviders`, `registerComputeProvider`, `updateComputeProvider`, `removeComputeProvider` | admin  |
 
-### `organization.manage_spaces` (11)
+### `organization.manage_spaces` (12)
 
 | Method and path                                                                                 | Endpoint                                                                 | Today                                                                         |
 | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
@@ -156,6 +164,7 @@ they are counted under `package.read` and `project.read` below.
 | `POST /api/spaces/:id/projects`, `DELETE …/:projectId`, `POST …/:projectId/move`                | `addSpaceProject`, `removeSpaceProject`, `moveSpaceProject`              | member (`/api/spaces/:id/work-packages…` from #698 slice 1 until its slice 3) |
 | `POST`/`DELETE /api/spaces/:id/people/:personId`, `POST`/`DELETE /api/spaces/:id/teams/:teamId` | `addSpacePerson`, `removeSpacePerson`, `addSpaceTeam`, `removeSpaceTeam` | new (#698 E23)                                                                |
 | `POST /api/organization/work-packages/:id/rank`                                                 | `moveWorkPackageRank`                                                    | admin (`project-rank.resource.ts:61`)                                         |
+| `PATCH /api/spaces/:id/settings`                                                                | `patchSpaceSettings`                                                     | new (#698 E18; P19); the read is under `package.read`                         |
 
 Every project or work package a space write names must also be readable
 (`404 not_found` otherwise), as `space-authorization` states.
@@ -186,9 +195,16 @@ Every project or work package a space write names must also be readable
 
 ### `organization.create_project` (1)
 
-| Method and path      | Endpoint        | Today                 | Note                                        |
-| -------------------- | --------------- | --------------------- | ------------------------------------------- |
-| `POST /api/projects` | `createProject` | new (#698 E17: admin) | the creator receives `project-manager` (P6) |
+| Method and path                            | Endpoint        | Today                 | Note                                                                                             |
+| ------------------------------------------ | --------------- | --------------------- | ------------------------------------------------------------------------------------------------ |
+| `POST /api/projects`                       | `createProject` | new (#698 E17: admin) | the creator receives `project-manager` (P6)                                                      |
+| `POST /api/projects { name, workPackage }` | `createProject` | new (#698 E30)        | one transaction; the creator also receives `package-manager` on the first work package (P6, P19) |
+
+### `organization.manage_settings` (1, P19)
+
+| Method and path                    | Endpoint                    | Today          |
+| ---------------------------------- | --------------------------- | -------------- |
+| `PATCH /api/organization/settings` | `patchOrganizationSettings` | new (#698 E18) |
 
 ### `project.read` (3)
 
@@ -219,20 +235,21 @@ Budgets are written by the `setBudget` and `clearBudget` plan commands under
 `project.manage_budgets` (above); dependencies arrive with a later change and take
 `project.manage_dependencies`.
 
-### `package.read` (27)
+### `package.read` (28)
 
-| Method and path                                                                                                                                                                                                                                                     | Endpoint                                                                                                                                                                                                                                                     | Today  |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
-| `GET /api/work-packages`                                                                                                                                                                                                                                            | `listWorkPackages`                                                                                                                                                                                                                                           | viewer |
-| `GET /api/work-packages/:id`, `…/export`, `…/history`, `…/work-items`, `…/work-items/:workItemId`, `…/work-item-rows`, `…/step-references`, `…/startable`, `…/resources`, `…/people/:personId/work`, `…/saved-plans`, `…/saved-plans/compare`, `…/calendar-markers` | `readWorkPackage`, `exportWorkPackage`, `readHistory`, `getWorkItems`, `getWorkItem`, `getWorkItemRows`, `getStepReference`, `readStartableWork`, `readWorkPackageResources`, `readPersonWork`, `listSavedPlans`, `compareSavedPlans`, `listCalendarMarkers` | viewer |
-| `GET /api/work-packages/:id/settings`                                                                                                                                                                                                                               | `readWorkPackageSettings`                                                                                                                                                                                                                                    | new    |
-| `GET /api/saved-plans/:id`                                                                                                                                                                                                                                          | `readSavedPlan`                                                                                                                                                                                                                                              | viewer |
-| `POST /api/work-packages/:id/opened`                                                                                                                                                                                                                                | `recordWorkPackageOpen`                                                                                                                                                                                                                                      | viewer |
-| `GET /plans/by-solution/:slug`                                                                                                                                                                                                                                      | `readSolution`                                                                                                                                                                                                                                               | viewer |
-| `GET /api/spaces/:id`, `…/roll-ups`, `…/in-progress`                                                                                                                                                                                                                | `readSpace`, `readSpaceRollUps`, `readSpaceInProgress`                                                                                                                                                                                                       | member |
-| `GET /api/work-packages/:id/claims`, `…/claim-history`, `…/budget-headroom`                                                                                                                                                                                         | `readWorkPackageClaims` (`readProjectClaims` today), `readClaimHistory`, `readBudgetHeadroom`                                                                                                                                                                | viewer |
-| `GET /api/work-packages/:id/work-items/:workItemId/refs/:refId/delivery`                                                                                                                                                                                            | `getWorkItemDelivery`                                                                                                                                                                                                                                        | viewer |
-| `POST /internal/gateway/work-packages/:workPackageId/{access,browser-access}`                                                                                                                                                                                       | `gatewayWorkPackageAccess`, `gatewayBrowserWorkPackageAccess`                                                                                                                                                                                                | viewer |
+| Method and path                                                                                                                                                                                                                                                     | Endpoint                                                                                                                                                                                                                                                     | Today                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `GET /api/work-packages`                                                                                                                                                                                                                                            | `listWorkPackages`                                                                                                                                                                                                                                           | viewer                                                                                       |
+| `GET /api/work-packages/:id`, `…/export`, `…/history`, `…/work-items`, `…/work-items/:workItemId`, `…/work-item-rows`, `…/step-references`, `…/startable`, `…/resources`, `…/people/:personId/work`, `…/saved-plans`, `…/saved-plans/compare`, `…/calendar-markers` | `readWorkPackage`, `exportWorkPackage`, `readHistory`, `getWorkItems`, `getWorkItem`, `getWorkItemRows`, `getStepReference`, `readStartableWork`, `readWorkPackageResources`, `readPersonWork`, `listSavedPlans`, `compareSavedPlans`, `listCalendarMarkers` | viewer                                                                                       |
+| `GET /api/work-packages/:id/settings`                                                                                                                                                                                                                               | `readWorkPackageSettings`                                                                                                                                                                                                                                    | new                                                                                          |
+| `GET /api/saved-plans/:id`                                                                                                                                                                                                                                          | `readSavedPlan`                                                                                                                                                                                                                                              | viewer                                                                                       |
+| `POST /api/work-packages/:id/opened`                                                                                                                                                                                                                                | `recordWorkPackageOpen`                                                                                                                                                                                                                                      | viewer                                                                                       |
+| `GET /plans/by-solution/:slug`                                                                                                                                                                                                                                      | `readSolution`                                                                                                                                                                                                                                               | viewer                                                                                       |
+| `GET /api/spaces/:id`, `…/roll-ups`, `…/in-progress`                                                                                                                                                                                                                | `readSpace`, `readSpaceRollUps`, `readSpaceInProgress`                                                                                                                                                                                                       | member                                                                                       |
+| `GET /api/spaces/:id/settings`                                                                                                                                                                                                                                      | `readSpaceSettings`                                                                                                                                                                                                                                          | new (#698 E18; P19): `organization.navigate` and a readable project in the space, else `404` |
+| `GET /api/work-packages/:id/claims`, `…/claim-history`, `…/budget-headroom`                                                                                                                                                                                         | `readWorkPackageClaims` (`readProjectClaims` today), `readClaimHistory`, `readBudgetHeadroom`                                                                                                                                                                | viewer                                                                                       |
+| `GET /api/work-packages/:id/work-items/:workItemId/refs/:refId/delivery`                                                                                                                                                                                            | `getWorkItemDelivery`                                                                                                                                                                                                                                        | viewer                                                                                       |
+| `POST /internal/gateway/work-packages/:workPackageId/{access,browser-access}`                                                                                                                                                                                       | `gatewayWorkPackageAccess`, `gatewayBrowserWorkPackageAccess`                                                                                                                                                                                                | viewer                                                                                       |
 
 `GET /api/work-packages` answers `200` with the readable subset for any member (P10); the
 single-package reads answer `404 not_found` when the package is unreadable. A space read
@@ -263,15 +280,17 @@ keeps them in (P5, P6). Clearing it is `package.manage_settings`, or, for an
 
 ## Totals
 
-- Permissions: 21 over 4 evaluation kinds; roles: 9 (9 × 21 cells above).
+- Permissions: 22 over 4 evaluation kinds (P19 added `organization.manage_settings`); roles:
+  9 (9 × 22 cells above).
 - Plan-command kinds: 61 (40 work package, 21 directory), each with exactly one permission.
 - Contract endpoints today: 133 (128 at `2e0ab3245`; #663, #704 and #706 added
   `listMeasures`, `readBudgetHeadroom`, `readProjectClaims`, `readClaimHistory` and
-  `getWorkItemDelivery`). #698 adds 14 (the `/api/projects` family 7, `move` 1, work
-  package settings 2, space people and teams 4; its project steps replace the three work
-  package step routes). This change removes `changeMemberRole` and adds 9 grant and group
-  routes: 133 − 1 + 14 + 9 = 155 = 38 `M` + 11 lists + 4 `organization.read` + 7 members +
-  5 directory + 11 spaces + 7 access + 19 security + 1 capacity mode +
-  1 `organization.create_project` + 3 `project.read` + 6 `project.manage_settings` +
-  3 `project.manage_packages` + 27 `package.read` + 9 `package.write` +
+  `getWorkItemDelivery`). #698 adds 18 (the `/api/projects` family 7, `move` 1, work
+  package settings 2, space people and teams 4, organization and space settings 4; its
+  project steps replace the three work package step routes). This change removes
+  `changeMemberRole` and adds 9 grant and group routes: 133 − 1 + 18 + 9 = 159 = 38 `M` +
+  11 lists + 5 `organization.read` + 7 members + 5 directory + 12 spaces + 7 access +
+  19 security + 1 capacity mode + 1 `organization.create_project` +
+  1 `organization.manage_settings` + 3 `project.read` + 6 `project.manage_settings` +
+  3 `project.manage_packages` + 28 `package.read` + 9 `package.write` +
   3 `package.manage_settings`.

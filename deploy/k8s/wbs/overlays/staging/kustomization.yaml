@@ -21,6 +21,10 @@ configMapGenerator:
       # Sign-in buttons stay off until organization activation (social-sign-in).
       - AUTH_METHODS=none
       - AUTH_REDIRECT_URI=https://wbs-staging.bulletpoints.club/api/auth/okta/callback
+      # mcp-01's issuer, <MCP_PUBLIC_URL>/oauth exactly (wbs-mcp-agent-surface M2); an
+      # activated store refuses to boot without it. Not a secret.
+      # Proof: removing it, or adding a trailing slash, made mcp-manifest.test.ts fail on 2026-10-28.
+      - WBS_MCP_AUTHORIZATION_SERVER=https://wbs-staging.bulletpoints.club/mcp/oauth
   - name: wbs-gateway-config
     namespace: wbs
     literals:

@@ -178,6 +178,23 @@ project, a reversible write, an actual refresh and the rejection of a revoked to
 | Mistral Le Chat / Work      | Unsupported     | 2026-09-27 | Admin: Connectors → Add Connector → Custom MCP Connector → name, URL `<WBS_MCP_URL>`                                                                                                                    | Hosted callback not published and not on WBS's list, so WBS refuses it until a reviewed entry is added                                                                                                                                      | [Mistral MCP connectors](https://docs.mistral.ai/vibe/work/connectors/mcp-connectors)                                                                                                                                                                                                             |
 | Microsoft Copilot Studio    | Unsupported     | 2026-09-27 | Tools → Add tool → MCP → URL `<WBS_MCP_URL>` → OAuth 2.0 → Dynamic discovery                                                                                                                            | Installation-specific `https://global.consent.azure-apim.net/redirect/…`, not on WBS's list                                                                                                                                                 | [Copilot Studio MCP](https://learn.microsoft.com/en-us/microsoft-copilot-studio/mcp-add-existing-server-to-agent) (updated 2026-08-19)                                                                                                                                                            |
 
+### Headless agents
+
+An agent with no person at the browser connects with a machine credential, not with sign-in
+(`openspec/changes/wbs-mcp-agent-surface` M1, M12; client facts read 2026-10-25). It takes an
+access token at `<WBS_MCP_URL>/oauth/token` and calls the same tools; be-01's `/api` refuses
+the credential itself (`machine_bearer_not_accepted`).
+
+- **Claude Code**, interactive or `claude -p` and SDK sessions where folder trust allows it: a
+  `headersHelper` that runs `twilight-dash mcp token --resource <WBS_MCP_URL> --key-file <key>`
+  (or `--assertion-file` for a workload token). The helper runs again after a 401
+  ([Dash `mcp token`](../apps/twilight-structure/twilight-dash/cli/README.md#mcp-token)).
+- **Agent SDK and Messages API apps** fetch and renew the token themselves: an MCP SDK
+  `authProvider` such as Dash's `WorkloadJwtBearerProvider`, or a `client_credentials` request
+  with the key as HTTP Basic.
+- **claude.ai, every plan: consent only.** A Team or Enterprise connector's request header is
+  shared by every member, so it must never carry a machine credential or a pasted access token.
+
 ### Desktop bridge for stdio-only clients
 
 A desktop client that can start a local stdio server but cannot sign in natively can reach

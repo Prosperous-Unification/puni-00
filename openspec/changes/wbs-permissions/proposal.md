@@ -39,7 +39,7 @@ Depends on `wbs-work-packages` (#698): slices 3 to 7 follow its renames.
 
 ## Non-Goals
 
-Deny rules; custom roles; grants on spaces; group sync from SSO or SCIM; nested groups;
+Deny rules; custom roles beyond the set model that `wbs-custom-permissions` adds on top; grants on spaces; group sync from SSO or SCIM; nested groups;
 claim semantics; production activation; budget behaviour (this change only gates
 `setBudget` and `clearBudget`); the reserved `project.manage_dependencies`; renaming access
 roles at runtime (E7's renaming is the scope-prefixed vocabulary, P18).
