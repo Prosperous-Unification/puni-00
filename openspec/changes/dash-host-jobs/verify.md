@@ -2145,10 +2145,7 @@ may hold the job's files`. `wc`, a short-lived child of the other gate's steps, 
     is not leaving keep the J19 rule.
   - A zombie group leader whose threads still run holds those threads' descriptors. It is now an
     unknown holder: identity null and not gone means `holds`, where before it was skipped.
-  - Tests in `resource-holds.test.ts`, no seam. "an unreaped zombie holds nothing" uses
-    `bash -c 'true & echo $!; exec sleep 30'`: nothing ever reaps `true`, and the test waits for
-    state `Z`. Its live parent is not gone. "a group leader that exited beside a live thread still
-    holds" uses Python's main thread calling `pthread_exit` beside a sleeping thread.
+  - Tests in `resource-holds.test.ts`, no seam. "an unreaped zombie holds nothing" forks from a Python parent that installs no SIGCHLD handler and never waits, then waits for the child's state to read `Z`. Its live parent is not gone. The first fixture, `bash -c 'true & echo $!; exec sleep 30'`, raced on CI (ee0f13fb1): bash reaped the child before `exec`. The replacement passed 5 of 5 runs here, and once more with the test pinned to one core (`taskset -c 0`) beside three busy loops. "a group leader that exited beside a live thread still holds" uses Python's main thread calling `pthread_exit` beside a sleeping thread.
   - The first cut required the task list to hold only the leader. On this workstation's
     launchers runs, a Bun mid-group-exit, whose other threads were still tearing down, became an
     uninspectable holder: `cannot inspect process PID 432 (bun)`, 8 or 9 out of 10 on each of

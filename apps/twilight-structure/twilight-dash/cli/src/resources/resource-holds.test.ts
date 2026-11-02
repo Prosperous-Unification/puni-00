@@ -122,8 +122,13 @@ describe('a vanished uninspectable process (slice 6c, J19)', () => {
   }
 
   test('an unreaped zombie holds nothing', async () => {
-    // `exec sleep` replaces the shell that started `true`, so nothing ever reaps it.
-    const { parent, pid } = await zombieOf(['bash', '-c', 'true & echo $!; exec sleep 30']);
+    // Python installs no SIGCHLD handler and this parent never waits, so the forked child stays
+    // a zombie; a shell could reap it before `exec` (CI on ee0f13fb1).
+    const { parent, pid } = await zombieOf([
+      'python3',
+      '-c',
+      'import os,time\npid = os.fork()\nif pid == 0:\n    os._exit(0)\nprint(pid, flush=True)\ntime.sleep(30)',
+    ]);
     try {
       expect(processGone(pid)).toBe(true);
       expect(outsideScope(pid, vanishedScope([]))).toBe('gone');
