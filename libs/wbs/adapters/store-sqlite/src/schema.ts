@@ -4466,7 +4466,10 @@ export const resourceCleanupRequestRecord = sqliteTable(
  * organization, `id` = `name` and a display `level` that no decision reads
  * (CP1); a custom role has an organization and no level. The
  * `access_role_reserved_name_*` triggers refuse a custom name equal to a
- * built-in id.
+ * built-in id. `reachesRestricted` (CP18) opts an organization-kind role into
+ * the read-only admin view of a restricted work package: 0 by default, 1 for
+ * the seeded `org-admin` and `org-super-admin`, never set on another kind
+ * (`access_role_reaches_restricted_kind`).
  */
 export const accessRole = sqliteTable(
   'access_role',
@@ -4475,6 +4478,7 @@ export const accessRole = sqliteTable(
     name: text('name').notNull(),
     objectKind: text('object_kind', { enum: ACCESS_OBJECT_KINDS }).notNull(),
     level: integer('level'),
+    reachesRestricted: integer('reaches_restricted').notNull().default(0),
     organizationId: text('organization_id').references(() => organization.id),
     createdAt: integer('created_at').notNull(),
     ...auditColumnsBesidesCreatedAt(),
@@ -4490,6 +4494,11 @@ export const accessRole = sqliteTable(
       sql`(${t.organizationId} IS NULL) = (${t.level} IS NOT NULL)`,
     ),
     check('access_role_built_in_name', sql`${t.organizationId} IS NOT NULL OR ${t.name} = ${t.id}`),
+    check('access_role_reaches_restricted', sql`${t.reachesRestricted} IN (0, 1)`),
+    check(
+      'access_role_reaches_restricted_kind',
+      sql`${t.objectKind} = 'organization' OR ${t.reachesRestricted} = 0`,
+    ),
     unique().on(t.organizationId, t.name),
   ],
 );

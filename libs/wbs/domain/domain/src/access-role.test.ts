@@ -64,7 +64,7 @@ function grantOf(
     subjectKind,
     subjectId: subjectKind === 'organization_members' ? 'org-a' : 'dany',
     roleId,
-    builtIn: true,
+    reachesRestricted: role(roleId).reachesRestricted,
     permissions: new Set(role(roleId).permissions),
     ...overrides,
   };
@@ -215,7 +215,7 @@ describe('may and the cap', () => {
     }
     const custom = grantOf('project-manager', {
       roleId: '01JCUSTOMBUDGETS',
-      builtIn: false,
+      reachesRestricted: false,
       permissions: new Set<Permission>(['project.read', 'project.manage_budgets']),
     });
     expect(may(combineGrants([custom], OPEN, CONTRIBUTOR_CAP), 'project.manage_budgets')).toBe(
@@ -306,10 +306,36 @@ describe('permissionsOnTarget (P5 in sets, CP18)', () => {
   });
 
   it('a custom organization role equal to org-admin reads no restricted work package', () => {
-    const custom = grantOf('org-admin', { roleId: '01JCUSTOMADMIN', builtIn: false });
+    const custom = grantOf('org-admin', { roleId: '01JCUSTOMADMIN', reachesRestricted: false });
     expect(permissionsOnTarget(custom, RESTRICTED)).toEqual({ outcome: 'skipped' });
     expect(may(combineGrants([custom], RESTRICTED, null), 'package.read')).toBe(false);
     expect(may(combineGrants([custom], OPEN, null), 'package.write')).toBe(true);
+  });
+
+  it('a custom organization role that opts in reads a restricted work package and never writes it', () => {
+    const optedIn = grantOf('org-viewer', {
+      roleId: '01JCUSTOMAUDITORS',
+      reachesRestricted: true,
+      permissions: new Set<Permission>(['organization.navigate', 'package.read', 'package.write']),
+    });
+    expect(permissionsOnTarget(optedIn, RESTRICTED)).toEqual({
+      outcome: 'read_only',
+      permissions: new Set<Permission>(['organization.navigate', 'package.read']),
+    });
+    const effective = combineGrants([optedIn], RESTRICTED, null);
+    expect(may(effective, 'package.read')).toBe(true);
+    expect(may(effective, 'package.write')).toBe(false);
+    expect(
+      permissionsOnTarget({ ...optedIn, subjectKind: 'organization_members' }, RESTRICTED),
+    ).toEqual({ outcome: 'skipped' });
+  });
+
+  it('seeds the restricted-target read for org-admin and org-super-admin only', () => {
+    expect(
+      BUILT_IN_ROLES.filter(({ reachesRestricted }) => reachesRestricted)
+        .map(({ id }) => id)
+        .sort(),
+    ).toEqual(['org-admin', 'org-super-admin']);
   });
 
   it('unions the reaching grants and reports only the ones that contributed', () => {

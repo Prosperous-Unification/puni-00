@@ -6,7 +6,10 @@
 --
 -- `access_role` holds built-in and custom roles in one table (CP7): a built-in
 -- has `organization_id` NULL, `id` = `name` and a display `level`; a custom role
--- has an organization and no level. `access_role_permission` is every role's
+-- has an organization and no level. `reaches_restricted` (CP18) is the opt-in
+-- to the admin read of a restricted work package: 0 by default, seeded 1 for
+-- `org-admin` and `org-super-admin` only, and held to 0 on a project- or
+-- work-package-kind role. `access_role_permission` is every role's
 -- set; its `permission` has no CHECK list (CP9): the store refuses an unknown id
 -- on write and the evaluator throws on read. The nine built-ins and their sets
 -- are `BUILT_IN_ROLES` in `@wbs/domain`, and `access-grant-migration.db.test.ts`
@@ -34,7 +37,10 @@
 -- `group_id` reference made `refuses a group member from another organization
 -- or outside it` store a cross-organization member; `access_role_built_in_name`
 -- made `CHECK (1)` made `refuses a built-in role whose name is not its id`
--- store one; `access_grant_organization_scope` made `CHECK (1)` made `refuses an
+-- store one; `access_role_reaches_restricted_kind` made `CHECK (1)` made
+-- `refuses reaches_restricted outside an organization role, and outside 0 and
+-- 1` store a project-kind role with the flag set (observed 2026-11-03);
+-- `access_grant_organization_scope` made `CHECK (1)` made `refuses an
 -- organization-scope grant naming another organization` store one; the owner INSERT's EXISTS
 -- removed made `writes package-manager for owners who are current members
 -- only` grant the non-member owners; the credential copy's CASE replaced by
@@ -47,12 +53,14 @@ CREATE TABLE `access_role` (
 	`name` text NOT NULL,
 	`object_kind` text NOT NULL CHECK (`object_kind` IN ('organization', 'project', 'work_package')),
 	`level` integer CHECK (`level` BETWEEN 1 AND 5),
+	`reaches_restricted` integer DEFAULT 0 NOT NULL CONSTRAINT `access_role_reaches_restricted` CHECK (`reaches_restricted` IN (0, 1)),
 	`organization_id` text REFERENCES `organization`(`id`),
 	`created_at` integer NOT NULL,
 	`updated_at` integer,
 	`created_by` text REFERENCES `users`(`id`),
 	CONSTRAINT `access_role_built_in_or_custom` CHECK ((`organization_id` IS NULL) = (`level` IS NOT NULL)),
 	CONSTRAINT `access_role_built_in_name` CHECK (`organization_id` IS NOT NULL OR `name` = `id`),
+	CONSTRAINT `access_role_reaches_restricted_kind` CHECK (`object_kind` = 'organization' OR `reaches_restricted` = 0),
 	UNIQUE (`organization_id`, `name`)
 );
 --> statement-breakpoint
@@ -78,16 +86,16 @@ BEGIN
 	SELECT RAISE(ABORT, 'reserved_name: a custom access role may not take a built-in role''s name');
 END;
 --> statement-breakpoint
-INSERT INTO `access_role` (`id`, `name`, `object_kind`, `level`, `organization_id`, `created_at`, `created_by`) VALUES
-	('org-super-admin', 'org-super-admin', 'organization', 5, NULL, (CAST(unixepoch('subsec') * 1000 AS integer)), NULL),
-	('org-admin', 'org-admin', 'organization', 4, NULL, (CAST(unixepoch('subsec') * 1000 AS integer)), NULL),
-	('org-viewer', 'org-viewer', 'organization', 1, NULL, (CAST(unixepoch('subsec') * 1000 AS integer)), NULL),
-	('project-manager', 'project-manager', 'project', 3, NULL, (CAST(unixepoch('subsec') * 1000 AS integer)), NULL),
-	('project-contributor', 'project-contributor', 'project', 2, NULL, (CAST(unixepoch('subsec') * 1000 AS integer)), NULL),
-	('project-viewer', 'project-viewer', 'project', 1, NULL, (CAST(unixepoch('subsec') * 1000 AS integer)), NULL),
-	('package-manager', 'package-manager', 'work_package', 3, NULL, (CAST(unixepoch('subsec') * 1000 AS integer)), NULL),
-	('package-contributor', 'package-contributor', 'work_package', 2, NULL, (CAST(unixepoch('subsec') * 1000 AS integer)), NULL),
-	('package-viewer', 'package-viewer', 'work_package', 1, NULL, (CAST(unixepoch('subsec') * 1000 AS integer)), NULL);
+INSERT INTO `access_role` (`id`, `name`, `object_kind`, `level`, `reaches_restricted`, `organization_id`, `created_at`, `created_by`) VALUES
+	('org-super-admin', 'org-super-admin', 'organization', 5, 1, NULL, (CAST(unixepoch('subsec') * 1000 AS integer)), NULL),
+	('org-admin', 'org-admin', 'organization', 4, 1, NULL, (CAST(unixepoch('subsec') * 1000 AS integer)), NULL),
+	('org-viewer', 'org-viewer', 'organization', 1, 0, NULL, (CAST(unixepoch('subsec') * 1000 AS integer)), NULL),
+	('project-manager', 'project-manager', 'project', 3, 0, NULL, (CAST(unixepoch('subsec') * 1000 AS integer)), NULL),
+	('project-contributor', 'project-contributor', 'project', 2, 0, NULL, (CAST(unixepoch('subsec') * 1000 AS integer)), NULL),
+	('project-viewer', 'project-viewer', 'project', 1, 0, NULL, (CAST(unixepoch('subsec') * 1000 AS integer)), NULL),
+	('package-manager', 'package-manager', 'work_package', 3, 0, NULL, (CAST(unixepoch('subsec') * 1000 AS integer)), NULL),
+	('package-contributor', 'package-contributor', 'work_package', 2, 0, NULL, (CAST(unixepoch('subsec') * 1000 AS integer)), NULL),
+	('package-viewer', 'package-viewer', 'work_package', 1, 0, NULL, (CAST(unixepoch('subsec') * 1000 AS integer)), NULL);
 --> statement-breakpoint
 INSERT INTO `access_role_permission` (`role_id`, `permission`) VALUES
 	('org-super-admin', 'organization.navigate'),

@@ -85,7 +85,8 @@ export function roleMayHold(objectKind: AccessObjectKind, permission: Permission
  * The nine built-in roles and their sets, the seed `add_access_grants` writes
  * into `access_role` and `access_role_permission` (`wbs-permissions` E7,
  * `wbs-custom-permissions` CP7). `level` is display order only (CP1); no
- * decision reads it. `access-role.test.ts` and `access-grant-migration.db.test.ts`
+ * decision reads it. `reachesRestricted` is `access_role.reaches_restricted`
+ * (CP18): set for `org-admin` and `org-super-admin` only. `access-role.test.ts` and `access-grant-migration.db.test.ts`
  * hold this list and the migration's rows equal to `permission-matrix.md` cell by cell.
  */
 export const BUILT_IN_ROLES = [
@@ -93,6 +94,7 @@ export const BUILT_IN_ROLES = [
     id: 'org-super-admin',
     objectKind: 'organization',
     level: 5,
+    reachesRestricted: true,
     permissions: [
       'organization.navigate',
       'organization.read',
@@ -122,6 +124,7 @@ export const BUILT_IN_ROLES = [
     id: 'org-admin',
     objectKind: 'organization',
     level: 4,
+    reachesRestricted: true,
     permissions: [
       'organization.navigate',
       'organization.read',
@@ -147,12 +150,14 @@ export const BUILT_IN_ROLES = [
     id: 'org-viewer',
     objectKind: 'organization',
     level: 1,
+    reachesRestricted: false,
     permissions: ['organization.navigate', 'organization.read', 'project.read', 'package.read'],
   },
   {
     id: 'project-manager',
     objectKind: 'project',
     level: 3,
+    reachesRestricted: false,
     permissions: [
       'organization.navigate',
       'project.read',
@@ -171,18 +176,21 @@ export const BUILT_IN_ROLES = [
     id: 'project-contributor',
     objectKind: 'project',
     level: 2,
+    reachesRestricted: false,
     permissions: ['organization.navigate', 'project.read', 'package.read', 'package.write'],
   },
   {
     id: 'project-viewer',
     objectKind: 'project',
     level: 1,
+    reachesRestricted: false,
     permissions: ['organization.navigate', 'project.read', 'package.read'],
   },
   {
     id: 'package-manager',
     objectKind: 'work_package',
     level: 3,
+    reachesRestricted: false,
     permissions: [
       'organization.navigate',
       'package.read',
@@ -195,18 +203,21 @@ export const BUILT_IN_ROLES = [
     id: 'package-contributor',
     objectKind: 'work_package',
     level: 2,
+    reachesRestricted: false,
     permissions: ['organization.navigate', 'package.read', 'package.write'],
   },
   {
     id: 'package-viewer',
     objectKind: 'work_package',
     level: 1,
+    reachesRestricted: false,
     permissions: ['organization.navigate', 'package.read'],
   },
 ] as const satisfies readonly {
   readonly id: string;
   readonly objectKind: AccessObjectKind;
   readonly level: 1 | 2 | 3 | 4 | 5;
+  readonly reachesRestricted: boolean;
   readonly permissions: readonly Permission[];
 }[];
 
@@ -275,12 +286,12 @@ export interface GrantProvenance {
 
 /**
  * One reaching grant with its role's set, already validated against
- * {@link PERMISSIONS} and {@link roleMayHold} (CP9). `builtIn` is
- * `access_role.organization_id IS NULL`; a custom role never earns the
- * restricted-target admin read, whatever its name or set (CP18).
+ * {@link PERMISSIONS} and {@link roleMayHold} (CP9). `reachesRestricted` is
+ * the role's `access_role.reaches_restricted` (CP18): only a role with the flag
+ * earns the restricted-target admin read, whatever its name or set.
  */
 export interface ReachingGrant extends GrantProvenance {
-  readonly builtIn: boolean;
+  readonly reachesRestricted: boolean;
   readonly permissions: ReadonlySet<Permission>;
 }
 
@@ -296,33 +307,30 @@ export type GrantOnTarget =
   | { readonly outcome: 'read_only'; readonly permissions: ReadonlySet<Permission> }
   | { readonly outcome: 'skipped' };
 
-const RESTRICTED_TARGET_READERS: ReadonlySet<string> = new Set<BuiltInRoleId>([
-  'org-admin',
-  'org-super-admin',
-]);
-
 /**
  * P5 in sets (`wbs-custom-permissions` CP18). On a restricted work package an
- * organization-scope grant of the built-in `org-admin` or `org-super-admin`
- * held by anyone but the organization-members subject is intersected with
- * {@link READ_ONLY}; every other organization-scope grant is skipped, custom
- * organization roles included even when their set equals `org-admin`'s. A grant
- * naming the project or the package, and every grant on an unrestricted target,
- * is unchanged. Runs after row validation and before the cap.
+ * organization-scope grant of a role whose `reachesRestricted` is set (the
+ * built-in `org-admin` and `org-super-admin`, or a custom organization role
+ * that opted in) held by anyone but the organization-members subject is
+ * intersected with {@link READ_ONLY}; every other organization-scope grant is
+ * skipped, custom organization roles without the flag included even when their
+ * set equals `org-admin`'s. A grant naming the project or the package, and
+ * every grant on an unrestricted target, is unchanged. Runs after row
+ * validation and before the cap.
  *
  * Proof: returning the built-in admin's set unchanged on a restricted target
  * failed `an org-admin reads a restricted work package and never writes it`;
- * admitting a custom organization role equal to `org-admin` failed `a custom
- * organization role equal to org-admin reads no restricted work package`; both
- * in `access-role.test.ts`, watched 2026-10-25.
+ * admitting a role holding `organization.manage_access` without
+ * the flag failed `a custom organization role equal to org-admin reads no
+ * restricted work package`, and reading the two built-in ids instead of the
+ * flag failed `a custom organization role that opts in reads a restricted work
+ * package and never writes it`; all three in `access-role.test.ts`, watched
+ * 2026-11-03.
  */
 export function permissionsOnTarget(grant: ReachingGrant, target: GrantTarget): GrantOnTarget {
   if (target.kind !== 'work_package' || !target.restricted || grant.scopeKind !== 'organization')
     return { outcome: 'unchanged', permissions: grant.permissions };
-  const readsAsAdmin =
-    grant.builtIn &&
-    RESTRICTED_TARGET_READERS.has(grant.roleId) &&
-    grant.subjectKind !== 'organization_members';
+  const readsAsAdmin = grant.reachesRestricted && grant.subjectKind !== 'organization_members';
   if (!readsAsAdmin) return { outcome: 'skipped' };
   return {
     outcome: 'read_only',

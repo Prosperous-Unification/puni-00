@@ -17,13 +17,16 @@ const MACHINE_TOKENS = '20261026130000_widen_organization_audit_machine_tokens';
 /**
  * The later folders, left out of every store here: the directory capacity
  * widening rebuilds `organization_audit` again and recreates the issuance
- * indexes, which would hide this rebuild's own omission of one.
+ * indexes, which would hide this rebuild's own omission of one; the access
+ * grants folder after them goes too, so a rollback here reverses this
+ * change's folders only.
  * Proof: with them kept, `fails task 1.2’s insert when the forward rebuild
  * omits an issuance index` answered "recorded"; watched 2026-11-01.
  */
 const LATER = [
   '20261101100000_widen_organization_audit_directory_capacity',
   '20261101100100_add_resource_directory_capacity',
+  '20261102120000_add_access_grants',
 ];
 /** 2026-10-28T09:00:00Z, a real-epoch instant, as task 1.2's own test uses. */
 const MORNING = Date.UTC(2026, 9, 28, 9, 0, 0);

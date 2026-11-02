@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 const FOLDER = new URL('../drizzle', import.meta.url).pathname;
 const MIGRATION = '20261102120000_add_access_grants';
-const BASELINE = '20261023170000_add_work_item_budget';
+const BASELINE = '20261101100100_add_resource_directory_capacity';
 const MATRIX = parsePermissionMatrix(
   readFileSync(
     new URL('../../../../openspec/changes/wbs-permissions/permission-matrix.md', import.meta.url),
@@ -178,21 +178,22 @@ describe(MIGRATION, () => {
       expect([...MATRIX.permissions].sort()).toEqual(PERMISSIONS.map(({ id }) => id).sort());
     });
 
-    it('seeds the nine built-ins with their kind and display level, and every row satisfies CP7', () => {
+    it('seeds the nine built-ins with their kind, display level and restricted read, and every row satisfies CP7', () => {
       expect(
         db
           .query(
-            'SELECT id, name, object_kind, level, organization_id, created_by FROM access_role ORDER BY level DESC, id',
+            'SELECT id, name, object_kind, level, reaches_restricted, organization_id, created_by FROM access_role ORDER BY level DESC, id',
           )
           .all(),
       ).toEqual(
         [...BUILT_IN_ROLES]
           .sort((a, b) => b.level - a.level || a.id.localeCompare(b.id))
-          .map(({ id, objectKind, level }) => ({
+          .map(({ id, objectKind, level, reachesRestricted }) => ({
             id,
             name: id,
             object_kind: objectKind,
             level,
+            reaches_restricted: reachesRestricted ? 1 : 0,
             organization_id: null,
             created_by: null,
           })),
@@ -257,6 +258,36 @@ describe(MIGRATION, () => {
         'CHECK constraint failed: access_role_built_in_name',
       );
       customRole('01JCUSTOM', 'Package auditor');
+    });
+
+    // Proof: `access_role_reaches_restricted_kind` made `CHECK (1)` in
+    // migration.sql made this case store a project-kind role with
+    // `reaches_restricted = 1`; watched 2026-11-03.
+    it('refuses reaches_restricted outside an organization role, and outside 0 and 1', () => {
+      expect(() =>
+        db.run(
+          "INSERT INTO access_role (id, name, object_kind, reaches_restricted, organization_id, created_at) VALUES ('01JPROJECT', 'Project auditors', 'project', 1, 'org-a', 1)",
+        ),
+      ).toThrow('CHECK constraint failed: access_role_reaches_restricted_kind');
+      expect(() =>
+        db.run(
+          "INSERT INTO access_role (id, name, object_kind, reaches_restricted, organization_id, created_at) VALUES ('01JTWO', 'Two', 'organization', 2, 'org-a', 1)",
+        ),
+      ).toThrow('CHECK constraint failed: access_role_reaches_restricted');
+      db.run(
+        "INSERT INTO access_role (id, name, object_kind, reaches_restricted, organization_id, created_at) VALUES ('01JAUDITORS', 'Auditors', 'organization', 1, 'org-a', 1)",
+      );
+      customRole('01JREADERS', 'Readers');
+      expect(
+        db
+          .query(
+            "SELECT id, reaches_restricted FROM access_role WHERE organization_id = 'org-a' ORDER BY id",
+          )
+          .all(),
+      ).toEqual([
+        { id: '01JAUDITORS', reaches_restricted: 1 },
+        { id: '01JREADERS', reaches_restricted: 0 },
+      ]);
     });
 
     it('takes a deleted role’s permission rows with it, and keeps a role a grant names', () => {

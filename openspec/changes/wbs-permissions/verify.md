@@ -66,3 +66,34 @@ organization-scope grant's `scope_id` equals its `organization_id`).
 | a custom organization role holding `organization.manage_access` admitted  | a custom organization role equal to org-admin reads no restricted work package |
 | one matrix cell flipped (`package-contributor` × `package.write` emptied) | seeds every built-in role with exactly its matrix column, cell by cell         |
 | the matrix reader skips an unknown permission instead of throwing         | refuses an unknown permission, an unknown role and an unknown cell             |
+
+## Actualized 2026-11-03 (merge with main `d0be12ea1`)
+
+The design chain (#723–#726) is merged, so this change's and `wbs-custom-permissions`'
+texts are main's; only the 1.1 and 1.2 ticks and the two verify.md files are this
+branch's. The folder moved after main's newest (`20261101100100_add_resource_directory_capacity`):
+`20261025100000_add_access_grants` is now `20261102120000_add_access_grants`, and every
+test listing the stack names it last (first to reverse). Main's text added
+`access_role.reaches_restricted` (CP18: default 0, seeded 1 for `org-admin` and
+`org-super-admin`, organization-kind CHECK), which this migration now creates;
+`permissionsOnTarget` reads `reachesRestricted` instead of the two built-in ids. The P17
+credential backfill is unchanged: main's `machine_credential` keeps `person_id`,
+`organization_id` and `revoked_at`, and a revoked agent pool revokes its credentials.
+
+| Command                                                                                                       | Result                |
+| ------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `env -u CLAUDECODE bunx nx run-many -t test --projects=wbs-store-sqlite,wbs-domain,wbs-be-01 --skip-nx-cache` | exit 0, 3 projects    |
+| `env -u CLAUDECODE bun test src/access-grant-migration.db.test.ts` (be-01)                                    | 20 pass, 0 fail       |
+| `env -u CLAUDECODE bun test src/access-role.test.ts` (domain)                                                 | 43 pass, 0 fail       |
+| `bunx nx affected -t typecheck --base=origin/main`                                                            | 51 projects, exit 0   |
+| `bunx nx affected -t lint --base=origin/main`                                                                 | 51 projects, exit 0   |
+| `bunx nx format:check --all`                                                                                  | exit 0                |
+| `bunx openspec validate --all --json`                                                                         | 316 items, 316 passed |
+| CI's migration lint over `git ls-files '*.sql'`                                                               | exit 0, 254 files     |
+
+| Fault (2026-11-03)                                                    | Case that failed                                                                            |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `access_role_reaches_restricted_kind` made `CHECK (1)`                | refuses reaches_restricted outside an organization role, and outside 0 and 1                |
+| built-in admin's set returned unchanged on a restricted target        | an org-admin reads a restricted work package and never writes it (+ the opt-in case)        |
+| a role holding `organization.manage_access` admitted without the flag | a custom organization role equal to org-admin reads no restricted work package              |
+| the two built-in ids read instead of `reachesRestricted`              | a custom organization role that opts in reads a restricted work package and never writes it |
