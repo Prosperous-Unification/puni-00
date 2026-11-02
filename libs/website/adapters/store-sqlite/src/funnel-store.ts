@@ -13,7 +13,8 @@ import {
  * - `drafts`: `intake_draft` rows created that day;
  * - `conversationsStarted`: conversations created that day with at least one operation (a
  *   conversation refused at its first admission is stored but never started);
- * - `briefsCaptured`: completed `brief`-stage operations that day whose capture was not `empty`;
+ * - `briefsCaptured`: legacy completed brief-stage captures, plus each version-1 conversation
+ *   once on its first validated candidate operation day, independent of stage;
  * - `exhausted`: conversations created that day that are now exhausted, by reason;
  * - `proposals`: `proposal_submission` rows created that day, `fromChat` when the draft's
  *   conversation is `handed_off` (the visitor started the AI chat; it does not mean the chat
@@ -102,8 +103,9 @@ export function readFunnelCounts(database: Database, now: number, days = 30): Fu
       row.conversationsStarted = count;
     },
   );
+  // Proof: removing the first-operation predicate counted two candidates in new brief capture counts once.
   countByDay(
-    `SELECT ${dayOfCreatedAt} AS utc_day, count(*) AS count FROM conversation_operation WHERE created_at >= ?1 AND created_at < ?2 AND state = 'completed' AND stage = 'brief' AND brief_capture IN ('marked', 'fallback') GROUP BY utc_day`,
+    `SELECT ${dayOfCreatedAt} AS utc_day, count(*) AS count FROM conversation_operation WHERE created_at >= ?1 AND created_at < ?2 AND state = 'completed' AND ((reply_version IS NULL AND stage = 'brief' AND brief_capture IN ('marked', 'fallback')) OR (reply_version = 1 AND brief_capture = 'marked' AND rowid = (SELECT min(first.rowid) FROM conversation_operation AS first WHERE first.conversation_id = conversation_operation.conversation_id AND first.reply_version = 1 AND first.brief_capture = 'marked'))) GROUP BY utc_day`,
     (row, count) => {
       row.briefsCaptured = count;
     },

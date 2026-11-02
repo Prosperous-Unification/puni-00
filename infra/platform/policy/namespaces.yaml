@@ -27,6 +27,14 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
+  name: website-prod
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+apiVersion: v1
+kind: Namespace
+metadata:
   name: wbs-solver
   labels:
     puni.dev/trusted-hostpath: solver

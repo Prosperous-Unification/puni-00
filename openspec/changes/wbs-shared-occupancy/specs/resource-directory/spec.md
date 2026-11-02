@@ -65,8 +65,9 @@ kind `resource`, with the units before and after.
 ### Requirement: A directory capacity write announces to the projects that use the resource
 
 Every applied `setDirectoryCapacity` SHALL publish `directory_changed` to each project of the
-organization that demands the resource on some leaf or states a capacity for it, after the
-write commits, so their event sequences move and cached roll-ups and open plans recompute.
+organization that demands the resource on some leaf, states a capacity for it or holds units
+of it through a claim, after the write commits, so their event sequences move and cached
+roll-ups, startable reads and open plans recompute.
 
 #### Scenario: A space roll-up follows the clamp
 
@@ -74,6 +75,12 @@ write commits, so their event sequences move and cached roll-ups and open plans 
   states a directory capacity of 16
 - **THEN** A receives `directory_changed` and the next roll-up read serves the dates scheduled
   against 16
+
+#### Scenario: A project holding the resource only through a claim is told
+
+- **WHEN** project C holds 6 GB of `host ram` through a claim's `resources`, with no demand
+  and no capacity stated for it, and an admin lowers the directory capacity from 16 to 8
+- **THEN** C receives `directory_changed`, so its cached startable read recomputes
 
 ### Requirement: Lowering or clearing a directory capacity is previewed
 

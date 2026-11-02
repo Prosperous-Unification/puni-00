@@ -20,7 +20,7 @@
       ],
       "executor": "nx:run-commands",
       "options": {
-        "command": "bun test libs/website/adapters/store-sqlite/src --timeout=30000"
+        "command": "bun test ./libs/website/adapters/store-sqlite/src --timeout=30000"
       }
     },
     "lint": {
@@ -52,7 +52,7 @@
     "test:unit": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bun test libs/website/adapters/store-sqlite/src/store.test.ts --timeout=30000"
+        "command": "bun test ./libs/website/adapters/store-sqlite/src/store.test.ts --timeout=30000"
       }
     }
   }
