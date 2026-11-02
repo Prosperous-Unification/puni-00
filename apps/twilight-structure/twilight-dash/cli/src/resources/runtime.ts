@@ -1030,7 +1030,7 @@ function git(arguments_: string[], input?: string): string {
  * sessions that make it Dash-owned, the identity nothing the owner made can predate, what a
  * refusal says may be held and its remedy, and the processes recorded as outside.
  */
-interface HoldScope {
+export interface HoldScope {
   /** Whether one component of a process's cgroup v2 path is a Dash-owned scope. */
   owns: (component: string) => boolean;
   /** Session ids (leader pids) of Dash-owned process groups. */
@@ -1131,29 +1131,47 @@ function outsideNote(scope: HoldScope): string {
  * leave the scope with `systemd-run --user`. A process that predates the leader cannot have
  * inherited or been handed the owner's files by it. Anything else, including any process of
  * another boot, stays an unknown holder.
- * @throws Error when its cgroup, session or identity cannot be read, which keeps the entry charged.
+ *
+ * `gone` when the process exited after the scan listed it: ENOENT or ESRCH on its cgroup, its
+ * identity (a zombie included) or its session means it holds nothing. On a real host processes
+ * exit during settlement all the time, and counting them as unknown holders blocked units at
+ * random (`cannot read the cgroup of uninspectable PID …`, slice 6c's launchers run).
+ * Exported for that test.
+ * @throws Error when its cgroup, session or identity is unreadable for any other reason
+ * (EACCES, EPERM, malformed), which keeps the entry charged.
  */
-function outsideScope(pid: string, scope: HoldScope): boolean {
+export function outsideScope(pid: string, scope: HoldScope): 'outside' | 'holds' | 'gone' {
   let membership: string;
   try {
     membership = readFileSync(`/proc/${pid}/cgroup`, 'utf8');
   } catch (cause) {
+    // Proof: without this, `a process that exits after the scan listed it holds nothing`
+    // (resource-holds.test.ts) threw `cannot read the cgroup of uninspectable PID` (verify.md
+    // Slice 6c, F17).
+    if (isMissing(cause)) return 'gone';
     throw new Error(`cannot read the cgroup of uninspectable PID ${pid}`, { cause });
   }
   const unified = membership.split('\n').find((line) => line.startsWith('0::'));
   if (unified === undefined)
     throw new Error(`uninspectable PID ${pid} has no cgroup v2 membership`);
   const cgroup = unified.slice(3);
-  if (cgroup.split('/').some(scope.owns)) return false;
+  if (cgroup.split('/').some(scope.owns)) return 'holds';
+  // `identifyProcess` is null for a missing process and for a zombie: either holds nothing.
   const identity = identifyProcess(Number(pid));
-  if (identity === null) throw new Error(`uninspectable PID ${pid} has no identity`);
+  if (identity === null) return 'gone';
   if (scope.sessions.size > 0) {
-    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    let stat: string;
+    try {
+      stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    } catch (cause) {
+      if (isMissing(cause)) return 'gone';
+      throw new Error(`cannot read the session of uninspectable PID ${pid}`, { cause });
+    }
     const session = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[3];
     if (!session) throw new Error(`uninspectable PID ${pid} has no session`);
     // Proof: without this, `a non-dumpable process in another use's process group still holds a
     // resource` (resource-holds.test.ts) saw the use released (2026-11-02, J19).
-    if (scope.sessions.has(session)) return false;
+    if (scope.sessions.has(session)) return 'holds';
   }
   // Another login session's processes (`sshd-session`, `(sd-pam)` beside it) are outside Dash-owned
   // work whenever they started (J19 amendment, reviews F1 and G2): a `puni1` ssh login that
@@ -1165,11 +1183,13 @@ function outsideScope(pid: string, scope: HoldScope): boolean {
   // after the job does not hold` (host-job-holds.test.ts) saw tmp `blocked`; with the owner's
   // session exempted too, `a setsid descendant in Dash's own login session still holds`
   // (resource-holds.test.ts) saw the resource `released` (2026-11-02, reviews F1, G2).
-  if (isForeignLoginSession(cgroup, scope.ownCgroup)) return true;
+  if (isForeignLoginSession(cgroup, scope.ownCgroup)) return 'outside';
   // Proof: without the start comparison `a non-dumpable process that left for another scope
   // after the job still holds` (host-job-holds.test.ts) saw tmp `released` with the file open
   // (2026-11-02, Slice 3 review R1).
-  return identity.boot === scope.before.boot && BigInt(identity.start) < BigInt(scope.before.start);
+  return identity.boot === scope.before.boot && BigInt(identity.start) < BigInt(scope.before.start)
+    ? 'outside'
+    : 'holds';
 }
 
 /**
@@ -1255,7 +1275,10 @@ function inspectHolds(locator: string, scope: HoldScope): void {
       // its tmp directory` (host-job-holds.test.ts) saw tmp `blocked` "cannot inspect process
       // PID"; with `outsideScope` always true `a non-dumpable process inside the job scope still
       // holds its tmp directory` saw it `released` (2026-11-02, Slice 3 review F1).
-      if (isAccessDenied(cause) && outsideScope(pid, scope)) {
+      const verdict = isAccessDenied(cause) ? outsideScope(pid, scope) : 'holds';
+      // Exited since the scan listed it: it holds nothing and leaves no evidence.
+      if (verdict === 'gone') continue;
+      if (verdict === 'outside') {
         scope.outside.push({
           pid: Number(pid),
           comm: commOf(pid),

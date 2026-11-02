@@ -11,8 +11,11 @@ import { admitFixture } from './admission.test.fixture';
 import { ampleHost, hostPoolFixture } from './host-pool.test.fixture';
 import {
   type CreationRequest,
+  type HoldScope,
+  identifyProcess,
   isForeignLoginSession,
   loadResourceConfiguration,
+  outsideScope,
   ResourceRuntime,
 } from './runtime';
 
@@ -55,6 +58,39 @@ const inLogin = /^\/user\.slice\/user-\d+\.slice\/session-[A-Za-z0-9]+\.scope$/.
 const loginReason = inLogin
   ? ''
   : ` (skipped: this test runs in ${ownCgroup}, not a login session)`;
+
+// A process the hold scan listed can exit before its cgroup, identity or session is read. The
+// race itself cannot be scheduled without a seam, so this hands `outsideScope` the pid of a
+// process that has already exited and been reaped, which is what every read then sees
+// (verify.md Slice 6c, S6C-A21). Runs outside any namespace.
+describe('a vanished uninspectable process (slice 6c, J19)', () => {
+  test('a process that exits after the scan listed it holds nothing', async () => {
+    const before = identifyProcess(process.pid);
+    if (before === null) throw new Error('this test process has no identity');
+    const child = Bun.spawn(['true']);
+    await child.exited;
+    const own = readFileSync('/proc/self/cgroup', 'utf8')
+      .split('\n')
+      .find((line) => line.startsWith('0::'))
+      ?.slice(3);
+    if (own === undefined) throw new Error('this test process has no cgroup v2 membership');
+    const scope = (sessions: string[]): HoldScope => ({
+      owns: () => false,
+      sessions: new Set(sessions),
+      before,
+      ownCgroup: own,
+      held: 'the fixture',
+      remedy: 'none',
+      outside: [],
+    });
+    // Proof: without the ENOENT branch on the cgroup read this threw `cannot read the cgroup of
+    // uninspectable PID` (verify.md Slice 6c, F17).
+    expect(outsideScope(String(child.pid), scope([]))).toBe('gone');
+    expect(outsideScope(String(child.pid), scope([String(process.pid)]))).toBe('gone');
+    // A live process is still decided: this one, in its own cgroup, did not start before itself.
+    expect(outsideScope(String(process.pid), scope([]))).toBe('holds');
+  });
+});
 
 describe('isForeignLoginSession (J19 amendment, reviews F1 and G2)', () => {
   // The predicate alone, so CI runners, which have no login session, still check its shape.

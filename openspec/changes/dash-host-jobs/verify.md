@@ -2072,15 +2072,15 @@ converging applies with `changed=0`, the restart proof and `ops pool init` all s
   template throws. Real Ansible rendering, the facts arithmetic of S6C-A5, the `systemd_service`
   and `wait_for` tasks and linger itself run only at the apply. `ops pool init` refuses a budget
   above the host's facts loudly.
-- **S6C-A14 The 6a × 6b launchers conflict, resolved by #818.** Before #818 landed, three of 6a's
-  concurrent-gate cases in `launchers.test.ts` failed on this branch's 6a + 6b tree: 6b's observe
-  mode queues every Dash job through the shell lock. The plan now carries #818's final
-  `9855c2343`, which patches the fixture, and this branch merged the plan at `b578beef9`. On the
-  merged tree `launchers.test.ts` ran three times. The first run was 9/10: "two gates run at
-  once …" saw the first gate's `gate_tree` unit `blocked: … cannot read the cgroup of
-uninspectable PID 662; watch settles it` where the test expects `released`. The next two runs
-  were 10/10. That is a settlement timing flake in 6a's fixture, which no 6c file takes part in.
-  It is recorded here and left to its owner.
+- **S6C-A14 The 6a × 6b launchers conflict, resolved by #818; its flake was a real race.** Before
+  #818 landed, three of 6a's concurrent-gate cases in `launchers.test.ts` failed on this branch's
+  6a + 6b tree: 6b's observe mode queues every Dash job through the shell lock. #818's final
+  `9855c2343` patched the fixture, and this branch merged the plan at `b578beef9`. The next three
+  runs went 9/10, 10/10, 10/10. In the failing run, "two gates run at once" saw `blocked: …
+cannot read the cgroup of uninspectable PID 662`. That is not fixture timing. J19's inspection
+  listed a process, found its descriptors unreadable, and the process had exited by the time
+  `/proc/<pid>/cgroup` was read; the inspection counted it as an unknown holder. On a host this
+  would block units at random. Fixed under S6C-A21.
 - **S6C-A15 Pinned fields stop the role (review Q1).** Once a ledger and a configuration both
   exist, the role renders the candidate configuration on the controller and passes it on stdin,
   never to disk. A `jq` probe compares it with the live file on the thirteen fields
@@ -2115,6 +2115,21 @@ uninspectable PID 662; watch settles it` where the test expects `released`. The 
   Its head moves only by hand (`git checkout --detach origin/main` while no job runs from it); task
   6.9 owes a timer. `validate`'s header now says that `ops pool inspect` and `ops job audit` can
   migrate an older ledger forward (review Q5).
+- **S6C-A21 A process that vanished holds nothing (coordinator's fix of the S6C-A14 race).**
+  `outsideScope` in `runtime.ts` now answers `outside`, `holds` or `gone`. It answers `gone` when
+  the process has exited since the scan listed it: ENOENT or ESRCH on its cgroup read or its
+  session read, or a null identity (missing or zombie) from the `/proc/<pid>/stat` read.
+  `inspectHolds` skips a `gone` process and records nothing about it. EACCES and EPERM keep their
+  J19 meaning. `HoldScope` and `outsideScope` are exported for the test, which adds no seam: the
+  race cannot be scheduled without one, so the test hands `outsideScope` the pid of a process
+  that has already exited and been reaped. That is exactly what each read sees once the race is
+  lost. A live process in its own cgroup is still decided `holds`. Only the cgroup branch's
+  negative (F17) is observed: a reaped pid fails the cgroup read first, so the identity and
+  session branches are not reached by any test.
+- **S6C-A22 Slice 2's inode-reuse flake is owed, not fixed.** The full-suite failure of
+  `a replaced tmp directory or symlink stays charged and untouched` comes from `rmdir` plus `mkdir`
+  reusing the inode, which a dev and inode identity cannot tell apart. tasks.md 2.4 owes an
+  identity that also carries ctime or birth time, or a content marker.
 
 ### Commands (fresh, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, this workstation)
 
@@ -2213,6 +2228,29 @@ Fresh, with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`:
   - Slice 2's settlement is unchanged here: the branch's diff under twilight-dash `src` is
     `audit-units.ts` (one line), its test, and `gate-host-pool.test.ts`. So this is recorded as a
     flake under full-suite load and left to slice 2's owner.
+
+### The vanished-holder fix (S6C-A21): commands
+
+Fresh, with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`. "pass" for the namespaced suites is
+their outer namespace case, which fails if any inner case fails.
+
+| Command                                                                                      | Result               |
+| -------------------------------------------------------------------------------------------- | -------------------- |
+| `bun test src/resources/host-job-holds.test.ts`                                              | 6 pass, 0 fail       |
+| `bun test src/resources/resource-holds.test.ts` (with the new vanished-process case)         | 12 pass, 0 fail      |
+| `bun test src/resources/runtime.test.ts`, `src/resources/host-jobs.test.ts`                  | each passes, 0 fail  |
+| `bun test src/no-ambient-clock.test.ts`                                                      | 2 pass, 0 fail       |
+| `bun test src/ops/gate-host-pool.test.ts`                                                    | 12 pass, 0 fail      |
+| `bun test src/ops/launchers.test.ts`, three runs                                             | 10/10, 10/10, 10/10  |
+| `bunx nx run-many -t typecheck lint -p twilight-dash --skip-nx-cache`                        | exit 0               |
+| `bunx prettier --check` on the changed files; `bunx openspec validate dash-host-jobs --json` | clean; passed 1 of 1 |
+
+| Fault                                                                   | Red                                                                                                                       |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| F17 `if (isMissing(cause)) return 'gone';` dropped from the cgroup read | `a process that exits after the scan listed it holds nothing` threw `cannot read the cgroup of uninspectable PID 3396337` |
+
+Restored with its SHA-256 equal. Not observed: separate negatives for the identity and session
+branches (S6C-A21).
 
 ### Skipped and unverified
 

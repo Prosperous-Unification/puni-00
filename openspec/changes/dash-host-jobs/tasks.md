@@ -45,6 +45,14 @@
       transaction with the outbox event — test: the surviving-child and dirty-tree scenarios;
       negative: settle memory on exit code alone and watch the surviving-child test admit over it.
 
+- [ ] 2.4 Follow-up (seen in slice 6c's full `twilight-dash:test`): `host-jobs.test.ts`'s
+      `a replaced tmp directory or symlink stays charged and untouched` failed once under
+      full-suite load (expected `blocked`, received `released`), then passed alone three times.
+      `rmdir` then `mkdir` can reuse the inode, so a tmp directory's device and inode identity
+      does not prove it is the original. The identity should include ctime or birth time, or a
+      content marker — test: replace the directory with one that reuses the inode; negative:
+      compare dev and inode only and watch the replacement be released.
+
 ## 3. Measured runs (needs 2)
 
 - [x] 3.1 `ops job run`: scope through the runtime's FD-gated launch, counters read and identity
@@ -152,7 +160,7 @@
       the file enrolls the host. `validate` reads linger, the checkouts, the token unit, the
       configuration's mode, owner and shape, and the units, then runs `ops pool inspect` and
       `ops job audit` once a ledger exists. No host was touched; the apply, the h2puni cleanup
-      and the converging proof stay in 6.3 (verify.md Slice 6c, S6C-A1 to S6C-A20).
+      and the converging proof stay in 6.3 (verify.md Slice 6c, S6C-A1 to S6C-A22).
 - [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
       `Restart=on-failure` and `KillMode=process` (beside the observation units of 4.2). It
       lands before 6.4, because observe mode needs a running `watch` (review H1 of #818). A host
