@@ -1,0 +1,163 @@
+---
+# What `ops job run` and the `watch` unit need from the host (`dash-host-jobs` J4, J8, J12):
+# a user manager that outlives logins, the fixed pool paths, the token unit, the pool
+# configuration on an enrolled host, and the user units. It never runs `ops pool init` and never
+# starts a unit: both are the operator's enrollment steps (task 6.4).
+
+# `ops job run` measures a job in a `systemd-run --user` scope and refuses 70 without a user
+# manager (J8); linger keeps puni1's manager running with nobody logged in.
+- name: Keep the gate account's user manager running
+  ansible.builtin.command:
+    argv: [loginctl, enable-linger, '{{ puni_gate_user }}']
+    creates: '/var/lib/systemd/linger/{{ puni_gate_user }}'
+
+- name: Read the gate account's uid
+  ansible.builtin.getent:
+    database: passwd
+    key: '{{ puni_gate_user }}'
+
+# `systemctl --user` reaches the manager through this socket; linger starts the manager
+# asynchronously, so the first run waits for it.
+- name: Wait for the gate account's user manager
+  ansible.builtin.wait_for:
+    path: '/run/user/{{ ansible_facts.getent_passwd[puni_gate_user][1] }}/systemd/private'
+    timeout: 60
+
+# Only the directories Dash and systemd read; existing parents keep their mode.
+- name: Create the parents of the Dash and systemd user paths
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    owner: '{{ puni_gate_user }}'
+    group: '{{ puni_gate_user }}'
+  loop:
+    - '{{ puni_gate_home }}/.config'
+    - '{{ puni_gate_home }}/.config/systemd'
+    - '{{ puni_gate_home }}/.local'
+    - '{{ puni_gate_home }}/.local/share'
+
+# Owner-only, as Dash requires of its root; the root stays empty, because `ops pool init`
+# creates `.dash` itself and refuses a root that is not empty (S6C-A3).
+- name: Create the owner-only Dash directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    owner: '{{ puni_gate_user }}'
+    group: '{{ puni_gate_user }}'
+    mode: '0700'
+  loop:
+    - '{{ puni_gate_home }}/.config/dash'
+    - '{{ puni_gate_home }}/.local/share/dash'
+    - '{{ puni_gate_pool_root }}'
+    - '{{ puni_gate_pool_units_root }}'
+
+- name: Create the systemd user unit directory
+  ansible.builtin.file:
+    path: '{{ puni_gate_user_unit_directory }}'
+    state: directory
+    owner: '{{ puni_gate_user }}'
+    group: '{{ puni_gate_user }}'
+    mode: '0755'
+
+# The token unit is built in a sibling and renamed into place, so a run that dies midway leaves
+# no half tree at the unit's path. An existing path must already be a clean tree with a commit:
+# anything else refuses 70 naming it, never repaired over (S6C-A6).
+# Proof: with the commit dropped, gate-host-pool.test.ts, which runs this exact argv twice and
+# against a broken unit, failed (verify.md Slice 6c, F7).
+- name: Create the Dagger engine token unit
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -c
+      - >-
+        set -euo pipefail; unit=$1;
+        if [[ -e $unit ]]; then
+        if [[ $(git -C "$unit" rev-parse --show-toplevel 2>/dev/null) == "$unit" ]] &&
+        git -C "$unit" rev-parse -q --verify HEAD >/dev/null &&
+        [[ -z $(git -C "$unit" status --porcelain --untracked-files=all) ]]; then
+        printf 'present\n'; exit 0; fi;
+        printf 'token unit %s exists but is not a clean Git tree with a commit; move it aside and rerun\n' "$unit" >&2;
+        exit 70; fi;
+        staging=$(mktemp -d "$unit.XXXXXX");
+        git -c init.defaultBranch=token init -q -- "$staging";
+        git -C "$staging" -c user.name=gate_host -c user.email=gate-host@puni.invalid
+        -c commit.gpgsign=false commit -q --allow-empty
+        -m 'dagger_engine token unit (dash-host-jobs S6-A7)';
+        mv -T -- "$staging" "$unit"; printf 'created\n'
+      - token-unit
+      - '{{ puni_gate_pool_dagger_unit }}'
+  register: puni_gate_token_unit
+  changed_when: puni_gate_token_unit.stdout == 'created'
+
+- name: Require the host pool inputs of an enrolled host
+  vars:
+    puni_gate_host_pool_fields:
+      [authorityId, credential, diskBudgetUnits, epoch, mcpResource, providerId]
+  ansible.builtin.assert:
+    that:
+      - puni_gate_host_pool is mapping
+      - (puni_gate_host_pool.keys() | sort) == puni_gate_host_pool_fields
+      - puni_gate_host_pool.mcpResource is match('^https://')
+      - puni_gate_host_pool.diskBudgetUnits is integer
+      - puni_gate_host_pool.diskBudgetUnits > 0
+    fail_msg: >-
+      An enrolled gate host needs puni_gate_host_pool with exactly authorityId, epoch,
+      providerId, mcpResource (https), credential and an integer diskBudgetUnits, from the
+      operator's $OPS file (docs/infra/gate-hosts.md, "Enroll a host in the host pool")
+  when: puni_gate_host_pool_enroll
+
+# `nproc` and MemTotal rounded down, which `ops pool init` checks the budget against; the
+# headroom is subtracted by Dash (allocatable = budget - headroom).
+- name: Read the host pool budget from the host facts
+  ansible.builtin.set_fact:
+    puni_gate_pool_cpu_cores: '{{ ansible_facts.processor_nproc }}'
+    puni_gate_pool_memory_gib: '{{ ansible_facts.memtotal_mb // 1024 }}'
+  when: puni_gate_host_pool_enroll
+
+# Written only when absent or different. The ledger pins everything but `launcherCheckouts`
+# and `concurrencyEligible`, so a later change to a pinned field makes every open refuse
+# rather than silently rebinding the pool. It carries the WBS credential: no_log.
+- name: Write the host pool configuration
+  ansible.builtin.template:
+    src: host-pool.json.j2
+    dest: '{{ puni_gate_pool_config }}'
+    owner: '{{ puni_gate_user }}'
+    group: '{{ puni_gate_user }}'
+    mode: '0600'
+  no_log: true
+  when: puni_gate_host_pool_enroll
+
+# The audit pair is the files `ops job render-audit-units` renders (gate-host-pool.test.ts
+# compares them); the watch unit has no renderer, so its template is its only source.
+- name: Install the Dash user units
+  ansible.builtin.template:
+    src: '{{ item }}.j2'
+    dest: '{{ puni_gate_user_unit_directory }}/{{ item }}'
+    owner: '{{ puni_gate_user }}'
+    group: '{{ puni_gate_user }}'
+    mode: '0644'
+  loop: [dash-resources-watch.service, dash-job-audit.service, dash-job-audit.timer]
+  register: puni_gate_user_units
+
+- name: Reload the gate account's user manager
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv: [systemctl, --user, daemon-reload]
+  environment:
+    XDG_RUNTIME_DIR: '/run/user/{{ ansible_facts.getent_passwd[puni_gate_user][1] }}'
+  when: puni_gate_user_units is changed
+  changed_when: true
+
+# Enabled, never started: the operator starts the watch right after `ops pool init` (task 6.4).
+# Not enabled on a host that is not enrolled, where the audit would fail every week.
+- name: Enable the Dash user units on an enrolled host
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    scope: user
+    enabled: true
+  environment:
+    XDG_RUNTIME_DIR: '/run/user/{{ ansible_facts.getent_passwd[puni_gate_user][1] }}'
+  loop: [dash-resources-watch.service, dash-job-audit.timer]
+  when: puni_gate_host_pool_enroll

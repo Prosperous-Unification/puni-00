@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly Twilight Dash host-job envelope audit (dash-host-jobs J9)
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+RandomizedDelaySec=1h
+Unit=dash-job-audit.service
+
+[Install]
+WantedBy=timers.target

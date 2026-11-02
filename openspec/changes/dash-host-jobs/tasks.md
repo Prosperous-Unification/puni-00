@@ -143,6 +143,15 @@
 - [ ] 6.3 `gate_host` role: linger on, pool config, ledger directory, second gate tree,
       `validate` runs `ops job audit`; h2puni disk cleaned first per the recorded order — proof:
       two converging applies, `changed=0` on the second.
+- [x] 6.3a Code (slice 6c): the role turns linger on, creates the empty fixed pool root and
+      `~/.config/dash`, the `dagger_engine` token unit and two more full clones with one frozen
+      install each, `~/puni-00-gate-tbf2` (the second `gate_tree`) and the launcher-only
+      `~/puni-00-gate-launcher`. It refuses to clone below 5 GiB free per missing checkout plus
+      10 GiB. It writes `host-pool.json` only where `puni_gate_host_pool_enroll` is true, since
+      the file enrolls the host. `validate` reads linger, the checkouts, the token unit, the
+      configuration's mode, owner and shape, and the units, then runs `ops pool inspect` and
+      `ops job audit` once a ledger exists. No host was touched; the apply, the h2puni cleanup
+      and the converging proof stay in 6.3 (verify.md Slice 6c, S6C-A1 to S6C-A14).
 - [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
       `Restart=on-failure` and `KillMode=process` (beside the observation units of 4.2). It
       lands before 6.4, because observe mode needs a running `watch` (review H1 of #818). A host
@@ -155,6 +164,11 @@
       `apps/twilight-structure/twilight-dash/cli/docs/resources.md`. Proof: kill the process and
       watch systemd restart it with the guard holder surviving; a converging `gate_host` apply
       reports `changed=0` the second time.
+- [x] 6.7a Code (slice 6c): the role installs `dash-resources-watch.service`
+      (`Restart=on-failure`, `RestartSec=30`, `KillMode=process`, skipped until the ledger
+      exists) and the audit pair `ops job render-audit-units` renders. It enables them on an
+      enrolled host and never starts them. The restart proof on a host stays in 6.7
+      (verify.md Slice 6c).
 - [ ] 6.4 Enroll h2puni and h4claw in observe mode, **only once 6.7's `watch` unit is installed
       and running on that host** (an observe-mode hold left by a dead launcher is released by
       `watch` or `resources sweep`, nothing else); run every launcher through `run_heavy_job`
