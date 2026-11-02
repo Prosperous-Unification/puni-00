@@ -1814,6 +1814,24 @@ Source restart-input capture SHALL select the frontend response profile only fro
 - **WHEN** either complete current response differs from wire-v1 or selected snapshot/live input changes to any different epoch before close
 - **THEN** qualification refuses without normalization, output-hash update, baseline recapture or historical substitution
 
+### Requirement: Settled frontend fixture cleanup preserves private failure accounting
+
+After its existing settled boundary, the private frontend capture fixture SHALL await its consumer and required removal exactly once, returning the original value only when both succeed. Settled provenance cleanup SHALL attempt and join its required provenance root followed by its optional retained producer root even when the first removal rejects. These fixture failures SHALL retain original identities privately without serialized payloads or new readiness/cleanup authority. Pre-settlement retention, actual producer close contracts and public observer redaction remain unchanged.
+
+#### Scenario: Settled capture consumer and removal fail independently
+
+- **WHEN** an already-settled capture consumer and its required root removal both reject, including a thrown undefined
+- **THEN** cleanup is attempted once after consumption and refusal preserves both original failures in an ordered private AggregateError with a fixed non-payload message
+- **AND** primary-only or cleanup-only failure is rethrown with its exact identity, while success returns the exact consumer value after successful removal
+- **AND** no failure is logged, serialized or treated as evidence that a partially failed removal restored or retained the whole root
+
+#### Scenario: Settled provenance removal attempts both owned roots
+
+- **WHEN** required provenance removal rejects and a retained producer root is present
+- **THEN** the original second removal is still attempted and awaited exactly once after the first outcome
+- **AND** refusal preserves the single original failure or both ordered originals privately, with no force-removal, retry or false cleanup success
+- **AND** an absent optional retained producer root requires only provenance removal
+
 ### Requirement: Original source context brackets six fixed HTTP observations
 
 Source HTTP observation SHALL accept only the original consumed context whose mandatory original capture retained the supported frontend profile. It SHALL use the original deadline and existing bounded transport, preserve whole-source no-rebind evidence, and return detached frozen observations and digests without continuation authority.

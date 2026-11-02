@@ -1219,3 +1219,12 @@ Accepted submilestone only: [eighteen fixed inert close-diagnostic/private-gate 
 FEP5, parent10.2, full dependency delivery, current full CI (three frontend failures), real Vite/native-library closure, full producer persistence, host gates/main adoption/deployment and all held scopes remain open or held. No checkbox changes or broader completion follows from these fixture-only witnesses or their adjacent comment annotations.
 
 The annotated inert diagnostic checkpoint additionally passed all scoped statics/OpenSpec320/320, a falsifiable comments-removed compiler bridge and one fresh5case/150expect positive; see [the annotated source evidence](verify-source-frontend-current-epoch.md#annotated-source-checkpoint--2026-11-02). This advances no parent, FEP5, real-Vite/native, full-CI, gate or deployment checkbox.
+
+### Private settled frontend root cleanup accounting (planned)
+
+[Intent](frontend-input-epochs-intent.md), [verification](verify-source-frontend-current-epoch.md). This two-file slice does not repair historical exit13/ENOENT or qualify real Vite/native closure, full CI or delivery.
+
+- [ ] FRC1. Preserve the existing settled consumer/finally and sequential two-root removal behavior in concrete typed helper extraction; add six consumer and five root cases in the existing HTTP owning file. Observe semantic RED at failure preservation/second-root attempt assertions, without Node/Vite/pipeline execution.
+- [ ] FRC2. After accepted RED, preserve arbitrary thrown values with explicit outcomes, ordered private aggregate failures and attempt-all one-shot roots. Preserve startup-failure retention, opening telemetry, closing raw rm and all existing producer/watch/close behavior. Observe the same11 focused cases GREEN.
+- [ ] FRC3. Under separate finite grants, omit fail-fast correction, primary retention, cleanup retention and required producer removal one at a time; require the unchanged named consumers to fail, restore exact source and observe each pass. Add Proof comments only after actual pairs.
+- [ ] FRC4. Freeze exact source and ordinary/R5 receipts, run configured affected types/lint/format/OpenSpec, and obtain independent review. Keep historical inert18 evidence and all current full-CI/native/held scopes unchanged.
