@@ -70,7 +70,7 @@ function reportInput(
   binding: ResourceBinding,
   measurement: Measurement,
   cadenceSeconds: number,
-  reservedUnits: number | null,
+  reserved: { readonly units: number; readonly dimension: string } | null,
 ): Record<string, unknown> {
   let outcome: Record<string, unknown>;
   switch (measurement.kind) {
@@ -81,7 +81,9 @@ function reportInput(
         kind: 'measured',
         capacityUnits: measurement.capacityUnits,
         usageUnits: measurement.usageUnits,
-        ...(reservedUnits === null ? {} : { reservedUnits }),
+        ...(reserved === null
+          ? {}
+          : { reservedUnits: reserved.units, reservedDimension: reserved.dimension }),
       };
       break;
     case 'unreachable':
@@ -183,15 +185,22 @@ async function putReport(
 }
 
 /**
- * What the host pool's ledger reserves of a `host_pool` binding's dimension, read when the
- * report is sent; null for any other binding (`dash-host-jobs` J10).
+ * What the host pool's ledger reserves of a `host_pool` binding's dimension, and that
+ * dimension, read when the report is sent; null for any other binding (`dash-host-jobs` J10).
+ * WBS names as holders only the jobs reserving that dimension (S5-A16).
  * @throws when a host pool binding has no ledger, which the loader refuses.
  */
-function reservedOf(configuration: ReporterConfiguration, binding: ResourceBinding): number | null {
+function reservedOf(
+  configuration: ReporterConfiguration,
+  binding: ResourceBinding,
+): { units: number; dimension: string } | null {
   if (binding.source === undefined) return null;
   if (configuration.hostPool === undefined || binding.dimension === undefined)
     throw new Error(`resource ${binding.resourceId} names the host pool, which is not open`);
-  return configuration.hostPool.reserved(binding.dimension);
+  return {
+    units: configuration.hostPool.reserved(binding.dimension),
+    dimension: binding.dimension,
+  };
 }
 
 interface BindingStreaks {

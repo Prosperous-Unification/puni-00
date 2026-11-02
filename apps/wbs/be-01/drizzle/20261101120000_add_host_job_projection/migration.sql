@@ -12,6 +12,14 @@ ALTER TABLE `resource_capacity_report` ADD COLUMN `reserved_units` integer CHECK
 		AND `outcome` = 'measured')
 );
 --> statement-breakpoint
+-- The host pool dimension `reserved_units` counts (`cpuCores`, `memoryGib`,
+-- `tmpDiskGib` or an exclusive id), so a resource names only the jobs that
+-- hold it: set exactly when `reserved_units` is.
+ALTER TABLE `resource_capacity_report` ADD COLUMN `reserved_dimension` text CHECK (
+	(`reserved_dimension` IS NULL) = (`reserved_units` IS NULL)
+	AND (`reserved_dimension` IS NULL OR length(`reserved_dimension`) BETWEEN 1 AND 64)
+);
+--> statement-breakpoint
 -- One host job as its resource authority published it: owned by that
 -- authority and its organization, never by a planning row, so deleting a
 -- project, a work item or a person leaves it in place (the declaration keeps
@@ -36,4 +44,4 @@ CREATE TABLE `resource_host_job` (
 	)
 );
 --> statement-breakpoint
-CREATE INDEX `resource_host_job_provider` ON `resource_host_job` (`organization_id`, `provider_id`, `state`);
+CREATE INDEX `resource_host_job_provider` ON `resource_host_job` (`provider_id`, `state`);

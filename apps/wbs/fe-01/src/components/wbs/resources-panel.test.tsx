@@ -183,7 +183,13 @@ describe('resources section states', () => {
           resourceOf({
             unitLabel: 'GiB',
             report: measured({
-              outcome: { kind: 'measured', capacityUnits: 15, usageUnits: 8, reservedUnits: 12 },
+              outcome: {
+                kind: 'measured',
+                capacityUnits: 15,
+                usageUnits: 8,
+                reservedUnits: 12,
+                reservedDimension: 'memoryGib',
+              },
             }),
             hostJobs: [
               {

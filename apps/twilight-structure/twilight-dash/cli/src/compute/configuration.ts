@@ -335,8 +335,63 @@ export async function loadReporterConfiguration(
       checkBinding(path, instance.instanceId, instance.kind, binding);
     }
   }
+  const pooled = parsed.instances.some((instance) =>
+    instance.bindings.some((binding) => binding.source === 'host_pool'),
+  );
+  if (pooled !== (parsed.hostPool !== undefined))
+    throw new ConfigurationRefusal(
+      'config_malformed',
+      `${path}: hostPool.ledger is ${pooled ? 'required by' : 'unused without'} a binding whose source is host_pool`,
+    );
+  // Opened before any adapter, so a host before `resources init` is refused with nothing to
+  // close; an adapter failing afterwards closes the ledger again.
+  const hostPool =
+    parsed.hostPool === undefined ? undefined : openPool(path, parsed.hostPool.ledger, openLedger);
+  try {
+    return {
+      endpoint,
+      credential: ApiKey.of(parsed.credential, `${path}: credential`),
+      cadenceSeconds: parsed.cadenceSeconds ?? DEFAULT_CADENCE_SECONDS,
+      instances: await openInstances(parsed.instances, adapters),
+      ...(hostPool === undefined ? {} : { hostPool }),
+    };
+  } catch (cause) {
+    hostPool?.close();
+    throw cause;
+  }
+}
+
+/**
+ * The host pool's ledger through `openLedger`.
+ * @throws ConfigurationRefusal `config_malformed` naming the ledger when it cannot be opened or
+ * is not a ledger this Dash reads, with the ledger's own refusal as the cause.
+ */
+function openPool(
+  path: string,
+  ledger: string,
+  openLedger: (ledger: string) => HostPoolLedger,
+): HostPoolLedger {
+  try {
+    return openLedger(ledger);
+  } catch (cause) {
+    // Proof: rethrowing the ledger's own error made `refuses a host pool binding the loader
+    // cannot honour, config_malformed` (report-capacity.host-pool.test.ts) receive a plain Error
+    // (2026-11-02).
+    throw new ConfigurationRefusal(
+      'config_malformed',
+      `${path}: hostPool.ledger ${ledger} is not a managed-resource ledger this Dash can read; run resources init first`,
+      { cause },
+    );
+  }
+}
+
+/** Opens each instance's adapter after the checks the file allows without dialling anything. */
+async function openInstances(
+  configured: readonly (typeof Instance.infer)[],
+  adapters: ProviderAdapters,
+): Promise<ReporterInstance[]> {
   const instances: ReporterInstance[] = [];
-  for (const instance of parsed.instances) {
+  for (const instance of configured) {
     const { kind } = instance;
     // Proof: letting `puni_pool` fall through to the adapter lookup failed `refuses a pool
     // instance provider_kind_not_available` with `provider_not_implemented` (2026-10-22).
@@ -378,19 +433,5 @@ export async function loadReporterConfiguration(
       bindings: instance.bindings,
     });
   }
-  const pooled = parsed.instances.some((instance) =>
-    instance.bindings.some((binding) => binding.source === 'host_pool'),
-  );
-  if (pooled !== (parsed.hostPool !== undefined))
-    throw new ConfigurationRefusal(
-      'config_malformed',
-      `${path}: hostPool.ledger is ${pooled ? 'required by' : 'unused without'} a binding whose source is host_pool`,
-    );
-  return {
-    endpoint,
-    credential: ApiKey.of(parsed.credential, `${path}: credential`),
-    cadenceSeconds: parsed.cadenceSeconds ?? DEFAULT_CADENCE_SECONDS,
-    instances,
-    ...(parsed.hostPool === undefined ? {} : { hostPool: openLedger(parsed.hostPool.ledger) }),
-  };
+  return instances;
 }

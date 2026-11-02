@@ -26,4 +26,6 @@ DROP INDEX `resource_host_job_provider`;
 --> statement-breakpoint
 DROP TABLE `resource_host_job`;
 --> statement-breakpoint
+ALTER TABLE `resource_capacity_report` DROP COLUMN `reserved_dimension`;
+--> statement-breakpoint
 ALTER TABLE `resource_capacity_report` DROP COLUMN `reserved_units`;

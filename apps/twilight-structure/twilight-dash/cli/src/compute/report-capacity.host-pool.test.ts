@@ -192,7 +192,13 @@ if (insideLinuxNamespace(import.meta.path))
             resourceId: 'h2puni-ram',
             observedAt: expect.any(Number) as number,
             cadenceSeconds: 300,
-            outcome: { kind: 'measured', capacityUnits: 15, usageUnits: 8, reservedUnits: 12 },
+            outcome: {
+              kind: 'measured',
+              capacityUnits: 15,
+              usageUnits: 8,
+              reservedUnits: 12,
+              reservedDimension: 'memoryGib',
+            },
           },
         },
       ]);
@@ -269,11 +275,15 @@ if (insideLinuxNamespace(import.meta.path))
         chmodSync(path, 0o600);
         return path;
       };
+      let opened = 0;
       const adapters = {
         ssh_host: {
           isStub: false,
           measures: new Set(['memory_gib', 'cpu_cores', 'agent_slots'] as const),
-          open: () => Promise.resolve(measuringProvider()),
+          open: () => {
+            opened += 1;
+            return Promise.resolve(measuringProvider());
+          },
         },
       };
       const ledger = { ledger: join(fixture.root, '.dash', 'resources.sqlite') };
@@ -323,6 +333,16 @@ if (insideLinuxNamespace(import.meta.path))
       );
       expect(loaded.hostPool?.reserved('memoryGib')).toBe(0);
       loaded.hostPool?.close();
+      // A host before `resources init`: refused before any adapter opens.
+      opened = 0;
+      const absent = await loadReporterConfiguration(
+        write({ top: { hostPool: { ledger: join(fixture.base, 'absent.sqlite') } } }),
+        adapters,
+      ).catch((cause: unknown) => cause);
+      expect(absent).toBeInstanceOf(ConfigurationRefusal);
+      expect((absent as ConfigurationRefusal).reason).toBe('config_malformed');
+      expect((absent as Error).message).toContain('run resources init first');
+      expect(opened).toBe(0);
       // A job type sharing no dimension leaves the reservation untouched.
       expect(jobType('none', 0, 0).envelope.memoryGib).toBe(0);
     });

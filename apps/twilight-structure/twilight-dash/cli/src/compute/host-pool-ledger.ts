@@ -85,7 +85,10 @@ export function openHostPoolLedger(path: string, pollMs = LEDGER_POLL_MS): HostP
     reserved(dimension) {
       let total = 0;
       for (const row of db
-        .query<{ snapshot: string }, []>('SELECT snapshot FROM host_jobs')
+        // A released job reserves nothing; history grows without bound, so it is never read.
+        .query<{ snapshot: string }, []>(
+          "SELECT snapshot FROM host_jobs WHERE json_extract(snapshot,'$.state') != 'released'",
+        )
         .all()) {
         // Only the runtime writes this owner-only ledger; a malformed snapshot throws.
         const job = ReservingJob.assert(JSON.parse(row.snapshot));

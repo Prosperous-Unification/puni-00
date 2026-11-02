@@ -141,6 +141,9 @@ function reportOf(row: ResourceCapacityReportRow): CapacityReport {
     reportedBy: row.reportedByPersonId,
     reportedAt: row.reportedAt,
   };
+  // The table's CHECK keeps the reserved pair together; a lone half is broken trusted state.
+  if ((row.reservedUnits === null) !== (row.reservedDimension === null))
+    throw new Error(`capacity report of resource ${row.resourceId} is malformed`);
   if (row.outcome === 'measured' && row.capacityUnits !== null && row.usageUnits !== null)
     return {
       ...common,
@@ -149,7 +152,9 @@ function reportOf(row: ResourceCapacityReportRow): CapacityReport {
         capacityUnits: row.capacityUnits,
         usageUnits: row.usageUnits,
         // Absent, not null, for a report sent without it: the pre-change answer byte for byte.
-        ...(row.reservedUnits === null ? {} : { reservedUnits: row.reservedUnits }),
+        ...(row.reservedUnits === null || row.reservedDimension === null
+          ? {}
+          : { reservedUnits: row.reservedUnits, reservedDimension: row.reservedDimension }),
       },
     };
   if (row.outcome === 'unreachable' && row.reason !== null)
@@ -401,6 +406,8 @@ export class ComputeProviderRepository implements ComputeProviderAdministration,
         usageUnits: report.outcome.kind === 'measured' ? report.outcome.usageUnits : null,
         reservedUnits:
           report.outcome.kind === 'measured' ? (report.outcome.reservedUnits ?? null) : null,
+        reservedDimension:
+          report.outcome.kind === 'measured' ? (report.outcome.reservedDimension ?? null) : null,
         reason: report.outcome.kind === 'unreachable' ? report.outcome.reason : null,
         reportedByPersonId: report.reportedBy,
         reportedAt: report.reportedAt,

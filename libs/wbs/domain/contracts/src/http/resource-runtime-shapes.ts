@@ -24,8 +24,9 @@ export const resourceRuntimeUse = type({
  * Dash's host pool alone and published afterwards, so its project, work item and person links
  * are optional and its owner is the authority the event arrives through (and that authority's
  * organization), never a planning row. `reservations` holds one entry per dimension the
- * envelope names (`cpuCores`, `memoryGib`, `tmpDiskGib`, one per exclusive id). `payloadSha` is
- * the payload's commit, null while the launcher records none. A v1 use (`resourceRuntimeUse`)
+ * envelope names (`cpuCores`, `memoryGib`, `tmpDiskGib`, one per exclusive id). `launcherSha` is
+ * the HEAD of the checkout that launched the job (the run record's own field; for a gate the
+ * tested SHA is in its argv), null while the launcher records none. A v1 use (`resourceRuntimeUse`)
  * is unchanged byte for byte.
  */
 // Proof: with `projectId` required, a gate without a link failed to register in
@@ -39,7 +40,7 @@ export const resourceRuntimeHostJobUse = type({
   type: label,
   label,
   host: label,
-  payloadSha: type(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/).or('null'),
+  launcherSha: type(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/).or('null'),
   reservations: type({ dimension: label, units: 'number.integer >= 0' }).array(),
 }).onUndeclaredKey('reject');
 export type ResourceRuntimeHostJobUse = typeof resourceRuntimeHostJobUse.infer;

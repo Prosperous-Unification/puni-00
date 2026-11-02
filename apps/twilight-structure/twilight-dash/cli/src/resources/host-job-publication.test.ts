@@ -9,9 +9,11 @@ import { scriptedTools, type ToolCall } from '../mcp/testing/scripted-tools';
 import { type ToolAnswer, WbsUnreachable } from '../mcp/wbs-tools';
 import { ampleHost, gate, hostPoolFixture, insideLinuxNamespace } from './host-pool.test.fixture';
 import {
+  HOST_JOB_REFUSAL_RETRY_MS,
   type HostJob,
   loadResourceConfiguration,
   ResourceRuntime,
+  ResourceWbsRefusal,
   ResourceWbsUnavailable,
 } from './runtime';
 
@@ -35,7 +37,8 @@ if (insideLinuxNamespace(import.meta.path)) {
     }
     for (const fixture of fixtures.splice(0)) fixture.remove();
   });
-  const clock = { read: () => 1800000000000 };
+  let now = 1800000000000;
+  const clock = { read: () => now };
   const silent = (): void => undefined;
 
   function pool() {
@@ -131,7 +134,7 @@ if (insideLinuxNamespace(import.meta.path)) {
         type: 'gate',
         label: 'gate:wbs-down',
         host: 'enrollment-one',
-        payloadSha: null,
+        launcherSha: null,
         reservations: [
           { dimension: 'cpuCores', units: 4 },
           { dimension: 'memoryGib', units: 6 },
@@ -172,6 +175,63 @@ if (insideLinuxNamespace(import.meta.path)) {
       expect(published(later.calls).map((event) => [event.useId, event.kind])).toEqual([
         [second.id, 'registered'],
         [second.id, 'release_verified'],
+      ]);
+      runtime.close();
+    }, 60000);
+
+    /** WBS refusing the host-job variant `400` (an outgoing be-01 without v2) `refusals` times. */
+    function refusingFirst(refusals: number) {
+      let refused = 0;
+      return scriptedTools((call) => {
+        if (call.name === EVENT_TOOL && refused < refusals) {
+          refused += 1;
+          return { kind: 'refused', status: 400, error: 'invalid_body', body: {} };
+        }
+        return answering(call);
+      });
+    }
+    const outcomeOf = (run: Promise<void>) =>
+      run.then(
+        () => 'synchronized',
+        (cause: unknown) => cause,
+      );
+
+    // S5-A20: bounded convergence across a blue/green window.
+    test('a host-job event refused 400 twice publishes in order once WBS accepts it', async () => {
+      const runtime = pool();
+      await runGate(runtime, 'gate:swap');
+      const tools = refusingFirst(2);
+      expect(await outcomeOf(runtime.synchronize(tools))).toBeInstanceOf(ResourceWbsUnavailable);
+      now += 60_000;
+      expect(await outcomeOf(runtime.synchronize(tools))).toBeInstanceOf(ResourceWbsUnavailable);
+      now += 60_000;
+      expect(await outcomeOf(runtime.synchronize(tools))).toBe('synchronized');
+      expect(published(tools.calls).map((event) => [event.sequence, event.kind])).toEqual([
+        [1, 'registered'],
+        [1, 'registered'],
+        [1, 'registered'],
+        [2, 'release_verified'],
+      ]);
+      expect(runtime.outbox()).toEqual([]);
+      runtime.close();
+    }, 60000);
+
+    test('a host-job event refused past the bound stops watch', async () => {
+      const runtime = pool();
+      await runGate(runtime, 'gate:old-wbs');
+      const tools = refusingFirst(Number.MAX_SAFE_INTEGER);
+      expect(await outcomeOf(runtime.synchronize(tools))).toBeInstanceOf(ResourceWbsUnavailable);
+      now += HOST_JOB_REFUSAL_RETRY_MS - 1;
+      expect(await outcomeOf(runtime.synchronize(tools))).toBeInstanceOf(ResourceWbsUnavailable);
+      now += 1;
+      const stopped = await outcomeOf(runtime.synchronize(tools));
+      expect(stopped).toBeInstanceOf(ResourceWbsRefusal);
+      expect((stopped as ResourceWbsRefusal).message).toBe(
+        'resource publication HTTP 400 invalid_body',
+      );
+      expect(runtime.outbox().map((event) => event.kind)).toEqual([
+        'registered',
+        'release_verified',
       ]);
       runtime.close();
     }, 60000);

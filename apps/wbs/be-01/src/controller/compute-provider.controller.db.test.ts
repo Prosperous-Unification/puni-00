@@ -660,7 +660,13 @@ describe('a capacity report', () => {
     const reserved = await report(agent, h4claw, ram, {
       observedAt: t,
       cadenceSeconds: 300,
-      outcome: { kind: 'measured', capacityUnits: 15, usageUnits: 8, reservedUnits: 12 },
+      outcome: {
+        kind: 'measured',
+        capacityUnits: 15,
+        usageUnits: 8,
+        reservedUnits: 12,
+        reservedDimension: 'memoryGib',
+      },
     });
     expect(reserved.status).toBe(200);
     expect((reserved.body as { outcome: unknown }).outcome).toEqual({
@@ -668,10 +674,11 @@ describe('a capacity report', () => {
       capacityUnits: 15,
       usageUnits: 8,
       reservedUnits: 12,
+      reservedDimension: 'memoryGib',
     });
-    expect(rows('SELECT usage_units, reserved_units FROM resource_capacity_report')).toEqual([
-      { usage_units: 8, reserved_units: 12 },
-    ]);
+    expect(
+      rows('SELECT usage_units, reserved_units, reserved_dimension FROM resource_capacity_report'),
+    ).toEqual([{ usage_units: 8, reserved_units: 12, reserved_dimension: 'memoryGib' }]);
     expect((await readResources('mem')).resources.find((each) => each.id === ram)).toMatchObject({
       report: reserved.body,
     });
@@ -687,15 +694,21 @@ describe('a capacity report', () => {
         reportedAt: (preChange.body as { reportedAt: number }).reportedAt,
       }),
     );
-    expect(rows('SELECT usage_units, reserved_units FROM resource_capacity_report')).toEqual([
-      { usage_units: 8, reserved_units: null },
-    ]);
+    expect(
+      rows('SELECT usage_units, reserved_units, reserved_dimension FROM resource_capacity_report'),
+    ).toEqual([{ usage_units: 8, reserved_units: null, reserved_dimension: null }]);
     // The same body again is idempotent only with the same reserved units.
     expect(
       (
         await report(agent, h4claw, ram, {
           ...measured(t + 300_000),
-          outcome: { kind: 'measured', capacityUnits: 15, usageUnits: 8, reservedUnits: 3 },
+          outcome: {
+            kind: 'measured',
+            capacityUnits: 15,
+            usageUnits: 8,
+            reservedUnits: 3,
+            reservedDimension: 'memoryGib',
+          },
         })
       ).status,
     ).toBe(409);
@@ -704,10 +717,35 @@ describe('a capacity report', () => {
         (
           await report(agent, h4claw, ram, {
             ...measured(t + 400_000),
-            outcome: { kind: 'measured', capacityUnits: 15, usageUnits: 8, reservedUnits },
+            outcome: {
+              kind: 'measured',
+              capacityUnits: 15,
+              usageUnits: 8,
+              reservedUnits,
+              reservedDimension: 'memoryGib',
+            },
           })
         ).status,
       ).toBe(400);
+  });
+
+  it('refuses reserved units without their dimension, and either alone, invalid_body', async () => {
+    const t = Date.now() - 600_000;
+    for (const outcome of [
+      { kind: 'measured', capacityUnits: 15, usageUnits: 8, reservedUnits: 12 },
+      { kind: 'measured', capacityUnits: 15, usageUnits: 8, reservedDimension: 'memoryGib' },
+      {
+        kind: 'measured',
+        capacityUnits: 15,
+        usageUnits: 8,
+        reservedUnits: 12,
+        reservedDimension: 'Memory GiB',
+      },
+    ])
+      expect(
+        await report(agent, h4claw, ram, { observedAt: t, cadenceSeconds: 300, outcome }),
+      ).toEqual({ status: 400, body: { error: 'invalid_body' } });
+    expect(reportCount()).toBe(0);
   });
 
   // Proof: with the superseded refusal turned into a store in
@@ -875,7 +913,13 @@ describe('a capacity report', () => {
       (
         await report(agent, h4claw, ram, {
           ...measured(Date.now() - 1000, 15, 8),
-          outcome: { kind: 'measured', capacityUnits: 15, usageUnits: 8, reservedUnits: 15 },
+          outcome: {
+            kind: 'measured',
+            capacityUnits: 15,
+            usageUnits: 8,
+            reservedUnits: 15,
+            reservedDimension: 'memoryGib',
+          },
         })
       ).status,
     ).toBe(200);

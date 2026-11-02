@@ -178,6 +178,16 @@ export function computeProviderRoutes(
         // A machine principal always carries its credential's organization
         // as a direct context, so legacy access is unreachable here.
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
+        // `reservedUnits` mean nothing without the dimension they count (`dash-host-jobs` J10).
+        // Proof: without this check, `refuses reserved units without their dimension, and
+        // either alone, invalid_body` (compute-provider.controller.db.test.ts) did not answer
+        // 400 invalid_body (2026-11-02).
+        if (
+          body.outcome.kind === 'measured' &&
+          (body.outcome.reservedUnits === undefined) !==
+            (body.outcome.reservedDimension === undefined)
+        )
+          return invalidBody;
         const decision = await reports.put({
           organizationId: resolved.access.scope.organizationId,
           personId: authentication.personId,

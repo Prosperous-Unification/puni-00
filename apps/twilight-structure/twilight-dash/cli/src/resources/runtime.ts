@@ -95,11 +95,30 @@ export class ResourceWbsUnavailable extends Error {
   }
 }
 
+/** WBS answered a runtime call with a refusal a retry cannot change by itself: `status` says which. */
+export class ResourceWbsRefusal extends Error {
+  public constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = 'ResourceWbsRefusal';
+  }
+}
+
+/**
+ * How long a host-job event refused `400` stays a retry (S5-A20): an outgoing WBS without the
+ * `resourceRuntimeUse` v2 union refuses it during a blue/green window, and every later outbox
+ * event waits behind it, so the refusal is retried this long before it stops `watch`.
+ */
+export const HOST_JOB_REFUSAL_RETRY_MS = 30 * 60_000;
+
 /**
  * The body of `tool`'s 2xx answer. `what` names the call in every refusal.
  * @throws ResourceWbsUnavailable when WBS did not answer, answered `429`, or mcp-01 left the call
- * uncompleted for a transient reason; a plain error for any other refusal, which a retry cannot
- * change, and for an answer that cannot be attributed.
+ * uncompleted for a transient reason; {@link ResourceWbsRefusal} for any other refused answer,
+ * which a retry cannot change by itself; a plain error for a refused credential and for an
+ * answer that cannot be attributed.
  */
 async function answeredBody(
   tools: WbsTools,
@@ -119,7 +138,7 @@ async function answeredBody(
   if (answer.kind === 'refused') {
     const message = `${what} HTTP ${String(answer.status)}${answer.error === null ? '' : ` ${answer.error}`}`;
     if (answer.status === 429) throw new ResourceWbsUnavailable(message);
-    throw new Error(message);
+    throw new ResourceWbsRefusal(message, answer.status);
   }
   // Proof: retrying every uncompleted call made `stops on a refused credential`
   // (runtime-wbs.test.ts) answer ResourceWbsUnavailable; watched 2026-10-29.
@@ -385,7 +404,7 @@ const HostJobChangeShape = type({
  * A host job as WBS sees it (`resourceRuntimeUse` v2, J10): no planning link, since the pool
  * admitted it alone; one reservation entry per dimension of the declared envelope, an exclusive
  * id once per unit it names; the pool's enrollment as its host. The launcher records no payload
- * commit yet, so `payloadSha` is null. Built from immutable fields, so `registered` and
+ * checkout HEAD on the job yet, so `launcherSha` is null. Built from immutable fields, so `registered` and
  * `release_verified` carry the same declaration.
  */
 function hostJobDeclaration(job: HostJob, host: string): ResourceRuntimeHostJobUse {
@@ -397,7 +416,7 @@ function hostJobDeclaration(job: HostJob, host: string): ResourceRuntimeHostJobU
     type: job.descriptor.id,
     label: job.label,
     host,
-    payloadSha: null,
+    launcherSha: null,
     reservations: [
       { dimension: 'cpuCores', units: envelope.cpuCores },
       { dimension: 'memoryGib', units: envelope.memoryGib },
@@ -887,6 +906,12 @@ export class ResourceRuntime {
     private readonly clock: WallClock,
     private readonly rootIdentity: { dev: number; ino: number },
   ) {}
+  /**
+   * When WBS first refused each host-job event `400`, by event id (S5-A20). In-process only: a
+   * restarted `watch` starts the bound again, which the bound's purpose (outlasting a swap
+   * window) tolerates.
+   */
+  private readonly hostJobRefusals = new Map<string, number>();
 
   /** Explicit bootstrap refuses existing or nonempty roots; normal opens never recreate missing trusted state. */
   static initialize(
@@ -1893,9 +1918,7 @@ export class ResourceRuntime {
         acceptedSequence: 'number.integer > 0',
         useId: 'string',
         revision: 'number.integer > 0',
-      }).assert(
-        await answeredBody(tools, EVENT_TOOL, { authorityId, ...event }, 'resource publication'),
-      );
+      }).assert(await this.publishEvent(tools, event));
       if (
         acknowledgment.acceptedSequence !== event.sequence ||
         acknowledgment.useId !== event.useId ||
@@ -1940,6 +1963,42 @@ export class ResourceRuntime {
       this.db.query('UPDATE cursor SET value=? WHERE id=1').run(cursor);
     });
     if (admissionFailure !== undefined) throw admissionFailure;
+  }
+  /**
+   * One outbox event through the events tool. A host-job event refused `400` is retried, named
+   * on stderr, for {@link HOST_JOB_REFUSAL_RETRY_MS} from its first refusal (bounded
+   * convergence, S5-A20): an outgoing WBS without v2 refuses it mid-swap.
+   * @throws ResourceWbsUnavailable while that bound lasts, so `watch` keeps the outbox; the
+   * refusal itself once it is spent, and every other refusal as {@link answeredBody} does.
+   */
+  private async publishEvent(tools: WbsTools, event: ResourceEvent): Promise<unknown> {
+    const input = { authorityId: this.configuration.authorityId, ...event };
+    try {
+      const body = await answeredBody(tools, EVENT_TOOL, input, 'resource publication');
+      this.hostJobRefusals.delete(event.eventId);
+      return body;
+    } catch (cause) {
+      if (
+        !(cause instanceof ResourceWbsRefusal) ||
+        cause.status !== 400 ||
+        event.use.kind !== 'host_job'
+      )
+        throw cause;
+      const now = this.clock.read();
+      const first = this.hostJobRefusals.get(event.eventId) ?? now;
+      this.hostJobRefusals.set(event.eventId, first);
+      // Proof: with the bound check made `true`, `a host-job event refused past the bound stops
+      // watch` (host-job-publication.test.ts) kept retrying, ResourceWbsUnavailable for the
+      // refusal (2026-11-02, verify.md Slice 5 review fixes).
+      if (now - first >= HOST_JOB_REFUSAL_RETRY_MS) throw cause;
+      process.stderr.write(
+        `resources: WBS refused host-job event ${event.eventId} (sequence ${String(event.sequence)}) with HTTP 400; retrying until ${new Date(first + HOST_JOB_REFUSAL_RETRY_MS).toISOString()}\n`,
+      );
+      // Proof: rethrowing the refusal here made `a host-job event refused 400 twice publishes in
+      // order once WBS accepts it` (host-job-publication.test.ts) stop at the first refusal
+      // (2026-11-02, verify.md Slice 5 review fixes).
+      throw new ResourceWbsUnavailable(`${cause.message}; retried as a host-job event`, { cause });
+    }
   }
   /** `allocatable[d] = budget[d] − headroom[d]` (J5); disk and slots have no headroom here. */
   private allocatable(): PoolVector {

@@ -101,11 +101,15 @@ describe(HOST_JOB_PROJECTION, () => {
         'SELECT COUNT(*) AS n FROM resource_capacity_report WHERE reserved_units IS NULL',
       ),
     ).toBe(1);
-    run(dbPath, ['UPDATE resource_capacity_report SET reserved_units = 12']);
+    run(dbPath, [
+      "UPDATE resource_capacity_report SET reserved_units = 12, reserved_dimension = 'memoryGib'",
+    ]);
     // Only a measured report carries reserved units, and only whole numbers in range.
     for (const update of [
       'UPDATE resource_capacity_report SET reserved_units = 1.5',
       'UPDATE resource_capacity_report SET reserved_units = 1000000001',
+      'UPDATE resource_capacity_report SET reserved_dimension = NULL',
+      'UPDATE resource_capacity_report SET reserved_units = NULL',
       "UPDATE resource_capacity_report SET outcome = 'unreachable', capacity_units = NULL, usage_units = NULL, reason = 'down'",
     ])
       expect(() => {
@@ -129,12 +133,16 @@ describe(HOST_JOB_PROJECTION, () => {
 
   it('rolls back over reports alone, dropping the column and the table', async () => {
     const { root, dbPath } = migratedStore();
-    run(dbPath, [preChangeReport, 'UPDATE resource_capacity_report SET reserved_units = 12']);
+    run(dbPath, [
+      preChangeReport,
+      "UPDATE resource_capacity_report SET reserved_units = 12, reserved_dimension = 'memoryGib'",
+    ]);
     const down = await rollBack(root, dbPath, AGENT_POOL_AUDIT);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(`rolled back: ${HOST_JOB_PROJECTION}\n`);
     expect(columnsOf(dbPath, 'resource_capacity_report')).not.toContain('reserved_units');
+    expect(columnsOf(dbPath, 'resource_capacity_report')).not.toContain('reserved_dimension');
     expect(columnsOf(dbPath, 'resource_host_job')).toEqual([]);
     expect(count(dbPath, 'SELECT COUNT(*) AS n FROM resource_capacity_report')).toBe(1);
   }, 60_000);

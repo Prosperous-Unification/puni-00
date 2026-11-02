@@ -37,43 +37,76 @@ describe('capacity report words', () => {
   });
 
   // `dash-host-jobs` 5.3, "Reserved by two jobs".
-  it('reads reserved units and both job names beside the measured usage', () => {
-    const reserved = reportOf({
-      outcome: { kind: 'measured', capacityUnits: 15, usageUnits: 8, reservedUnits: 12 },
+  const gate = (label: string, tmpDiskGib = 0) => ({
+    label,
+    reservations: [
+      { dimension: 'cpuCores', units: 4 },
+      { dimension: 'memoryGib', units: 6 },
+      { dimension: 'tmpDiskGib', units: tmpDiskGib },
+      { dimension: 'gate_tree', units: 1 },
+    ],
+  });
+  const reservedOf = (reservedUnits: number, reservedDimension: string) =>
+    reportOf({
+      outcome: {
+        kind: 'measured',
+        capacityUnits: 15,
+        usageUnits: 8,
+        reservedUnits,
+        reservedDimension,
+      },
     });
-    expect(
-      readReport(reserved, 'GiB', NOW, [{ label: 'gate 1a2b3c4' }, { label: 'gate 5d6e7f8' }]),
-    ).toEqual({
+
+  it('reads reserved units and both job names beside the measured usage', () => {
+    const reserved = reservedOf(12, 'memoryGib');
+    expect(readReport(reserved, 'GiB', NOW, [gate('gate 1a2b3c4'), gate('gate 5d6e7f8')])).toEqual({
       state: 'measured',
       headline: 'Measured 15 GiB, 8 in use, 12 reserved by 2 jobs',
       detail: 'Reserved by gate 1a2b3c4 and gate 5d6e7f8. Observed 2 min ago.',
       capacityUnits: 15,
     });
-    expect(readReport(reserved, 'GiB', NOW, [{ label: 'gate 1a2b3c4' }]).headline).toBe(
+    expect(readReport(reserved, 'GiB', NOW, [gate('gate 1a2b3c4')]).headline).toBe(
       'Measured 15 GiB, 8 in use, 12 reserved by 1 job',
     );
     // Reserved units whose jobs WBS has not heard of yet, and an idle pool.
     expect(readReport(reserved, 'GiB', NOW)).toMatchObject({
       headline: 'Measured 15 GiB, 8 in use, 12 reserved',
-      detail: 'Dash has not published the jobs holding it yet. Observed 2 min ago.',
+      detail: 'Jobs not yet published by Dash. Observed 2 min ago.',
     });
-    expect(
-      readReport(
-        reportOf({
-          outcome: { kind: 'measured', capacityUnits: 15, usageUnits: 8, reservedUnits: 0 },
-        }),
-        'GiB',
-        NOW,
-      ),
-    ).toMatchObject({ headline: 'Measured 15 GiB, 8 in use, none reserved' });
+    expect(readReport(reservedOf(0, 'memoryGib'), 'GiB', NOW)).toMatchObject({
+      headline: 'Measured 15 GiB, 8 in use, none reserved',
+    });
     // Stale reads as before, whatever the jobs.
     expect(
-      readReport({ ...reserved, observedAt: NOW - 3_600_000 }, 'GiB', NOW, [
-        { label: 'gate 1a2b3c4' },
-      ]).detail,
+      readReport({ ...reserved, observedAt: NOW - 3_600_000 }, 'GiB', NOW, [gate('gate 1a2b3c4')])
+        .detail,
     ).toBe(
       'Dash reports every 5 min; a report is stale after 15 min (3 × cadence). It measured 15 GiB, 8 in use.',
     );
+  });
+
+  it("names only the jobs reserving the report's dimension", () => {
+    // The PR's own gate reserves no tmp disk, so it holds nothing of a disk resource.
+    expect(
+      readReport(reservedOf(0, 'tmpDiskGib'), 'GiB', NOW, [gate('gate 1a2b3c4')]),
+    ).toMatchObject({
+      headline: 'Measured 15 GiB, 8 in use, none reserved',
+      detail: 'Observed 2 min ago.',
+    });
+    expect(
+      readReport(reservedOf(20, 'tmpDiskGib'), 'GiB', NOW, [
+        gate('gate 1a2b3c4'),
+        gate('release build', 20),
+      ]).headline,
+    ).toBe('Measured 15 GiB, 8 in use, 20 reserved by 1 job');
+    // A build naming no exclusive id holds no gate tree.
+    const buildJob = {
+      label: 'website build',
+      reservations: [{ dimension: 'cpuCores', units: 2 }],
+    };
+    expect(
+      readReport(reservedOf(1, 'gate_tree'), '', NOW, [gate('gate 1a2b3c4'), buildJob]).detail,
+    ).toBe('Reserved by gate 1a2b3c4. Observed 2 min ago.');
   });
 
   it('reads an unreachable report with the adapter’s reason', () => {

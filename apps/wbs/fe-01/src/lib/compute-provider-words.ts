@@ -96,26 +96,41 @@ export type ReportReading =
   | { readonly state: 'unreachable'; readonly headline: string; readonly detail: string }
   | { readonly state: 'stale'; readonly headline: string; readonly detail: string };
 
+/** One host job as the resources read lists it: its name and what it reserves per dimension. */
+export interface HostJobHolder {
+  readonly label: string;
+  readonly reservations: readonly { readonly dimension: string; readonly units: number }[];
+}
+
 /**
  * `, 12 reserved by 2 jobs` after the measured usage (`dash-host-jobs` J10),
  * and the sentence naming those jobs; nothing when the report carries no
- * reserved units. Reserved units WBS has no job for yet (Dash publishes the
- * jobs through its outbox, the figure through the reporter) say so.
+ * reserved units. A job holds the resource only when it reserves some of the
+ * report's `reservedDimension` (S5-A16): a gate reserving no tmp disk is no
+ * holder of a disk resource. Reserved units with no holder WBS has heard of
+ * (the reporter and the outbox publish apart) say only that.
  */
 function reservationWords(
   reservedUnits: number | undefined,
-  hostJobs: readonly { readonly label: string }[],
+  reservedDimension: string | undefined,
+  hostJobs: readonly HostJobHolder[],
 ): { readonly figure: string; readonly holders: string } {
   if (reservedUnits === undefined) return { figure: '', holders: '' };
-  if (hostJobs.length === 0)
+  // Proof: 2026-11-02, keeping every listed job here failed `names only the jobs
+  // reserving the report's dimension` in compute-provider-words.test.ts, which
+  // read "none reserved by 1 job" for a zero-tmp gate on a disk resource.
+  const holders = hostJobs.filter((job) =>
+    job.reservations.some((entry) => entry.dimension === reservedDimension && entry.units > 0),
+  );
+  if (holders.length === 0)
     return {
       figure: reservedUnits === 0 ? ', none reserved' : `, ${String(reservedUnits)} reserved`,
-      holders: reservedUnits === 0 ? '' : 'Dash has not published the jobs holding it yet. ',
+      holders: reservedUnits === 0 ? '' : 'Jobs not yet published by Dash. ',
     };
-  const count = `${String(hostJobs.length)} ${hostJobs.length === 1 ? 'job' : 'jobs'}`;
+  const count = `${String(holders.length)} ${holders.length === 1 ? 'job' : 'jobs'}`;
   return {
     figure: `, ${String(reservedUnits)} reserved by ${count}`,
-    holders: `Reserved by ${listOf(hostJobs.map((job) => job.label))}. `,
+    holders: `Reserved by ${listOf(holders.map((job) => job.label))}. `,
   };
 }
 
@@ -134,7 +149,7 @@ export function readReport(
   report: CapacityReport | undefined,
   unitLabel: string,
   now: number,
-  hostJobs: readonly { readonly label: string }[] = [],
+  hostJobs: readonly HostJobHolder[] = [],
 ): ReportReading {
   // Proof: 2026-10-23, reading a missing report as `{ measured 0 }` failed
   // `never reads a missing report as a number` in compute-provider-words.test.ts
@@ -164,7 +179,11 @@ export function readReport(
       // failed `reads reserved units and both job names beside the measured
       // usage` here and `renders reserved units and the two gates holding them`
       // in resources-panel.test.tsx (verify.md Slice 5).
-      const reservation = reservationWords(outcome.reservedUnits, hostJobs);
+      const reservation = reservationWords(
+        outcome.reservedUnits,
+        outcome.reservedDimension,
+        hostJobs,
+      );
       return {
         state: 'measured',
         headline: `Measured ${unitsWords(outcome.capacityUnits, unitLabel)}, ${String(

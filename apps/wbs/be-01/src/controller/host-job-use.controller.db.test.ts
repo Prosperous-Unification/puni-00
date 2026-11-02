@@ -86,7 +86,7 @@ function gateUse(label: string, links: Record<string, string> = {}) {
     type: 'puni-00-gate',
     label,
     host: 'h2puni',
-    payloadSha: null,
+    launcherSha: null,
     reservations: [
       { dimension: 'cpuCores', units: 4 },
       { dimension: 'memoryGib', units: 6 },
@@ -320,6 +320,34 @@ it('refuses what a host job cannot be, accepting nothing and advancing no sequen
       })
     ).status,
   ).toBe(400);
+  // A registration never carries settlement evidence, a request, or a later revision.
+  const fresh = crypto.randomUUID();
+  const withEvidence = hostJobEvent(2, fresh, 'release_verified', use);
+  expect(
+    (
+      await publish({
+        ...hostJobEvent(2, fresh, 'registered', use),
+        evidence: withEvidence.evidence,
+      })
+    ).status,
+  ).toBe(400);
+  expect((await publish(hostJobEvent(2, fresh, 'registered', use, { revision: 2 }))).status).toBe(
+    409,
+  );
+  expect((await publish(hostJobEvent(2, fresh, 'registered', use, { requestId: 1 }))).status).toBe(
+    409,
+  );
+  // A return of another incarnation, or carrying a request.
+  expect(
+    (
+      await publish(
+        hostJobEvent(2, useId, 'release_verified', use, { incarnation: 'another-incarnation' }),
+      )
+    ).status,
+  ).toBe(409);
+  expect(
+    (await publish(hostJobEvent(2, useId, 'release_verified', use, { requestId: 1 }))).status,
+  ).toBe(409);
   expect(
     h.sqlite
       .query<{ accepted_sequence: number }, [string]>(
@@ -327,5 +355,60 @@ it('refuses what a host job cannot be, accepting nothing and advancing no sequen
       )
       .get(authorityId),
   ).toEqual({ accepted_sequence: 1 });
+  // Another authority cannot return this authority's job.
+  const otherProvider = await h.call('owner', 'POST', '/api/organization/compute-providers', {
+    kind: 'ssh_host',
+    name: 'h4claw',
+    locator: 'puni1@h4claw',
+  });
+  addAgentPerson(h.sqlite, 'runtime-controller-b', 'org-a', h.userId('owner'));
+  const otherKey = await issueApiKey(h.sqlite, {
+    organizationId: 'org-a',
+    personId: 'runtime-controller-b',
+    issuedBy: h.userId('owner'),
+    name: 'runtime-key-b',
+  });
+  expect(
+    (
+      await h.call('owner', 'PUT', '/api/organization/resource-authorities/dash-h4claw', {
+        providerId: (otherProvider.body as { id: string }).id,
+        credentialId: otherKey.id,
+        epoch: 'epoch-one',
+      })
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await callForwarded(
+        h,
+        otherKey.key,
+        'PUT',
+        '/api/resource-authorities/dash-h4claw/events',
+        hostJobEvent(1, useId, 'release_verified', use),
+      )
+    ).status,
+  ).toBe(409);
   expect((await publish(hostJobEvent(2, useId, 'release_verified', use))).status).toBe(200);
+  // A host job never takes the id of a worktree use.
+  const worktree = crypto.randomUUID();
+  expect(
+    (
+      await publish({
+        ...hostJobEvent(3, worktree, 'registered', use),
+        use: {
+          projectId,
+          resourceId: ram,
+          workItemId: leaf,
+          agentRun: 'run-a',
+          responsiblePersonId: 'runtime-controller',
+          locator: '/enrolled/managed',
+          units: 3,
+          kind: 'temporary_directory',
+          reservedDiskUnits: 3,
+          reservedWorkspaceUnits: 1,
+        },
+      })
+    ).status,
+  ).toBe(200);
+  expect((await publish(hostJobEvent(4, worktree, 'registered', use))).status).toBe(409);
 });

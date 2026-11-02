@@ -4279,6 +4279,8 @@ export const resourceCapacityReport = sqliteTable(
     usageUnits: integer('usage_units'),
     /** What a host pool's ledger reserves, beside `usageUnits` (`dash-host-jobs` J10). */
     reservedUnits: integer('reserved_units'),
+    /** The host pool dimension `reservedUnits` counts; set exactly when they are. */
+    reservedDimension: text('reserved_dimension'),
     reason: text('reason'),
     reportedByPersonId: text('reported_by_person_id')
       .notNull()
@@ -4436,7 +4438,7 @@ export const resourceHostJobRecord = sqliteTable(
     releasedAt: integer('released_at'),
     evidence: text('evidence'),
   },
-  (t) => [index('resource_host_job_provider').on(t.organizationId, t.providerId, t.state)],
+  (t) => [index('resource_host_job_provider').on(t.providerId, t.state)],
 );
 /** Durable request queue; only an accepted matching runtime event acknowledges a request. */
 export const resourceCleanupRequestRecord = sqliteTable(

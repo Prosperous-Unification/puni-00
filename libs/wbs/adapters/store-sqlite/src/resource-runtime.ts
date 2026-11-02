@@ -737,8 +737,15 @@ function ingestHostJob(
     .where(eq(resourceHostJobRecord.useId, event.useId))
     .get();
   if (event.kind === 'registered') {
-    // Proof: without `stored !== undefined`, a second registration in `refuses what a host job
-    // cannot be` reached the primary key and answered 500, not 409 (2026-11-01).
+    // A registration attests an admission, never a settlement.
+    // Proof: without this check, `refuses what a host job cannot be` accepted a registration
+    // carrying evidence, 200 for 400 (2026-11-02).
+    if (event.evidence !== undefined) return refused('invalid_body');
+    // Proof, each watched 2026-11-02 in `refuses what a host job cannot be`: without
+    // `stored !== undefined` a second registration answered 500 (primary key), not 409; without
+    // the revision check a revision-2 registration answered 200; without the request check a
+    // registration carrying `requestId` answered 200; without the `resource_use` lookup a host
+    // job registered over a worktree use's id answered 200.
     if (
       stored !== undefined ||
       event.revision !== 1 ||
@@ -761,8 +768,11 @@ function ingestHostJob(
       })
       .run();
   } else if (event.kind === 'release_verified') {
-    // Proof: without the declaration comparison, `refuses what a host job cannot be` accepted
-    // a return under another label, 200 for 409 (2026-11-01).
+    // Proof, each watched in `refuses what a host job cannot be`: without the declaration
+    // comparison a return under another label answered 200 for 409 (2026-11-01); without the
+    // incarnation comparison a return of another incarnation, without the request check a return
+    // carrying `requestId`, and without the authority comparison another authority's return of
+    // this job each answered 200 (2026-11-02).
     if (
       stored?.authorityId !== authority.authorityId ||
       stored.organizationId !== authority.organizationId ||

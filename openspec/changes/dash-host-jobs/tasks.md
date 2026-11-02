@@ -115,3 +115,13 @@
       (planned proofs apart from observed evidence); decide when a failing `JOB-CATALOGUE`
       blocks `ops job run`; update `docs/runbook-h2-heavy-lock-owner.md`,
       `docs/infra/gate-hosts.md`, `AGENTS.md` Gate and `LLM_README.md`.
+- [ ] 6.6 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
+      `Restart=on-failure` (beside the observation units of 4.2), so a `watch` stopped by a
+      refusal past the host-job retry bound (S5-A20) or any other modelled stop comes back and
+      the outbox and cleanup-request pulls do not stall; the deploy order WBS before Dash is in
+      `apps/twilight-structure/twilight-dash/cli/docs/resources.md` — proof: kill the process,
+      watch systemd restart it; a converging `gate_host` apply reports `changed=0` the second time.
+- [ ] 6.7 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
+      (slice 3, #809) carries `descriptorDigest` and no durable locator, so this needs a locator
+      for the run record and a decision on which digest WBS keeps — test: a returned host job's
+      evidence names the run record; negative: send the ledger-row digest and watch WBS refuse it.

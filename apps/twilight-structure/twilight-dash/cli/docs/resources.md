@@ -304,7 +304,7 @@ workspace slots; a host job also reserves cores, memory and exclusive units.
 **WBS projection** (J10). WBS shows the pool and never admits for it. Each `synchronize` (every
 `watch` tick) first moves the unmoved `host_job_events` rows, oldest first and in one
 transaction, into the authority outbox as `resourceRuntimeUse` v2 (`kind: 'host_job'`, no
-planning link, `type`, `label`, the pool's `enrollmentId` as `host`, `payloadSha: null` until
+planning link, `type`, `label`, the pool's `enrollmentId` as `host`, `launcherSha: null` (the launching checkout's HEAD) until
 the launcher records one, one reservation entry per envelope dimension and exclusive id): an
 admission becomes `registered`, the settlement that returns every entry becomes
 `release_verified` with the SHA-256 of that ledger row, the locator
@@ -318,10 +318,17 @@ ones beside every resource the authority's instance fulfils. A `report-capacity`
 `memory_gib`, `tmpDiskGib` beside `disk_gib`, an exclusive id beside `agent_slots`) with a
 top-level `"hostPool": {"ledger": "<root>/.dash/resources.sqlite"}`: the reporter, running on
 the pool's host, opens that ledger read-only and sends what unreleased host jobs reserve of the
-dimension as `reservedUnits` while `usageUnits` keeps the adapter's measurement, and reports
-again within two seconds of any admission or settlement (it polls the largest
-`host_job_events` sequence). The resources section then reads `Measured 15 GiB, 8 in use, 12
-reserved by 2 jobs` and names the jobs.
+dimension as `reservedUnits`, with the dimension as `reservedDimension`, while `usageUnits`
+keeps the adapter's measurement. It reports again within two seconds of any admission or
+settlement (it polls the largest `host_job_events` sequence); opening the ledger fails the
+load `config_malformed` before any adapter opens, so run `resources init` first. The resources
+section then reads `Measured 15 GiB, 8 in use, 12 reserved by 2 jobs` and names only the jobs
+that reserve that dimension.
+
+Deploy WBS before Dash: an outgoing WBS without `resourceRuntimeUse` v2 refuses a host-job event
+`400`, and every later outbox event waits behind it. `synchronize` retries such a refusal for 30
+minutes from the first one, naming it on stderr each time, then throws, which stops `watch`.
+Run `watch` under a unit that restarts it (task 6.6).
 
 The `ops job` and `ops pool` commands arrive with slice 3; this slice gives the runtime
 (`ResourceRuntime.admitHostJob`, `settleHostJob`, `hostPoolStatus`) and `resources init`.
