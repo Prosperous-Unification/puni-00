@@ -16,12 +16,47 @@
       (derived from the parser, compared with the dispatcher's table); completion zsh prints.
 - [ ] 1.4 README and `docs/platform-map.md` section 4 line for Dash.
 
-## 2. Navigator (into main)
+## 2. Navigator (into `plan/twilight-cli-optique`, N-A1)
 
-- [ ] 2.1 `src/cli-parser.ts` for `admit-progress`, `plan-reference`, `receipt-to-commands`;
+- [x] 2.1 `src/cli-parser.ts` for `admit-progress`, `plan-reference`, `receipt-to-commands`;
       `runNavigator` takes the parsed object; `UsageRefusal` and exit 2 kept — test: existing
       tests; the "Missing Navigator flag" scenario; negative as 1.2.
-- [ ] 2.2 Help and completion; README.
+      Note: done 2026-11-02; refusals print one `error: ` line (pinned lines changed, N-A3–N-A6);
+      the `onExit` negative and seven more faults are in `verify.md`.
+- [x] 2.2 Help and completion; README.
+      Note: done 2026-11-02; help parity is derived from the parser against `navigatorHandlers`;
+      bash, zsh and fish completion print; no `--version` (N-A8); README shows the generated help.
+
+### Navigator assumptions (2026-11-02)
+
+- N-A1: Navigator merges into `plan/twilight-cli-optique`, not main, because the change's
+  artifacts exist only there until PR #805 lands; C6 amended.
+- N-A2: the program name is `twin`, as the spec scenario, the existing tests and the README
+  name it, not `twilight-navigator`.
+- N-A3: the entrypoint now prefixes the refusal with `error: `, as the "Refusals keep their
+  contracts" requirement and Dash do; the scenario's line "beginning `usage: twin
+plan-reference`" is the message after that prefix, as in Dash's `error: usage: twilight-dash`.
+- N-A4: a flag followed by another flag mid-line (`--repository --change change …`) now refuses
+  `Unexpected twin argument: change`, because Optique takes the next token as the value; still
+  exit 2 before any read. A trailing valueless, empty or flag-shaped value keeps
+  `twin flag has no value: <flag>`.
+- N-A5: `twin --help <word>` prints the generated root help (exit 0) instead of refusing
+  `takes no arguments`.
+- N-A6: refusals no longer append the multi-line usage text; the command's usage is in the one
+  line instead.
+- N-A7: the `*_FLAGS` constants and the `FlagValues` and `USAGE` exports are gone; each handler
+  takes its typed parsed request. No caller outside the package used them.
+- N-A8: `twin --version` refuses `Unsupported twin command: --version` (C4 omits a version).
+- N-A9: the generated completion scripts call `twin` to complete, so they need a `twin` on
+  `PATH`; none is installed yet, and the README says so.
+- N-A10: `--flag=value` is now accepted (`--export=<path>` reaches the reader); the old loop
+  refused it as `Unsupported twin flag: --export=<path>`. Pinned by `accepts the --flag=value
+spelling`.
+- N-A11: `twin <command> --help` now prints that command's help, exit 0; the old loop refused
+  `--help` as an unsupported flag.
+- N-A12: `twin help <unknown>` refuses `usage: twin help (Unexpected option or subcommand:
+\`<unknown>\`.)`, not `Unsupported twin command: <unknown>`: the first word, `help`, is a
+  command, and the reason names the unknown one.
 
 ## 3. Burokrat (into main, after the `JOB-CATALOGUE` slice is open)
 

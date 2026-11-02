@@ -19,8 +19,8 @@ change.
 A parse failure SHALL produce exactly one `error: ` line on stderr, nothing on stdout, and the
 exit code the CLI's entrypoint tests pin: 1 for Twilight Dash, 2 for Twilight Navigator, 1 for
 Twilight Burokrat. An unknown command SHALL refuse with a line containing `Unsupported <tool>
-command: <name>`; a missing or malformed argument SHALL refuse with a line beginning
-`usage: <tool> <command>`. No refusal SHALL run a handler or read a file.
+command: <name>`; a missing or malformed argument SHALL refuse with one `error: ` line whose
+message begins `usage: <tool> <command>`. No refusal SHALL run a handler or read a file.
 
 #### Scenario: Unknown Dash command
 
@@ -31,14 +31,16 @@ command: <name>`; a missing or malformed argument SHALL refuse with a line begin
 #### Scenario: Missing Navigator flag
 
 - **WHEN** `twin plan-reference` runs without `--export`
-- **THEN** stderr holds one line beginning `usage: twin plan-reference`, the exit code is 2, and
+- **THEN** stderr holds one `error: ` line whose message begins `usage: twin plan-reference`,
+  the exit code is 2, and
   no file is read
 
 #### Scenario: Burokrat without `--now`
 
 - **WHEN** `twib inspect-browser-t2 <repository> <sha> <policy> <capability> <ledger>` runs
   without `--now`
-- **THEN** stderr holds one line beginning `usage: twilight-burokrat inspect-browser-t2`, the
+- **THEN** stderr holds one `error: ` line whose message begins
+  `usage: twilight-burokrat inspect-browser-t2`, the
   exit code is 1, and no repository is read
 
 ### Requirement: Help, version and completion are generated from the parsers
