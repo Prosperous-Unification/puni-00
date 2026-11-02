@@ -1265,3 +1265,9 @@ This append-only exception follows [the bounded source design](original-handoff-
 ### Harmless CLI component checkpoint — 2026-11-02
 
 Four configured statics and one combined14case/105expect harmless admission/routing GREEN are independently accepted in [the command checkpoint](verify-graph-prerequisite.md#harmless-command-and-routing-checkpoint--2026-11-02), after the actual six-case semantic RED. This is a narrow private component: all existing placement/caller/native/default-CI obligations remain unchecked. The next REST integration tests are source proposals only; no actual graph or native helper was run by this checkpoint.
+
+### Bounded parent-clock injected-source evidence — 2026-11-02
+
+[The accepted parent-clock record](verify-original-handoff.md#injected-parent-clock-source-obligations--2026-11-02) covers36 ordinary cases and14 finite baseline/fault/restoration comparisons only:78 phases,64 passes/14 intended assertion failures,14 restorations and131142 injected reads. Nine adjacent Proof comments retain that source epoch and bounded meaning; a comment-only compiler bridge remains separately proposed. The old AST-selection failure and retired equality-M01 failed proof remain immutable. Physical OS/helper/setup/native, outer custody, parked-HOLD/groups4–8 and all parent UC2/UC4/UC5 checkboxes remain open; no whole task is marked complete.
+
+UC2 parent-clock comment qualification subsequently completed: five scoped checks exited 0, OpenSpec 320/320 valid; one four-call compiler-only bridge preserved exact emitted bytes, rejected the in-memory executable change through the same equality assertion, and passed restoration. Independent actual review `f96870d6bd30a9632d8575d6acea3d9006234decaf8ddc7f306fb7d9bece296c` accepts only the carried e6 parent-clock obligations. No 78-phase replay, helper/setup/native qualification or parent checkbox completion follows. Actual commands and output identities are in `verify-original-handoff.md`.

@@ -948,3 +948,42 @@ test('initial envelope refuses serializer mutation of pending state before exclu
   );
   expect(names.filter((name) => name.includes('-handoff-intent.'))).toEqual([]);
 });
+
+test('UC2 known callback refusal releases runtime then outer original locks', async () => {
+  const { withOwnerSolverRuntime } = await import('./edge-ownership');
+  const { root, plan } = fixture();
+  const refusal = new Error('known callback refusal');
+  let originalOwner: DependencyOwner | undefined;
+  let observed: unknown;
+  try {
+    await withDependencyOwner(
+      plan,
+      async (owner) => {
+        originalOwner = owner;
+        let runtimeFailure: unknown;
+        try {
+          await withOwnerSolverRuntime(owner, plan.layouts[0], () => Promise.reject(refusal));
+        } catch (cause) {
+          runtimeFailure = cause;
+        }
+        expect(runtimeFailure).toBe(refusal);
+        await withLock(`${root}/solver-runtime.lock`, () => Promise.resolve(undefined));
+        for (const name of ['edge.lock', 'deploy.lock'])
+          await refuses(
+            withLock(`${root}/${name}`, () => Promise.resolve(undefined)),
+            'lock held',
+          );
+        await assertDependencyOwner(owner, plan.layouts[0]);
+        throw refusal;
+      },
+      root,
+    );
+  } catch (cause) {
+    observed = cause;
+  }
+  expect(observed).toBe(refusal);
+  if (originalOwner === undefined) throw new Error('original owner callback absent');
+  await refuses(assertDependencyOwner(originalOwner, plan.layouts[0]), 'live');
+  for (const name of ['edge.lock', 'deploy.lock', 'solver-runtime.lock'])
+    await withLock(`${root}/${name}`, () => Promise.resolve(undefined));
+}, 10000);

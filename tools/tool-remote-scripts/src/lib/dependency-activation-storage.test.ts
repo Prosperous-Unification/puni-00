@@ -12,6 +12,10 @@ import * as migrationSets from '@wbs/store-sqlite/migration-set';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
+import {
+  dependencyOwnerCustodyCases,
+  prepareDependencyOwnerCustody,
+} from '../fixtures/dependency-owner-custody';
 import { participantActivationFixture } from '../fixtures/dependency-participant-restoration';
 import { roots } from '../fixtures/source-startup';
 import {
@@ -34,6 +38,8 @@ import * as initialGraph from './initial-handoff-graph';
 import * as managedCohort from './managed-cohort';
 import * as migrationCapture from './migration-capture-file';
 import * as sourceExclusion from './source-dev-exclusion';
+
+const dependencyCustodyObservations = await prepareDependencyOwnerCustody();
 
 async function database() {
   const root = scratchSync('activation-storage-');
@@ -1239,3 +1245,165 @@ test('initial fenced envelope LF is admitted before the actual fenced publicatio
   expect(inspectStores(fixture)[0].state).toBe('ENABLED');
   expect(inspectStores(fixture)[1]).toEqual({ state: 'DISABLED', receipt: null });
 }, 180000);
+
+for (const disposition of ['drop', 'release'] as const)
+  for (const expiry of ['live', 'expired'] as const)
+    test(`UC2 original ${disposition} ${expiry} closes genuine raw originals at owner return`, async () => {
+      const fixture = await participantActivationFixture(['prod']);
+      process.env['WBS_EDGE_STATE'] = fixture.root;
+      const capture = initialGraph.captureInitialHandoffArtifacts;
+      const open = filesystem.openSync;
+      const close = filesystem.closeSync;
+      const now = performance.now.bind(performance);
+      const originals: { descriptor: number; attempts: number; closed: boolean }[] = [];
+      const active = new Map<number, (typeof originals)[number]>();
+      let acquiring = false;
+      let expired = false;
+      let captures = 0;
+      let releaseEntered = false;
+      const hasReleaseEntered = () => releaseEntered;
+      let primaryFailure: { cause: unknown } | undefined;
+      const cleanupFailures: unknown[] = [];
+      let retained:
+        | {
+            owner: ownership.DependencyOwner;
+            prepared: Awaited<ReturnType<typeof prepareInitialDependencyHandoffUnderOwner>>;
+          }
+        | undefined;
+      const opened = spyOn(filesystem, 'openSync').mockImplementation(
+        (...args: Parameters<typeof open>) => {
+          const descriptor = open(...args);
+          if (acquiring) {
+            const original = { descriptor, attempts: 0, closed: false };
+            originals.push(original);
+            active.set(descriptor, original);
+          }
+          return descriptor;
+        },
+      );
+      const closed = spyOn(filesystem, 'closeSync').mockImplementation((descriptor) => {
+        const original = active.get(descriptor);
+        if (original !== undefined) original.attempts++;
+        close(descriptor);
+        if (original !== undefined) {
+          original.closed = true;
+          active.delete(descriptor);
+        }
+      });
+      const graph = spyOn(initialGraph, 'captureInitialHandoffArtifacts').mockImplementation(
+        (...args) => {
+          acquiring = true;
+          captures++;
+          try {
+            return capture(...args);
+          } finally {
+            acquiring = false;
+          }
+        },
+      );
+      const clock = spyOn(performance, 'now').mockImplementation(
+        () => now() + (expired ? 180001 : 0),
+      );
+      try {
+        await withDependencyOwner(
+          fixture.request.owner,
+          async (owner) => {
+            const prepared = await prepareInitialDependencyHandoffUnderOwner(
+              owner,
+              fixture.request,
+              fixture.layouts,
+              performance.now() + 180000,
+              fixture.root,
+              fixture.ports,
+            );
+            // Fixture-only fallback retains identity; the action returns no preparation to its owner.
+            retained = { owner, prepared };
+            expect(captures).toBe(1);
+            expect(active.size).toBeGreaterThan(0);
+            if (disposition === 'release')
+              await consumePreparedDependencyActivation(owner, prepared);
+            expired = expiry === 'expired';
+            if (disposition === 'release') {
+              releaseEntered = true;
+              releasePreparedDependencyActivation(owner, prepared);
+            }
+          },
+          fixture.root,
+        );
+        // This assertion precedes fixture fallback: callback return must settle enrolled originals.
+        expect(originals.length).toBeGreaterThan(0);
+        expect(originals.every((original) => original.closed && original.attempts === 1)).toBe(
+          true,
+        );
+        expect(inspectStores(fixture)[0].state).toBe('ENABLED');
+        expect(inspectStores(fixture)[1]).toEqual({ state: 'DISABLED', receipt: null });
+      } catch (cause) {
+        primaryFailure = { cause };
+      }
+      try {
+        clock.mockRestore();
+      } catch (cause) {
+        cleanupFailures.push(cause);
+      }
+      try {
+        // Only the drop route can first-enter release for fixture fallback.
+        if (disposition === 'drop' && retained !== undefined && active.size > 0) {
+          if (
+            hasReleaseEntered() ||
+            [...active.values()].some((original) => original.attempts !== 0)
+          )
+            throw new Error('uncontained fixture close outcome; no fallback release is eligible');
+          releaseEntered = true;
+          releasePreparedDependencyActivation(retained.owner, retained.prepared);
+        }
+      } catch (cause) {
+        cleanupFailures.push(cause);
+      }
+      try {
+        expect(active.size).toBe(0);
+        expect(originals.every((original) => original.closed && original.attempts === 1)).toBe(
+          true,
+        );
+      } catch (cause) {
+        cleanupFailures.push(cause);
+      }
+      for (const restore of [
+        () => {
+          graph.mockRestore();
+        },
+        () => {
+          opened.mockRestore();
+        },
+        () => {
+          closed.mockRestore();
+        },
+      ]) {
+        try {
+          restore();
+        } catch (cause) {
+          cleanupFailures.push(cause);
+        }
+      }
+      // Restoring test spies is not native UNKNOWN containment or production HOLD settlement.
+      if (primaryFailure !== undefined) {
+        if (cleanupFailures.length > 0)
+          throw new AggregateError(
+            [primaryFailure.cause, ...cleanupFailures],
+            'UC2 primary failure with fixture cleanup failure',
+          );
+        throw primaryFailure.cause;
+      }
+      if (cleanupFailures.length > 0)
+        throw new AggregateError(cleanupFailures, 'UC2 fixture cleanup failure');
+    }, 180000);
+
+for (const row of dependencyOwnerCustodyCases)
+  test(
+    row.title,
+    () => {
+      const observed = dependencyCustodyObservations.get(row.variant);
+      if (observed === undefined) throw new Error('UC2 known original helper observation absent');
+      if (!observed.pass) throw new Error(observed.oracle);
+    },
+    10000,
+  );
