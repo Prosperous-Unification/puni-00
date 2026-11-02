@@ -654,6 +654,100 @@ describe('a capacity report', () => {
     expect(auditRows()).toHaveLength(2);
   });
 
+  // `dash-host-jobs` 5.1, "Reserved beside measured" and "A report without reserved units".
+  it('stores reserved units beside measured usage; a pre-change body answers as before', async () => {
+    const t = Date.now() - 600_000;
+    const reserved = await report(agent, h4claw, ram, {
+      observedAt: t,
+      cadenceSeconds: 300,
+      outcome: {
+        kind: 'measured',
+        capacityUnits: 15,
+        usageUnits: 8,
+        reservedUnits: 12,
+        reservedDimension: 'memoryGib',
+      },
+    });
+    expect(reserved.status).toBe(200);
+    expect((reserved.body as { outcome: unknown }).outcome).toEqual({
+      kind: 'measured',
+      capacityUnits: 15,
+      usageUnits: 8,
+      reservedUnits: 12,
+      reservedDimension: 'memoryGib',
+    });
+    expect(
+      rows('SELECT usage_units, reserved_units, reserved_dimension FROM resource_capacity_report'),
+    ).toEqual([{ usage_units: 8, reserved_units: 12, reserved_dimension: 'memoryGib' }]);
+    expect((await readResources('mem')).resources.find((each) => each.id === ram)).toMatchObject({
+      report: reserved.body,
+    });
+    const preChange = await report(agent, h4claw, ram, measured(t + 300_000));
+    expect(preChange.status).toBe(200);
+    expect(JSON.stringify(preChange.body)).toBe(
+      JSON.stringify({
+        observedAt: t + 300_000,
+        cadenceSeconds: 300,
+        outcome: { kind: 'measured', capacityUnits: 15, usageUnits: 8 },
+        providerId: h4claw,
+        reportedBy: 'dash-a',
+        reportedAt: (preChange.body as { reportedAt: number }).reportedAt,
+      }),
+    );
+    expect(
+      rows('SELECT usage_units, reserved_units, reserved_dimension FROM resource_capacity_report'),
+    ).toEqual([{ usage_units: 8, reserved_units: null, reserved_dimension: null }]);
+    // The same body again is idempotent only with the same reserved units.
+    expect(
+      (
+        await report(agent, h4claw, ram, {
+          ...measured(t + 300_000),
+          outcome: {
+            kind: 'measured',
+            capacityUnits: 15,
+            usageUnits: 8,
+            reservedUnits: 3,
+            reservedDimension: 'memoryGib',
+          },
+        })
+      ).status,
+    ).toBe(409);
+    for (const reservedUnits of [-1, 1.5, 1_000_000_001])
+      expect(
+        (
+          await report(agent, h4claw, ram, {
+            ...measured(t + 400_000),
+            outcome: {
+              kind: 'measured',
+              capacityUnits: 15,
+              usageUnits: 8,
+              reservedUnits,
+              reservedDimension: 'memoryGib',
+            },
+          })
+        ).status,
+      ).toBe(400);
+  });
+
+  it('refuses reserved units without their dimension, and either alone, invalid_body', async () => {
+    const t = Date.now() - 600_000;
+    for (const outcome of [
+      { kind: 'measured', capacityUnits: 15, usageUnits: 8, reservedUnits: 12 },
+      { kind: 'measured', capacityUnits: 15, usageUnits: 8, reservedDimension: 'memoryGib' },
+      {
+        kind: 'measured',
+        capacityUnits: 15,
+        usageUnits: 8,
+        reservedUnits: 12,
+        reservedDimension: 'Memory GiB',
+      },
+    ])
+      expect(
+        await report(agent, h4claw, ram, { observedAt: t, cadenceSeconds: 300, outcome }),
+      ).toEqual({ status: 400, body: { error: 'invalid_body' } });
+    expect(reportCount()).toBe(0);
+  });
+
   // Proof: with the superseded refusal turned into a store in
   // `decideCapacityReport`, the late report replaced the newer one; watched
   // 2026-10-22.
@@ -812,7 +906,23 @@ describe('a capacity report', () => {
     expect(setUpPlan.status).toBe(200);
     const before = await h.optimizationHash(projectA);
     const startableBefore = await h.call('dany', 'GET', `/api/projects/${projectA}/startable`);
-    expect((await report(agent, h4claw, ram, measured(Date.now() - 1000, 8, 8))).status).toBe(200);
+    expect((await report(agent, h4claw, ram, measured(Date.now() - 2000, 8, 8))).status).toBe(200);
+    expect(await h.optimizationHash(projectA)).toBe(before);
+    // Reserved units are no planning input either (`dash-host-jobs` 5.1): all 15 reserved.
+    expect(
+      (
+        await report(agent, h4claw, ram, {
+          ...measured(Date.now() - 1000, 15, 8),
+          outcome: {
+            kind: 'measured',
+            capacityUnits: 15,
+            usageUnits: 8,
+            reservedUnits: 15,
+            reservedDimension: 'memoryGib',
+          },
+        })
+      ).status,
+    ).toBe(200);
     expect(await h.optimizationHash(projectA)).toBe(before);
     expect(await h.call('dany', 'GET', `/api/projects/${projectA}/startable`)).toEqual(
       startableBefore,

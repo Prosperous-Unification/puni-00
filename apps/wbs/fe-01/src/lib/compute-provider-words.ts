@@ -96,11 +96,52 @@ export type ReportReading =
   | { readonly state: 'unreachable'; readonly headline: string; readonly detail: string }
   | { readonly state: 'stale'; readonly headline: string; readonly detail: string };
 
+/** One host job as the resources read lists it: its name and what it reserves per dimension. */
+export interface HostJobHolder {
+  readonly label: string;
+  readonly reservations: readonly { readonly dimension: string; readonly units: number }[];
+}
+
+/**
+ * `, 12 reserved by 2 jobs` after the measured usage (`dash-host-jobs` J10),
+ * and the sentence naming those jobs; nothing when the report carries no
+ * reserved units. A job holds the resource only when it reserves some of the
+ * report's `reservedDimension` (S5-A16): a gate reserving no tmp disk is no
+ * holder of a disk resource. Reserved units with no holder WBS has heard of
+ * (the reporter and the outbox publish apart) say only that.
+ */
+function reservationWords(
+  reservedUnits: number | undefined,
+  reservedDimension: string | undefined,
+  hostJobs: readonly HostJobHolder[],
+): { readonly figure: string; readonly holders: string } {
+  if (reservedUnits === undefined) return { figure: '', holders: '' };
+  // Proof: 2026-11-02, keeping every listed job here failed `names only the jobs
+  // reserving the report's dimension` in compute-provider-words.test.ts, which
+  // read "none reserved by 1 job" for a zero-tmp gate on a disk resource.
+  const holders = hostJobs.filter((job) =>
+    job.reservations.some((entry) => entry.dimension === reservedDimension && entry.units > 0),
+  );
+  if (holders.length === 0)
+    return {
+      figure: reservedUnits === 0 ? ', none reserved' : `, ${String(reservedUnits)} reserved`,
+      holders: reservedUnits === 0 ? '' : 'Jobs not yet published by Dash. ',
+    };
+  const count = `${String(holders.length)} ${holders.length === 1 ? 'job' : 'jobs'}`;
+  return {
+    figure: `, ${String(reservedUnits)} reserved by ${count}`,
+    holders: `Reserved by ${listOf(holders.map((job) => job.label))}. `,
+  };
+}
+
 /**
  * Reads `report` at `now`, in the resource's unit. A missing report is
  * `no_report` and never a number. The state is the domain's
  * {@link capacityReportStateOf}, the rule be-01 states the read with, so a
- * section left open goes stale on its own clock without a reread.
+ * section left open goes stale on its own clock without a reread. A measured
+ * report carrying `reservedUnits` reads them beside its usage with the names of
+ * `hostJobs`, the unreturned host jobs the resources read lists for it
+ * (`dash-host-jobs` J10); `stale`, `unreachable` and `no_report` read as before.
  *
  * @throws When the report's outcome is a kind the contract does not have.
  */
@@ -108,6 +149,7 @@ export function readReport(
   report: CapacityReport | undefined,
   unitLabel: string,
   now: number,
+  hostJobs: readonly HostJobHolder[] = [],
 ): ReportReading {
   // Proof: 2026-10-23, reading a missing report as `{ measured 0 }` failed
   // `never reads a missing report as a number` in compute-provider-words.test.ts
@@ -132,15 +174,25 @@ export function readReport(
     };
   const outcome = report.outcome;
   switch (outcome.kind) {
-    case 'measured':
+    case 'measured': {
+      // Proof: 2026-11-01, dropping the reserved figure from the headline
+      // failed `reads reserved units and both job names beside the measured
+      // usage` here and `renders reserved units and the two gates holding them`
+      // in resources-panel.test.tsx (verify.md Slice 5).
+      const reservation = reservationWords(
+        outcome.reservedUnits,
+        outcome.reservedDimension,
+        hostJobs,
+      );
       return {
         state: 'measured',
         headline: `Measured ${unitsWords(outcome.capacityUnits, unitLabel)}, ${String(
           outcome.usageUnits,
-        )} in use`,
-        detail: `Observed ${age} ago.`,
+        )} in use${reservation.figure}`,
+        detail: `${reservation.holders}Observed ${age} ago.`,
         capacityUnits: outcome.capacityUnits,
       };
+    }
     case 'unreachable':
       return {
         state: 'unreachable',

@@ -14,6 +14,7 @@ const JOURNAL_PERSON = '20261026120000_add_command_journal_person';
 const MACHINE_TOKENS = '20261026130000_widen_organization_audit_machine_tokens';
 const AGENT_POOL = '20261028100000_add_agent_pool';
 const AGENT_POOL_AUDIT = '20261028100100_widen_organization_audit_agent_pools';
+const HOST_JOB_PROJECTION = '20261101120000_add_host_job_projection';
 const roots: string[] = [];
 
 afterEach(() => {
@@ -148,7 +149,7 @@ describe('the command journal person migration', () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${AGENT_POOL_AUDIT}, ${AGENT_POOL}, ${MACHINE_TOKENS}, ${JOURNAL_PERSON}`,
+      `rolled back: ${HOST_JOB_PROJECTION}, ${AGENT_POOL_AUDIT}, ${AGENT_POOL}, ${MACHINE_TOKENS}, ${JOURNAL_PERSON}`,
     );
     expect(columnsOf(dbPath)).not.toContain('person_id');
     expect(entryIds(dbPath)).toEqual(['human']);
@@ -182,7 +183,7 @@ describe('the command journal person migration', () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${AGENT_POOL_AUDIT}, ${AGENT_POOL}, ${MACHINE_TOKENS}, ${JOURNAL_PERSON}`,
+      `rolled back: ${HOST_JOB_PROJECTION}, ${AGENT_POOL_AUDIT}, ${AGENT_POOL}, ${MACHINE_TOKENS}, ${JOURNAL_PERSON}`,
     );
     expect(columnsOf(dbPath)).not.toContain('person_id');
     expect(newestApplied(dbPath)).toBe(baseline());

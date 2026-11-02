@@ -178,6 +178,16 @@ export function computeProviderRoutes(
         // A machine principal always carries its credential's organization
         // as a direct context, so legacy access is unreachable here.
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
+        // `reservedUnits` mean nothing without the dimension they count (`dash-host-jobs` J10).
+        // Proof: without this check, `refuses reserved units without their dimension, and
+        // either alone, invalid_body` (compute-provider.controller.db.test.ts) did not answer
+        // 400 invalid_body (2026-11-02).
+        if (
+          body.outcome.kind === 'measured' &&
+          (body.outcome.reservedUnits === undefined) !==
+            (body.outcome.reservedDimension === undefined)
+        )
+          return invalidBody;
         const decision = await reports.put({
           organizationId: resolved.access.scope.organizationId,
           personId: authentication.personId,
@@ -242,7 +252,8 @@ export interface PlannedResources {
 /**
  * Adds each resource's provider reference, latest report and declared-versus-
  * measured comparison to the project resources read (`compute-providers` P3,
- * P7), and the instance's kind and name for every reader (task 5.3). The
+ * P7), the instance's kind and name for every reader (task 5.3), and the
+ * unreturned host jobs of its authority (`dash-host-jobs` J10). The
  * planned read is taken as it was: nothing here feeds back into it. A resource
  * with no instance gets `providerId: null` and nothing else.
  *
@@ -269,6 +280,15 @@ export async function withProviderReadings(
         provider: { kind, name },
         ...(reading.report === null ? {} : { report: reportWire(reading.report) }),
         measurement: compareCapacity(declared.get(each.id) ?? null, reading.report, now),
+        // Absent when there is none, so a read without host jobs is the pre-change one.
+        ...(reading.hostJobs.length === 0
+          ? {}
+          : {
+              hostJobs: reading.hostJobs.map((job) => ({
+                ...job,
+                reservations: job.reservations.map((entry) => ({ ...entry })),
+              })),
+            }),
       };
     }),
     capacities: planned.capacities,
