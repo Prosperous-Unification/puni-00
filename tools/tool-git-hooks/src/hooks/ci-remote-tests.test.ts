@@ -2876,3 +2876,314 @@ test('graph source handoff rejects wrong or foreign records and exact guard omis
     } else expectGraphHandoffRefusal(invocation, mode, fault, fixture.target);
   }
 });
+
+/** Selects only the actual STOP/elapsed OR limbs and the actual next-row fixture caller. */
+async function graphStopSource() {
+  const extracted = await graphPlacementSource();
+  const ts = await import('typescript');
+  const { createHash } = await import('node:crypto');
+  const source = readFileSync(join(ROOT, GRAPH_PLACEMENT_SOURCE), 'utf8');
+  const digest = (text: string) => createHash('sha256').update(text).digest('hex');
+  expect(digest(source)).toBe(extracted.sourceSHA256);
+  const parsed = ts.createSourceFile(GRAPH_PLACEMENT_SOURCE, source, ts.ScriptTarget.Latest, true);
+  const guards = parsed.statements.filter(
+    (node) => ts.isFunctionDeclaration(node) && node.name?.text === 'assertCloseSettlementStart',
+  );
+  expect(guards).toHaveLength(1);
+  const guard = guards.at(0);
+  if (guard === undefined || !ts.isFunctionDeclaration(guard) || guard.body === undefined)
+    throw new Error('Actual STOP/start guard absent');
+  const branches = guard.body.statements.filter((node) => ts.isIfStatement(node));
+  expect(branches).toHaveLength(1);
+  const branch = branches.at(0);
+  if (branch === undefined || !ts.isIfStatement(branch))
+    throw new Error('Actual start guard condition absent');
+  const limbs: Node[] = [];
+  function flatten(node: Node): void {
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.BarBarToken) {
+      flatten(node.left);
+      flatten(node.right);
+    } else limbs.push(node);
+  }
+  flatten(branch.expression);
+  expect(limbs).toHaveLength(3);
+  const stopped = limbs.at(0),
+    undefinedDeadline = limbs.at(1),
+    elapsed = limbs.at(2);
+  if (
+    stopped === undefined ||
+    !ts.isPropertyAccessExpression(stopped) ||
+    !ts.isIdentifier(stopped.expression) ||
+    stopped.expression.text !== 'closeSettlementOwner' ||
+    stopped.name.text !== 'stopped'
+  )
+    throw new Error('Actual STOP limb differs');
+  if (
+    undefinedDeadline === undefined ||
+    !ts.isBinaryExpression(undefinedDeadline) ||
+    undefinedDeadline.operatorToken.kind !== ts.SyntaxKind.EqualsEqualsEqualsToken ||
+    !ts.isIdentifier(undefinedDeadline.left) ||
+    undefinedDeadline.left.text !== 'deadline' ||
+    !ts.isIdentifier(undefinedDeadline.right) ||
+    undefinedDeadline.right.text !== 'undefined'
+  )
+    throw new Error('Actual absent-deadline limb differs');
+  if (
+    elapsed === undefined ||
+    !ts.isBinaryExpression(elapsed) ||
+    elapsed.operatorToken.kind !== ts.SyntaxKind.GreaterThanEqualsToken ||
+    !ts.isIdentifier(elapsed.right) ||
+    elapsed.right.text !== 'deadline' ||
+    !ts.isCallExpression(elapsed.left) ||
+    elapsed.left.arguments.length !== 0 ||
+    !ts.isPropertyAccessExpression(elapsed.left.expression) ||
+    !ts.isIdentifier(elapsed.left.expression.expression) ||
+    elapsed.left.expression.expression.text !== 'performance' ||
+    elapsed.left.expression.name.text !== 'now'
+  )
+    throw new Error('Actual elapsed-deadline limb differs');
+  const start = guard.getStart(parsed),
+    end = guard.end;
+  const original = source.slice(start, end);
+  expect(extracted.bindings.filter((binding) => binding === original)).toHaveLength(1);
+  const stopRemoved =
+    original.slice(0, stopped.getStart(parsed) - start) +
+    original.slice(undefinedDeadline.getStart(parsed) - start);
+  const elapsedRemoved =
+    original.slice(0, undefinedDeadline.end - start) + original.slice(elapsed.end - start);
+  const callers: Node[] = [];
+  function findCaller(node: Node): void {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === 'captureRow') {
+      if (node.body === undefined) throw new Error('Actual fixture-row caller body absent');
+      for (const statement of node.body.statements)
+        if (
+          ts.isExpressionStatement(statement) &&
+          ts.isCallExpression(statement.expression) &&
+          ts.isIdentifier(statement.expression.expression) &&
+          statement.expression.expression.text === 'assertCloseSettlementStart'
+        )
+          callers.push(statement);
+    }
+    ts.forEachChild(node, findCaller);
+  }
+  for (const node of parsed.statements)
+    if (ts.isFunctionDeclaration(node) && node.name?.text === 'prepareClosePreflight')
+      findCaller(node);
+  expect(callers).toHaveLength(1);
+  const caller = callers.at(0);
+  if (caller === undefined) throw new Error('Actual next-row fixture start call absent');
+  const selections = {
+    sourceSHA256: extracted.sourceSHA256,
+    guard: { start, end, sha256: digest(original) },
+    stopped: {
+      start: stopped.getStart(parsed),
+      end: stopped.end,
+      sha256: digest(source.slice(stopped.getStart(parsed), stopped.end)),
+    },
+    elapsed: {
+      start: elapsed.getStart(parsed),
+      end: elapsed.end,
+      sha256: digest(source.slice(elapsed.getStart(parsed), elapsed.end)),
+    },
+    caller: {
+      start: caller.getStart(parsed),
+      end: caller.end,
+      sha256: digest(source.slice(caller.getStart(parsed), caller.end)),
+    },
+  };
+  return {
+    extracted,
+    selections,
+    stopBindings: extracted.bindings.map((binding) =>
+      binding === original ? stopRemoved : binding,
+    ),
+    elapsedBindings: extracted.bindings.map((binding) =>
+      binding === original ? elapsedRemoved : binding,
+    ),
+  };
+}
+
+type GraphStopFault = 'stop' | 'elapsed';
+function graphStopFixture(
+  source: Awaited<ReturnType<typeof graphStopSource>>,
+  fault: GraphStopFault,
+  omitted: boolean,
+) {
+  const bindings = omitted
+    ? fault === 'stop'
+      ? source.stopBindings
+      : source.elapsedBindings
+    : source.extracted.bindings;
+  const fixture = graphPlacementFixture(
+    { ...source.extracted, bindings: [...bindings] },
+    'graph-legacy',
+    'none',
+  );
+  let image = fixture.image;
+  const provider =
+    "  modeledFixtures.push(fixture);emit('modeled-fixture',{malformed:fixture.malformed});return fixture;";
+  expect(image.split(provider)).toHaveLength(2);
+  image = image.replace(
+    provider,
+    `  modeledFixtures.push(fixture);emit('modeled-fixture',{malformed:fixture.malformed});
+  if(modeledFixtures.length===2)throw new Error('MODELED_SECOND_FIXTURE_BOUNDARY_REACHED');
+  return fixture;`,
+  );
+  const joined = "  emit('modeled-join',{scenario});return outcome;";
+  expect(image.split(joined)).toHaveLength(2);
+  image = image.replace(
+    joined,
+    `  emit('modeled-join',{scenario});
+  if(modeledOutcomes.length===1){
+    assert(modeledJoins[0].known&&modeledJoins[0].original===modeledOriginals[0]&&modeledJoins[0].outcome===outcome,
+      'STOP image first modeled original has not joined');
+    const fault=${JSON.stringify(fault)};
+    if(fault==='stop')stopCloseSettlement(new Error('MODELED_STOP_AFTER_FIRST_JOIN'),false);
+    else closeSettlementOwner.deadline=performance.now()-1;
+    emit('stop-boundary-injected',{fault,firstJoined:true,stopped:closeSettlementOwner.stopped,
+      uncertain:closeSettlementOwner.uncertain,deadlinePast:performance.now()>=closeSettlementOwner.deadline});
+  }
+  return outcome;`,
+  );
+  const prepare = 'await prepareClosePreflight();';
+  expect(image.split(prepare)).toHaveLength(2);
+  image = image.replace(
+    prepare,
+    `writeSync(2,'GRAPH_STOP_SOURCE:'+${JSON.stringify(JSON.stringify(source.selections))}+'\\n');
+try{await prepareClosePreflight();}catch(cause){
+  if(cause instanceof Error)emit('stop-boundary-refusal',{errorName:cause.name,message:cause.message,
+    stopped:closeSettlementOwner.stopped,uncertain:closeSettlementOwner.uncertain,
+    deadlinePast:performance.now()>=closeSettlementOwner.deadline,
+    firstJoined:modeledJoins.length===1&&modeledJoins[0].known&&modeledJoins[0].original===modeledOriginals[0]&&
+      modeledJoins[0].outcome===modeledOutcomes[0]&&closeSettlementOwner.completed[0]===modeledOutcomes[0]});
+  throw cause;
+}`,
+  );
+  write(fixture.root, GRAPH_PLACEMENT_SOURCE, image);
+  return { root: fixture.root, image, binding: source.selections };
+}
+
+function graphStopEvents(invocation: ReturnType<typeof invokeGraphPlacement>) {
+  return invocation.stderr
+    .toString()
+    .split('\n')
+    .filter((line) => line.startsWith('GRAPH_PLACEMENT:'))
+    .map((line) => {
+      const event: unknown = JSON.parse(line.slice('GRAPH_PLACEMENT:'.length));
+      if (
+        event === null ||
+        typeof event !== 'object' ||
+        !('kind' in event) ||
+        typeof event.kind !== 'string'
+      )
+        throw new Error('Actual STOP boundary event malformed');
+      return event as {
+        kind: string;
+        fault?: string;
+        firstJoined?: boolean;
+        stopped?: boolean;
+        uncertain?: boolean;
+        deadlinePast?: boolean;
+        errorName?: string;
+        message?: string;
+      };
+    });
+}
+
+/** The actual next-row fixture count is the oracle even if an omitted STOP later causes other refusal. */
+function expectGraphNextFixtureRefusal(
+  invocation: ReturnType<typeof invokeGraphPlacement>,
+  fault: GraphStopFault,
+): void {
+  const events = graphStopEvents(invocation);
+  if (events.filter((event) => event.kind === 'modeled-fixture').length !== 1)
+    throw new Error('Graph ' + fault + ' next-row guard allowed second fixture');
+  expect(invocation.signalCode, invocation.stderr.toString()).toBeUndefined();
+  expect(invocation.exitCode, invocation.stderr.toString()).toBe(1);
+  const refusals = events.filter((event) => event.kind === 'stop-boundary-refusal');
+  expect(refusals).toHaveLength(1);
+  const refusal = refusals.at(0);
+  if (refusal === undefined || typeof refusal.message !== 'string')
+    throw new Error('Actual next-row guard refusal absent');
+  expect(refusal.errorName).toBe('Error');
+  expect(refusal.message.split('\n').at(0)).toBe(
+    'UC1 original preflight start allocation exhausted or stopped',
+  );
+  expect(refusal.firstJoined).toBe(true);
+  expect(refusal.stopped).toBe(true);
+  expect(refusal.uncertain).toBe(false);
+  expect(refusal.deadlinePast).toBe(fault === 'elapsed');
+  for (const kind of ['test-registration', 'finalizer-registration', 'callback', 'preload-load'])
+    expect(events.filter((event) => event.kind === kind)).toHaveLength(0);
+}
+
+test('graph source STOP and elapsed allocation prevent the next fixture and exact limb omissions break the boundary', async () => {
+  const source = await graphStopSource();
+  const steps = [
+    ['stop', false],
+    ['stop', true],
+    ['stop', false],
+    ['elapsed', false],
+    ['elapsed', true],
+    ['elapsed', false],
+  ] as const;
+  const restoredImages = new Map<GraphStopFault, string>();
+  for (const [fault, omitted] of steps) {
+    const fixture = graphStopFixture(source, fault, omitted);
+    if (!omitted) {
+      const original = restoredImages.get(fault);
+      if (original === undefined) restoredImages.set(fault, fixture.image);
+      else expect(fixture.image).toBe(original);
+    }
+    const invocation = invokeGraphPlacement(fixture.root);
+    console.log(
+      'GRAPH_STOP_DIAGNOSTIC:' +
+        JSON.stringify({
+          fault,
+          omitted,
+          binding: fixture.binding,
+          exitCode: invocation.exitCode,
+          signalCode: invocation.signalCode,
+          stdoutBase64: invocation.stdout.toString('base64'),
+          stderrBase64: invocation.stderr.toString('base64'),
+        }),
+    );
+    const sourceLines = invocation.stderr
+      .toString()
+      .split('\n')
+      .filter((line) => line.startsWith('GRAPH_STOP_SOURCE:'));
+    expect(sourceLines).toHaveLength(1);
+    const sourceLine = sourceLines.at(0);
+    if (sourceLine === undefined) throw new Error('Actual STOP source binding absent');
+    const observedBinding: unknown = JSON.parse(sourceLine.slice('GRAPH_STOP_SOURCE:'.length));
+    expect(observedBinding).toEqual(fixture.binding);
+    const events = graphStopEvents(invocation);
+    expect(events.filter((event) => event.kind === 'modeled-join')).toHaveLength(1);
+    const injected = events.filter((event) => event.kind === 'stop-boundary-injected');
+    expect(injected).toHaveLength(1);
+    expect(injected.at(0)).toMatchObject({
+      fault,
+      firstJoined: true,
+      stopped: fault === 'stop',
+      uncertain: false,
+      deadlinePast: fault === 'elapsed',
+    });
+    if (omitted) {
+      expect(invocation.signalCode).toBeUndefined();
+      expect(invocation.exitCode, invocation.stderr.toString()).toBe(1);
+      expect(events.filter((event) => event.kind === 'modeled-fixture')).toHaveLength(2);
+      const refusal = events.filter((event) => event.kind === 'stop-boundary-refusal');
+      expect(refusal).toHaveLength(1);
+      expect(refusal.at(0)).toMatchObject({
+        errorName: 'Error',
+        message: 'MODELED_SECOND_FIXTURE_BOUNDARY_REACHED',
+        firstJoined: true,
+        uncertain: false,
+      });
+      expect(() => {
+        expectGraphNextFixtureRefusal(invocation, fault);
+      }).toThrow('Graph ' + fault + ' next-row guard allowed second fixture');
+    } else expectGraphNextFixtureRefusal(invocation, fault);
+    expect(invocation.stderr.toString()).not.toContain('scratch cleanup source=afterAll event=');
+  }
+});
