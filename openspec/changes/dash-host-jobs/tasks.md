@@ -60,7 +60,11 @@
       `sshd-session` processes review F1 found). Follow-up: settlement still runs `git status`
       and a synchronous `docker ps` inside the ledger's write lock; move those reads before the
       transaction and re-check identities inside it (review F6; the launcher now polls once a
-      second).
+      second). Follow-up: `cli.ts` loads every command module before dispatch, so a delegated
+      command's usage refusal and `ops job run` itself pay about 3 to 5 s of imports (the
+      resource runtime and `@wbs/contracts` about 3 s, the activation store about 2 s,
+      measured 2026-11-02); import each handler's module lazily, keeping the dispatcher
+      canaries (review R6).
 - [x] 3.2 Declared container bounds (J16): labelled and bounded containers sampled through the
       docker adapter's reading as advisory evidence; unlabelled or unbounded starts during the
       window recorded `attribution_incomplete` — test: a real short-lived bounded container and

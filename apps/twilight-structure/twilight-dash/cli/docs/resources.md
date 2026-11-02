@@ -303,11 +303,19 @@ workspace slots; a host job also reserves cores, memory and exclusive units.
   yet, so such a job whose launcher died stays charged until an operator settles it.
 - **Unreadable processes.** Hold inspection reads every same-account process's `cwd`,
   descriptors and maps. A process that changed credentials (`(sd-pam)`, `sshd-session`) is not
-  dumpable, and its `/proc/<pid>/fd` is access-denied. For a host job, such a process outside the
-  job's scope `dash-job-<id>.scope` holds nothing the job made. Settlement names it
-  `uninspectable_outside_scope: <pid> (<comm>)` in the entry's reason and goes on. One inside
-  the scope is an unknown holder and keeps the entry `blocked`. Worktree cleanup and the unit
-  check at `ops pool init` have no scope to compare against, so they still refuse (task 6.6).
+  dumpable, and its `/proc/<pid>/fd` is access-denied. For a host job, such a process holds
+  nothing the job made only if it is outside the job's scope `dash-job-<id>.scope` **and**
+  started before the job's leader in this boot. Settlement names those
+  `uninspectable_outside_scope: <pid> (<comm>)` in the entry's reason, the three most recently
+  started by name and the rest as a count, and goes on. A different cgroup alone proves nothing:
+  a payload's descendant can turn non-dumpable (prctl, a setuid helper, `ssh-agent`, `gpg-agent`)
+  and leave the scope with `systemd-run --user`.
+  Any other uninspectable process is an unknown holder and keeps the entry `blocked`. A job
+  begun before a reboot is therefore blocked by every uninspectable process of the new boot. A
+  daemon the payload left inside the scope blocks until it ends. The refusal names the remedy,
+  `systemctl --user stop dash-job-<id>.scope`, after which settlement retries. Worktree cleanup
+  and the unit check at `ops pool init` have no scope to compare against, so they still refuse
+  (task 6.6).
 
 ### `ops pool` and `ops job` (slice 3)
 
@@ -333,9 +341,12 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
   who holds it, every unreleased job and every waiter.
 - **`ops job run`** reads `infra/jobs/catalogue.json` from the checkout holding the current
   directory **at its HEAD commit**, not the working tree; that commit is the launcher SHA the
-  run record pins (for `gate` the tested SHA is the one in its arguments). The checkout must
-  still stand on that commit when the gate opens, however long admission waited, or the job is
-  refused 64 unrun, because the payload runs from the working tree. The payload is the words
+  run record pins (for `gate` the tested SHA is the one in its arguments). Just before the gate
+  opens, however long admission waited, HEAD is read again. If it moved, the job is refused 64
+  unrun, because the payload runs from the working tree. This narrows the gap and does not close
+  it: HEAD can still move between that check and the payload's exec, and during the run. The
+  record names the commit the catalogue was read at, not one the payload is proven to have
+  run. The payload is the words
   after `--`: its first word is the program, the rest
   must match the type's argument profile. An unknown type or a mismatch is 64, naming the type
   and the catalogue path. Before anything is reserved it checks that the host can measure the

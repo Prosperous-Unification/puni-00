@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -53,8 +54,14 @@ describe('host-job hold inspection on a real host (review F1)', () => {
   });
   const clock = { read: () => 1800000000000 };
 
-  /** A pool, one admitted job whose payload ran and exited, its tmp directory prepared. */
-  async function finishedJob(): Promise<{ runtime: ResourceRuntime; job: HostJob; base: string }> {
+  /**
+   * A pool and one admitted job whose payload ran and exited, its tmp directory prepared.
+   * `beforeLaunch` runs once the tmp directory exists and before the payload's leader starts:
+   * a process it starts predates the job.
+   */
+  async function finishedJob(
+    beforeLaunch: (job: HostJob, base: string) => Promise<void> = () => Promise.resolve(),
+  ): Promise<{ runtime: ResourceRuntime; job: HostJob; base: string }> {
     const fixture = hostPoolFixture({
       cpuCores: 4,
       memoryGib: 8,
@@ -79,6 +86,7 @@ describe('host-job hold inspection on a real host (review F1)', () => {
     const admitted = runtime.pollHostJob(queued.ticket, () => undefined);
     if (admitted.kind !== 'admitted') throw new Error(`not admitted: ${admitted.kind}`);
     const job = runtime.prepareHostJob(admitted.job.id);
+    await beforeLaunch(job, fixture.base);
     // The payload waits for its line on stdin, so its identity is persisted while it lives.
     const payload = spawn('/bin/sh', ['-c', 'read gate'], {
       detached: true,
@@ -90,12 +98,12 @@ describe('host-job hold inspection on a real host (review F1)', () => {
     payload.stdin.end('go\n');
     await exited;
     runtime.recordHostJobExit(job.id, 0);
-    return { runtime, job, base: fixture.base };
+    return { runtime, job: runtime.inspectHostJob(job.id), base: fixture.base };
   }
 
   /** Start a non-dumpable process holding a file in the job's tmp directory; resolve its pid. */
   async function holder(argv: readonly string[], job: HostJob, base: string): Promise<number> {
-    const ready = join(base, 'holder-ready');
+    const ready = join(base, `holder-ready-${randomUUID()}`);
     const child = spawn(argv[0] ?? 'python3', [...argv.slice(1), job.locator, ready], {
       detached: true,
       stdio: 'ignore',
@@ -117,9 +125,26 @@ describe('host-job hold inspection on a real host (review F1)', () => {
     return current;
   }
 
+  /** Start `python3 -c` non-dumpable inside its own user scope `unit`. */
+  const inScope = (unit: string): string[] => [
+    'systemd-run',
+    '--user',
+    '--scope',
+    '--quiet',
+    '--collect',
+    '--unit',
+    unit,
+    '--',
+    'python3',
+    '-c',
+    NON_DUMPABLE_HOLDER,
+  ];
+
   test('a non-dumpable process outside the job scope does not hold its tmp directory', async () => {
-    const { runtime, job, base } = await finishedJob();
-    const pid = await holder(['python3', '-c', NON_DUMPABLE_HOLDER], job, base);
+    let pid = 0;
+    const { runtime, job } = await finishedJob(async (prepared, base) => {
+      pid = await holder(['python3', '-c', NON_DUMPABLE_HOLDER], prepared, base);
+    });
     const current = settled(runtime, job);
     // Proof: see `inspectHolds`; without its scope branch this entry was `blocked` "cannot
     // inspect process PID <pid>" (2026-11-02, Slice 3 review F1).
@@ -127,38 +152,66 @@ describe('host-job hold inspection on a real host (review F1)', () => {
     expect(current.tmpDisk.reason).toStartWith(
       'tmp directory removed and holds verified; uninspectable_outside_scope: ',
     );
+    // The most recently started processes are named first, so the holder is among them.
     expect(current.tmpDisk.reason).toContain(`${String(pid)} (python3)`);
     expect(current.state).toBe('released');
   }, 60000);
 
+  test('a non-dumpable process started after the job, outside its scope, still holds', async () => {
+    const { runtime, job, base } = await finishedJob();
+    const pid = await holder(['python3', '-c', NON_DUMPABLE_HOLDER], job, base);
+    const current = settled(runtime, job);
+    // Proof: see `outsideScope`; without its start comparison this entry was `released` with
+    // the file still open (2026-11-02, Slice 3 review R1).
+    expect(current.tmpDisk.state).toBe('blocked');
+    expect(current.tmpDisk.reason).toContain(`cannot inspect process PID ${String(pid)} (python3)`);
+    expect(existsSync(join(job.locator, 'held'))).toBe(true);
+  }, 60000);
+
   test.skipIf(scopes.exitCode !== 0)(
-    `a non-dumpable process inside the job scope still holds its tmp directory${scopeReason}`,
+    `a non-dumpable process that left for another scope after the job still holds${scopeReason}`,
     async () => {
       const { runtime, job, base } = await finishedJob();
-      const pid = await holder(
-        [
-          'systemd-run',
-          '--user',
-          '--scope',
-          '--quiet',
-          '--collect',
-          '--unit',
-          `dash-job-${job.id}`,
-          '--',
-          'python3',
-          '-c',
-          NON_DUMPABLE_HOLDER,
-        ],
-        job,
-        base,
-      );
+      // The reviewer's probe: a later process in `dash-job-other-<uuid>.scope`, not the job's.
+      const pid = await holder(inScope(`dash-job-other-${randomUUID()}`), job, base);
       const current = settled(runtime, job);
-      // Proof: see `inspectHolds`; without its `outsideScope` test this entry was `released`
-      // with the holder alive inside the scope (2026-11-02, Slice 3 review F1).
+      // Proof: see `outsideScope`; without its start comparison this entry was `released`
+      // while the holder kept `held` open (2026-11-02, Slice 3 review R1).
       expect(current.tmpDisk.state).toBe('blocked');
       expect(current.tmpDisk.reason).toContain(`cannot inspect process PID ${String(pid)}`);
       expect(existsSync(join(job.locator, 'held'))).toBe(true);
     },
     60000,
   );
+
+  test.skipIf(scopes.exitCode !== 0)(
+    `a non-dumpable process inside the job scope still holds its tmp directory${scopeReason}`,
+    async () => {
+      const { runtime, job, base } = await finishedJob();
+      const pid = await holder(inScope(`dash-job-${job.id}`), job, base);
+      const current = settled(runtime, job);
+      // Proof: see `inspectHolds`; with `outsideScope` always true this entry was `released`
+      // with the holder alive inside the scope (2026-11-02, Slice 3 review F1).
+      expect(current.tmpDisk.state).toBe('blocked');
+      expect(current.tmpDisk.reason).toContain(`cannot inspect process PID ${String(pid)}`);
+      expect(current.tmpDisk.reason).toContain(`systemctl --user stop dash-job-${job.id}.scope`);
+      expect(existsSync(join(job.locator, 'held'))).toBe(true);
+    },
+    60000,
+  );
+
+  test('the outside-scope note names three and counts the rest', async () => {
+    const pids: number[] = [];
+    const { runtime, job } = await finishedJob(async (prepared, base) => {
+      for (let index = 0; index < 5; index++)
+        pids.push(await holder(['python3', '-c', NON_DUMPABLE_HOLDER], prepared, base));
+    });
+    const current = settled(runtime, job);
+    expect(current.tmpDisk.state).toBe('released');
+    const note = /uninspectable_outside_scope: (.*?)(?: and (\d+) more)?$/.exec(
+      current.tmpDisk.reason,
+    );
+    expect(note?.[1]?.split(', ').length).toBe(3);
+    expect(Number(note?.[2])).toBeGreaterThanOrEqual(2);
+  }, 60000);
 });

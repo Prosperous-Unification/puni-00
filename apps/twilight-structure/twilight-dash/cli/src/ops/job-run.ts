@@ -222,10 +222,15 @@ async function settle(
 ): Promise<void> {
   const deadline = deps.monotonic.now() + deps.settleBudgetMs;
   let job = runtime.settleHostJob(jobId, containers);
-  while (job.state !== 'released' && job.state !== 'blocked' && deps.monotonic.now() < deadline) {
-    // One second, not faster: each pass takes the ledger write lock and reads Git and Docker
-    // inside it, which would starve other launchers' polls (review F6).
-    await Bun.sleep(1000);
+  // Immediately, then 250 ms (the gated shell is usually just exiting), then once a second:
+  // each pass takes the ledger write lock and reads Git and Docker inside it, which would
+  // starve other launchers' polls if repeated faster (reviews F6, R9).
+  for (
+    let pass = 0;
+    job.state !== 'released' && job.state !== 'blocked' && deps.monotonic.now() < deadline;
+    pass++
+  ) {
+    await Bun.sleep(pass === 0 ? 250 : 1000);
     job = runtime.settleHostJob(jobId, containers);
   }
   const entries = [
@@ -552,6 +557,15 @@ async function runAdmitted(
       : ContainerWatch.start(docker, deps.environment, job.id, bound, startedAt, (owner) =>
           runtime.listHostJobs().some((other) => other.id === owner && other.state !== 'released'),
         );
+  // The gate sample, the HEAD check, `records.begin` and the watch start are synchronous: a
+  // signal that arrived during them is dispatched only once the event loop turns, so turn it
+  // (timers, then the poll and check phases) before the last look.
+  // Proof: without these yields `a SIGINT during the synchronous gate work refuses 130`
+  // (job-run.test.ts) ran the payload and recorded 130 as its exit (2026-11-02, review R2).
+  await Bun.sleep(0);
+  await new Promise<void>((resolveTurn) => {
+    setImmediate(resolveTurn);
+  });
   await refuseIfInterrupted().catch(async (cause: unknown) => {
     if (watch !== null) await watch.finish(deps.clock.read());
     throw cause;

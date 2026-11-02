@@ -767,33 +767,53 @@ function git(arguments_: string[], input?: string): string {
 }
 
 /**
- * A host job's scope for hold inspection (`dash-host-jobs` slice 3 review F1): the transient unit
- * its payload ran in, and the same-user processes whose descriptors could not be read but that
- * live outside that unit, collected as evidence.
+ * A host job's scope for hold inspection (`dash-host-jobs` slice 3 reviews F1, R1): the transient
+ * unit its payload ran in, the identity no process the job made can predate (its leader, or its
+ * launcher before a launch), and the same-user processes recorded as outside it.
  */
 interface JobScope {
   unit: string;
-  outside: { pid: number; comm: string }[];
+  before: ProcessIdentity;
+  outside: { pid: number; comm: string; start: bigint }[];
 }
 
-/** The scope of host job `id`: its unit is the one `ops job run` names `dash-job-<id>`. */
-function jobScopeOf(id: string): JobScope {
-  return { unit: `dash-job-${id}.scope`, outside: [] };
+/** The scope of `job`: its unit is the one `ops job run` names `dash-job-<id>`. */
+function jobScopeOf(job: HostJob): JobScope {
+  return { unit: `dash-job-${job.id}.scope`, before: job.process ?? job.launcher, outside: [] };
 }
 
-/** `; uninspectable_outside_scope: <pid> (<comm>), …` for evidence text, or nothing. */
+/** How many outside-scope processes an entry's reason names before it only counts them. */
+const OUTSIDE_NAMED = 3;
+
+/**
+ * `; uninspectable_outside_scope: <pid> (<comm>), … and <n> more` for evidence text, or nothing:
+ * the most recently started first, at most {@link OUTSIDE_NAMED} named, the rest counted, so snapshots and
+ * events stay small.
+ */
 function outsideNote(scope: JobScope): string {
-  if (scope.outside.length === 0) return '';
-  const seen = new Map(scope.outside.map((process) => [process.pid, process]));
-  return `; uninspectable_outside_scope: ${[...seen.values()].map((process) => `${String(process.pid)} (${process.comm})`).join(', ')}`;
+  // Most recently started first: the one an operator asks about (pids wrap; start ticks do not).
+  const seen = [...new Map(scope.outside.map((process) => [process.pid, process])).values()].sort(
+    (left, right) => (right.start > left.start ? 1 : right.start < left.start ? -1 : 0),
+  );
+  if (seen.length === 0) return '';
+  const named = seen
+    .slice(0, OUTSIDE_NAMED)
+    .map((process) => `${String(process.pid)} (${process.comm})`)
+    .join(', ');
+  // Proof: listing every process here made `the outside-scope note names three and counts the
+  // rest` (host-job-holds.test.ts) see eleven names on the workstation (2026-11-02, review R5).
+  const rest = seen.length - OUTSIDE_NAMED;
+  return `; uninspectable_outside_scope: ${named}${rest > 0 ? ` and ${String(rest)} more` : ''}`;
 }
 
 /**
- * Whether a same-user process whose descriptors are unreadable stands outside the job's scope.
- * Such a process changed credentials (`(sd-pam)`, `sshd-session`) and is not dumpable; a payload's
- * descendants stay dumpable and inside the scope cgroup until it is collected, so an unreadable
- * process inside the scope remains an unknown holder.
- * @throws Error when its cgroup cannot be read, which keeps the entry charged.
+ * Whether a same-user process whose descriptors are unreadable provably holds nothing the job
+ * made: it is outside the job's scope cgroup **and** it started before the job's leader in this
+ * boot. A different cgroup alone proves nothing: a payload's descendant can turn non-dumpable
+ * (prctl, a setuid helper, ssh-agent, gpg-agent) and leave the scope with `systemd-run --user`.
+ * A process that predates the leader cannot have inherited or been handed the job's files by it.
+ * Anything else, including any process of another boot, stays an unknown holder.
+ * @throws Error when its cgroup or identity cannot be read, which keeps the entry charged.
  */
 function outsideScope(pid: string, scope: JobScope): boolean {
   let membership: string;
@@ -805,7 +825,13 @@ function outsideScope(pid: string, scope: JobScope): boolean {
   const unified = membership.split('\n').find((line) => line.startsWith('0::'));
   if (unified === undefined)
     throw new Error(`uninspectable PID ${pid} has no cgroup v2 membership`);
-  return !unified.slice(3).split('/').includes(scope.unit);
+  if (unified.slice(3).split('/').includes(scope.unit)) return false;
+  const identity = identifyProcess(Number(pid));
+  if (identity === null) throw new Error(`uninspectable PID ${pid} has no identity`);
+  // Proof: without the start comparison `a non-dumpable process that left for another scope
+  // after the job still holds` (host-job-holds.test.ts) saw tmp `released` with the file open
+  // (2026-11-02, Slice 3 review R1).
+  return identity.boot === scope.before.boot && BigInt(identity.start) < BigInt(scope.before.start);
 }
 
 /** A process's `comm`, or `?` once it is gone or unreadable: evidence text only. */
@@ -867,14 +893,28 @@ function inspectHolds(locator: string, scope?: JobScope): void {
     } catch (cause) {
       if (isMissing(cause) || identifyProcess(Number(pid)) === null) continue;
       if (cause instanceof Error && cause.message.includes('remains charged')) throw cause;
-      // Proof: without this branch `a non-dumpable process outside the job's scope does not hold
+      // Proof: without this branch `a non-dumpable process outside the job scope does not hold
       // its tmp directory` (host-job-holds.test.ts) saw tmp `blocked` "cannot inspect process
-      // PID"; without the `outsideScope` test `a non-dumpable process inside the job's scope
-      // still holds` saw it `released` (2026-11-02, Slice 3 review F1).
+      // PID"; with `outsideScope` always true `a non-dumpable process inside the job scope still
+      // holds its tmp directory` saw it `released` (2026-11-02, Slice 3 review F1).
       if (scope !== undefined && isAccessDenied(cause) && outsideScope(pid, scope)) {
-        scope.outside.push({ pid: Number(pid), comm: commOf(pid) });
+        scope.outside.push({
+          pid: Number(pid),
+          comm: commOf(pid),
+          // Only orders the evidence text: a process gone since `outsideScope` sorts last.
+          start: BigInt(identifyProcess(Number(pid))?.start ?? 0),
+        });
         continue;
       }
+      // A non-dumpable daemon the payload left behind (ssh-agent, gpg-agent) keeps the entry
+      // blocked until it ends; stopping the job's scope ends it.
+      // Proof: dropping the remedy made `a non-dumpable process inside the job scope still holds
+      // its tmp directory` (host-job-holds.test.ts) miss `systemctl --user stop` (2026-11-02, R8).
+      if (scope !== undefined && isAccessDenied(cause))
+        throw new Error(
+          `cannot inspect process PID ${pid} (${commOf(pid)}), which may hold the job's files; end it, or stop the job's scope with \`systemctl --user stop ${scope.unit}\`, and settlement retries`,
+          { cause },
+        );
       throw new Error(
         `cannot inspect process PID ${pid} for resource cleanup; resolve process access and retry cleanup`,
         { cause },
@@ -2425,6 +2465,8 @@ export class ResourceRuntime {
   recordHostJobExit(id: string, exitCode: number): HostJob {
     return this.transaction(() => {
       const job = this.inspectHostJob(id);
+      // Proof: accepting an exit after a launch failure made the model in host-jobs.model.test.ts
+      // fail its `LaunchFailure` command (2026-11-02, Slice 3 review R4).
       if (job.process === null || job.exitCode !== null || job.launchFailure !== undefined)
         throw new Error('host job has no running payload to record');
       job.exitCode = exitCode;
@@ -2501,8 +2543,8 @@ export class ResourceRuntime {
    * resting commit recorded at admission and `git status --porcelain` empty. Ignored files are
    * the tree's caches and do not block.
    */
-  private unitEvidence(unit: HostJobUnit, jobId: string): HostJobEntry {
-    const scope = jobScopeOf(jobId);
+  private unitEvidence(unit: HostJobUnit, job: HostJob): HostJobEntry {
+    const scope = jobScopeOf(job);
     try {
       inspectHolds(unit.path, scope);
       const head = git(['-C', unit.path, 'rev-parse', 'HEAD']);
@@ -2576,7 +2618,7 @@ export class ResourceRuntime {
       };
       for (const [index, unit] of job.units.entries()) {
         if (unit.state === 'released') continue;
-        job.units[index] = { ...unit, ...(excluded ? this.unitEvidence(unit, job.id) : waiting) };
+        job.units[index] = { ...unit, ...(excluded ? this.unitEvidence(unit, job) : waiting) };
       }
       if (job.tmpDisk.state !== 'released') job.tmpDisk = excluded ? this.tmpIntent(job) : waiting;
       this.summarize(job);
@@ -2591,7 +2633,7 @@ export class ResourceRuntime {
       const job = this.inspectHostJob(id);
       if (job.tmpDisk.state === 'released' || !job.tmpDeleteIntent) return job;
       const before = settlementOf(job);
-      const scope = jobScopeOf(job.id);
+      const scope = jobScopeOf(job);
       try {
         if (this.hostJobTmpPresent(job)) {
           inspectHolds(job.locator, scope);
@@ -2699,7 +2741,7 @@ export class ResourceRuntime {
       // (host-jobs.test.ts) released an absence nobody intended (2026-11-01, Slice 2).
       if (!present && !job.tmpDeleteIntent)
         return { state: 'blocked', reason: 'tmp directory absent without a deletion intent' };
-      if (present) inspectHolds(job.locator, jobScopeOf(job.id));
+      if (present) inspectHolds(job.locator, jobScopeOf(job));
       job.tmpDeleteIntent = true;
       return { state: 'held', reason: 'tmp directory removal intended' };
     } catch (cause) {

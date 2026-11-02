@@ -867,6 +867,38 @@ if (insideOpsNamespace(import.meta.path)) {
       expect(job.state).toBe('released');
     }, 60000);
 
+    test('a SIGINT during the synchronous gate work refuses 130', async () => {
+      const { config, checkout, base } = pool();
+      const marker = join(base, 'payload-ran');
+      const payload = payloadScript(join(base, 'payload.sh'), `touch ${marker}`);
+      // The reviewer's probe: the signal lands inside the synchronous stretch before the gate.
+      const interrupting: ScopeTelemetry = {
+        cgroupOf: (pid) => fake.telemetry.cgroupOf(pid),
+        members: (cgroup) => fake.telemetry.members(cgroup),
+        read: (cgroup) => {
+          process.kill(process.pid, 'SIGINT');
+          Bun.sleepSync(300);
+          return fake.telemetry.read(cgroup);
+        },
+      };
+      const refused = await refusal(
+        runHostJob(
+          request(config, 'test-queued', [payload]),
+          runDependencies(checkout, [], { telemetry: interrupting }),
+        ),
+      );
+      expect(refused.exitCode).toBe(130);
+      expect(refused.message).toBe(
+        'ops job run: interrupted by SIGINT before the gate opened; the payload did not run',
+      );
+      expect(existsSync(marker)).toBe(false);
+      const job = onlyJob(config);
+      expect(job.exitCode).toBeNull();
+      expect(job.launchFailure).toBe(
+        'payload did not run: interrupted by SIGINT before the gate opened',
+      );
+    });
+
     test('the launcher process ends with its job', async () => {
       const { config, checkout } = pool();
       const started = monotonic.now();

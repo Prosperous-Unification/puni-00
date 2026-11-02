@@ -513,7 +513,10 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
       expect(stderr.split('\n').length, args.join(' ')).toBe(2);
       expect(stderr, args.join(' ')).toStartWith('error: ');
     }
-  });
+    // `inspect-authority` refuses in its own module after `cli.ts` loads every command module
+    // (about 5 s on a loaded host, mostly the resource runtime and the activation store): the
+    // three runs need more than the target's 60 s only under extreme load, so 90 s.
+  }, 90000);
 });
 
 describe('Dash help and completion', () => {

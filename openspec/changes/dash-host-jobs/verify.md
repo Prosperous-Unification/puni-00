@@ -546,13 +546,16 @@ All of F1–F13 were applied on `feat/dash-host-jobs-3-run`. The plan head was s
 #### New assumptions (overrulable by id)
 
 - **S3-A15 (F1).** Rule for an uninspectable process: when reading a same-user process's `cwd`, `fd` or `maps` returns `EACCES` or `EPERM`, settlement reads that process's `/proc/<pid>/cgroup`.
-  - Outside the job's unit `dash-job-<id>.scope` (matched as a path segment): the process is not a holder. It is recorded in the entry's reason as `uninspectable_outside_scope: <pid> (<comm>)`. The entry shape is `{ state, reason }`, so the evidence stays in the text.
+  - Outside the job's unit `dash-job-<id>.scope` (matched as a path segment) **and started before the job's leader** (amended by S3-A25): the process is not a holder. It is recorded in the entry's reason as `uninspectable_outside_scope: <pid> (<comm>)`. The entry shape is `{ state, reason }`, so the evidence stays in the text.
   - Inside the unit, or with its cgroup unreadable: the entry stays `blocked`.
   - The runtime knows the unit name from the job id. It knows no cgroup path.
   - Worktree cleanup and `ops pool init`'s unit check are unchanged and still refuse (task 6.6). On h2puni this means `ops pool init` refuses until 6.6 is done.
 - **S3-A16 (F5).** `HostJob.launchFailure` is optional, so existing ledgers still parse. `recordHostJobLaunchFailure` records `payload did not run: <reason>`, and the exit code stays null. `ops job status` prints that reason.
 - **S3-A17 (F4).** A signal that arrives before the gate opens refuses at the gate: SIGHUP 129, SIGINT 130, SIGTERM 143. `awaitScope` returns at once, and a leader still in `systemd-run` 2 s after the gate closed is killed. After the gate opens, signals are forwarded as before.
+  - The synchronous work before the gate (gate sample, HEAD check, `records.begin`, watch start) is followed by an event-loop turn (review R2), so a signal received during it is acted on before `start`.
+  - What remains is unavoidable: a signal that lands after that last check and before `gate.write('start')` (a few synchronous statements, no I/O). It is dispatched at the next turn, after the payload started, and is then forwarded to the payload's session. The payload sees it, and the run records the payload's own status.
 - **S3-A18 (F9).** HEAD is checked again just before the gate opens, after the gate sample. If it moved, the job is refused 64 unrun and settled. `payloadSha` is renamed `launcherSha`.
+  - This narrows the gap; it guarantees nothing (review R3). HEAD can still move between the check and the payload's exec, and at any time during the run. `launcherSha` names the commit the catalogue was read at, not one the payload provably ran.
 - **S3-A19 (F3).** The fake scope seam: a fake `systemd-run` that execs its command (after the probe's `-- true`), plus `fakeScopeTelemetry`.
   - The gated shell is "in" `/fake/dash-job-<id>.scope`.
   - Counters are files under a scratch root, read by the production reader.
@@ -575,7 +578,7 @@ All of F1–F13 were applied on `feat/dash-host-jobs-3-run`. The plan head was s
 | Fake                                                        | `job-run.test.ts`, "declared container bounds" | Containers, which also need a local daemon with the image.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Real scope (skip, named, without a user manager)            | `job-run.test.ts`                              | The same measured set "over the real scope", plus `MemoryHigh`/`MemoryMax`/real-cgroup assertions, `cap`, and the installed entrypoint.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | None (runs everywhere)                                      | `containers.test.ts` (stub `docker`)           | Replay failure (F2f), labels of no live job (F8), stream failure (F11).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| None (outside any namespace)                                | `host-job-holds.test.ts`                       | Outside-scope non-dumpable process (runs everywhere) and inside-scope (needs a real scope).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| None (outside any namespace)                                | `host-job-holds.test.ts`                       | Outside-scope predating process, later process outside the scope, note cap (run everywhere); later process in another scope and inside-scope (need a real scope).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | —                                                           | `status.test.ts`                               | Status refusal and launch-failure display (F7, F5).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 #### Fault injection (review fixes)
@@ -616,3 +619,43 @@ Same method as above: exact replacement, the named file run, restore byte for by
 - Worktree cleanup and `ops pool init` still throw `cannot inspect process PID` for a non-dumpable same-user process (task 6.6). On h2puni, with `(sd-pam)` running, `ops pool init` refuses. That blocks slice 6's enrollment until 6.6 is decided.
 - The real-host proof of F1 ran on this workstation (systemd 255, its own `(sd-pam)`), not on h2puni or h4claw (systemd 259).
 - A run-records file owned by another uid is unverified (S3-A23).
+
+### Second review pass (Fable on d4e31c709, MERGE AFTER FIXES)
+
+All of R1–R9 are applied. The plan head is still `056466709`.
+
+#### New assumptions (overrulable by id)
+
+- **S3-A25 (R1).** A different cgroup alone does not make a process "outside". The process must also have started, in this boot, before the job's leader. The comparison uses `/proc/<pid>/stat` start ticks, which are readable for non-dumpable processes; before a launch it compares against the launcher instead.
+  - Anything later blocks, whatever its cgroup.
+  - Consequence: a job begun before a reboot is blocked by every uninspectable process of the new boot, and an operator settles it.
+  - The reviewer's probe is now a negative: a later non-dumpable holder in `dash-job-other-<uuid>.scope`. So is a later one in no scope at all; that one runs everywhere.
+- **S3-A26 (R5).** The outside-scope note names the three most recently started processes (by start ticks; pids wrap, which happened on this workstation) and counts the rest as `and <n> more`.
+- **S3-A27 (R8).** An uninspectable process that blocks a host-job entry is named with its `comm`, together with the remedy: end it, or `systemctl --user stop dash-job-<id>.scope`.
+- **S3-A28 (R9).** The launcher settles at once, then after 250 ms, then once a second. The gated shell is usually still exiting on the first pass.
+- **S3-A29 (R6).** `cli.test.ts`'s exit-code test gets a 90 s budget.
+  - The 5 s is the import graph, not the refusal: `cli.ts` loads every command module before a delegated command refuses. Measured: `resources/command` 3082 ms (the runtime and `@wbs/contracts`) and `activation/observation-commands` 1863 ms. `inspect-authority` with no arguments took 5.22 s, while `apply` (refused by the parser) and an `ops` usage error took 0.08 s.
+  - Making `cli.ts`'s handlers import their modules lazily is a cross-cutting change with its own dispatcher proofs, so it is recorded as follow-up in tasks.md 3.1, not done here. `ops job run` pays the same roughly 3 s, because it opens the runtime.
+- **S3-A30 (R4).** The model's `LaunchFailure` command:
+  - is eligible on a launched job whose payload still runs;
+  - records the failure, then expects a later exit to be refused and the exit code to stay null;
+  - ends the leader, so the model then treats the job as exited.
+  - One fixed example runs it. Settlement still inspects holds after a launch failure; skipping that is not done, because it saves one pass and weakens nothing it proves.
+
+#### Seam note (R7)
+
+`scopeArguments` (`--user --scope --quiet --collect --expand-environment=no --unit …`, `-p MemoryHigh=…`, and `-p MemoryMax=…` for `cap`) is verified only by the real-scope tests (the cgroup path, `memory.high` and `memory.max` assertions, and `cap enforcement sets MemoryMax beside MemoryHigh`). The fake `systemd-run` discards every option before `--`, so the fake seam proves nothing about them. Where those tests skip, nothing checks those options.
+
+#### Fault injection (second pass)
+
+| Fault injected                                               | Test that went red                                                                                                                                             | Observed                                                |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| start comparison removed in `outsideScope`                   | `a non-dumpable process started after the job, outside its scope, still holds`; `a non-dumpable process that left for another scope after the job still holds` | both `released` with the file open                      |
+| event-loop yields before the last interruption check removed | `a SIGINT during the synchronous gate work refuses 130`                                                                                                        | no refusal: the payload ran and its status was returned |
+| outside-scope cap removed                                    | `the outside-scope note names three and counts the rest`                                                                                                       | 11 names                                                |
+| remedy dropped from the blocked message                      | `a non-dumpable process inside the job scope still holds its tmp directory`                                                                                    | no `systemctl --user stop …`                            |
+| `recordHostJobExit` accepts an exit after a launch failure   | `the admission queue and settlement follow the model under every interleaving` (model `LaunchFailure`)                                                         | exit accepted                                           |
+
+#### Commands (second pass, fresh; no full target)
+
+See the PR body for the trimmed outputs of the touched test files, `cli.test.ts`, typecheck, lint, prettier and `openspec validate`.
