@@ -116,11 +116,11 @@ export function createFailureSerializer(
   redact: RedactionPolicy,
 ): (value: unknown) => SerializedFailure {
   return (value: unknown): SerializedFailure => {
-    // Proof: with `@shared/failures`' own never-throw wrapper broken, removing this guard let
-    // `TypeError: Array.isArray cannot be called on a Proxy that has been revoked` escape the
-    // serializer and write no record at all, failing "writes a visible loss rather than throwing
-    // when no report can be built"; with the guard in place and the same dependency broken the
-    // test still got a record and failed only on `Received: "UNSERIALIZED_1"` (2026-09-21).
+    // Proof: on 2026-11-02, with `@shared/failures`' own never-throw wrapper broken, removing
+    // this guard let `injected reporting fault: makeReportPair threw` escape the serializer and
+    // write no record at all, failing "writes a visible loss rather than throwing when no report
+    // can be built"; with the guard in place and the same dependency broken the test still got a
+    // record and failed only on `Received: "UNSERIALIZED_…"`.
     try {
       // Proof: replacing this lookup with a structural `value.reported !== undefined` read
       // disclosed `hunter2` from a forged outcome — `Received: "{\"occurrence_id\":\"forged\",

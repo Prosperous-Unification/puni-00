@@ -129,11 +129,13 @@ let unreportedFailures = 0;
  * One `makeReportPair` call resolves the occurrence id once and shares it, so the operator's record
  * and the answer given to a user or an agent correlate even for a thrown primitive. The same policy
  * and the same inspection limits go to both bags, so the public report is redacted too; the byte
- * budget is the diagnostic report's alone. Reporting can still fail — a revoked `Proxy` as a cause
- * makes the library throw (caught-object-report-json issue 217, still open on 13.0.0) — and a
- * boundary that is already handling a failure must not be handed a second one, so that outcome
- * comes back as `reported: false` with a local handle and a fixed reason. The reporter is not
- * called again, and nothing is read off the caught value afterwards: reading it is what threw.
+ * budget is the diagnostic report's alone. No caught value is known to make the library throw any
+ * more — a revoked `Proxy` as a cause did until caught-object-report-json 14.0.0 fixed its issue
+ * 217 — but a boundary that is already handling a failure must not be handed a second one if a
+ * library version or an invalid `redact` throws, so that outcome comes back as `reported: false`
+ * with a local handle and a fixed reason. The reporter is not called again, and nothing is read
+ * off the caught value afterwards: reading it may be what threw. Tests reach this branch with
+ * `runWhileReportingThrows` from `@shared/failures/testing`.
  *
  * @param caught The value that was thrown. Any value, including primitives, `null` and hostile
  *   objects.
@@ -168,8 +170,10 @@ export function reportFailure(
         public: bag,
       }),
     };
-    // Proof: replacing the wrapper with a bare block let a revoked cause throw
-    // `Array.isArray cannot be called on a Proxy that has been revoked` (2026-09-20).
+    // Proof: on 2026-11-02, replacing the wrapper with a bare block let the fault injected by
+    // `runWhileReportingThrows` escape as `injected reporting fault: makeReportPair threw` and
+    // failed "a library throw is reported as reporting loss, not as a throw" and "two losses in
+    // one process do not share a handle".
   } catch {
     unreportedFailures += 1;
     return {

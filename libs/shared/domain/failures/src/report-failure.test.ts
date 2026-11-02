@@ -11,6 +11,7 @@ import {
   reportFailure,
   SENSITIVE_KEYS,
 } from './report-failure';
+import { runWhileReportingThrows } from './testing';
 
 test('bounds the whole report and refuses to run the caught value', () => {
   expect(FAILURE_REPORT_LIMITS).toEqual({
@@ -113,28 +114,43 @@ test('correlates a primitive failure without publishing its contents', () => {
   expect(JSON.stringify(reporting.reports)).not.toContain('private-marker');
 });
 
-test('a cause that cannot be inspected is reported as reporting loss, not as a throw', () => {
-  const { proxy, revoke } = Proxy.revocable({}, {});
-  revoke();
-  const reporting = reportFailure(new Error('boom', { cause: proxy }), {
-    redact: createFailureRedaction([]),
-  });
+test('a library throw is reported as reporting loss, not as a throw', () => {
+  const redact = createFailureRedaction([]);
+  // Proof: on 2026-11-02, leaving `makeReportPair` unfaulted inside `runWhileReportingThrows` failed
+  // this test and the next on `reported: true`; the catch's own proof is in report-failure.ts.
+  const reporting = runWhileReportingThrows(() => reportFailure(new Error('boom'), { redact }));
 
-  expect(reporting.reported).toBe(false);
+  expect(reporting).toEqual({
+    reported: false,
+    occurrenceId: expect.stringMatching(/^UNREPORTED_\d+$/) as string,
+    reason: 'reporting threw; the failure stands and both of its reports are lost',
+  });
 });
 
 test('two losses in one process do not share a handle', () => {
-  const { proxy, revoke } = Proxy.revocable({}, {});
-  revoke();
   const redact = createFailureRedaction([]);
-  const first = reportFailure(new Error('a', { cause: proxy }), { redact });
-  const second = reportFailure(new Error('b', { cause: proxy }), { redact });
+  const [first, second] = runWhileReportingThrows(() => [
+    reportFailure(new Error('a'), { redact }),
+    reportFailure(new Error('b'), { redact }),
+  ]);
 
   expect(first.reported).toBe(false);
   expect(second.reported).toBe(false);
   if (first.reported || second.reported) return;
   expect(first.occurrenceId).not.toBe(second.occurrenceId);
   expect(first.reason).toBe(second.reason);
+});
+
+test('the injected reporting fault ends with the work it wrapped', () => {
+  const redact = createFailureRedaction([]);
+  runWhileReportingThrows(() => reportFailure(new Error('lost'), { redact }));
+
+  // Proof: on 2026-11-02, deleting `fault.mockRestore()` from `runWhileReportingThrows` failed
+  // this test on `Expected: true` / `Received: false`.
+  expect(reportFailure(new Error('after'), { redact }).reported).toBe(true);
+  // Proof: on 2026-11-02, deleting the promise check from `runWhileReportingThrows` failed this
+  // assertion on `Received function did not throw`.
+  expect(() => runWhileReportingThrows(() => Promise.resolve())).toThrow(TypeError);
 });
 
 test('redacts a secret the disclosure policy selected into the public report', () => {

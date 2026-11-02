@@ -1,4 +1,5 @@
 import type { FailureReporting } from '@shared/failures';
+import { runWhileReportingThrows } from '@shared/failures/testing';
 import type { LogFields, Logger, LogMethod } from '@wbs/contracts';
 import { createLogger, LogRecord } from '@wbs/observability';
 import { parseOrThrow } from '@wbs/validation';
@@ -92,7 +93,7 @@ test('logs one registered forward failure with owned secrets redacted', () => {
   });
 });
 
-test('logs one visible correlated loss when reporting cannot inspect the failure', () => {
+test('logs one visible correlated loss when the report library throws', () => {
   const lines: string[] = [];
   const sink = createLogger({
     service: 'gw-01',
@@ -100,15 +101,18 @@ test('logs one visible correlated loss when reporting cannot inspect the failure
   });
   const captured = captureErrors(sink);
   const report = createUnexpectedBackendFailureReporter(captured.logger, []);
-  const revocable = Proxy.revocable({}, {});
-  revocable.revoke();
 
+  // Proof: on 2026-11-02, making `reportFailure`'s catch rethrow failed this test on
+  // `not.toThrow()` with `injected reporting fault: makeReportPair threw`; leaving
+  // `makeReportPair` unfaulted failed it on `not.toContain("raw caught text")`.
   expect(() => {
-    report({
-      caught: new Error('raw caught text', { cause: revocable.proxy }),
-      operation: 'resume',
-      connectionId: 'connection-29',
-      clientId: 'user-31',
+    runWhileReportingThrows(() => {
+      report({
+        caught: new Error('raw caught text'),
+        operation: 'resume',
+        connectionId: 'connection-29',
+        clientId: 'user-31',
+      });
     });
   }).not.toThrow();
 
