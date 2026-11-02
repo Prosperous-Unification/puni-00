@@ -1,5 +1,8 @@
 import { S3JournalRemote } from '@website/store-sqlite';
 
+import { requestBodyByteLimit } from './body-capacity';
+import { replyHttpIdleSeconds } from './conversation/stream';
+import { loadCountryDatabase } from './country-database';
 import { describeAlertWebhook } from './guardrail-alerts';
 import { readRetentionJournalSetting, readWebsiteApiConfig } from './runtime-config';
 import { createWebsiteApi } from './server';
@@ -12,6 +15,8 @@ const journal = readRetentionJournalSetting(process.env);
 const config = readWebsiteApiConfig(process.env);
 const api = createWebsiteApi({
   ...config,
+  // Proof: omitting injection made the actual compiled-main regional package smoke fail.
+  countryDatabase: loadCountryDatabase(),
   retentionJournal:
     journal.mode === 's3'
       ? {
@@ -34,7 +39,10 @@ await api.openRetentionJournal();
 Bun.serve({
   hostname: config.apiBindHost,
   port,
-  maxRequestBodySize: 12_000,
+  // Proof: raising only this cap to 128 KiB changed source-main over-bound refusal from 413 to 400.
+  maxRequestBodySize: requestBodyByteLimit,
+  // Proof: omitting this setting reset the delayed source-main HTTP test before provider completion.
+  idleTimeout: replyHttpIdleSeconds,
   fetch: (request, server) => api.fetch(request, server.requestIP(request)?.address),
 });
 console.info(`Website API listening on port ${String(port)}`);

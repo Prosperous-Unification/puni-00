@@ -58,7 +58,11 @@ async function settle(page) {
 }
 
 const errors = [];
-const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+const browser = await chromium.launch({
+  headless: true,
+  channel: env['PUNI_BROWSER_CHANNEL'] ?? 'chrome',
+  args: ['--no-sandbox'],
+});
 try {
   const { page, posts: streamPosts } = await openDraft(browser, { width: 1440, height: 900 });
   await page.goto(appOrigin, { waitUntil: 'domcontentloaded' });

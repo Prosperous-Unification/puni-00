@@ -15,6 +15,7 @@ import {
 } from './build-contract';
 
 const disabled = {
+  scoping: { version: 'legacy' as const },
   stage: 'clarify',
   turns: [],
   visitorTurnsRemaining: 8,
@@ -96,6 +97,7 @@ describe('start over', () => {
 });
 
 const live: Conversation = {
+  scoping: { version: 'legacy' },
   stage: 'clarify',
   turns: [],
   visitorTurnsRemaining: 8,

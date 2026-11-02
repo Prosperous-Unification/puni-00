@@ -49,6 +49,7 @@ const PINNED_COMMAND_KINDS = [
   'setCapacity',
   'setResourceCapacity',
   'setDemand',
+  'setDirectoryCapacity',
   'setStepAllowance',
   'setPriorityBands',
   'createTeam',

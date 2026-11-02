@@ -6,6 +6,8 @@ import type {
   LeaseReleaseReason,
   LeaseRenewal,
   OccupancyRow,
+  OrganizationOccupancyRow,
+  ResourceUnits,
   WorkItemPlacement,
 } from '@wbs/domain';
 
@@ -14,7 +16,7 @@ import type { ResourceAccess } from './organization-access';
 import type { ProgressKey } from './progress-store';
 import type { WriteStamp } from './write-stamp';
 
-export type { Claim, OccupancyRow, ResourceUnits } from '@wbs/domain';
+export type { Claim, OccupancyRow, OrganizationOccupancyRow, ResourceUnits } from '@wbs/domain';
 
 /**
  * One stored `claim_occupancy` row: the copy of its leaf's units of one
@@ -148,6 +150,31 @@ export interface ClaimStore extends ClaimIdentity {
    * (`occupancyByResource`).
    */
   occupancyOf(projectId: string): Promise<OccupancyRow[]>;
+  /**
+   * Every occupancy row naming one of `resourceIds`, in every project of the
+   * resource's organization, each with its project and that organization
+   * (`wbs-shared-occupancy` S2), ordered as {@link occupancyOf}. A row whose
+   * project belongs to no organization or to another organization than the
+   * resource's is not answered, and neither is any row of a resource with no
+   * organization.
+   *
+   * Not fenced to a project: a working plan reads it straight through, uncached,
+   * on the batch's own connection, so inside the batch's write turn it answers
+   * every committed claim and the batch's own earlier ones.
+   */
+  organizationOccupancyOf(resourceIds: readonly string[]): Promise<OrganizationOccupancyRow[]>;
+  /**
+   * The units every leaf of the resource's organization holds of each of
+   * `resourceIds`: each leaf's largest copy, summed, in no promised order; a
+   * resource nobody holds has no entry. What the claim check and the startable
+   * read count (`wbs-shared-occupancy` S4), without materialising a row; the
+   * holders are {@link organizationOccupancyOf}'s, read only for a refusal.
+   * Read like it, on the batch's own connection.
+   *
+   * @throws when a resource some organization owns is held in a project that
+   * belongs to no organization: corrupt trusted state.
+   */
+  organizationUnitsOf(resourceIds: readonly string[]): Promise<ResourceUnits[]>;
   /**
    * Inserts `claims` verbatim — id, run, parent and writing account included —
    * with the `occupancy` rows they carry, and states each of `stated`

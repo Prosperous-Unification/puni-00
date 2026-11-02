@@ -1167,6 +1167,8 @@ describe('migration deploy entrypoints', () => {
           name !== '20261026130000_widen_organization_audit_machine_tokens' &&
           name !== '20261028100000_add_agent_pool' &&
           name !== '20261028100100_widen_organization_audit_agent_pools' &&
+          name !== '20261101100000_widen_organization_audit_directory_capacity' &&
+          name !== '20261101100100_add_resource_directory_capacity' &&
           name !== '20261101120000_add_host_job_projection',
       ),
     );
@@ -1245,6 +1247,8 @@ describe('migration deploy entrypoints', () => {
           name !== '20261026130000_widen_organization_audit_machine_tokens' &&
           name !== '20261028100000_add_agent_pool' &&
           name !== '20261028100100_widen_organization_audit_agent_pools' &&
+          name !== '20261101100000_widen_organization_audit_directory_capacity' &&
+          name !== '20261101100100_add_resource_directory_capacity' &&
           name !== '20261101120000_add_host_job_projection',
       ),
     );

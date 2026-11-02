@@ -527,6 +527,17 @@ export const commandDefinitions = {
     description:
       'Remove a resource from the directory (organization admins and super-admins only, since a removal reaches every project; anyone else is refused forbidden, and so is every machine credential and MCP delegation, which act as at most a member whatever their account’s role). Refused in_use with the counts of demands, capacities and occupancies naming it unless cascade, which removes them in the same transaction.',
   }),
+  setDirectoryCapacity: defineCommand('setDirectoryCapacity', {
+    schema: type({
+      kind: "'setDirectoryCapacity'",
+      ...resource,
+      units: 'number | null',
+      'confirm?': 'true',
+    }),
+    scope: 'directory',
+    description:
+      'State how many units of a resource exist for every project of the organization (its directory capacity): a whole number from 0; null makes it unstated again. Organization admins and super-admins only, in their own session or their own MCP session; anyone else is refused forbidden, and so is every machine credential and every MCP consent acting as an agent, which act as at most a member whatever their account’s role. A resource no organization owns is refused organization_required. While stated, every claim of that resource in any project of the organization must fit what the other projects hold as well as its own project’s capacity. Not journalled; each write is one organization audit row. confirm is reserved for clearing above the organization’s cap.',
+  }),
   createMeasure: defineCommand('createMeasure', {
     schema: type({
       kind: "'createMeasure'",

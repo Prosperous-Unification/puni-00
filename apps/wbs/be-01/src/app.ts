@@ -107,6 +107,7 @@ import {
   nativeBrowserLogoutEndpoints,
 } from './controller/auth-oidc-endpoints';
 import { authPasswordEndpoints } from './controller/auth-password-endpoints';
+import { authResetEndpoints } from './controller/auth-reset-endpoints';
 import { bearerContextRoutes } from './controller/bearer-context.routes';
 import type { BrowserSessionAuthority } from './controller/browser-session';
 import { calendarMarkerRoutes } from './controller/calendar-marker.routes';
@@ -597,6 +598,7 @@ export function mountedEndpoints(
       opts.browserSession,
       opts.appOrigin,
     ),
+    ...authResetEndpoints(),
     ...bearerContextRoutes(opts.bearerContext ?? REFUSE_BEARER_CONTEXT),
     // Proof: removing this spread made app.routes.test.ts receive 40 bindings
     // instead of the 44 required by the OIDC composition.

@@ -705,6 +705,8 @@ describe('readMigrationFolders', () => {
       '20261026130000_widen_organization_audit_machine_tokens',
       '20261028100000_add_agent_pool',
       '20261028100100_widen_organization_audit_agent_pools',
+      '20261101100000_widen_organization_audit_directory_capacity',
+      '20261101100100_add_resource_directory_capacity',
       '20261101120000_add_host_job_projection',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
@@ -914,6 +916,8 @@ describe('rollbackTo, against a real database', () => {
         '20261026130000_widen_organization_audit_machine_tokens',
         '20261028100000_add_agent_pool',
         '20261028100100_widen_organization_audit_agent_pools',
+        '20261101100000_widen_organization_audit_directory_capacity',
+        '20261101100100_add_resource_directory_capacity',
         '20261101120000_add_host_job_projection',
       ]);
 
@@ -921,6 +925,8 @@ describe('rollbackTo, against a real database', () => {
 
       expect(reversed).toEqual([
         '20261101120000_add_host_job_projection',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
         '20261028100000_add_agent_pool',
         '20261026130000_widen_organization_audit_machine_tokens',
@@ -1143,6 +1149,8 @@ describe('rollbackTo, against a real database', () => {
         '20261026130000_widen_organization_audit_machine_tokens',
         '20261028100000_add_agent_pool',
         '20261028100100_widen_organization_audit_agent_pools',
+        '20261101100000_widen_organization_audit_directory_capacity',
+        '20261101100100_add_resource_directory_capacity',
         '20261101120000_add_host_job_projection',
       ]);
     } finally {
@@ -1216,6 +1224,8 @@ describe('rollbackTo, against a real database', () => {
       // Proof: omitting restore approvals from production rollback selection failed this complete descending order.
       expect(reversed).toEqual([
         '20261101120000_add_host_job_projection',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
         '20261028100000_add_agent_pool',
         '20261026130000_widen_organization_audit_machine_tokens',
@@ -1362,6 +1372,8 @@ describe('rollbackTo, against a real database', () => {
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
         '20261101120000_add_host_job_projection',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
         '20261028100000_add_agent_pool',
         '20261026130000_widen_organization_audit_machine_tokens',
@@ -1493,6 +1505,8 @@ describe('rollbackTo, against a real database', () => {
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
         '20261101120000_add_host_job_projection',
+        '20261101100100_add_resource_directory_capacity',
+        '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
         '20261028100000_add_agent_pool',
         '20261026130000_widen_organization_audit_machine_tokens',
