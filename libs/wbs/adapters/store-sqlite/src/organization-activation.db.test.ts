@@ -211,6 +211,8 @@ describe('organization activation marker schema', () => {
 
   it('rolls back before activation and reapplies with a fresh seed', () => {
     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
+      '20261101100100_add_resource_directory_capacity',
+      '20261101100000_widen_organization_audit_directory_capacity',
       '20261028100100_widen_organization_audit_agent_pools',
       '20261028100000_add_agent_pool',
       '20261026130000_widen_organization_audit_machine_tokens',
@@ -268,9 +270,7 @@ describe('organization activation marker schema', () => {
     ]);
     expect(readAppliedMigrations().at(-1)).toBe(ORGANIZATION_OWNERSHIP);
     runMigrations(path, FOLDER);
-    expect(readAppliedMigrations().at(-1)).toBe(
-      '20261028100100_widen_organization_audit_agent_pools',
-    );
+    expect(readAppliedMigrations().at(-1)).toBe('20261101100100_add_resource_directory_capacity');
     expect(withDb(readOrganizationActivation)).toBe('pre_activation');
   });
 

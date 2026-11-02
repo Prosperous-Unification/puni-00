@@ -109,11 +109,16 @@ claiming portability. Neither prerequisite alone closes S0 or S7a.
       versions, restart after working-tree edits, explicit revocation and provenance-aware re-pinning.
       Retained recovery is expanded in [binding recovery tasks](binding-recovery-tasks.md);
       that internal slice does not close revocation or provenance-aware re-pinning.
-- [ ] 6a.4 Red/green: unified CTT hints adapter over legacy step chains, completed-work seeds,
-      DEFER_READY, generation-checked settlement and callback-free summary. Require complete
-      discovery/validation and filter durable waits/running/retry state before admission.
-      Rebuild the frontier from WBS business facts and accepted execution facts after restart;
-      a running attempt is never admitted twice.
+- [ ] 6a.4 Red/green: native CTT 0.12 materialize/prepare adapter over legacy step chains,
+      independent `createWorkSession({ completedWork })`, `advance()` work tickets,
+      accepted-WBS-only `completeWork` (`accepted`/`alreadyAccepted`) and callback-free summary.
+      Require complete disconnected topology validation and preserve distinct W/C milestones.
+      Filter current WBS eligibility and durable waits/running/retry state before atomic
+      RunStore admission; admission never completes work. Reconstruct independent sessions
+      from accepted WBS facts and durable attempt history, rejecting old tickets and avoiding
+      duplicate running admission. The [native integration tasks](../ctt-work-session-integration/tasks.md)
+      track this bounded local component; exact remote claim, intent-before-launch ordering
+      and coordinator CLI composition remain open, so this full checkbox stays unchecked.
       The [execution-history tasks](execution-history-tasks.md) implement the bounded persistence
       foundation for6a.5. External dispatch ordering and exact outcome/write/release remain later
       phases and the parent checkbox stays open.

@@ -96,6 +96,8 @@ describe(MIGRATION, () => {
   // read no definitions for either existing organization; watched 2026-10-23.
   it('seeds the five definitions for every organization that existed before it', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261101100100_add_resource_directory_capacity',
+      '20261101100000_widen_organization_audit_directory_capacity',
       '20261028100100_widen_organization_audit_agent_pools',
       '20261028100000_add_agent_pool',
       '20261026130000_widen_organization_audit_machine_tokens',
@@ -235,6 +237,8 @@ describe(MIGRATION, () => {
           name !== '20261026130000_widen_organization_audit_machine_tokens' &&
           name !== '20261028100000_add_agent_pool' &&
           name !== '20261028100100_widen_organization_audit_agent_pools' &&
+          name !== '20261101100000_widen_organization_audit_directory_capacity' &&
+          name !== '20261101100100_add_resource_directory_capacity' &&
           name !== MEASURE_FACTS &&
           name !== MEASURE_ESTIMATES &&
           name !== WORK_ITEM_BUDGETS,
@@ -245,6 +249,8 @@ describe(MIGRATION, () => {
   it('rolls back over untouched seeded definitions, and comes forward seeding again', () => {
     organization('org-a', 5);
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261101100100_add_resource_directory_capacity',
+      '20261101100000_widen_organization_audit_directory_capacity',
       '20261028100100_widen_organization_audit_agent_pools',
       '20261028100000_add_agent_pool',
       '20261026130000_widen_organization_audit_machine_tokens',
