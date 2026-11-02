@@ -1956,3 +1956,41 @@ All with `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset.
 - **`bunx openspec validate dash-host-jobs --json`:** `failed: 0`.
 - **Not run, as asked:** the full `twilight-dash:test` target waits for the re-merge with
   #816.
+
+### Merge with slice 6a (`994512439`)
+
+Merged into `feat/dash-host-jobs-6b-transition` as a merge commit (`8964a3963`), not a rebase,
+on the coordinator's go.
+
+- **Conflicts:** only `tasks.md` and `verify.md`, both resolved by hand.
+  - In tasks.md, 6.1 keeps 6a's launcher text with its "no host may be enrolled" note struck,
+    since observe mode and the guard land here.
+  - 6.4 keeps 6a's container-measurement note.
+  - 6.5's eligibility wording is 6b's: 64 at init and at every open.
+  - 6.6 keeps 6a's J19 completion.
+  - 6.7 stays where 6b moved it.
+  - verify.md orders Slice 6a, then Slice 6b.
+- **Non-conflicting follow-ups:**
+  - `docs/infra/heavy-job-launchers.md` no longer says the observe phase is owed.
+  - S6-A2 notes it was resolved here.
+  - 6a's `launchers.test.ts` gains the fixture change described under "Slice 6a's launcher
+    suite on the combined tree".
+- **One fix the merged tree surfaced** (`e6c20afff`). Since K2 the holder counts as held once
+  the lock's own record names it. The library writes that record just before its `waited …`
+  line, so the real-scope `a gate is measured` missed the line in its report. Dash now gives
+  the log up to 20 more polls to show its own `held` marker. That changes diagnostics only, not
+  any decision, so there is no new check and no fault row.
+
+Commands (fresh, on `e6c20afff`, `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset):
+
+- **Targeted tests:** exit 0, 122 pass, 0 fail across 17 files (outer), every namespaced inner
+  run passing. The set was `src/ops` (with `launchers.test.ts`: 10 of 10), `src/resources/{legacy-lock,host-jobs,host-jobs.model,host-job-holds,host-job-publication,resource-holds}.test.ts`,
+  `src/compute/report-capacity.host-pool.test.ts`, `src/cli.test.ts` and
+  `src/no-ambient-clock.test.ts`.
+- **`bash bin/heavy-lock.test.sh`** (6a's cases included): exit 0, `all heavy-lock checks
+passed`.
+- **`twilight-dash:typecheck` and `:lint`** (`--skip-nx-cache`): exit 0 each.
+- **`bunx prettier --check`** on every touched `.ts`, `.md`, `.json` and `.yml` file: clean.
+- **`bunx openspec validate dash-host-jobs --json`:** `failed: 0`.
+- **`bunx nx run twilight-dash:test --skip-nx-cache`:** exit 0, 4247 pass, 0 fail, 138 files,
+  1853.92 s.
