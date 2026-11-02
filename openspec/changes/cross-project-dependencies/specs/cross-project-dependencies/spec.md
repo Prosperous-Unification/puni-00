@@ -2670,3 +2670,21 @@ For the legacy and identity invocations, native preflights and original joins SH
 - **AND** unexpected actual UNKNOWN SHALL retain originals and fail without granting retry, release or PASS
 - **AND** external CI, OS or interpreter termination SHALL remain unqualified termination, never a closure or cleanup receipt or a claim of host-survival immunity
 - **AND** production UNKNOWN, one-shot native closure and cleanup after work expiry SHALL retain their existing meanings.
+
+### Requirement: Bounded UC2 pre-helper infrastructure refusal
+
+The existing dependency-owner-custody fixture SHALL intercept only four named src/lib paths (initial-handoff-graph, dependency-activation-storage, edge-ownership, lock) and six named src/fixtures paths (dependency-participant-restoration, dependency-complete-activation, namespace-audit, source-startup, source-frontend-profile, source-database-binding). Exact source-map absence SHALL still refuse; same-basename lib counterparts SHALL use normal loading. This selection qualification SHALL NOT imply actual project-link or downstream mapping qualification.
+
+The fixture SHALL distinguish stopped work, terminal original API outcomes and required diagnostic publication. Terminal pre-helper refusal SHALL require recorded zero spawn entry, zero original helper-child records, every entered supported original API Promise and its SAME observer terminal and explicitly joined, and no remaining unknown operation. Exact original delegate identity and recorded outcome SHALL govern; Error shape, observer settlement alone, filesystem absence or deadline expiry SHALL NOT suffice. Only this proven terminal disposition may retire the exact parent-owned timer and keeper; it SHALL throw infrastructure failure, never return observations, publish UC2_KNOWN or qualify semantic constructor RED. All other UNKNOWN outcomes SHALL retain HOLD and original identities.
+
+#### Scenario: Known setup refusal before any helper start
+
+Given the original supported build Promise rejects normally after earlier recorded writes settle, with its observer fulfilled/joined and no spawn entry or child, work remains stopped. Cleanup-only settlement uses the same originals without reopening admission or renewing the allocation. The fixture retains partial artifacts, emits bounded private failure evidence when possible, retires only exact parent timers and throws infrastructure failure. It does not claim build success, artifact rollback or internal compiler/native retirement.
+
+#### Scenario: A diagnostic refusal does not manufacture UNKNOWN
+
+Given proven terminal setup and an independently supported terminal reporting refusal, including a reviewed known short synchronous write to the existing descriptor, the fixture retains both original failures privately, reports setup AND reporting failed through the ordinary infrastructure-failure path, and retires only parent timers. Missing/truncated/unavailable evidence remains an explicit verification failure; no fallback sink, retry, successful preparation or complete receipt is fabricated. Pending, missing, observer-rejected or unsupported diagnostic outcomes retain HOLD. Successful reporting never overrides unknown setup, spawn, child, reader or native state.
+
+#### Scenario: Unknown originals cannot retire parent custody
+
+Given an unsettled/missing/unjoined original or observer, unsupported synchronous delegate outcome, non-Promise return, or spawn entry with zero registered child, the fixture refuses terminal disposition and retains original references and parent timers. Expiry stops new work without authorizing release. Finite injected-source tests may settle their own model Promises and timer tokens; they establish no genuine native cleanup. Original75398 remains held and is not retrospectively classified by these future rules.

@@ -19,3 +19,7 @@ Preserve accepted V5 graph grammar, independent runtime-launch pins, twelve writ
 ## Bounded UC2 R2 source staging — 2026-11-02
 
 Permit source staging of the two UC2 owning tests and one private dependency-owner-custody fixture to expose genuine constructor UNKNOWN unwinding with retained originals. Preserve current production behavior and existing case budgets. Stage only reviewed source and configured statics under a separate Root lease; clock/setup proofs and native invocation require separate review and grants. Future parked-HOLD retirement and groups4–8 remain open.
+
+## UC2 refinement
+
+Select exact directories. Proven terminal setup/reporting failures retire parent timers and throw; unknown originals retain HOLD.

@@ -770,10 +770,13 @@ export async function prepareDependencyOwnerCustody(): Promise<
       const plugin: BunPlugin = {
         name: 'owned-dependency-custody-red',
         setup(build) {
+          // Proof: the basename-only selector made the same inert build consumer fail on four
+          // missing-map callbacks; exact directory-filter restoration passed (2026-11-02).
+          // This covers selector/lookup/default loading only.
           build.onLoad(
             {
               filter:
-                /\/(initial-handoff-graph|dependency-activation-storage|edge-ownership|lock|dependency-participant-restoration|dependency-complete-activation|namespace-audit|source-startup|source-frontend-profile|source-database-binding)\.ts$/,
+                /\/tools\/tool-remote-scripts\/src\/(?:lib\/(?:initial-handoff-graph|dependency-activation-storage|edge-ownership|lock)|fixtures\/(?:dependency-participant-restoration|dependency-complete-activation|namespace-audit|source-startup|source-frontend-profile|source-database-binding))\.ts$/,
             },
             (source) => {
               let contents = sourceBodies.get(
