@@ -7808,3 +7808,34 @@ Private main508 MCP preflight reconciliation: [actual owning checks and composit
 [Initializer origin-receipt prerequisite](verify-origin-receipt.md) records the completed bounded OR1–OR3 local producer:24 independently reviewed fault/restored pairs, current75 owning tests and scoped static checks. It does not establish first-reader publication, host activation or parent10.2 completion.
 
 [Local first-reader preparation](verify-first-reader-preparation.md) records the reviewed FR1–FR3 implementation lease. It remains unimplemented and unqualified; target/account designation, joined staged strict check, original-lock continuity and actual installed execution are required before any preparation completion claim.
+
+## UC2 R2 source-scope amendment — 2026-11-02
+
+SOURCE-ONLY scope record: this four-document exception permits a future separately leased three-source staging step and bounded configured statics. It supplies no source implementation, static result, discovery, intended RED/control outcome, physical guard qualification or native invocation authority. The two owning tests and fixture are still proposals at this scope-preparation epoch. No task checkbox is advanced.
+
+Independent R2 review: `/tmp/puni-uc2-native-red-r2-source-independent-review-20261102.md`, SHA256 `0b54486f2c34b0bf6a7c7fc202f3888e6c86fec2c25ee2baaba863066103f23e`. Reviewed packet: `/tmp/puni-uc2-native-red-preparation-r2-20261102/`; report SHA256 `b3466af936df5de0ca7c05d30361e86865dd590a8bd262adc08f9386f873b0f3`, manifest SHA256 `442732c2e77dd1c0a2c07db187fc98250eb9cfb37acd02225c7405150a32aac8`, exact-three-path diff SHA256 `1c361fa85dd6f1884b693cb69f0f1683e6280c1ad760a12112cb75fef8861870`, historical proposed amendment SHA256 `ac12b99d942fb0ba9eaf0cf9b0f3658c2bb7bcc9128e2600495949aa57942532`. The dated design here adopts the final fixed-clock/test-only contract, not the superseded historical shared-clock or production implementation proposal.
+
+The independent source review verified all26 packet artifact lengths/hashes, 22 before-preservation entries and 23 prospective after entries, deliberately substituting the three candidates rather than asserting installation. Existing test modes remain0664 and the fixture is absent from the subject. Candidate identities:
+
+| Prospective source under tools/tool-remote-scripts/ | Bytes | SHA256                                                           |
+| --------------------------------------------------- | ----: | ---------------------------------------------------------------- |
+| src/lib/edge-ownership.test.ts                      | 40390 | 967e062425db8930aa7626548ac972bee7a86a9c7e8d5ad9090a8ec40d95a062 |
+| src/lib/dependency-activation-storage.test.ts       | 57030 | 7002ac9c7cc4ff1103815a117d9097fa3ca070128517ff2a276bddcb97039bf0 |
+| src/fixtures/dependency-owner-custody.ts            | 71244 | bdb33a88743ae245fbec04628cbdd7230fe4ca665bc8f9ddbe08d796d864b0a9 |
+
+Scope preparation bound these exact existing prefixes, each mode0664, preserving every byte before the dated appendix:
+
+| Document                   | Prefix bytes | Prefix SHA256                                                    |
+| -------------------------- | -----------: | ---------------------------------------------------------------- |
+| original-handoff-intent.md |         2458 | 13d44d917e7e90c180fbc26354e3a725c07fee91f76932542e1f63f2cca7a3f2 |
+| original-handoff-design.md |        45448 | 3a41d080a4f0841fc7f5674a36f017c471fa9673760d2a10390a7f2fb7268422 |
+| tasks.md                   |       187543 | c8d6fd415216f92791af601e32a5cb395dd4a5e3b80199df07f4672733024a97 |
+| verify.md                  |       597809 | e9e61b88c3c7b5ea1d65ccee1ae467266acae1325a43e3e5002a60e3731cfa85 |
+
+The preparation packet `/tmp/puni-uc2-r2-four-doc-scope-preparation-20261102/` contains exact original/proposed bytes, unified diff and length/hash/mode manifest for review before materialization. Reject changed prefixes and review a fresh bridge. Root supplied worktree `/home/df/.codex/worktrees/2eee/puni-00` and HEAD `53c2a34c4f1b6621c6d13e531c439ad4649ebed4`; this is supplied identity, not a fresh Git query. The original source packet's b6d72d checkpoint remains historical. Rebind exact current worktree/HEAD, unrelated pure CI WIP and final formatted source/configuration/binary/selector/environment externally before any later execution lease.
+
+The eight prospective cases remain four RED candidates/four controls, not observed discovery or runtime allowance. Shared Bun hrtime origin is DISPROVED; strict bounded literal /proc/uptime and original S/E/latest with E=S+18000 replace it. Parser/clock/setup physical dependency proofs, actual generated-source qualification, outer-original custody and native constructor outcomes remain unexecuted. All source/static/native grants remain separate. No command/result or adjacent Proof is invented here.
+
+Skipped at scope preparation: project parser/compiler/import, configured format/type/lint/OpenSpec checks, tests, Bun/helper/native invocation, physical dependency omissions, Git/WBS/host/CI actions and gate. Only source/text/JSON/byte/hash/mode reads and /tmp proposal writes occurred. Record future commands, exact results, joins and skips only after they occur.
+
+The delta spec stays unchanged (207676 bytes, SHA256 `7b698049c2535726ca28ad966a159f867baedfc0e5acbea35fbad0d8f4b940cb`, mode0664); no new delta requirement, ADR or MAIN adoption follows. Separate graph CI placement and its five paths, current Graph source/test bytes, Graph closure evidence, immutable original HOLD, narrow manual fifth-pair acceptance and strict scalar UNMET/UNOBSERVED remain unchanged. Full228/current CI, UC1–UC5, future parked-HOLD/groups4–8, Source4 and production custody/backup/scanner/transport, H0–H8/Successor74/native/capacity/gates/main/deploy remain open or held.
