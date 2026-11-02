@@ -1,9 +1,10 @@
 /**
  * The exit codes `ops` commands keep from the shell lock (`dash-host-jobs` J13): 64 usage or an
- * uncatalogued job, 70 a host that cannot run the job measured, 73 an envelope the pool can never
- * hold, 75 no room within the wait budget, 130 and 143 a waiter interrupted by SIGINT or SIGTERM.
+ * uncatalogued job or a checkout that moved, 70 a host that cannot run the job measured, 73 an envelope the pool can never
+ * hold, 75 no room within the wait budget, 129, 130 and 143 a launcher interrupted by SIGHUP,
+ * SIGINT or SIGTERM before its payload started.
  */
-export type OpsExitCode = 64 | 70 | 73 | 75 | 130 | 143;
+export type OpsExitCode = 64 | 70 | 73 | 75 | 129 | 130 | 143;
 
 /**
  * A refusal an `ops` command prints as one `error: ` line and exits with, before the payload

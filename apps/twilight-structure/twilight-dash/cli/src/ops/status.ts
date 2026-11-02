@@ -31,6 +31,8 @@ export function formatHostPoolStatus(
   if (status.jobs.length === 0) lines.push('running none');
   for (const job of status.jobs) {
     const { envelope } = job.descriptor;
+    // Proof: dropping the peak (`peak unmeasured`) failed `one running, one waiting: the gate
+    // with its tree and peak, then the build` (status.test.ts) on the running line (2026-11-01).
     const peak = peaks.get(job.id) ?? null;
     const units =
       job.units.length === 0
@@ -42,7 +44,7 @@ export function formatHostPoolStatus(
       ...job.units.map((unit) => `${unit.exclusiveId} ${unit.state}`),
     ].join(', ');
     lines.push(
-      `running ${job.descriptor.id} ${job.label} pid ${job.process === null ? '-' : String(job.process.pid)} age ${formatSpan(now - (job.startedAt ?? job.admittedAt))} envelope ${String(envelope.cpuCores)} cores ${String(envelope.memoryGib)} GiB ${String(envelope.tmpDiskGib)} GiB tmp peak ${peak === null ? 'unmeasured' : `${(peak / GIB).toFixed(1)} GiB`} units ${units} settlement ${job.state} (${entries})`,
+      `running ${job.descriptor.id} ${job.label} pid ${job.process === null ? '-' : String(job.process.pid)} age ${formatSpan(now - (job.startedAt ?? job.admittedAt))} envelope ${String(envelope.cpuCores)} cores ${String(envelope.memoryGib)} GiB ${String(envelope.tmpDiskGib)} GiB tmp peak ${peak === null ? 'unmeasured' : `${(peak / GIB).toFixed(1)} GiB`} units ${units} settlement ${job.state} (${entries})${job.launchFailure === undefined ? '' : `; ${job.launchFailure}`}`,
     );
   }
   if (status.waiters.length === 0) lines.push('waiting none');

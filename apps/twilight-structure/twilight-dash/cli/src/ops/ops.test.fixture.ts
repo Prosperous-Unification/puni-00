@@ -1,9 +1,17 @@
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { basename, join } from 'node:path';
 
 import { expect, test } from 'bun:test';
 
 import { fixtureGit } from '../resources/host-pool.test.fixture';
+import { linuxScopeTelemetry, type ScopeTelemetry } from './scope';
 
 /**
  * Register `path`'s tests to rerun inside a private user and PID namespace that maps this
@@ -144,4 +152,102 @@ export function refusingSystemdRun(directory: string, diagnostic: string): strin
   mkdirSync(directory, { recursive: true });
   payloadScript(join(directory, 'systemd-run'), `printf '%s\\n' '${diagnostic}' >&2\nexit 1`);
   return directory;
+}
+
+/**
+ * How a fake `systemd-run` on `PATH` treats the launch (the probe, `-- true`, always passes):
+ * `exec` runs the command as systemd's scope mode does, without a scope; `exits` lives 300 ms and
+ * exits 1, a user manager that never starts the scope; `sleeps` hangs, a user manager that does
+ * not answer; `vanishes` deletes itself during the probe, so the launch finds no executable.
+ */
+export type FakeSystemdRun = 'exec' | 'exits' | 'sleeps' | 'vanishes';
+
+/**
+ * A directory holding a fake `systemd-run` (see {@link FakeSystemdRun}), to put first on `PATH`.
+ * A launch writes `<directory>/launched` before it behaves.
+ */
+export function fakeSystemdRun(directory: string, behaviour: FakeSystemdRun): string {
+  mkdirSync(directory, { recursive: true });
+  const launch = {
+    exec: 'exec "$@"',
+    exits: 'sleep 0.3\nexit 1',
+    sleeps: 'exec sleep 60',
+    vanishes: 'exec "$@"',
+  }[behaviour];
+  payloadScript(
+    join(directory, 'systemd-run'),
+    [
+      'while [ "$#" -gt 0 ] && [ "$1" != -- ]; do shift; done',
+      'shift',
+      ...(behaviour === 'vanishes' ? ['rm -f -- "$0"'] : []),
+      'if [ "$#" -eq 1 ] && [ "$1" = true ]; then exec true; fi',
+      `: > ${join(directory, 'launched')}`,
+      launch,
+    ].join('\n'),
+  );
+  return directory;
+}
+
+/** The counters a fake scope starts with, as the kernel spells them. */
+const FAKE_COUNTERS: Readonly<Record<string, string>> = {
+  'memory.peak': '4194304\n',
+  'memory.current': '2097152\n',
+  'cpu.stat': 'usage_usec 1000\nuser_usec 600\nsystem_usec 400\n',
+  'pids.current': '2\n',
+  'memory.events': 'low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\n',
+};
+
+function procText(path: string): string | null {
+  try {
+    return readFileSync(path, 'utf8');
+  } catch {
+    // A process that ended or became unreadable is simply not a member of a fake scope.
+    return null;
+  }
+}
+
+/** The job id in a process's environment, or null. */
+function jobIdOf(pid: string): string | null {
+  const environ = procText(`/proc/${pid}/environ`);
+  const entry = environ?.split('\0').find((variable) => variable.startsWith('DASH_JOB_ID='));
+  return entry === undefined ? null : entry.slice('DASH_JOB_ID='.length);
+}
+
+/**
+ * A fake cgroup hierarchy for hosts without a user manager (`dash-host-jobs` slice 3 review F3):
+ * a process is in `/fake/dash-job-<id>.scope` once it is the gated shell (its command line holds
+ * the gate's `read`, and it is no longer `systemd-run`); counters are files under `root`, read by
+ * the production reader; members are the live processes carrying that job's `DASH_JOB_ID`.
+ */
+export function fakeScopeTelemetry(root: string): ScopeTelemetry & {
+  counterPath(cgroup: string, name: string): string;
+} {
+  const real = linuxScopeTelemetry(root);
+  return {
+    counterPath: (cgroup, name) => join(root, cgroup, name),
+    cgroupOf: (pid) => {
+      const command = procText(`/proc/${String(pid)}/cmdline`);
+      if (command === null) return null;
+      const id = jobIdOf(String(pid));
+      if (id === null || !command.includes('read gate <&3') || command.includes('systemd-run'))
+        return '/fake/elsewhere';
+      const cgroup = `/fake/dash-job-${id}.scope`;
+      const directory = join(root, cgroup);
+      if (!existsSync(directory)) {
+        mkdirSync(directory, { recursive: true });
+        for (const [name, content] of Object.entries(FAKE_COUNTERS))
+          writeFileSync(join(directory, name), content);
+      }
+      return cgroup;
+    },
+    read: (cgroup) => real.read(cgroup),
+    members: (cgroup) => {
+      const id = /\/dash-job-(.+)\.scope$/.exec(cgroup)?.[1];
+      if (id === undefined) return [];
+      return readdirSync('/proc')
+        .filter((pid) => /^\d+$/.test(pid) && jobIdOf(pid) === id)
+        .filter((pid) => !(procText(`/proc/${pid}/stat`) ?? ') Z ').includes(') Z '))
+        .map(Number);
+    },
+  };
 }

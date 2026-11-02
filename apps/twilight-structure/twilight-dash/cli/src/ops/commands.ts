@@ -62,10 +62,14 @@ export const opsHandlers: OpsHandlers = {
     const runtime = openPool(command.config, deps.clock);
     try {
       const status = runtime.hostPoolStatus();
-      const records = HostJobRunRecords.open(
-        runtime.configuration.root,
-        runtime.listHostJobs().length > 0,
-      );
+      let records: HostJobRunRecords;
+      try {
+        records = HostJobRunRecords.openForReading(runtime.configuration.root);
+      } catch (cause) {
+        // Proof: opening for writing here made `status refuses 70 when the run records are
+        // missing, creating nothing` (status.test.ts) create them and exit 0 (2026-11-02, F7).
+        throw new OpsRefusal(70, `ops job status: ${causeText(cause)}`, { cause });
+      }
       try {
         const peaks = new Map(
           status.jobs.map((job) => [job.id, records.inspect(job.id)?.peakMemoryBytes ?? null]),

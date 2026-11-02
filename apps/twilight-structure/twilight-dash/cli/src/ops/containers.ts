@@ -16,6 +16,8 @@ export interface ContainerBound {
 
 const GIB = 1024 ** 3;
 const DOCKER_DEADLINE_MS = 30_000;
+/** The longest `docker events` line the watch reads before it distrusts the stream. */
+const MAX_EVENT_BYTES = 1024 * 1024;
 const BYTE_UNITS: ReadonlyMap<string, number> = new Map([
   ['B', 1],
   ['kB', 1e3],
@@ -69,6 +71,8 @@ export function checkDockerAvailable(
     timeout: DOCKER_DEADLINE_MS,
     killSignal: 'SIGKILL',
   });
+  // Proof: without it `refuses 70 before admission when the docker daemon does not answer`
+  // (job-run.test.ts) admitted the job with DOCKER_HOST pointing nowhere (2026-11-02, F2e).
   if (info.exitCode !== 0)
     throw new OpsRefusal(
       70,
@@ -169,6 +173,9 @@ export class ContainerWatch {
   private readonly judged = new Map<string, Promise<ContainerVerdict | null>>();
   private buffered = '';
 
+  /** The stream reader; it never rejects, a failure becomes an `unverified` verdict. */
+  private reading: Promise<void> = Promise.resolve();
+
   private constructor(
     private readonly docker: string,
     private readonly environment: Record<string, string>,
@@ -176,15 +183,21 @@ export class ContainerWatch {
     private readonly bound: ContainerBound,
     private readonly since: string,
     private readonly stream: Subprocess<'ignore', 'pipe', 'ignore'>,
+    private readonly isLiveJob: (id: string) => boolean,
   ) {}
 
-  /** Start watching every container created at or after `sinceMs` (epoch milliseconds). */
+  /**
+   * Start watching every container created at or after `sinceMs` (epoch milliseconds).
+   * `isLiveJob` says whether a `puni.job` label names an unreleased job in the ledger: a label
+   * naming anything else attributes the container to nobody.
+   */
   static start(
     docker: string,
     environment: Readonly<Record<string, string | undefined>>,
     jobId: string,
     bound: ContainerBound,
     sinceMs: number,
+    isLiveJob: (id: string) => boolean,
   ): ContainerWatch {
     const since = (sinceMs / 1000).toFixed(3);
     const kept = dockerEnvironment(environment);
@@ -203,8 +216,20 @@ export class ContainerWatch {
       ],
       { env: kept, stdin: 'ignore', stdout: 'pipe', stderr: 'ignore' },
     );
-    const watch = new ContainerWatch(docker, kept, jobId, bound, since, stream);
-    void watch.read();
+    const watch = new ContainerWatch(docker, kept, jobId, bound, since, stream, isLiveJob);
+    watch.reading = watch.read().catch((cause: unknown) => {
+      // Proof: without this catch `a failing docker events stream is an unverified verdict`
+      // (containers.test.ts) ended the test process with an unhandled rejection (2026-11-02,
+      // Slice 3 review F11).
+      watch.judged.set(
+        'stream',
+        Promise.resolve({
+          id: 'stream',
+          verdict: 'unverified',
+          reason: `docker events stream failed: ${causeText(cause)}`,
+        }),
+      );
+    });
     return watch;
   }
 
@@ -214,6 +239,10 @@ export class ContainerWatch {
       this.buffered += decoder.decode(chunk, { stream: true });
       const lines = this.buffered.split('\n');
       this.buffered = lines.pop() ?? '';
+      // A daemon event is a few hundred bytes; an unbounded line is not one, and the stream
+      // cannot be trusted past it.
+      if (this.buffered.length > MAX_EVENT_BYTES)
+        throw new Error(`an event line exceeds ${String(MAX_EVENT_BYTES)} bytes`);
       for (const line of lines) if (line.trim() !== '') this.consider(line);
     }
   }
@@ -230,7 +259,15 @@ export class ContainerWatch {
       );
       return;
     }
-    if (!this.judged.has(event.id)) this.judged.set(event.id, this.judge(event));
+    if (!this.judged.has(event.id))
+      this.judged.set(
+        event.id,
+        this.judge(event).catch((cause: unknown): ContainerVerdict => ({
+          id: event.id,
+          verdict: 'unverified',
+          reason: `container could not be judged: ${causeText(cause)}`,
+        })),
+      );
   }
 
   /**
@@ -246,7 +283,16 @@ export class ContainerWatch {
         verdict: 'unlabelled',
         reason: `container from ${event.image} started without the ${JOB_LABEL} label`,
       };
-    if (owner !== this.jobId) return null;
+    // Proof: returning null for every other label value made `a container labelled with no live
+    // job is unlabelled` (containers.test.ts) record no verdict (2026-11-02, review F8).
+    if (owner !== this.jobId) {
+      if (this.isLiveJob(owner)) return null;
+      return {
+        id: event.id,
+        verdict: 'unlabelled',
+        reason: `container from ${event.image} is labelled ${JOB_LABEL}=${owner}, which names no live job`,
+      };
+    }
     const inspected = await execute(
       spawnClient(
         [
@@ -379,6 +425,8 @@ export class ContainerWatch {
         'docker events replay',
         DOCKER_DEADLINE_MS,
       );
+      // Proof: treating a failed replay as an empty one made `a failed docker events replay is
+      // an unverified verdict` (containers.test.ts) record no verdict (2026-11-02, review F2f).
       if (replay.exitCode !== 0 || replay.timedOut)
         this.judged.set(
           'replay',
@@ -390,11 +438,12 @@ export class ContainerWatch {
         );
       else
         for (const line of replay.stdout.split('\n')) if (line.trim() !== '') this.consider(line);
-      const verdicts = await Promise.all(this.judged.values());
-      return verdicts.flatMap((verdict) => (verdict === null ? [] : [verdict]));
     } finally {
       this.stream.kill('SIGKILL');
       await this.stream.exited;
+      await this.reading;
     }
+    const verdicts = await Promise.all(this.judged.values());
+    return verdicts.flatMap((verdict) => (verdict === null ? [] : [verdict]));
   }
 }

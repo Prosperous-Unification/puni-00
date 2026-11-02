@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { existsSync } from 'node:fs';
 
 import { afterEach, describe, expect, test } from 'bun:test';
 
@@ -7,7 +8,7 @@ import { monotonicClock } from '../clock';
 import { fakeCredential } from '../compute/testing/credential';
 import { ampleHost, gate, hostPoolFixture, jobType } from '../resources/host-pool.test.fixture';
 import { loadResourceConfiguration, ResourceRuntime } from '../resources/runtime';
-import { type OpsDependencies, opsHandlers } from './commands';
+import { type OpsDependencies, opsHandlers, runOps } from './commands';
 import { insideOpsNamespace } from './ops.test.fixture';
 import { HostJobRunRecords } from './run-records';
 import { linuxScopeTelemetry } from './scope';
@@ -55,9 +56,8 @@ if (insideOpsNamespace(import.meta.path))
       return { ...fixture, runtime };
     }
 
-    function status(config: string): string[] {
-      const stdout: string[] = [];
-      const deps: OpsDependencies = {
+    function dependencies(stdout: string[]): OpsDependencies {
+      return {
         clock,
         monotonic: monotonicClock(),
         environment: process.env,
@@ -70,9 +70,16 @@ if (insideOpsNamespace(import.meta.path))
         host: ampleHost,
         user: 'puni1',
       };
-      expect(opsHandlers['job status']({ command: 'ops', words: 'job status', config }, deps)).toBe(
-        0,
-      );
+    }
+
+    function status(config: string): string[] {
+      const stdout: string[] = [];
+      expect(
+        opsHandlers['job status'](
+          { command: 'ops', words: 'job status', config },
+          dependencies(stdout),
+        ),
+      ).toBe(0);
       return stdout.join('').split('\n').slice(0, -1);
     }
 
@@ -100,7 +107,7 @@ if (insideOpsNamespace(import.meta.path))
           descriptor: gate,
           descriptorDigest: 'a'.repeat(64),
           cataloguePath: '/checkout/infra/jobs/catalogue.json',
-          payloadSha: 'b'.repeat(40),
+          launcherSha: 'b'.repeat(40),
           argumentProfile: '<sha>',
           argv: ['bin/h2puni-gate.sh', 'b'.repeat(40)],
           hostClass: 'linux-x64-8c-15g',
@@ -137,8 +144,6 @@ if (insideOpsNamespace(import.meta.path))
       if (waiting.kind !== 'queued') throw new Error(waiting.reason);
       expect(runtime.pollHostJob(waiting.ticket, () => undefined).kind).toBe('waiting');
       now = start + 65000;
-      // Proof: dropping the peak (`peak unmeasured`) failed this assertion on the running line
-      // (2026-11-01, Slice 3).
       expect(status(config)).toEqual([
         'host pool enrollment-one: mode observe; allocatable 8 cores, 13 GiB, 16 disk units, 16 slots; reserved 4 cores, 6 GiB, 0 disk units, 1 slots',
         `running gate gate:0a518a42 pid ${String(payload.pid)} age 1m00s envelope 4 cores 6 GiB 0 GiB tmp peak 2.5 GiB units gate_tree=${trees[0] ?? ''} settlement held (compute held, tmp held, gate_tree held)`,
@@ -147,12 +152,58 @@ if (insideOpsNamespace(import.meta.path))
     });
 
     test('an idle pool says so', () => {
-      const { config } = pool(0);
+      const { config, root } = pool(0);
+      HostJobRunRecords.open(root, false).close();
       expect(status(config)).toEqual([
         'host pool enrollment-one: mode observe; allocatable 8 cores, 13 GiB, 16 disk units, 16 slots; reserved 0 cores, 0 GiB, 0 disk units, 0 slots',
         'running none',
         'waiting none',
       ]);
+    });
+
+    test('status refuses 70 when the run records are missing, creating nothing', async () => {
+      const { config, root } = pool(0);
+      const stderr: string[] = [];
+      const code = await runOps(
+        { command: 'ops', words: 'job status', config },
+        { ...dependencies([]), stderr: (text) => stderr.push(text) },
+      );
+      expect(code).toBe(70);
+      expect(stderr).toEqual([
+        `error: ops job status: host job run records ${root}/.dash/host-job-runs.sqlite are missing; \`ops pool init\` creates them\n`,
+      ]);
+      expect(existsSync(HostJobRunRecords.pathOf(root))).toBe(false);
+    });
+
+    test('a job whose payload never ran says so', () => {
+      const { runtime, config, root } = pool(0);
+      HostJobRunRecords.open(root, false).close();
+      const queued = runtime.enqueueHostJob(
+        { descriptor: jobType('test-queued', 1, 1), label: 'lane:refused', waitSeconds: 0 },
+        process.pid,
+      );
+      if (queued.kind !== 'queued') throw new Error(queued.reason);
+      const admitted = runtime.pollHostJob(queued.ticket, () => undefined);
+      if (admitted.kind !== 'admitted') throw new Error(`not admitted: ${admitted.kind}`);
+      runtime.prepareHostJob(admitted.job.id);
+      const leader = spawn('sleep', ['30'], { detached: true, stdio: 'ignore' });
+      payloads.push(leader);
+      if (leader.pid === undefined) throw new Error('leader did not start');
+      runtime.recordHostJobLaunch(admitted.job.id, leader.pid);
+      runtime.recordHostJobLaunchFailure(
+        admitted.job.id,
+        'payload did not run: systemd-run did not start scope dash-job-x',
+      );
+      expect(() => {
+        runtime.recordHostJobLaunchFailure(admitted.job.id, 'payload did not run: twice');
+      }).toThrow('host job has no unopened launch to record');
+      expect(() => runtime.recordHostJobExit(admitted.job.id, 1)).toThrow(
+        'host job has no running payload to record',
+      );
+      expect(runtime.inspectHostJob(admitted.job.id).exitCode).toBeNull();
+      expect(status(config)[1]).toEndWith(
+        '; payload did not run: systemd-run did not start scope dash-job-x',
+      );
     });
 
     test('spans read as hours and minutes, minutes and seconds, or seconds', () => {

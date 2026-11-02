@@ -263,6 +263,8 @@ export interface HostJob {
   startedAt: number | null;
   endedAt: number | null;
   exitCode: number | null;
+  /** Why the payload never ran though a launch was recorded; absent when it ran or is running. */
+  launchFailure?: string;
   compute: HostJobEntry;
   tmpDisk: HostJobEntry;
   units: HostJobUnit[];
@@ -296,6 +298,7 @@ const HostJobShape = type({
   startedAt: 'number | null',
   endedAt: 'number | null',
   exitCode: 'number.integer | null',
+  'launchFailure?': 'string > 0',
   compute: HostJobEntryShape,
   tmpDisk: HostJobEntryShape,
   units: type({
@@ -763,8 +766,71 @@ function git(arguments_: string[], input?: string): string {
   return execution.stdout.toString().trim();
 }
 
-/** Same-user cwd, descriptors and mapped files are required evidence, including deleted-open files. */
-function inspectHolds(locator: string): void {
+/**
+ * A host job's scope for hold inspection (`dash-host-jobs` slice 3 review F1): the transient unit
+ * its payload ran in, and the same-user processes whose descriptors could not be read but that
+ * live outside that unit, collected as evidence.
+ */
+interface JobScope {
+  unit: string;
+  outside: { pid: number; comm: string }[];
+}
+
+/** The scope of host job `id`: its unit is the one `ops job run` names `dash-job-<id>`. */
+function jobScopeOf(id: string): JobScope {
+  return { unit: `dash-job-${id}.scope`, outside: [] };
+}
+
+/** `; uninspectable_outside_scope: <pid> (<comm>), …` for evidence text, or nothing. */
+function outsideNote(scope: JobScope): string {
+  if (scope.outside.length === 0) return '';
+  const seen = new Map(scope.outside.map((process) => [process.pid, process]));
+  return `; uninspectable_outside_scope: ${[...seen.values()].map((process) => `${String(process.pid)} (${process.comm})`).join(', ')}`;
+}
+
+/**
+ * Whether a same-user process whose descriptors are unreadable stands outside the job's scope.
+ * Such a process changed credentials (`(sd-pam)`, `sshd-session`) and is not dumpable; a payload's
+ * descendants stay dumpable and inside the scope cgroup until it is collected, so an unreadable
+ * process inside the scope remains an unknown holder.
+ * @throws Error when its cgroup cannot be read, which keeps the entry charged.
+ */
+function outsideScope(pid: string, scope: JobScope): boolean {
+  let membership: string;
+  try {
+    membership = readFileSync(`/proc/${pid}/cgroup`, 'utf8');
+  } catch (cause) {
+    throw new Error(`cannot read the cgroup of uninspectable PID ${pid}`, { cause });
+  }
+  const unified = membership.split('\n').find((line) => line.startsWith('0::'));
+  if (unified === undefined)
+    throw new Error(`uninspectable PID ${pid} has no cgroup v2 membership`);
+  return !unified.slice(3).split('/').includes(scope.unit);
+}
+
+/** A process's `comm`, or `?` once it is gone or unreadable: evidence text only. */
+function commOf(pid: string): string {
+  try {
+    return readFileSync(`/proc/${pid}/comm`, 'utf8').trim();
+  } catch {
+    // Evidence text only: the pid itself is the record; a vanished name changes no decision.
+    return '?';
+  }
+}
+
+function isAccessDenied(cause: unknown): boolean {
+  return (
+    cause instanceof Error && 'code' in cause && (cause.code === 'EACCES' || cause.code === 'EPERM')
+  );
+}
+
+/**
+ * Same-user cwd, descriptors and mapped files are required evidence, including deleted-open files.
+ * With a host job's `scope`, a same-user process whose descriptors are access-denied and that is
+ * outside the scope is recorded in `scope.outside` instead of refusing; without one (worktree
+ * uses, pool init) every uninspectable process refuses, as before.
+ */
+function inspectHolds(locator: string, scope?: JobScope): void {
   // Proof: returning without inspection released a live writer's directory (live-holds.log)
   // and the protected-process target in `existing account runs work` (2026-10-25).
   const mounts = readFileSync('/proc/self/mountinfo', 'utf8').split('\n');
@@ -801,6 +867,14 @@ function inspectHolds(locator: string): void {
     } catch (cause) {
       if (isMissing(cause) || identifyProcess(Number(pid)) === null) continue;
       if (cause instanceof Error && cause.message.includes('remains charged')) throw cause;
+      // Proof: without this branch `a non-dumpable process outside the job's scope does not hold
+      // its tmp directory` (host-job-holds.test.ts) saw tmp `blocked` "cannot inspect process
+      // PID"; without the `outsideScope` test `a non-dumpable process inside the job's scope
+      // still holds` saw it `released` (2026-11-02, Slice 3 review F1).
+      if (scope !== undefined && isAccessDenied(cause) && outsideScope(pid, scope)) {
+        scope.outside.push({ pid: Number(pid), comm: commOf(pid) });
+        continue;
+      }
       throw new Error(
         `cannot inspect process PID ${pid} for resource cleanup; resolve process access and retry cleanup`,
         { cause },
@@ -2351,9 +2425,27 @@ export class ResourceRuntime {
   recordHostJobExit(id: string, exitCode: number): HostJob {
     return this.transaction(() => {
       const job = this.inspectHostJob(id);
-      if (job.process === null || job.exitCode !== null)
+      if (job.process === null || job.exitCode !== null || job.launchFailure !== undefined)
         throw new Error('host job has no running payload to record');
       job.exitCode = exitCode;
+      job.endedAt = this.clock.read();
+      this.saveHostJob(job);
+      return job;
+    });
+  }
+  /**
+   * A launch whose gate never opened (`dash-host-jobs` slice 3 review F5): the leader's identity
+   * was recorded but the payload did not run, so the job keeps a null exit code and names why,
+   * never a status a payload could have returned. Settlement is unchanged.
+   */
+  recordHostJobLaunchFailure(id: string, reason: string): HostJob {
+    return this.transaction(() => {
+      const job = this.inspectHostJob(id);
+      // Proof: without it `a job whose payload never ran says so` (status.test.ts)
+      // accepted a second record after the first (2026-11-02, Slice 3 review F5).
+      if (job.process === null || job.exitCode !== null || job.launchFailure !== undefined)
+        throw new Error('host job has no unopened launch to record');
+      job.launchFailure = reason;
       job.endedAt = this.clock.read();
       this.saveHostJob(job);
       return job;
@@ -2409,9 +2501,10 @@ export class ResourceRuntime {
    * resting commit recorded at admission and `git status --porcelain` empty. Ignored files are
    * the tree's caches and do not block.
    */
-  private unitEvidence(unit: HostJobUnit): HostJobEntry {
+  private unitEvidence(unit: HostJobUnit, jobId: string): HostJobEntry {
+    const scope = jobScopeOf(jobId);
     try {
-      inspectHolds(unit.path);
+      inspectHolds(unit.path, scope);
       const head = git(['-C', unit.path, 'rev-parse', 'HEAD']);
       const status = git(['-C', unit.path, 'status', '--porcelain', '--untracked-files=all']);
       // Proof: without it `a dirty tree is not returned` (host-jobs.test.ts) saw the unit
@@ -2428,7 +2521,10 @@ export class ResourceRuntime {
           state: 'blocked',
           reason: `tree ${unit.path} is at ${head}, not its resting commit ${unit.restingCommit}`,
         };
-      return { state: 'released', reason: 'tree clean at its resting commit' };
+      return {
+        state: 'released',
+        reason: `tree clean at its resting commit${outsideNote(scope)}`,
+      };
     } catch (cause) {
       return {
         state: 'blocked',
@@ -2480,7 +2576,7 @@ export class ResourceRuntime {
       };
       for (const [index, unit] of job.units.entries()) {
         if (unit.state === 'released') continue;
-        job.units[index] = { ...unit, ...(excluded ? this.unitEvidence(unit) : waiting) };
+        job.units[index] = { ...unit, ...(excluded ? this.unitEvidence(unit, job.id) : waiting) };
       }
       if (job.tmpDisk.state !== 'released') job.tmpDisk = excluded ? this.tmpIntent(job) : waiting;
       this.summarize(job);
@@ -2495,9 +2591,10 @@ export class ResourceRuntime {
       const job = this.inspectHostJob(id);
       if (job.tmpDisk.state === 'released' || !job.tmpDeleteIntent) return job;
       const before = settlementOf(job);
+      const scope = jobScopeOf(job.id);
       try {
         if (this.hostJobTmpPresent(job)) {
-          inspectHolds(job.locator);
+          inspectHolds(job.locator, scope);
           const removal = Bun.spawnSync(
             [
               'python3',
@@ -2517,8 +2614,11 @@ export class ResourceRuntime {
           if (removal.exitCode !== 0) throw new Error('descriptor-relative removal refused');
         }
         if (this.hostJobTmpPresent(job)) throw new Error('tmp directory still present');
-        inspectHolds(job.locator);
-        job.tmpDisk = { state: 'released', reason: 'tmp directory removed and holds verified' };
+        inspectHolds(job.locator, scope);
+        job.tmpDisk = {
+          state: 'released',
+          reason: `tmp directory removed and holds verified${outsideNote(scope)}`,
+        };
       } catch (cause) {
         job.tmpDisk = {
           state: 'blocked',
@@ -2599,7 +2699,7 @@ export class ResourceRuntime {
       // (host-jobs.test.ts) released an absence nobody intended (2026-11-01, Slice 2).
       if (!present && !job.tmpDeleteIntent)
         return { state: 'blocked', reason: 'tmp directory absent without a deletion intent' };
-      if (present) inspectHolds(job.locator);
+      if (present) inspectHolds(job.locator, jobScopeOf(job.id));
       job.tmpDeleteIntent = true;
       return { state: 'held', reason: 'tmp directory removal intended' };
     } catch (cause) {

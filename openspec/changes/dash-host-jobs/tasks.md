@@ -55,6 +55,12 @@
       `memory.peak`; a one-second payload; negative: stub `systemd-run` answering "Failed to
       connect to bus" and watch exit 70 before the payload (J8); make `memory.peak` unreadable
       at the gate and watch 70; tear the scope down early and watch the recording failure.
+      Proven on the workstation and, through the fake scope seam, on any Linux runner; host-proven
+      only once slice 6 runs it on h2puni (the gate hosts run systemd 259 and the `(sd-pam)` and
+      `sshd-session` processes review F1 found). Follow-up: settlement still runs `git status`
+      and a synchronous `docker ps` inside the ledger's write lock; move those reads before the
+      transaction and re-check identities inside it (review F6; the launcher now polls once a
+      second).
 - [x] 3.2 Declared container bounds (J16): labelled and bounded containers sampled through the
       docker adapter's reading as advisory evidence; unlabelled or unbounded starts during the
       window recorded `attribution_incomplete` — test: a real short-lived bounded container and
@@ -118,3 +124,11 @@
       (planned proofs apart from observed evidence); decide when a failing `JOB-CATALOGUE`
       blocks `ops job run`; update `docs/runbook-h2-heavy-lock-owner.md`,
       `docs/infra/gate-hosts.md`, `AGENTS.md` Gate and `LLM_README.md`.
+- [ ] 6.6 Uninspectable same-user processes outside host jobs (review F1): hold inspection
+      refuses any same-user process whose `/proc/<pid>/fd` is access-denied. Host-job settlement
+      now records such a process outside the job's scope as `uninspectable_outside_scope`, but
+      worktree cleanup and `ops pool init`'s unit check still throw `cannot inspect process PID`
+      on every host where `(sd-pam)` or `sshd-session` runs as the account, which is every host
+      with a user manager. Decide their rule (a worktree use has no scope to compare against),
+      then prove it outside a namespace before slice 6 enrolls h2puni: `ops pool init` there
+      refuses until this is done.

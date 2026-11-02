@@ -301,14 +301,22 @@ workspace slots; a host job also reserves cores, memory and exclusive units.
   a one-minute cap, and records an event only when its evidence changes. `ops job run` settles
   a job that declared containers with Docker's reading (below); `watch` does not read Docker
   yet, so such a job whose launcher died stays charged until an operator settles it.
+- **Unreadable processes.** Hold inspection reads every same-account process's `cwd`,
+  descriptors and maps. A process that changed credentials (`(sd-pam)`, `sshd-session`) is not
+  dumpable, and its `/proc/<pid>/fd` is access-denied. For a host job, such a process outside the
+  job's scope `dash-job-<id>.scope` holds nothing the job made. Settlement names it
+  `uninspectable_outside_scope: <pid> (<comm>)` in the entry's reason and goes on. One inside
+  the scope is an unknown holder and keeps the entry `blocked`. Worktree cleanup and the unit
+  check at `ops pool init` have no scope to compare against, so they still refuse (task 6.6).
 
 ### `ops pool` and `ops job` (slice 3)
 
 `ops` is Dash's first typed namespace (J17). Every command takes `--config`, the same
 owner-only schema-3 configuration as `resources`. Refusals print one `error: ` line on stderr
-and keep the shell lock's exit codes (J13): 64 usage, 70 a host that cannot run the job
-measured, 73 an envelope the pool can never hold, 75 no room within the wait budget, 130 and
-143 a waiter interrupted by SIGINT or SIGTERM.
+and keep the shell lock's exit codes (J13): 64 usage, an uncatalogued job or a checkout that
+moved; 70 a host that cannot run the job measured; 73 an envelope the pool can never hold; 75
+no room within the wait budget; 129, 130 and 143 a launcher interrupted by SIGHUP, SIGINT or
+SIGTERM before its payload started.
 
 ```sh
 bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops pool init --config /path/to/host-pool.json
@@ -324,8 +332,11 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
 - **`ops pool inspect`** prints the pool as JSON: mode, allocatable, reserved, each unit and
   who holds it, every unreleased job and every waiter.
 - **`ops job run`** reads `infra/jobs/catalogue.json` from the checkout holding the current
-  directory **at its HEAD commit**, not the working tree; that commit is the payload SHA the run
-  record pins. The payload is the words after `--`: its first word is the program, the rest
+  directory **at its HEAD commit**, not the working tree; that commit is the launcher SHA the
+  run record pins (for `gate` the tested SHA is the one in its arguments). The checkout must
+  still stand on that commit when the gate opens, however long admission waited, or the job is
+  refused 64 unrun, because the payload runs from the working tree. The payload is the words
+  after `--`: its first word is the program, the rest
   must match the type's argument profile. An unknown type or a mismatch is 64, naming the type
   and the catalogue path. Before anything is reserved it checks that the host can measure the
   job: `systemd-run` on `PATH` and a user manager that creates a throwaway scope (otherwise 70,
@@ -336,8 +347,10 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
     (`MemoryMax` too for `enforcement: cap`), behind a gate: the leader's identity is
     persisted, the scope's `memory.peak`, `memory.current`, `cpu.stat`, `pids.current` and
     `memory.events` are read and stored as the gate sample, and only then may the payload
-    start. An unreadable counter is 70 with the payload never started; its reservation is
-    settled at once;
+    start. An unreadable counter, a scope that never starts or a run record that cannot be
+    written is 70 with the payload never started. The gate closes unopened, and the job keeps a
+    null exit code and records `payload did not run: <reason>` (also shown by `ops job status`).
+    Its reservation is then settled;
   - with `TMPDIR` the job's private directory under the managed root, `DASH_JOB_ID`,
     `DASH_JOB_TYPE`, `DASH_JOB_UNIT_<ID>` per exclusive unit (the id upper-cased) and
     `HEAVY_LOCK_LABEL` set to `--label`;
@@ -346,25 +359,29 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
     The gated shell keeps the scope alive until the exit sample is stored, so even `true` gets
     a gate and an exit sample. Peak tmp is the largest sample, a lower bound; disk outside
     `TMPDIR` is not covered;
-  - SIGINT, SIGTERM and SIGHUP are forwarded to the payload's session.
+  - SIGINT, SIGTERM and SIGHUP before the gate opens refuse the job at the gate (129, 130,
+    143); after it opens they are forwarded to the payload's session.
     The command exits with the payload's own status, 128 + signal when it was signalled. A
     telemetry failure (a counter unreadable mid-run, a scope torn down before the exit sample)
     and a ledger write failure are recorded and reported on stderr apart from that status. It
-    then settles the job on its terminal evidence for up to 30 seconds and prints one
+    then settles the job on its terminal evidence, once a second for up to 30 seconds, and prints one
     `ops job: <id> <entry> <state>: <reason>` line per entry; whatever is still charged is
     left to `watch`.
 - **Containers (J16).** A type that declares `containers: { memoryGib, cpuCores }` must start
   each container labelled `puni.job=$DASH_JOB_ID` with `--memory` and `--cpus` at or under the
   bound. A `docker events` stream judges every container created during the run; one without
-  the label, without a bound or above it, or one that vanished before its bound was read makes
-  the run `attributionIncomplete`, each named on stderr and in the record. The `docker stats`
+  the label, labelled with a value that names no live job, without a bound or above it, or one
+  that vanished before its bound was read makes the run `attributionIncomplete`. So does a
+  failed or unreadable `docker events` stream or replay. Each is named on stderr and in the
+  record. The `docker stats`
   samples are advisory: Docker omits containers that vanish between samples and excludes file
   cache; the declared bound is what admission trusts. Compute is released only once no running
   container carries the job's label.
 - **`ops job status`** prints the pool line, then one `running` line per unreleased job (type,
   label, pid, age, envelope, peak `memory.peak` so far from its run record, units held,
-  settlement state per entry), then one `waiting` line per waiter oldest first (age, budget
-  left, overtakes):
+  settlement state per entry, and `payload did not run: …` for a launch refused at the gate),
+  then one `waiting` line per waiter oldest first (age, budget left, overtakes). It opens the
+  run records read-only and refuses 70 when they are missing; it never creates them:
 
   ```text
   host pool h2puni-1: mode observe; allocatable 8 cores, 13 GiB, 16 disk units, 16 slots; reserved 4 cores, 6 GiB, 0 disk units, 1 slots

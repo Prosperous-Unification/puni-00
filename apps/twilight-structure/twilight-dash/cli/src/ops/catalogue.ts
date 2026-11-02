@@ -111,6 +111,15 @@ export function readCataloguedJob(
 }
 
 /**
+ * The commit `checkout` stands on now, or null when it has none: compared at the gate with the
+ * revision whose catalogue admitted the job (review F9).
+ */
+export function currentHead(checkout: string): string | null {
+  const head = git(checkout, 'rev-parse', '--verify', 'HEAD^{commit}');
+  return head.exitCode === 0 ? head.stdout.trim() : null;
+}
+
+/**
  * The host class a run record names (J2, J9's partition): architecture, cores and whole GiB of
  * `MemTotal`, such as `linux-x64-8c-15g`.
  */

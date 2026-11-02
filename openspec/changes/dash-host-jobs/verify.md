@@ -434,8 +434,8 @@ be-01, fe-01 or `bin/` changed.
   unreadable, the run record unwritable at the gate) closes the gate unopened: the shell exits
   125 without running the payload, the exit is recorded and the job settles on its terminal
   evidence (released in the test). `--expand-environment=no` and `--collect` need systemd 254
-  or later; h2puni and h4claw run Ubuntu 24.04 (systemd 255), read from design.md, not checked
-  on the hosts.
+  or later. h2puni and h4claw both report systemd 259 (259.5-0ubuntu3.4), as the Fable review
+  read on the hosts (corrected from "255", which was this workstation's version, review F12).
 - **S3-A7 Exit codes and flags.** An `ops` usage refusal exits 64 (the entrypoint keeps 1 for
   every other command); an interrupted waiter 130 or 143 with its ticket withdrawn; an
   unusable configuration or ledger 70. `--config` is required (no default path: J12's shim
@@ -526,8 +526,8 @@ Fresh on 2026-11-01/02, worktree root, final code (after the lint boundary fix);
 - Real-scope and container tests ran on this laptop only (its user manager, Docker 29.7.2 with
   `busybox:1.37.0-musl` already pulled). On a CI runner with no user manager or no such image
   they skip, each naming its probe's diagnostic, so CI may not exercise them (S3-A14).
-- `--expand-environment=no` needs systemd 254 or later; not checked on h2puni or h4claw. h4claw
-  also refuses `unshare --user`, so these tests cannot run there.
+- `--expand-environment=no` needs systemd 254 or later; both gate hosts run 259 (review F12).
+  Not run there by me. h4claw also refuses `unshare --user`, so these tests cannot run there.
 - Not done in this slice: `calibrate`, `propose`, `audit`, `switch-mode` (slices 4, 6); J12's
   observe-mode queue protocol and the `with-heavy-lock.sh status` half of "One running, one
   waiting" (6.1); `watch` reading Docker for declared-bound jobs (S3-A10); WBS publication
@@ -538,3 +538,81 @@ Fresh on 2026-11-01/02, worktree root, final code (after the lint boundary fix);
   the old inode number; the runtime then sees the recorded identity and removes it, so the test
   sees `released`. It failed once in a full run, passed 3 of 3 alone and in the full rerun.
 - The h2puni gate is not run for a slice PR into `plan/dash-host-jobs` (task 0.1).
+
+### Review fixes (Fable, PR #809, MERGE AFTER FIXES)
+
+All of F1–F13 were applied on `feat/dash-host-jobs-3-run`. The plan head was still `056466709`, so no re-merge was needed. `runtime.ts` was in scope for F1 and F5.
+
+#### New assumptions (overrulable by id)
+
+- **S3-A15 (F1).** Rule for an uninspectable process: when reading a same-user process's `cwd`, `fd` or `maps` returns `EACCES` or `EPERM`, settlement reads that process's `/proc/<pid>/cgroup`.
+  - Outside the job's unit `dash-job-<id>.scope` (matched as a path segment): the process is not a holder. It is recorded in the entry's reason as `uninspectable_outside_scope: <pid> (<comm>)`. The entry shape is `{ state, reason }`, so the evidence stays in the text.
+  - Inside the unit, or with its cgroup unreadable: the entry stays `blocked`.
+  - The runtime knows the unit name from the job id. It knows no cgroup path.
+  - Worktree cleanup and `ops pool init`'s unit check are unchanged and still refuse (task 6.6). On h2puni this means `ops pool init` refuses until 6.6 is done.
+- **S3-A16 (F5).** `HostJob.launchFailure` is optional, so existing ledgers still parse. `recordHostJobLaunchFailure` records `payload did not run: <reason>`, and the exit code stays null. `ops job status` prints that reason.
+- **S3-A17 (F4).** A signal that arrives before the gate opens refuses at the gate: SIGHUP 129, SIGINT 130, SIGTERM 143. `awaitScope` returns at once, and a leader still in `systemd-run` 2 s after the gate closed is killed. After the gate opens, signals are forwarded as before.
+- **S3-A18 (F9).** HEAD is checked again just before the gate opens, after the gate sample. If it moved, the job is refused 64 unrun and settled. `payloadSha` is renamed `launcherSha`.
+- **S3-A19 (F3).** The fake scope seam: a fake `systemd-run` that execs its command (after the probe's `-- true`), plus `fakeScopeTelemetry`.
+  - The gated shell is "in" `/fake/dash-job-<id>.scope`.
+  - Counters are files under a scratch root, read by the production reader.
+  - Members are the live processes whose environment carries the job's `DASH_JOB_ID`.
+- **S3-A20 (F7).** `ops job status` opens the run records read-only. Missing records are 70 even on a jobless pool, and status never creates them.
+- **S3-A21 (F8).** A `puni.job` label naming no unreleased ledger job (a released job included) is `unlabelled`. A label naming a live job is that job's.
+- **S3-A22 (F11).** Watch failures fold into `unverified` verdicts:
+  - a rejected `docker events` iteration (id `stream`), including an event line over 1 MiB, which the reader now refuses;
+  - any judgement that throws.
+- **S3-A23 (F2c, F2d).** Two faults could not be injected by host state:
+  - The launch-identity test injects its fault through an environment getter. Once the job's tmp directory exists, it opens the managed root to 0755. The ledger's refusal is real; the trigger is synthetic.
+  - A run-records file owned by another account cannot be made without another account, so the uid branch is unverified.
+- **S3-A24 (F6).** The launcher settles once a second, not every 100 ms. Moving the Git and Docker reads out of the transaction is a follow-up note under task 3.1.
+
+#### Which tests use which seam
+
+| Seam                                                        | Where it runs                                  | Tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ----------------------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fake (runs on every Linux host with `unshare`, CI included) | `job-run.test.ts`                              | - "a host job runs measured over the fake scope": gate measured (FD gate, environment, pipes, record, settlement lines), one-second, failure passthrough, 128 + signal, interval samples, `memory.peak` unreadable, scope torn down, ledger failure.<br>- "launch faults over the fake seam": scope never starts (F2a), `systemd-run` vanishes (F13), launch identity unrecorded (F2c), run record busy at the gate (F2b), checkout moved (F9), SIGINT while the scope starts (F4), the launcher process ends with its job (timer), `killSession` on a gone session (F10).<br>- 73/75 refusals, the run-records refusals (F2d) and the docker daemon refusal (F2e, needs only the CLI). |
+| Fake                                                        | `job-run.test.ts`, "declared container bounds" | Containers, which also need a local daemon with the image.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Real scope (skip, named, without a user manager)            | `job-run.test.ts`                              | The same measured set "over the real scope", plus `MemoryHigh`/`MemoryMax`/real-cgroup assertions, `cap`, and the installed entrypoint.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| None (runs everywhere)                                      | `containers.test.ts` (stub `docker`)           | Replay failure (F2f), labels of no live job (F8), stream failure (F11).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| None (outside any namespace)                                | `host-job-holds.test.ts`                       | Outside-scope non-dumpable process (runs everywhere) and inside-scope (needs a real scope).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| —                                                           | `status.test.ts`                               | Status refusal and launch-failure display (F7, F5).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+
+#### Fault injection (review fixes)
+
+Same method as above: exact replacement, the named file run, restore byte for byte with the digest checked.
+
+| Fault injected                                      | Test that went red                                                             | Observed                                                                                                              |
+| --------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| scope branch dropped in `inspectHolds`              | `a non-dumpable process outside the job scope does not hold its tmp directory` | `blocked`; the inside test also saw this laptop's own `(sd-pam)` (PID 2327) refuse first, the real condition F1 named |
+| `outsideScope` always true                          | `… inside the job scope still holds its tmp directory`                         | `released`                                                                                                            |
+| interruption check before the gate dropped          | `a SIGINT while the scope starts refuses 130, the payload never runs`          | refused 70 "did not start scope", not 130                                                                             |
+| null-cgroup refusal dropped                         | `refuses 70 when the scope never starts, the payload never runs`               | misattributed `scope counters unreadable … "paths[1]" … got object`                                                   |
+| HEAD re-check dropped                               | `refuses 64 when the checkout moved while waiting`                             | no refusal: the payload ran                                                                                           |
+| `records.begin` failure rethrown                    | `refuses 70 when the run record cannot be written at the gate`                 | rejected after the 10 s busy timeout                                                                                  |
+| launch-identity failure rethrown                    | `refuses 70 when the launch identity cannot be recorded`                       | bare `resource root must be owner-only`                                                                               |
+| ESRCH rethrown in `killSession`                     | `killing a session already gone is not an error`                               | threw                                                                                                                 |
+| unstarted-leader check dropped                      | `refuses 70 when systemd-run vanishes before the launch`                       | `host job gate pipes unavailable`                                                                                     |
+| owner-only refusal removed                          | `refuses run records that are not an owner-only regular file`                  | the symlink opened (removing only the link test stayed green: `!isFile()` also refuses a link)                        |
+| schema-version check dropped                        | `refuses run records of another schema version`                                | version 7 opened                                                                                                      |
+| docker daemon check dropped (`DOCKER_HOST` nowhere) | `refuses 70 before admission when the docker daemon does not answer`           | no refusal                                                                                                            |
+| replay failure treated as empty                     | `a failed docker events replay is an unverified verdict`                       | no verdict                                                                                                            |
+| other labels never judged                           | `a container labelled with no live job is unlabelled …`                        | no verdict                                                                                                            |
+| stream rejection uncaught                           | `a failing docker events stream is an unverified verdict`                      | unhandled `an event line exceeds 1048576 bytes`                                                                       |
+| status opens records for writing                    | `status refuses 70 when the run records are missing, creating nothing`         | exit 0, records created                                                                                               |
+| `recordHostJobLaunchFailure` guard dropped          | `a job whose payload never ran says so`                                        | a second record accepted                                                                                              |
+
+#### Commands (fresh, review fixes; the full target was not rerun, CI carries it)
+
+| Command                                                                                       | Result                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bun test src/ops src/resources/host-job-holds.test.ts` (CLAUDECODE unset, project directory) | `7 pass, 0 fail` outer; inside `job-run.test.ts` `43 pass, 0 fail`, inside `status.test.ts` `5 pass, 0 fail`; `containers.test.ts` 3 and `host-job-holds.test.ts` 2 pass |
+| `bun test src/cli.test.ts src/resources/host-jobs.test.ts`                                    | `56 pass, 0 fail`                                                                                                                                                        |
+| `bunx nx run twilight-dash:typecheck`, `:lint`                                                | `Successfully ran target …` each                                                                                                                                         |
+| `bunx prettier --check` on touched files, `openspec validate dash-host-jobs --json`           | see the PR body                                                                                                                                                          |
+
+#### Skipped or unverified (review fixes)
+
+- Worktree cleanup and `ops pool init` still throw `cannot inspect process PID` for a non-dumpable same-user process (task 6.6). On h2puni, with `(sd-pam)` running, `ops pool init` refuses. That blocks slice 6's enrollment until 6.6 is decided.
+- The real-host proof of F1 ran on this workstation (systemd 255, its own `(sd-pam)`), not on h2puni or h4claw (systemd 259).
+- A run-records file owned by another uid is unverified (S3-A23).

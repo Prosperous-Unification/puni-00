@@ -12,7 +12,7 @@ import {
   loadResourceConfiguration,
   ResourceRuntime,
 } from '../resources/runtime';
-import { type CataloguedJob, hostClassOf, readCataloguedJob } from './catalogue';
+import { type CataloguedJob, currentHead, hostClassOf, readCataloguedJob } from './catalogue';
 import { checkDockerAvailable, ContainerWatch, dockerContainerEvidence } from './containers';
 import { causeText, OpsRefusal } from './refusal';
 import { HostJobRunRecords, type RunSample } from './run-records';
@@ -105,8 +105,14 @@ function jobEnvironment(
   return variables;
 }
 
+/** The leader never became a process: nothing ran and no identity can be recorded. */
+class LaunchUnstarted extends Error {
+  override readonly name = 'LaunchUnstarted';
+}
+
 interface Launched {
   child: ChildProcess;
+  pid: number;
   gate: Writable;
   /** Resolves with the status the shell reported on fd 4, or null when it ended without one. */
   payloadStatus: Promise<number | null>;
@@ -141,18 +147,26 @@ function launchGated(
       env: jobEnvironment(deps.environment, job, label),
     },
   );
-  const gate = child.stdio[3];
-  const status = child.stdio[4];
-  if (!(gate instanceof Writable) || !(status instanceof Readable))
-    throw new Error('host job gate pipes unavailable');
-  // A gate write after the shell ended is an expected EPIPE, never a crash of the launcher.
-  gate.on('error', () => undefined);
   const leaderExit = new Promise<number>((resolveExit, rejectExit) => {
     child.once('error', rejectExit);
     child.once('exit', (code, signal) => {
       resolveExit(statusOf(code, signal));
     });
   });
+  // A leader that never started (its executable gone since the probe) reports on `leaderExit`.
+  // Proof: without this check `refuses 70 when systemd-run vanishes before the launch`
+  // (job-run.test.ts) failed on "host job gate pipes unavailable" (2026-11-02, review F13).
+  if (child.pid === undefined) {
+    void leaderExit.catch(() => undefined);
+    throw new LaunchUnstarted(`${systemdRun} did not start`);
+  }
+  const pid = child.pid;
+  const gate = child.stdio[3];
+  const status = child.stdio[4];
+  if (!(gate instanceof Writable) || !(status instanceof Readable))
+    throw new Error('host job gate pipes unavailable');
+  // A gate write after the shell ended is an expected EPIPE, never a crash of the launcher.
+  gate.on('error', () => undefined);
   const payloadStatus = new Promise<number | null>((resolveStatus) => {
     let text = '';
     status.on('data', (chunk: Buffer) => {
@@ -163,12 +177,12 @@ function launchGated(
       resolveStatus(/^\d{1,3}$/.test(line) ? Number(line) : null);
     });
   });
-  return { child, gate, payloadStatus, leaderExit };
+  return { child, pid, gate, payloadStatus, leaderExit };
 }
 
 /**
  * The scope's cgroup once the gated leader is in `unit`, or null when the leader ended or the
- * start budget passed first (the user manager refused or hung).
+ * start budget passed first (the user manager refused or hung), or when the launcher was interrupted.
  */
 async function awaitScope(
   telemetry: ScopeTelemetry,
@@ -176,6 +190,7 @@ async function awaitScope(
   unit: string,
   leaderExit: Promise<number>,
   monotonic: Monotonic,
+  interrupted: AbortSignal,
 ): Promise<string | null> {
   const leader = { ended: false };
   void leaderExit.then(
@@ -187,7 +202,7 @@ async function awaitScope(
     },
   );
   const deadline = monotonic.now() + SCOPE_START_BUDGET_MS;
-  while (!leader.ended && monotonic.now() < deadline) {
+  while (!leader.ended && !interrupted.aborted && monotonic.now() < deadline) {
     const cgroup = telemetry.cgroupOf(pid);
     if (cgroup?.endsWith(`/${unit}.scope`)) return cgroup;
     await Bun.sleep(SCOPE_POLL_MS);
@@ -208,7 +223,9 @@ async function settle(
   const deadline = deps.monotonic.now() + deps.settleBudgetMs;
   let job = runtime.settleHostJob(jobId, containers);
   while (job.state !== 'released' && job.state !== 'blocked' && deps.monotonic.now() < deadline) {
-    await Bun.sleep(100);
+    // One second, not faster: each pass takes the ledger write lock and reads Git and Docker
+    // inside it, which would starve other launchers' polls (review F6).
+    await Bun.sleep(1000);
     job = runtime.settleHostJob(jobId, containers);
   }
   const entries = [
@@ -258,15 +275,28 @@ function readSample(
   };
 }
 
+/** The exit code a launcher interrupted before its payload started returns, as a shell's. */
+function interruptedCode(signal: NodeJS.Signals): 129 | 130 | 143 {
+  if (signal === 'SIGHUP') return 129;
+  return signal === 'SIGINT' ? 130 : 143;
+}
+
+/** A signal the launcher received before its payload started, and the abort it raised. */
+interface Interruption {
+  readonly signal: AbortSignal;
+  received(): NodeJS.Signals | null;
+}
+
 /**
  * Run one host job measured (`dash-host-jobs` J7, J8, J16): read the catalogue at the checkout's
  * HEAD; refuse before anything is reserved when the host cannot measure it; admit through the
- * host pool (73, 75, interrupted 130/143); launch the payload through the FD gate inside a
- * transient user scope, persisting the leader's identity and the gate sample before the gate
- * opens; sample every interval and at exit; record the exit, settle on terminal evidence and
- * return the payload's own status. A failure to read telemetry or to write a record after the
- * gate opened is recorded and reported, never substituted for the payload's status.
- * @throws OpsRefusal for every refusal before the payload runs (64, 70, 73, 75, 130, 143).
+ * host pool (73, 75); launch the payload through the FD gate inside a transient user scope,
+ * persisting the leader's identity and the gate sample before the gate opens; sample every
+ * interval and at exit; record the exit, settle on terminal evidence and return the payload's
+ * own status. A signal before the gate opens refuses 129/130/143 with the payload never run; one
+ * after is forwarded to the payload's session. A failure to read telemetry or to write a record
+ * after the gate opened is recorded and reported, never substituted for the payload's status.
+ * @throws OpsRefusal for every refusal before the payload runs (64, 70, 73, 75, 129, 130, 143).
  */
 export async function runHostJob(
   request: JobRunRequest,
@@ -281,9 +311,7 @@ export async function runHostJob(
     throw new OpsRefusal(
       70,
       `ops job run: host pool ${request.config} unusable: ${causeText(cause)}`,
-      {
-        cause,
-      },
+      { cause },
     );
   }
   let records: HostJobRunRecords;
@@ -293,14 +321,17 @@ export async function runHostJob(
     runtime.close();
     throw new OpsRefusal(70, `ops job run: ${causeText(cause)}`, { cause });
   }
-  const interruption = new AbortController();
+  const abort = new AbortController();
   const received: { signal: NodeJS.Signals | null } = { signal: null };
-  let forward: ((signal: NodeJS.Signals) => void) | null = null;
+  const forward: { to: ((signal: NodeJS.Signals) => void) | null } = { to: null };
+  // Until the gate opens a signal only aborts: admission withdraws its ticket, and a launch in
+  // progress refuses at the gate. After it opens, the signal goes to the payload's session.
   const onSignal = (signal: NodeJS.Signals): void => {
     received.signal ??= signal;
-    if (forward !== null) forward(signal);
-    else interruption.abort();
+    if (forward.to !== null) forward.to(signal);
+    else abort.abort();
   };
+  const interruption: Interruption = { signal: abort.signal, received: () => received.signal };
   const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
   for (const signal of signals) process.on(signal, onSignal);
   try {
@@ -318,7 +349,7 @@ export async function runHostJob(
       { descriptor: catalogued.descriptor, label: request.label, waitSeconds: request.waitSeconds },
       {
         pollMs: request.pollSeconds * 1000,
-        signal: interruption.signal,
+        signal: abort.signal,
         report: (line) => {
           deps.report(line);
         },
@@ -327,7 +358,7 @@ export async function runHostJob(
     if (admission.kind === 'cancelled') {
       const signal = received.signal ?? 'SIGTERM';
       throw new OpsRefusal(
-        signal === 'SIGINT' ? 130 : 143,
+        interruptedCode(signal),
         `ops job run: ${typeId} ${request.label} interrupted by ${signal} while waiting; its ticket is withdrawn`,
       );
     }
@@ -345,14 +376,28 @@ export async function runHostJob(
       containers,
       request,
       deps,
+      interruption,
       (handler) => {
-        forward = handler;
+        forward.to = handler;
       },
     );
   } finally {
     for (const signal of signals) process.removeListener(signal, onSignal);
     records.close();
     runtime.close();
+  }
+}
+
+/** Kill the whole session of `pid`; a session already gone is not an error. */
+export function killSession(pid: number, signal: NodeJS.Signals): void {
+  try {
+    process.kill(-pid, signal);
+  } catch (cause) {
+    // Proof: rethrowing ESRCH here made `killing a session already gone is not an error`
+    // (job-run.test.ts) throw ESRCH, which in `runAdmitted` escaped and left the job
+    // `held` (2026-11-02, Slice 3 review F10).
+    if (cause instanceof Error && 'code' in cause && cause.code === 'ESRCH') return;
+    throw cause;
   }
 }
 
@@ -366,52 +411,94 @@ async function runAdmitted(
   containers: ContainerEvidence,
   request: JobRunRequest,
   deps: JobRunDependencies,
+  interruption: Interruption,
   onSignal: (handler: (signal: NodeJS.Signals) => void) => void,
 ): Promise<number> {
   const job = runtime.prepareHostJob(admitted.id);
   const unit = scopeUnitOf(job.id);
-  const launched = launchGated(
-    systemdRun,
-    unit,
-    catalogued,
-    job,
-    request.argv,
-    request.label,
-    deps,
-  );
-  const pid = launched.child.pid;
-  /** Close the gate unopened: the shell exits 125 and the payload never runs. */
-  const refuseAtGate = async (reason: string): Promise<never> => {
+  let launched: Launched;
+  try {
+    launched = launchGated(systemdRun, unit, catalogued, job, request.argv, request.label, deps);
+  } catch (cause) {
+    if (!(cause instanceof LaunchUnstarted)) throw cause;
+    throw new OpsRefusal(
+      70,
+      `ops job run: ${cause.message}; the payload did not run, and the job stays charged until its launch grace passes`,
+      { cause },
+    );
+  }
+  const { pid } = launched;
+  /**
+   * Close the gate unopened: the shell exits 125 and the payload never runs. The ledger records
+   * the launch failure apart from any payload exit (review F5), then the job settles.
+   */
+  const refuseAtGate = async (code: 64 | 70 | 129 | 130 | 143, reason: string): Promise<never> => {
     launched.gate.destroy();
-    const status = await launched.leaderExit.catch(() => 125);
+    // The gated shell exits 125 on the closed gate at once; a leader still inside `systemd-run`
+    // (a hung user manager) does not, so it is killed after a grace.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const lingering = await Promise.race([
+      launched.leaderExit.then(
+        () => false,
+        () => false,
+      ),
+      new Promise<boolean>((resolveGrace) => {
+        timer = setTimeout(() => {
+          resolveGrace(true);
+        }, 2000);
+      }),
+    ]);
+    clearTimeout(timer);
+    if (lingering) killSession(pid, 'SIGKILL');
+    await launched.leaderExit.catch(() => undefined);
     try {
-      runtime.recordHostJobExit(job.id, status);
+      runtime.recordHostJobLaunchFailure(job.id, `payload did not run: ${reason}`);
     } catch (cause) {
-      deps.report(`ops job: ${job.id} exit at the gate unrecorded: ${causeText(cause)}`);
+      deps.report(`ops job: ${job.id} launch failure unrecorded: ${causeText(cause)}`);
     }
     await settle(runtime, job.id, containers, deps);
-    throw new OpsRefusal(70, `ops job run: ${reason}; the payload did not run`);
+    throw new OpsRefusal(code, `ops job run: ${reason}; the payload did not run`);
   };
-  if (pid === undefined) {
-    await launched.leaderExit.catch(() => undefined);
-    throw new OpsRefusal(70, `ops job run: ${systemdRun} did not start; the payload did not run`);
-  }
+  /** The interruption refusal, when a signal arrived before the gate opened. */
+  const refuseIfInterrupted = async (): Promise<void> => {
+    const signal = interruption.received();
+    // Proof: without this check `a SIGINT while the scope starts refuses 130, the payload
+    // never runs` (job-run.test.ts) refuse 70 "did not start scope" instead of 130
+    // (2026-11-02, Slice 3 review F4).
+    if (signal !== null)
+      await refuseAtGate(
+        interruptedCode(signal),
+        `interrupted by ${signal} before the gate opened`,
+      );
+  };
   try {
     runtime.recordHostJobLaunch(job.id, pid);
   } catch (cause) {
     launched.gate.destroy();
     await launched.leaderExit.catch(() => undefined);
+    // Proof: without this refusal `refuses 70 when the launch identity cannot be recorded`
+    // (job-run.test.ts) rejected with the bare ledger error (2026-11-02, Slice 3 review F2c).
     throw new OpsRefusal(
       70,
       `ops job run: launch identity of ${unit} unrecorded (${causeText(cause)}); the payload did not run, and the job stays charged until its launch grace passes`,
       { cause },
     );
   }
-  const cgroup = await awaitScope(deps.telemetry, pid, unit, launched.leaderExit, deps.monotonic);
+  const cgroup = await awaitScope(
+    deps.telemetry,
+    pid,
+    unit,
+    launched.leaderExit,
+    deps.monotonic,
+    interruption.signal,
+  );
+  await refuseIfInterrupted();
   if (cgroup === null) {
     if (launched.child.exitCode === null && launched.child.signalCode === null)
-      process.kill(-pid, 'SIGKILL');
-    return refuseAtGate(`systemd-run did not start scope ${unit}`);
+      killSession(pid, 'SIGKILL');
+    // Proof: without this refusal `refuses 70 when the scope never starts, the payload never
+    // runs` (job-run.test.ts) refuse "scope counters unreadable" on a null cgroup (2026-11-02, F2a).
+    return refuseAtGate(70, `systemd-run did not start scope ${unit}`);
   }
   const startedAt = deps.clock.read();
   const gateSample = readSample('gate', startedAt, deps.telemetry, cgroup, job.locator);
@@ -419,7 +506,18 @@ async function runAdmitted(
   // (job-run.test.ts) run the payload unmeasured, no refusal (2026-11-01, Slice 3).
   if (gateSample.counters === null || gateSample.failure !== null)
     return refuseAtGate(
+      70,
       `scope counters unreadable at the gate: ${gateSample.failure ?? 'unknown'}`,
+    );
+  // The payload execs from the working tree: the checkout must still stand on the commit whose
+  // catalogue admitted it, however long admission waited (review F9).
+  const head = currentHead(catalogued.checkout);
+  // Proof: without it `refuses 64 when the checkout moved while waiting` (job-run.test.ts) ran
+  // the payload from the moved checkout (2026-11-02, Slice 3 review F9).
+  if (head !== catalogued.revision)
+    return refuseAtGate(
+      64,
+      `${catalogued.checkout} moved from ${catalogued.revision} to ${head ?? 'no HEAD'} while the job waited; rerun from the new commit`,
     );
   try {
     records.begin(
@@ -430,7 +528,7 @@ async function runAdmitted(
         descriptor: catalogued.descriptor,
         descriptorDigest: catalogued.descriptorDigest,
         cataloguePath: catalogued.cataloguePath,
-        payloadSha: catalogued.revision,
+        launcherSha: catalogued.revision,
         argumentProfile: catalogued.jobType.argumentProfile,
         argv: request.argv,
         hostClass: hostClassOf(deps.host),
@@ -443,17 +541,25 @@ async function runAdmitted(
       gateSample,
     );
   } catch (cause) {
-    return refuseAtGate(`run record unwritable at the gate: ${causeText(cause)}`);
+    // Proof: without this refusal `refuses 70 when the run record cannot be written at the
+    // gate` (job-run.test.ts) reject with the bare lock error, the job left held (2026-11-02, F2b).
+    return refuseAtGate(70, `run record unwritable at the gate: ${causeText(cause)}`);
   }
   const bound = catalogued.descriptor.containers;
   const watch =
     docker === null || bound === 'none'
       ? null
-      : ContainerWatch.start(docker, deps.environment, job.id, bound, startedAt);
+      : ContainerWatch.start(docker, deps.environment, job.id, bound, startedAt, (owner) =>
+          runtime.listHostJobs().some((other) => other.id === owner && other.state !== 'released'),
+        );
+  await refuseIfInterrupted().catch(async (cause: unknown) => {
+    if (watch !== null) await watch.finish(deps.clock.read());
+    throw cause;
+  });
   onSignal((signal) => {
     // The whole session: the payload and its children, not only the gated shell.
     try {
-      process.kill(-pid, signal);
+      killSession(pid, signal);
     } catch (cause) {
       deps.report(`ops job: forwarding ${signal} to ${unit} failed: ${causeText(cause)}`);
     }
@@ -479,8 +585,8 @@ async function runAdmitted(
     let timer: ReturnType<typeof setTimeout> | undefined;
     // A cleared timer, not `Bun.sleep`: a pending sleep would hold the process open for up to
     // one interval after the job ended.
-    // Proof: leaving the timer uncleared made `the installed entrypoint runs a job and passes its
-    // status` (job-run.test.ts) take 15.5 s for a payload that exits at once (2026-11-01, Slice 3).
+    // Proof: leaving the timer uncleared made `the launcher process ends with its job`
+    // (job-run.test.ts) take 15.5 s for a payload that exits at once (2026-11-01, Slice 3).
     await Promise.race([
       ending,
       new Promise((resolveTick) => {

@@ -39,7 +39,8 @@ export interface RunStart {
   descriptor: unknown;
   descriptorDigest: string;
   cataloguePath: string;
-  payloadSha: string;
+  /** The launcher checkout's HEAD, whose catalogue admitted the job; for `gate` the tested SHA is in `argv`. */
+  launcherSha: string;
   argumentProfile: string;
   argv: readonly string[];
   hostClass: string;
@@ -113,7 +114,7 @@ const StartShape = type({
   descriptor: 'unknown',
   descriptorDigest: 'string',
   cataloguePath: 'string',
-  payloadSha: 'string',
+  launcherSha: 'string',
   argumentProfile: 'string',
   argv: 'string[]',
   hostClass: 'string',
@@ -136,6 +137,35 @@ const OutcomeShape = type({
     reason: 'string',
   }).array(),
 });
+
+/**
+ * The run records must be an owner-only regular file: no link, this account's, no group or
+ * world bits.
+ * @throws Error naming the file otherwise.
+ */
+function checkOwnerOnly(path: string): void {
+  const identity = lstatSync(path);
+  // Proof: without this refusal `refuses run records that are not an owner-only regular file`
+  // (job-run.test.ts) opened the symlink. Removing only the link test stays green, because
+  // `!isFile()` refuses a link too (2026-11-02, Slice 3 review F2d).
+  if (
+    identity.isSymbolicLink() ||
+    !identity.isFile() ||
+    identity.uid !== process.getuid?.() ||
+    (identity.mode & 0o077) !== 0
+  )
+    throw new Error(`host job run records ${path} must be an owner-only regular file`);
+}
+
+/** @throws Error unless the records are schema version 1. */
+function checkVersion(path: string, version: number | undefined): void {
+  // Proof: without it `refuses run records of another schema version` (job-run.test.ts)
+  // opened version 7 (2026-11-02, Slice 3 review F2d).
+  if (version !== 1)
+    throw new Error(
+      `host job run records ${path} have schema version ${String(version)}; this Dash knows 1`,
+    );
+}
 
 /**
  * The host-job run records (`dash-host-jobs` J7): one record per admitted host job with its
@@ -176,14 +206,7 @@ export class HostJobRunRecords {
         if (!(raced instanceof Error && 'code' in raced && raced.code === 'EEXIST')) throw raced;
       }
     }
-    const identity = lstatSync(path);
-    if (
-      identity.isSymbolicLink() ||
-      !identity.isFile() ||
-      identity.uid !== process.getuid?.() ||
-      (identity.mode & 0o077) !== 0
-    )
-      throw new Error(`host job run records ${path} must be an owner-only regular file`);
+    checkOwnerOnly(path);
     const db = new Database(path, { create: false, strict: true });
     try {
       db.run('PRAGMA busy_timeout=10000; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL');
@@ -199,11 +222,39 @@ export class HostJobRunRecords {
           db.run(SCHEMA);
           return;
         }
-        if (version?.user_version !== 1)
-          throw new Error(
-            `host job run records ${path} have schema version ${String(version?.user_version)}; this Dash knows 1`,
-          );
+        checkVersion(path, version?.user_version);
       }).immediate();
+    } catch (cause) {
+      db.close();
+      throw cause;
+    }
+    return new HostJobRunRecords(db);
+  }
+
+  /**
+   * Open existing run records read-only, for `ops job status`: never creates them (review F7).
+   * @throws Error when they are missing, a link, not owner-only, or of another schema.
+   */
+  static openForReading(root: string): HostJobRunRecords {
+    const path = HostJobRunRecords.pathOf(root);
+    try {
+      lstatSync(path);
+    } catch (cause) {
+      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT')
+        throw new Error(
+          `host job run records ${path} are missing; \`ops pool init\` creates them`,
+          { cause },
+        );
+      throw cause;
+    }
+    checkOwnerOnly(path);
+    const db = new Database(path, { readonly: true, strict: true });
+    try {
+      db.run('PRAGMA busy_timeout=10000');
+      checkVersion(
+        path,
+        db.query<{ user_version: number }, []>('PRAGMA user_version').get()?.user_version,
+      );
     } catch (cause) {
       db.close();
       throw cause;
