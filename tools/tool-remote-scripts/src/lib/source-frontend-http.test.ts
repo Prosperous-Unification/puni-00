@@ -9,6 +9,7 @@ import { expect, spyOn, test } from 'bun:test';
 
 import type * as ProducerModule from '../fixtures/source-frontend-producer';
 import {
+  consumeSourceFrontendCapture,
   requireSourceFrontendProducerSuccess,
   withSourceFrontendProducer,
 } from '../fixtures/source-frontend-producer';
@@ -1200,6 +1201,34 @@ async function removeProvenanceRoot(owner: 'provenance' | 'producer', root: stri
   status(after);
 }
 
+type FrontendRootOwner = 'provenance' | 'producer';
+
+/** Attempts the fixed settled pair once in order, retaining each original failure until both attempts finish. */
+async function removeFrontendRoots(
+  provenance: string,
+  producer: string | undefined,
+  remove: (owner: FrontendRootOwner, root: string) => Promise<void>,
+): Promise<void> {
+  const failures: unknown[] = [];
+  try {
+    await remove('provenance', provenance);
+  } catch (failure) {
+    // Proof: FRC1 restored fail-fast here; 'frontend cleanup accounting settled roots first-missing'
+    // found the real second root retained; exact attempt-all restoration passed (2026-11-02).
+    failures.push(failure);
+  }
+  if (producer !== undefined) {
+    try {
+      await remove('producer', producer);
+    } catch (failure) {
+      failures.push(failure);
+    }
+  }
+  if (failures.length === 1) throw failures[0];
+  if (failures.length === 2)
+    throw new AggregateError(failures, 'frontend owned root removals failed');
+}
+
 async function prepareOwnedProducer(historicalCommit: boolean) {
   const repository = resolve(import.meta.dir, '../../../..');
   const root = await mkdtemp(join(tmpdir(), 'frontend-owned-provenance-'));
@@ -1374,8 +1403,7 @@ test('producer rejects separately supported Git and live epochs before Node', as
   } finally {
     spy.mockRestore();
     if (settled) {
-      await removeProvenanceRoot('provenance', prepared.root);
-      if (retained !== undefined) await removeProvenanceRoot('producer', retained);
+      await removeFrontendRoots(prepared.root, retained, removeProvenanceRoot);
     }
   }
 }, 10000);
@@ -1534,8 +1562,9 @@ test('producer rejects a different supported live epoch after the actual child c
   } finally {
     spy.mockRestore();
     if (settled) {
-      await rm(prepared.root, { recursive: true });
-      if (retained !== undefined) await rm(retained, { recursive: true });
+      await removeFrontendRoots(prepared.root, retained, (_owner, root) =>
+        rm(root, { recursive: true }),
+      );
     }
   }
 }, 130000);
@@ -1560,3 +1589,233 @@ function reconstructHistoricalInput(path: 'package.json' | 'bun.lock', bytes: Ui
   expect(describeBytes(reconstructed)).toEqual(HISTORICAL_PAIR[path]);
   return reconstructed;
 }
+
+/** Test-owned existence observation; only exact ENOENT denotes a known already-removed root. */
+async function hasFrontendCleanupRoot(root: string): Promise<boolean> {
+  try {
+    await access(root);
+    return true;
+  } catch (cause) {
+    if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return false;
+    throw cause;
+  }
+}
+
+async function removeFrontendTestRoot(root: string): Promise<void> {
+  if (await hasFrontendCleanupRoot(root)) await rm(root, { recursive: true });
+}
+
+type FrontendCleanupOutcome =
+  | { readonly kind: 'returned'; readonly value: unknown }
+  | { readonly kind: 'threw'; readonly failure: unknown };
+
+const frontendCaptureCleanupCases = [
+  'success',
+  'primary-only',
+  'cleanup-only-missing-root',
+  'both-errors',
+  'undefined-primary',
+  'undefined-cleanup',
+] as const;
+test.each([...frontendCaptureCleanupCases])(
+  'frontend cleanup accounting settled capture %s',
+  async (fault) => {
+    const root = await mkdtemp(join(tmpdir(), 'frontend-capture-cleanup-case-'));
+    const value = Object.freeze({ marker: 'same private consumer object' });
+    const primary: unknown =
+      fault === 'undefined-primary' ? undefined : new Error('modeled private consumer refusal');
+    const cleanup: unknown =
+      fault === 'undefined-cleanup' ? undefined : new Error('modeled removal dependency refusal');
+    const calls: string[] = [];
+    let consumeCalls = 0;
+    let cleanupCalls = 0;
+    const cleanupFailures: unknown[] = [];
+    try {
+      let outcome: FrontendCleanupOutcome;
+      try {
+        const returned = await consumeSourceFrontendCapture(
+          async () => {
+            consumeCalls++;
+            calls.push('consume');
+            if (fault === 'cleanup-only-missing-root') await rm(root, { recursive: true });
+            if (fault !== 'success' && fault !== 'cleanup-only-missing-root') throw primary;
+            return value;
+          },
+          async () => {
+            cleanupCalls++;
+            calls.push('cleanup');
+            try {
+              await rm(root, { recursive: true });
+              // These three dependency refusals are modeled after an actual successful root removal.
+              if (
+                fault === 'both-errors' ||
+                fault === 'undefined-primary' ||
+                fault === 'undefined-cleanup'
+              )
+                throw cleanup;
+            } catch (failure) {
+              cleanupFailures.push(failure);
+              throw failure;
+            }
+          },
+        );
+        outcome = { kind: 'returned', value: returned };
+      } catch (failure) {
+        outcome = { kind: 'threw', failure };
+      }
+      expect(await hasFrontendCleanupRoot(root), 'required settled capture root removal').toBe(
+        false,
+      );
+      expect(consumeCalls, 'settled consumer invocation count').toBe(1);
+      expect(cleanupCalls, 'settled removal invocation count').toBe(1);
+      expect(calls).toEqual(['consume', 'cleanup']);
+      if (fault === 'success') {
+        expect(outcome.kind).toBe('returned');
+        if (outcome.kind !== 'returned') throw new Error('settled capture unexpectedly refused');
+        expect(outcome.value === value, 'same consumer value after cleanup').toBe(true);
+        expect(cleanupFailures).toHaveLength(0);
+      } else {
+        expect(outcome.kind).toBe('threw');
+        if (outcome.kind !== 'threw') throw new Error('required settled capture refusal absent');
+        if (fault === 'primary-only') {
+          expect(outcome.failure === primary, 'original primary-only identity').toBe(true);
+          expect(cleanupFailures).toHaveLength(0);
+        } else {
+          expect(cleanupFailures).toHaveLength(1);
+          if (fault === 'cleanup-only-missing-root') {
+            expect(
+              outcome.failure === cleanupFailures[0],
+              'original actual missing-root rejection identity',
+            ).toBe(true);
+            expect(
+              outcome.failure instanceof Error &&
+                'code' in outcome.failure &&
+                outcome.failure.code === 'ENOENT',
+              'actual missing-root refusal',
+            ).toBe(true);
+          } else {
+            expect(
+              outcome.failure instanceof AggregateError,
+              'both settled failures retained privately',
+            ).toBe(true);
+            if (!(outcome.failure instanceof AggregateError))
+              throw new Error('dual settled failure aggregate absent');
+            expect(
+              outcome.failure.message === 'settled frontend capture and removal failed',
+              'fixed private aggregate message',
+            ).toBe(true);
+            expect(
+              outcome.failure.errors[0] === primary,
+              'original primary identity retained first',
+            ).toBe(true);
+            expect(
+              outcome.failure.errors[1] === cleanupFailures[0],
+              'original cleanup identity retained second',
+            ).toBe(true);
+            expect(outcome.failure.errors.length).toBe(2);
+          }
+        }
+      }
+    } finally {
+      await removeFrontendTestRoot(root);
+    }
+  },
+);
+
+const frontendPairCleanupCases = [
+  'both-success',
+  'first-missing',
+  'second-missing',
+  'both-missing',
+  'no-retained-producer',
+] as const;
+test.each([...frontendPairCleanupCases])(
+  'frontend cleanup accounting settled roots %s',
+  async (fault) => {
+    const provenance = await mkdtemp(join(tmpdir(), 'frontend-provenance-cleanup-case-'));
+    const producer =
+      fault === 'no-retained-producer'
+        ? undefined
+        : await mkdtemp(join(tmpdir(), 'frontend-producer-cleanup-case-'));
+    const calls: { owner: FrontendRootOwner; root: string }[] = [];
+    const failures = new Map<FrontendRootOwner, unknown>();
+    try {
+      if (fault === 'first-missing' || fault === 'both-missing')
+        await rm(provenance, { recursive: true });
+      if (fault === 'second-missing' || fault === 'both-missing') {
+        if (producer === undefined) throw new Error('required missing-producer fixture absent');
+        await rm(producer, { recursive: true });
+      }
+      let outcome: FrontendCleanupOutcome;
+      try {
+        await removeFrontendRoots(provenance, producer, async (owner, root) => {
+          calls.push({ owner, root });
+          try {
+            await rm(root, { recursive: true });
+          } catch (failure) {
+            failures.set(owner, failure);
+            throw failure;
+          }
+        });
+        outcome = { kind: 'returned', value: undefined };
+      } catch (failure) {
+        outcome = { kind: 'threw', failure };
+      }
+      expect(await hasFrontendCleanupRoot(provenance), 'required provenance root removal').toBe(
+        false,
+      );
+      if (producer !== undefined)
+        expect(
+          await hasFrontendCleanupRoot(producer),
+          'attempt-all producer root after provenance failure',
+        ).toBe(false);
+      expect(calls.map((call) => call.owner)).toEqual(
+        producer === undefined ? ['provenance'] : ['provenance', 'producer'],
+      );
+      expect(calls.at(0)?.root === provenance, 'original provenance root argument').toBe(true);
+      if (producer !== undefined)
+        expect(calls.at(1)?.root === producer, 'original producer root argument').toBe(true);
+      if (fault === 'both-success' || fault === 'no-retained-producer') {
+        expect(outcome.kind).toBe('returned');
+        expect(failures.size).toBe(0);
+      } else {
+        expect(outcome.kind).toBe('threw');
+        if (outcome.kind !== 'threw') throw new Error('required root-removal refusal absent');
+        if (fault === 'both-missing') {
+          expect(failures.has('provenance')).toBe(true);
+          expect(failures.has('producer')).toBe(true);
+          expect(
+            outcome.failure instanceof AggregateError,
+            'both original root failures retained',
+          ).toBe(true);
+          if (!(outcome.failure instanceof AggregateError))
+            throw new Error('dual root-removal aggregate absent');
+          expect(
+            outcome.failure.message === 'frontend owned root removals failed',
+            'fixed private root aggregate message',
+          ).toBe(true);
+          expect(outcome.failure.errors.length).toBe(2);
+          expect(
+            outcome.failure.errors[0] === failures.get('provenance'),
+            'first original removal identity',
+          ).toBe(true);
+          expect(
+            outcome.failure.errors[1] === failures.get('producer'),
+            'second original removal identity',
+          ).toBe(true);
+        } else {
+          const owner = fault === 'first-missing' ? 'provenance' : 'producer';
+          expect(failures.size).toBe(1);
+          expect(failures.has(owner)).toBe(true);
+          expect(
+            outcome.failure === failures.get(owner),
+            'single original removal failure identity',
+          ).toBe(true);
+        }
+      }
+    } finally {
+      await removeFrontendTestRoot(provenance);
+      if (producer !== undefined) await removeFrontendTestRoot(producer);
+    }
+  },
+);
