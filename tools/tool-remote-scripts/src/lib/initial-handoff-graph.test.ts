@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { chmod, readFile, symlink, unlink, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
 import {
@@ -10,6 +11,8 @@ import {
   type TestOptions,
 } from 'bun:test';
 
+import { readGraphTestAdmission } from '../../test/run-tests';
+import { initialHandoffFixture, initialHandoffLayout } from '../fixtures/initial-handoff';
 import { captureEdgePolicy } from './edge-policy';
 import { captureInitialHandoff, isInitialHandoffCleanupUnknown } from './initial-handoff-graph';
 
@@ -25,25 +28,18 @@ const graphFinalizers: {
   readonly callback: GraphTestCallback;
   readonly options: GraphHookOptions;
 }[] = [];
-const uc1Admission = process.env['PUNI_UC1_PREFLIGHT'];
-if (uc1Admission !== undefined && uc1Admission !== 'focused-identity-15-v1')
-  throw new Error('UC1 original preflight admission invalid');
-const hasUC1Admission = uc1Admission === 'focused-identity-15-v1';
-if (hasUC1Admission) {
-  const executable = '/home/df/.bun/bin/bun';
-  const cwd = '/home/df/.codex/worktrees/2eee/puni-00';
-  const modulePath = cwd + '/tools/tool-remote-scripts/src/lib/initial-handoff-graph.test.ts';
-  assert.equal(process.execPath, executable, 'UC1 preflight executable differs');
-  assert.equal(process.cwd(), cwd, 'UC1 preflight cwd differs');
-  assert.equal(import.meta.path, modulePath, 'UC1 preflight module differs');
-  for (const argv of [process.argv, Bun.argv]) {
-    assert.equal(argv.length, 2, 'UC1 preflight public argv shape differs');
-    assert.equal(argv[0], executable, 'UC1 preflight argv executable differs');
-    const filename = argv[1];
-    assert(typeof filename === 'string', 'UC1 preflight filename absent');
-    assert.equal(resolve(cwd, filename), modulePath, 'UC1 preflight argv file differs');
-  }
-}
+const graphModuleEntered = performance.now();
+const graphRepository = resolve(import.meta.dir, '../../../..');
+const graphMode = readGraphTestAdmission(process.env, {
+  repository: graphRepository,
+  modulePath: import.meta.path,
+  executable: process.execPath,
+  requiredExecutable: process.execPath,
+  declaredCount: 228,
+  declaredTitlesSHA256: '9676491473de150ee073672db57973de44ec6707f2e1a5f5f5f5b75384e4bd2a',
+});
+assert.equal(process.cwd(), graphRepository, 'UC1 graph command cwd differs');
+const hasNativePreflight = graphMode !== 'graph-ordinary';
 
 /** Collects only this file's direct registrations; acquisition waits until the complete module is ready. */
 function test(name: string, callback: GraphTestCallback, options?: number | TestOptions): void {
@@ -88,10 +84,6 @@ test('active graph refuses missing committed pointer without creating or scannin
   expect(String(refusal)).toContain('edge-owner.json');
   expect(await Bun.file(directory + '/edge-owner.json').exists()).toBe(false);
 });
-
-import { resolve } from 'node:path';
-
-import { initialHandoffFixture, initialHandoffLayout } from '../fixtures/initial-handoff';
 
 async function runGraph(
   fixture: Awaited<ReturnType<typeof initialHandoffFixture>>,
@@ -1339,7 +1331,7 @@ function holdCloseSettlement(): Promise<never> {
 
 /** One monotonic allocation governs new fixture/build/spawn starts; expiry never cancels current originals. */
 function assertCloseSettlementStart(): void {
-  if (!hasUC1Admission) return;
+  assert(hasNativePreflight, 'UC1 native preflight forbidden in ordinary mode');
   const deadline = closeSettlementOwner.deadline;
   assert.notEqual(deadline, undefined, 'UC1 preflight allocation not established');
   if (closeSettlementOwner.stopped || deadline === undefined || performance.now() >= deadline) {
@@ -1820,6 +1812,16 @@ ${closeSettlementProgram}`,
     );
     native = readCloseNative(JSON.parse(nativeLine.slice('FIXTURE_NATIVE:'.length)));
     assert.equal(lines[2], 'FIXTURE_CLEANUP:KNOWN', 'UC1 fixture retirement unproven');
+    assert(
+      Number.isInteger(termination.value) && termination.value >= 0 && termination.value <= 255,
+      'UC1 original helper exit status absent',
+    );
+    assert.equal(
+      retained.child.exitCode,
+      termination.value,
+      'UC1 original helper exit status differs',
+    );
+    assert.equal(retained.child.signalCode, null, 'UC1 original helper terminated by signal');
     const assertionLabel = readCloseIdentityRefusal(
       Buffer.from(err.value.base64, 'base64').toString('utf8'),
       scenario,
@@ -1830,7 +1832,6 @@ ${closeSettlementProgram}`,
       !closeSettlementOwner.uncertain &&
       termination.value === 1 &&
       retained.child.exitCode === 1 &&
-      retained.child.signalCode === null &&
       err.value.bytes > 0 &&
       lines.length === 4 &&
       assertionLabel !== undefined
@@ -1857,13 +1858,23 @@ ${closeSettlementProgram}`,
       throw cause;
     }
 
-    if (
-      termination.value !== 0 ||
-      retained.child.signalCode !== null ||
-      retained.child.exitCode !== 0 ||
-      err.value.bytes !== 0
-    ) {
+    if (termination.value !== 0 || retained.child.exitCode !== 0 || err.value.bytes !== 0) {
       const cause = new Error('UC1 helper infrastructure refusal after known fixture retirement');
+      const index = closeSettlementOwner.active.indexOf(retained);
+      assert(index >= 0, 'UC1 refused original absent at known retirement');
+      closeSettlementOwner.failures.push(
+        Object.freeze({
+          cause,
+          original: retained,
+          stdout,
+          stderr,
+          outcomes: retained.outcomes,
+          native,
+          stdoutOutput: out.value,
+          stderrOutput: err.value,
+        }),
+      );
+      closeSettlementOwner.active.splice(index, 1);
       isKnownInfrastructureRefusal = true;
       stopCloseSettlement(cause, false);
       throw cause;
@@ -2186,44 +2197,39 @@ if(classify)console.log('CLEANUP_IDENTITY:'+JSON.stringify(classifications));
 console.log('CLOSE_SETTLEMENT:'+scenario);
 `;
 
-// Each case catches skipped original cleanup, erased causes, or an unsafe second close.
-test('close settlement retained file before delegation attempts every original', async () => {
-  await runCloseSettlement('file-before', await initialHandoffFixture());
+// Each original helper still catches skipped cleanup, erased causes or an unsafe second close before these assertions.
+test('close settlement retained file before delegation attempts every original', () => {
+  assertLegacyClosePreflight('file-before');
 });
-test('close settlement retained file after delegation stays unknown', async () => {
-  await runCloseSettlement('file-after', await initialHandoffFixture());
+test('close settlement retained file after delegation stays unknown', () => {
+  assertLegacyClosePreflight('file-after');
 });
-test('close settlement retained parent before delegation attempts every original', async () => {
-  await runCloseSettlement('parent-before', await initialHandoffFixture());
+test('close settlement retained parent before delegation attempts every original', () => {
+  assertLegacyClosePreflight('parent-before');
 });
-test('close settlement retained parent after delegation stays unknown', async () => {
-  await runCloseSettlement('parent-after', await initialHandoffFixture());
+test('close settlement retained parent after delegation stays unknown', () => {
+  assertLegacyClosePreflight('parent-after');
 });
-test('close settlement multiple failures preserve caller descriptor', async () => {
-  await runCloseSettlement('multiple', await initialHandoffFixture());
+test('close settlement multiple failures preserve caller descriptor', () => {
+  assertLegacyClosePreflight('multiple');
 });
-test('close settlement raw construction retains read and cleanup failures', async () => {
-  await runCloseSettlement('raw-read', await initialHandoffFixture());
+test('close settlement raw construction retains read and cleanup failures', () => {
+  assertLegacyClosePreflight('raw-read');
 });
-test('close settlement disk construction retains semantic and cleanup failures', async () => {
-  await runCloseSettlement(
-    'disk-construction',
-    await initialHandoffFixture('H8', undefined, (label, fields) => {
-      if (label === 'handoff-intent') fields['unrecognized'] = true;
-    }),
-  );
+test('close settlement disk construction retains semantic and cleanup failures', () => {
+  assertLegacyClosePreflight('disk-construction');
 });
-test('close settlement directory transfer expiry closes original once', async () => {
-  await runCloseSettlement('transfer', await initialHandoffFixture());
+test('close settlement directory transfer expiry closes original once', () => {
+  assertLegacyClosePreflight('transfer');
 });
-test('close settlement reopened verification failure revokes observation', async () => {
-  await runCloseSettlement('verify', await initialHandoffFixture());
+test('close settlement reopened verification failure revokes observation', () => {
+  assertLegacyClosePreflight('verify');
 });
-test('close settlement roster stream failure retains read and close causes', async () => {
-  await runCloseSettlement('stream', await initialHandoffFixture());
+test('close settlement roster stream failure retains read and close causes', () => {
+  assertLegacyClosePreflight('stream');
 });
-test('close settlement complete disk finalization stays unknown', async () => {
-  await runCloseSettlement('disk-final', await initialHandoffFixture());
+test('close settlement complete disk finalization stays unknown', () => {
+  assertLegacyClosePreflight('disk-final');
 });
 
 test('cleanup identity recognizes actual raw construction primary and close UNKNOWN', () => {
@@ -2440,29 +2446,115 @@ const closePreflightScenarios = [
   },
 ] as const;
 
+const closeLegacyScenarios = [
+  {
+    scenario: 'file-before',
+    title: 'close settlement retained file before delegation attempts every original',
+    fixture: 'complete-disk',
+  },
+  {
+    scenario: 'file-after',
+    title: 'close settlement retained file after delegation stays unknown',
+    fixture: 'complete-disk',
+  },
+  {
+    scenario: 'parent-before',
+    title: 'close settlement retained parent before delegation attempts every original',
+    fixture: 'complete-disk',
+  },
+  {
+    scenario: 'parent-after',
+    title: 'close settlement retained parent after delegation stays unknown',
+    fixture: 'complete-disk',
+  },
+  {
+    scenario: 'multiple',
+    title: 'close settlement multiple failures preserve caller descriptor',
+    fixture: 'complete-disk',
+  },
+  {
+    scenario: 'raw-read',
+    title: 'close settlement raw construction retains read and cleanup failures',
+    fixture: 'complete-disk',
+  },
+  {
+    scenario: 'disk-construction',
+    title: 'close settlement disk construction retains semantic and cleanup failures',
+    fixture: 'malformed-disk',
+  },
+  {
+    scenario: 'transfer',
+    title: 'close settlement directory transfer expiry closes original once',
+    fixture: 'complete-disk',
+  },
+  {
+    scenario: 'verify',
+    title: 'close settlement reopened verification failure revokes observation',
+    fixture: 'complete-disk',
+  },
+  {
+    scenario: 'stream',
+    title: 'close settlement roster stream failure retains read and close causes',
+    fixture: 'complete-disk',
+  },
+  {
+    scenario: 'disk-final',
+    title: 'close settlement complete disk finalization stays unknown',
+    fixture: 'complete-disk',
+  },
+] as const;
 type ClosePreflightScenario = (typeof closePreflightScenarios)[number]['scenario'];
+type CloseLegacyScenario = (typeof closeLegacyScenarios)[number]['scenario'];
 const closePreflightRecords = new Map<ClosePreflightScenario, KnownCloseSettlement>();
+const closeLegacyRecords = new Map<CloseLegacyScenario, KnownCloseSettlement>();
 
-/** Timed cases can read only this invocation's immutable, fully joined observations. No fallback starts work. */
+/** Timed identity cases consume only this invocation's fully joined14 observations, with no fallback work. */
 function assertClosePreflight(): void {
-  if (!hasUC1Admission || !closeSettlementOwner.preflightComplete)
-    throw new Error('UC1 original preflight admission required');
+  if (graphMode !== 'graph-identity' || !closeSettlementOwner.preflightComplete)
+    throw new Error('UC1 original identity preflight admission required');
   if (
     closeSettlementOwner.stopped ||
     closeSettlementOwner.active.length !== 0 ||
-    closePreflightRecords.size !== 14
+    closePreflightRecords.size !== 14 ||
+    closeLegacyRecords.size !== 0
   )
-    throw new Error('UC1 original preflight completion unavailable');
+    throw new Error('UC1 original identity preflight completion unavailable');
 }
 function readClosePreflight(scenario: ClosePreflightScenario): KnownCloseSettlement {
   const observed = closePreflightRecords.get(scenario);
   if (observed === undefined) throw new Error('UC1 original preflight record absent');
+  assert.equal(observed.scenario, scenario, 'UC1 identity observation scenario differs');
+  assert(
+    closeSettlementOwner.completed.includes(observed) && observed.original.accepted,
+    'UC1 identity observation foreign to this invocation',
+  );
   return observed;
 }
 
-/** Root's pinned argv/filter is the trust boundary; public argv guards cannot recover Bun-consumed flags. */
+/** Legacy callbacks assert only their own classify=false result after all11 original helpers/native/readers joined. */
+function assertLegacyClosePreflight(scenario: CloseLegacyScenario): void {
+  if (
+    graphMode !== 'graph-legacy' ||
+    !closeSettlementOwner.preflightComplete ||
+    closeSettlementOwner.stopped ||
+    closeSettlementOwner.active.length !== 0 ||
+    closeLegacyRecords.size !== 11 ||
+    closePreflightRecords.size !== 0
+  )
+    throw new Error('UC1 original legacy preflight completion unavailable');
+  const observed = closeLegacyRecords.get(scenario);
+  assert(observed !== undefined, 'UC1 original legacy observation absent');
+  assert.equal(observed.scenario, scenario, 'UC1 original legacy observation scenario differs');
+  assert.equal(observed.classifications.length, 0, 'UC1 legacy helper unexpectedly classified');
+  assert.equal(observed.exit, 0, 'UC1 legacy helper did not succeed');
+  assert(
+    closeSettlementOwner.completed.includes(observed) && observed.original.accepted,
+    'UC1 legacy observation foreign to this invocation',
+  );
+}
+
+/** The trusted launcher owns exact original argv; consumed public Bun flags are not recoverable here. */
 async function prepareClosePreflight(): Promise<void> {
-  const entered = performance.now();
   const names = graphTestDeclarations.map((declaration) => declaration.name);
   assert.equal(names.length, 228, 'UC1 graph declaration census differs');
   assert.equal(new Set(names).size, 228, 'UC1 graph declaration duplicated');
@@ -2472,24 +2564,39 @@ async function prepareClosePreflight(): Promise<void> {
     'UC1 frozen graph title census differs',
   );
   assert.equal(graphFinalizers.length, 1, 'UC1 graph finalizer census differs');
-  assert.equal(closePreflightScenarios.length, 14, 'UC1 scenario census differs');
+  assert.equal(closePreflightScenarios.length, 14, 'UC1 identity scenario census differs');
   assert.equal(
     new Set(closePreflightScenarios.map((row) => row.scenario)).size,
     14,
-    'UC1 scenario duplicated',
+    'UC1 identity scenario duplicated',
   );
-  const focusedNames = names.filter((name) => name.startsWith('cleanup identity '));
-  assert.deepEqual(
-    focusedNames,
-    [
-      ...closePreflightScenarios.map((row) => row.title),
-      'cleanup identity refuses primitive and message field lookalikes',
-    ],
-    'UC1 focused literal names differ',
+  assert.equal(closeLegacyScenarios.length, 11, 'UC1 legacy scenario census differs');
+  assert.equal(
+    new Set(closeLegacyScenarios.map((row) => row.scenario)).size,
+    11,
+    'UC1 legacy scenario duplicated',
   );
-  if (hasUC1Admission) {
-    // Set once at entry; each row checks this same deadline before fixture, build and spawn.
-    closeSettlementOwner.deadline = entered + 45000;
+  const legacyNames = closeLegacyScenarios.map((row) => row.title);
+  const identityNames = [
+    ...closePreflightScenarios.map((row) => row.title),
+    'cleanup identity refuses primitive and message field lookalikes',
+  ];
+  assert.deepEqual(names.slice(202, 213), legacyNames, 'UC1 legacy literal names/order differ');
+  assert.deepEqual(names.slice(213), identityNames, 'UC1 identity literal names/order differ');
+  const selected =
+    graphMode === 'graph-ordinary'
+      ? graphTestDeclarations.slice(0, 202)
+      : graphMode === 'graph-legacy'
+        ? graphTestDeclarations.slice(202, 213)
+        : graphTestDeclarations.slice(213);
+  assert.equal(
+    selected.length,
+    graphMode === 'graph-ordinary' ? 202 : graphMode === 'graph-legacy' ? 11 : 15,
+    'UC1 selected declaration census differs',
+  );
+  if (hasNativePreflight) {
+    // One allocation from module entry; expiry prevents new work and never cancels current originals.
+    closeSettlementOwner.deadline = graphModuleEntered + 45000;
     closeSettlementOwner.timer = setTimeout(
       () => {
         stopCloseSettlement(new Error('UC1 original preflight start allocation exceeded'), false);
@@ -2497,7 +2604,14 @@ async function prepareClosePreflight(): Promise<void> {
       Math.max(1, closeSettlementOwner.deadline - performance.now()),
     );
     try {
-      for (const row of closePreflightScenarios) {
+      async function captureRow(
+        row: {
+          readonly scenario: ClosePreflightScenario | CloseLegacyScenario;
+          readonly fixture: 'complete-disk' | 'malformed-disk';
+        },
+        classify: boolean,
+        stages: readonly string[],
+      ): Promise<KnownCloseSettlement> {
         assertCloseSettlementStart();
         const fixture =
           row.fixture === 'malformed-disk'
@@ -2505,16 +2619,29 @@ async function prepareClosePreflight(): Promise<void> {
                 if (label === 'handoff-intent') fields['unrecognized'] = true;
               })
             : await initialHandoffFixture();
-        const observed = await runCloseSettlement(row.scenario, fixture, true, row.stages);
+        const observed = await runCloseSettlement(row.scenario, fixture, classify, stages);
         assert.equal(observed.scenario, row.scenario, 'UC1 original observation scenario differs');
-        closePreflightRecords.set(row.scenario, observed);
+        return observed;
+      }
+      if (graphMode === 'graph-identity') {
+        for (const row of closePreflightScenarios)
+          closePreflightRecords.set(row.scenario, await captureRow(row, true, row.stages));
+      } else {
+        for (const row of closeLegacyScenarios)
+          closeLegacyRecords.set(row.scenario, await captureRow(row, false, []));
       }
       assertCloseSettlementStart();
       assert.equal(closeSettlementOwner.active.length, 0, 'UC1 preflight retains unsettled child');
+      assert.equal(
+        closeSettlementOwner.completed.length,
+        graphMode === 'graph-identity' ? 14 : 11,
+        'UC1 actual completed helper census differs',
+      );
       closeSettlementOwner.preflightComplete = true;
     } catch (cause) {
       stopCloseSettlement(cause, closeSettlementOwner.uncertain);
-      if (closeSettlementOwner.uncertain) await holdCloseSettlement();
+      if (closeSettlementOwner.uncertain || closeSettlementOwner.active.length !== 0)
+        await holdCloseSettlement();
       throw cause;
     } finally {
       if (!closeSettlementOwner.uncertain && closeSettlementOwner.active.length === 0) {
@@ -2522,20 +2649,13 @@ async function prepareClosePreflight(): Promise<void> {
         if (closeSettlementOwner.keeper !== undefined) clearInterval(closeSettlementOwner.keeper);
       }
     }
+    // The original30-second scratch cleanup hook is imported only after every original native/helper/reader joins.
+    await import('@tools/test-scratch/preload');
   }
-  for (const declaration of graphTestDeclarations) {
-    registerTest(
-      declaration.name,
-      () => {
-        if (hasUC1Admission && !declaration.name.startsWith('cleanup identity '))
-          throw new Error('UC1 admitted preflight refuses historical graph callback');
-        return declaration.callback();
-      },
-      declaration.options,
-    );
-  }
+  for (const declaration of selected)
+    registerTest(declaration.name, declaration.callback, declaration.options);
   for (const finalizer of graphFinalizers) registerAfterAll(finalizer.callback, finalizer.options);
 }
 
-// No timed test or hook has been registered by this file before these original helper joins.
+// No native-mode timed test or cleanup hook from this file is registered before all original joins.
 await prepareClosePreflight();
