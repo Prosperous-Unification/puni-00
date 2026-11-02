@@ -1,4 +1,4 @@
-import { chmod, mkdir, readdir, readFile, utimes, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readdir, readFile, rename, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
@@ -182,6 +182,32 @@ async function commitAll(source: string, message: string): Promise<string> {
   await requireCommand(['git', '-C', source, 'add', '-A']);
   await requireCommand(['git', '-C', source, 'commit', '--quiet', '-m', message]);
   return await requireCommand(['git', '-C', source, 'rev-parse', 'HEAD']);
+}
+
+/** A shared source whose requested remote target is newer than its checked-out HEAD. */
+async function seedBorrowedSource(root: string): Promise<{
+  backing: string;
+  source: string;
+  base: string;
+  target: string;
+}> {
+  const backing = join(root, 'backing');
+  const source = join(root, 'src');
+  await initFixtureRepository(backing);
+  await seedDeployerTree(
+    backing,
+    "export const PROBE = 'base';\n",
+    "import { PROBE } from '@wbs/probe-contract';\nconsole.log(PROBE);\n",
+  );
+  const base = await commitAll(backing, 'base');
+  await writeFile(
+    join(backing, 'tools/tool-remote-scripts/src/lib/probe-contract.ts'),
+    "export const PROBE = 'borrowed target';\n",
+  );
+  const target = await commitAll(backing, 'target');
+  await requireCommand(['git', 'clone', '--quiet', '--shared', backing, source]);
+  await requireCommand(['git', '-C', source, 'reset', '--hard', '--quiet', base]);
+  return { backing, source, base, target };
 }
 
 describe('durable dev poller', () => {
@@ -1081,6 +1107,79 @@ printf '%s\n' "$target_root" > "$POLL_TARGET_PROBE"
     // `error: Could not resolve: "@dagger.io/dagger". Maybe you need to "bun install"?`.
     expect(run).toEqual({ code: 0, stdout: '', stderr: '' });
     expect(await readFile(probe, 'utf8')).toBe(`${join(installed, `sync.${head}`)}\n`);
+  });
+
+  it('keeps borrowed non-HEAD target objects readable without either source object store', async () => {
+    const root = await scratchAsync('wbs-dev-poller-borrowed-target-');
+    const { backing, source, base, target } = await seedBorrowedSource(root);
+    const installed = join(root, 'bin');
+    expect(await requireCommand(['git', '-C', source, 'rev-parse', 'HEAD'])).toBe(base);
+    expect(await requireCommand(['git', '-C', source, 'rev-parse', 'origin/main'])).toBe(target);
+    expect(await readFile(join(source, '.git/objects/info/alternates'), 'utf8')).toBe(
+      `${backing}/.git/objects\n`,
+    );
+
+    const run = await command([
+      'bash',
+      HELPER,
+      source,
+      installed,
+      process.execPath,
+      target,
+      Bun.version,
+    ]);
+    expect(run).toEqual({ code: 0, stdout: 'borrowed target\n', stderr: '' });
+
+    const candidate = join(installed, `sync.${target}`);
+    await rename(join(backing, '.git/objects'), join(root, 'backing-objects'));
+    await rename(join(source, '.git/objects'), join(root, 'source-objects'));
+    expect(
+      await command([
+        'git',
+        '-C',
+        candidate,
+        'show',
+        `${target}:tools/tool-remote-scripts/src/lib/probe-contract.ts`,
+      ]),
+    ).toEqual({ code: 0, stdout: "export const PROBE = 'borrowed target';\n", stderr: '' });
+    expect(await command(['git', '-C', candidate, 'fsck', '--full'])).toEqual({
+      code: 0,
+      stdout: '',
+      stderr: '',
+    });
+    expect(await Bun.file(join(candidate, '.git/objects/info/alternates')).exists()).toBe(false);
+  });
+
+  it('refuses and cleans a borrowed candidate when required object copying fails', async () => {
+    const root = await scratchAsync('wbs-dev-poller-copy-failure-');
+    const { source, target } = await seedBorrowedSource(root);
+    const installed = join(root, 'bin');
+    const commands = join(root, 'commands');
+    const realGit = await requireCommand(['bash', '-c', 'command -v git']);
+    await mkdir(commands);
+    await writeFile(
+      join(commands, 'git'),
+      `#!/usr/bin/env bash
+set -eu
+if [ "$1" = -C ] && [ "$3" = repack ]; then
+  echo 'injected required object copy failure' >&2
+  exit 17
+fi
+exec "$POLL_REAL_GIT" "$@"
+`,
+    );
+    await chmod(join(commands, 'git'), 0o755);
+
+    const failed = await command(
+      ['bash', HELPER, source, installed, process.execPath, target, Bun.version],
+      { PATH: `${commands}:${process.env['PATH'] ?? ''}`, POLL_REAL_GIT: realGit },
+    );
+    expect(failed).toEqual({
+      code: 17,
+      stdout: '',
+      stderr: 'injected required object copy failure\n',
+    });
+    expect(await readdir(installed)).toEqual([]);
   });
 
   it('keeps concurrent target candidates isolated by commit', async () => {
