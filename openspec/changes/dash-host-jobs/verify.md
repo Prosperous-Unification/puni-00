@@ -768,3 +768,31 @@ afterwards, with no code change, to match what was observed.
 
 The brief's negatives are rows 1 (minimum one), 2 (throttled run included: the proposal drops)
 and 3 (overruns aged out after five runs: the eight-runs-later fixture passes without drift).
+
+### Commands (fresh, 2026-11-02, `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset for tests)
+
+| Command                                                                                                                                                     | Result                                                                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `bun test src/ops/propose.test.ts src/ops/audit.test.ts src/ops/audit-units.test.ts src/ops/calibrate.test.ts src/cli.test.ts src/no-ambient-clock.test.ts` | 76 pass, 0 fail (6 files); the namespace rerun of `calibrate.test.ts`: 9 pass, 0 fail        |
+| `bun test` on `status`, `job-run`, `containers`, `host-jobs`, `host-job-holds`, `host-jobs.model` (callers of the changed runtime and launcher)             | 5, 44, 3 pass; the namespaced `host-jobs`, `host-job-holds`, `host-jobs.model` wrappers pass |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                                                                                            | 4213 pass, 0 fail, 132 files, 1751.92 s; no flake rerun needed                               |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`, `:lint --skip-nx-cache`, `:build --skip-nx-cache`                                                    | each `Successfully ran target`                                                               |
+| `bunx prettier --check` on every touched file                                                                                                               | `All matched files use Prettier code style!`                                                 |
+| `bunx openspec validate dash-host-jobs --json`                                                                                                              | `valid: true`, 1 passed, 0 failed (the existing compute-provider warning only)               |
+| `bun …/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                       | exit 0; review debt only the two existing WBS indexes                                        |
+
+### Skipped or unverified
+
+- Not host-proven: nothing ran on h2puni or h4claw, and no unit was installed anywhere. The real
+  scope test ran on this workstation's user manager; CI skips it, named, without one.
+- The `tool-devsync` pilot-policy test was not run: every new file is under `src/ops/`.
+- `host-jobs.model.test.ts` does not yet generate calibrations (J18 lists them); the slice adds
+  example tests of drain, whole-vector hold and every unit, not a model. Follow-up.
+- Slice 5's `resourceRuntimeUse` v2 mapping (PR #811) must charge a calibration use the event's
+  `reserved` vector, which this slice already writes, not its descriptor's envelope. Follow-up
+  for that slice; `runtime.ts`'s `moveHostJobEvents` and `publishEvent` are untouched.
+- Two invariant guards have no production-path negative, because only a corrupted ledger or run
+  record reaches them: `jobEnvironment`'s "holds no `<id>` unit" and `checkoutOfCatalogue`'s
+  malformed catalogue path.
+- `ops job status` shows a calibration's catalogue envelope on its running line. The pool line's
+  `reserved` shows the whole vector; no `calibration` marker was added.
