@@ -73,6 +73,7 @@ if (insideLinuxNamespace(import.meta.path)) {
     oversize: 0,
     surviving: 0,
     neverLaunched: 0,
+    launchFailed: 0,
     released: 0,
   };
 
@@ -415,6 +416,39 @@ if (insideLinuxNamespace(import.meta.path)) {
     }
   }
 
+  /**
+   * The n-th still-running launched job is refused at its gate (slice 3 review R4): the launch
+   * failure is recorded, a payload exit is refused afterwards, and the gated leader ends without
+   * running anything, so settlement treats it as an exited job.
+   */
+  class LaunchFailure implements Command {
+    constructor(readonly index: number) {}
+    private target(model: Readonly<Model>): ModelJob | undefined {
+      const running = model.jobs.filter((job) => job.payload !== null && isAlive(job.payload));
+      return running[this.index % Math.max(running.length, 1)];
+    }
+    check(model: Readonly<Model>): boolean {
+      return this.target(model) !== undefined;
+    }
+    async run(model: Model, real: Real): Promise<void> {
+      const job = this.target(model);
+      if (job?.payload == null) throw new Error('model drift');
+      const runtime = runtimeFor(real, this.index);
+      runtime.recordHostJobLaunchFailure(job.id, 'payload did not run: refused at the gate');
+      expect(() => runtime.recordHostJobExit(job.id, 1)).toThrow(
+        'host job has no running payload to record',
+      );
+      expect(runtime.inspectHostJob(job.id).exitCode).toBeNull();
+      reached.launchFailed += 1;
+      await kill(job.payload);
+      for (const contender of model.contenders) if (contender.job === job) contender.job = null;
+      checkInvariants(model, real);
+    }
+    toString(): string {
+      return `LaunchFailure(${String(this.index)})`;
+    }
+  }
+
   class ContainersStop implements Command {
     constructor(readonly index: number) {}
     private target(model: Readonly<Model>): ModelJob | undefined {
@@ -522,6 +556,7 @@ if (insideLinuxNamespace(import.meta.path)) {
     index.map((who) => new Prepare(who)),
     index.map((who) => new Launch(who)),
     index.map((index_) => new PayloadExit(index_)),
+    index.map((index_) => new LaunchFailure(index_)),
     index.map((index_) => new ContainersStop(index_)),
     index.map((who) => new Crash(who)),
     fc.constantFrom(1000, 6000, 61000).map((milliseconds) => new Advance(milliseconds)),
@@ -613,7 +648,7 @@ if (insideLinuxNamespace(import.meta.path)) {
               new Poll(0),
               new Prepare(0),
               new Launch(0),
-              new PayloadExit(0),
+              new LaunchFailure(0),
               new Settle(),
               new Arrive(0, 1, 600),
               new Poll(0),

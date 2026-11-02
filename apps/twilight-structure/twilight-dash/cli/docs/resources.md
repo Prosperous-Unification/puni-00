@@ -298,8 +298,109 @@ workspace slots; a host job also reserves cores, memory and exclusive units.
   file until an operator restores it, and a job never launched returns only after its launcher
   is gone and the 60-second launch grace has passed. `watch`'s sweep re-reads that evidence each
   tick for running and `unknown` jobs; a `blocked` job is re-read after one second, doubling to
-  a one-minute cap, and records an event only when its evidence changes. Until slice 3 reads
-  Docker, a job that declared containers stays charged.
+  a one-minute cap, and records an event only when its evidence changes. `ops job run` settles
+  a job that declared containers with Docker's reading (below); `watch` does not read Docker
+  yet, so such a job whose launcher died stays charged until an operator settles it.
+- **Unreadable processes.** Hold inspection reads every same-account process's `cwd`,
+  descriptors and maps. A process that changed credentials (`(sd-pam)`, `sshd-session`) is not
+  dumpable, and its `/proc/<pid>/fd` is access-denied. For a host job, such a process holds
+  nothing the job made only if it is outside the job's scope `dash-job-<id>.scope` **and**
+  started before the job's leader in this boot. Settlement names those
+  `uninspectable_outside_scope: <pid> (<comm>)` in the entry's reason, the three most recently
+  started by name and the rest as a count, and goes on. A different cgroup alone proves nothing:
+  a payload's descendant can turn non-dumpable (prctl, a setuid helper, `ssh-agent`, `gpg-agent`)
+  and leave the scope with `systemd-run --user`.
+  Any other uninspectable process is an unknown holder and keeps the entry `blocked`. A job
+  begun before a reboot is therefore blocked by every uninspectable process of the new boot. A
+  daemon the payload left inside the scope blocks until it ends. The refusal names the remedy,
+  `systemctl --user stop dash-job-<id>.scope`, after which settlement retries. Worktree cleanup
+  and the unit check at `ops pool init` have no scope to compare against, so they still refuse
+  (task 6.6).
 
-The `ops job` and `ops pool` commands arrive with slice 3; this slice gives the runtime
-(`ResourceRuntime.admitHostJob`, `settleHostJob`, `hostPoolStatus`) and `resources init`.
+### `ops pool` and `ops job` (slice 3)
+
+`ops` is Dash's first typed namespace (J17). Every command takes `--config`, the same
+owner-only schema-3 configuration as `resources`. Refusals print one `error: ` line on stderr
+and keep the shell lock's exit codes (J13): 64 usage, an uncatalogued job or a checkout that
+moved; 70 a host that cannot run the job measured; 73 an envelope the pool can never hold; 75
+no room within the wait budget; 129, 130 and 143 a launcher interrupted by SIGHUP, SIGINT or
+SIGTERM before its payload started.
+
+```sh
+bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops pool init --config /path/to/host-pool.json
+bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops pool inspect --config /path/to/host-pool.json
+bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job run --config /path/to/host-pool.json \
+  --type gate --label gate:0a518a42 --wait-seconds 3600 -- bin/h2puni-gate.sh <sha>
+bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status --config /path/to/host-pool.json
+```
+
+- **`ops pool init`** is `resources init` under the pool's own name: the same initialization
+  and refusals, plus the run records file `.dash/host-job-runs.sqlite` beside the ledger. It
+  prints the root, enrollment id, mode, allocatable vector and units as JSON.
+- **`ops pool inspect`** prints the pool as JSON: mode, allocatable, reserved, each unit and
+  who holds it, every unreleased job and every waiter.
+- **`ops job run`** reads `infra/jobs/catalogue.json` from the checkout holding the current
+  directory **at its HEAD commit**, not the working tree; that commit is the launcher SHA the
+  run record pins (for `gate` the tested SHA is the one in its arguments). Just before the gate
+  opens, however long admission waited, HEAD is read again. If it moved, the job is refused 64
+  unrun, because the payload runs from the working tree. This narrows the gap and does not close
+  it: HEAD can still move between that check and the payload's exec, and during the run. The
+  record names the commit the catalogue was read at, not one the payload is proven to have
+  run. The payload is the words
+  after `--`: its first word is the program, the rest
+  must match the type's argument profile. An unknown type or a mismatch is 64, naming the type
+  and the catalogue path. Before anything is reserved it checks that the host can measure the
+  job: `systemd-run` on `PATH` and a user manager that creates a throwaway scope (otherwise 70,
+  naming `loginctl enable-linger <user>`), and, for a type that declares a containers bound, a
+  `docker` CLI whose daemon answers (otherwise 70). Then it waits for admission (`--wait-seconds`,
+  default 0; `--poll-seconds` 1 to 30, default 5) and launches the payload:
+  - inside `systemd-run --user --scope --unit dash-job-<use id> -p MemoryHigh=<memoryGib>G`
+    (`MemoryMax` too for `enforcement: cap`), behind a gate: the leader's identity is
+    persisted, the scope's `memory.peak`, `memory.current`, `cpu.stat`, `pids.current` and
+    `memory.events` are read and stored as the gate sample, and only then may the payload
+    start. An unreadable counter, a scope that never starts or a run record that cannot be
+    written is 70 with the payload never started. The gate closes unopened, and the job keeps a
+    null exit code and records `payload did not run: <reason>` (also shown by `ops job status`).
+    Its reservation is then settled;
+  - with `TMPDIR` the job's private directory under the managed root, `DASH_JOB_ID`,
+    `DASH_JOB_TYPE`, `DASH_JOB_UNIT_<ID>` per exclusive unit (the id upper-cased) and
+    `HEAVY_LOCK_LABEL` set to `--label`;
+  - sampled every ten seconds and at exit: the counters, the tmp directory's allocated bytes
+    (no link followed) and, for a containers bound, the labelled containers' `docker stats`.
+    The gated shell keeps the scope alive until the exit sample is stored, so even `true` gets
+    a gate and an exit sample. Peak tmp is the largest sample, a lower bound; disk outside
+    `TMPDIR` is not covered;
+  - SIGINT, SIGTERM and SIGHUP before the gate opens refuse the job at the gate (129, 130,
+    143); after it opens they are forwarded to the payload's session.
+    The command exits with the payload's own status, 128 + signal when it was signalled. A
+    telemetry failure (a counter unreadable mid-run, a scope torn down before the exit sample)
+    and a ledger write failure are recorded and reported on stderr apart from that status. It
+    then settles the job on its terminal evidence, once a second for up to 30 seconds, and prints one
+    `ops job: <id> <entry> <state>: <reason>` line per entry; whatever is still charged is
+    left to `watch`.
+- **Containers (J16).** A type that declares `containers: { memoryGib, cpuCores }` must start
+  each container labelled `puni.job=$DASH_JOB_ID` with `--memory` and `--cpus` at or under the
+  bound. A `docker events` stream judges every container created during the run; one without
+  the label, labelled with a value that names no live job, without a bound or above it, or one
+  that vanished before its bound was read makes the run `attributionIncomplete`. So does a
+  failed or unreadable `docker events` stream or replay. Each is named on stderr and in the
+  record. The `docker stats`
+  samples are advisory: Docker omits containers that vanish between samples and excludes file
+  cache; the declared bound is what admission trusts. Compute is released only once no running
+  container carries the job's label.
+- **`ops job status`** prints the pool line, then one `running` line per unreleased job (type,
+  label, pid, age, envelope, peak `memory.peak` so far from its run record, units held,
+  settlement state per entry, and `payload did not run: …` for a launch refused at the gate),
+  then one `waiting` line per waiter oldest first (age, budget left, overtakes). It opens the
+  run records read-only and refuses 70 when they are missing; it never creates them:
+
+  ```text
+  host pool h2puni-1: mode observe; allocatable 8 cores, 13 GiB, 16 disk units, 16 slots; reserved 4 cores, 6 GiB, 0 disk units, 1 slots
+  running gate gate:0a518a42 pid 4242 age 1m00s envelope 4 cores 6 GiB 0 GiB tmp peak 2.5 GiB units gate_tree=/home/puni1/puni-00-gate-tbf settlement held (compute held, tmp held, gate_tree held)
+  waiting website-dev-build build:site pid 4343 age 55s budget 1m05s overtakes 0
+  ```
+
+Not yet: `ops job calibrate|propose|audit` (slice 4) and `ops pool switch-mode` (slice 6). In
+observe mode `ops job run` does not yet take the shell lock's queue protocol (J12); that
+arrives with `run_heavy_job` in slice 6, before any host is enrolled. Run records live in their
+own file because the ledger's job snapshot is the runtime's closed shape.

@@ -1,15 +1,20 @@
 import {
+  argument,
   command,
   constant,
   formatUsage,
   type InferValue,
+  integer,
   message,
+  multiple,
   object,
   option,
   or,
+  type Parser,
   passThrough,
   string,
   text,
+  withDefault,
 } from '@optique/core';
 import { run } from '@optique/run';
 
@@ -170,13 +175,108 @@ const entrypointCommands = [
   namespaced('pool', 'import', 'pool import', "Store an agent pool's keys for mcp token."),
 ] as const;
 
-const commands = [...dispatchedCommands, ...entrypointCommands];
+/** `--config`, the owner-only host pool configuration every `ops` command names. */
+const poolConfig = () =>
+  option('--config', flagValue('PATH'), {
+    description: message`The owner-only host pool configuration (resource configuration schema 3).`,
+  });
+
+/** One `ops` command: its words after `ops` are its discriminant in `src/ops/commands.ts`. */
+function opsCommand<const Words extends string, const Fields extends Record<string, Parser>>(
+  name: string,
+  words: Words,
+  brief: string,
+  fields: Fields,
+) {
+  return command(name, object({ command: constant('ops'), words: constant(words), ...fields }), {
+    brief: [text(brief)],
+  });
+}
+
+/**
+ * `ops`, the first typed namespace (`dash-host-jobs` J17): host jobs and the host pool. The
+ * grammar is parsed here, not in its module, because it has no hand-written parser to keep.
+ * `calibrate`, `propose`, `audit` and `switch-mode` arrive with slices 4 and 6.
+ */
+const opsNamespace = command(
+  'ops',
+  or(
+    command(
+      'job',
+      or(
+        opsCommand(
+          'run',
+          'job run',
+          'Admit a host job from the host pool, run it measured in its own scope, settle it.',
+          {
+            config: poolConfig(),
+            type: option('--type', flagValue('NAME'), {
+              description: message`The job type, as the checkout's infra/jobs/catalogue.json at HEAD names it.`,
+            }),
+            label: withDefault(
+              option('--label', flagValue('NAME'), {
+                description: message`The lane label status and refusals name, as HEAVY_LOCK_LABEL is; default unlabeled.`,
+              }),
+              'unlabeled',
+            ),
+            waitSeconds: withDefault(
+              option('--wait-seconds', integer({ min: 0, metavar: 'SECONDS' }), {
+                description: message`How long to wait for room; 0 (the default) refuses 75 while anyone is ahead.`,
+              }),
+              0,
+            ),
+            pollSeconds: withDefault(
+              option('--poll-seconds', integer({ min: 1, max: 30, metavar: 'SECONDS' }), {
+                description: message`Seconds between admission polls, 1 to 30; default 5.`,
+              }),
+              5,
+            ),
+            argv: multiple(
+              argument(string({ metavar: 'COMMAND' }), {
+                description: message`The payload, after --: its program, then arguments matching the type's argument profile.`,
+              }),
+              { min: 1 },
+            ),
+          },
+        ),
+        opsCommand(
+          'status',
+          'job status',
+          'Print the running host jobs, then the waiters oldest first.',
+          { config: poolConfig() },
+        ),
+      ),
+      { brief: message`Run and inspect host jobs.` },
+    ),
+    command(
+      'pool',
+      or(
+        opsCommand(
+          'init',
+          'pool init',
+          'Initialize the host pool: the resource ledger and its run records.',
+          { config: poolConfig() },
+        ),
+        opsCommand(
+          'inspect',
+          'pool inspect',
+          'Print the host pool as JSON: mode, budgets, reservations, jobs and waiters.',
+          { config: poolConfig() },
+        ),
+      ),
+      { brief: message`Initialize and inspect the host pool.` },
+    ),
+  ),
+  { brief: message`Operate this host: host jobs and the host pool.` },
+);
+
+const commands = [...dispatchedCommands, opsNamespace, ...entrypointCommands];
 
 /**
  * Every Dash command line: one `command` per Dash command, help and completion added by `run`.
  * Nested because `or` takes at most fifteen parsers.
  */
-export const dashParser = or(or(...dispatchedCommands), ...entrypointCommands);
+export const dashParser = or(or(...dispatchedCommands), opsNamespace, ...entrypointCommands);
 
 /** A parsed Dash command line, discriminated by `command`. */
 export type DashCommand = InferValue<typeof dashParser>;

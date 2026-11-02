@@ -1,3 +1,5 @@
+import { userInfo } from 'node:os';
+
 import {
   bootstrapObservationCommand,
   migrateObservationCommand,
@@ -22,8 +24,11 @@ import {
 import { sshHostAdapter } from './compute/ssh-host';
 import { accountOutcomes } from './ledger/account-outcomes';
 import { McpWbsTools } from './mcp/wbs-tools';
+import { runOps } from './ops/commands';
+import { linuxScopeTelemetry } from './ops/scope';
 import { recordBoundProgress, recordProgress } from './progress/record-progress';
 import { runResources } from './resources/command';
+import { linuxHostFacts } from './resources/runtime';
 
 type PlanEnrollment = (argv: readonly string[]) => Promise<void>;
 
@@ -174,6 +179,19 @@ export const dashHandlers: Handlers = {
         }),
     );
   },
+  ops: async (command, deps) => {
+    process.exitCode = await runOps(command, {
+      clock: deps.clock,
+      monotonic: deps.monotonic,
+      environment: process.env,
+      cwd: process.cwd(),
+      stdout: (text) => deps.stdout.write(text),
+      stderr: (text) => process.stderr.write(text),
+      telemetry: linuxScopeTelemetry(),
+      host: linuxHostFacts,
+      user: userInfo().username,
+    });
+  },
 };
 
 /**
@@ -185,7 +203,8 @@ export const dashHandlers: Handlers = {
  * through the stateless check runner, which spawns each check with {@link spawnCheck};
  * `record-progress` and `record-progress-v2` record explicit operator assertions;
  * `account-outcomes` writes the period's efficiency breakdown; `report-capacity` runs the compute
- * providers' capacity reporter until it exits; `resources` runs the managed resource runtime.
+ * providers' capacity reporter until it exits; `resources` runs the managed resource runtime;
+ * `ops` runs host jobs and the host pool and exits with the command's own code.
  * `mcp` and `pool` never reach here, because `entrypoint.ts` dispatches them before loading
  * this module.
  *
