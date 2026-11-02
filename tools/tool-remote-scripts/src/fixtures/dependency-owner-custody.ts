@@ -289,6 +289,8 @@ const parent = {
   keeper: undefined as ReturnType<typeof setInterval> | undefined,
   timer: undefined as ReturnType<typeof setTimeout> | undefined,
   stopped: false,
+  spawnEntered: false,
+  prehelperRefusalTerminal: false,
   reported: false,
   allocationStart: undefined as bigint | undefined,
   allocationEnd: undefined as bigint | undefined,
@@ -494,6 +496,72 @@ function outerOperation<Arguments extends unknown[], Returned>(
     throw cause;
   }
 }
+/** Joins terminal private API records without reopening work; delegate provenance comes from the closed outerOperation call sites. */
+function joinPrehelperRefusal(): Promise<boolean> {
+  if (!parent.stopped || parent.spawnEntered || parent.originals.length !== 0)
+    return Promise.resolve(false);
+  const captured = parent.operations.map((operation) => ({
+    operation,
+    label: operation.label,
+    original: operation.original,
+    receiver: operation.receiver,
+    args: operation.args,
+    promise: operation.promise,
+    observer: operation.observer,
+    state: operation.state,
+    value: operation.value,
+    cause: operation.cause,
+  }));
+  const promises: Promise<unknown>[] = [];
+  for (const record of captured) {
+    const promise = record.promise;
+    const observer = record.observer;
+    if (
+      !Object.hasOwn(PARENT_CAPS, record.label) ||
+      typeof record.original !== 'function' ||
+      !(promise instanceof Promise) ||
+      record.operation.returned !== promise ||
+      !(observer instanceof Promise) ||
+      !record.operation.observerSettled ||
+      (record.state !== 'fulfilled' && record.state !== 'rejected')
+    )
+      return Promise.resolve(false);
+    promises.push(promise, observer);
+  }
+  if (!captured.some((record) => record.state === 'rejected')) return Promise.resolve(false);
+  return Promise.allSettled(promises).then((outcomes) => {
+    for (const [index, record] of captured.entries()) {
+      const settled = outcomes.at(index * 2);
+      const observed = outcomes.at(index * 2 + 1);
+      const operation = record.operation;
+      if (
+        settled === undefined ||
+        observed?.status !== 'fulfilled' ||
+        operation.label !== record.label ||
+        operation.original !== record.original ||
+        operation.receiver !== record.receiver ||
+        operation.args !== record.args ||
+        operation.promise !== record.promise ||
+        operation.returned !== record.promise ||
+        operation.observer !== record.observer ||
+        operation.state !== record.state ||
+        !Object.is(operation.value, record.value) ||
+        !Object.is(operation.cause, record.cause) ||
+        !operation.observerSettled
+      )
+        return false;
+      if (
+        record.state === 'fulfilled'
+          ? settled.status !== 'fulfilled' || !Object.is(settled.value, record.value)
+          : settled.status !== 'rejected' || !Object.is(settled.reason, record.cause)
+      )
+        return false;
+      operation.joined = true;
+    }
+    return parent.stopped && !parent.spawnEntered && parent.originals.length === 0;
+  });
+}
+
 async function joinOuterOperations(): Promise<void> {
   for (const operation of parent.operations) {
     if (operation.promise !== undefined) {
@@ -934,6 +1002,7 @@ export async function prepareDependencyOwnerCustody(): Promise<
         return await stop(new Error('UC2 next spawn refused after allocation'));
       await joinOuterOperations();
       assertParentStart();
+      parent.spawnEntered = true;
       const child = Bun.spawn(
         [
           process.execPath,
@@ -1012,11 +1081,19 @@ export async function prepareDependencyOwnerCustody(): Promise<
     await joinOuterOperations();
     return observations;
   } catch (cause) {
-    if (parent.stopped || parent.originals.some((original) => !original.known))
+    if (parent.stopped || parent.originals.some((original) => !original.known)) {
+      if (await joinPrehelperRefusal()) {
+        parent.prehelperRefusalTerminal = true;
+        throw cause;
+      }
       return await stop(cause);
+    }
     throw cause;
   } finally {
-    if (!parent.stopped && parent.originals.every((original) => original.known)) {
+    if (
+      parent.prehelperRefusalTerminal ||
+      (!parent.stopped && parent.originals.every((original) => original.known))
+    ) {
       clearTimeout(timer);
       clearInterval(keeper);
     }

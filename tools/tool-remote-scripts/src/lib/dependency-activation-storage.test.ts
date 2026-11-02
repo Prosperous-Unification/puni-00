@@ -1407,3 +1407,238 @@ for (const row of dependencyOwnerCustodyCases)
     },
     10000,
   );
+
+interface PrehelperRefusalModel {
+  cause: unknown;
+  setupFailure: Error;
+  holdFailure: Error;
+  stopped: boolean;
+  spawnEntered: boolean;
+  childCount: number;
+  terminal: boolean;
+  timer: unknown;
+  keeper: unknown;
+  clears: { kind: string; token: unknown }[];
+  operations: {
+    original: unknown;
+    promise: unknown;
+    observer: unknown;
+    state: string;
+    joined: boolean;
+    observerSettled: boolean;
+  }[];
+  writeAPI: unknown;
+  buildAPI: unknown;
+  returnedWrite: unknown;
+  returnedBuild: unknown;
+  originalObservers: unknown[];
+  retainedCauses: unknown[];
+  cleanup: PromiseSettledResult<unknown>[];
+}
+
+/** Compile only the selected private source boundaries into finite lexical model ports. */
+async function observePrehelperRefusal(
+  mode: 'terminal' | 'pending' | 'missing-observer' | 'spawn-entered',
+): Promise<PrehelperRefusalModel> {
+  const source = await readFile(
+    new URL('../fixtures/dependency-owner-custody.ts', import.meta.url),
+    'utf8',
+  );
+  function between(start: string, end: string): string {
+    if (source.split(start).length !== 2 || source.split(end).length !== 2)
+      throw new Error('UC2 finite source declaration boundary differs');
+    const begin = source.indexOf(start);
+    const finish = source.indexOf(end, begin + start.length);
+    if (finish <= begin) throw new Error('UC2 finite source declaration order differs');
+    return source.slice(begin, finish);
+  }
+  const state = between('interface ParentPipe {', '\nfunction stop(cause: unknown)');
+  const admission = between('function assertParentStart(): void {', 'const PARENT_CAPS:');
+  const operation = between('const PARENT_CAPS:', 'function joinPrehelperRefusal()');
+  const refusal = between(
+    'function joinPrehelperRefusal()',
+    'async function joinOuterOperations()',
+  );
+  const catchStart =
+    '  } catch (cause) {\n    if (parent.stopped || parent.originals.some((original) => !original.known))';
+  if (source.split(catchStart).length !== 2)
+    throw new Error('UC2 finite source catch boundary differs');
+  const catchFinally = source.slice(source.indexOf(catchStart)).trimEnd();
+  if (!catchFinally.endsWith('\n}')) throw new Error('UC2 finite source tail differs');
+  const image = [
+    state,
+    admission,
+    operation,
+    refusal,
+    `
+const mode = ${JSON.stringify(mode)};
+const setupFailure = new Error('UC2_MODELED_SETUP_REFUSAL');
+const holdFailure = new Error('UC2_MODELED_HOLD_SENTINEL');
+const timerToken = {kind:'parent-timeout-token'};
+const keeperToken = {kind:'parent-interval-token'};
+const clears = [];
+const savedObservers = [];
+let returnedWrite, returnedBuild, resolveBuild;
+function readKernelTick(){ return 1n; }
+function clearTimeout(token){ clears.push({kind:'timeout',token}); }
+function clearInterval(token){ clears.push({kind:'interval',token}); }
+function modeledWrite(){ returnedWrite=Promise.resolve('written'); return returnedWrite; }
+function modeledBuild(){
+  returnedBuild=mode==='pending'
+    ?new Promise(resolve=>{resolveBuild=resolve;})
+    :Promise.reject(setupFailure);
+  return returnedBuild;
+}
+async function stop(cause){
+  parent.failures.push(cause); parent.stopped=true;
+  throw holdFailure;
+}
+async function runParentBoundary(){
+  const timer=timerToken, keeper=keeperToken;
+  parent.timer=timer;parent.keeper=keeper;
+  parent.allocationStart=0n;parent.allocationEnd=18000n;
+  try {
+    await outerOperation('outer.fs.writeFile',modeledWrite,undefined,[]);
+    parent.spawnEntered=mode==='spawn-entered';
+    const pending=outerOperation('outer.Bun.build',modeledBuild,undefined,[]);
+    for(const captured of parent.operations){
+      if(captured.observer===undefined)throw Error('modeled captured observer missing');
+      savedObservers.push(captured.observer);
+    }
+    if(mode==='missing-observer')parent.operations[1].observer=undefined;
+    if(mode==='pending'){parent.stopped=true;throw setupFailure;}
+    await pending;
+`,
+    catchFinally,
+    `
+export async function observe(){
+  let cause;
+  try{await runParentBoundary();}catch(failure){cause=failure;}
+  const captured={cause,setupFailure,holdFailure,stopped:parent.stopped,
+    spawnEntered:parent.spawnEntered,childCount:parent.originals.length,
+    terminal:parent.prehelperRefusalTerminal,timer:timerToken,keeper:keeperToken,
+    clears:[...clears],operations:parent.operations.map(record=>({...record})),
+    writeAPI:modeledWrite,buildAPI:modeledBuild,returnedWrite,returnedBuild,
+    originalObservers:[...savedObservers],retainedCauses:[...parent.failures]};
+  if(mode==='pending'){
+    if(typeof resolveBuild!=='function')throw Error('modeled pending resolver missing');
+    resolveBuild('fixture-settled');
+  }
+  const originals=parent.operations.map(record=>record.promise);
+  if(originals.some(promise=>!(promise instanceof Promise)))
+    throw Error('modeled original Promise absent');
+  const cleanup=await Promise.allSettled([...originals,...savedObservers]);
+  if(cleanup.length!==4)throw Error('modeled original/observer cleanup census differs');
+  for(let index=0;index<cleanup.length;index++){
+    const outcome=cleanup[index];
+    if(index===1&&mode!=='pending'){
+      if(outcome.status!=='rejected'||outcome.reason!==setupFailure)
+        throw Error('modeled original rejection identity differs');
+    }else if(outcome.status!=='fulfilled')throw Error('modeled fixture observer unsettled');
+  }
+  return {...captured,cleanup};
+}
+`,
+  ].join('\n');
+  const emitted = new Bun.Transpiler({ loader: 'ts', target: 'bun' }).transformSync(image);
+  const namespace: unknown = await import(
+    'data:text/javascript;base64,' + Buffer.from(emitted).toString('base64')
+  );
+  if (
+    typeof namespace !== 'object' ||
+    namespace === null ||
+    !('observe' in namespace) ||
+    typeof namespace.observe !== 'function'
+  )
+    throw new Error('UC2 finite source image consumer absent');
+  // This test-only boundary imports solely the checked private cuts and lexical model ports above.
+  const model = namespace as { observe(): Promise<PrehelperRefusalModel> };
+  return await model.observe();
+}
+
+function assertPrehelperOriginals(observed: PrehelperRefusalModel): void {
+  expect(observed.operations).toHaveLength(2);
+  expect(observed.operations[0]?.original).toBe(observed.writeAPI);
+  expect(observed.operations[1]?.original).toBe(observed.buildAPI);
+  expect(observed.operations[0]?.promise).toBe(observed.returnedWrite);
+  expect(observed.operations[1]?.promise).toBe(observed.returnedBuild);
+  expect(observed.cleanup).toHaveLength(4);
+}
+
+test('UC2 pre-helper known build refusal retires only parent timers', async () => {
+  const observed = await observePrehelperRefusal('terminal');
+  assertPrehelperOriginals(observed);
+  expect(observed.operations).toHaveLength(2);
+  expect(observed.operations[0]?.original).toBe(observed.writeAPI);
+  expect(observed.operations[1]?.original).toBe(observed.buildAPI);
+  expect(observed.operations[0]?.promise).toBe(observed.returnedWrite);
+  expect(observed.operations[1]?.promise).toBe(observed.returnedBuild);
+  expect(observed.operations[0]?.observer).toBe(observed.originalObservers[0]);
+  expect(observed.operations[1]?.observer).toBe(observed.originalObservers[1]);
+  expect(observed.operations.every((operation) => operation.observerSettled)).toBe(true);
+  expect(observed.cause, 'UC2_PARENT_KNOWN_REFUSAL_REMAINED_HELD').toBe(observed.setupFailure);
+  expect(observed.stopped).toBe(true);
+  expect(observed.spawnEntered).toBe(false);
+  expect(observed.childCount).toBe(0);
+  expect(observed.terminal).toBe(true);
+  expect(observed.clears).toHaveLength(2);
+  expect(observed.clears[0]?.kind).toBe('timeout');
+  expect(observed.clears[0]?.token).toBe(observed.timer);
+  expect(observed.clears[1]?.kind).toBe('interval');
+  expect(observed.clears[1]?.token).toBe(observed.keeper);
+  expect(observed.operations).toHaveLength(2);
+  expect(observed.operations[0]?.original).toBe(observed.writeAPI);
+  expect(observed.operations[1]?.original).toBe(observed.buildAPI);
+  expect(observed.operations[0]?.promise).toBe(observed.returnedWrite);
+  expect(observed.operations[1]?.promise).toBe(observed.returnedBuild);
+  expect(observed.operations.every((operation) => operation.joined)).toBe(true);
+  expect(observed.operations.every((operation) => operation.observerSettled)).toBe(true);
+});
+
+test('UC2 pre-helper pending original retains parent timers', async () => {
+  const observed = await observePrehelperRefusal('pending');
+  assertPrehelperOriginals(observed);
+  expect(observed.cause).toBe(observed.holdFailure);
+  expect(observed.retainedCauses).toHaveLength(1);
+  expect(observed.retainedCauses[0]).toBe(observed.setupFailure);
+  expect(observed.stopped).toBe(true);
+  expect(observed.spawnEntered).toBe(false);
+  expect(observed.childCount).toBe(0);
+  expect(observed.terminal).toBe(false);
+  expect(observed.clears).toEqual([]);
+  expect(observed.operations[1]?.state).toBe('pending');
+  expect(observed.operations[1]?.promise).toBe(observed.returnedBuild);
+  expect(observed.cleanup.every((outcome) => outcome.status === 'fulfilled')).toBe(true);
+});
+
+test('UC2 pre-helper absent observer retains parent timers', async () => {
+  const observed = await observePrehelperRefusal('missing-observer');
+  assertPrehelperOriginals(observed);
+  expect(observed.cause).toBe(observed.holdFailure);
+  expect(observed.retainedCauses).toHaveLength(1);
+  expect(observed.retainedCauses[0]).toBe(observed.setupFailure);
+  expect(observed.stopped).toBe(true);
+  expect(observed.terminal).toBe(false);
+  expect(observed.clears).toEqual([]);
+  expect(observed.operations[1]?.observer).toBeUndefined();
+  expect(observed.operations[1]?.original).toBe(observed.buildAPI);
+  expect(observed.operations[1]?.promise).toBe(observed.returnedBuild);
+  expect(observed.cleanup).toHaveLength(4);
+});
+
+test('UC2 pre-helper spawn entry without child retains parent timers', async () => {
+  const observed = await observePrehelperRefusal('spawn-entered');
+  assertPrehelperOriginals(observed);
+  expect(observed.cause).toBe(observed.holdFailure);
+  expect(observed.retainedCauses).toHaveLength(1);
+  expect(observed.retainedCauses[0]).toBe(observed.setupFailure);
+  expect(observed.stopped).toBe(true);
+  expect(observed.spawnEntered).toBe(true);
+  expect(observed.childCount).toBe(0);
+  expect(observed.terminal).toBe(false);
+  expect(observed.clears).toEqual([]);
+  expect(observed.operations).toHaveLength(2);
+  expect(observed.operations[1]?.original).toBe(observed.buildAPI);
+  expect(observed.operations[1]?.promise).toBe(observed.returnedBuild);
+  expect(observed.cleanup).toHaveLength(4);
+});
