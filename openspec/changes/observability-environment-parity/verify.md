@@ -6193,3 +6193,84 @@ captured after commit, so the evidence binding relies on the recorded edit
 sequence; no claim is made that the covering process reloaded final test bytes.
 This limitation was explicitly accepted by the scoped reviewer. No test suite,
 statics or passing native phase was replayed for review or metadata closure.
+
+## Task92/95: native raw-disk component — 2026-11-02
+
+The small host-containment component is complete. It combines the earlier eight
+native Task92 phases with Task95's separately retained writer-control and QEMU
+components. It does not establish a booted guest, guest filesystem/inode ENOSPC,
+private Docker, full candidate admission, coexistence or stack acceptance.
+
+Every attempt used a unique owned service, native InvocationID/ControlGroup ACK,
+256 MiB memory/zero swap/0.5 CPU/64 PID/20-second bounds, finite capture/output,
+64 MiB hard per-file ceiling and creator-bound empty cleanup. All old attempts,
+files and manifests remain retained. Preparation reviews and narrow re-reviews:
+`/tmp/puni-task95-disk-review.md`, `/tmp/puni-task95-disk-v2-review.md`,
+`/tmp/puni-task95-disk-v3-review.md`, `/tmp/puni-task95-disk-v4-review.md`.
+
+| Attempt | Actual outcome                                                                                                                                         | Receipt relative to `/tmp/puni-task95-disk/`                |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| v1      | Setup70 before writers: fully allocated64MiB file charged an extra4KiB; incorrect physical-equals-logical check refused;0.372s                         | `runs/abe5bb758f0a6dd7c7989535a1826f59/disk.json`           |
+| v2      | Complete native FIEMAP coverage passed; setup70 before writers because Python DEVNULL opens O_RDWR after write confinement;0.375s                      | `review-v2/runs/439b3856dee80f51155ff65e9b46c534/disk.json` |
+| v3      | All twelve control oracles completed; QEMU write/read/flush exit0, but strict stderr refused its null-device lock-probe warning; phase failed70;1.202s | `review-v3/runs/6b30e927b1dae3cdfd25560dee1dd423/disk.json` |
+| v4      | QEMU-only component accepted=true, exit0, cleanup_verified_empty=true/no uncertainty;0.924s                                                            | `review-v4/runs/5e9f5978e747ffc1b4bcc78d3873cf7d/disk.json` |
+
+V3's actual controls observed an allowed write, EACCES for nested denied
+write/truncate/create, and exact owned-file changes when each nested guard was
+removed. Independent outer write/truncate/create still returned EACCES.
+The one-MiB hard file limit returned EFBIG without growth; raising only that
+nested limit to two MiB allowed exactly one byte of growth. All faults retained
+independent outer controls. The overall v3 phase remains failed; its completed
+control checks are separate evidence and were not repeated in v4.
+
+The allocation correction requires bounded complete FIEMAP coverage with known
+flags, no holes/overlap and at most64KiB initial metadata, then exactly unchanged
+observed allocation after I/O. The retained native inode passed read-only
+validation; an injected in-memory hole refused, and removing the contiguity
+predicate made the exact negative fail. This is explicitly not a native
+sparse-file mutation proof. Python's installed DEVNULL implementation was
+inspected; read-only stdin corrected its unintended O_RDWR request.
+
+QEMU's version-pinned [lock-probe implementation](https://raw.githubusercontent.com/qemu/qemu/v8.2.2/util/osdep.c)
+requires O_RDWR on the null character device. The final component permits only
+WRITE_FILE on its exact validated root-owned device1:3 inode, in both confinement
+layers; no truncate/create/directory permission or lock bypass was added.
+Wrong type/device projections refuse and their targeted removed-guard mutants
+fail the exact negatives. Those are logical metadata proofs, not native device
+mutation. The regular-file write target remains the single owned raw inode.
+
+Final reviewed launch:
+
+```sh
+/bin/bash /tmp/puni-task95-disk/review-v4/run.sh 889b1e59ea2dd511c94476249735296a560af463dc6b14d589efb5ca29492e28
+```
+
+QEMU wrote/flushed/read A5 and5A patterns at the first/last4KiB, with empty
+stderr and independent supervisor byte reads. Both beyond-geometry operations
+returned exit1 and operation-specific Input/output error. Raw dev66307,
+inode23922685, uid1000/mode0600/nlink1,67108864-byte length and67108864-byte
+physical allocation remained exactly equal before/after; refusal also preserved
+the content hash. All three QEMU helpers stayed under the acknowledged service.
+No formatter, discard, mount, loop device or guest writer was used.
+
+Root rulings increased only the total retained experiment allowance to448MiB,
+then512MiB, to preserve the failed64MiB files and reserve each next attempt.
+Per-attempt160MiB retention and workload limits stayed unchanged. Before v4,
+measured retained allocation336621568 bytes plus160MiB runtime and8MiB preparation
+reserved512782336 bytes, below536870912. The actual final worker retained67117056
+bytes. No history was deleted or raw inode reused to fit the budget.
+
+Fresh final reconciliation matched all four exact creator identities, reset
+only three empty failed-unit records, and verified all four units explicitly
+unloaded/inactive with absent cgroups. Receipt:
+`/tmp/puni-task95-disk/owned-unit-reconciliation.json`. No shared Docker/BuildKit,
+existing workload, credentials or retained telemetry was changed.
+
+Task92's two component checkboxes close; all seven canonical tasks remain open
+and canonical progress remains4/11. No passing phase/control was replayed, and
+no app/browser/full host gate was run for this component. The next bounded
+preparation derives guest/private-runtime costs; it cannot treat per-Pod limit
+subtotals as measured startup demand or replace the unchanged physical-host
+floor and complete coexistence obligations. Existing Task82 reader output
+already binds the published packet; `/tmp/puni-task96-next.md` records its actual
+source-only conditional totals and the remaining initial-creation seam.
