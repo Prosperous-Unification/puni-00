@@ -46,3 +46,56 @@ Both actual current positive captures used producer source SHA9f05704b0ca86c8759
 Canonical fixture SHAs0383b227e9de6b01192394f74649f2c7d80244cf and62c6f841c3b3975ef42997d559736e5255729611 are distinct from the producer SHA. Their retained manifest hashes arec44dfff78488a86f9d3d3fa61dde28562b24e46d928cb9ed2a81cdfa391ff0d3 and7eadca3fb2a80bb84f7aa5abea933da28e39f0c3de219138076181aa3cf89b28. Actual captured bytes passed the real constructor/decoder/readback, selector and both inspectors before fixture deletion. Packets retain eight owned selected source byte strings and external references to ten selected installed inputs with observed hashes/freeze; this is not a standalone18-blob archive, full installed closure or replayable retained canonical Git fixture.
 
 Opening provenance refusal reached the original-selection boundary with zero Node/probe/consumer calls. Closing refusal followed exactly one successful delegated actual child, returned its original object and changed only the owned regular live pair; the captured current snapshot and actual cleanup/responses remained intact. Deleted owned live roots are evidenced by the reviewed assertions and passing receipts, not a serialized live-root archive. Ordinary refusals establish reachability; all new physical necessity proofs remain OPEN. No held recipe, Source4 runtime, full CI/host gate, main integration, deployment or parent completion is implied.
+
+## Fixed inert diagnostic necessity pairs, 2026-11-02
+
+Independent combined actual review `cdcdfac82e7d35780a0239b30ba3d8f069366de018e1dbd7eb6811266c633dc9` accepts exactly eighteen close-diagnostic/private-gate pairs below. Controls were owning test `e283f2c1188f152c50fc2864df7380735bf365e86d42d9f44489e1fd3a80742d`, generated program `ca1fea56b667dafe7e2a3edb2038df4c0c134df99a2f73e2c5a9d40c13952a5e` and protected parent `8ee5d461ca2ac8fce6266fc66f641a3874208ba9146ae621ef4d96305bea4ac1`. These are separate inert diagnostic witnesses, not new real Vite/HTTP or epoch-admission qualification.
+
+Private evidence index `/tmp/puni-frontend-inert18-combined-actual-evidence-index-20261102.json`, SHA256 `55d63edeae3453bffe58d3c816eeed8305e9bc8f3fcfffb419827d957bc699a2`, binds all37 actual outcome/manifests and raw stream hashes. The combined review rehashed them and accepted original normal returns, closed regular captures, exact owned-root absence and empty unique scratch. Raw/private captures remain outside the repo.
+
+Scoped command, cwd `tools/tool-remote-scripts`:
+
+```sh
+bun test src/lib/source-frontend-http.test.ts --preload ../test/scratch/preload.ts --timeout=10000 --bail -t '<exact anchored selected title>'
+```
+
+C/R/S/L are `generated producer inert close proof close-contract`, `close-rejections`, `close-sink-failure`, `close-caps`; G is `closing spy inert failed child preserves original refusal before mutation or consumer`. Every row's injected case failed at the listed owning oracle; its exact restoration passed the SAME case.
+
+| Fault | Case | Accepted actual negative                                                          |
+| ----- | ---- | --------------------------------------------------------------------------------- |
+| W1    | C    | Original method receiver replaced with undefined; method receiver marker          |
+| W2    | C    | Original method arguments shortened; method arguments length marker               |
+| W3    | C    | New chained promise substituted; promise return identity marker                   |
+| W4    | C    | HTTP object's ordinary return discarded; http return identity marker              |
+| W5    | R    | Rejection mislabeled fulfilled; rejected-event count0 instead of1                 |
+| W6    | R    | Rejected promise replaced to swallow rejection; ws promise return identity marker |
+| C1    | C    | Original callback receiver replaced; callback receiver marker                     |
+| C2    | C    | Original callback arguments shortened; callback arguments length marker           |
+| C3    | C    | Callback return discarded; callback return identity marker                        |
+| C4    | R    | Original callback throw replaced; callback throw identity marker                  |
+| O1    | C    | Fulfillment observer threw; actual unhandled observer-rejection guard             |
+| S1    | S    | Sink catch rethrew; original sink-escape marker                                   |
+| S2    | S    | Final status overwritten before publication; available instead of unavailable     |
+| L1    | L    | Common limiter bypassed; first owning bound received39 vs25; vectors corroborated |
+| L2    | L    | Excess calls stopped delegating; second ws promise return identity marker         |
+| G1    | G    | Failed-child return removed; immediate mutation count1 instead of0                |
+| G2    | G    | Saved refusal propagation returned; missing expected exception at pinned callsite |
+| G3    | G    | Failed capture shallow-copied; first original-object identity assertion           |
+
+Combined actual totals are37 Bun calls,41 selected case executions and75 **SOURCE-BACKED** synchronous Node calls: one five-case baseline plus eighteen negative/restored pairs, without replaying earlier faults. Baseline printed5PASS/19filtered/0FAIL/150expects. Restores printed the single selected PASS/23filtered/0FAIL; their other actual counters remain in the private index. Negative output printed one rendered FAIL/no rendered PASS and Ran1/file1 followed by Bailed1; full negative pass/fail/filtered/expect/skip/todo summary counters remain **UNOBSERVED**, not inferred from the24-case source census. No individual inner PID/reader receipts are invented for spawnSync buffers.
+
+Two original STOP receipts remain unchanged: W1 `98426ec707400ff78c9e845f45f653c9652274da3c8c9ab97f7a01f9091283d3` retains strict negative-census UNMET; G2 `479071b75f23a0fc7aad7464f797ee812013ddd167588168d2bfc2db79780651` retains its unprinted-function-name conjunction UNMET. Independent actual audits and separate same-case restores support the narrow pairs; neither stopped campaign is relabeled successful. Acceptance chain: W1 `291498a60daa887cede6eb80350152aeb02e8deced671fbf76383b1a82f1631b`, continuation `4a03e3b6648611d17ed21491d9593c80b3552ad55c5342f0b58621adfde91fd8`, combined review above.
+
+The fake HTTP object creates no listener. L1 proves the common per-boundary limiter, not the removed unreachable global25 guard; no credit attaches to the loose test bound alone. Optional sink/publication evidence does not prove each absence/type/short-write/roster-catch/repeated-callback branch. These pairs do not prove arbitrary native-library cleanup, actual Vite shutdown, historical provenance-root ENOENT causality or full failed-producer persistence. CI run41383209236 still has three failed frontend tests; current full CI, gates, full dependency delivery and FEP5 remain open.
+
+All existing10000ms test/5000ms inert child bounds remained unchanged; two sequential child bounds still have no guaranteed outer reserve. Real producer130000ms/90000ms and request15000ms budgets were not changed or exercised here. Subsequent adjacent comment annotations create a new source identity and gain no new runtime observation from this record; comment-erased compiler comparison and any fresh five-inert positive require their own later lease. Held scopes and all prior native/custody/parent holds remain unchanged.
+
+### Annotated source checkpoint — 2026-11-02
+
+The subsequent four-path comment/evidence materialization passed scoped format, remote-scripts typecheck, two-source lint, format verification and OpenSpec validation (320/320). Generated program `3dde24ccd1c4b487330a90d5731a0b0c8be3d087dbda6881fbd25cd4c31c3cc8`, owning test `6c04f8f43dcc64724bb9d818a19162a0f67657d08ca10f0e1caa6b8dbf0a3e35` and protected parent `8ee5d461ca2ac8fce6266fc66f641a3874208ba9146ae621ef4d96305bea4ac1` are the annotated source epoch. All source modes remain0664.
+
+The trusted TypeScript6.0.3 comments-removed bridge compared the actual extracted String.raw JavaScript, not its outer string literal: before/after emitted13539 bytes, SHA256 `a0be928a0693fffcc2e88de8d4eb3449fc753f9eed1fb52c1a053ce9a0e5eb5d`. The owning TypeScript emissions likewise matched64080 bytes, SHA256 `c9661e40243b547b09e57e96624bf7511222540917f944c7e8dec886fc8708d0`. An in-memory appended executable export changed emission and failed the same equality consumer; exact restoration passed. No subject program was evaluated by that bridge.
+
+One separately granted fresh five-inert positive on these annotated bytes returned original tool exit0:5pass/19filtered/0fail/150expects,581ms. Four complete mode-ordered Node captures returned their expected unsignalled refusal within5000ms; their exact primary-stack roots were absent and the unique scratch was empty. All61 input pins matched after completion. The earlier launch adapter failed on a missing baselineArgv before any Popen/test; its refusal remains preserved, followed by this single direct-command invocation, not a test replay. No historical fault was rebound or repeated.
+
+Independent final source/static/bridge/positive acceptance is `6da83bd16500d79b409c75ab2c1356eebd3762bfeb310155497aef1938a48439`; static report is `36515f154bb5213345e503add818aac9766512ca5787ec160a9234d0bd6d70dc`; actual fresh stderr is14991 bytes, SHA256 `898a7cfd4104bd382efd9cf651a873a5c83c658392b887975fd61ef9f8353b8d`. Detailed private capture directories remain outside the repository. The18 original pairs retain their original source epochs, two STOP predicates and UNOBSERVED negative counters. This checkpoint proves only the annotated inert diagnostic behavior; actual Vite/native-library closure, full persistence, the three current CI frontend failures, canonical gates and delivery remain open.

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { lstatSync, writeSync } from 'node:fs';
 import { chmod, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
@@ -201,6 +202,36 @@ function describeProducerStream(bytes: Uint8Array) {
   };
 }
 
+/** Optional synchronous allocation identity; unavailable telemetry never authorizes cleanup or consumption. */
+function publishProducerAllocation(directory: string) {
+  try {
+    const status = lstatSync(directory, { bigint: true });
+    const line =
+      'SOURCE_FRONTEND_ROOT: ' +
+      JSON.stringify({
+        owner: 'producer',
+        event: 'allocated',
+        atMs: performance.now(),
+        root: directory,
+        identity: {
+          kind: status.isDirectory()
+            ? 'directory'
+            : status.isSymbolicLink()
+              ? 'symlink'
+              : status.isFile()
+                ? 'file'
+                : 'other',
+          device: String(status.dev),
+          inode: String(status.ino),
+        },
+      }) +
+      '\n';
+    return { status: writeSync(2, line) === Buffer.byteLength(line) ? 'written' : 'unavailable' };
+  } catch {
+    return { status: 'unavailable' };
+  }
+}
+
 /**
  * Refuses an unsuccessful captured producer before reading observations or invoking its consumer.
  * The diagnostic describes only the returned capture; it establishes no additional process or pipe custody.
@@ -239,6 +270,7 @@ export async function withSourceFrontendProducer<T>(
   if (!/^[a-f0-9]{40}$/.test(sourceSha))
     throw new Error('curated producer source identity malformed');
   const directory = await mkdtemp(join(tmpdir(), 'puni-source-frontend-wire-'));
+  const allocationDiagnostic = publishProducerAllocation(directory);
   let settled = false;
   try {
     const snapshot = join(directory, 'snapshot');
@@ -320,6 +352,7 @@ export async function withSourceFrontendProducer<T>(
       JSON.stringify(
         {
           head: sourceSha,
+          allocationDiagnostic,
           epoch: selected.epoch,
           files: sourcePins,
           selectedInputs: selected.selectedInputs,

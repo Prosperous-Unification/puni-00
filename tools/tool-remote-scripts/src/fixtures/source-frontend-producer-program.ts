@@ -41,6 +41,87 @@ function publishPreCleanupDiagnostic() {
     return { status: 'unavailable' };
   }
 }
+/** Optional fixed-roster close telemetry; observing a promise never replaces its return identity. */
+function observeCloseBoundaries() {
+  const telemetry = { status: 'available', records: 0, boundaries: {} };
+  capture.closeDiagnostic = telemetry;
+  const labels = ['watcher', 'ws', 'environment-client', 'environment-ssr', 'ssr-runner', 'http'];
+  function record(boundary, event) {
+    // Proof: S1 escaped this sink catch; generated producer inert close proof
+    // close-sink-failure failed at that error, then passed after exact restore.
+    // Five non-HTTP boundaries: <=12 records; HTTP: <=3; roster: <=1; total: <=16.
+    try {
+      telemetry.records++;
+      const line = 'SOURCE_FRONTEND_CLOSE: ' + JSON.stringify({ boundary, event }) + '\n';
+      if (writeSync(2, line) !== Buffer.byteLength(line)) telemetry.status = 'unavailable';
+    } catch { telemetry.status = 'unavailable'; }
+  }
+  function install(owner, boundary, limit, http = false) {
+    if (owner === undefined || owner === null) {
+      telemetry.boundaries[boundary] = 'absent';
+      if (boundary !== 'ssr-runner') telemetry.status = 'unavailable';
+      return;
+    }
+    const original = owner.close;
+    if (typeof original !== 'function') { telemetry.boundaries[boundary] = 'unavailable'; telemetry.status = 'unavailable'; return; }
+    let calls = 0;
+    owner.close = function (...args) {
+      // Proof: L1 bypassed this limiter (39 vs25); L2 suppressed excess delegation.
+      // generated producer inert close proof close-caps failed both faults; restores passed.
+      const observed = calls++ < limit;
+      if (observed) record(boundary, 'entered');
+      if (http && observed && typeof args[0] === 'function') {
+        const callback = args[0];
+        let called = false;
+        args[0] = function (...completion) {
+          if (!called) { called = true; record(boundary, completion[0] ? 'rejected' : 'fulfilled'); }
+          // Proof: C1-C3 broke receiver/arguments/result in generated producer inert close
+          // proof close-contract; C4 replaced the throw in close-rejections. Faults failed; restores passed.
+          return Reflect.apply(callback, this, completion);
+        };
+      }
+      let completion;
+      // Proof: W1/W2 changed receiver/arguments; generated producer inert close proof
+      // close-contract failed at the original assertions, then passed after restore.
+      try { completion = Reflect.apply(original, this, args); }
+      catch (cause) { if (observed) record(boundary, 'threw'); throw cause; }
+      if (observed && !http) {
+        try {
+          if (completion instanceof Promise) {
+            // Both handlers return normally even if telemetry fails; the observer promise fulfills.
+            // Proof: O1 threw from fulfillment; generated producer inert close proof
+            // close-contract failed its unhandled-rejection guard, then restored PASS.
+            Promise.prototype.then.call(completion,
+              () => { record(boundary, 'fulfilled'); },
+              // Proof: W5 mislabeled rejection; W6 substituted its promise. generated producer
+              // inert close proof close-rejections failed both faults; exact restores passed.
+              () => { record(boundary, 'rejected'); });
+          } else record(boundary, 'returned');
+        } catch { telemetry.status = 'unavailable'; }
+      }
+      // Proof: W3/W4 replaced promise/HTTP return identity; generated producer inert
+      // close proof close-contract failed both faults, then passed after exact restore.
+      return completion;
+    };
+    telemetry.boundaries[boundary] = 'installed';
+  }
+  try {
+    install(server.watcher, 'watcher', 2);
+    install(server.ws, 'ws', 1);
+    install(server.environments?.client, 'environment-client', 1);
+    install(server.environments?.ssr, 'environment-ssr', 1);
+    install(server._ssrCompatModuleRunner, 'ssr-runner', 1);
+    install(server.httpServer, 'http', 1, true);
+    if (Object.keys(server.environments ?? {}).some((name) => !['client', 'ssr'].includes(name)))
+      telemetry.status = 'unavailable';
+  } catch { telemetry.status = 'unavailable'; }
+  // Only fixed names/status values are serialized, never environment names, errors, or close payloads.
+  try {
+    const line = 'SOURCE_FRONTEND_CLOSE_ROSTER: ' + JSON.stringify({ status: telemetry.status, boundaries: labels.map((label) => [label, telemetry.boundaries[label] ?? 'unavailable']) }) + '\n';
+    telemetry.records++;
+    if (writeSync(2, line) !== Buffer.byteLength(line)) telemetry.status = 'unavailable';
+  } catch { telemetry.status = 'unavailable'; }
+}
 async function observe(path, filename, port) {
   requestCount++;
   const lifecycle = { requestClosed: false, responseClosed: false };
@@ -136,6 +217,7 @@ try {
   if (server !== undefined) capture.cleanup.closeStarted = true;
   capture.diagnostic = publishPreCleanupDiagnostic();
   if (server !== undefined) {
+    observeCloseBoundaries();
     try { await server.close(); capture.cleanup.closeReturned = true; }
     catch (cause) { cleanupFailures.push(cause); }
     capture.cleanup.httpListening = server.httpServer.listening;
@@ -145,6 +227,8 @@ try {
     capture.cleanup.watcherClosed = server.watcher.closed;
     capture.cleanup.watchedDirectoryCount = Object.keys(server.watcher.getWatched()).length;
   }
+  // Proof: S2 overwrote final status here; generated producer inert close proof
+  // close-sink-failure failed available vs unavailable, then restored PASS.
   await writeFile(resolve(packet, 'observation.json'), JSON.stringify(capture, null, 2) + '\n');
   try {
     assert.equal(capture.cleanup.closeReturned, true);
