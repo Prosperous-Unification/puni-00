@@ -1,11 +1,68 @@
+import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { chmod, readFile, symlink, unlink, writeFile } from 'node:fs/promises';
 
 import { scratchSync } from '@tools/test-scratch';
-import { afterAll, expect, test } from 'bun:test';
+import {
+  afterAll as registerAfterAll,
+  expect,
+  test as registerTest,
+  type TestOptions,
+} from 'bun:test';
 
 import { captureEdgePolicy } from './edge-policy';
-import { captureInitialHandoff } from './initial-handoff-graph';
+import { captureInitialHandoff, isInitialHandoffCleanupUnknown } from './initial-handoff-graph';
+
+type GraphTestCallback = () => ReturnType<Parameters<typeof registerTest>[1]>;
+type GraphHookOptions = Parameters<typeof registerAfterAll>[1];
+interface GraphTestDeclaration {
+  readonly name: string;
+  readonly callback: GraphTestCallback;
+  readonly options: number | TestOptions | undefined;
+}
+const graphTestDeclarations: GraphTestDeclaration[] = [];
+const graphFinalizers: {
+  readonly callback: GraphTestCallback;
+  readonly options: GraphHookOptions;
+}[] = [];
+const uc1Admission = process.env['PUNI_UC1_PREFLIGHT'];
+if (uc1Admission !== undefined && uc1Admission !== 'focused-identity-15-v1')
+  throw new Error('UC1 original preflight admission invalid');
+const hasUC1Admission = uc1Admission === 'focused-identity-15-v1';
+if (hasUC1Admission) {
+  const executable = '/home/df/.bun/bin/bun';
+  const cwd = '/home/df/.codex/worktrees/2eee/puni-00';
+  const modulePath = cwd + '/tools/tool-remote-scripts/src/lib/initial-handoff-graph.test.ts';
+  assert.equal(process.execPath, executable, 'UC1 preflight executable differs');
+  assert.equal(process.cwd(), cwd, 'UC1 preflight cwd differs');
+  assert.equal(import.meta.path, modulePath, 'UC1 preflight module differs');
+  for (const argv of [process.argv, Bun.argv]) {
+    assert.equal(argv.length, 2, 'UC1 preflight public argv shape differs');
+    assert.equal(argv[0], executable, 'UC1 preflight argv executable differs');
+    const filename = argv[1];
+    assert(typeof filename === 'string', 'UC1 preflight filename absent');
+    assert.equal(resolve(cwd, filename), modulePath, 'UC1 preflight argv file differs');
+  }
+}
+
+/** Collects only this file's direct registrations; acquisition waits until the complete module is ready. */
+function test(name: string, callback: GraphTestCallback, options?: number | TestOptions): void {
+  assert.equal(typeof name, 'string', 'unsupported graph test name');
+  assert.equal(typeof callback, 'function', 'unsupported graph callback');
+  assert.equal(callback.length, 0, 'unsupported graph done callback');
+  if (options !== undefined && typeof options !== 'number') {
+    for (const key of Object.keys(options))
+      assert(['timeout', 'retry', 'repeats'].includes(key), 'unsupported graph test option');
+  }
+  graphTestDeclarations.push({ name, callback, options });
+}
+
+/** Keeps the original file finalizer out of the runner until native preflight is fully settled. */
+function afterAll(callback: GraphTestCallback, options?: GraphHookOptions): void {
+  assert.equal(typeof callback, 'function', 'unsupported graph finalizer');
+  assert.equal(callback.length, 0, 'unsupported graph finalizer done callback');
+  graphFinalizers.push({ callback, options });
+}
 
 test('active graph refuses missing committed pointer without creating or scanning evidence', async () => {
   const directory = scratchSync('initial-handoff-graph-');
@@ -1181,133 +1238,446 @@ interface CloseSettlementOutput {
   readonly overflow: boolean;
 }
 interface CloseSettlementReader {
-  readonly reader: ReadableStreamDefaultReader<Uint8Array>;
-  readonly settled: Promise<CloseSettlementOutput>;
+  readonly stream: ReadableStream<Uint8Array>;
+  reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  closed: Promise<void> | undefined;
+  settled: Promise<CloseSettlementOutput> | undefined;
+  eof: boolean;
+  closedKnown: boolean;
+  failure: { readonly cause: unknown } | undefined;
+}
+function spawnCloseSettlement(bundle: string) {
+  return Bun.spawn([closeSettlementExecutable, bundle], {
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
 }
 interface CloseSettlementChild {
-  readonly child: Pick<ReturnType<typeof Bun.spawn>, 'pid' | 'exited'>;
-  readonly stdout: CloseSettlementReader;
-  readonly stderr: CloseSettlementReader;
+  readonly child: ReturnType<typeof spawnCloseSettlement>;
+  readonly scenario: string;
   readonly helperSHA256: string;
   readonly bundleSHA256: string;
+  exit: Promise<number> | undefined;
+  referenced: boolean;
+  stdout: CloseSettlementReader | undefined;
+  stderr: CloseSettlementReader | undefined;
+  readonly setupFailures: unknown[];
+  outcomes: readonly PromiseSettledResult<number | CloseSettlementOutput>[] | undefined;
+  accepted: boolean;
 }
-const closeSettlementChildren: CloseSettlementChild[] = [];
+interface CleanupClassification {
+  readonly stage: string;
+  readonly unknown: boolean;
+  readonly field: boolean;
+  readonly prototype: boolean;
+  readonly spread: boolean;
+}
+interface KnownCloseSettlement {
+  readonly scenario: string;
+  readonly helperSHA256: string;
+  readonly bundleSHA256: string;
+  readonly executable: string;
+  readonly pid: number;
+  readonly exit: number;
+  readonly signal: null;
+  readonly stdout: CloseSettlementOutput;
+  readonly stderr: CloseSettlementOutput;
+  readonly native: Readonly<Record<string, unknown>>;
+  readonly classifications: readonly CleanupClassification[];
+  readonly original: CloseSettlementChild;
+}
+const closeSettlementOwner: {
+  readonly active: CloseSettlementChild[];
+  readonly completed: KnownCloseSettlement[];
+  readonly failures: unknown[];
+  stopped: boolean;
+  uncertain: boolean;
+  reported: boolean;
+  keeper: ReturnType<typeof setInterval> | undefined;
+  deadline: number | undefined;
+  timer: ReturnType<typeof setTimeout> | undefined;
+  preflightComplete: boolean;
+} = {
+  active: [],
+  completed: [],
+  failures: [],
+  stopped: false,
+  uncertain: false,
+  reported: false,
+  keeper: undefined,
+  deadline: undefined,
+  timer: undefined,
+  preflightComplete: false,
+};
 
-/** Drains full original streams, retaining at most 64 KiB while hashing every byte. */
-function drainCloseSettlement(stream: ReadableStream<Uint8Array>): CloseSettlementReader {
-  const reader = stream.getReader();
-  const settled = (async () => {
-    const digest = createHash('sha256');
-    const chunks: Buffer[] = [];
-    let bytes = 0;
-    let retained = 0;
-    for (;;) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      digest.update(chunk.value);
-      bytes += chunk.value.byteLength;
-      const count = Math.min(chunk.value.byteLength, 65536 - retained);
-      if (count > 0) chunks.push(Buffer.from(chunk.value.subarray(0, count)));
-      retained += count;
+/** Sticky STOP owns actual children/readers; it never signals, replaces or retries an original. */
+function stopCloseSettlement(cause: unknown, uncertain: boolean): void {
+  closeSettlementOwner.failures.push(cause);
+  closeSettlementOwner.stopped = true;
+  closeSettlementOwner.uncertain ||= uncertain;
+  if (
+    (uncertain || closeSettlementOwner.active.length !== 0) &&
+    closeSettlementOwner.keeper === undefined
+  )
+    closeSettlementOwner.keeper = setInterval(() => closeSettlementOwner, 30000);
+  if (!closeSettlementOwner.reported) {
+    closeSettlementOwner.reported = true;
+    try {
+      process.stderr.write(
+        'UC1 preflight STOP: original helper custody or finite allocation requires review\n',
+      );
+    } catch (failure) {
+      closeSettlementOwner.failures.push(failure);
     }
-    return {
-      bytes,
-      sha256: digest.digest('hex'),
-      base64: Buffer.concat(chunks).toString('base64'),
-      overflow: bytes > 65536,
-    };
-  })();
-  return { reader, settled };
+  }
+}
+function holdCloseSettlement(): Promise<never> {
+  closeSettlementOwner.keeper ??= setInterval(() => closeSettlementOwner, 30000);
+  return new Promise<never>(() => undefined);
 }
 
-/** Emits bounded safe diagnostics before interpreting any original outcome. */
-function reportCloseSettlement(
-  retained: CloseSettlementChild,
-  outcomes: readonly PromiseSettledResult<number | CloseSettlementOutput>[],
-): void {
-  const original = outcomes.map((outcome) => {
-    if (outcome.status === 'fulfilled') return { status: outcome.status, value: outcome.value };
-    const bytes = Buffer.from(String(outcome.reason));
-    return {
-      status: outcome.status,
-      reason: {
-        bytes: bytes.length,
-        sha256: createHash('sha256').update(bytes).digest('hex'),
-        base64: bytes.subarray(0, 65536).toString('base64'),
-        overflow: bytes.length > 65536,
+/** One monotonic allocation governs new fixture/build/spawn starts; expiry never cancels current originals. */
+function assertCloseSettlementStart(): void {
+  if (!hasUC1Admission) return;
+  const deadline = closeSettlementOwner.deadline;
+  assert.notEqual(deadline, undefined, 'UC1 preflight allocation not established');
+  if (closeSettlementOwner.stopped || deadline === undefined || performance.now() >= deadline) {
+    const cause = new Error('UC1 original preflight start allocation exhausted or stopped');
+    stopCloseSettlement(cause, false);
+    throw cause;
+  }
+}
+
+/** Enrolls each original pipe before getReader; failure keeps that same pipe/reader, never a replacement. */
+function drainCloseSettlement(stream: ReadableStream<Uint8Array>): CloseSettlementReader {
+  const retained: CloseSettlementReader = {
+    stream,
+    reader: undefined,
+    closed: undefined,
+    settled: undefined,
+    eof: false,
+    closedKnown: false,
+    failure: undefined,
+  };
+  return retained;
+}
+function startCloseSettlementReader(retained: CloseSettlementReader): void {
+  try {
+    const reader = retained.stream.getReader();
+    retained.reader = reader;
+    retained.closed = reader.closed;
+    const closing = reader.closed.then(
+      () => {
+        retained.closedKnown = true;
       },
-    };
-  });
+      (cause: unknown) => {
+        retained.failure = { cause };
+        stopCloseSettlement(cause, true);
+      },
+    );
+    retained.settled = (async () => {
+      const digest = createHash('sha256');
+      const chunks: Buffer[] = [];
+      let bytes = 0;
+      let kept = 0;
+      try {
+        for (;;) {
+          const chunk = await reader.read();
+          if (chunk.done) {
+            retained.eof = true;
+            break;
+          }
+          digest.update(chunk.value);
+          bytes += chunk.value.byteLength;
+          const count = Math.min(chunk.value.byteLength, 65536 - kept);
+          if (count > 0) chunks.push(Buffer.from(chunk.value.subarray(0, count)));
+          kept += count;
+          if (bytes > 65536 && !closeSettlementOwner.uncertain)
+            stopCloseSettlement(new Error('UC1 original helper output overflow'), true);
+        }
+        await closing;
+        if (retained.failure !== undefined) throw retained.failure.cause;
+        return Object.freeze({
+          bytes,
+          sha256: digest.digest('hex'),
+          base64: Buffer.concat(chunks).toString('base64'),
+          overflow: bytes > 65536,
+        });
+      } catch (cause) {
+        retained.failure = { cause };
+        stopCloseSettlement(cause, true);
+        throw cause;
+      }
+    })();
+    // Keep the original rejected task handled while the other original reader is being enrolled.
+    void retained.settled.catch(() => undefined);
+  } catch (cause) {
+    retained.failure = { cause };
+    stopCloseSettlement(cause, true);
+  }
+}
+
+/** Closed protocol validation retains actual observations; expectations remain in the timed callbacks. */
+function readCloseFields(value: unknown, keys: readonly string[]): Record<string, unknown> {
+  assert(
+    value !== null && typeof value === 'object' && !Array.isArray(value),
+    'UC1 protocol object absent',
+  );
+  const fields = value as Record<string, unknown>;
+  assert.deepEqual(Object.keys(fields).sort(), [...keys].sort(), 'UC1 protocol fields differ');
+  return fields;
+}
+function readCloseClassifications(
+  value: unknown,
+  stages: readonly string[],
+): readonly CleanupClassification[] {
+  assert(Array.isArray(value), 'UC1 classification roster absent');
+  assert.equal(value.length, stages.length, 'UC1 classification stage count differs');
+  return Object.freeze(
+    value.map((entry: unknown, index) => {
+      const fields = readCloseFields(entry, ['stage', 'unknown', 'field', 'prototype', 'spread']);
+      assert.equal(fields['stage'], stages[index], 'UC1 classification stage differs');
+      for (const key of ['unknown', 'field', 'prototype', 'spread'])
+        assert.equal(typeof fields[key], 'boolean', 'UC1 classification is not boolean');
+      // This test boundary checked every field before retaining the original parsed boolean record.
+      return Object.freeze(fields) as unknown as CleanupClassification;
+    }),
+  );
+}
+function readCloseNative(value: unknown): Readonly<Record<string, unknown>> {
+  const fields = readCloseFields(value, ['status', 'resources', 'streams', 'callers']);
+  assert.equal(fields['status'], 'known', 'UC1 native retirement unknown');
+  const generations = new Set<number>();
+  for (const key of ['resources', 'streams', 'callers']) {
+    const roster = fields[key];
+    assert(Array.isArray(roster), 'UC1 native original roster absent');
+    if (key === 'callers') assert.equal(roster.length, 1, 'UC1 original caller count differs');
+    if (key === 'resources') assert(roster.length > 0, 'UC1 graph original roster absent');
+    for (const original of roster) {
+      const entry = readCloseFields(original, [
+        'generation',
+        'kind',
+        'descriptor',
+        'identity',
+        'attempts',
+        'nativeEntries',
+        'native',
+        'closeOrigin',
+      ]);
+      const generation = entry['generation'];
+      assert(
+        typeof generation === 'number' &&
+          Number.isSafeInteger(generation) &&
+          generation > 0 &&
+          !generations.has(generation),
+        'UC1 original generation differs',
+      );
+      generations.add(generation);
+      assert.equal(entry['native'], 'returned', 'UC1 original native close not known returned');
+      assert.equal(entry['nativeEntries'], 1, 'UC1 original native close entry count differs');
+      assert(
+        ['production', 'fixture'].includes(String(entry['closeOrigin'])),
+        'UC1 original native close origin differs',
+      );
+      const attempts = entry['attempts'];
+      assert(
+        typeof attempts === 'number' &&
+          Number.isSafeInteger(attempts) &&
+          attempts >= 0 &&
+          attempts <= 1,
+        'UC1 original production close retried',
+      );
+      assert.equal(
+        entry['kind'],
+        key === 'streams' ? 'stream' : key === 'callers' ? 'caller' : 'descriptor',
+        'UC1 original kind differs',
+      );
+      if (key === 'streams') {
+        assert.equal(entry['descriptor'], null, 'UC1 Dir acquired a fabricated descriptor');
+        assert.equal(entry['identity'], 'original-dir-object', 'UC1 original Dir identity absent');
+      } else {
+        assert(
+          typeof entry['descriptor'] === 'number' &&
+            Number.isInteger(entry['descriptor']) &&
+            entry['descriptor'] >= 0,
+          'UC1 descriptor absent',
+        );
+        const identity = readCloseFields(entry['identity'], ['device', 'inode', 'directory']);
+        for (const part of ['device', 'inode'])
+          assert(
+            typeof identity[part] === 'string' && /^(0|[1-9][0-9]*)$/.test(identity[part]),
+            'UC1 descriptor identity absent',
+          );
+        assert.equal(typeof identity['directory'], 'boolean', 'UC1 descriptor kind absent');
+        Object.freeze(identity);
+      }
+      Object.freeze(entry);
+    }
+    Object.freeze(roster);
+  }
+  return Object.freeze(fields);
+}
+
+/** Emits original exit/read outcomes without turning process exit into original-close evidence. */
+function reportCloseSettlement(retained: CloseSettlementChild): void {
   process.stderr.write(
     'CLOSE_HELPER_DIAGNOSTIC:' +
       JSON.stringify({
         pid: retained.child.pid,
+        scenario: retained.scenario,
         originalExecutableBase64: Buffer.from(closeSettlementExecutable).toString('base64'),
-        childExecutable: 'Recorded only by the child CLOSE_EXECUTABLE frame in original stdout',
         helperSHA256: retained.helperSHA256,
         bundleSHA256: retained.bundleSHA256,
-        outcomes: original,
+        outcomes: retained.outcomes,
       }) +
       '\n',
   );
 }
 
-/** A timed-out test still owns its original process and both readers until settlement. */
+/** Final verification only; admitted preflight owns and joins originals before this hook is registered. */
 afterAll(async () => {
-  const failures: unknown[] = [];
-  const drainage = await Promise.allSettled(
-    closeSettlementChildren.map(async (retained) => {
-      const outcomes = await Promise.allSettled([
-        retained.child.exited,
-        retained.stdout.settled,
-        retained.stderr.settled,
-      ]);
-      reportCloseSettlement(retained, outcomes);
-      const exit = outcomes[0];
-      const out = outcomes[1];
-      const err = outcomes[2];
-      if (exit.status !== 'fulfilled' || out.status !== 'fulfilled' || err.status !== 'fulfilled')
-        throw new Error('HOLD: close settlement process or reader outcome unknown', {
-          cause: outcomes,
-        });
-      if (out.value.overflow || err.value.overflow)
-        throw new Error('HOLD: owned helper output overflow', { cause: outcomes });
-      if (
-        !Buffer.from(out.value.base64, 'base64').toString('utf8').includes('FIXTURE_CLEANUP:KNOWN')
-      )
-        throw new Error('HOLD: owned helper fixture cleanup unproven', { cause: outcomes });
-      const index = closeSettlementChildren.indexOf(retained);
-      if (index >= 0) closeSettlementChildren.splice(index, 1);
-    }),
-  );
-  for (const outcome of drainage) if (outcome.status === 'rejected') failures.push(outcome.reason);
-  if (failures.length !== 0)
-    throw new AggregateError(failures, 'HOLD: owned close helper drainage unknown');
+  if (closeSettlementOwner.active.length !== 0 || closeSettlementOwner.uncertain) {
+    stopCloseSettlement(new Error('UC1 original helper remains owned at final verification'), true);
+    await holdCloseSettlement();
+  }
+  if (closeSettlementOwner.stopped)
+    throw new AggregateError(closeSettlementOwner.failures, 'UC1 original preflight stopped');
 });
 
-/** Owns actual helper processes and readers until all three outcomes are known. */
+/** Recognizes only a frozen helper assertion heading bound to its actual scenario. */
+function readCloseIdentityRefusal(stderr: string, scenario: string): string | undefined {
+  const headings = stderr
+    .split('\n')
+    .map((line) => line.trimStart())
+    .filter((line) => /^(?:[A-Za-z]*Error|error):/.test(line));
+  if (headings.length !== 1) return undefined;
+  const heading = headings.at(0);
+  for (const [label, scenarios] of closeIdentityRefusals) {
+    if (heading === 'error: ' + label && scenarios.includes(scenario)) return label;
+  }
+  return undefined;
+}
+
+const closeIdentityRefusals: readonly (readonly [string, readonly string[]])[] = [
+  [
+    'UC1_IDENTITY_CONSTRUCTOR_MINTED',
+    [
+      'raw-read',
+      'disk-construction',
+      'verify',
+      'stream',
+      'file-before',
+      'file-after',
+      'parent-before',
+      'parent-after',
+      'disk-final',
+      'expired-final',
+      'verify-expiry',
+    ],
+  ],
+  ['UC1_IDENTITY_REVOKED_UNBRANDED', ['verify', 'stream', 'verify-expiry']],
+  [
+    'UC1_IDENTITY_FAILED_UNBRANDED',
+    [
+      'verify',
+      'stream',
+      'file-before',
+      'file-after',
+      'parent-before',
+      'parent-after',
+      'disk-final',
+      'expired-final',
+      'verify-expiry',
+    ],
+  ],
+  ['UC1_IDENTITY_RETAIN_ARGUMENT_PRIORITY', ['disk-final']],
+  ['UC1_IDENTITY_REVOKED_LIVE:verifyClosure', ['verify', 'stream', 'verify-expiry']],
+  ['UC1_IDENTITY_REVOKED_EXPIRED:verifyClosure', ['verify-expiry']],
+  [
+    'UC1_IDENTITY_FAILED_LIVE:verifyClosure',
+    [
+      'verify',
+      'stream',
+      'file-before',
+      'file-after',
+      'parent-before',
+      'parent-after',
+      'disk-final',
+    ],
+  ],
+  [
+    'UC1_IDENTITY_FAILED_EXPIRED:verifyClosure',
+    [
+      'verify',
+      'stream',
+      'file-before',
+      'file-after',
+      'parent-before',
+      'parent-after',
+      'disk-final',
+      'expired-final',
+      'verify-expiry',
+    ],
+  ],
+  ['UC1_IDENTITY_REVOKED_LIVE:assertStable', ['verify', 'stream', 'verify-expiry']],
+  ['UC1_IDENTITY_REVOKED_EXPIRED:assertStable', ['verify-expiry']],
+  [
+    'UC1_IDENTITY_FAILED_LIVE:assertStable',
+    [
+      'verify',
+      'stream',
+      'file-before',
+      'file-after',
+      'parent-before',
+      'parent-after',
+      'disk-final',
+    ],
+  ],
+  [
+    'UC1_IDENTITY_FAILED_EXPIRED:assertStable',
+    [
+      'verify',
+      'stream',
+      'file-before',
+      'file-after',
+      'parent-before',
+      'parent-after',
+      'disk-final',
+      'expired-final',
+      'verify-expiry',
+    ],
+  ],
+];
+
+/** Enrolls the actual process before any fallible reader/ref/exit setup and publishes only known joined observations. */
 async function runCloseSettlement(
   scenario: string,
   fixture: Awaited<ReturnType<typeof initialHandoffFixture>>,
-) {
+  classify = false,
+  stages: readonly string[] = [],
+): Promise<KnownCloseSettlement> {
+  assertCloseSettlementStart();
   const seam = fixture.root + '/close-dependency.ts';
   const entry = fixture.root + '/close-settlement.ts';
   const bundle = fixture.root + '/close-settlement.js';
   await writeFile(seam, closeDependencyProgram);
   await writeFile(
     entry,
-    `import {captureInitialHandoffArtifacts,captureInitialHandoff} from ${JSON.stringify(resolve(import.meta.dir, 'initial-handoff-graph.ts'))};
+    `import {captureInitialHandoffArtifacts,captureInitialHandoff,isInitialHandoffCleanupUnknown} from ${JSON.stringify(resolve(import.meta.dir, 'initial-handoff-graph.ts'))};
 import {captureEdgePolicy} from ${JSON.stringify(resolve(import.meta.dir, 'edge-policy.ts'))};
 import * as fs from 'node:fs';
-import {custody} from ${JSON.stringify(seam)};
+import {custody,openCaller,retireFixture,holdUnknown} from ${JSON.stringify(seam)};
 const request=${JSON.stringify(fixture.artifactRequest)};
 const scenario=${JSON.stringify(scenario)};
+const classify=${String(classify)};
 const originalExecutable=${JSON.stringify(closeSettlementExecutable)};
 if(process.execPath!==originalExecutable)throw Error('owned helper executable identity changed');
 console.log('CLOSE_EXECUTABLE:'+JSON.stringify({parent:originalExecutable,child:process.execPath}));
 const deadline=performance.now()+120000;
 ${closeSettlementProgram}`,
   );
+  assertCloseSettlementStart();
   const built = await Bun.build({
     entrypoints: [entry],
     target: 'bun',
@@ -1318,11 +1688,17 @@ ${closeSettlementProgram}`,
         setup(build) {
           build.onLoad({ filter: /\/initial-handoff-graph\.ts$/ }, async (source) => {
             const contents = await readFile(source.path, 'utf8');
-            const dependency = "from 'node:fs';";
-            if (contents.split(dependency).length !== 2)
-              throw new Error('graph synchronous filesystem dependency changed');
+            const filesystem = "from 'node:fs';";
+            const directoryFile = "from './directory-file';";
+            if (
+              contents.split(filesystem).length !== 2 ||
+              contents.split(directoryFile).length !== 2
+            )
+              throw new Error('graph original filesystem dependencies changed');
             return {
-              contents: contents.replace(dependency, 'from ' + JSON.stringify(seam) + ';'),
+              contents: contents
+                .replace(filesystem, 'from ' + JSON.stringify(seam) + ';')
+                .replace(directoryFile, 'from ' + JSON.stringify(seam) + ';'),
               loader: 'ts',
             };
           });
@@ -1339,82 +1715,337 @@ ${closeSettlementProgram}`,
   const bundleSHA256 = createHash('sha256')
     .update(new Uint8Array(await Bun.file(bundle).arrayBuffer()))
     .digest('hex');
-  const child = Bun.spawn([closeSettlementExecutable, bundle], { stdout: 'pipe', stderr: 'pipe' });
-  const stdout = drainCloseSettlement(child.stdout);
-  const stderr = drainCloseSettlement(child.stderr);
-  const retained = { child, stdout, stderr, helperSHA256, bundleSHA256 };
-  closeSettlementChildren.push(retained);
-  const outcomes = await Promise.allSettled([child.exited, stdout.settled, stderr.settled]);
-  reportCloseSettlement(retained, outcomes);
-  const exit = outcomes[0];
-  const out = outcomes[1];
-  const err = outcomes[2];
-  if (exit.status !== 'fulfilled' || out.status !== 'fulfilled' || err.status !== 'fulfilled')
-    throw new Error('owned close settlement process or reader outcome unknown', {
-      cause: outcomes,
-    });
-  if (out.value.overflow || err.value.overflow)
-    throw new Error('HOLD: owned helper output overflow', { cause: outcomes });
+  assertCloseSettlementStart();
+  const child = spawnCloseSettlement(bundle);
+  const retained: CloseSettlementChild = {
+    child,
+    scenario,
+    helperSHA256,
+    bundleSHA256,
+    exit: undefined,
+    referenced: false,
+    stdout: undefined,
+    stderr: undefined,
+    setupFailures: [],
+    outcomes: undefined,
+    accepted: false,
+  };
+  closeSettlementOwner.active.push(retained);
+  try {
+    child.ref();
+    retained.referenced = true;
+  } catch (cause) {
+    retained.setupFailures.push(cause);
+    stopCloseSettlement(cause, true);
+  }
+  try {
+    retained.exit = child.exited;
+  } catch (cause) {
+    retained.setupFailures.push(cause);
+    stopCloseSettlement(cause, true);
+  }
+  try {
+    retained.stdout = drainCloseSettlement(child.stdout);
+    startCloseSettlementReader(retained.stdout);
+  } catch (cause) {
+    retained.setupFailures.push(cause);
+    stopCloseSettlement(cause, true);
+  }
+  try {
+    retained.stderr = drainCloseSettlement(child.stderr);
+    startCloseSettlementReader(retained.stderr);
+  } catch (cause) {
+    retained.setupFailures.push(cause);
+    stopCloseSettlement(cause, true);
+  }
+  const exit = retained.exit;
+  const stdout = retained.stdout;
+  const stderr = retained.stderr;
+  if (
+    exit === undefined ||
+    stdout?.settled === undefined ||
+    stderr?.settled === undefined ||
+    retained.setupFailures.length !== 0
+  ) {
+    stopCloseSettlement(new Error('UC1 original reader/exit setup unknown'), true);
+    return holdCloseSettlement();
+  }
+  retained.outcomes = await Promise.allSettled([exit, stdout.settled, stderr.settled]);
+  try {
+    reportCloseSettlement(retained);
+  } catch (cause) {
+    stopCloseSettlement(cause, true);
+    return holdCloseSettlement();
+  }
+  const termination = retained.outcomes[0];
+  const out = retained.outcomes[1];
+  const err = retained.outcomes[2];
+  if (
+    termination.status !== 'fulfilled' ||
+    out.status !== 'fulfilled' ||
+    err.status !== 'fulfilled' ||
+    typeof termination.value !== 'number' ||
+    typeof out.value === 'number' ||
+    typeof err.value === 'number' ||
+    !stdout.eof ||
+    !stdout.closedKnown ||
+    !stderr.eof ||
+    !stderr.closedKnown ||
+    stdout.failure !== undefined ||
+    stderr.failure !== undefined ||
+    out.value.overflow ||
+    err.value.overflow
+  ) {
+    stopCloseSettlement(new Error('UC1 original process or stream outcome unknown'), true);
+    return holdCloseSettlement();
+  }
   const text = Buffer.from(out.value.base64, 'base64').toString('utf8');
-  if (!text.includes('FIXTURE_CLEANUP:KNOWN'))
-    throw new Error('HOLD: owned helper fixture cleanup unproven', { cause: outcomes });
-  closeSettlementChildren.splice(closeSettlementChildren.indexOf(retained), 1);
-  expect(err.value.bytes).toBe(0);
-  expect(exit.value).toBe(0);
-  const expected =
-    'CLOSE_EXECUTABLE:' +
-    JSON.stringify({ parent: closeSettlementExecutable, child: closeSettlementExecutable }) +
-    '\nFIXTURE_CLEANUP:KNOWN\nCLOSE_SETTLEMENT:' +
-    scenario +
-    '\n';
-  expect(out.value.sha256).toBe(createHash('sha256').update(expected).digest('hex'));
+  let native: Readonly<Record<string, unknown>>;
+  let classifications: readonly CleanupClassification[];
+  let isKnownInfrastructureRefusal = false;
+  let targetedRefusal: Error | undefined;
+  try {
+    const lines = text.split('\n');
+    assert.equal(lines.at(-1), '', 'UC1 transcript final LF absent');
+    assert.equal(
+      lines[0],
+      'CLOSE_EXECUTABLE:' +
+        JSON.stringify({ parent: closeSettlementExecutable, child: closeSettlementExecutable }),
+      'UC1 helper executable frame differs',
+    );
+    const nativeLine = lines.at(1);
+    assert(
+      typeof nativeLine === 'string' && nativeLine.startsWith('FIXTURE_NATIVE:'),
+      'UC1 native accounting frame absent',
+    );
+    native = readCloseNative(JSON.parse(nativeLine.slice('FIXTURE_NATIVE:'.length)));
+    assert.equal(lines[2], 'FIXTURE_CLEANUP:KNOWN', 'UC1 fixture retirement unproven');
+    const assertionLabel = readCloseIdentityRefusal(
+      Buffer.from(err.value.base64, 'base64').toString('utf8'),
+      scenario,
+    );
+    if (
+      classify &&
+      !closeSettlementOwner.stopped &&
+      !closeSettlementOwner.uncertain &&
+      termination.value === 1 &&
+      retained.child.exitCode === 1 &&
+      retained.child.signalCode === null &&
+      err.value.bytes > 0 &&
+      lines.length === 4 &&
+      assertionLabel !== undefined
+    ) {
+      const index = closeSettlementOwner.active.indexOf(retained);
+      assert(index >= 0, 'UC1 rejected original absent at known retirement');
+      const cause = new Error('UC1 known-closed targeted identity refusal: ' + assertionLabel);
+      closeSettlementOwner.failures.push(
+        Object.freeze({
+          cause,
+          assertionLabel,
+          original: retained,
+          stdout,
+          stderr,
+          outcomes: retained.outcomes,
+          native,
+          stdoutOutput: out.value,
+          stderrOutput: err.value,
+        }),
+      );
+      closeSettlementOwner.active.splice(index, 1);
+      closeSettlementOwner.stopped = true;
+      targetedRefusal = cause;
+      throw cause;
+    }
+
+    if (
+      termination.value !== 0 ||
+      retained.child.signalCode !== null ||
+      retained.child.exitCode !== 0 ||
+      err.value.bytes !== 0
+    ) {
+      const cause = new Error('UC1 helper infrastructure refusal after known fixture retirement');
+      isKnownInfrastructureRefusal = true;
+      stopCloseSettlement(cause, false);
+      throw cause;
+    }
+    const identityLine = classify ? lines.at(3) : undefined;
+    if (classify) {
+      assert(
+        typeof identityLine === 'string' && identityLine.startsWith('CLEANUP_IDENTITY:'),
+        'UC1 classification frame absent',
+      );
+      classifications = readCloseClassifications(
+        JSON.parse(identityLine.slice('CLEANUP_IDENTITY:'.length)),
+        stages,
+      );
+    } else classifications = Object.freeze([]);
+    const expected =
+      lines[0] +
+      '\n' +
+      nativeLine +
+      '\nFIXTURE_CLEANUP:KNOWN\n' +
+      (identityLine === undefined ? '' : identityLine + '\n') +
+      'CLOSE_SETTLEMENT:' +
+      scenario +
+      '\n';
+    assert.equal(text, expected, 'UC1 closed transcript differs');
+    assert.equal(
+      out.value.sha256,
+      createHash('sha256').update(expected).digest('hex'),
+      'UC1 closed transcript hash differs',
+    );
+  } catch (cause) {
+    if (targetedRefusal !== undefined && cause === targetedRefusal) throw cause;
+    if (isKnownInfrastructureRefusal) throw cause;
+    stopCloseSettlement(cause, true);
+    return holdCloseSettlement();
+  }
+  const known = Object.freeze({
+    scenario,
+    helperSHA256,
+    bundleSHA256,
+    executable: closeSettlementExecutable,
+    pid: retained.child.pid,
+    exit: termination.value,
+    signal: null,
+    stdout: out.value,
+    stderr: err.value,
+    native,
+    classifications,
+    original: retained,
+  });
+  retained.accepted = true;
+  closeSettlementOwner.completed.push(known);
+  const index = closeSettlementOwner.active.indexOf(retained);
+  assert(index >= 0, 'UC1 original parent owner absent at known retirement');
+  closeSettlementOwner.active.splice(index, 1);
+  if (closeSettlementOwner.uncertain) return holdCloseSettlement();
+  assertCloseSettlementStart();
+  return known;
 }
 
-/** Replaces only the graph's dependency, delegating real synchronous filesystem operations. */
+/** Replaces only the graph's two acquisition dependencies; every native operation uses its original port. */
 const closeDependencyProgram = String.raw`
 import * as fs from 'node:fs';
-export { constants, openSync, realpathSync } from 'node:fs';
-export const custody={resources:[],streams:[],calls:[],faults:[],armed:false,kind:'',expired:false,primary:new Error('owned primary read failure')};
-function retain(descriptor){
-  const identity=fs.fstatSync(descriptor,{bigint:true});
-  let retained=custody.resources.findLast(entry=>entry.descriptor===descriptor);
-  if(!retained||retained.delegated){retained={descriptor,identity,directory:identity.isDirectory(),attempts:0,delegated:false,fault:undefined};custody.resources.push(retained);}
-  if(custody.armDisk&&!custody.faults.length){retained.fault={after:false,error:custody.armDisk};custody.faults.push(custody.armDisk);}
+import {openDirectoryFile as acquireDirectoryFile} from ${JSON.stringify(resolve(import.meta.dir, 'directory-file.ts'))};
+export { constants, realpathSync } from 'node:fs';
+export const custody={resources:[],streams:[],callers:[],calls:[],faults:[],failures:[],uncertain:false,keeper:undefined,reported:false,generation:0,armed:false,kind:'',expired:false,primary:new Error('owned primary read failure')};
+function recordUnknown(original,cause){custody.uncertain=true;custody.failures.push({original,cause});}
+export function holdUnknown(){
+  if(custody.keeper===undefined)custody.keeper=setInterval(()=>custody,30000);
+  if(!custody.reported){custody.reported=true;try{process.stderr.write('UC1 helper HOLD: original native custody remains unknown\n');}catch(cause){custody.failures.push({diagnostic:cause});}}
+  return new Promise(()=>undefined);
+}
+function enrollDescriptor(descriptor,kind,bucket){
+  const retained={generation:++custody.generation,kind,descriptor,identity:{status:'pending'},directory:undefined,attempts:0,delegated:false,native:{status:'not-entered'},nativeEntries:0,closeOrigin:undefined,fault:undefined};
+  bucket.push(retained);
   return retained;
 }
-export function fstatSync(descriptor,...options){retain(descriptor);return fs.fstatSync(descriptor,...options);}
+function captureIdentity(retained,options){
+  try{
+    const observed=fs.fstatSync(retained.descriptor,...options);
+    if(retained.identity.status==='pending'){retained.identity={status:'known',value:observed};retained.directory=observed.isDirectory();}
+    return observed;
+  }catch(cause){retained.identity={status:'unknown',cause};recordUnknown(retained,cause);throw cause;}
+}
+function findOriginal(descriptor){
+  const retained=custody.resources.findLast(entry=>entry.descriptor===descriptor&&entry.native.status!=='returned');
+  if(!retained){const cause=Error('graph operation lacks original acquisition record');recordUnknown({descriptor},cause);throw cause;}
+  return retained;
+}
+export function openSync(...options){const descriptor=fs.openSync(...options);enrollDescriptor(descriptor,'descriptor',custody.resources);return descriptor;}
+export function openDirectoryFile(...options){const descriptor=acquireDirectoryFile(...options);enrollDescriptor(descriptor,'descriptor',custody.resources);return descriptor;}
+export function openCaller(path){
+  const descriptor=fs.openSync(path,fs.constants.O_RDONLY);
+  const retained=enrollDescriptor(descriptor,'caller',custody.callers);
+  captureIdentity(retained,[{bigint:true}]);return retained;
+}
+export function fstatSync(descriptor,...options){
+  const retained=findOriginal(descriptor);const observed=captureIdentity(retained,options);
+  if(custody.armDisk&&!custody.faults.length){retained.fault={after:false,error:custody.armDisk};custody.faults.push(custody.armDisk);}
+  return observed;
+}
 export function lstatSync(path,...options){
   const identity=fs.lstatSync(path,...options);
   if(custody.kind==='transfer'&&custody.armed&&custody.resources.some(entry=>entry.directory&&!entry.delegated))custody.expired=true;
   return identity;
 }
 export function readSync(descriptor,...options){
-  if(custody.kind==='raw-read'&&custody.armed){custody.armed=false;const retained=retain(descriptor);retained.fault={after:false,error:new Error('owned local file close failure')};custody.faults.push(retained.fault.error);throw custody.primary;}
+  if(custody.kind==='raw-read'&&custody.armed){custody.armed=false;const retained=findOriginal(descriptor);retained.fault={after:false,error:new Error('owned local file close failure')};custody.faults.push(retained.fault.error);throw custody.primary;}
   return fs.readSync(descriptor,...options);
 }
+function enterNativeClose(retained,close,origin){
+  if(retained.native.status!=='not-entered'){const cause=Error('original native close entered twice');recordUnknown(retained,cause);throw cause;}
+  retained.native={status:'entered'};retained.nativeEntries++;retained.closeOrigin=origin;
+  try{close();retained.native={status:'returned'};retained.delegated=true;}
+  catch(cause){retained.native={status:'unknown',cause};recordUnknown(retained,cause);throw cause;}
+}
 export function closeSync(descriptor){
-  const retained=custody.resources.findLast(entry=>entry.descriptor===descriptor);
-  if(!retained)throw Error('graph close lacks original acquired identity');
-  retained.attempts++;custody.calls.push(retained);
-  if(retained.delegated)throw Error('original close delegated twice');
+  const retained=findOriginal(descriptor);retained.attempts++;custody.calls.push(retained);
+  if(retained.native.status!=='not-entered'){const cause=Error('original production close repeated');recordUnknown(retained,cause);throw cause;}
   if(custody.kind==='verify'&&custody.armed&&!retained.directory){custody.armed=false;retained.fault={after:true,error:new Error('owned reopened file close failure')};custody.faults.push(retained.fault.error);}
   if(retained.fault&&!retained.fault.after)throw retained.fault.error;
-  fs.closeSync(descriptor);retained.delegated=true;
+  enterNativeClose(retained,()=>fs.closeSync(descriptor),'production');
   if(retained.fault)throw retained.fault.error;
 }
 export function opendirSync(...options){
   const directory=fs.opendirSync(...options);
-  const close=directory.closeSync.bind(directory);
-  const read=directory.readSync.bind(directory);
-  const retained={directory,close,attempts:0,delegated:false,fault:undefined};custody.streams.push(retained);
-  directory.readSync=function(){if(custody.kind==='stream'&&custody.armed){custody.armed=false;retained.fault=new Error('owned directory stream close failure');custody.faults.push(retained.fault);throw custody.primary;}return read();};
-  directory.closeSync=function(){retained.attempts++;if(retained.delegated)throw Error('original stream close delegated twice');if(retained.fault)throw retained.fault;close();retained.delegated=true;};
+  const retained={generation:++custody.generation,kind:'stream',directory,identity:{status:'pending'},close:undefined,read:undefined,attempts:0,delegated:false,native:{status:'not-entered'},nativeEntries:0,closeOrigin:undefined,fault:undefined};
+  custody.streams.push(retained);
+  try{
+    retained.close=directory.closeSync.bind(directory);retained.read=directory.readSync.bind(directory);
+    retained.identity={status:'known',value:directory};
+    directory.readSync=function(){if(custody.kind==='stream'&&custody.armed){custody.armed=false;retained.fault=new Error('owned directory stream close failure');custody.faults.push(retained.fault);throw custody.primary;}return retained.read();};
+    directory.closeSync=function(){retained.attempts++;if(retained.native.status!=='not-entered'){const cause=Error('original stream production close repeated');recordUnknown(retained,cause);throw cause;}if(retained.fault)throw retained.fault;enterNativeClose(retained,retained.close,'production');};
+  }catch(cause){retained.identity={status:'unknown',cause};recordUnknown(retained,cause);throw cause;}
   return directory;
+}
+function retireOriginal(retained){
+  if(retained.identity.status!=='known'){recordUnknown(retained,Error('fixture original identity unknown'));return;}
+  if(retained.native.status==='returned')return;
+  if(retained.native.status!=='not-entered'){recordUnknown(retained,Error('fixture original native entry unknown; retry refused'));return;}
+  if(retained.kind==='stream'){
+    if(retained.identity.value!==retained.directory||typeof retained.close!=='function'){recordUnknown(retained,Error('fixture original Dir identity unknown'));return;}
+    try{enterNativeClose(retained,retained.close,'fixture');}catch(cause){custody.failures.push({original:retained,retirement:cause});}
+    return;
+  }
+  let closing;
+  try{closing=fs.fstatSync(retained.descriptor,{bigint:true});}
+  catch(cause){recordUnknown(retained,cause);return;}
+  if(closing.dev!==retained.identity.value.dev||closing.ino!==retained.identity.value.ino){recordUnknown(retained,Error('fixture original identity changed; no close authorized'));return;}
+  try{enterNativeClose(retained,()=>fs.closeSync(retained.descriptor),'fixture');}
+  catch(cause){custody.failures.push({original:retained,retirement:cause});}
+}
+export function retireFixture(){
+  // A record is enrolled before identity work; only actual never-entered originals get a first native close.
+  for(const retained of [...custody.streams,...custody.resources,...custody.callers])retireOriginal(retained);
+  if(custody.uncertain)return undefined;
+  function project(retained){
+    if(retained.native.status!=='returned'||retained.nativeEntries!==1||retained.identity.status!=='known'){recordUnknown(retained,Error('fixture original retirement unproven'));return undefined;}
+    return {generation:retained.generation,kind:retained.kind,descriptor:retained.kind==='stream'?null:retained.descriptor,identity:retained.kind==='stream'?'original-dir-object':{device:String(retained.identity.value.dev),inode:String(retained.identity.value.ino),directory:retained.directory},attempts:retained.attempts,nativeEntries:retained.nativeEntries,native:retained.native.status,closeOrigin:retained.closeOrigin};
+  }
+  const native={status:'known',resources:custody.resources.map(project),streams:custody.streams.map(project),callers:custody.callers.map(project)};
+  return custody.uncertain?undefined:native;
 }
 `;
 
 const closeSettlementProgram = String.raw`
-function require(condition,message){if(!condition)throw Error(message);}
+const classifications=[];
+function recordClassification(stage,failure){
+  if(!classify)return;
+  require(failure instanceof Error,'classification lacks actual outward error');
+  if(['raw-read','disk-construction','verify','stream','file-before','file-after','parent-before','parent-after','disk-final','expired-final','verify-expiry'].includes(scenario)){
+    const actualPrototype=Object.getPrototypeOf(failure);
+    const constructed=Reflect.construct(actualPrototype.constructor,[[],[]]);
+    require(constructed!==failure&&Object.getPrototypeOf(constructed)===actualPrototype,'genuine cleanup constructor did not create a distinct same-prototype error');
+    require(!isInitialHandoffCleanupUnknown(constructed),'UC1_IDENTITY_CONSTRUCTOR_MINTED');
+  }
+
+  const field={message:failure.message,cleanup:true,custody:failure.custody,errors:failure.errors};
+  const prototype=Object.assign(Object.create(Object.getPrototypeOf(failure)),failure);
+  classifications.push({stage,unknown:isInitialHandoffCleanupUnknown(failure),field:isInitialHandoffCleanupUnknown(field),prototype:isInitialHandoffCleanupUnknown(prototype),spread:isInitialHandoffCleanupUnknown({...failure})});
+}
+function require(condition,message,cause){if(!condition)throw new Error(message,{cause});}
 function captureFailure(operation){try{operation();}catch(cause){return cause;}return undefined;}
 function includesFailure(failure,expected,seen=new Set()){
   if(failure===expected)return true;if(!(failure instanceof Error)||seen.has(failure))return false;seen.add(failure);
@@ -1427,22 +2058,50 @@ function assertSwept(originals){
   require(firstParent<0||!calls.slice(firstParent).some(entry=>!entry.directory),'retained file close followed parent close');
   for(const retained of originals){require(retained.attempts===1,'original close attempt count '+retained.attempts);require(retained.fault&&!retained.fault.after||retained.delegated,'healthy original close not delegated');}
 }
+function snapshotAccounting(){
+  return {buckets:[custody.resources,custody.streams,custody.callers].map(bucket=>bucket.map(original=>({original,attempts:original.attempts,nativeEntries:original.nativeEntries,status:original.native.status}))),calls:[...custody.calls]};
+}
+function assertAccounting(snapshot){
+  const buckets=[custody.resources,custody.streams,custody.callers];
+  require(snapshot.buckets.every((entries,index)=>entries.length===buckets[index].length&&entries.every((saved,position)=>{const original=buckets[index][position];return original===saved.original&&original.attempts===saved.attempts&&original.nativeEntries===saved.nativeEntries&&original.native.status===saved.status;})),'identity probe changed original roster or native accounting');
+  require(snapshot.calls.length===custody.calls.length&&snapshot.calls.every((original,index)=>original===custody.calls[index]),'identity probe changed original close calls');
+}
+function assertSaved(observation,saved,label){
+  const accounting=snapshotAccounting();
+  for(const method of ['verifyClosure','assertStable']){
+    const failure=captureFailure(()=>observation[method]());
+    assertAccounting(accounting);
+    require(failure===saved&&isInitialHandoffCleanupUnknown(failure),label+':'+method);
+  }
+}
+function assertRetainArgumentPriority(observation,saved){
+  const accounting=snapshotAccounting();let getterAccesses=0;const sentinel=new Error('owned inert path getter sentinel');
+  const failure=captureFailure(()=>observation.retainExecutingFile({get path(){getterAccesses++;throw sentinel;}}));
+  assertAccounting(accounting);
+  require(failure===saved&&getterAccesses===0,'UC1_IDENTITY_RETAIN_ARGUMENT_PRIORITY',{getterAccesses,receivedSentinel:failure===sentinel,receivedSaved:failure===saved});
+}
 function assertSticky(observation,first){
   require(first instanceof Error,'first cleanup did not refuse');
-  const counts=custody.resources.map(entry=>entry.attempts);const streams=custody.streams.map(entry=>entry.attempts);
+  require(isInitialHandoffCleanupUnknown(first),'UC1_IDENTITY_FAILED_UNBRANDED');
+  const accounting=snapshotAccounting();
   require(captureFailure(()=>observation.closeFiles())===first,'repeat cleanup lost original terminal failure');
-  require(JSON.stringify(counts)===JSON.stringify(custody.resources.map(entry=>entry.attempts)),'repeat cleanup touched original descriptors');
-  require(JSON.stringify(streams)===JSON.stringify(custody.streams.map(entry=>entry.attempts)),'repeat cleanup touched original stream');
-  for(const method of ['verifyClosure','assertStable'])require(captureFailure(()=>observation[method]()) instanceof Error,'unknown observation admitted '+method);
-  require(JSON.stringify(counts)===JSON.stringify(custody.resources.map(entry=>entry.attempts)),'observation after unknown closed a descriptor');
+  assertAccounting(accounting);
+  if(performance.now()<deadline){
+    assertSaved(observation,first,'UC1_IDENTITY_FAILED_LIVE');
+    if(scenario==='disk-final')assertRetainArgumentPriority(observation,first);
+  }
+  Object.defineProperty(performance,'now',{configurable:true,value:()=>deadline+1});
+  assertSaved(observation,first,'UC1_IDENTITY_FAILED_EXPIRED');
+  if(scenario==='disk-final')assertRetainArgumentPriority(observation,first);
+  assertAccounting(accounting);
   for(const failure of custody.faults)require(includesFailure(first,failure),'terminal failure lost original close cause');
 }
-const caller=fs.openSync(request.edgeState+'/edge-policy.json',fs.constants.O_RDONLY);
-const callerIdentity=fs.fstatSync(caller,{bigint:true});
 const clock=performance.now.bind(performance);
+let caller;
 let observation;
 let assertion;
 try{
+  caller=openCaller(request.edgeState+'/edge-policy.json');
   if(scenario==='transfer'){
     custody.kind='transfer';custody.armed=true;
     Object.defineProperty(performance,'now',{configurable:true,value:()=>custody.expired?deadline+1:clock()});
@@ -1450,12 +2109,14 @@ try{
     require(custody.expired,'directory transfer deadline not reached');
     require(failure instanceof Error&&String(failure).includes('deadline exceeded'),'wrong transfer refusal');
     require(custody.resources.length===1,'transfer acquired unexpected originals');assertSwept(custody.resources);
+    recordClassification('expiry-refusal',failure);
   }else if(scenario==='raw-read'){
     custody.kind='raw-read';custody.armed=true;
     const failure=captureFailure(()=>captureInitialHandoffArtifacts(request,deadline));
     require(includesFailure(failure,custody.primary),'raw construction lost primary read failure');
     for(const fault of custody.faults)require(includesFailure(failure,fault),'raw construction lost cleanup failure');
     require(custody.faults.length===1,'raw read and local cleanup seam not reached');assertSwept(custody.resources);
+    recordClassification('construction',failure);
   }else if(scenario==='disk-construction'){
     // The malformed hash-bound handoff intent reaches the genuine shared semantic decoder.
     let failure;
@@ -1469,18 +2130,33 @@ try{
     require(includesFailure(failure,retainedFault),'disk construction lost cleanup cause');
     function containsSemantic(cause){return cause instanceof Error&&(cause.message.includes('unknown or missing fields')||containsSemantic(cause.cause)||(cause instanceof AggregateError&&cause.errors.some(containsSemantic)));}
     require(containsSemantic(failure),'disk construction lost semantic cause');assertSwept(originalClose);
+    recordClassification('construction',failure);
+  }else if(scenario==='known-raw'||scenario==='known-disk'){
+    let failure;
+    if(scenario==='known-raw'){request.selected[0].capture.sha256='f'.repeat(64);failure=captureFailure(()=>captureInitialHandoffArtifacts(request,deadline));}
+    else{try{observation=await captureInitialHandoff(await captureEdgePolicy(request.edgeState),deadline);}catch(cause){failure=cause;}}
+    require(failure instanceof Error,'known malformed construction admitted');
+    require(scenario==='known-raw'?failure.message.includes('raw migration capture hash differs'):failure.message.includes('unknown or missing fields'),'wrong known construction refusal');
+    require(custody.faults.length===0,'known construction injected cleanup fault');assertSwept(custody.resources);
+    recordClassification('known-construction',failure);
   }else{
     observation=scenario==='disk-final'?await captureInitialHandoff(await captureEdgePolicy(request.edgeState),deadline):captureInitialHandoffArtifacts(request,deadline);
     const originals=custody.resources.filter(entry=>!entry.delegated);
     require(originals.some(entry=>entry.directory)&&originals.some(entry=>!entry.directory),'actual retained files/parents absent');
-    if(scenario==='verify'||scenario==='stream'){
-      custody.kind=scenario;custody.armed=true;
-      const primary=captureFailure(()=>observation[scenario==='verify'?'verifyClosure':'assertStable']());
+    if(scenario==='verify'||scenario==='verify-expiry'||scenario==='stream'){
+      custody.kind=scenario==='verify-expiry'?'verify':scenario;custody.armed=true;
+      const primary=captureFailure(()=>observation[custody.kind==='verify'?'verifyClosure':'assertStable']());
       require(custody.faults.length===1,'actual transient close seam not reached');
       if(scenario==='stream')require(includesFailure(primary,custody.primary),'stream read failure overwritten');
+      require(isInitialHandoffCleanupUnknown(primary),'UC1_IDENTITY_REVOKED_UNBRANDED');
+      assertSaved(observation,primary,'UC1_IDENTITY_REVOKED_LIVE');
+      recordClassification('transient',primary);
+      if(scenario==='verify-expiry'){Object.defineProperty(performance,'now',{configurable:true,value:()=>deadline+1});assertSaved(observation,primary,'UC1_IDENTITY_REVOKED_EXPIRED');}
       const failure=captureFailure(()=>observation.closeFiles());assertSwept(originals);assertSticky(observation,failure);
+      require(failure!==primary&&includesFailure(failure,primary),'terminal cleanup lost distinct transient wrapper');
       require(includesFailure(failure,custody.faults[0]),'transient original close failure discarded');
-      if(scenario==='verify'){
+      recordClassification('terminal',failure);
+      if(custody.kind==='verify'){
         const reopened=custody.resources.filter(entry=>!originals.includes(entry)&&entry.fault);
         require(reopened.length===1&&reopened[0].attempts===1&&reopened[0].delegated,'independent original reopened close not one shot');
       }else{const stream=custody.streams.find(entry=>entry.fault);require(stream&&stream.attempts===1&&!stream.delegated,'actual stream close retried');}
@@ -1488,38 +2164,25 @@ try{
       const parent=scenario.startsWith('parent');
       setFault(originals.find(entry=>entry.directory===parent),scenario.endsWith('after'));
       if(scenario==='multiple')setFault(originals.find(entry=>entry.directory),false);
+      if(scenario==='expired-final')Object.defineProperty(performance,'now',{configurable:true,value:()=>deadline+1});
       const failure=captureFailure(()=>observation.closeFiles());assertSwept(originals);assertSticky(observation,failure);
+      recordClassification('terminal',failure);
     }
   }
-  const closing=fs.fstatSync(caller,{bigint:true});require(closing.dev===callerIdentity.dev&&closing.ino===callerIdentity.ino,'caller original descriptor changed');
+  const closing=fs.fstatSync(caller.descriptor,{bigint:true});require(caller.identity.status==='known'&&closing.dev===caller.identity.value.dev&&closing.ino===caller.identity.value.ino,'caller original descriptor changed');
 }catch(cause){assertion=cause;}
 finally{
-  Object.defineProperty(performance,'now',{configurable:true,value:clock});
-  // No opens occur between fault injection and these fixture-owned first actual closes.
-  // A failed identity or close remains UNKNOWN; cleanup continues for every other original.
-  const cleanups=[];const failures=assertion===undefined?[]:[assertion];
-  for(const retained of custody.streams)if(!retained.delegated){
-    try{retained.close();retained.delegated=true;cleanups.push({original:retained,outcome:'closed'});}
-    catch(cause){cleanups.push({original:retained,outcome:'unknown',cause});failures.push(cause);}
-  }
-  for(const retained of custody.resources)if(!retained.delegated){
-    let identity;
-    try{identity=fs.fstatSync(retained.descriptor,{bigint:true});}
-    catch(cause){cleanups.push({original:retained,outcome:'identity-unknown',cause});failures.push(cause);continue;}
-    if(identity.dev!==retained.identity.dev||identity.ino!==retained.identity.ino){const cause=Error('HOLD: fixture original identity changed; no close authorized');cleanups.push({original:retained,outcome:'identity-unknown',cause});failures.push(cause);continue;}
-    try{fs.closeSync(retained.descriptor);retained.delegated=true;cleanups.push({original:retained,outcome:'closed'});}
-    catch(cause){cleanups.push({original:retained,outcome:'unknown',cause});failures.push(cause);}
-  }
-  try{fs.closeSync(caller);cleanups.push({original:{descriptor:caller,identity:callerIdentity},outcome:'closed'});}
-  catch(cause){cleanups.push({original:{descriptor:caller,identity:callerIdentity},outcome:'unknown',cause});failures.push(cause);}
-  custody.fixtureCleanups=cleanups;
-  if(cleanups.some(entry=>entry.outcome!=='closed')){
-    const failure=new AggregateError(failures,'HOLD: fixture original cleanup unknown');
-    failure.custody=custody;throw failure;
-  }
+  try{Object.defineProperty(performance,'now',{configurable:true,value:clock});}
+  catch(cause){custody.failures.push({clock:cause});custody.uncertain=true;}
+  let native;
+  try{native=retireFixture();}
+  catch(cause){custody.failures.push({retirement:cause});custody.uncertain=true;}
+  if(custody.uncertain||native===undefined)await holdUnknown();
+  console.log('FIXTURE_NATIVE:'+JSON.stringify(native));
   console.log('FIXTURE_CLEANUP:KNOWN');
 }
 if(assertion!==undefined)throw assertion;
+if(classify)console.log('CLEANUP_IDENTITY:'+JSON.stringify(classifications));
 console.log('CLOSE_SETTLEMENT:'+scenario);
 `;
 
@@ -1562,3 +2225,317 @@ test('close settlement roster stream failure retains read and close causes', asy
 test('close settlement complete disk finalization stays unknown', async () => {
   await runCloseSettlement('disk-final', await initialHandoffFixture());
 });
+
+test('cleanup identity recognizes actual raw construction primary and close UNKNOWN', () => {
+  assertClosePreflight();
+  const observed = readClosePreflight('raw-read').classifications;
+  expect(observed).toEqual([
+    { stage: 'construction', unknown: true, field: false, prototype: false, spread: false },
+  ]);
+});
+
+test('cleanup identity recognizes actual disk construction semantic and close UNKNOWN', () => {
+  assertClosePreflight();
+  const observed = readClosePreflight('disk-construction').classifications;
+  expect(observed).toEqual([
+    { stage: 'construction', unknown: true, field: false, prototype: false, spread: false },
+  ]);
+});
+
+test('cleanup identity recognizes reopened file UNKNOWN before stable terminal cleanup', () => {
+  assertClosePreflight();
+  const observed = readClosePreflight('verify').classifications;
+  expect(observed).toEqual([
+    { stage: 'transient', unknown: true, field: false, prototype: false, spread: false },
+    { stage: 'terminal', unknown: true, field: false, prototype: false, spread: false },
+  ]);
+});
+
+test('cleanup identity recognizes directory stream UNKNOWN before stable terminal cleanup', () => {
+  assertClosePreflight();
+  const observed = readClosePreflight('stream').classifications;
+  expect(observed).toEqual([
+    { stage: 'transient', unknown: true, field: false, prototype: false, spread: false },
+    { stage: 'terminal', unknown: true, field: false, prototype: false, spread: false },
+  ]);
+});
+
+test('cleanup identity recognizes retained file UNKNOWN before native delegation', () => {
+  assertClosePreflight();
+  const observed = readClosePreflight('file-before').classifications;
+  expect(observed).toEqual([
+    { stage: 'terminal', unknown: true, field: false, prototype: false, spread: false },
+  ]);
+});
+
+test('cleanup identity recognizes retained file UNKNOWN after native delegation', () => {
+  assertClosePreflight();
+  const observed = readClosePreflight('file-after').classifications;
+  expect(observed).toEqual([
+    { stage: 'terminal', unknown: true, field: false, prototype: false, spread: false },
+  ]);
+});
+
+test('cleanup identity recognizes retained parent UNKNOWN before native delegation', () => {
+  assertClosePreflight();
+  const observed = readClosePreflight('parent-before').classifications;
+  expect(observed).toEqual([
+    { stage: 'terminal', unknown: true, field: false, prototype: false, spread: false },
+  ]);
+});
+
+test('cleanup identity recognizes retained parent UNKNOWN after native delegation', () => {
+  assertClosePreflight();
+  const observed = readClosePreflight('parent-after').classifications;
+  expect(observed).toEqual([
+    { stage: 'terminal', unknown: true, field: false, prototype: false, spread: false },
+  ]);
+});
+
+test('cleanup identity recognizes complete disk final close UNKNOWN', () => {
+  assertClosePreflight();
+  const observed = readClosePreflight('disk-final').classifications;
+  expect(observed).toEqual([
+    { stage: 'terminal', unknown: true, field: false, prototype: false, spread: false },
+  ]);
+});
+
+test('cleanup identity recognizes failed original cleanup after work expiry', () => {
+  assertClosePreflight();
+  const observed = readClosePreflight('expired-final').classifications;
+  expect(observed).toEqual([
+    { stage: 'terminal', unknown: true, field: false, prototype: false, spread: false },
+  ]);
+});
+
+test('cleanup identity stays revoked through expiry after transient UNKNOWN', () => {
+  assertClosePreflight();
+  const observed = readClosePreflight('verify-expiry').classifications;
+  expect(observed).toEqual([
+    { stage: 'transient', unknown: true, field: false, prototype: false, spread: false },
+    { stage: 'terminal', unknown: true, field: false, prototype: false, spread: false },
+  ]);
+});
+
+test('cleanup identity refuses malformed raw construction with known cleanup', () => {
+  assertClosePreflight();
+  const observed = readClosePreflight('known-raw').classifications;
+  expect(observed).toEqual([
+    { stage: 'known-construction', unknown: false, field: false, prototype: false, spread: false },
+  ]);
+});
+
+test('cleanup identity refuses malformed disk construction with known cleanup', () => {
+  assertClosePreflight();
+  const observed = readClosePreflight('known-disk').classifications;
+  expect(observed).toEqual([
+    { stage: 'known-construction', unknown: false, field: false, prototype: false, spread: false },
+  ]);
+});
+
+test('cleanup identity refuses acquisition transfer expiry with known cleanup', () => {
+  assertClosePreflight();
+  const observed = readClosePreflight('transfer').classifications;
+  expect(observed).toEqual([
+    { stage: 'expiry-refusal', unknown: false, field: false, prototype: false, spread: false },
+  ]);
+});
+
+test('cleanup identity refuses primitive and message field lookalikes', () => {
+  assertClosePreflight();
+  for (const cause of [undefined, null, false, 0, 'initial handoff cleanup outcome unknown'])
+    expect(isInitialHandoffCleanupUnknown(cause)).toBe(false);
+  expect(
+    isInitialHandoffCleanupUnknown({
+      message: 'initial handoff cleanup outcome unknown',
+      cleanup: true,
+    }),
+  ).toBe(false);
+});
+
+const closePreflightScenarios = [
+  {
+    scenario: 'raw-read',
+    title: 'cleanup identity recognizes actual raw construction primary and close UNKNOWN',
+    fixture: 'complete-disk',
+    stages: ['construction'],
+  },
+  {
+    scenario: 'disk-construction',
+    title: 'cleanup identity recognizes actual disk construction semantic and close UNKNOWN',
+    fixture: 'malformed-disk',
+    stages: ['construction'],
+  },
+  {
+    scenario: 'verify',
+    title: 'cleanup identity recognizes reopened file UNKNOWN before stable terminal cleanup',
+    fixture: 'complete-disk',
+    stages: ['transient', 'terminal'],
+  },
+  {
+    scenario: 'stream',
+    title: 'cleanup identity recognizes directory stream UNKNOWN before stable terminal cleanup',
+    fixture: 'complete-disk',
+    stages: ['transient', 'terminal'],
+  },
+  {
+    scenario: 'file-before',
+    title: 'cleanup identity recognizes retained file UNKNOWN before native delegation',
+    fixture: 'complete-disk',
+    stages: ['terminal'],
+  },
+  {
+    scenario: 'file-after',
+    title: 'cleanup identity recognizes retained file UNKNOWN after native delegation',
+    fixture: 'complete-disk',
+    stages: ['terminal'],
+  },
+  {
+    scenario: 'parent-before',
+    title: 'cleanup identity recognizes retained parent UNKNOWN before native delegation',
+    fixture: 'complete-disk',
+    stages: ['terminal'],
+  },
+  {
+    scenario: 'parent-after',
+    title: 'cleanup identity recognizes retained parent UNKNOWN after native delegation',
+    fixture: 'complete-disk',
+    stages: ['terminal'],
+  },
+  {
+    scenario: 'disk-final',
+    title: 'cleanup identity recognizes complete disk final close UNKNOWN',
+    fixture: 'complete-disk',
+    stages: ['terminal'],
+  },
+  {
+    scenario: 'expired-final',
+    title: 'cleanup identity recognizes failed original cleanup after work expiry',
+    fixture: 'complete-disk',
+    stages: ['terminal'],
+  },
+  {
+    scenario: 'verify-expiry',
+    title: 'cleanup identity stays revoked through expiry after transient UNKNOWN',
+    fixture: 'complete-disk',
+    stages: ['transient', 'terminal'],
+  },
+  {
+    scenario: 'known-raw',
+    title: 'cleanup identity refuses malformed raw construction with known cleanup',
+    fixture: 'complete-disk',
+    stages: ['known-construction'],
+  },
+  {
+    scenario: 'known-disk',
+    title: 'cleanup identity refuses malformed disk construction with known cleanup',
+    fixture: 'malformed-disk',
+    stages: ['known-construction'],
+  },
+  {
+    scenario: 'transfer',
+    title: 'cleanup identity refuses acquisition transfer expiry with known cleanup',
+    fixture: 'complete-disk',
+    stages: ['expiry-refusal'],
+  },
+] as const;
+
+type ClosePreflightScenario = (typeof closePreflightScenarios)[number]['scenario'];
+const closePreflightRecords = new Map<ClosePreflightScenario, KnownCloseSettlement>();
+
+/** Timed cases can read only this invocation's immutable, fully joined observations. No fallback starts work. */
+function assertClosePreflight(): void {
+  if (!hasUC1Admission || !closeSettlementOwner.preflightComplete)
+    throw new Error('UC1 original preflight admission required');
+  if (
+    closeSettlementOwner.stopped ||
+    closeSettlementOwner.active.length !== 0 ||
+    closePreflightRecords.size !== 14
+  )
+    throw new Error('UC1 original preflight completion unavailable');
+}
+function readClosePreflight(scenario: ClosePreflightScenario): KnownCloseSettlement {
+  const observed = closePreflightRecords.get(scenario);
+  if (observed === undefined) throw new Error('UC1 original preflight record absent');
+  return observed;
+}
+
+/** Root's pinned argv/filter is the trust boundary; public argv guards cannot recover Bun-consumed flags. */
+async function prepareClosePreflight(): Promise<void> {
+  const entered = performance.now();
+  const names = graphTestDeclarations.map((declaration) => declaration.name);
+  assert.equal(names.length, 228, 'UC1 graph declaration census differs');
+  assert.equal(new Set(names).size, 228, 'UC1 graph declaration duplicated');
+  assert.equal(
+    createHash('sha256').update(JSON.stringify(names)).digest('hex'),
+    '9676491473de150ee073672db57973de44ec6707f2e1a5f5f5f5b75384e4bd2a',
+    'UC1 frozen graph title census differs',
+  );
+  assert.equal(graphFinalizers.length, 1, 'UC1 graph finalizer census differs');
+  assert.equal(closePreflightScenarios.length, 14, 'UC1 scenario census differs');
+  assert.equal(
+    new Set(closePreflightScenarios.map((row) => row.scenario)).size,
+    14,
+    'UC1 scenario duplicated',
+  );
+  const focusedNames = names.filter((name) => name.startsWith('cleanup identity '));
+  assert.deepEqual(
+    focusedNames,
+    [
+      ...closePreflightScenarios.map((row) => row.title),
+      'cleanup identity refuses primitive and message field lookalikes',
+    ],
+    'UC1 focused literal names differ',
+  );
+  if (hasUC1Admission) {
+    // Set once at entry; each row checks this same deadline before fixture, build and spawn.
+    closeSettlementOwner.deadline = entered + 45000;
+    closeSettlementOwner.timer = setTimeout(
+      () => {
+        stopCloseSettlement(new Error('UC1 original preflight start allocation exceeded'), false);
+      },
+      Math.max(1, closeSettlementOwner.deadline - performance.now()),
+    );
+    try {
+      for (const row of closePreflightScenarios) {
+        assertCloseSettlementStart();
+        const fixture =
+          row.fixture === 'malformed-disk'
+            ? await initialHandoffFixture('H8', undefined, (label, fields) => {
+                if (label === 'handoff-intent') fields['unrecognized'] = true;
+              })
+            : await initialHandoffFixture();
+        const observed = await runCloseSettlement(row.scenario, fixture, true, row.stages);
+        assert.equal(observed.scenario, row.scenario, 'UC1 original observation scenario differs');
+        closePreflightRecords.set(row.scenario, observed);
+      }
+      assertCloseSettlementStart();
+      assert.equal(closeSettlementOwner.active.length, 0, 'UC1 preflight retains unsettled child');
+      closeSettlementOwner.preflightComplete = true;
+    } catch (cause) {
+      stopCloseSettlement(cause, closeSettlementOwner.uncertain);
+      if (closeSettlementOwner.uncertain) await holdCloseSettlement();
+      throw cause;
+    } finally {
+      if (!closeSettlementOwner.uncertain && closeSettlementOwner.active.length === 0) {
+        clearTimeout(closeSettlementOwner.timer);
+        if (closeSettlementOwner.keeper !== undefined) clearInterval(closeSettlementOwner.keeper);
+      }
+    }
+  }
+  for (const declaration of graphTestDeclarations) {
+    registerTest(
+      declaration.name,
+      () => {
+        if (hasUC1Admission && !declaration.name.startsWith('cleanup identity '))
+          throw new Error('UC1 admitted preflight refuses historical graph callback');
+        return declaration.callback();
+      },
+      declaration.options,
+    );
+  }
+  for (const finalizer of graphFinalizers) registerAfterAll(finalizer.callback, finalizer.options);
+}
+
+// No timed test or hook has been registered by this file before these original helper joins.
+await prepareClosePreflight();

@@ -172,8 +172,16 @@ type OwnedResource = (
   | { readonly kind: 'stream'; readonly path: string; readonly directory: Dir }
 ) & { outcome: CloseOutcome };
 
+const cleanupUnknownFailures = new WeakSet<object>();
+
+/** Classifies only privately registered original cleanup failures; grants no custody or retry authority. */
+export function isInitialHandoffCleanupUnknown(cause: unknown): boolean {
+  return typeof cause === 'object' && cause !== null && cleanupUnknownFailures.has(cause);
+}
+
 /** Retains original custody and failures without claiming whether a throwing close released it. */
 class GraphCleanupFailure extends AggregateError {
+  /** Proof: adding constructor registry enrollment failed module preflight at UC1_IDENTITY_CONSTRUCTOR_MINTED. */
   constructor(
     failures: readonly unknown[],
     readonly custody: readonly OwnedResource[],
@@ -182,9 +190,21 @@ class GraphCleanupFailure extends AggregateError {
   }
 }
 
+/** Registers only a genuine internal cleanup exit; invoking the exposed error constructor grants no identity. */
+function createCleanupFailure(
+  failures: readonly unknown[],
+  custody: readonly OwnedResource[],
+): GraphCleanupFailure {
+  const failure = new GraphCleanupFailure(failures, custody);
+  // Proof: factory enrollment omission failed module preflight at UC1_IDENTITY_REVOKED_UNBRANDED.
+  // This was one grouped factory dependency, not separate omissions at every callsite.
+  cleanupUnknownFailures.add(failure);
+  return failure;
+}
+
 type GraphLifecycle =
-  | { readonly status: 'usable' | 'revoked' | 'closing' | 'closed' }
-  | { readonly status: 'failed'; readonly failure: GraphCleanupFailure };
+  | { readonly status: 'usable' | 'closing' | 'closed' }
+  | { readonly status: 'revoked' | 'failed'; readonly failure: GraphCleanupFailure };
 
 /** Owns original read-only resources. Unknown close outcomes revoke observation and never authorize retry. */
 class GraphFiles {
@@ -194,12 +214,21 @@ class GraphFiles {
   private readonly rosters = new Map<string, readonly string[]>();
   private edges = 0;
   private readonly resources = new Set<OwnedResource>();
+  /** Preserves original operation causes and outward transient failures through terminal attribution. */
   private readonly operationFailures: unknown[] = [];
   private lifecycle: GraphLifecycle = { status: 'usable' };
   constructor(readonly deadline: number) {}
+  /**
+   * Preserves saved cleanup failure identity before ordinary deadline refusal.
+   * Proof: generic saved-error replacement failed module preflight at UC1_IDENTITY_REVOKED_LIVE:verifyClosure.
+   * Proof: moving the saved guard below expiry failed module preflight at UC1_IDENTITY_FAILED_EXPIRED:verifyClosure.
+   * These observations cover the named live revoked and expired failed paths.
+   */
   assertDeadline(): void {
+    if (this.lifecycle.status === 'revoked' || this.lifecycle.status === 'failed')
+      throw this.lifecycle.failure;
     if (this.lifecycle.status === 'closed') refuseGraph('observation already closed');
-    if (this.lifecycle.status !== 'usable') refuseGraph('observation cleanup outcome unknown');
+    if (this.lifecycle.status === 'closing') refuseGraph('observation cleanup outcome unknown');
     if (!Number.isFinite(this.deadline) || performance.now() >= this.deadline)
       refuseGraph('original deadline exceeded');
   }
@@ -490,23 +519,26 @@ class GraphFiles {
       this.resources.delete(resource);
     } catch (failure) {
       resource.outcome = { status: 'unknown', failure };
-      if (this.lifecycle.status === 'usable') this.lifecycle = { status: 'revoked' };
     }
   }
-  /** Successful temporary resources leave custody; unknown originals remain for the terminal sweep. */
+  /** Unknown temporary cleanup revokes work with a retained failure; originals await the terminal sweep. */
   private closeTransient(resource: OwnedResource): void {
     this.attemptClose(resource);
-    if (resource.outcome.status === 'unknown') throw resource.outcome.failure;
+    if (resource.outcome.status === 'unknown') {
+      const failure = createCleanupFailure([resource.outcome.failure], [...this.resources]);
+      this.operationFailures.push(failure);
+      this.lifecycle = { status: 'revoked', failure };
+      throw failure;
+    }
   }
   /** A local validation/read refusal must survive an independently unknown cleanup outcome. */
   private closeAfterFailure(resource: OwnedResource, cause: unknown): never {
     this.attemptClose(resource);
     if (resource.outcome.status === 'unknown') {
-      this.operationFailures.push(cause);
-      throw new AggregateError(
-        [cause, resource.outcome.failure],
-        'initial handoff operation and cleanup failed',
-      );
+      const failure = createCleanupFailure([cause, resource.outcome.failure], [...this.resources]);
+      this.operationFailures.push(cause, failure);
+      this.lifecycle = { status: 'revoked', failure };
+      throw failure;
     }
     throw cause;
   }
@@ -523,7 +555,7 @@ class GraphFiles {
     for (const resource of custody)
       if (resource.outcome.status === 'unknown') failures.push(resource.outcome.failure);
     if (failures.length !== 0) {
-      const failure = new GraphCleanupFailure(
+      const failure = createCleanupFailure(
         [
           ...(primary === undefined ? [] : [primary.failure]),
           ...this.operationFailures,
@@ -1493,6 +1525,9 @@ export async function captureInitialHandoff(
       writerManifest,
       images: validated.images,
       retainExecutingFile: (observed) => {
+        // Proof: leading-guard omission failed module preflight at UC1_IDENTITY_RETAIN_ARGUMENT_PRIORITY.
+        // Only the compound argument-priority assertion is observed; all three scalar facts remain unobserved.
+        files.assertDeadline();
         const selected = [
           {
             path: SOLVER_SUPERVISOR_BUN,
