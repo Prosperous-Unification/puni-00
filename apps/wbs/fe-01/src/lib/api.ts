@@ -4,6 +4,7 @@ import {
   logoutOidcSession,
   readPasswordSession,
   registerPassword,
+  resetBrowserSession,
 } from '@wbs/contracts';
 
 import { browserClient } from './http';
@@ -17,6 +18,7 @@ const sessions = browserClient([
   loginPassword,
   readPasswordSession,
   logoutOidcSession,
+  resetBrowserSession,
 ]);
 
 /** Returns validated success, application refusal or transport/contract failure. */
@@ -30,6 +32,9 @@ export const register = (username: string, password: string) =>
  */
 export const login = (username: string, password: string) =>
   sessions.postApiAuthLogin({ body: { username, password } });
+
+/** Requests local cookie clearing and validates empty 204; never acknowledges durable logout. */
+export const resetSession = () => sessions.postApiAuthReset({});
 
 /** A null user or invalid_token means signed out; boundary failures stay distinct. */
 export const me = () => sessions.getApiAuthMe({});

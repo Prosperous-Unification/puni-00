@@ -500,6 +500,7 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'control',
   },
   { operationId: 'postApiAuthLogin', method: 'POST', path: '/api/auth/login', kind: 'control' },
+  { operationId: 'postApiAuthReset', method: 'POST', path: '/api/auth/reset', kind: 'control' },
   { operationId: 'postApiAuthLogout', method: 'POST', path: '/api/auth/logout', kind: 'control' },
   { operationId: 'postApiAuthRefresh', method: 'POST', path: '/api/auth/refresh', kind: 'control' },
   {

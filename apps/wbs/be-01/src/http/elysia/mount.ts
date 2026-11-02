@@ -212,6 +212,7 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
             request: admission.request,
           });
         // Proof: removing this check admits the undeclared-query fixture (200 instead of 400).
+        // Proof: removing this guard made mounted `refuses reset bodies, queries and unsupported methods` answer 204 instead of 400 for a reset query.
         if (endpoint.shape.query === undefined && admission.request.url.searchParams.size > 0) {
           return classifyFailure(endpoint, {
             part: 'query',
@@ -268,6 +269,7 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
         // GET/HEAD length, nonempty-chunked and zero-chunk body framing.
         // Proof: deleting source from this condition admits every nonempty
         // undeclared POST body (200 instead of 400).
+        // Proof: removing this guard made mounted `refuses reset bodies, queries and unsupported methods` answer 204 instead of 400 for a reset body.
         if (endpoint.shape.body === undefined && (hasUnreadableBody || source !== '')) {
           return classifyFailure(endpoint, {
             part: 'body',
