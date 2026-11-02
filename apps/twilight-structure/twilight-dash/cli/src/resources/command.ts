@@ -152,6 +152,11 @@ export async function runResources(
     }
     if (action === 'sweep') {
       report(runtime.sweep());
+      // Dead tickets go too, so neither a switch's drain nor the guard's demand waits on them
+      // (review K3).
+      runtime.reclaimDeadTickets((line) => {
+        process.stderr.write(`${line}\n`);
+      });
       // The operator's one-shot release of legacy holds whose work has settled (review H1): on a
       // host without `watch`, the only remedy for a hold its launcher could not end.
       // Proof: without it `resources sweep releases the orphan hold of a settled job`

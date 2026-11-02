@@ -307,7 +307,7 @@ export interface HostJob {
    * Present when the singleton guard's holder died while this job's compute was unreleased
    * (review H5): concurrent mode's guarantee against a stale launcher did not hold for it.
    */
-  guardLost?: { at: number; holderPid: number };
+  guardLost?: { at: number; holderPid: number | null };
   /**
    * What this job reserves while its entries are outstanding (J4, J9): cores and memory until
    * `compute` settles, disk units and slots until `tmpDisk` settles. The envelope, its tmp disk
@@ -352,7 +352,9 @@ const HostJobShape = type({
   exitCode: 'number.integer | null',
   'launchFailure?': 'string > 0',
   'calibration?': 'true',
-  'guardLost?': type({ at: 'number', holderPid: 'number.integer > 0' }).onUndeclaredKey('reject'),
+  'guardLost?': type({ at: 'number', holderPid: 'number.integer > 0 | null' }).onUndeclaredKey(
+    'reject',
+  ),
   'reserved?': type({
     cpuCores: 'number.integer >= 0',
     memoryGib: 'number.integer >= 0',
@@ -860,7 +862,7 @@ function checkRoot(root: string): void {
 }
 
 /** Missing processes are expected; inaccessible or malformed procfs evidence is a refusal. */
-function identifyProcess(pid: number): ProcessIdentity | null {
+export function identifyProcess(pid: number): ProcessIdentity | null {
   let source: string;
   try {
     source = readFileSync(`/proc/${String(pid)}/stat`, 'utf8');
@@ -886,6 +888,10 @@ function sameProcess(identity: ProcessIdentity | null, recorded: ProcessIdentity
     identity.boot === recorded.boot &&
     identity.start === recorded.start
   );
+}
+/** Whether the process `identity` names still runs (pid, boot and start all match). */
+export function processAlive(identity: ProcessIdentity): boolean {
+  return alive(identity);
 }
 function alive(identity: ProcessIdentity): boolean {
   const current = identifyProcess(identity.pid);
@@ -2661,17 +2667,9 @@ export class ResourceRuntime {
           exitCode: 75,
           reason: 'host job ticket is no longer queued: it was withdrawn or reclaimed',
         };
-      for (const row of this.tickets()) {
-        if (row.id === ticket) continue;
-        const gone = !alive({ pid: row.pid, boot: row.boot, start: row.start });
-        // Proof: skipping this reclaim left `dead tickets are reclaimed by whoever sees them,
-        // named on stderr` (host-jobs.test.ts) with no line and both tickets (2026-11-01).
-        if (!gone && now - row.deadline <= TICKET_RECLAIM_AFTER_MS) continue;
-        this.db.query('DELETE FROM host_job_tickets WHERE id=?').run(row.id);
-        reclaimed.push(
-          `host pool: removing ticket ${row.label} (pid ${String(row.pid)}): ${gone ? 'its process is gone' : 'its wait budget ended over a minute ago'}`,
-        );
-      }
+      // Proof: skipping this reclaim left `dead tickets are reclaimed by whoever sees them,
+      // named on stderr` (host-jobs.test.ts) with no line and both tickets (2026-11-01).
+      reclaimed.push(...this.removeDeadTickets(now, ticket));
       // A ticket past its budget has left scheduling even before anyone reclaims it.
       const live = this.tickets().filter((row) => row.id === ticket || now <= row.deadline);
       const ahead = live.filter((row) => row.sequence < mine.sequence);
@@ -3418,9 +3416,71 @@ export class ResourceRuntime {
     return switching !== null && alive(switching) ? switching : null;
   }
   /** What keeps the pool from being drained of host jobs: queued tickets and unreleased compute. */
+  /**
+   * Why ticket `row` no longer counts at `now`: its process is gone (pid, boot and start
+   * identity), or its wait budget ended over {@link TICKET_RECLAIM_AFTER_MS} ago; null while it
+   * still waits.
+   */
+  private deadTicketReason(row: TicketRow, now: number): string | null {
+    if (!alive({ pid: row.pid, boot: row.boot, start: row.start })) return 'its process is gone';
+    if (now - row.deadline > TICKET_RECLAIM_AFTER_MS)
+      return 'its wait budget ended over a minute ago';
+    return null;
+  }
+  /** Delete every dead ticket but `except`, in the caller's transaction; one line per ticket. */
+  private removeDeadTickets(now: number, except: string | null): string[] {
+    const lines: string[] = [];
+    for (const row of this.tickets()) {
+      if (row.id === except) continue;
+      const reason = this.deadTicketReason(row, now);
+      if (reason === null) continue;
+      this.db.query('DELETE FROM host_job_tickets WHERE id=?').run(row.id);
+      lines.push(`host pool: removing ticket ${row.label} (pid ${String(row.pid)}): ${reason}`);
+    }
+    return lines;
+  }
+  /**
+   * Reclaim dead tickets outside any poll (review K3 of #818): `watch`'s tick and `resources
+   * sweep` call it, so a launcher SIGKILLed while queued holds neither a switch's drain nor the
+   * guard's demand. Each removal is reported after the transaction commits.
+   */
+  reclaimDeadTickets(report: (line: string) => void): void {
+    const lines = this.transaction(() => this.removeDeadTickets(this.clock.read(), null));
+    for (const line of lines) report(line);
+  }
+  /**
+   * Whether the singleton guard still holds for work admitted under it (review K4): true outside
+   * concurrent mode or with the guard released; otherwise the recorded holder runs and the shell
+   * lock's record names it. `ops job run` re-checks this at its payload's exit.
+   * @throws as the guard check does when the record is present but unreadable.
+   */
+  guardStillHeld(): boolean {
+    const pool = this.poolRow();
+    if (pool.mode !== 'concurrent' || pool.guard !== 'on') return true;
+    return this.guardHeld(pool.guardHolder);
+  }
+  /**
+   * Mark host job `id` as run while the guard was lost (review K4), naming the recorded holder's
+   * pid when one is recorded; a job already marked keeps its first mark.
+   */
+  recordGuardLostFor(id: string): HostJob {
+    return this.transaction(() => {
+      const job = this.inspectHostJob(id);
+      if (job.guardLost !== undefined) return job;
+      job.guardLost = { at: this.clock.read(), holderPid: this.poolRow().guardHolder?.pid ?? null };
+      this.saveHostJob(job);
+      return job;
+    });
+  }
   private undrained(): string[] {
+    const now = this.clock.read();
     return [
-      ...this.tickets().map((row) => `${row.label} (pid ${String(row.pid)}, waiting)`),
+      // A dead ticket waits for nothing (review K3).
+      // Proof: counting it made `a ticket of a dead launcher holds neither the switch nor the
+      // guard` (host-pool-mode.test.ts) wait out the switch's budget (2026-11-02, review K3).
+      ...this.tickets()
+        .filter((row) => this.deadTicketReason(row, now) === null)
+        .map((row) => `${row.label} (pid ${String(row.pid)}, waiting)`),
       ...this.listHostJobs()
         .filter((job) => job.compute.state !== 'released')
         .map((job) => `${job.label} (${job.state}, compute ${job.compute.state})`),

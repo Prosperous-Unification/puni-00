@@ -13,6 +13,7 @@ import { runResources } from '../resources/command';
 import {
   ampleHost,
   fixtureGit,
+  gateTree,
   hostPoolFixture,
   jobType,
 } from '../resources/host-pool.test.fixture';
@@ -48,7 +49,7 @@ import {
 } from './ops.test.fixture';
 import { OpsRefusal } from './refusal';
 import { linuxScopeTelemetry } from './scope';
-import { switchHoldFile } from './switch-mode';
+import { switchHoldFile, verifyEligibleTypes } from './switch-mode';
 
 /**
  * `dash-host-jobs` J12 and J13, slice 6b: observe mode runs every host job under the real shell
@@ -246,6 +247,28 @@ if (insideOpsNamespace(import.meta.path)) {
     const switched = await switchMode(fixture, 'concurrent', { allowEmpty: true });
     if (switched.code !== 0) throw new Error(switched.stderr);
     return fixture;
+  }
+
+  /** A held `dash-singleton` hold recorded as the guard, as `watch` would leave it. */
+  async function heldGuardFor(fixture: Pool, runtime: ResourceRuntime) {
+    const held = await holdLegacyLock(
+      fixture.lock,
+      {
+        holdFile: guardHoldFile(fixture.root),
+        label: GUARD_LABEL,
+        waitSeconds: 0,
+        pollSeconds: 1,
+        signal: new AbortController().signal,
+        report: silent,
+      },
+      process.env,
+    );
+    if (held.kind !== 'held') throw new Error(held.kind);
+    expect(runtime.recordGuardHolder(held.hold.pid, fixture.lock.lockPath)).toBe(true);
+    cleanups.push(() => {
+      held.hold.release();
+    });
+    return held.hold;
   }
 
   describe('observe mode: one order with the shell lock (J12)', () => {
@@ -638,13 +661,29 @@ if (insideOpsNamespace(import.meta.path)) {
       const pid = gone.pid;
       await new Promise((resolveExit) => gone.once('exit', resolveExit));
       mkdirSync(join(fixture.root, '.dash', 'legacy-holds'), { recursive: true, mode: 0o700 });
-      writeFileSync(switchHoldFile(fixture.root), `${String(pid)}\n`);
+      const boot = readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim();
+      writeFileSync(switchHoldFile(fixture.root), `${String(pid)} ${boot} 1\n`);
       const refused = await switchMode(fixture, 'concurrent');
       expect(refused.code).toBe(75);
       expect(refused.stderr).toContain(
         `hold ${switchHoldFile(fixture.root)} is still there (holder pid ${String(pid)}, dead)`,
       );
       expect(refused.stderr).toContain('run resources sweep to release it');
+      // A live holder is named alive by its identity, not by its pid alone (review K5).
+      const live = spawn('sleep', ['30']);
+      cleanups.push(() => live.kill('SIGKILL'));
+      await eventually('the live holder', () => live.pid !== undefined);
+      const stat = readFileSync(`/proc/${String(live.pid)}/stat`, 'utf8');
+      const start = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19] ?? '';
+      writeFileSync(switchHoldFile(fixture.root), `${String(live.pid)} ${boot} ${start}\n`);
+      expect((await switchMode(fixture, 'concurrent')).stderr).toContain(
+        `holder pid ${String(live.pid)}, alive`,
+      );
+      // The same pid with another start is a recycled pid: dead.
+      writeFileSync(switchHoldFile(fixture.root), `${String(live.pid)} ${boot} 1\n`);
+      expect((await switchMode(fixture, 'concurrent')).stderr).toContain(
+        `holder pid ${String(live.pid)}, dead`,
+      );
     });
 
     test('a switch-mode interrupted while it queues withdraws its ticket and reopens intake', async () => {
@@ -1103,16 +1142,22 @@ if (insideOpsNamespace(import.meta.path)) {
       expect(refused.stderr).toContain('is not the top of a Git work tree');
     });
 
-    test('refuses a launcher checkout git distrusts, saying so', async () => {
+    test('refuses a launcher checkout git distrusts, saying so, in any locale', async () => {
       const fixture = pool();
       const fakeBin = join(fixture.base, 'distrust-bin');
       mkdirSync(fakeBin);
+      // A git that answers in German unless the C locale is asked for, as a localised git does.
       payloadScript(
         join(fakeBin, 'git'),
-        `case " $* " in *" rev-parse --show-toplevel "*) echo "fatal: detected dubious ownership in repository at '$2'" >&2; exit 128;; esac\nexec ${Bun.which('git') ?? '/usr/bin/git'} "$@"`,
+        `case " $* " in *" rev-parse --show-toplevel "*) if [ "$LC_ALL" = C ]; then echo "fatal: detected dubious ownership in repository at '$2'" >&2; else echo "fatal: unsicherer Besitz des Repositorys in '$2' erkannt" >&2; fi; exit 128;; esac\nexec ${Bun.which('git') ?? '/usr/bin/git'} "$@"`,
       );
       const refused = await switchMode(fixture, 'concurrent', {
-        environment: { ...process.env, PATH: `${fakeBin}:${process.env['PATH'] ?? ''}` },
+        environment: {
+          ...process.env,
+          LC_ALL: 'de_DE.UTF-8',
+          LANG: 'de_DE.UTF-8',
+          PATH: `${fakeBin}:${process.env['PATH'] ?? ''}`,
+        },
       });
       expect(refused.code).toBe(70);
       expect(refused.stderr).toContain('is refused by git as of dubious ownership');
@@ -1267,6 +1312,108 @@ if (insideOpsNamespace(import.meta.path)) {
       expect(report).toEqual([
         'ops job: job-x keeps the shell lock: its compute entry is unreadable (ledger gone); watch releases it',
       ]);
+    });
+  });
+
+  describe('second review pass (Fable, PR #818 at b9451408b)', () => {
+    test('a launcher checkout parked at a pre-catalogue commit does not stop ops job run', async () => {
+      const fixture = pool();
+      const parked = gateTree(join(fixture.base, 'parked-tree'));
+      fixtureGit(parked, 'checkout', '--quiet', '--detach');
+      const configuration = JSON.parse(readFileSync(fixture.config, 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      writeFileSync(
+        fixture.config,
+        JSON.stringify({ ...configuration, launcherCheckouts: [fixture.checkout, parked] }),
+        { mode: 0o600 },
+      );
+      expect(await run(fixture, 'eligible', 'beside-parked', { seconds: 0, waitSeconds: 10 })).toBe(
+        0,
+      );
+      const status: string[] = [];
+      expect(
+        await runOps(
+          { command: 'ops', words: 'job status', config: fixture.config },
+          opsDependencies(fixture.checkout, status, status),
+        ),
+      ).toBe(0);
+      // The strict form stays for switch-mode, which names the parked checkout.
+      // (its launcher checks come first: a parked tree has no shim to verify either).
+      const switched = await switchMode(fixture, 'concurrent');
+      expect(switched.code).toBe(70);
+      expect(switched.stderr).toContain(`launcher checkout ${parked} at`);
+      expect(() => {
+        verifyEligibleTypes(['eligible'], [fixture.checkout, parked], 'ops pool init');
+      }).toThrow(`${parked}/infra/jobs/catalogue.json does not exist at`);
+      // An id named by no readable catalogue still refuses, naming the unverified checkout.
+      writeFileSync(
+        fixture.config,
+        JSON.stringify({
+          ...configuration,
+          launcherCheckouts: [fixture.checkout, parked],
+          concurrencyEligible: ['eligble'],
+        }),
+        { mode: 0o600 },
+      );
+      const refused = await refusalOf(
+        run(fixture, 'eligible', 'typo', { seconds: 0, waitSeconds: 0 }),
+      );
+      expect(refused.exitCode).toBe(64);
+      expect(refused.message).toContain(`${parked} unverified at`);
+    });
+
+    test('a ticket of a dead launcher holds neither the switch nor the guard', async () => {
+      const fixture = pool();
+      const runtime = runtimeOf(fixture);
+      const launcher = spawn('sleep', ['30']);
+      await eventually('the launcher', () => launcher.pid !== undefined);
+      const queued = runtime.enqueueHostJob(
+        { descriptor: jobType('eligible', 1, 1), label: 'lane:killed', waitSeconds: 600 },
+        launcher.pid ?? 0,
+      );
+      if (queued.kind !== 'queued') throw new Error(queued.reason);
+      launcher.kill('SIGKILL');
+      await new Promise((resolveExit) => launcher.once('exit', resolveExit));
+      expect(runtime.modeDrain()).toEqual([]);
+      const switched = await switchMode(fixture, 'concurrent', { waitSeconds: 5 });
+      expect(switched.code).toBe(0);
+      // In concurrent mode, the dead ticket leaves the guard no demand, and tick reclaims it.
+      const lines: string[] = [];
+      const guard = new SingletonGuard(
+        runtime,
+        () => fixture.lock,
+        process.env,
+        (line) => lines.push(line),
+      );
+      guard.tick();
+      expect(runtime.guardObligation().demand).toBe(false);
+      expect(lines).toContain(
+        'host pool: removing ticket lane:killed (pid ' +
+          String(launcher.pid) +
+          '): its process is gone',
+      );
+      await Bun.sleep(300);
+      expect(readLegacyQueue(fixture.lock).holder).toEqual({ kind: 'none' });
+    });
+
+    test('a guard lost mid-run with no watch is still recorded', async () => {
+      const fixture = await concurrentPool();
+      const runtime = runtimeOf(fixture);
+      const hold = await heldGuardFor(fixture, runtime);
+      const report: string[] = [];
+      const job = run(fixture, 'eligible', 'unwatched', { seconds: 2, waitSeconds: 10, report });
+      await eventually('the payload', () => intervalsOf(fixture.log).has('unwatched'));
+      process.kill(-hold.pid, 'SIGKILL');
+      expect(await job).toBe(0);
+      const marked = runtimeOf(fixture).listHostJobs().at(0);
+      expect(marked?.guardLost?.holderPid).toBe(hold.pid);
+      expect(
+        report.some((line) =>
+          line.endsWith(`the singleton guard (pid ${String(hold.pid)}) was lost during the run`),
+        ),
+      ).toBe(true);
     });
   });
 }

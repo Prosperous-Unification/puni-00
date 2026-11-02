@@ -12,6 +12,8 @@ import {
 import { constants } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
+import { identifyProcess } from './runtime';
+
 /**
  * The shell lock a host's legacy callers take (`bin/heavy-lock-lib.sh`, `dash-host-jobs` J12):
  * the library Dash sources to take it, and the lock path its `with_heavy_lock` is given. Dash
@@ -98,6 +100,8 @@ export interface LegacyHoldRequest {
   readonly signal: AbortSignal;
   /** Where the shell lock's own lines (`waited 3s behind 1 tickets`) go until it holds. */
   readonly report: (line: string) => void;
+  /** The grace past `waitSeconds` before Dash ends a holder that neither held nor ended. */
+  readonly claimGraceMs?: number;
 }
 
 /** A legacy hold in force: the shell holder's pid, how to end it, and its exit. */
@@ -109,11 +113,19 @@ export interface LegacyHold {
   readonly exited: Promise<number>;
 }
 
-/** One hold attempt's outcome; `refused` carries the shell lock's own exit code (75, 70, 64). */
+/**
+ * One hold attempt's outcome; `refused` carries the shell lock's own exit code (75, 70, 64), or
+ * 70 with a `reason` when Dash itself gave up on the holder.
+ */
 export type LegacyHoldOutcome =
   | { kind: 'held'; hold: LegacyHold }
-  | { kind: 'refused'; exitCode: number }
+  | { kind: 'refused'; exitCode: number; reason?: string }
   | { kind: 'cancelled' };
+
+/** Between looks at the holder; every bound below is counted in these. */
+const POLL_MS = 50;
+/** How long past its wait budget a holder may take to claim or end before Dash ends it. */
+const CLAIM_GRACE_MS = 15_000;
 
 function exitOf(child: ChildProcess): Promise<number> {
   return new Promise((resolveExit, rejectExit) => {
@@ -188,29 +200,60 @@ export async function holdLegacyLock(
     await exited.catch(() => undefined);
     return { kind: 'refused', exitCode: 70 };
   }
-  // The hold file names its holder, so a refusal over an existing one can say whose it is.
-  writeFileSync(request.holdFile, `${String(pid)}\n`);
+  /** End the holder's whole session and remove its files; the outcome names `reason`. */
+  const abandon = async (reason: string): Promise<LegacyHoldOutcome> => {
+    try {
+      process.kill(-pid, 'SIGTERM');
+    } catch (cause) {
+      if (!(cause instanceof Error && 'code' in cause && cause.code === 'ESRCH')) throw cause;
+    }
+    await exited.catch(() => undefined);
+    release();
+    return { kind: 'refused', exitCode: 70, reason };
+  };
+  // The hold file names its holder's identity (pid, boot, start), so a refusal over an
+  // existing one can say whose it is and whether it still runs (review K5).
+  try {
+    const identity = identifyProcess(pid);
+    writeFileSync(
+      request.holdFile,
+      identity === null
+        ? `${String(pid)}\n`
+        : `${String(pid)} ${identity.boot} ${identity.start}\n`,
+    );
+  } catch (cause) {
+    // Proof: without it `a hold file that cannot be written ends the holder` (legacy-lock.test.ts)
+    // threw with the detached holder still queued (2026-11-02, review K2).
+    return abandon(`hold file ${request.holdFile} unwritable: ${errorText(cause)}`);
+  }
   let offset = 0;
   let pending = '';
-  /** Forward the log's new complete lines; true once the holder said `held`. */
-  const drain = (): boolean => {
+  /** Forward the log's new complete lines; the log is diagnostics only, so it never fails this. */
+  const drain = (): void => {
     let text: string;
     try {
       text = readFileSync(log, 'utf8');
-    } catch (cause) {
-      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return false;
-      throw cause;
+    } catch {
+      // Unreadable or gone: diagnostics lost, nothing decided by them.
+      return;
     }
     pending += text.slice(offset);
     offset = text.length;
     const lines = pending.split('\n');
     pending = lines.pop() ?? '';
-    let isHeld = false;
-    for (const line of lines) {
-      if (line === 'held') isHeld = true;
-      else request.report(line);
+    for (const line of lines) if (line !== 'held') request.report(line);
+  };
+  /**
+   * Whether the holder holds: the shell lock's own holder record names its pid. The library
+   * writes that record only under the flock and removes it before letting go, so it is the
+   * lock's own answer; the `held` line in the log is not trusted (a full disk loses it).
+   */
+  const holds = (): boolean => {
+    try {
+      return readFileSync(join(`${lock.lockPath}.d`, 'holder'), 'utf8').trim() === String(pid);
+    } catch {
+      return false;
     }
-    return isHeld;
   };
   const ended = { status: null as number | null };
   void exited.then(
@@ -221,35 +264,50 @@ export async function holdLegacyLock(
       ended.status = 70;
     },
   );
-  for (;;) {
-    if (drain()) {
+  // The library refuses 75 at its own deadline; this bound backs it, counted in polls of at
+  // least POLL_MS each, so a holder that neither claims nor ends is never waited on for ever.
+  const polls = Math.ceil(
+    (request.waitSeconds * 1000 + (request.claimGraceMs ?? CLAIM_GRACE_MS)) / POLL_MS,
+  );
+  for (let poll = 0; ; poll++) {
+    drain();
+    // Proof: deciding by the log's `held` line made `a holder whose log cannot be written still
+    // holds, by the lock record itself` (legacy-lock.test.ts) wait past its bound (2026-11-02, K2).
+    if (holds()) {
       child.unref();
       return { kind: 'held', hold: { pid, release, exited } };
     }
     if (request.signal.aborted) {
       // The whole session: a waiting holder sleeps between polls, and bash defers its TERM
       // trap (ticket withdrawal, exit 143) until that foreground `sleep` ends.
-      try {
-        process.kill(-pid, 'SIGTERM');
-      } catch (cause) {
-        if (!(cause instanceof Error && 'code' in cause && cause.code === 'ESRCH')) throw cause;
-      }
-      await exited.catch(() => undefined);
+      const outcome = await abandon('cancelled');
       drain();
-      release();
-      return { kind: 'cancelled' };
+      return outcome.kind === 'refused' ? { kind: 'cancelled' } : outcome;
     }
     if (ended.status !== null) {
-      const isHeld = drain();
+      drain();
       release();
-      // A holder that ended 0 without saying `held` broke the protocol above; it is not a
-      // refusal the library made, so it is reported as the library's "cannot make sense of it".
+      // A holder that ended 0 without holding broke the protocol above; it is not a refusal
+      // the library made, so it is reported as the library's "cannot make sense of it".
       // Proof: without the mapping `a holder that ends 0 without holding is refused 70`
       // (legacy-lock.test.ts) returned exit 0 as a refusal (2026-11-02, H7).
-      return { kind: 'refused', exitCode: isHeld || ended.status === 0 ? 70 : ended.status };
+      return ended.status === 0
+        ? { kind: 'refused', exitCode: 70, reason: 'the shell holder ended without holding' }
+        : { kind: 'refused', exitCode: ended.status };
     }
-    await Bun.sleep(50);
+    // Proof: without the bound `a holder that neither claims nor ends is ended at its bound`
+    // (legacy-lock.test.ts) never returned (2026-11-02, review K2).
+    if (poll >= polls)
+      return abandon(
+        `the shell holder neither held nor ended within ${String(request.waitSeconds)}s and its grace`,
+      );
+    await Bun.sleep(POLL_MS);
   }
+}
+
+/** `cause`'s message. */
+function errorText(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
 }
 
 /** The shell lock's holder as its `status` reports it. */

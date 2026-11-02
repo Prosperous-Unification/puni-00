@@ -47,6 +47,10 @@ export class SingletonGuard {
    * @throws when a hold file names a host job the ledger does not know: only Dash writes them.
    */
   tick(): void {
+    // A ticket whose launcher died must not keep demand alive, nor a switch waiting (review K3).
+    // Proof: without it `a ticket of a dead launcher holds neither the switch nor the guard`
+    // (host-pool-mode.test.ts) kept the guard holding with nothing queued (2026-11-02, K3).
+    this.runtime.reclaimDeadTickets(this.report);
     // A hold Dash cannot account for stops the guard where it stands (review H7): releasing or
     // acquiring beside it could end a hold someone still relies on.
     if (this.releaseSettledHolds().corrupt !== null) return;

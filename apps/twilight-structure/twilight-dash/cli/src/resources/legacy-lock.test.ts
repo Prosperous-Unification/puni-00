@@ -178,7 +178,7 @@ describe('the legacy holder (J12)', () => {
     const directory = scratch();
     const lock = privateLegacyLock(directory);
     const log = join(directory, 'log');
-    const legacy = startLegacyCaller(lock, 'first', log, { waitSeconds: 0, seconds: 2 });
+    const legacy = startLegacyCaller(lock, 'first', log, { waitSeconds: 0, seconds: 8 });
     await eventually('the legacy holder', () => intervalsOf(log).has('first'));
     const holdFile = join(directory, 'holds', 'queued');
     const script = join(directory, 'queue.ts');
@@ -202,7 +202,8 @@ describe('the legacy holder (J12)', () => {
     );
     const holder = readLegacyQueue(lock).holder;
     expect(holder.kind === 'held' && holder.label).toBe('dash-job-queued');
-    const pid = Number(readFileSync(holdFile, 'utf8'));
+    // The hold file names the holder's pid, boot and start (review K5).
+    const pid = Number(readFileSync(holdFile, 'utf8').split(' ')[0]);
     expect(holder.kind === 'held' && holder.pid).toBe(pid);
     expect(await startLegacyCaller(lock, 'early', log, { waitSeconds: 0, seconds: 0 }).exited).toBe(
       75,
@@ -229,7 +230,7 @@ describe('the legacy holder (J12)', () => {
     );
     // Released by its own trap, not reclaimed from a dead pid.
     expect(stderr).not.toContain('reclaiming');
-  });
+  }, 30_000);
 
   test('a holder that ends 0 without holding is refused 70', async () => {
     const directory = scratch();
@@ -247,8 +248,68 @@ describe('the legacy holder (J12)', () => {
       },
       process.env,
     );
-    expect(outcome).toEqual({ kind: 'refused', exitCode: 70 });
+    expect(outcome).toEqual({
+      kind: 'refused',
+      exitCode: 70,
+      reason: 'the shell holder ended without holding',
+    });
     expect(existsSync(join(directory, 'holds', 'silent'))).toBe(false);
+  });
+
+  test('a holder whose log cannot be written still holds, by the lock record itself', async () => {
+    const directory = scratch();
+    const library = join(directory, 'full-lib.sh');
+    // The real library, with the holder's stdout on a full device: its `held` line is lost.
+    writeFileSync(library, `source ${JSON.stringify(LOCK_LIBRARY)}\nexec 1>/dev/full\n`);
+    const lock = { library, lockPath: join(directory, 'heavy.lock') };
+    const outcome = await holdLegacyLock(
+      lock,
+      {
+        holdFile: join(directory, 'holds', 'full'),
+        label: 'dash-job-full',
+        waitSeconds: 0,
+        pollSeconds: 1,
+        signal: never,
+        report,
+        claimGraceMs: 2000,
+      },
+      process.env,
+    );
+    if (outcome.kind !== 'held') throw new Error(`not held: ${JSON.stringify(outcome)}`);
+    expect(readLegacyQueue(privateLegacyLock(directory)).holder).toEqual({
+      kind: 'held',
+      pid: outcome.hold.pid,
+      label: 'dash-job-full',
+    });
+    outcome.hold.release();
+    expect(await outcome.hold.exited).toBe(0);
+  });
+
+  test('a holder that neither claims nor ends is ended at its bound', async () => {
+    const directory = scratch();
+    const library = join(directory, 'stuck-lib.sh');
+    writeFileSync(library, 'with_heavy_lock() { sleep 600; }\n');
+    const started = Date.now();
+    const outcome = await holdLegacyLock(
+      { library, lockPath: join(directory, 'heavy.lock') },
+      {
+        holdFile: join(directory, 'holds', 'stuck'),
+        label: 'dash-job-stuck',
+        waitSeconds: 0,
+        pollSeconds: 1,
+        signal: never,
+        report,
+        claimGraceMs: 300,
+      },
+      process.env,
+    );
+    expect(outcome).toEqual({
+      kind: 'refused',
+      exitCode: 70,
+      reason: 'the shell holder neither held nor ended within 0s and its grace',
+    });
+    expect(Date.now() - started).toBeLessThan(5000);
+    expect(existsSync(join(directory, 'holds', 'stuck'))).toBe(false);
   });
 
   test('a holder that cannot start is refused 70', async () => {

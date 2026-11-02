@@ -551,8 +551,12 @@ there before `report-capacity`. Either one migrates the ledger to version 2. Unt
   left after admission, rounded up to whole seconds (S6B-A3). Refused there (75), or
   interrupted (129/130/143), the job is withdrawn and its whole reservation returns at once.
   The flock lives on the holder's fd 9, never on Dash. The holder keeps it while the hold file
-  `<root>/.dash/legacy-holds/<job id>` exists (it names the holder's pid). The holder's output
-  goes to `<hold file>.log`, never to Dash. `ops job run` removes the hold file once the job's
+  `<root>/.dash/legacy-holds/<job id>` exists (it names the holder's pid, boot and start
+  identity). The holder's output goes to `<hold file>.log`, never to Dash, and is diagnostics
+  only. Dash decides the holder holds from the shell lock's own record, `<lock>.d/holder` naming
+  its pid, never from the log (S6B-A23). A full disk therefore loses lines but not the
+  decision. A holder that neither holds nor ends within `--wait-seconds` plus a 15 s grace is
+  ended and refused 70, naming why. `ops job run` removes the hold file once the job's
   compute entry is released. Three other cases keep it:
   - **Dash dies while the job runs.** The file stays, and `watch` or `resources sweep` removes
     it once that entry settles, so an orphaned payload never runs beside a legacy caller.
@@ -575,7 +579,8 @@ there before `report-capacity`. Either one migrates the ledger to version 2. Unt
   guard lost after admission refuses the job 75 before anything runs. If the guard's holder
   dies while jobs run, `watch` marks those jobs `guardLost` before it queues again. `ops job
 status` shows the mark, and the run records it; `ops job audit` reports the run as
-  `attribution_incomplete`.
+  `attribution_incomplete`. `ops job run` re-checks the guard at its payload's exit too, so a
+  host whose `watch` is down still records the loss (S6B-A25).
   A file in `<root>/.dash/legacy-holds/` that Dash did not write is **hold corruption**: a
   name that is not a job id, `dash-singleton`, `dash-switch-mode` or their `.log`, or a job
   hold for a job the ledger does not know. `watch` and `sweep` record it and then release
@@ -593,6 +598,13 @@ jobs here) and `concurrencyEligible` (job type ids, each named once; absent mean
 catalogue names at HEAD. A typo added later therefore stops the next command rather than
 silently serialising the type it meant (S6B-A17). `resources watch` does not check this,
 because it admits nothing.
+
+**A launcher checkout whose HEAD moved.** A listed checkout can stand at a commit with no
+`infra/jobs/catalogue.json`, for example a gate tree the last gate left on a pre-catalogue
+branch's pinned SHA. Every open but `pool init` then reads that checkout as naming nothing and
+lists it as `<checkout> unverified at <rev>` (S6B-A22). An id is refused only when no readable
+catalogue names it. `pool init` and `switch-mode` stay strict: they refuse until the checkout
+stands at a commit carrying the catalogue and the shim.
 
 ```sh
 dash() { bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts "$@"; }
@@ -638,6 +650,12 @@ checklist and the two-job validation come first.
    `switch-mode concurrent --release-guard`. That checks the launchers again and writes a
    `release-guard` record. `watch` then lets go of the flock, and admission no longer waits
    for it.
+
+A ticket whose launcher died (its pid, boot and start identity gone) or whose wait ended over a
+minute ago is reclaimed by `watch`'s tick and by `resources sweep`, as well as by the next
+poll. The drain of a switch and the guard's demand both ignore such tickets (S6B-A24). Git is
+run in the C locale for every launcher check, so its "dubious ownership" text is matched in
+any locale.
 
 **Rollback** is `switch-mode observe`. It stops intake, waits for the pool to drain of host
 jobs (no ticket, no unreleased compute), refusing 75 at `--wait-seconds` naming what is still

@@ -270,7 +270,7 @@ export const opsHandlers: OpsHandlers = {
     // An eligible id no launcher checkout catalogues is refused before anything is created.
     // Proof: without it `ops pool init refuses an eligible type no catalogue names`
     // (host-pool-mode.test.ts) initialized the pool (2026-11-02, Slice 6b).
-    checkEligibleTypes(configuration, 'ops pool init');
+    checkEligibleTypes(configuration, 'ops pool init', true);
     try {
       runtime = ResourceRuntime.initialize(configuration, deps.clock, deps.host);
     } catch (cause) {

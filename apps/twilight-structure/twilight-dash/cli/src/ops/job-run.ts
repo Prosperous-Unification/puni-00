@@ -509,7 +509,10 @@ async function queueOnLegacyLock(
             75,
             `the shell lock gave no turn within the ${String(remaining)}s left of its wait budget (observe mode)`,
           ]
-        : [70, `the shell lock refused it with exit ${String(outcome.exitCode)} (observe mode)`];
+        : [
+            70,
+            `the shell lock refused it with exit ${String(outcome.exitCode)}${outcome.reason === undefined ? '' : `: ${outcome.reason}`} (observe mode)`,
+          ];
   // Proof: without the withdrawal `a legacy deadline withdraws the Dash job`
   // (host-pool-mode.test.ts) left the job starting with its cores reserved (2026-11-02, Slice 6b).
   runtime.withdrawUnlaunchedHostJob(job.id, reason);
@@ -826,13 +829,20 @@ async function runAdmitted(
   const telemetryFailure = failures.length === 0 ? null : failures.join('; ');
   // A run during which the singleton guard's holder died had no guarantee against a stale
   // launcher beside it: its attribution is incomplete (review H5).
+  // `watch` marks it when it notices; the launcher re-checks at exit itself, so a host whose
+  // `watch` is down still records the loss (review K4).
   let guardLost: string | undefined;
   try {
-    const lost = runtime.inspectHostJob(job.id).guardLost;
+    let lost = runtime.inspectHostJob(job.id).guardLost;
+    // Proof: without the exit re-check `a guard lost mid-run with no watch is still recorded`
+    // (host-pool-mode.test.ts) found the run complete (2026-11-02, review K4).
+    if (lost === undefined && !runtime.guardStillHeld())
+      lost = runtime.recordGuardLostFor(job.id).guardLost;
     if (lost !== undefined)
-      guardLost = `the singleton guard (pid ${String(lost.holderPid)}) was lost during the run`;
+      guardLost = `the singleton guard (pid ${lost.holderPid === null ? 'unrecorded' : String(lost.holderPid)}) was lost during the run`;
   } catch (cause) {
-    deps.report(`ops job: ${job.id} guard state unreadable: ${causeText(cause)}`);
+    // Unknown is not "held": the run's attribution is incomplete either way.
+    guardLost = `the singleton guard could not be re-checked at exit (${causeText(cause)})`;
   }
   if (guardLost !== undefined) deps.report(`ops job: ${job.id} ${guardLost}`);
   if (telemetryFailure !== null)

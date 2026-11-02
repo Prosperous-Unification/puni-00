@@ -12,6 +12,7 @@ import {
   type HostPoolModeName,
   HostPoolModeRefusal,
   type ModeRecord,
+  processAlive,
   type ResourceConfiguration,
   type ResourceRuntime,
 } from '../resources/runtime';
@@ -55,7 +56,10 @@ function git(
   const answer = spawnSync('git', ['-C', checkout, ...arguments_], {
     encoding: 'utf8',
     timeout: 30_000,
-    env: { ...environment },
+    // Git's messages are matched below ("dubious ownership"): the C locale keeps them English.
+    // Proof: without it `refuses a launcher checkout git distrusts, saying so, in any locale`
+    // (host-pool-mode.test.ts) missed the German text (2026-11-02, review K6).
+    env: { ...environment, LC_ALL: 'C' },
   });
   return { status: answer.status, stdout: answer.stdout, stderr: answer.stderr };
 }
@@ -158,18 +162,39 @@ export function verifyLauncherCheckouts(
  * Verify every concurrency-eligible type is named by some launcher checkout's catalogue at HEAD
  * (PR #816 review): an eligible id no catalogue names is a typo that would silently serialise
  * the type it meant. Returns the evidence line.
- * @throws OpsRefusal 64 naming the first id no catalogue names.
+ *
+ * `strict` (`ops pool init`, `switch-mode`): every checkout's catalogue must be readable at
+ * HEAD. Otherwise (every other open, review K1 of #818) a checkout whose HEAD has no usable
+ * catalogue names nothing and is listed as unverified: gate trees rest at whatever commit the
+ * last gate pinned, a pre-catalogue branch included, and that must not stop the host.
+ * @throws OpsRefusal 64 naming the first id no catalogue names, or, when strict, the first
+ * checkout without a catalogue at HEAD.
  */
 export function verifyEligibleTypes(
   eligible: readonly string[],
   checkouts: readonly string[],
   command = 'ops pool switch-mode',
+  strict = true,
 ): string {
-  const named = new Set(
-    checkouts.flatMap((checkout) =>
-      readCommittedCatalogue(checkout, command).jobs.map((job) => job.id),
-    ),
-  );
+  const named = new Set<string>();
+  const unverified: string[] = [];
+  for (const checkout of checkouts) {
+    let ids: string[];
+    try {
+      ids = readCommittedCatalogue(checkout, command).jobs.map((job) => job.id);
+    } catch (cause) {
+      // Proof: refusing here when not strict made `a launcher checkout parked at a
+      // pre-catalogue commit does not stop ops job run` (host-pool-mode.test.ts) refuse 64
+      // (2026-11-02, review K1).
+      if (strict || !(cause instanceof OpsRefusal)) throw cause;
+      const head = spawnSync('git', ['-C', checkout, 'rev-parse', '--short', 'HEAD'], {
+        encoding: 'utf8',
+      }).stdout.trim();
+      unverified.push(`${checkout} unverified at ${head || 'no HEAD'}`);
+      continue;
+    }
+    for (const id of ids) named.add(id);
+  }
   for (const id of eligible)
     // Proof: without it `refuses an empty eligibility list unless --allow-empty, and
     // an eligible id no catalogue names` (host-pool-mode.test.ts)
@@ -177,26 +202,28 @@ export function verifyEligibleTypes(
     if (!named.has(id))
       throw new OpsRefusal(
         64,
-        `${command}: concurrencyEligible names ${id}, which no launcher checkout's catalogue names`,
+        `${command}: concurrencyEligible names ${id}, which no launcher checkout's catalogue names${unverified.length === 0 ? '' : ` (${unverified.join(', ')})`}`,
       );
-  return `concurrency-eligible: ${eligible.length === 0 ? 'none' : eligible.join(', ')}`;
+  return `concurrency-eligible: ${eligible.length === 0 ? 'none' : eligible.join(', ')}${unverified.length === 0 ? '' : `; ${unverified.join(', ')}`}`;
 }
 
 /**
  * The eligibility check every `ops` pool open runs (review H6, S6B-A17): a typo added to
  * `concurrencyEligible` after `ops pool init` refuses 64 on the next open, `ops job run`'s
  * included, instead of silently serialising the type it meant. An empty list reads nothing.
+ * Strict at `ops pool init`, lenient elsewhere (review K1, S6B-A22).
  * @throws OpsRefusal 64 as {@link verifyEligibleTypes} does.
  */
 export function checkEligibleTypes(
   configuration: Pick<ResourceConfiguration, 'concurrencyEligible' | 'launcherCheckouts'>,
   command: string,
+  strict = false,
 ): void {
   const eligible = configuration.concurrencyEligible ?? [];
   // Proof: without it `a typo added to concurrencyEligible after init refuses ops job run 64`
   // (host-pool-mode.test.ts) ran the job (2026-11-02, review H6).
   if (eligible.length > 0)
-    verifyEligibleTypes(eligible, configuration.launcherCheckouts ?? [], command);
+    verifyEligibleTypes(eligible, configuration.launcherCheckouts ?? [], command, strict);
 }
 
 function refusalOf(cause: unknown): never {
@@ -205,19 +232,26 @@ function refusalOf(cause: unknown): never {
   throw cause;
 }
 
-/** The pid a hold file names, and whether it still runs; null when the file names none. */
-function holderOf(holdFile: string): { pid: number; alive: boolean } | null {
-  const text = readFileSync(holdFile, 'utf8').trim();
-  if (!/^\d+$/.test(text)) return null;
-  const pid = Number(text);
-  try {
-    process.kill(pid, 0);
-    return { pid, alive: true };
-  } catch (cause) {
-    if (cause instanceof Error && 'code' in cause && cause.code === 'ESRCH')
-      return { pid, alive: false };
-    throw cause;
-  }
+/**
+ * The holder a hold file names and whether it still runs (review K5): the pid with its boot and
+ * start identity, compared through `/proc` as every other identity here is, so a recycled pid
+ * is not taken for the holder. A file naming a pid alone (its holder exited before its
+ * identity could be read) is reported by pid with its liveness unknown; null when it names none.
+ */
+function holderOf(holdFile: string): { pid: number; state: 'alive' | 'dead' | 'unknown' } | null {
+  const [pid, boot, start] = readFileSync(holdFile, 'utf8').trim().split(' ') as [
+    string,
+    string?,
+    string?,
+  ];
+  if (!/^\d+$/.test(pid)) return null;
+  if (boot === undefined || start === undefined) return { pid: Number(pid), state: 'unknown' };
+  // Proof: deciding by `kill(pid, 0)` made `a switch-mode hold left behind refuses the next
+  // switch 75, naming it` call a recycled pid alive (2026-11-02, review K5).
+  return {
+    pid: Number(pid),
+    state: processAlive({ pid: Number(pid), boot, start }) ? 'alive' : 'dead',
+  };
 }
 
 /** The exit code a switch interrupted by `signal` returns, as a shell's. */
@@ -282,7 +316,7 @@ export async function switchPoolMode(
       const holder = holderOf(holdFile);
       throw new OpsRefusal(
         75,
-        `ops pool switch-mode: an earlier switch's shell lock hold ${holdFile} is still there (${holder === null ? 'naming no pid' : `holder pid ${String(holder.pid)}, ${holder.alive ? 'alive' : 'dead'}`}); if no switch-mode runs, run resources sweep to release it`,
+        `ops pool switch-mode: an earlier switch's shell lock hold ${holdFile} is still there (${holder === null ? 'naming no pid' : `holder pid ${String(holder.pid)}, ${holder.state}`}); if no switch-mode runs, run resources sweep to release it`,
       );
     }
   }
@@ -348,7 +382,7 @@ export async function switchPoolMode(
     if (outcome.kind !== 'held')
       throw new OpsRefusal(
         outcome.exitCode === 75 ? 75 : 70,
-        `ops pool switch-mode: the shell lock's holders and waiters did not drain within ${String(remaining)}s (exit ${String(outcome.exitCode)})`,
+        `ops pool switch-mode: the shell lock's holders and waiters did not drain within ${String(remaining)}s (exit ${String(outcome.exitCode)}${outcome.reason === undefined ? '' : `: ${outcome.reason}`})`,
       );
     try {
       if (stopped()) throw interrupted();
