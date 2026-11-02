@@ -19,7 +19,7 @@
 - Every new safety check (parser refusal, CHECK, guard) needs a production-path negative. Watch it fail with the check removed, then add an adjacent `// Proof:` comment naming the injected fault, the observed failing test and the date. Form: `// Proof: <fault>; <test name> failed on <what>; watched 2026-11-DD.`
 - Forward migrations are additive (`tools/tool-git-hooks/src/hooks/migration-lint.ts`): no `DROP TABLE`, `DROP COLUMN`, `RENAME COLUMN`, `TRUNCATE`, or `ADD COLUMN … NOT NULL` without `DEFAULT`. A table rebuild needs both markers `-- foreign-keys-off-rebuild` and `-- migration-lint: compatible-table-rebuild` and the `_new` / `DROP` / `RENAME` / `pragma_foreign_key_check` shape. Every `migration.sql` ships beside `down.sql`.
 - Migration folders live in `apps/wbs/be-01/drizzle/<YYYYMMDDHHMMSS>_<snake_name>/`. The runner sorts by folder name; statements are separated by `--> statement-breakpoint`. Every database, test databases included, is built by `runMigrations()`; `schema.ts` only types queries, and `schema-indexes.db.test.ts` asserts that its index names equal the migrated database's. CHECK names in `schema.ts` are kept in step with the SQL by hand.
-- About fifty tests pin the ordered migration list by name. Find them with `grep -rl 20261028100100_widen_organization_audit_agent_pools --include=*.ts apps libs` and extend each one (Task 5, Step 9).
+- About fifty tests pin the ordered migration list by name. Find them with `grep -rl 20261101100100_add_resource_directory_capacity --include=*.ts apps libs` and extend each one (Task 5, Step 9).
 - Names: shortest unambiguous scoped name, verb-object functions, predicate booleans. Never `data`, `result`, `obj`, `tmp`, `item`, `handle`. JSDoc on every exported symbol; no file headers.
 - Before every commit: `bun x prettier --write <files>` then `bun x prettier --check <files>`; `git add -A` then `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` (exit 0; an "unindexed candidate path in <README>" line means that README's index must list the new file). Never `--no-verify`.
 - Instants are epoch milliseconds, the unit of `WriteStamp.at` (`libs/wbs/application/core/src/ports/write-stamp.ts`) and of every `now: () => number = Date.now` in the services. Ages in the policy are minutes.
@@ -1505,7 +1505,7 @@ Branch `feat/wbs-questions-2-storage` from `feat/wbs-questions-1-core` (rebase o
 - Create: `libs/wbs/adapters/store-sqlite/src/question-migration.db.test.ts`
 - Modify: `libs/wbs/adapters/store-sqlite/src/schema.ts` (`step` at line 781; new tables after `stepBlockage` at line 3975; `organizationAudit` CHECKs at lines 3516-3550)
 - Modify: `libs/wbs/application/core/src/ports/organization-audit.ts` (`ORGANIZATION_AUDIT_ACTIONS` near line 36, `OrganizationAuditSubjectKind` near line 51)
-- Modify: every test pinning the migration list (Step 9), `docs/runbook-prod-deploy.md` lines 412-414 (guarded `down.sql` list)
+- Modify: every test pinning the migration list (Step 9), `docs/runbook-prod-deploy.md` (a `wbs-questions` rollback paragraph beside the `resource_directory_capacity` one)
 
 **Interfaces:**
 
@@ -1529,7 +1529,7 @@ import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-const BASELINE = '20261028100100_widen_organization_audit_agent_pools';
+const BASELINE = '20261101100100_add_resource_directory_capacity';
 const STEP_PHASE = '20261103100000_add_step_phase';
 const QUESTION_POLICY = '20261103100100_add_question_policy';
 const QUESTION = '20261103100200_add_question';
@@ -2169,13 +2169,13 @@ CREATE TABLE `project_reviewer` (
 
 Its `down.sql` has no guard (the list is settings, re-enterable): `DROP TABLE \`project_reviewer\`;` with a two-line comment saying so.
 
-`widen_organization_audit_questions/migration.sql`: copy `20261028100100_widen_organization_audit_agent_pools/migration.sql` whole, then:
+`widen_organization_audit_questions/migration.sql`: copy `20261101100000_widen_organization_audit_directory_capacity/migration.sql` (the newest `organization_audit` rebuild on main; check with `ls apps/wbs/be-01/drizzle | grep widen_organization_audit | tail -1` before copying) whole, then:
 
 - replace the header with one naming `wbs-questions` D1 and task 2.1, the two actions `question_policy_changed` (subject kind `question_policy`, subject id the scope id) and `project_reviewers_changed` (existing subject kind `project`), and the Proof line `-- Proof: the two words left out of this rebuild; admits the two question actions and refuses a stranger (question-migration.db.test.ts) failed on the CHECK; watched 2026-11-DD.`;
 - append `'question_policy_changed',` and `'project_reviewers_changed'` to the `action` list and `'question_policy'` to the `subject_kind` list;
 - keep the markers on lines 1 and 2, the copy, the `DROP`, the `RENAME`, the two append-only triggers, the `pragma_foreign_key_check` guard and the two machine-token partial unique indexes byte for byte; rename the temp guard table to `organization_audit_questions_fk_guard`.
 
-Its `down.sql`: copy the agent-pools `down.sql`, rename the guard table to `organization_audit_questions_down_check` with constraint text `"question audit rows exist: audit evidence is never discarded by a rollback"`, count rows whose `action IN ('question_policy_changed', 'project_reviewers_changed') OR subject_kind = 'question_policy'`, and rebuild with the agent-pools vocabulary (the 28 actions and 10 kinds listed in that migration).
+Its `down.sql`: copy the directory-capacity `down.sql`, rename the guard table to `organization_audit_questions_down_check` with constraint text `"question audit rows exist: audit evidence is never discarded by a rollback"`, count rows whose `action IN ('question_policy_changed', 'project_reviewers_changed') OR subject_kind = 'question_policy'`, and rebuild with the directory-capacity vocabulary (the 29 actions and 11 kinds listed in that migration).
 
 - [ ] **Step 8: Mirror the six in `schema.ts` and the audit port**
 
@@ -2270,10 +2270,10 @@ In `libs/wbs/application/core/src/ports/organization-audit.ts`: append `'questio
 - [ ] **Step 9: Extend every pinned migration list**
 
 ```bash
-grep -rl 20261028100100_widen_organization_audit_agent_pools --include=*.ts apps libs
+grep -rl 20261101100100_add_resource_directory_capacity --include=*.ts apps libs
 ```
 
-For each file: a newest-first list (rollback strings such as `rolled back: 20261028100100_…, 20261028100000_…`) gets the six new names prepended in reverse order (`20261103100500_…, 20261103100400_…, …, 20261103100000_…`); an oldest-first list gets them appended in order; a pin such as `expect(baselineLedger.at(-1)?.name).toBe('20261028100100_…')` moves to `20261103100500_widen_organization_audit_questions`. Add the three guarded `down.sql` scripts (step phase, question policy, question, notice, audit) to the list in `docs/runbook-prod-deploy.md` lines 412-414.
+For each file: a newest-first list (rollback strings such as `rolled back: 20261101100100_…, 20261101100000_…`) gets the six new names prepended in reverse order (`20261103100500_…, 20261103100400_…, …, 20261103100000_…`); an oldest-first list gets them appended in order; a pin such as `expect(baselineLedger.at(-1)?.name).toBe('20261101100100_…')` moves to `20261103100500_widen_organization_audit_questions`. Add the three guarded `down.sql` scripts (step phase, question policy, question, notice, audit) to `docs/runbook-prod-deploy.md`: a `wbs-questions` rollback paragraph modelled on the `resource_directory_capacity` one (`grep -n "Rollback.**" docs/runbook-prod-deploy.md`), naming each guard message.
 
 Run: `bunx nx run-many -t test -p wbs-store-sqlite,wbs-be-01 --parallel=2` and fix every remaining pin the grep missed.
 
