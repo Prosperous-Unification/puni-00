@@ -18,13 +18,21 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { runCli, validatorHandlers } from './cli';
 import {
   commandNamesOf,
+  delegatedGrammars,
   type Grammar,
   installedGrammar,
   readInvocation,
+  registerShortName,
   type ValidatorCommand,
   validatorGrammar,
 } from './cli-parser';
 import { type CliInvocation, invokeCli } from './invoke-cli';
+import { prepareActivationUsage } from './policy/prepare-activation-cli';
+import { prepareRelocationActivationUsage } from './policy/prepare-relocation-activation-cli';
+import { checkUsage, explainUsage } from './rules/check';
+import { scenarioUsage } from './rules/scenario-command';
+import { templateUsage } from './templates/verify';
+import { workflowBindingUsage } from './workflow-binding';
 
 const repositories: string[] = [];
 const cliPath = join(import.meta.dir, 'cli.ts');
@@ -589,6 +597,7 @@ async function expectUsageRefusal(argv: readonly string[], line: RegExp): Promis
 }
 
 describe('Burokrat command line (twilight-cli-optique)', () => {
+  // Spawns Bun more than once; Bun's 5 s default fails it when this file runs alone.
   test('Burokrat without --now refuses in one usage line', async () => {
     const spawned = spawnEntry(cliPath, datedCommands[0]);
     expect(spawned.exitCode).toBe(1);
@@ -604,7 +613,7 @@ describe('Burokrat command line (twilight-cli-optique)', () => {
         new RegExp(`^error: usage: twilight-burokrat ${argv[0]} .*${argv[0]} requires --now`, 'u'),
       );
     }
-  });
+  }, 60_000);
 
   test('a dated command takes --now anywhere, in either spelling', () => {
     const instant = '2026-11-02T00:00:00.000Z';
@@ -696,6 +705,7 @@ describe('Burokrat command line (twilight-cli-optique)', () => {
     expect(commandNamesOf(installedGrammar).sort()).toEqual(installed);
   });
 
+  // Spawns Bun more than once; Bun's 5 s default fails it when this file runs alone.
   test('help parity holds under any terminal width and colour request', () => {
     const inProcess = printedBy(installedGrammar, ['--help']);
     // A terminal reports its width on the stream; `run` reads it before `COLUMNS`. At 30
@@ -722,7 +732,7 @@ describe('Burokrat command line (twilight-cli-optique)', () => {
       expect(spawned.stderr, label).toBe('');
       expect(spawned.stdout, label).toBe(inProcess);
     }
-  });
+  }, 60_000);
 
   test('the README shows the generated help', () => {
     // Proof: rewording the `inspect-manual` line in the README block failed this test (2026-11-02).
@@ -751,7 +761,7 @@ describe('Burokrat command line (twilight-cli-optique)', () => {
       'inspect-manual --help': /Usage: twilight-burokrat inspect-manual /u,
       'help lint': /Usage: twilight-burokrat lint SELECTION REPOSITORY REVISION-OR-BASE/u,
       'completion bash': /complete .*twilight-burokrat/u,
-      'completion zsh': /^#compdef twilight-burokrat\n/u,
+      'completion zsh': /^#compdef twilight-burokrat twib\n/u,
       'completion fish': /complete -c twilight-burokrat/u,
     };
     for (const [line, stdout] of Object.entries(expected)) {
@@ -764,11 +774,76 @@ describe('Burokrat command line (twilight-cli-optique)', () => {
     for (const name of commandNamesOf(installedGrammar)) expect(candidates).toContain(name);
   });
 
+  test("every delegated grammar is its module's usage line", () => {
+    // Proof: restoring `template`'s `<id>` metavars in `delegatedGrammars` failed this test with
+    // `<template-id>` expected (2026-11-03).
+    const moduleUsages: Record<keyof typeof delegatedGrammars, string> = {
+      check: checkUsage,
+      explain: explainUsage,
+      scenario: scenarioUsage,
+      template: templateUsage,
+      'validate workflow-binding': workflowBindingUsage,
+      'prepare-activation': prepareActivationUsage,
+      'prepare-relocation-activation': prepareRelocationActivationUsage,
+    };
+    for (const [words, grammar] of Object.entries(delegatedGrammars)) {
+      expect(moduleUsages[words as keyof typeof delegatedGrammars], words).toBe(
+        `usage: twilight-burokrat ${words} ${grammar}`,
+      );
+    }
+  });
+
+  test('<delegated command> --help prints its help; other words reach the module', () => {
+    for (const argv of [
+      ['check', '--help'],
+      ['validate', 'workflow-binding', '--help'],
+      ['template', '--help'],
+    ]) {
+      const words = argv.slice(0, -1).join(' ');
+      expect(printedBy(installedGrammar, argv), words).toContain(
+        `Usage: twilight-burokrat ${words} [...]`,
+      );
+    }
+    for (const tail of [
+      ['--version'],
+      ['--now=2026-11-02T00:00:00.000Z'],
+      ['--', '--help'],
+      ['working', '.', 'HEAD', 'policy.json', '--help'],
+    ]) {
+      expect(
+        readInvocation(validatorGrammar, ['check', ...tail], { stdout: () => undefined }),
+      ).toEqual({
+        kind: 'command',
+        command: { command: 'check', argv: tail },
+      });
+    }
+  });
+
+  test('completion scripts register twib beside twilight-burokrat', () => {
+    const registrations: Record<string, readonly RegExp[]> = {
+      bash: [/^ {2}complete -F _twilight-burokrat -- twilight-burokrat twib$/mu],
+      zsh: [
+        /^#compdef twilight-burokrat twib$/mu,
+        /^ {2}compdef _optique:twilight-burokrat twilight-burokrat twib$/mu,
+      ],
+      fish: [/^complete -c twib -f -a '\(__twilight-burokrat_complete\)'$/mu],
+    };
+    for (const [shell, lines] of Object.entries(registrations)) {
+      const script = printedBy(installedGrammar, ['completion', shell]);
+      for (const line of lines) expect(script, shell).toMatch(line);
+    }
+    // Proof: returning the script unchanged when its registration is absent made this expect a
+    // throw and receive a script that completes only `twilight-burokrat` (2026-11-03).
+    expect(() => registerShortName('zsh', '#compdef other\n')).toThrow(
+      'the zsh completion script has no registration line: #compdef twilight-burokrat',
+    );
+  });
+
   test('twib completion zsh prints a script on stdout that completes inspect-manual', () => {
     const script = spawnEntry(binPath, ['completion', 'zsh']);
     expect(script.exitCode).toBe(0);
     expect(script.stderr).toBe('');
-    expect(script.stdout).toStartWith('#compdef twilight-burokrat\n');
+    expect(script.stdout).toStartWith('#compdef twilight-burokrat twib\n');
     const candidates = spawnEntry(binPath, ['completion', 'zsh', 'inspect-man']);
     expect(candidates.exitCode).toBe(0);
     expect(candidates.stdout).toContain('inspect-manual');

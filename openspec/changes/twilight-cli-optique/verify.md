@@ -214,6 +214,40 @@ either spelling`.
   "Commands that parse their own arguments:" and each grammar, wrapped at 100 columns so no
   line carries a trailing space.
 
+- **B-A18. Delegated grammars are tied to their modules.** `check`, `explain`, `scenario`,
+  `template`, `validate workflow-binding`, `prepare-activation` and
+  `prepare-relocation-activation` export their usage lines (`checkUsage`, `explainUsage`,
+  `scenarioUsage`, `templateUsage`, `workflowBindingUsage`, `prepareActivationUsage`,
+  `prepareRelocationActivationUsage`), and `every delegated grammar is its module's usage line`
+  asserts each equals `usage: twilight-burokrat <words> <grammar>`. `delegatedGrammars` stays a
+  literal rather than an import: the modules pull their command graphs (the rule registry, the
+  trusted-policy and relocation code) into every invocation's start, which `cli.ts` loads lazily.
+  Every delegated usage now says `twilight-burokrat`: `validate workflow-binding` said
+  `usage: twib …`, the two `prepare-*` commands named no program, and the footer's `template`
+  metavars (`<id>`) had drifted from the module's (`<template-id>`).
+- **B-A19. `<delegated command> --help`.** `--help` as a delegated command's sole word prints
+  that command's help, as `help <command>` does, exit 0. With any other words (`check working .
+HEAD policy.json --help`, `check -- --help`) it reaches the module unchanged, as do `--version`,
+  `--now=…` and `--`.
+- **B-A20. Completion registers `twib`.** Optique registers only `programName`; the printed
+  script is rewritten to register `twib` too (bash `complete … -- twilight-burokrat twib`, zsh
+  `#compdef twilight-burokrat twib` and `compdef … twilight-burokrat twib`, fish a second
+  `complete -c twib …`). A script lacking the line the rewrite extends throws rather than print
+  a script that completes one name. Dynamic candidates still call `twilight-burokrat`.
+- **B-A21. Explicit timeouts.** `Burokrat without --now refuses in one usage line` (3.8 s) and
+  `help parity holds under any terminal width and colour request` (6.7 s) spawn Bun several
+  times; both carry `60_000`, so `bun test src/cli.test.ts` alone, without the Nx target's
+  `--timeout=60000`, passes (G5).
+- **B-A22. Micro-drifts, observed and accepted.** `twib --version extra` prints the version and
+  exits 0 (before: `unknown command: --version`); `check-indexes working -- . HEAD` is accepted
+  with `--` taken as Optique's options terminator, while `read-candidate working . HEAD --`
+  refuses (`Expected an argument, but got end of input.`); `template` with any word count now
+  reaches its module, which refuses other counts with its own usage (before: `unknown command`
+  for counts other than 1, 2 and 6); the generated usage lists `--now INSTANT` before the
+  operands, though it is accepted anywhere; the README help block wraps at 120 columns.
+- **B-A23.** The Optique facts behind B-A11 and B-A20 (the sink's newline, the registration
+  lines) are Optique 1.3.6's; the tests that pin them fail on an upgrade that changes either.
+
 ### Changed pinned lines
 
 | Test                                                                                                              | Before                                                                                                                                                  | After                                                                                                                                                              |
@@ -277,30 +311,35 @@ Each fault was injected into the production source (or README, or the build conf
 bytes back and compared their SHA-256; all 22 restorations matched. Final run on 2026-11-02
 against the tree of this section's commit.
 
-| Fault                                                                   | Test that went red                                                                                 | Observed                                                                            |
-| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| F1 `onExit` dropped from `run` (it calls `process.exit`)                | `Burokrat without --now refuses in one usage line`                                                 | spawned stderr `""` instead of the `error: usage: …` line                           |
-| F2 `--now` wrapped in `optional`                                        | `Burokrat without --now refuses in one usage line`                                                 | the handler refused bare `inspect-manual requires --now <UTC instant>; …`, no usage |
-| F3 `maxWidth: 120` dropped                                              | `help parity holds under any terminal width and colour request`                                    | 80-column `process.stdout` help: `- Expected - 61`, `+ Received + 134`              |
-| F4 `colors: false` dropped                                              | same test                                                                                          | under `FORCE_COLOR=1` all 119 help lines differed                                   |
-| F5 `usageOf` formats with `colors: true`                                | `Burokrat without --now refuses in one usage line`                                                 | ANSI bytes in the refusal line                                                      |
-| F6 unknown-command reason returned unmapped                             | `an unknown command refuses in one line, exit 1, through both entries`                             | ``error: Unexpected option or subcommand: `apply`.``                                |
-| F7 `help`/`completion` branch of `refusalOf` dropped                    | `help <unknown> and completion without a shell refuse in one line`                                 | `error: Unsupported Burokrat command: help`                                         |
-| F8 `jsonPath` `pattern` dropped                                         | `refuses invalid operands ["","absent"] before reads` (plan-tasks.test.ts)                         | read the empty path: `cannot read JSON input : ENOENT`                              |
-| F9 level-mode `choice` replaced by `string`                             | `a wrong operand count or mode refuses with the command usage before any read`                     | reached the reader: `not a readable Git repository`                                 |
-| F10 `check` word-count guard dropped                                    | `check refuses an odd flag tail and explain a two-word tail before reading`                        | ran the check, `not a readable Git repository`                                      |
-| F11 `runCli` handler-table guard dropped                                | `runCli refuses a command no handler takes`                                                        | `handler is not a function`                                                         |
-| F12 `stdout` newline wrapper dropped                                    | `twib --version prints the manifest version; the validator has none`                               | `0.1.0` without its newline                                                         |
-| F13 `Printed` no longer caught                                          | `help, help <command> and bash, zsh and fish completion print on stdout`                           | fail                                                                                |
-| F14 `cli.ts` `error: ` prefix dropped                                   | `an unknown command refuses in one line, exit 1, through both entries`                             | `Unsupported Burokrat command: apply` bare                                          |
-| F15 `bin.ts` `error: ` prefix dropped                                   | same test, installed entry                                                                         | `- Expected - 1`, `+ Received + 1`                                                  |
-| F16 source-only commands added to `installedGrammar`                    | `help names every dispatched command and no other`                                                 | `+ Received + 2` (`candidate-identity`, `inspect-browser`)                          |
-| F17 README help block reworded                                          | `the README shows the generated help`                                                              | `- Expected - 1`, `+ Received + 1`                                                  |
-| F18 `@optique/*` external in `executableBuildConfig`                    | `the executable bundle carries the Optique parser, at its recorded size`                           | no `Unexpected option or subcommand` in the bundle                                  |
-| F19 `Date.now()` appended to `cli-parser.ts`                            | `the Burokrat package reads no clock` (unchanged test)                                             | listed `"path": "cli-parser.ts"`, `"text": "Date"`                                  |
-| F20 `inspect-level-facts` removed from the parser, kept in the handlers | `help names every dispatched command and no other`                                                 | `- Expected - 1`                                                                    |
-| F21 `validate workflow-binding` branch removed                          | `routes an incomplete binding command before generic record validation` (workflow-binding.test.ts) | RecordKind refusal `(was "workflow-binding")` instead of `invalid_arguments`        |
-| F22 help footer dropped                                                 | `buildPackage > builds the canonical executable for use outside the repository` (build.test.ts)    | help lacked `twilight-burokrat check <committed                                     | staged | working>` |
+| Fault                                                                                             | Test that went red                                                                                 | Observed                                                                            |
+| ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| F1 `onExit` dropped from `run` (it calls `process.exit`)                                          | `Burokrat without --now refuses in one usage line`                                                 | spawned stderr `""` instead of the `error: usage: …` line                           |
+| F2 `--now` wrapped in `optional`                                                                  | `Burokrat without --now refuses in one usage line`                                                 | the handler refused bare `inspect-manual requires --now <UTC instant>; …`, no usage |
+| F3 `maxWidth: 120` dropped                                                                        | `help parity holds under any terminal width and colour request`                                    | 80-column `process.stdout` help: `- Expected - 61`, `+ Received + 134`              |
+| F4 `colors: false` dropped                                                                        | same test                                                                                          | under `FORCE_COLOR=1` all 119 help lines differed                                   |
+| F5 `usageOf` formats with `colors: true`                                                          | `Burokrat without --now refuses in one usage line`                                                 | ANSI bytes in the refusal line                                                      |
+| F6 unknown-command reason returned unmapped                                                       | `an unknown command refuses in one line, exit 1, through both entries`                             | ``error: Unexpected option or subcommand: `apply`.``                                |
+| F7 `help`/`completion` branch of `refusalOf` dropped                                              | `help <unknown> and completion without a shell refuse in one line`                                 | `error: Unsupported Burokrat command: help`                                         |
+| F8 `jsonPath` `pattern` dropped                                                                   | `refuses invalid operands ["","absent"] before reads` (plan-tasks.test.ts)                         | read the empty path: `cannot read JSON input : ENOENT`                              |
+| F9 level-mode `choice` replaced by `string`                                                       | `a wrong operand count or mode refuses with the command usage before any read`                     | reached the reader: `not a readable Git repository`                                 |
+| F10 `check` word-count guard dropped                                                              | `check refuses an odd flag tail and explain a two-word tail before reading`                        | ran the check, `not a readable Git repository`                                      |
+| F11 `runCli` handler-table guard dropped                                                          | `runCli refuses a command no handler takes`                                                        | `handler is not a function`                                                         |
+| F12 `stdout` newline wrapper dropped                                                              | `twib --version prints the manifest version; the validator has none`                               | `0.1.0` without its newline                                                         |
+| F13 `Printed` no longer caught                                                                    | `help, help <command> and bash, zsh and fish completion print on stdout`                           | fail                                                                                |
+| F14 `cli.ts` `error: ` prefix dropped                                                             | `an unknown command refuses in one line, exit 1, through both entries`                             | `Unsupported Burokrat command: apply` bare                                          |
+| F15 `bin.ts` `error: ` prefix dropped                                                             | same test, installed entry                                                                         | `- Expected - 1`, `+ Received + 1`                                                  |
+| F16 source-only commands added to `installedGrammar`                                              | `help names every dispatched command and no other`                                                 | `+ Received + 2` (`candidate-identity`, `inspect-browser`)                          |
+| F17 README help block reworded                                                                    | `the README shows the generated help`                                                              | `- Expected - 1`, `+ Received + 1`                                                  |
+| F18 `@optique/*` external in `executableBuildConfig`                                              | `the executable bundle carries the Optique parser, at its recorded size`                           | no `Unexpected option or subcommand` in the bundle                                  |
+| F19 `Date.now()` appended to `cli-parser.ts`                                                      | `the Burokrat package reads no clock` (unchanged test)                                             | listed `"path": "cli-parser.ts"`, `"text": "Date"`                                  |
+| F20 `inspect-level-facts` removed from the parser, kept in the handlers                           | `help names every dispatched command and no other`                                                 | `- Expected - 1`                                                                    |
+| F21 `validate workflow-binding` branch removed                                                    | `routes an incomplete binding command before generic record validation` (workflow-binding.test.ts) | RecordKind refusal `(was "workflow-binding")` instead of `invalid_arguments`        |
+| F22 help footer dropped                                                                           | `buildPackage > builds the canonical executable for use outside the repository` (build.test.ts)    | help lacked `twilight-burokrat check <committed                                     | staged | working>` |
+| G1 `template` grammar back to `<id>` metavars                                                     | `every delegated grammar is its module's usage line`                                               | expected `<id>`, received the module's `<template-id>`                              |
+| G2 delegated `--help` branch dropped                                                              | `<delegated command> --help prints its help; other words reach the module`                         | `kind` `command` instead of `printed`                                               |
+| G3 completion printed unrewritten                                                                 | `completion scripts register twib beside twilight-burokrat`                                        | bash script without `-- twilight-burokrat twib`                                     |
+| G4 missing-registration refusal dropped                                                           | same                                                                                               | `Received function did not throw`                                                   |
+| G5 `60_000` dropped from the help-parity test, run as `bun test src/cli.test.ts -t 'help parity'` | that test                                                                                          | `this test timed out after 5000ms`                                                  |
 
 ### Not verified
 
@@ -310,3 +349,17 @@ against the tree of this section's commit.
   packages in its validator closure, which its binding must list. Not exercised here.
 - Completion scripts were checked for their shape and dynamic candidates, not sourced into a
   live bash, zsh or fish session.
+
+### Review fixes U2–U6 (Fable review of 84b8e86c2), 2026-11-03
+
+| Command                                                                                                                                                                                                                                                               | Result                                                      |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `bun test src/cli.test.ts` (single file, Bun's default 5 s timeout)                                                                                                                                                                                                   | `31 pass`, `0 fail`, `Ran 31 tests across 1 file. [41.63s]` |
+| `bun test --timeout=60000` on `rules/rules`, `rules/scenarios`, `templates/templates`, `workflow-binding`, `policy/relocation-activation`, `packaging/bundle`, `packaging/build`, `packaging/installed-dispatch`, `evidence/performance`, `evidence/coverage-runtime` | `280 pass`, `0 fail`, `Ran 280 tests across 10 files.`      |
+| `bundle`, `invoke-cli`, `no-ambient-clock` tests                                                                                                                                                                                                                      | `8 pass`, `0 fail`                                          |
+| `twilight-burokrat:typecheck`, `:lint:source` (`--skip-nx-cache`)                                                                                                                                                                                                     | `Successfully ran target …`                                 |
+| `bunx prettier --check` on the touched files; `openspec validate twilight-cli-optique`                                                                                                                                                                                | clean; `"valid": true`                                      |
+
+Faults G1–G5 are in the fault table above. The fault runner restored each file (SHA-256
+match). After G1–G5, `registerShortName`'s table gained a `Partial<…>` type annotation for
+`lint:source`; it changes no emitted code. The full suite was not rerun for these fixes.

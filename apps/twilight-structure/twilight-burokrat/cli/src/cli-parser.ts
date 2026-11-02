@@ -90,9 +90,11 @@ function typed<const Name extends string, const Fields extends Record<string, Pa
 }
 
 /**
- * The grammar each delegated command's module parses itself, shown by `help <command>`. A
- * delegated command's words reach its module verbatim, so its refusal wording stays where it is
- * documented and tested.
+ * The grammar each delegated command's module parses itself, shown by `help <command>` and the
+ * help footer. A delegated command's words reach its module verbatim, so its refusal wording
+ * stays where it is documented and tested. Each is the tail of its module's exported usage line;
+ * `cli.test.ts` compares the two, so a module grammar changed alone fails a test. The parser does
+ * not import those modules: they pull their command graphs into every invocation's start.
  */
 export const delegatedGrammars = {
   check:
@@ -100,10 +102,12 @@ export const delegatedGrammars = {
   explain: '<rule-id> [<repository> <rule-policy-json>]',
   scenario: '<import|allocate|validate> <repository> <openspec-spec-path> [--predecessor <id>]',
   template:
-    '<list|show <id>|verify <id> <committed|staged|working> <repository> <revision-or-base> <subject>>',
+    '<list|show <template-id>|verify <template-id> <committed|staged|working> <repository> <revision-or-base> <subject>>',
   'validate workflow-binding': '<file> --steps <comma-list>',
-  'prepare-activation': '<flags>',
-  'prepare-relocation-activation': '<flags>',
+  'prepare-activation':
+    '--candidate-repository <value> --candidate-sha <value> --toolkit <value> --candidate-policy <value> --candidate-mapping <value> --review-record <value> --audit-strata <value> --destination <value> --work <value> --resource-lane <value> --cwd-identity <value> --check-runs <value>',
+  'prepare-relocation-activation':
+    '--candidate-repository <value> --candidate-sha <value> --base-activation <value> --review-record <value> --destination <value> --work <value> [--candidate-policy <value>] [--candidate-launcher <value>] [--validator-entry <value>] --resource-lane <value> --cwd-identity <value> --check-runs <value>',
 } as const;
 
 type DelegatedWords = keyof typeof delegatedGrammars;
@@ -111,7 +115,10 @@ type DelegatedWords = keyof typeof delegatedGrammars;
 function described(words: DelegatedWords, brief: string) {
   return {
     brief: [text(brief)],
-    description: [text(`${brief} Arguments: ${delegatedGrammars[words]}`)],
+    description: [
+      text(brief),
+      ...wrapGrammar(`${programName} ${words} ${delegatedGrammars[words]}`),
+    ],
   };
 }
 
@@ -663,11 +670,64 @@ export interface InvocationOptions {
   readonly version?: string;
 }
 
+/** The installed executable's short name, which completion scripts register beside `programName`. */
+const shortName = 'twib';
+
+/**
+ * A completion script that registers `shortName` too: Optique registers only `programName`.
+ *
+ * @throws Error when the script lacks the registration this rewrite extends, which means Optique
+ * changed its script shape.
+ */
+export function registerShortName(shell: string, script: string): string {
+  const rewrites: Partial<Record<string, readonly (readonly [string, string])[]>> = {
+    bash: [[`-- ${programName}\n`, `-- ${programName} ${shortName}\n`]],
+    zsh: [
+      [`#compdef ${programName}\n`, `#compdef ${programName} ${shortName}\n`],
+      [
+        `compdef _optique:${programName} ${programName}\n`,
+        `compdef _optique:${programName} ${programName} ${shortName}\n`,
+      ],
+    ],
+    fish: [
+      [
+        `complete -c ${programName} -f -a '(__${programName}_complete)'\n`,
+        `complete -c ${programName} -f -a '(__${programName}_complete)'\ncomplete -c ${shortName} -f -a '(__${programName}_complete)'\n`,
+      ],
+    ],
+  };
+  const shellRewrites = rewrites[shell];
+  // Optique's other shells (PowerShell, Nushell) keep their single registration.
+  if (shellRewrites === undefined) return script;
+  let rewritten = script;
+  for (const [registration, extended] of shellRewrites) {
+    if (!rewritten.includes(registration)) {
+      throw new Error(
+        `the ${shell} completion script has no registration line: ${registration.trim()}`,
+      );
+    }
+    rewritten = rewritten.replaceAll(registration, extended);
+  }
+  return rewritten;
+}
+
+/** The command words of a parsed delegated command whose only word is `--help`, else undefined. */
+function delegatedHelpWords(parsed: unknown): string[] | undefined {
+  if (typeof parsed !== 'object' || parsed === null) return undefined;
+  if (!('command' in parsed) || !('argv' in parsed)) return undefined;
+  const { command: words, argv } = parsed;
+  if (typeof words !== 'string' || !Object.hasOwn(delegatedGrammars, words)) return undefined;
+  if (!Array.isArray(argv) || argv.length !== 1 || argv[0] !== '--help') return undefined;
+  return words.split(' ');
+}
+
 /**
  * Parses one Burokrat command line of `grammar` through Optique's `run` with every sink
  * injected: help, `--version` and completion scripts go to `stdout` and return
  * `{ kind: 'printed' }`; a refusal throws {@link UsageRefusal} and writes nothing. Never calls
- * `process.exit` and reads no clock.
+ * `process.exit` and reads no clock. A delegated command whose only word is `--help` prints that
+ * command's help, as `help <command>` does; any other words, `--help` among them, reach its
+ * module. Completion scripts register `twib` beside `twilight-burokrat`.
  *
  * @throws UsageRefusal with one line: `Unsupported Burokrat command: <name>` or `usage: …`.
  */
@@ -677,6 +737,7 @@ export function readInvocation<T extends Parser>(
   options: InvocationOptions,
 ): Invocation<InferValue<T>> {
   let errorText = '';
+  const completionShell = args[0] === 'completion' && args.length === 2 ? args[1] : undefined;
   try {
     const parsed = run(grammar.parser, {
       programName,
@@ -685,7 +746,11 @@ export function readInvocation<T extends Parser>(
       // Proof: passing `options.stdout` unwrapped made `twib --version prints the manifest
       // version` receive `0.1.0` without its newline (2026-11-02).
       stdout: (text) => {
-        options.stdout(`${text}\n`);
+        // Proof: printing the script unrewritten failed `completion scripts register twib beside
+        // twilight-burokrat` for all three shells (2026-11-03).
+        const printed =
+          completionShell === undefined ? text : registerShortName(completionShell, text);
+        options.stdout(`${printed}\n`);
       },
       stderr: (chunk) => {
         errorText += chunk;
@@ -700,8 +765,9 @@ export function readInvocation<T extends Parser>(
       // Without these two `run` reads the terminal's colour support and width, so help and
       // refusals would vary per terminal.
       // Proof: dropping `maxWidth` failed `help parity holds under any terminal width and colour
-      // request` with an 80-column `process.stdout` and under `COLUMNS=80` (2026-11-02). Proof: dropping `colors` failed
-      // that test under `FORCE_COLOR=1`: all 119 help lines differed by ANSI bytes (2026-11-02).
+      // request` with an 80-column `process.stdout` and under `COLUMNS=80` (2026-11-02).
+      // Proof: dropping `colors` failed that test under `FORCE_COLOR=1`: all 119 help lines
+      // differed by ANSI bytes (2026-11-02).
       colors: false,
       maxWidth: 120,
       aboveError: 'none',
@@ -710,6 +776,10 @@ export function readInvocation<T extends Parser>(
       footer: delegatedFooter(grammar),
       ...(options.version === undefined ? {} : { version: options.version }),
     });
+    const helpWords = delegatedHelpWords(parsed);
+    // Proof: dropping this branch made `<delegated command> --help prints its help; other words
+    // reach the module` receive a parsed `check` command instead of printed help (2026-11-03).
+    if (helpWords !== undefined) return readInvocation(grammar, ['help', ...helpWords], options);
     return { kind: 'command', command: parsed };
   } catch (cause) {
     // Proof: rethrowing `Printed` here failed `help, help <command> and bash, zsh and fish

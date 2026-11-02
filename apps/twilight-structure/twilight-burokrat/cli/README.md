@@ -32,9 +32,11 @@ one `error: ` line and exits 1 before any input is read: `Unsupported Burokrat c
 or `usage: twilight-burokrat <command> …` followed by the reason. The dated commands require
 `--now <UTC instant>`, because Burokrat reads no clock. `twib help <command>` (or
 `<command> --help`) prints one command, `twib --version` the package version, and
-`twib completion bash|zsh|fish` a completion script for the name `twilight-burokrat`.
-`check`, `explain`, `scenario`, `template`, `validate workflow-binding` and the two `prepare-*`
-commands parse their own arguments; their help shows the grammar their modules document.
+`twib completion bash|zsh|fish` a completion script that registers both `twilight-burokrat` and
+`twib`. `check`, `explain`, `scenario`, `template`, `validate workflow-binding` and the two
+`prepare-*` commands parse their own arguments: their help and the footer below show the grammar
+their modules document, and `--help` is honoured only as their sole word; any other words,
+`--help` among them, reach the module.
 
 `twib --help` prints (a test compares this block with the generated help):
 
@@ -166,11 +168,17 @@ Commands that parse their own arguments:
   twilight-burokrat explain <rule-id> [<repository> <rule-policy-json>]
   twilight-burokrat scenario <import|allocate|validate> <repository> <openspec-spec-path>
       [--predecessor <id>]
-  twilight-burokrat template <list|show <id>|verify <id> <committed|staged|working> <repository>
-      <revision-or-base> <subject>>
+  twilight-burokrat template <list|show <template-id>|verify <template-id>
+      <committed|staged|working> <repository> <revision-or-base> <subject>>
   twilight-burokrat validate workflow-binding <file> --steps <comma-list>
-  twilight-burokrat prepare-activation <flags>
-  twilight-burokrat prepare-relocation-activation <flags>
+  twilight-burokrat prepare-activation --candidate-repository <value> --candidate-sha <value>
+      --toolkit <value> --candidate-policy <value> --candidate-mapping <value> --review-record
+      <value> --audit-strata <value> --destination <value> --work <value> --resource-lane <value>
+      --cwd-identity <value> --check-runs <value>
+  twilight-burokrat prepare-relocation-activation --candidate-repository <value> --candidate-sha
+      <value> --base-activation <value> --review-record <value> --destination <value> --work <value>
+      [--candidate-policy <value>] [--candidate-launcher <value>] [--validator-entry <value>]
+      --resource-lane <value> --cwd-identity <value> --check-runs <value>
 ```
 
 ## Checks
