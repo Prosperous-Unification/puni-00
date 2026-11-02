@@ -1236,3 +1236,9 @@ The bounded FRC1–FRC4 private cleanup slice is accepted at its actual epochs: 
 - [x] 8.1-mounted-incoming. Preserve the historical synthetic rich roundtrip and exercise the same complete incoming/internal identity/remapping/history assertions through the actual capable mounted HTTP importer without a synthetic importer. Include existing two incapable controls; run the required actual OpenAPI prerequisite and four focused cases, configured types/lint/format, and independent review. Evidence: [mounted incoming acceptance](verify-import-compatibility.md#capable-mounted-incoming-v12-transaction-acceptance--2026-11-02).
 
 This submilestone passed4/0/109assertions after its actual uncached prerequisite; audit51e3a26e74f2c9acf9683c7ce1fe4ee86d4df6e11d1cbb661f23885089c4cfda. Parent8.1 and full production activation/participant safety, remaining compatibility/transport/rollback matrices and final CI/gates/delivery remain open. Fixture-seeded durable authority is explicitly not real activation proof.
+
+### Capable mounted late-event rollback — 2026-11-02
+
+- [x] 8.1-mounted-rollback. Preserve the historical synthetic rich rollback case and exercise the same staged incoming/local writes, predecessor revisions, real durable event/sequence and complete rollback/zero-push assertions through the capable mounted route. Require completion only after every staging assertion; observe one early-assertion fault fail that final consumer, restore exact source and pass the same case. Evidence: [mounted rollback](verify-import-compatibility.md#capable-mounted-late-event-rollback--2026-11-02).
+
+Actual6case acceptance dc7be59f and exact marker pair1fa97c02 cover only this bounded transaction boundary. No later table/push assertions are credited to the negative marker failure. Parent8.1, genuine activation/participant safety, remaining transport matrices/fullCI/gates and delivery remain open.
