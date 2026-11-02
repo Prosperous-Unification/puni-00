@@ -19,6 +19,12 @@
 
 ## Task 4: Integrate current private main before final acceptance
 
-- [ ] 4.1 Merge private main 28a2c51 into the private candidate, preserving owner About/portrait, dark-theme changes and the approved compact card — test: private site tests/Astro build, exact canonical-tree parity and the existing regional browser matrix on combined source.
-- [ ] 4.2 Make browser-fixture setup and receipt writes fall inside their owning cleanup scopes — test: real context-setup and process.json-write faults close their owned context/API; negative: original cleanup placement leaves the owned resource alive and fails those assertions.
+- [x] 4.1 Merge private main 28a2c51 into the private candidate, preserving owner About/portrait, dark-theme changes and the approved compact card — test: private site tests/Astro build, exact canonical-tree parity and the existing regional browser matrix on combined source.
+- [x] 4.2 Make browser-fixture setup and receipt writes fall inside their owning cleanup scopes — test: real context-setup and process.json-write faults close their owned context/API; negative: original cleanup placement leaves the owned resource alive and fails those assertions.
 - [ ] 4.3 Review combined source and the Cloud launcher, run the reviewed regional matrix in Browser Use Cloud, confirm managed-browser/API shutdown and record exact artifacts — test:54 scenarios and explicit SDK stop receipt; production remains held.
+
+## Task 5: Restore first-screen controls with classic scrollbars
+
+- [ ] 5.1 Reproduce the Cloud320x568 failure locally with a real classic scrollbar using the unchanged regional driver — test: actual305px visual viewport and original zero-overlap assertion fail; capture screenshot/geometry.
+- [ ] 5.2 Adjust only short/narrow hero spacing while preserving approved typography, card and desktop layout — test: original first-screen heading/input/send and all54 regional cases pass with classic and overlay scrollbars; removing the fix reproduces the obstruction.
+- [ ] 5.3 Review the focused responsive fix and run the original full regional matrix in Browser Use Cloud, retaining both earlier failures and explicit cleanup evidence — test: final54cases plus browser/API stop, no assertion weakening.
