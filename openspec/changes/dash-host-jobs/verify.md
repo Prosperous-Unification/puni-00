@@ -2176,6 +2176,17 @@ may hold the job's files`. `wc`, a short-lived child of the other gate's steps, 
     suite's processes. "a leaving leader is inspected through its live thread" expects no holder
     and no outside-scope record. "a leaving leader's live thread holding a file still holds"
     has the thread hold a file in the locator and expects `live file hold remains charged`.
+- **S6C-A25 Launchers under test get a clean environment.** Run inside a real gate,
+  `launchers.test.ts` inherited `HEAVY_LOCK_LABEL=gate:<sha>`, which `bin/h2puni-gate.sh`
+  exports. Its release launcher then recorded `--label gate:37ca6254` where the case expects
+  `unlabeled`; the h2puni gate on 37ca6254a failed this way, and CI never sets the variable.
+  `cleanLauncherEnv` drops `HEAVY_LOCK_LABEL`, `HEAVY_LOCK_WAIT_SECONDS`,
+  `HEAVY_LOCK_POLL_SECONDS`, `HEAVY_LOCK_JOB_TYPE`, `DASH_JOB_ID`, `DASH_JOB_TYPE`,
+  `DASH_JOB_UNIT_*` and `HEAVY_JOB_ENROLLMENT` from every spawn in the file: the namespace rerun,
+  the launchers, the legacy holder, `ops pool init` and `switch-mode`, and the shim's argv. The
+  negative sets `HEAVY_LOCK_LABEL=gate:deadbeef` around "a gate runs beside a release build" and
+  still expects `--label unlabeled`. The production side, a nested `run_heavy_job` inheriting the
+  outer label, is owed by task 6.10.
 
 ### Commands (fresh, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, this workstation)
 
@@ -2334,6 +2345,16 @@ case:
   its SHA-256 equal.
 - `zombieOf` now throws a named error when its parent printed no pid, or when the pid was reaped
   before it became a zombie (review P5).
+
+### The environment fix (S6C-A25): commands
+
+- `launchers.test.ts`: 10/10 on two runs, then 10/10 with all eight variables exported in the
+  shell (`HEAVY_LOCK_LABEL=gate:leaked HEAVY_LOCK_WAIT_SECONDS=1800 HEAVY_LOCK_POLL_SECONDS=7
+HEAVY_LOCK_JOB_TYPE=gate DASH_JOB_ID=outer-job DASH_JOB_TYPE=gate
+DASH_JOB_UNIT_GATE_TREE=/nonexistent HEAVY_JOB_ENROLLMENT=enrolled`).
+- 6c-F21: with `launch` spreading `process.env` in place of `cleanLauncherEnv`, "a gate runs
+  beside a release build" failed, its output containing `deadbeef`. Restored with its SHA-256
+  equal.
 
 ### Skipped and unverified
 

@@ -160,7 +160,7 @@
       the file enrolls the host. `validate` reads linger, the checkouts, the token unit, the
       configuration's mode, owner and shape, and the units, then runs `ops pool inspect` and
       `ops job audit` once a ledger exists. No host was touched; the apply, the h2puni cleanup
-      and the converging proof stay in 6.3 (verify.md Slice 6c, S6C-A1 to S6C-A24).
+      and the converging proof stay in 6.3 (verify.md Slice 6c, S6C-A1 to S6C-A25).
 - [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
       `Restart=on-failure` and `KillMode=process` (beside the observation units of 4.2). It
       lands before 6.4, because observe mode needs a running `watch` (review H1 of #818). A host
@@ -222,6 +222,13 @@
       `checkout --detach origin/main` while no job runs from it, then a watch restart); until it
       lands that is a manual operator step (`docs/infra/gate-hosts.md`, S6C-A20) — test: the
       timer refuses while a job launched from the checkout runs.
+- [ ] 6.10 A nested `run_heavy_job` inherits the outer job's `HEAVY_LOCK_LABEL`: a `test:queued`
+      or solver publish started inside an admitted gate payload is labelled as the gate, on the
+      legacy lock and in Dash alike (found by slice 6c's h2puni gate on 37ca6254a, where
+      `launchers.test.ts` saw `--label gate:37ca6254`). `run_heavy_job` should refuse a nested
+      call, or re-label it `<outer label>/<own type>` when `DASH_JOB_ID` is already set — test:
+      a launcher run inside a fake admitted job records the derived label; negative: drop the
+      check and watch it record the outer label.
 - [ ] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
       (slice 3, #809) carries `descriptorDigest` and no durable locator, so this needs a locator
       for the run record and a decision on which digest WBS keeps — test: a returned host job's
