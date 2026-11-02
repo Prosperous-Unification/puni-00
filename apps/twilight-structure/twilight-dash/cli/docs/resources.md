@@ -278,7 +278,7 @@ workspace slots; a host job also reserves cores, memory and exclusive units.
 - **Mode and enrollment.** The ledger starts in mode `observe`; `enrollmentId` is pinned in its
   binding. The mode changes only through the fenced switch of slice 6, never the configuration.
 - **Admission is host-local.** No WBS call precedes a host job's reservation; it runs while WBS
-  is down. Its events wait in the ledger's `host_job_events` outbox for slice 5's projection.
+  is down. Its events wait in the ledger's `host_job_events` outbox for the WBS projection below.
 - **Refusals.** An envelope above `allocatable` in any dimension, or an exclusive id with no
   units, is refused at once (exit 73) naming the dimension and both figures, without a ticket.
   A free unit is handed out only when its tree is readable and clean; a dirty, deleted or broken
@@ -316,6 +316,35 @@ workspace slots; a host job also reserves cores, memory and exclusive units.
   `systemctl --user stop dash-job-<id>.scope`, after which settlement retries. Worktree cleanup
   and the unit check at `ops pool init` have no scope to compare against, so they still refuse
   (task 6.6).
+
+**WBS projection** (J10). WBS shows the pool and never admits for it. Each `synchronize` (every
+`watch` tick) first moves the unmoved `host_job_events` rows, oldest first and in one
+transaction, into the authority outbox as `resourceRuntimeUse` v2 (`kind: 'host_job'`, no
+planning link, `type`, `label`, the pool's `enrollmentId` as `host`, `launcherSha: null` (the launching checkout's HEAD) until
+the launcher records one, one reservation entry per envelope dimension and exclusive id): an
+admission becomes `registered`, the settlement that returns every entry becomes
+`release_verified` with the SHA-256 of that ledger row, the locator
+`dash-host-job://<authorityId>/<jobId>/<revision>` and disposition `returned`; launches and
+partial or blocked settlements stay local. They then publish through
+`putApiResourceAuthoritiesByAuthorityIdEvents` in the authority's one sequence with the
+worktree uses' events, so a WBS that answers nothing only delays them. WBS keeps each host job
+owned by the authority and its organization; the project resources read lists the unreturned
+ones beside every resource the authority's instance fulfils. A `report-capacity` binding may add
+`"source": "host_pool"` and a `dimension` (`cpuCores` beside `cpu_cores`, `memoryGib` beside
+`memory_gib`, `tmpDiskGib` beside `disk_gib`, an exclusive id beside `agent_slots`) with a
+top-level `"hostPool": {"ledger": "<root>/.dash/resources.sqlite"}`: the reporter, running on
+the pool's host, opens that ledger read-only and sends what unreleased host jobs reserve of the
+dimension as `reservedUnits`, with the dimension as `reservedDimension`, while `usageUnits`
+keeps the adapter's measurement. It reports again within two seconds of any admission or
+settlement (it polls the largest `host_job_events` sequence); opening the ledger fails the
+load `config_malformed` before any adapter opens, so run `resources init` first. The resources
+section then reads `Measured 15 GiB, 8 in use, 12 reserved by 2 jobs` and names only the jobs
+that reserve that dimension.
+
+Deploy WBS before Dash: an outgoing WBS without `resourceRuntimeUse` v2 refuses a host-job event
+`400`, and every later outbox event waits behind it. `synchronize` retries such a refusal for 30
+minutes from the first one, naming it on stderr each time, then throws, which stops `watch`.
+Run `watch` under a unit that restarts it (task 6.7).
 
 ### `ops pool` and `ops job` (slice 3)
 
