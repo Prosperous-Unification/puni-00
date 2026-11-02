@@ -35,6 +35,56 @@ function git(cwd: string, ...arguments_: string[]): { exitCode: number; stdout: 
   return { exitCode: execution.exitCode, stdout: execution.stdout.toString('utf8') };
 }
 
+/** A checkout's whole catalogue at its HEAD commit, as `propose` and `audit` read it (J9). */
+export interface CommittedCatalogue {
+  readonly checkout: string;
+  readonly revision: string;
+  readonly cataloguePath: string;
+  readonly jobs: readonly JobType[];
+}
+
+/** SHA-256 of a catalogue entry's JSON as the catalogue states it: what a run record pins. */
+export function descriptorDigestOf(jobType: JobType): string {
+  return createHash('sha256').update(JSON.stringify(jobType)).digest('hex');
+}
+
+/**
+ * The catalogue of the checkout holding `cwd`, read at that checkout's HEAD commit, never from
+ * the working tree. `command` prefixes every refusal.
+ * @throws OpsRefusal 64 when `cwd` is in no checkout or the revision has no catalogue; 70 when
+ * the catalogue at that revision is malformed.
+ */
+export function readCommittedCatalogue(cwd: string, command: string): CommittedCatalogue {
+  const top = git(cwd, 'rev-parse', '--show-toplevel');
+  if (top.exitCode !== 0)
+    throw new OpsRefusal(
+      64,
+      `${command}: ${cwd} is not inside a Git checkout with a job catalogue`,
+    );
+  const checkout = top.stdout.trim();
+  const head = git(checkout, 'rev-parse', '--verify', 'HEAD^{commit}');
+  if (head.exitCode !== 0) throw new OpsRefusal(64, `${command}: ${checkout} has no HEAD commit`);
+  const revision = head.stdout.trim();
+  const cataloguePath = `${checkout}/${JobCataloguePath}`;
+  const shown = git(checkout, 'show', `${revision}:${JobCataloguePath}`);
+  if (shown.exitCode !== 0)
+    throw new OpsRefusal(64, `${command}: ${cataloguePath} does not exist at ${revision}`);
+  try {
+    return {
+      checkout,
+      revision,
+      cataloguePath,
+      jobs: parseJobCatalogue(JSON.parse(shown.stdout) as unknown).jobs,
+    };
+  } catch (cause) {
+    throw new OpsRefusal(
+      70,
+      `${command}: ${cataloguePath} at ${revision} is malformed: ${causeText(cause)}`,
+      { cause },
+    );
+  }
+}
+
 /**
  * The job type `typeId` from the catalogue of the checkout holding `cwd`, read at that
  * checkout's HEAD commit, never from the working tree: the payload's revision is the commit the
@@ -106,7 +156,7 @@ export function readCataloguedJob(
     checkout,
     revision,
     cataloguePath,
-    descriptorDigest: createHash('sha256').update(JSON.stringify(jobType)).digest('hex'),
+    descriptorDigest: descriptorDigestOf(jobType),
   };
 }
 
@@ -125,4 +175,54 @@ export function currentHead(checkout: string): string | null {
  */
 export function hostClassOf(host: HostFacts): string {
   return `linux-${arch()}-${String(host.cpuCores())}c-${String(Math.floor(host.memoryGib()))}g`;
+}
+
+/**
+ * The toolchain a run record names (J9's partition): the version and revision of the `bun` the
+ * payload finds first on its `PATH`, such as `bun 1.4.4+0d9b296a`, or `no bun on PATH`, which is
+ * a toolchain too (slice 4 assumption S4-A2).
+ * @throws OpsRefusal 70 when a `bun` is on `PATH` but does not answer `--revision`: a record
+ * must not pin an unknown toolchain.
+ */
+export function toolchainOf(environment: Readonly<Record<string, string | undefined>>): string {
+  const bun = Bun.which('bun', { PATH: environment['PATH'] ?? '' });
+  if (bun === null) return 'no bun on PATH';
+  const answer = Bun.spawnSync([bun, '--revision'], {
+    env: { ...environment },
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+    timeout: 30_000,
+  });
+  const revision = answer.stdout.toString('utf8').trim();
+  // Proof: accepting any answer made `a bun that cannot name its revision refuses 70 before
+  // anything is reserved` (calibrate.test.ts) run the job, no refusal (2026-11-02, Slice 4).
+  if (answer.exitCode !== 0 || !/^\d+\.\d+\.\d+\S*$/.test(revision))
+    throw new OpsRefusal(
+      70,
+      `${bun} --revision answered exit ${String(answer.exitCode)} ${JSON.stringify(revision.slice(0, 60))}; the run's toolchain is unknown`,
+    );
+  return `bun ${revision}`;
+}
+
+export type { JobType };
+
+/**
+ * The jobs of a catalogue file's parsed JSON, through Burokrat's contract: the one way `ops`
+ * modules other than this one reach it.
+ * @throws Error naming what the contract refused.
+ */
+export function parseCatalogueJobs(input: unknown): readonly JobType[] {
+  return parseJobCatalogue(input).jobs;
+}
+
+/**
+ * The checkout a run record's catalogue path names (`<checkout>/infra/jobs/catalogue.json`).
+ * @throws Error when the path does not end in the catalogue path: only Dash writes it.
+ */
+export function checkoutOfCatalogue(cataloguePath: string): string {
+  const suffix = `/${JobCataloguePath}`;
+  if (!cataloguePath.endsWith(suffix))
+    throw new Error(`${cataloguePath} is not a checkout's ${JobCataloguePath}`);
+  return cataloguePath.slice(0, -suffix.length);
 }

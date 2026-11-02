@@ -12,7 +12,13 @@ import {
   loadResourceConfiguration,
   ResourceRuntime,
 } from '../resources/runtime';
-import { type CataloguedJob, currentHead, hostClassOf, readCataloguedJob } from './catalogue';
+import {
+  type CataloguedJob,
+  currentHead,
+  hostClassOf,
+  readCataloguedJob,
+  toolchainOf,
+} from './catalogue';
 import { checkDockerAvailable, ContainerWatch, dockerContainerEvidence } from './containers';
 import { causeText, OpsRefusal } from './refusal';
 import { HostJobRunRecords, type RunSample } from './run-records';
@@ -87,7 +93,10 @@ function statusOf(code: number | null, signal: NodeJS.Signals | null): number {
   return code;
 }
 
-/** The environment the payload starts with (J7). */
+/**
+ * The environment the payload starts with (J7). A calibration holds every unit of the pool; its
+ * payload is handed the first unit of each id its envelope names, as an ordinary run would be.
+ */
 function jobEnvironment(
   environment: Readonly<Record<string, string | undefined>>,
   job: HostJob,
@@ -100,8 +109,11 @@ function jobEnvironment(
   variables['DASH_JOB_ID'] = job.id;
   variables['DASH_JOB_TYPE'] = job.descriptor.id;
   variables['HEAVY_LOCK_LABEL'] = label;
-  for (const unit of job.units)
-    variables[`DASH_JOB_UNIT_${unit.exclusiveId.toUpperCase()}`] = unit.path;
+  for (const exclusiveId of job.descriptor.envelope.exclusive) {
+    const unit = job.units.find((held) => held.exclusiveId === exclusiveId);
+    if (unit === undefined) throw new Error(`host job ${job.id} holds no ${exclusiveId} unit`);
+    variables[`DASH_JOB_UNIT_${exclusiveId.toUpperCase()}`] = unit.path;
+  }
   return variables;
 }
 
@@ -132,7 +144,7 @@ function launchGated(
   const child = spawn(
     systemdRun,
     [
-      ...scopeArguments(unit, catalogued.descriptor),
+      ...scopeArguments(unit, catalogued.descriptor, job.calibration === true),
       '--',
       '/bin/sh',
       '-c',
@@ -303,11 +315,30 @@ interface Interruption {
  * after the gate opened is recorded and reported, never substituted for the payload's status.
  * @throws OpsRefusal for every refusal before the payload runs (64, 70, 73, 75, 129, 130, 143).
  */
-export async function runHostJob(
+export function runHostJob(request: JobRunRequest, deps: JobRunDependencies): Promise<number> {
+  return executeHostJob(request, deps, false);
+}
+
+/**
+ * Run one calibration of a host job (`dash-host-jobs` J9): as {@link runHostJob}, but admitted
+ * only once the pool has drained, holding the whole `allocatable` vector and every exclusive
+ * unit, in a scope with no `MemoryHigh` or `MemoryMax`, recorded as a calibration record.
+ * @throws OpsRefusal as {@link runHostJob} does; 75 when the pool did not drain within the wait.
+ */
+export function calibrateHostJob(
   request: JobRunRequest,
   deps: JobRunDependencies,
 ): Promise<number> {
+  return executeHostJob(request, deps, true);
+}
+
+async function executeHostJob(
+  request: JobRunRequest,
+  deps: JobRunDependencies,
+  isCalibration: boolean,
+): Promise<number> {
   const catalogued = readCataloguedJob(deps.cwd, request.type, request.argv);
+  const toolchain = toolchainOf(deps.environment);
   const typeId = catalogued.descriptor.id;
   let runtime: ResourceRuntime;
   try {
@@ -349,9 +380,15 @@ export async function runHostJob(
       catalogued.descriptor,
       `dash-probe-${randomUUID()}`,
       deps.user,
+      isCalibration,
     );
     const admission = await runtime.admitHostJob(
-      { descriptor: catalogued.descriptor, label: request.label, waitSeconds: request.waitSeconds },
+      {
+        descriptor: catalogued.descriptor,
+        label: request.label,
+        waitSeconds: request.waitSeconds,
+        ...(isCalibration ? { calibration: true as const } : {}),
+      },
       {
         pollMs: request.pollSeconds * 1000,
         signal: abort.signal,
@@ -380,6 +417,7 @@ export async function runHostJob(
       docker,
       containers,
       request,
+      toolchain,
       deps,
       interruption,
       (handler) => {
@@ -415,6 +453,7 @@ async function runAdmitted(
   docker: string | null,
   containers: ContainerEvidence,
   request: JobRunRequest,
+  toolchain: string,
   deps: JobRunDependencies,
   interruption: Interruption,
   onSignal: (handler: (signal: NodeJS.Signals) => void) => void,
@@ -537,6 +576,8 @@ async function runAdmitted(
         argumentProfile: catalogued.jobType.argumentProfile,
         argv: request.argv,
         hostClass: hostClassOf(deps.host),
+        toolchain,
+        ...(job.calibration === true ? { calibration: true as const } : {}),
         unit,
         cgroup,
         tmpDirectory: job.locator,

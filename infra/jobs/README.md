@@ -44,16 +44,21 @@ is a different profile. Dash refuses arguments that do not match (`parseJobArgum
 
 ## Heuristics (provisional)
 
-These figures are provisional and will change after the first calibrations:
+These figures are **provisional** and will change after the first calibrations. Dash keeps them
+in one place, `HEURISTICS` in
+[`measures.ts`](../../apps/twilight-structure/twilight-dash/cli/src/ops/measures.ts):
 
 - The proposal takes the **p95, nearest rank**, of complete, comparable records per dimension,
   partitioned by argument profile, host class and toolchain. Memory comes from runs that were
-  neither capped nor throttled; CPU is the peak ten-second interval, from calibration runs.
-- It multiplies by **1.25** and rounds up to whole units.
-- It needs at least **three** complete calibration records per dimension, or it refuses and names
-  the count.
-- `waste` drift is a p95 below half the envelope over **ten** or more complete runs. An `overrun`
-  stays visible until an accepted envelope supersedes it.
+  neither capped nor throttled. CPU is the peak rate over a **ten-second** window, and duration
+  is reported, from calibration runs alone. Tmp disk comes from every complete run.
+- It multiplies by **1.25** (provisional) and rounds up to whole units.
+- It needs at least **three** (provisional) complete records per dimension, calibration records
+  for CPU and duration, or it refuses and names the count.
+- `waste` drift is a p95 below half the envelope over **ten** (provisional) or more complete
+  runs. An `overrun` stays visible until an accepted envelope supersedes it. Accepted means the
+  entry at HEAD covers the peak, or the entry changed after the run to `calibrated` provenance.
+  Overruns never age out.
 
 ## Changing an envelope
 
@@ -64,4 +69,6 @@ Nothing writes this file but a reviewed commit. The loop is:
 3. The patch lands as a pull request; `JOB-CATALOGUE` judges it like any other change.
 4. `twilight-dash ops job audit` names drift on later runs, and the loop starts again.
 
-The `ops job` commands are planned in later slices of `dash-host-jobs` and do not exist yet.
+The commands are described in the Dash
+[host jobs guide](../../apps/twilight-structure/twilight-dash/cli/docs/resources.md#calibration-proposal-and-audit-slice-4).
+Cold, warm and two-job concurrent validation precede enabling concurrency on a host (task 6.5).

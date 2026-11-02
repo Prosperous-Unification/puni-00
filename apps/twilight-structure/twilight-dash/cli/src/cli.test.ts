@@ -455,12 +455,25 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
     // Proof: adding `ops job audit` to the parser and not to `opsHandlers` failed this
     // assertion with `+ "job audit"` (2026-11-01, Slice 3).
     expect(opsParserWords()).toEqual(Object.keys(opsHandlers).sort());
-    expect(opsParserWords()).toEqual(['job run', 'job status', 'pool init', 'pool inspect']);
+    expect(opsParserWords()).toEqual([
+      'job audit',
+      'job calibrate',
+      'job propose',
+      'job render-audit-units',
+      'job run',
+      'job status',
+      'pool init',
+      'pool inspect',
+    ]);
   });
 
   test('runOps refuses ops words no handler takes', async () => {
     // A JavaScript caller bypassing the parser; the type admits only declared words.
-    const bypass = { command: 'ops', words: 'job audit', config: 'x' } as unknown as OpsCommand;
+    const bypass = {
+      command: 'ops',
+      words: 'pool switch-mode',
+      config: 'x',
+    } as unknown as OpsCommand;
     let refusal: unknown;
     try {
       await runOps(bypass, {
@@ -478,7 +491,7 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
       refusal = cause;
     }
     expect(refusal instanceof Error && refusal.message).toBe(
-      'Unsupported Dash command: ops job audit',
+      'Unsupported Dash command: ops pool switch-mode',
     );
   });
 
