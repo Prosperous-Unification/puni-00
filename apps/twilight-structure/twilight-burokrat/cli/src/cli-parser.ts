@@ -5,6 +5,8 @@ import {
   constant,
   formatUsage,
   type InferValue,
+  lineBreak,
+  type Message,
   message,
   type NonEmptyString,
   object,
@@ -614,6 +616,36 @@ function refusalOf(
   return `${usage} (${reason})`;
 }
 
+/**
+ * The help footer: each delegated command of `grammar` with its module's documented grammar,
+ * which the generated usage shows only as `[...]`.
+ * Proof: dropping the footer failed `buildPackage > builds the canonical executable for use
+ * outside the repository` (packaging/build.test.ts), whose help lacked
+ * `twilight-burokrat check <committed|staged|working>` (2026-11-02).
+ */
+function delegatedFooter(grammar: Grammar<Parser>): Message {
+  const names = new Set(commandNamesOf(grammar));
+  const lines = Object.entries(delegatedGrammars)
+    .filter(([words]) => names.has(words.split(' ')[0]))
+    .flatMap(([words, grammarText]) => wrapGrammar(`${programName} ${words} ${grammarText}`));
+  return [text('Commands that parse their own arguments:'), ...lines];
+}
+
+/**
+ * One grammar as footer lines of at most 100 columns, broken between words and continued with a
+ * deeper indent, so `run`'s own wrapping at 120 never splits a line and leaves a trailing space.
+ */
+function wrapGrammar(grammarLine: string): Message {
+  const lines: string[] = [];
+  for (const word of grammarLine.split(' ')) {
+    const last = lines.at(-1);
+    if (last !== undefined && last.length + 1 + word.length <= 100)
+      lines[lines.length - 1] = `${last} ${word}`;
+    else lines.push(last === undefined ? `  ${word}` : `      ${word}`);
+  }
+  return lines.flatMap((line) => [lineBreak(), text(line)]);
+}
+
 /** The exit that ends `run` after it printed help, a version or a completion script. */
 class Printed extends Error {
   override readonly name = 'Printed';
@@ -675,6 +707,7 @@ export function readInvocation<T extends Parser>(
       aboveError: 'none',
       help: 'both',
       completion: 'command',
+      footer: delegatedFooter(grammar),
       ...(options.version === undefined ? {} : { version: options.version }),
     });
     return { kind: 'command', command: parsed };

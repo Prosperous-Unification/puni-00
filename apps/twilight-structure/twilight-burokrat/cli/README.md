@@ -160,6 +160,17 @@ Usage: twilight-burokrat validate-progress-receipt RECEIPT-JSON PLAN-REFERENCE-J
   --help                      Show help information.
   --version                   Show version information.
 
+Commands that parse their own arguments:
+  twilight-burokrat check <committed|staged|working> <repository> <revision-or-base>
+      <rule-policy-json> [--rule <rule-id>] [--performance-evidence <json>] [--now <UTC instant>]
+  twilight-burokrat explain <rule-id> [<repository> <rule-policy-json>]
+  twilight-burokrat scenario <import|allocate|validate> <repository> <openspec-spec-path>
+      [--predecessor <id>]
+  twilight-burokrat template <list|show <id>|verify <id> <committed|staged|working> <repository>
+      <revision-or-base> <subject>>
+  twilight-burokrat validate workflow-binding <file> --steps <comma-list>
+  twilight-burokrat prepare-activation <flags>
+  twilight-burokrat prepare-relocation-activation <flags>
 ```
 
 ## Checks

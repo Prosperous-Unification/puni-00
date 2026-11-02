@@ -208,11 +208,11 @@ describe('buildPackage', () => {
     );
     expect(ruleHelp.stdout.toString()).toContain('twilight-burokrat explain <rule-id>');
     expect(ruleHelp.stdout.toString()).toContain(
-      'twilight-burokrat validate-plan-tasks <plan-reference.json> <tasks.json>',
+      'twilight-burokrat validate-plan-tasks PLAN-REFERENCE-JSON TASKS-JSON',
     );
 
     expect(ruleHelp.stdout.toString()).toContain(
-      'twilight-burokrat validate-progress-receipt <receipt.json> <plan-reference.json> <tasks.json>',
+      'twilight-burokrat validate-progress-receipt RECEIPT-JSON PLAN-REFERENCE-JSON TASKS-JSON',
     );
 
     const templateHelp = invoke(executable, ['--help'], externalRoot);

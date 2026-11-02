@@ -556,9 +556,10 @@ function printedBy<T extends Parser>(grammar: Grammar<T>, argv: string[]) {
   return printed;
 }
 
-/** The command names the generated help lists, one per line of its command section. */
+/** The command names the generated help lists, one per line of its command section, above the footer. */
 function helpCommands(help: string): string[] {
-  return [...help.matchAll(/^ {2}([a-z][a-z0-9-]*) /gmu)]
+  const commandSection = help.split('Commands that parse their own arguments:')[0];
+  return [...commandSection.matchAll(/^ {2}([a-z][a-z0-9-]*) /gmu)]
     .map((match) => match[1])
     .filter((name) => name !== 'help' && name !== 'completion');
 }
