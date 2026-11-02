@@ -40,6 +40,11 @@ export interface FixtureRun {
   argumentProfile?: string;
   containers?: ContainerVerdict[];
   startedAt?: number;
+  telemetryFailure?: string;
+  ledgerFailure?: string;
+  /** Ended, but its last sample is an interval: the exit sample was never stored. */
+  noExitSample?: boolean;
+  cataloguePath?: string;
 }
 
 /**
@@ -61,7 +66,12 @@ export function runRecord(catalogue: CommittedCatalogue, run: FixtureRun): RunRe
   ];
   if (at.at(-1) !== seconds) at.push(seconds);
   const samples: RunSample[] = at.map((second, index) => ({
-    kind: index === 0 ? 'gate' : index === at.length - 1 && ended ? 'exit' : 'interval',
+    kind:
+      index === 0
+        ? 'gate'
+        : index === at.length - 1 && ended && run.noExitSample !== true
+          ? 'exit'
+          : 'interval',
     observedAt: startedAt + second * 1000,
     counters: {
       memoryPeak: index === 0 ? 0 : peak,
@@ -88,7 +98,7 @@ export function runRecord(catalogue: CommittedCatalogue, run: FixtureRun): RunRe
       enforcement: jobType.enforcement,
     },
     descriptorDigest: descriptorDigestOf(jobType),
-    cataloguePath: catalogue.cataloguePath,
+    cataloguePath: run.cataloguePath ?? catalogue.cataloguePath,
     launcherSha: catalogue.revision,
     argumentProfile: run.argumentProfile ?? jobType.argumentProfile,
     argv: ['bin/payload.sh'],
@@ -103,8 +113,8 @@ export function runRecord(catalogue: CommittedCatalogue, run: FixtureRun): RunRe
     endedAt: ended ? startedAt + seconds * 1000 : null,
     exitCode: ended ? (run.exitCode ?? 0) : null,
     signal: null,
-    telemetryFailure: null,
-    ledgerFailure: null,
+    telemetryFailure: run.telemetryFailure ?? null,
+    ledgerFailure: run.ledgerFailure ?? null,
     attributionIncomplete: containers.some((container) => container.verdict !== 'bounded'),
     containers,
     peakMemoryBytes: peak,

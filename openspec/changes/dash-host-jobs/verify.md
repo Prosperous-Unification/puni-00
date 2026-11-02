@@ -796,3 +796,114 @@ and 3 (overruns aged out after five runs: the eight-runs-later fixture passes wi
   malformed catalogue path.
 - `ops job status` shows a calibration's catalogue envelope on its running line. The pool line's
   `reserved` shows the whole vector; no `calibration` marker was added.
+
+### Review fixes (Fable, PR #814 at `f07b9c74f`, MERGE AFTER FIXES)
+
+Applied on `feat/dash-host-jobs-4-calibrate`, 2026-11-02. `plan/dash-host-jobs` (head `c01dae8d5`)
+was not merged in: #811 lands first.
+
+- **A1** `ops job audit`'s overrun clears only when the HEAD entry's envelope is at least the
+  peak. The second disjunct (a changed `calibrated` entry) was deleted, matching the spec
+  scenario "An overrun is drift". The test now expects the overrun under a calibrated 6 GiB
+  entry, and the docs sentences were dropped (S4-A8 amended).
+- **A2** The audit judges every record by job id against the catalogue of the checkout it runs
+  in. The per-record `readCommittedCatalogue` loop is gone, so a record from a deleted scratch
+  worktree no longer refuses the weekly audit (`auditDrift` takes one catalogue).
+- **A3** `HostJob.reserved: PoolVector` is persisted at admission: `allocatable()` for a
+  calibration, else envelope, tmp disk units and one slot. `reservations()` sums it. A row
+  written before this fix has no `reserved`; the shape keeps it optional and `hostJobOf` derives
+  it from the descriptor on read, as `reservations()` did before (tested). Slice 5's
+  `hostJobDeclaration` will read `job.reserved` and group `job.units` by id after #811; not done
+  here.
+- **A4** The model (`host-jobs.model.test.ts`) gains a real calibration type (`calibration:
+true`, a gate naming `gate_tree`). It is admitted only on a drained model pool, is charged
+  the whole `allocatable` vector and both trees, and is exited and settled like any job. An
+  example walks build, calibration waiting, calibration admitted, gate waiting, gate admitted.
+  New invariants: held units never exceed the pool's, never double-held, and equal the
+  model's. Coverage counters `drainedCalibration` and `calibrationWaited` must be reached.
+- **A5** A calibration requires and holds every unit of each id its **type** names; other ids'
+  units are untouched (S4-A14).
+- **A6** A refusal at the end of the wait names a free-space shortfall: free bytes, needed
+  bytes, disk units and headroom.
+- **A7** `ops job status` prints `running calibration <type> …` and `waiting calibration
+<type> …` (`HostJobTicket.calibration`).
+- **A8** `propose` names a record of the type admitted from another catalogue path (`excluded
+… another catalogue: <path>`).
+- **A9** `provenance.recordIds` leaves out records excluded from any dimension (throttled or
+  capped), which the dimension lines still cite (S4-A16).
+- **A10** J9's "window" is, until a window is designed, the partition's entire history
+  (S4-A15), stated in `docs/resources.md` and `infra/jobs/README.md`.
+- **A11** The unit files are written `wx` with mode 0600, as `render-observation-units` writes
+  its bundle. Both names are checked first, so no half pair is left.
+- **A12** The parser, README and catalogue README say "replacement catalogue entry", not
+  "patch".
+- **A13** The negatives below. `auditInstant` also gains a round trip, because
+  `2026-02-30T00:00:00Z` passes the pattern and `Date.parse` rolls it to 2 March. Waste's
+  `declared === 0` skip was removed rather than proved: no p95 is below half of zero.
+  `checkoutOfCatalogue` was removed with A2.
+
+#### New assumptions (overrulable by id)
+
+- **S4-A14** A calibration holds every unit of the exclusive ids its type names, and only
+  those. A type naming none holds no unit and is not blocked by another id's dirty tree. Other
+  jobs still cannot start beside it, because it holds every core and GiB.
+- **S4-A15** J9's "window" is the partition's entire run history until a window (count or
+  age) is designed.
+- **S4-A16** `provenance.recordIds` cites the records that fed every dimension they were
+  eligible for. The `calibrated` provenance has one id list, not one per dimension.
+- **S4-A17** A ledger row without `reserved` (written before this fix) reads its reservation
+  from its descriptor: the envelope, its tmp disk units and one slot, or `allocatable` if
+  flagged `calibration`. No such calibration row exists outside this branch's tests.
+
+#### Fault injection (review fixes)
+
+Same method as above: scratch-script replacement, the named file run with `CLAUDECODE` and
+`CLAUDE_CODE_ENTRYPOINT` unset, byte-for-byte restore with SHA-256 equal in every row.
+
+| Fault injected                                                                        | Test that went red                                                                              | Observed                                                                                                             |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| A1 calibrated-entry disjunct restored                                                 | `a calibrated entry that does not cover the peak keeps the overrun`                             | the overrun line missing                                                                                             |
+| A2 audit reads each record's own checkout                                             | `three calibrations …; audit reads them` (vanished-checkout record)                             | exit 64, expected 0                                                                                                  |
+| A3 `reservations()` sums the envelope's cores                                         | `a calibration holds the whole allocatable vector`                                              | cpuCores 4, expected 8                                                                                               |
+| A3 admission persists the envelope for a calibration                                  | `… holds the whole allocatable vector`, `… waits for the pool to drain`                         | the gate's envelope, not `allocatable`                                                                               |
+| A3 legacy-row fallback dropped                                                        | `a ledger row written before reserved was persisted reads it from its descriptor`               | no reservation read                                                                                                  |
+| A4 drain fit skipped (model)                                                          | `the admission queue and settlement follow the model under every interleaving`                  | property failed after 3 tests: `waiting` expected, `admitted`                                                        |
+| A5 a calibration claims none of its ids' units                                        | `a calibration of a gate holds every gate tree`, `… whole allocatable vector`, end-to-end tests | neither tree held                                                                                                    |
+| A5 drain checks every unit of the pool                                                | `a calibration of a type naming no unit holds none and ignores a dirty tree`                    | refused, expected admission                                                                                          |
+| A13a unit readiness dropped from `drained()`                                          | `a calibration waits while a unit of its type is dirty`                                         | `host pool unit vanished during admission`                                                                           |
+| A13a free space dropped from `drained()`                                              | `a calibration waits for free space for the whole disk budget, naming the shortfall`            | `admitted`, expected `refused`                                                                                       |
+| A13a starting/held dropped from `drained()`                                           | none: stayed green                                                                              | see below                                                                                                            |
+| A6 shortfall text silent                                                              | `… naming the shortfall`                                                                        | refusal without the free-space clause                                                                                |
+| A7 `calibration` word dropped                                                         | `a second calibration waits behind the first; status names both`                                | running line without it                                                                                              |
+| A8 other-catalogue record skipped silently                                            | `a record from another catalogue is named and left out`                                         | no `excluded` line                                                                                                   |
+| A9 every source cited                                                                 | `a throttled run does not lower the proposal`                                                   | `throttled` in recordIds                                                                                             |
+| A11 units written 0644                                                                | `writes both files owner-only and replaces neither`                                             | modes 644                                                                                                            |
+| A13d capped branch dropped                                                            | `a capped run is left out of memory, named`                                                     | memoryGib 3, expected 2                                                                                              |
+| A13e each of telemetry, ledger, attribution, exit-sample branches dropped (four runs) | `each kind of incomplete record is named and left out`                                          | memoryGib 12, expected 5, each time                                                                                  |
+| A13f each of the four `readCommittedCatalogue` refusals dropped (four runs)           | `propose refuses a checkout without a usable catalogue, and an uncatalogued type`               | exit 1 outside a checkout; "does not exist" for no HEAD; 70 for no catalogue; the contract's own error for malformed |
+| A13f uncatalogued-type refusal dropped                                                | same test                                                                                       | threw from `proposeEnvelope`, no 64                                                                                  |
+| A13g `isFinite` dropped                                                               | `--now must be an ISO instant`                                                                  | `RangeError: Invalid Date` for `2026-13-45T00:00:00Z`                                                                |
+| A13g round trip dropped                                                               | `--now must be an ISO instant`                                                                  | exit 0 for `2026-02-30T00:00:00Z`                                                                                    |
+| A13h zero-container coverage allowed                                                  | `a later run that started no container does not clear attribution_incomplete`                   | no drift                                                                                                             |
+| A13i version pattern dropped (exit status kept)                                       | `a bun that answers its revision with garbage refuses 70`                                       | no refusal: the job ran                                                                                              |
+| A13b drain fit and whole-vector reservation both dropped                              | `a second calibration waits behind the first; status names both`                                | `admitted` (either alone stayed green)                                                                               |
+
+Not provable alone from the production path, so stated rather than tested:
+
+- **`drained()`'s "no starting or held host job" conjunct.** The catalogue contract gives every
+  type at least one core and one GiB, and every starting or held job also holds a workspace
+  slot, so the reserved-is-zero conjunct already refuses. It stays as a guard for a
+  zero-envelope runtime descriptor; dropping it stayed green.
+- **A13b.** The second calibration is kept out by two independent checks; each alone suffices.
+  The double fault is the proof.
+- **A13c.** A calibration naming an id with no units is refused 73 by the existing `oversize`
+  check, which the calibration does not skip for exclusive ids. Tested as `a calibration naming
+an exclusive id with no units is refused 73` (an example, not a new check).
+- **A13j.** The waste `declared === 0` skip was removed, not proved (above).
+
+#### Commands (fresh, review fixes; no full target, as the coordinator asked)
+
+| Command                                                                                                                                                                                   | Result                                                                                                                                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bun test` `src/ops/propose`, `audit`, `audit-units`, `calibrate`, `status`, `job-run`, `src/cli`, `src/no-ambient-clock`, `src/resources/host-jobs`, `host-jobs.model`, `host-job-holds` | 8, 11, 3, 18 (namespace), 5, 44, 55, 2 pass; the namespaced `host-jobs`, `host-jobs.model`, `host-job-holds` wrappers pass (`host-job-holds` 5 pass); 0 fail |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`, `:lint --skip-nx-cache`                                                                                                            | each `Successfully ran target`                                                                                                                               |

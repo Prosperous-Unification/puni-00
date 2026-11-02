@@ -100,7 +100,7 @@ describe('ops job propose (task 4.1, J9)', () => {
     );
     expect(
       proposal.entry.provenance.kind === 'calibrated' && proposal.entry.provenance.recordIds,
-    ).toContain('throttled');
+    ).not.toContain('throttled');
   });
 
   test('too few records', () => {
@@ -146,6 +146,48 @@ describe('ops job propose (task 4.1, J9)', () => {
       'excluded calibration failed: incomplete: payload exit 1',
       'excluded calibration running: incomplete: no outcome recorded (running, or its launcher died)',
       'excluded calibration slice-3: no toolchain identity (recorded before slice 4)',
+    ]);
+  });
+
+  test('a record from another catalogue is named and left out', () => {
+    const proposal = propose('gate', [
+      ...calibrations(4, 4, 4),
+      {
+        id: 'scratch',
+        calibration: true,
+        memoryGib: 9,
+        cataloguePath: '/scratch/infra/jobs/catalogue.json',
+      },
+    ]);
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.entry.envelope.memoryGib).toBe(5);
+    expect(proposal.lines).toContain(
+      'excluded calibration scratch: another catalogue: /scratch/infra/jobs/catalogue.json',
+    );
+  });
+
+  test('each kind of incomplete record is named and left out', () => {
+    const proposal = propose('gate', [
+      ...calibrations(4, 4, 4),
+      { id: 'telemetry', calibration: true, memoryGib: 9, telemetryFailure: 'interval: gone' },
+      { id: 'ledger', calibration: true, memoryGib: 9, ledgerFailure: 'exit unrecorded' },
+      {
+        id: 'unattributed',
+        calibration: true,
+        memoryGib: 9,
+        containers: [{ id: 'abc', verdict: 'unlabelled', reason: 'no puni.job label' }],
+      },
+      { id: 'no-exit', calibration: true, memoryGib: 9, noExitSample: true },
+    ]);
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    // Proof: dropping any one of these four branches of `incompleteness` (measures.ts) made
+    // this test propose memoryGib 12 from that record's 9 GiB (2026-11-02, review A13).
+    expect(proposal.entry.envelope.memoryGib).toBe(5);
+    expect(proposal.lines.filter((line) => line.startsWith('excluded'))).toEqual([
+      'excluded calibration telemetry: incomplete: telemetry failure: interval: gone',
+      'excluded calibration ledger: incomplete: ledger failure: exit unrecorded',
+      'excluded calibration unattributed: incomplete: container attribution incomplete',
+      'excluded calibration no-exit: incomplete: no exit sample',
     ]);
   });
 

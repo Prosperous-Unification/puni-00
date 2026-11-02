@@ -56,16 +56,16 @@ in one place, `HEURISTICS` in
 - It needs at least **three** (provisional) complete records per dimension, calibration records
   for CPU and duration, or it refuses and names the count.
 - `waste` drift is a p95 below half the envelope over **ten** (provisional) or more complete
-  runs. An `overrun` stays visible until an accepted envelope supersedes it. Accepted means the
-  entry at HEAD covers the peak, or the entry changed after the run to `calibrated` provenance.
-  Overruns never age out.
+  runs. An `overrun` stays visible until the entry at HEAD carries an envelope of at least the
+  peak; a new provenance alone does not clear it, and overruns never age out.
+- The proposal's window is, for now, the partition's entire run history (provisional).
 
 ## Changing an envelope
 
 Nothing writes this file but a reviewed commit. The loop is:
 
 1. `twilight-dash ops job calibrate --type <id> -- <argv>` runs the job alone and records it.
-2. `twilight-dash ops job propose --type <id>` prints a catalogue patch with the record ids.
+2. `twilight-dash ops job propose --type <id>` prints the replacement catalogue entry with the record ids.
 3. The patch lands as a pull request; `JOB-CATALOGUE` judges it like any other change.
 4. `twilight-dash ops job audit` names drift on later runs, and the loop starts again.
 

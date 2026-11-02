@@ -271,6 +271,13 @@ export interface HostJob {
    * exclusive unit of the pool, not its envelope, until each entry settles.
    */
   calibration?: true;
+  /**
+   * What this job reserves while its entries are outstanding (J4, J9): cores and memory until
+   * `compute` settles, disk units and slots until `tmpDisk` settles. The envelope, its tmp disk
+   * and one slot for a run; the whole `allocatable` vector at admission for a calibration.
+   * A ledger row written before slice 4's review fix has none and reads it from its descriptor.
+   */
+  reserved: PoolVector;
   compute: HostJobEntry;
   tmpDisk: HostJobEntry;
   units: HostJobUnit[];
@@ -306,6 +313,12 @@ const HostJobShape = type({
   exitCode: 'number.integer | null',
   'launchFailure?': 'string > 0',
   'calibration?': 'true',
+  'reserved?': type({
+    cpuCores: 'number.integer >= 0',
+    memoryGib: 'number.integer >= 0',
+    diskUnits: 'number.integer >= 0',
+    workspaceSlots: 'number.integer >= 0',
+  }).onUndeclaredKey('reject'),
   compute: HostJobEntryShape,
   tmpDisk: HostJobEntryShape,
   units: type({
@@ -346,6 +359,8 @@ export interface HostJobTicket {
   arrivedAt: number;
   deadline: number;
   overtakes: number;
+  /** A calibration's ticket (J9), which waits for the pool to drain. */
+  calibration: boolean;
 }
 /**
  * One poll's outcome. `refused` carries the exit code the delivery command returns: 73 for an
@@ -2052,23 +2067,18 @@ export class ResourceRuntime {
       vector.diskUnits += use.request.diskUnits;
       vector.workspaceSlots += 1;
     }
-    const allocatable = this.allocatable();
     for (const job of this.listHostJobs()) {
-      // A calibration holds the whole vector while its entries are outstanding (J9).
-      // Proof: charging its envelope here made `a calibration holds the whole allocatable
-      // vector` (calibrate.test.ts) reserve 2 cores and 0 disk units, not the 8 and 16
-      // allocatable (2026-11-02, Slice 4).
+      // Each job charges what it persisted at admission; a calibration persisted `allocatable`.
+      // Proof: summing the envelope here made `a calibration holds the whole allocatable
+      // vector` (calibrate.test.ts) reserve the gate's 4 cores, not the 8 allocatable
+      // (2026-11-02, Slice 4 review A3).
       if (job.compute.state !== 'released') {
-        vector.cpuCores += job.calibration
-          ? allocatable.cpuCores
-          : job.descriptor.envelope.cpuCores;
-        vector.memoryGib += job.calibration
-          ? allocatable.memoryGib
-          : job.descriptor.envelope.memoryGib;
+        vector.cpuCores += job.reserved.cpuCores;
+        vector.memoryGib += job.reserved.memoryGib;
       }
       if (job.tmpDisk.state !== 'released') {
-        vector.diskUnits += job.calibration ? allocatable.diskUnits : job.diskUnits;
-        vector.workspaceSlots += job.calibration ? allocatable.workspaceSlots : 1;
+        vector.diskUnits += job.reserved.diskUnits;
+        vector.workspaceSlots += job.reserved.workspaceSlots;
       }
       for (const unit of job.units) if (unit.state !== 'released') units.set(unit.path, job.id);
     }
@@ -2076,11 +2086,36 @@ export class ResourceRuntime {
   }
   /** Measured free bytes cover every reservation growing to its full size, plus headroom. */
   private freeSpaceCovers(diskUnits: number): boolean {
+    return this.freeSpaceShortfall(diskUnits) === null;
+  }
+  /** Why measured free bytes do not cover `diskUnits` plus headroom, with both figures, or null. */
+  private freeSpaceShortfall(diskUnits: number): string | null {
     const available = statfsSync(this.configuration.root);
-    return (
-      diskUnits * this.configuration.diskUnitBytes + this.configuration.headroomBytes <=
-      available.bavail * available.bsize
-    );
+    const needed = diskUnits * this.configuration.diskUnitBytes + this.configuration.headroomBytes;
+    const free = available.bavail * available.bsize;
+    return needed <= free
+      ? null
+      : `free space ${String(free)} bytes under ${this.configuration.root} is below the ${String(needed)} needed (${String(diskUnits)} disk units plus ${String(this.configuration.headroomBytes)} bytes headroom)`;
+  }
+  /**
+   * A persisted host-job snapshot. Only this class writes the owner-only ledger, so malformed
+   * JSON throws rather than defaulting; a row from before `reserved` was persisted (slice 4
+   * review A3) reads it from its descriptor, as `reservations()` computed it then.
+   */
+  private hostJobOf(snapshot: string): HostJob {
+    const parsed = HostJobShape.assert(JSON.parse(snapshot));
+    // Proof: dropping the fallback made `a ledger row written before `reserved` was persisted
+    // reads it from its descriptor` (calibrate.test.ts) read no reservation (2026-11-02, A3).
+    if (parsed.reserved !== undefined) return { ...parsed, reserved: parsed.reserved };
+    const reserved = parsed.calibration
+      ? this.allocatable()
+      : {
+          cpuCores: parsed.descriptor.envelope.cpuCores,
+          memoryGib: parsed.descriptor.envelope.memoryGib,
+          diskUnits: parsed.diskUnits,
+          workspaceSlots: 1,
+        };
+    return { ...parsed, reserved };
   }
   private diskUnitsOf(descriptor: JobTypeDescriptor): number {
     return Math.ceil((descriptor.envelope.tmpDiskGib * GIB) / this.configuration.diskUnitBytes);
@@ -2091,15 +2126,14 @@ export class ResourceRuntime {
       .query<{ snapshot: string }, [string]>('SELECT snapshot FROM host_jobs WHERE id=?')
       .get(id);
     if (!row) throw new Error('host job not found');
-    // Only this class writes the owner-only ledger; malformed JSON throws rather than defaulting.
-    return HostJobShape.assert(JSON.parse(row.snapshot));
+    return this.hostJobOf(row.snapshot);
   }
   /** Every host job, released history included, oldest admission first. */
   listHostJobs(): HostJob[] {
     return this.db
       .query<{ snapshot: string }, []>('SELECT snapshot FROM host_jobs ORDER BY rowid')
       .all()
-      .map((row) => HostJobShape.assert(JSON.parse(row.snapshot)));
+      .map((row) => this.hostJobOf(row.snapshot));
   }
   /**
    * Record a host job's change with the reservation it leaves, in the caller's transaction:
@@ -2158,6 +2192,7 @@ export class ResourceRuntime {
       arrivedAt: row.arrived_at,
       deadline: row.deadline,
       overtakes: row.overtakes,
+      calibration: this.ticketRequest(row).calibration === true,
     };
   }
   private ticketRequest(row: TicketRow): HostJobRequest {
@@ -2318,25 +2353,47 @@ export class ResourceRuntime {
         (this.configuration.exclusiveUnits[exclusiveId] ?? []).find(
           (path) => !held.has(path) && 'commit' in ready(path),
         );
+      const unitsOf = (descriptor: JobTypeDescriptor): string[] =>
+        descriptor.envelope.exclusive.flatMap((id) => this.configuration.exclusiveUnits[id] ?? []);
+      /** This waiter's free-space shortfall for its refusal, with both figures, or nothing. */
+      const shortfall = (): string => {
+        const own =
+          request.calibration === true
+            ? allocatable.diskUnits
+            : reserved.diskUnits + this.diskUnitsOf(request.descriptor);
+        const short = this.freeSpaceShortfall(own);
+        return short === null ? '' : `; ${short}`;
+      };
       const unavailable = (): string => {
         const named = [...readiness].flatMap(([path, verdict]) =>
           'reason' in verdict ? [`${path} (${verdict.reason})`] : [],
         );
         return named.length === 0 ? '' : `; units not free: ${named.join(', ')}`;
       };
-      const drained = (): boolean =>
+      /**
+       * Whether a calibration of `descriptor` may start: nothing reserved in any dimension, no
+       * starting or held host job, free space for the whole disk budget, and every unit of
+       * every id the type names neither held nor unready. Units of other ids are not its
+       * concern (S4-A14).
+       */
+      const drained = (descriptor: JobTypeDescriptor): boolean =>
         POOL_DIMENSIONS.every((dimension) => reserved[dimension] === 0) &&
-        held.size === 0 &&
+        // Unreachable alone through the catalogue (every type has a core and a GiB, so every
+        // starting or held job reserves); kept for a zero-envelope descriptor (verify.md).
         this.listHostJobs().every((job) => job.state !== 'starting' && job.state !== 'held') &&
+        // Proof: without it `a calibration waits for free space for the whole disk budget,
+        // naming the shortfall` (calibrate.test.ts) admitted it (2026-11-02, Slice 4 review A13).
         this.freeSpaceCovers(allocatable.diskUnits) &&
-        Object.values(this.configuration.exclusiveUnits)
-          .flat()
-          .every((path) => 'commit' in ready(path));
+        // Proof: without the readiness check `a calibration waits while a unit of its type is
+        // dirty` (calibrate.test.ts) threw `host pool unit vanished during admission`; checking every unit of
+        // the pool made `… naming no unit holds none and ignores a dirty tree` refuse it 75
+        // (2026-11-02, review A5, A13).
+        unitsOf(descriptor).every((path) => !held.has(path) && 'commit' in ready(path));
       const fits = (row: TicketRow): boolean => {
         const { descriptor, calibration } = this.ticketRequest(row);
         // Proof: admitting a calibration on the envelope fit made `a calibration waits for
         // the pool to drain` (calibrate.test.ts) admit it beside a held gate (2026-11-02, Slice 4).
-        if (calibration === true) return drained();
+        if (calibration === true) return drained(descriptor);
         const diskUnits = this.diskUnitsOf(descriptor);
         return (
           vectorFits(
@@ -2359,7 +2416,7 @@ export class ResourceRuntime {
       if (chosen?.id !== ticket) {
         if (now >= mine.deadline)
           return refuse(
-            `${named}: no room within its wait budget of ${String(request.waitSeconds)}s; ahead: ${aheadText()}${unavailable()}`,
+            `${named}: no room within its wait budget of ${String(request.waitSeconds)}s; ahead: ${aheadText()}${unavailable()}${shortfall()}`,
           );
         return {
           kind: 'waiting',
@@ -2386,13 +2443,17 @@ export class ResourceRuntime {
           reason: 'admitted',
         };
       };
-      // A calibration holds every unit of every exclusive id, in the pool's order (J9).
-      // Proof: claiming only the envelope's units made `a calibration waits for the pool to
-      // drain` (calibrate.test.ts) admit it holding no gate tree (2026-11-02, Slice 4).
+      // A calibration holds every unit of each id its type names, in the pool's order (J9,
+      // S4-A14); units of other ids stay free.
+      // Proof: claiming none of its ids' units made `a calibration of a gate holds every gate
+      // tree` and `a calibration holds the whole allocatable vector` (calibrate.test.ts) see
+      // neither tree held (2026-11-02, Slice 4 review A5).
       const units =
         request.calibration === true
-          ? Object.entries(this.configuration.exclusiveUnits).flatMap(([exclusiveId, paths]) =>
-              paths.map((path) => claim(exclusiveId, path)),
+          ? request.descriptor.envelope.exclusive.flatMap((exclusiveId) =>
+              (this.configuration.exclusiveUnits[exclusiveId] ?? []).map((path) =>
+                claim(exclusiveId, path),
+              ),
             )
           : request.descriptor.envelope.exclusive.map((exclusiveId) =>
               claim(exclusiveId, freeUnit(exclusiveId)),
@@ -2423,6 +2484,18 @@ export class ResourceRuntime {
         units,
         settleAttempts: 0,
         nextSettleAt: null,
+        // Proof: persisting the envelope for a calibration made `a calibration holds the whole
+        // allocatable vector` and `a calibration waits for the pool to drain` (calibrate.test.ts)
+        // persist the gate's envelope, not the 8 allocatable cores (2026-11-02, review A3).
+        reserved:
+          request.calibration === true
+            ? allocatable
+            : {
+                cpuCores: request.descriptor.envelope.cpuCores,
+                memoryGib: request.descriptor.envelope.memoryGib,
+                diskUnits: this.diskUnitsOf(request.descriptor),
+                workspaceSlots: 1,
+              },
         ...(request.calibration === true ? { calibration: true as const } : {}),
       };
       this.hostJobEvent(job, 'admitted');

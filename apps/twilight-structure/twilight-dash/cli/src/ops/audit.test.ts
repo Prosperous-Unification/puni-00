@@ -30,7 +30,7 @@ function audit(
   const records: RunRecord[] = runs.map((run, index) =>
     runRecord(atRun, { startedAt: 1_800_000_000_000 + index * 3_600_000, ...run }),
   );
-  const { drifts, notes } = auditDrift(records, new Map([[CATALOGUE_PATH, head]]), now);
+  const { drifts, notes } = auditDrift(records, head, now);
   return {
     drifts: drifts.map((drift) => drift.line),
     notes,
@@ -79,7 +79,7 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
     expect(audit(runs, notEnough).kinds).toEqual(['overrun']);
   });
 
-  test('an overrun is superseded once the entry changes to calibrated provenance', () => {
+  test('a calibrated entry that does not cover the peak keeps the overrun', () => {
     const calibrated = committedCatalogue(types, (jobs) =>
       jobs.map((job) =>
         job.id === 'gate'
@@ -99,7 +99,9 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
     );
     expect(
       audit([{ id: 'overran', memoryGib: 7, cpuCores: 3, tmpGib: 5 }], calibrated).drifts,
-    ).toEqual([]);
+    ).toEqual([
+      `gate overrun memoryGib 7 above envelope 6 in run overran at 2027-01-15T08:00:00.000Z (${CATALOGUE_PATH}); kept until an accepted envelope covers it`,
+    ]);
   });
 
   test('a peak above the envelope in CPU or tmp disk is an overrun too', () => {
@@ -162,6 +164,28 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
     expect(audit([unbounded, bounded]).drifts).toEqual([]);
   });
 
+  test('a later run that started no container does not clear attribution_incomplete', () => {
+    const unbounded = {
+      id: 'unbounded',
+      memoryGib: 5,
+      cpuCores: 3,
+      tmpGib: 5,
+      containers: [
+        { id: 'c0ffee0123456789', verdict: 'unbounded' as const, reason: 'no --memory' },
+      ],
+    };
+    expect(audit([unbounded, ...fitting(1)]).kinds).toEqual(['attribution_incomplete']);
+  });
+
+  test('a run from another checkout is judged against this catalogue by its job id', () => {
+    const elsewhere = { ...runRecord(atRun, { id: 'scratch', memoryGib: 7 }) };
+    elsewhere.cataloguePath = '/vanished/scratch/infra/jobs/catalogue.json';
+    const { drifts } = auditDrift([elsewhere], atRun, NOW);
+    expect(drifts.map((drift) => drift.line)).toEqual([
+      'gate overrun memoryGib 7 above envelope 6 in run scratch at 2027-01-15T08:00:00.000Z (/vanished/scratch/infra/jobs/catalogue.json); kept until an accepted envelope covers it',
+    ]);
+  });
+
   test('runs without an outcome and of retired types are noted, not judged', () => {
     const retired = committedCatalogue(types, (jobs) =>
       jobs.filter((job) => job.id !== 'release-build'),
@@ -175,7 +199,7 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
     );
     expect(drifts).toEqual([]);
     expect(notes).toEqual([
-      `not judged: runs of release-build (${CATALOGUE_PATH}), which the catalogue at HEAD no longer names`,
+      `not judged: runs of release-build, which ${CATALOGUE_PATH} at HEAD does not name`,
       'not judged: 1 runs without an outcome: running',
     ]);
   });

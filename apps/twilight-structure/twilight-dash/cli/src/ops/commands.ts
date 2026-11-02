@@ -3,13 +3,7 @@ import type { Monotonic, WallClock } from '../clock';
 import { type HostFacts, loadResourceConfiguration, ResourceRuntime } from '../resources/runtime';
 import { auditDrift } from './audit';
 import { renderAuditUnits, writeAuditUnits } from './audit-units';
-import {
-  checkoutOfCatalogue,
-  type CommittedCatalogue,
-  hostClassOf,
-  readCommittedCatalogue,
-  toolchainOf,
-} from './catalogue';
+import { hostClassOf, readCommittedCatalogue, toolchainOf } from './catalogue';
 import { calibrateHostJob, type JobRunDependencies, runHostJob } from './job-run';
 import { proposeEnvelope } from './propose';
 import { causeText, OpsRefusal } from './refusal';
@@ -93,9 +87,15 @@ function readRunRecords(config: string, deps: OpsDependencies, command: string) 
 function auditInstant(now: string | undefined, clock: WallClock): number {
   if (now === undefined) return clock.read();
   const instant = Date.parse(now);
-  // Proof: without it `--now must be an ISO instant` (calibrate.test.ts) exited 0, not 64:
-  // `tomorrow` became NaN and nothing expired (2026-11-02, Slice 4).
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(now) || !Number.isFinite(instant))
+  // Proof: without the pattern `--now must be an ISO instant` (calibrate.test.ts) exited 0,
+  // not 64, for `tomorrow`; without `isFinite` it threw `RangeError: Invalid Date` for
+  // `2026-13-45T00:00:00Z`; without the round trip it exited 0 for `2026-02-30T00:00:00Z`
+  // (2026-11-02, review A13).
+  if (
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(now) ||
+    !Number.isFinite(instant) ||
+    new Date(instant).toISOString().slice(0, 19) !== now.slice(0, 19)
+  )
     throw new OpsRefusal(
       64,
       `ops job audit: --now ${JSON.stringify(now)} is not an ISO-8601 UTC instant`,
@@ -113,6 +113,8 @@ export const opsHandlers: OpsHandlers = {
   'job propose': (command, deps) => {
     const catalogue = readCommittedCatalogue(deps.cwd, 'ops job propose');
     const jobType = catalogue.jobs.find((job) => job.id === command.type);
+    // Proof: without it `propose refuses … an uncatalogued type` (calibrate.test.ts) threw from
+    // `proposeEnvelope` instead of refusing 64 (2026-11-02, Slice 4 review A13).
     if (jobType === undefined)
       throw new OpsRefusal(
         64,
@@ -141,18 +143,12 @@ export const opsHandlers: OpsHandlers = {
   'job audit': (command, deps) => {
     const now = auditInstant(command.now, deps.clock);
     const records = readRunRecords(command.config, deps, 'ops job audit');
-    const catalogues = new Map<string, CommittedCatalogue>();
-    const own = readCommittedCatalogue(deps.cwd, 'ops job audit');
-    catalogues.set(own.cataloguePath, own);
-    for (const record of records) {
-      if (catalogues.has(record.cataloguePath)) continue;
-      const catalogue = readCommittedCatalogue(
-        checkoutOfCatalogue(record.cataloguePath),
-        'ops job audit',
-      );
-      catalogues.set(record.cataloguePath, catalogue);
-    }
-    const { drifts, notes } = auditDrift(records, catalogues, now);
+    // Every record is judged against this checkout's catalogue by job id, never by re-reading
+    // the checkout it ran from, which may be a deleted scratch worktree (S4-A8, review A2).
+    // Proof: reading each record's own checkout made `a run from a vanished checkout is judged
+    // against this checkout` (calibrate.test.ts) refuse 64 naming the vanished path (2026-11-02).
+    const catalogue = readCommittedCatalogue(deps.cwd, 'ops job audit');
+    const { drifts, notes } = auditDrift(records, catalogue, now);
     for (const note of notes) deps.stdout(`note: ${note}\n`);
     if (drifts.length === 0) {
       deps.stdout('no drift\n');

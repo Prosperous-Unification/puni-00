@@ -1,10 +1,11 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { Database } from 'bun:sqlite';
 import { afterAll, afterEach, describe, expect, test } from 'bun:test';
 
 import { monotonicClock, wallClock } from '../clock';
@@ -12,6 +13,7 @@ import { fakeCredential } from '../compute/testing/credential';
 import {
   ampleHost,
   build,
+  fixtureGit,
   gate,
   hostPoolFixture,
   jobType,
@@ -36,6 +38,7 @@ import {
 import { OpsRefusal } from './refusal';
 import { HostJobRunRecords } from './run-records';
 import { linuxScopeTelemetry, scopeArguments, type ScopeTelemetry } from './scope';
+import { formatHostPoolStatus } from './status';
 
 /**
  * `dash-host-jobs` task 4.1 against a real ledger: a calibration waits for the pool to drain,
@@ -67,14 +70,18 @@ if (insideOpsNamespace(import.meta.path)) {
   const monotonic = monotonicClock();
 
   /** A pool of 8 cores and 15 GiB (headroom 2 GiB) with two gate trees. */
-  function pool() {
-    const fixture = hostPoolFixture({
-      cpuCores: 8,
-      memoryGib: 15,
-      headroom: { cpuCores: 0, memoryGib: 2 },
-      gateTrees: 2,
-      credential: fakeCredential(),
-    });
+  function pool(gateTrees = 2, overrides: Record<string, unknown> = {}) {
+    const fixture = hostPoolFixture(
+      {
+        cpuCores: 8,
+        memoryGib: 15,
+        headroom: { cpuCores: 0, memoryGib: 2 },
+        gateTrees,
+        credential: fakeCredential(),
+      },
+      // A small disk budget, so the whole-budget free-space check passes on any runner.
+      { diskBudgetUnits: 2, ...overrides },
+    );
     cleanups.push(fixture.remove);
     return fixture;
   }
@@ -120,7 +127,7 @@ if (insideOpsNamespace(import.meta.path)) {
     }
 
     test('a calibration waits for the pool to drain', async () => {
-      const { config, trees } = pool();
+      const { config } = pool();
       const runtime = runtimeOf(config);
       const running = admitted(
         runtime,
@@ -140,9 +147,154 @@ if (insideOpsNamespace(import.meta.path)) {
       expect(runtime.inspectHostJob(running.id).state).toBe('released');
       const job = admitted(runtime, calibration);
       expect(job.calibration).toBe(true);
+      expect(job.reserved).toEqual(runtime.hostPoolStatus().allocatable);
+    });
+
+    test('a calibration of a gate holds every gate tree', () => {
+      const { config, trees } = pool();
+      const runtime = runtimeOf(config);
+      const job = admitted(
+        runtime,
+        queue(runtime, {
+          descriptor: gate,
+          label: 'calibration',
+          waitSeconds: 0,
+          calibration: true,
+        }),
+      );
       expect(job.units.map((unit) => [unit.exclusiveId, unit.path])).toEqual(
         trees.map((tree) => ['gate_tree', tree]),
       );
+    });
+
+    test('a calibration of a type naming no unit holds none and ignores a dirty tree', () => {
+      const { config, trees } = pool();
+      const runtime = runtimeOf(config);
+      writeFileSync(join(trees[0] ?? '', 'stray.txt'), 'dirty\n');
+      const job = admitted(
+        runtime,
+        queue(runtime, {
+          descriptor: build,
+          label: 'calibration',
+          waitSeconds: 0,
+          calibration: true,
+        }),
+      );
+      expect(job.units).toEqual([]);
+      expect(runtime.hostPoolStatus().units.every((unit) => unit.heldBy === null)).toBe(true);
+    });
+
+    test('a calibration waits while a unit of its type is dirty', () => {
+      const { config, trees } = pool();
+      const runtime = runtimeOf(config);
+      writeFileSync(join(trees[0] ?? '', 'stray.txt'), 'dirty\n');
+      const outcome = runtime.pollHostJob(
+        queue(runtime, {
+          descriptor: gate,
+          label: 'calibration',
+          waitSeconds: 0,
+          calibration: true,
+        }),
+        silent,
+      );
+      expect(outcome.kind).toBe('refused');
+      expect(outcome.kind === 'refused' && outcome.reason).toContain(
+        `units not free: ${trees[0] ?? ''} (dirty: ?? stray.txt)`,
+      );
+    });
+
+    test('a calibration waits for free space for the whole disk budget, naming the shortfall', () => {
+      // A headroom no disk has: the whole budget can never be covered.
+      const { config, root } = pool(2, { headroomBytes: 2 ** 52 });
+      const runtime = runtimeOf(config);
+      const outcome = runtime.pollHostJob(
+        queue(runtime, {
+          descriptor: build,
+          label: 'calibration',
+          waitSeconds: 0,
+          calibration: true,
+        }),
+        silent,
+      );
+      expect(outcome.kind).toBe('refused');
+      expect(outcome.kind === 'refused' && outcome.reason).toMatch(
+        new RegExp(
+          `; free space \\d+ bytes under ${root} is below the ${String(2 * 1024 ** 3 + 2 ** 52)} needed \\(2 disk units plus ${String(2 ** 52)} bytes headroom\\)$`,
+        ),
+      );
+    });
+
+    test('a second calibration waits behind the first; status names both', () => {
+      const { config } = pool();
+      const runtime = runtimeOf(config);
+      const first = admitted(
+        runtime,
+        queue(runtime, {
+          descriptor: gate,
+          label: 'calibration',
+          waitSeconds: 0,
+          calibration: true,
+        }),
+      );
+      const second = queue(runtime, {
+        descriptor: build,
+        label: 'calibration:2',
+        waitSeconds: 600,
+        calibration: true,
+      });
+      // Two checks each keep the second out: the drain fit and the first's whole-vector
+      // reservation. Proof: dropping either alone stayed green; dropping both admitted the
+      // second beside the first (2026-11-02, Slice 4 review A13, verify.md).
+      expect(runtime.pollHostJob(second, silent).kind).toBe('waiting');
+      const lines = formatHostPoolStatus(runtime.hostPoolStatus(), new Map(), clock.read());
+      // Proof: without the `calibration` word the running and waiting lines began
+      // `running gate calibration pid` and `waiting website-dev-build` (2026-11-02, review A7).
+      expect(lines[1]?.startsWith(`running calibration gate calibration pid -`)).toBe(true);
+      expect(lines[2]?.startsWith('waiting calibration website-dev-build calibration:2 pid ')).toBe(
+        true,
+      );
+      expect(first.calibration).toBe(true);
+    });
+
+    test('a ledger row written before `reserved` was persisted reads it from its descriptor', () => {
+      const { config, root } = pool();
+      const runtime = runtimeOf(config);
+      const job = admitted(
+        runtime,
+        queue(runtime, { descriptor: gate, label: 'gate:1', waitSeconds: 0 }),
+      );
+      const ledger = new Database(join(root, '.dash', 'resources.sqlite'));
+      ledger.run("UPDATE host_jobs SET snapshot=json_remove(snapshot, '$.reserved') WHERE id=?", [
+        job.id,
+      ]);
+      ledger.close();
+      expect(runtime.inspectHostJob(job.id).reserved).toEqual({
+        cpuCores: 4,
+        memoryGib: 6,
+        diskUnits: 0,
+        workspaceSlots: 1,
+      });
+      expect(runtime.hostPoolStatus().reserved).toEqual({
+        cpuCores: 4,
+        memoryGib: 6,
+        diskUnits: 0,
+        workspaceSlots: 1,
+      });
+    });
+
+    test('a calibration naming an exclusive id with no units is refused 73', () => {
+      const { config } = pool(0);
+      const runtime = runtimeOf(config);
+      expect(
+        runtime.enqueueHostJob(
+          { descriptor: gate, label: 'calibration', waitSeconds: 0, calibration: true },
+          process.pid,
+        ),
+      ).toEqual({
+        kind: 'refused',
+        exitCode: 73,
+        reason: 'host job gate refused: exclusive gate_tree has 0 units in this pool',
+      });
     });
 
     test('a calibration holds the whole allocatable vector', () => {
@@ -151,7 +303,7 @@ if (insideOpsNamespace(import.meta.path)) {
       admitted(
         runtime,
         queue(runtime, {
-          descriptor: build,
+          descriptor: gate,
           label: 'calibration',
           waitSeconds: 0,
           calibration: true,
@@ -333,7 +485,107 @@ if (insideOpsNamespace(import.meta.path)) {
       expect(expired.join('')).toContain(
         'gate estimate_expired: provenance estimated until 2099-12-31',
       );
+
+      // A run from a scratch worktree since deleted is judged against this checkout by its id.
+      const written = HostJobRunRecords.open(root, true);
+      const template = listed.at(0);
+      if (template === undefined) throw new Error('no run record');
+      const gateSample = template.samples.at(0);
+      if (gateSample === undefined) throw new Error('no gate sample');
+      written.begin(
+        {
+          jobId: 'scratch-run',
+          type: template.type,
+          label: template.label,
+          descriptor: template.descriptor,
+          descriptorDigest: template.descriptorDigest,
+          cataloguePath: '/vanished/scratch/infra/jobs/catalogue.json',
+          launcherSha: template.launcherSha,
+          argumentProfile: template.argumentProfile,
+          argv: [...template.argv],
+          hostClass: template.hostClass,
+          unit: 'dash-job-scratch-run',
+          cgroup: template.cgroup,
+          tmpDirectory: template.tmpDirectory,
+          units: [],
+          startedAt: template.startedAt,
+        },
+        gateSample,
+      );
+      written.finish('scratch-run', {
+        endedAt: template.startedAt + 1000,
+        exitCode: 0,
+        signal: null,
+        telemetryFailure: null,
+        ledgerFailure: null,
+        attributionIncomplete: false,
+        containers: [],
+      });
+      written.close();
+      const vanished: string[] = [];
+      expect(
+        await runOps(
+          { command: 'ops', words: 'job audit', config, now: undefined },
+          dependencies(checkout, vanished, [], telemetry),
+        ),
+      ).toBe(0);
+      expect(vanished).toEqual(['no drift\n']);
     }, 120_000);
+
+    test('propose refuses a checkout without a usable catalogue, and an uncatalogued type', async () => {
+      const { config, base, checkout } = initialized();
+      const propose = async (cwd: string, type = 'gate') => {
+        const stderr: string[] = [];
+        const code = await runOps(
+          {
+            command: 'ops',
+            words: 'job propose',
+            config,
+            type,
+            hostClass: undefined,
+            toolchain: undefined,
+          },
+          dependencies(cwd, [], stderr, linuxScopeTelemetry()),
+        );
+        return `${String(code)} ${stderr.join('')}`;
+      };
+      const plain = join(base, 'plain');
+      mkdirSync(plain);
+      const empty = join(base, 'empty');
+      mkdirSync(empty);
+      fixtureGit(empty, 'init', '--quiet');
+      const bare = join(base, 'bare');
+      mkdirSync(bare);
+      fixtureGit(bare, 'init', '--quiet');
+      writeFileSync(join(bare, 'README'), 'no catalogue\n');
+      fixtureGit(bare, 'add', 'README');
+      fixtureGit(bare, 'commit', '--quiet', '-m', 'no catalogue');
+      const broken = join(base, 'broken');
+      mkdirSync(join(broken, 'infra', 'jobs'), { recursive: true });
+      fixtureGit(broken, 'init', '--quiet');
+      writeFileSync(join(broken, 'infra', 'jobs', 'catalogue.json'), '{"schemaVersion": 1}\n');
+      fixtureGit(broken, 'add', '.');
+      fixtureGit(broken, 'commit', '--quiet', '-m', 'malformed');
+      // Proof: see `readCommittedCatalogue` (catalogue.ts) for what each dropped refusal did.
+      expect(await propose(plain)).toStartWith(
+        `64 error: ops job propose: ${plain} is not inside a Git checkout with a job catalogue`,
+      );
+      expect(await propose(empty)).toStartWith(
+        `64 error: ops job propose: ${empty} has no HEAD commit`,
+      );
+      expect(await propose(bare)).toStartWith(
+        `64 error: ops job propose: ${bare}/infra/jobs/catalogue.json does not exist at `,
+      );
+      expect(await propose(broken)).toStartWith(
+        `70 error: ops job propose: ${broken}/infra/jobs/catalogue.json at `,
+      );
+      expect(await propose(broken)).toContain(' is malformed: ');
+      // Proof: without the handler's check the uncatalogued type reached `proposeEnvelope`,
+      // which threw instead of refusing 64 (2026-11-02, review A13).
+      expect(await propose(checkout, 'nightly')).toStartWith(
+        `64 error: ops job propose: job type nightly is not in ${checkout}/infra/jobs/catalogue.json at `,
+      );
+    });
 
     test('propose refuses naming the count before three calibrations', async () => {
       const { config, checkout, base } = initialized();
@@ -371,6 +623,58 @@ if (insideOpsNamespace(import.meta.path)) {
       ).toBe(64);
       expect(stderr).toEqual([
         'error: ops job audit: --now "tomorrow" is not an ISO-8601 UTC instant\n',
+      ]);
+      for (const now of ['2026-13-45T00:00:00Z', '2026-02-30T00:00:00Z']) {
+        const refused: string[] = [];
+        expect(
+          await runOps(
+            { command: 'ops', words: 'job audit', config, now },
+            dependencies(checkout, [], refused, linuxScopeTelemetry()),
+          ),
+        ).toBe(64);
+        expect(refused).toEqual([
+          `error: ops job audit: --now "${now}" is not an ISO-8601 UTC instant\n`,
+        ]);
+      }
+    });
+
+    test('a bun that answers its revision with garbage refuses 70', async () => {
+      const { config, checkout, base } = initialized();
+      const garbled = join(base, 'garbled-bun');
+      mkdirSync(garbled);
+      payloadScript(join(garbled, 'bun'), 'echo garbage');
+      let refused: unknown;
+      try {
+        await runHostJob(
+          {
+            config,
+            type: 'gate',
+            label: 'lane:test',
+            waitSeconds: 0,
+            pollSeconds: 1,
+            argv: ['true'],
+          },
+          {
+            clock,
+            monotonic,
+            environment: { ...process.env, PATH: `${garbled}:${fakePath}` },
+            cwd: checkout,
+            report: silent,
+            telemetry: fakeScopeTelemetry(join(base, 'cgroupfs')),
+            host: ampleHost,
+            sampleIntervalMs: 10_000,
+            settleBudgetMs: 20_000,
+            user: 'puni1',
+          },
+        );
+      } catch (cause) {
+        refused = cause;
+      }
+      // Proof: dropping the version pattern (exit status alone) made this test run the job,
+      // no refusal (2026-11-02, Slice 4 review A13).
+      expect(refused instanceof OpsRefusal && [refused.exitCode, refused.message]).toEqual([
+        70,
+        `${join(garbled, 'bun')} --revision answered exit 0 "garbage"; the run's toolchain is unknown`,
       ]);
     });
 

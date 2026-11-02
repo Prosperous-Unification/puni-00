@@ -1,4 +1,4 @@
-import { closeSync, constants, existsSync, mkdirSync, openSync, writeSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, resolve, sep } from 'node:path';
 
 import { OpsRefusal } from './refusal';
@@ -93,7 +93,7 @@ export function writeAuditUnits(
 ): string[] {
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   // Both names are checked before either is written, so a refusal leaves no half pair.
-  // Proof: without this check `writes both files and replaces neither` (audit-units.test.ts)
+  // Proof: without this check `writes both files owner-only and replaces neither` (audit-units.test.ts)
   // found the service written beside the operator's timer (2026-11-02, Slice 4).
   for (const name of [AUDIT_SERVICE, AUDIT_TIMER])
     if (existsSync(join(directory, name)))
@@ -107,20 +107,18 @@ export function writeAuditUnits(
     [AUDIT_TIMER, units.timer],
   ] as const) {
     const path = join(directory, name);
-    let descriptor: number;
+    // Owner-only and never replacing, as `render-observation-units` writes its bundle; the
+    // operator's `install -m 0644` sets the installed mode.
+    // Proof: writing 0o644 made `writes both files owner-only and replaces neither`
+    // (audit-units.test.ts) read mode 644 (2026-11-02, Slice 4 review A11).
     try {
-      descriptor = openSync(path, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o644);
+      writeFileSync(path, text, { flag: 'wx', mode: 0o600 });
     } catch (cause) {
       if (cause instanceof Error && 'code' in cause && cause.code === 'EEXIST')
         throw new OpsRefusal(64, `ops job render-audit-units: ${path} exists; nothing replaced`, {
           cause,
         });
       throw cause;
-    }
-    try {
-      writeSync(descriptor, text);
-    } finally {
-      closeSync(descriptor);
     }
     written.push(path);
   }

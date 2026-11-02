@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -47,10 +55,14 @@ ExecStart=/home/puni1/.bun/bin/bun /home/puni1/puni-00/apps/twilight-structure/t
     expect(() => renderAuditUnits({ ...paths, config: '/home/puni1/../x' })).toThrow('--config');
   });
 
-  test('writes both files and replaces neither', () => {
+  test('writes both files owner-only and replaces neither', () => {
     const directory = join(scratch, 'units');
     const written = writeAuditUnits(directory, renderAuditUnits(paths));
     expect(written).toEqual([join(directory, AUDIT_SERVICE), join(directory, AUDIT_TIMER)]);
+    expect(written.map((path) => (statSync(path).mode & 0o777).toString(8))).toEqual([
+      '600',
+      '600',
+    ]);
     expect(readFileSync(join(directory, AUDIT_SERVICE), 'utf8')).toContain('ops job audit');
     const again = join(scratch, 'again');
     writeAuditUnits(again, renderAuditUnits(paths));

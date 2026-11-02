@@ -55,6 +55,10 @@ export function descriptorDigestOf(jobType: JobType): string {
  * the catalogue at that revision is malformed.
  */
 export function readCommittedCatalogue(cwd: string, command: string): CommittedCatalogue {
+  // Proof: dropping each refusal below in turn failed `propose refuses a checkout without a
+  // usable catalogue, and an uncatalogued type` (calibrate.test.ts): outside a checkout it went
+  // on and exited 1; with no HEAD it named a missing catalogue; with no catalogue it refused 70
+  // as malformed; a malformed catalogue threw the contract's error, not 70 (2026-11-02, A13).
   const top = git(cwd, 'rev-parse', '--show-toplevel');
   if (top.exitCode !== 0)
     throw new OpsRefusal(
@@ -214,15 +218,4 @@ export type { JobType };
  */
 export function parseCatalogueJobs(input: unknown): readonly JobType[] {
   return parseJobCatalogue(input).jobs;
-}
-
-/**
- * The checkout a run record's catalogue path names (`<checkout>/infra/jobs/catalogue.json`).
- * @throws Error when the path does not end in the catalogue path: only Dash writes it.
- */
-export function checkoutOfCatalogue(cataloguePath: string): string {
-  const suffix = `/${JobCataloguePath}`;
-  if (!cataloguePath.endsWith(suffix))
-    throw new Error(`${cataloguePath} is not a checkout's ${JobCataloguePath}`);
-  return cataloguePath.slice(0, -suffix.length);
 }

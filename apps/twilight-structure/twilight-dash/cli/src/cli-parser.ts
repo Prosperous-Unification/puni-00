@@ -259,7 +259,7 @@ const opsNamespace = command(
         opsCommand(
           'propose',
           'job propose',
-          'Print a catalogue patch for a job type from its run records; write nothing.',
+          'Print the replacement catalogue entry for a job type from its run records; write nothing.',
           {
             config: poolConfig(),
             type: jobTypeOption(),

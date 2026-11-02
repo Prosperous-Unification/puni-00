@@ -74,12 +74,20 @@ export function proposeEnvelope(
     tmpDiskGib: [],
     durationSeconds: [],
   };
+  /** Records left out of some dimension: not cited in the provenance (S4-A16). */
+  const partial = new Set<string>();
   for (const record of records) {
-    if (record.type !== typeId || record.cataloguePath !== catalogue.cataloguePath) continue;
+    if (record.type !== typeId) continue;
     const kind = record.calibration === true ? 'calibration' : 'run';
     const exclude = (reason: string): void => {
       lines.push(`excluded ${kind} ${record.jobId}: ${reason}`);
     };
+    // Proof: skipping these silently made `a record from another catalogue is named and left
+    // out` (propose.test.ts) find no `excluded` line (2026-11-02, Slice 4 review A8).
+    if (record.cataloguePath !== catalogue.cataloguePath) {
+      exclude(`another catalogue: ${record.cataloguePath}`);
+      continue;
+    }
     if (record.toolchain === undefined) {
       exclude('no toolchain identity (recorded before slice 4)');
       continue;
@@ -111,13 +119,18 @@ export function proposeEnvelope(
     const capped = record.calibration !== true && descriptorOf(record).enforcement === 'cap';
     // Proof: taking every complete record for memory made `a throttled run does not lower the
     // proposal` (propose.test.ts) propose memoryGib 5 and name nothing excluded (2026-11-02, Slice 4).
-    if (measures.memoryHighEvents > 0)
+    if (measures.memoryHighEvents > 0) {
+      partial.add(record.jobId);
       lines.push(
         `excluded ${kind} ${record.jobId} from memoryGib: throttled at MemoryHigh (memory.events high ${String(measures.memoryHighEvents)})`,
       );
-    else if (capped)
+    }
+    // Proof: without the capped branch `a capped run is left out of memory, named`
+    // (propose.test.ts) proposed memoryGib 3 from the capped run (2026-11-02, review A13).
+    else if (capped) {
+      partial.add(record.jobId);
       lines.push(`excluded ${kind} ${record.jobId} from memoryGib: capped (enforcement cap)`);
-    else take('memoryGib');
+    } else take('memoryGib');
     take('tmpDiskGib');
     if (record.calibration === true) {
       take('cpuCores');
@@ -168,9 +181,13 @@ export function proposeEnvelope(
       `${dimension}: ${proposed} (p95 ${figure(p95[dimension])} ${UNIT[dimension]} over ${String(used.length)} ${SOURCE[dimension]}: ${used.map((source) => source.id).join(', ')})`,
     );
   }
+  // The provenance cites only records that fed every dimension they could: a throttled or
+  // capped run fed tmp disk but is named on the memory line as excluded, so it is not cited.
+  // Proof: citing every source made `a throttled run does not lower the proposal`
+  // (propose.test.ts) find `throttled` in recordIds (2026-11-02, Slice 4 review A9).
   const recordIds = [
     ...new Set(DIMENSIONS.flatMap((dimension) => sources[dimension].map((source) => source.id))),
-  ];
+  ].filter((id) => !partial.has(id));
   // The stated p95 is rounded to hundredths. The envelope stays above it, as JOB-CATALOGUE
   // requires: ⌈1.25·p⌉ ≥ p + 0.005 for every p ≥ 0.02, and below that the envelope is 1 or p is 0.
   const stated = (value: number): number => Math.round(value * 100) / 100;

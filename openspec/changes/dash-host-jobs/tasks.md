@@ -88,9 +88,10 @@
       whole-vector reservation, every unit), not a second path; records gain `calibration` and
       a `toolchain` (`bun <version>+<revision>`). `propose` prints the replacement entry, not a
       JSON patch; duration is reported but has no catalogue field (verify.md Slice 4, S4-A1 to
-      S4-A7). Follow-up: slice 5's `resourceRuntimeUse` v2 mapping must charge a calibration
-      use the event's `reserved` vector, not its descriptor's envelope; the
-      `host-jobs.model.test.ts` model does not yet generate calibrations (J18).
+      S4-A7). Review fixes (#814): each host job persists its `reserved` vector, a
+      calibration holds every unit of its type's ids only (S4-A14), and the model generates
+      calibrations (J18). Follow-up after #811: slice 5's `hostJobDeclaration` reads
+      `job.reserved` and groups `job.units` by exclusive id.
 - [x] 4.2 `ops job audit` with the four drift kinds, overruns kept until superseded, and the
       weekly timer units rendered beside the observation units — test: one fixture per kind,
       `no drift` on a clean ledger; negative: age overruns out after five runs and the
