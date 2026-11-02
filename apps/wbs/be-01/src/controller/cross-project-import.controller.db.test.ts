@@ -904,15 +904,21 @@ for (const fault of [
  * retained the imported project/rows/links and predecessor revisions, failing
  * the complete-table snapshot after the injected durable-event error (2026-10-23).
  */
-test('downloaded artifact rolls back staged import and first durable elsewhere event on recording failure', async () => {
+async function assertImportRecordingRollback(
+  mode: 'synthetic' | 'mounted-production',
+): Promise<void> {
   let pushes = 0;
   harness = OrganizationHarness.openComposedWith({
-    syntheticTransferImports: true,
+    ...(mode === 'synthetic'
+      ? { syntheticTransferImports: true }
+      : { dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY }),
     pushFetch: () => {
       pushes += 1;
       return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
     },
   });
+  if (mode === 'mounted-production')
+    expect(() => harness.syntheticImports()).toThrow('synthetic transfer imports are absent');
   const { remote, source } = await connectedTransferFixture(harness);
   const downloaded = await exported(source.projectId);
   const before = transferSnapshot(harness);
@@ -930,6 +936,7 @@ test('downloaded artifact rolls back staged import and first durable elsewhere e
   // eslint-disable-next-line @typescript-eslint/unbound-method -- the spy invokes the original with its actual store receiver.
   const recordEventIn = DrizzleEventLogStore.prototype.recordEventIn;
   let injected = false;
+  const recordingFailure = new Error('injected after durable elsewhere insertion');
   pushes = 0;
   const recording = spyOn(DrizzleEventLogStore.prototype, 'recordEventIn').mockImplementation(
     function (this: DrizzleEventLogStore, ...args) {
@@ -941,7 +948,6 @@ test('downloaded artifact rolls back staged import and first durable elsewhere e
         args[2].type !== 'elsewhere_changed'
       )
         return recorded;
-      injected = true;
       const tx = args[0];
       const copied = tx
         .all<{ id: string }>(sql`SELECT id FROM project`)
@@ -992,23 +998,46 @@ test('downloaded artifact rolls back staged import and first durable elsewhere e
         ),
       ).toEqual({ next_seq: recorded.seq + 1 });
       expect(pushes).toBe(0);
-      throw new Error('injected after durable elsewhere insertion');
+      // Proof: in 'capable mounted incoming v12 import rolls back staged writes and durable event on recording failure',
+      // an early spy assertion before this marker still returned opaque HTTP500 but failed the final
+      // completion check; exact restoration passed (2026-11-02).
+      injected = true;
+      throw recordingFailure;
     },
   );
   try {
-    await importTransfer(downloaded.classified).then(
-      () => {
-        throw new Error('expected injected recording failure');
-      },
-      (cause: unknown) => {
-        expect(cause).toBeInstanceOf(Error);
-        expect(cause).toMatchObject({ message: 'injected after durable elsewhere insertion' });
-      },
-    );
+    if (mode === 'synthetic') {
+      await importTransfer(downloaded.classified).then(
+        () => {
+          throw new Error('expected injected recording failure');
+        },
+        (cause: unknown) => {
+          expect(cause).toBe(recordingFailure);
+          expect(cause).toBeInstanceOf(Error);
+          expect(cause).toMatchObject({ message: 'injected after durable elsewhere insertion' });
+        },
+      );
+    } else {
+      const response = await harness.call(
+        'ada',
+        'POST',
+        '/api/projects/import',
+        downloaded.document,
+      );
+      expect(response).toEqual({ status: 500, body: 'Internal Server Error' });
+    }
   } finally {
     recording.mockRestore();
   }
   expect(injected).toBe(true);
   expect(transferSnapshot(harness)).toEqual(before);
   expect(pushes).toBe(0);
+}
+
+test('downloaded artifact rolls back staged import and first durable elsewhere event on recording failure', async () => {
+  await assertImportRecordingRollback('synthetic');
+});
+
+test('capable mounted incoming v12 import rolls back staged writes and durable event on recording failure', async () => {
+  await assertImportRecordingRollback('mounted-production');
 });
