@@ -2370,3 +2370,34 @@ DASH_JOB_UNIT_GATE_TREE=/nonexistent HEAVY_JOB_ENROLLMENT=enrolled`).
 - `ansible-lint`: not pinned, not run.
 - The full twilight-dash and repository suites were not run here (laptop memory rule). CI and the
   h2puni gate run them.
+
+## Plan-head gate on h2puni (task 0.1, 2026-11-02)
+
+Both runs used the isolated clean worktree `~/puni-00-gate-467-9b552fa8` on h2puni (never the shared
+`puni-00-gate-tbf`), fetched the SHA without checking it out first, and ran `bin/h2puni-gate.sh <sha>`
+detached under `setsid nohup` with `HEAVY_LOCK_WAIT_SECONDS=7200`; the log ends with a `GATE-EXIT`
+line. Nothing on the host was deleted. The records as reported in PR #819's body and comments.
+
+### 5061911cf (= plan head 27f3205fa after the #819 merge): PASS
+
+- `heavy lock: waited 0s behind 0 tickets`, then `h2puni gate: running on
+5061911cf7ec634253f735dd45c5f6848351f254`, then `GATE-EXIT 0`; no `✗` anywhere in
+  `/var/tmp/gate-6c-5061911c.log`.
+- Steps: `test, lint, typecheck, build` for 52 projects and 10 dependent tasks (60m 22s);
+  `test, typecheck, build` for the Burokrat and Dash split (50m 25s); `twilight-burokrat:lint:source`
+  (27.4s); `twilight-dash:lint` (44.5s); `wbs-be-01:solver-image-smoke` (4m 21s) — all green.
+- Host: lock `holder none` before; `/` 6.8 GB free before, 5.4 GB after; worktree clean before and after.
+
+### 37ca6254a (pre-fix SHA, superseded): exit 1 on one test
+
+- `h2puni gate: running on 37ca6254ad4a2345cc7fd0d587b012e9d1dc88d8`, `GATE-EXIT 1`.
+- First `nx run-many` green for 52 projects; the second failed only `twilight-dash:test`:
+  4259 pass, 1 fail of 4260 — `launchers.test.ts › a gate runs beside a release build` (and its
+  namespace wrapper). Cause: the outer gate exports `HEAVY_LOCK_LABEL=gate:<sha8>` and the fixture
+  spread `process.env` into the launchers it spawned, so the release launcher's recorded argv carried
+  the gate's label; CI never sets that variable, so only a real gate saw it. Fixed by `5061911cf`
+  (`cleanLauncherEnv`, S6C-A25, fault 6c-F21); task 6.10 owes the production rule for a nested
+  `run_heavy_job`. The gate stops at the first failure, so the later lints and the solver smoke did
+  not run for that SHA; the 5061911cf run above covers them.
+- Earlier on the same day, slice 6a's gate on `af8cdd003` had exited 1 only on the recorded
+  `wbs-be-01` budget flake, which passed alone (see "Slice 6a").
