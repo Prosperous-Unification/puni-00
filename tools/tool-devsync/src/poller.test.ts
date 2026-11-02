@@ -1151,6 +1151,10 @@ printf '%s\n' "$target_root" > "$POLL_TARGET_PROBE"
   });
 
   it('refuses and cleans a borrowed candidate when required object copying fails', async () => {
+    const searchPath = process.env['PATH'];
+    if (searchPath === undefined || searchPath === '') {
+      throw new Error('PATH is required for the object-copy failure fixture');
+    }
     const root = await scratchAsync('wbs-dev-poller-copy-failure-');
     const { source, target } = await seedBorrowedSource(root);
     const installed = join(root, 'bin');
@@ -1172,7 +1176,7 @@ exec "$POLL_REAL_GIT" "$@"
 
     const failed = await command(
       ['bash', HELPER, source, installed, process.execPath, target, Bun.version],
-      { PATH: `${commands}:${process.env['PATH'] ?? ''}`, POLL_REAL_GIT: realGit },
+      { PATH: `${commands}:${searchPath}`, POLL_REAL_GIT: realGit },
     );
     expect(failed).toEqual({
       code: 17,
