@@ -1567,3 +1567,94 @@ All with `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset.
 - **Not run in this pass, as the coordinator asked:** the full `twilight-dash:test` target
   waits for the re-merge with #816. `:build` was not rerun either; no build input outside
   `src/` changed.
+
+### Second review pass (Fable, PR #818 at `b9451408b`, DO NOT MERGE AS IS)
+
+Each finding, on `feat/dash-host-jobs-6b-transition`. The plan is still not merged in.
+
+- **K1 (S1, corrects H6).** `verifyEligibleTypes` is strict only for `ops pool init` and
+  `switch-mode`. Every other open treats a checkout whose HEAD has no usable catalogue as
+  naming nothing, listed as `<checkout> unverified at <rev>`. It refuses 64 only when no
+  readable catalogue names the id. The moved-HEAD case is in `docs/resources.md`.
+  Test: `a launcher checkout parked at a pre-catalogue commit does not stop ops job run`. It
+  uses two launcher checkouts, one detached at a commit without a catalogue:
+  - `ops job run` and `status` still run;
+  - `switch-mode` stays strict;
+  - a typo still refuses 64, naming the unverified checkout.
+- **K2 (S2, corrects H2).** `holdLegacyLock` decides "held" from the shell lock's own record:
+  `<lock>.d/holder` names the holder's pid. The log is diagnostics only. The wait is bounded by
+  `waitSeconds·1000 + 15 s`, counted in 50 ms polls. Past it, the holder's session gets TERM,
+  its files are removed, and the result is `{refused, 70, reason}`. A failed hold-file write
+  ends the holder the same way. Tests:
+  - `a holder whose log cannot be written still holds, by the lock record itself`: a library
+    with `exec 1>/dev/full`;
+  - `a holder that neither claims nor ends is ended at its bound`.
+- **K3 (S2).** `reclaimDeadTickets` runs in `watch`'s tick and in `resources sweep`, in one
+  transaction with the poll's own report lines. `undrained()`, and so `modeDrain()` and the
+  guard's demand, ignore dead or expired tickets. Test: `a ticket of a dead launcher holds
+neither the switch nor the guard`. A ticket is enqueued for a `sleep` that is then killed;
+  `switch-mode` completes, `tick` reclaims the ticket naming it, and the guard holds nothing.
+- **K4 (S3).** New `guardStillHeld()`. `ops job run` re-checks it at its payload's exit and marks
+  the job (`recordGuardLostFor`). An unreadable guard state at exit also counts as lost. Test:
+  `a guard lost mid-run with no watch is still recorded`.
+- **K5 (S3).** Hold files now record `pid boot start`. `switch-mode` judges a leftover hold
+  alive or dead through `processAlive`, the `/proc` identity check, so it never kills or
+  signals a process to find out. A file naming only a pid is reported as `unknown`. The test
+  now covers a dead holder, a live one, and a recycled pid.
+- **K6 (S3).** Every launcher-check `git` runs with `LC_ALL=C`. The dubious-ownership test's fake
+  git answers in German unless asked for the C locale.
+
+Assumptions added:
+
+- **S6B-A22 Lenient eligibility outside init and switch-mode.** It applies to `ops job run`,
+  `calibrate`, `status`, `propose`, `audit` and `pool inspect`. A checkout counts as
+  unverified on any `OpsRefusal` from reading its catalogue at HEAD: missing, malformed, or no
+  HEAD. Other errors still throw. The unverified list appears only inside a refusal or in
+  `switch-mode`'s evidence; an open that succeeds prints nothing about it.
+- **S6B-A23 Held, by the lock's record.** The library writes `<lock>.d/holder` only under the
+  flock and removes it before closing the flock, so a record naming the holder's pid means it
+  holds. The bound is counted in polls, not clock reads: Dash's no-ambient-clock rule applies
+  to `legacy-lock.ts`, and each poll sleeps at least 50 ms, so the real wait is never shorter
+  than the bound. Tests may shorten the 15 s grace with `claimGraceMs`.
+- **S6B-A24 Dead tickets.** "Dead" is the poll's own rule: the process is gone by pid, boot and
+  start identity, or the wait budget ended over `TICKET_RECLAIM_AFTER_MS` ago.
+- **S6B-A25 Guard re-check at exit.** The launcher marks only its own job. `watch` marks every
+  running job, as before.
+
+Not provable alone, so stated: the hold-file write failure path of K2. Making the second write
+to a just-created owner-only file fail needs a full filesystem under the pool root, which
+these tests cannot mount. The path is the same `abandon` that `a holder that neither claims
+nor ends …` exercises.
+
+#### Fault injection (second pass)
+
+The method is the one above (`faults_k.py`). Every fault was watched red and every file was
+restored byte for byte. Hashes are those of commit `ea02d2986`.
+
+| File (SHA-256)                                         | Fault                                  | Test that went red                                                                    |
+| ------------------------------------------------------ | -------------------------------------- | ------------------------------------------------------------------------------------- |
+| `src/ops/switch-mode.ts` `7df1e67f…6ad7a6e9`           | K1 lenient eligibility refuses again   | `a launcher checkout parked at a pre-catalogue commit does not stop ops job run`      |
+| `src/resources/legacy-lock.ts` `253997e8…6e6d4900`     | K2a held decided by the log line again | `a holder whose log cannot be written still holds, by the lock record itself`         |
+| legacy-lock.ts                                         | K2b no bound                           | `a holder that neither claims nor ends is ended at its bound` (test timeout)          |
+| `src/resources/runtime.ts` `616a5044…cf278b9`          | K3a drains count dead tickets          | `a ticket of a dead launcher holds neither the switch nor the guard`                  |
+| `src/resources/singleton-guard.ts` `6072ac7c…e16e47af` | K3b tick reclaims no dead ticket       | the same (no removal line)                                                            |
+| `src/ops/job-run.ts` `b3f6ba8f…474bf943`               | K4 no guard re-check at exit           | `a guard lost mid-run with no watch is still recorded`                                |
+| switch-mode.ts                                         | K5 hold-file liveness by pid alone     | `a switch-mode hold left behind refuses the next switch 75, naming it` (recycled pid) |
+| switch-mode.ts                                         | K6 git in the caller's locale          | `refuses a launcher checkout git distrusts, saying so, in any locale`                 |
+
+#### Commands (fresh, second pass)
+
+All with `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset.
+
+- **Targeted tests**, on `ea02d2986`: exit 0, 109 pass, 0 fail across 16 files (outer), with
+  every namespaced inner run passing. The set was `src/ops`,
+  `src/resources/{legacy-lock,host-jobs,host-jobs.model,host-job-holds,host-job-publication}.test.ts`,
+  `src/compute/report-capacity.host-pool.test.ts`, `src/cli.test.ts` and
+  `src/no-ambient-clock.test.ts`. `host-pool-mode.test.ts` passed 44 of 44.
+- **`legacy-lock.test.ts`** run twice on its own: 13 pass, 0 fail each time.
+- **`bash bin/heavy-lock.test.sh`** (bin/ unchanged): exit 0, `all heavy-lock checks passed`.
+- **`twilight-dash:typecheck` and `:lint`** (`--skip-nx-cache`): exit 0 each.
+- **`bunx prettier --check`** on every touched file: clean.
+- **`bunx openspec validate dash-host-jobs --json`:** `failed: 0`.
+- **Not run, as asked:** the full `twilight-dash:test` target waits for the re-merge with
+  #816.
