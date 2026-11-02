@@ -873,6 +873,116 @@ expect_equal f "$(cd "$perm_repo" && find f -perm -0004)" 'the repair widened th
 expect_equal sub "$(cd "$perm_repo" && find sub -maxdepth 0 -perm -0005)" 'the repair opened the tracked directory'
 expect_equal '' "$(find "$outside" -perm -0004)" 'the repair did not follow a tracked symlink out of the tree'
 
+# 44. The tree the gate payload gates (`dash-host-jobs` J15): the admitted unit on an enrolled
+# host and nothing else; the launcher's checkout on an unenrolled one, never a variable nobody
+# admitted.
+run_tree_resolution() {
+  # shellcheck disable=SC2016 # Single quotes are the point: `$1`-`$3` belong to the inner shell.
+  bash -c 'source "$1"; resolve_gate_tree "$2" "$3"' h2puni-tree-resolution "$gate_lib" "$@"
+}
+unit_tree="$scratch/unit-tree"
+make_repo "$unit_tree"
+status=0
+# shellcheck disable=SC2016 # Single quotes are the point: the inner shell expands them.
+env -u DASH_JOB_UNIT_GATE_TREE bash -c 'source "$1"; resolve_gate_tree "$2" enrolled' \
+  h2puni-tree-resolution "$gate_lib" "$repo" >/dev/null 2>"$scratch/tree-stderr" || status=$?
+expect_status 64 "$status" '44a: an enrolled payload without DASH_JOB_UNIT_GATE_TREE is refused'
+if grep -q 'DASH_JOB_UNIT_GATE_TREE is not set' "$scratch/tree-stderr"; then
+  pass '44a: the refusal names the variable'
+else fail "44a: the refusal did not name the variable: $(cat "$scratch/tree-stderr")"; fi
+status=0
+DASH_JOB_UNIT_GATE_TREE="$unit_tree/." run_tree_resolution "$repo" enrolled >/dev/null 2>&1 || status=$?
+expect_status 64 "$status" '44b: a non-canonical admitted tree is refused'
+status=0
+DASH_JOB_UNIT_GATE_TREE="$repo" run_tree_resolution "$repo" enrolled >/dev/null 2>"$scratch/tree-stderr" || status=$?
+expect_status 64 "$status" "44c: an admitted tree that is the launcher's checkout is refused"
+status=0
+DASH_JOB_UNIT_GATE_TREE="$unit_tree" run_tree_resolution "$repo" unenrolled >/dev/null 2>&1 || status=$?
+expect_status 64 "$status" '44d: an unenrolled payload refuses an inherited DASH_JOB_UNIT_GATE_TREE'
+expect_equal "$unit_tree" "$(DASH_JOB_UNIT_GATE_TREE="$unit_tree" run_tree_resolution "$repo" enrolled 2>/dev/null)" \
+  '44e: an enrolled payload gates the admitted tree'
+# shellcheck disable=SC2016 # Single quotes are the point: the inner shell expands them.
+expect_equal "$repo" "$(env -u DASH_JOB_UNIT_GATE_TREE bash -c 'source "$1"; resolve_gate_tree "$2" unenrolled' \
+  h2puni-tree-resolution "$gate_lib" "$repo" 2>/dev/null)" "44f: an unenrolled payload gates the launcher's checkout"
+
+# 44g. An admitted tree that lacks the gated commit fetches it from the launcher's checkout.
+# Proof: with the fetch removed from `resolve_gate_commit`, 44g got '' and the refusal; with its
+# refusal replaced by printing the sha, 44h exited 0 (2026-11-02, review F6).
+git -C "$repo" commit -q --allow-empty -m 'only in the launcher checkout'
+launcher_only=$(git -C "$repo" rev-parse HEAD)
+git -C "$repo" reset -q --hard HEAD~1
+expect_equal "$launcher_only" \
+  "$(bash -c 'source "$1"; resolve_gate_commit "$2" "$3" "$4"' h2puni-commit "$gate_lib" "$unit_tree" "$repo" "$launcher_only" 2>/dev/null)" \
+  '44g: the admitted tree fetched the commit only the launcher checkout had'
+status=0
+bash -c 'source "$1"; resolve_gate_commit "$2" "$3" "$4"' h2puni-commit "$gate_lib" "$unit_tree" "$repo" \
+  0000000000000000000000000000000000000000 >/dev/null 2>&1 || status=$?
+expect_status 64 "$status" '44h: a commit neither tree has is refused'
+
+# 45. An enrolled gate returns its unit to the commit it rested on, pass or fail, so settlement
+# can release it; an unenrolled gate keeps the gated commit after a pass, as it always has.
+rest_tree="$scratch/rest-tree"
+make_repo "$rest_tree"
+rest_b=$(git -C "$rest_tree" rev-parse HEAD)
+rest_a=$(git -C "$rest_tree" rev-parse HEAD~1)
+status=0
+bash -c 'source "$1"; shift; run_pinned_checkout "$@"' h2puni-settle "$gate_lib" \
+  "$rest_tree" "$rest_a" restore true 2>/dev/null || status=$?
+expect_status 0 "$status" '45a: a passing enrolled gate passes'
+expect_equal "$rest_b refs/heads/main" \
+  "$(git -C "$rest_tree" rev-parse HEAD) $(git -C "$rest_tree" symbolic-ref -q HEAD)" \
+  '45a: the enrolled gate tree is back at its resting commit'
+status=0
+bash -c 'source "$1"; shift; run_pinned_checkout "$@"' h2puni-settle "$gate_lib" \
+  "$rest_tree" "$rest_a" restore false 2>/dev/null || status=$?
+expect_status 1 "$status" '45b: a failing enrolled gate keeps its status'
+expect_equal "$rest_b" "$(git -C "$rest_tree" rev-parse HEAD)" '45b: the failed enrolled gate restored its tree'
+status=0
+bash -c 'source "$1"; shift; run_pinned_checkout "$@"' h2puni-settle "$gate_lib" \
+  "$rest_tree" "$rest_a" keep true 2>/dev/null || status=$?
+expect_status 0 "$status" '45c: a passing unenrolled gate passes'
+expect_equal "$rest_a" "$(git -C "$rest_tree" rev-parse HEAD)" '45c: the unenrolled gate keeps the gated commit'
+git -C "$rest_tree" checkout -q main
+status=0
+bash -c 'source "$1"; shift; run_pinned_checkout "$@"' h2puni-settle "$gate_lib" \
+  "$rest_tree" "$rest_a" later true 2>/dev/null || status=$?
+expect_status 64 "$status" '45d: a settle mode that is neither keep nor restore is refused'
+
+# 44i. An enrollment verdict that is neither is refused rather than read as either.
+status=0
+DASH_JOB_UNIT_GATE_TREE="$unit_tree" run_tree_resolution "$repo" maybe >/dev/null 2>&1 || status=$?
+# Proof: with the refusal removed, `maybe` fell through to the enrolled branch and gated the
+# admitted tree — `44i … want exit 64, got 0` (2026-11-02, review F6).
+expect_status 64 "$status" '44i: an enrollment that is neither enrolled nor unenrolled is refused'
+
+# 46. An enrolled gate over a tracked path closed to other users names the unit to repair: a rerun
+# with H2PUNI_GATE_REPAIR_MODES=1 may be admitted to the other gate tree (review F7).
+closed_tree="$scratch/closed-tree"
+make_repo "$closed_tree"
+closed_b=$(git -C "$closed_tree" rev-parse HEAD)
+chmod 0600 "$closed_tree/f"
+status=0
+bash -c 'source "$1"; shift; run_pinned_checkout "$@"' h2puni-closed "$gate_lib" \
+  "$closed_tree" "$closed_b" restore true 2>"$scratch/closed-stderr" || status=$?
+expect_status 66 "$status" '46: an enrolled gate over a closed tracked file is refused'
+if grep -q "repair this unit itself while no gate holds it: chmod -R go+rX -- $closed_tree" "$scratch/closed-stderr" &&
+  ! grep -q 'Rerun as H2PUNI_GATE_REPAIR_MODES=1' "$scratch/closed-stderr"; then
+  pass '46: the enrolled refusal names the unit to repair'
+else fail "46: the enrolled refusal names the unit to repair: $(cat "$scratch/closed-stderr")"; fi
+chmod 0644 "$closed_tree/f"
+
+# 47. The real launcher refuses a target that names no commit, before any lock or admission.
+status=0
+TOOL_WIKI_ACTIVATION_ROOT='' bash "$repo_root/bin/h2puni-gate.sh" not-a-commit \
+  >/dev/null 2>"$scratch/launcher-stderr" || status=$?
+# Proof: with the launcher's refusal removed, the gate went on to `run_heavy_job`, which on this
+# workstation refused the absent canonical lock directory — `47 … want exit 64, got 70`
+# (2026-11-02, review F6).
+expect_status 64 "$status" '47: the real launcher refuses a target that names no commit'
+if grep -q "h2puni gate: not-a-commit is not a commit in $repo_root" "$scratch/launcher-stderr"; then
+  pass '47: the refusal names the target and the checkout'
+else fail "47: the refusal did not name the target: $(cat "$scratch/launcher-stderr")"; fi
+
 if ((failures)); then
   printf '\n%d failing case(s)\n' "$failures" >&2
   exit 1

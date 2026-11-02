@@ -117,36 +117,63 @@
 
 ## 6. Transition on the gate hosts (operator and code)
 
-- [ ] 6.1 `run_heavy_job` in `bin/heavy-lock-lib.sh` (J12, J13): enrolled branch, type required,
+- [x] 6.1 `run_heavy_job` in `bin/heavy-lock-lib.sh` (J12, J13): enrolled branch, type required,
       fixed path, config-missing-beside-ledger is 70, budgets forwarded as flags, outer shell
       returning status; the four launchers here and `puni-pr-00`'s `build-release.sh` call it —
       test: new `bin/heavy-lock.test.sh` cases for the enrolled branch; every existing case
       passes unchanged against `with_heavy_lock`; the gate's trap-runs-once scenario; negative:
-      let a variable choose the mechanism and watch the opt-out case fail.
-- [ ] 6.2 Five-launcher conflict inventory (J3): canonical paths, ports, release artifacts,
+      let a variable choose the mechanism and watch the opt-out case fail. Done for the four
+      launchers here (cases 40 to 45; verify.md Slice 6a); `puni-pr-00`'s `build-release.sh` is
+      owed by that repository. **Not in this slice, and no host may be enrolled before they
+      land:** J12's observe phase (a Dash job under the legacy queue protocol) and the
+      concurrent-mode singleton flock guard, both with `ops pool switch-mode` after slice 4
+      (S6-A2). The fixed pool root `/home/puni1/.local/share/dash/host-pool` is what 6.3's role
+      must write (S6-A1).
+- [x] 6.2 Five-launcher conflict inventory (J3): canonical paths, ports, release artifacts,
       caches, build engines, cross-type pairs; each conflict isolated or an exclusive unit; the
       gate split into outer launcher and admitted payload reading `DASH_JOB_UNIT_GATE_TREE`
       (J15); the solver smoke's containers bounded and labelled (J16) — test: two gates and a
       gate beside a release build driven concurrently against real launchers with distinct
-      trees; negative: remove the tree variable and watch the enrolled payload refuse 64.
+      trees; negative: remove the tree variable and watch the enrolled payload refuse 64. The
+      inventory is `docs/infra/heavy-job-launchers.md`; the concurrency test is
+      `src/ops/launchers.test.ts` (namespace, fake scope). Still serialised by J16 until bounded
+      and labelled: the supervisor's managed solver containers, the orphan proc tests, Caddy in
+      `mcp-body-limit.test.ts`; `dagger_engine` needs a token Git tree unit until Dash has a
+      non-tree unit kind (S6-A7).
 - [ ] 6.3 `gate_host` role: linger on, pool config, ledger directory, second gate tree,
       `validate` runs `ops job audit`; h2puni disk cleaned first per the recorded order — proof:
       two converging applies, `changed=0` on the second.
 - [ ] 6.4 Enroll h2puni and h4claw in observe mode; run every launcher through `run_heavy_job`
       for a week; calibrate the five types cold and warm; open the catalogue PRs from `propose`.
+      During the first observe-mode gates, measure the peak memory and CPU of the solver smoke's
+      four bounded containers (`wbs-solver`, `registry:2`, the two clients; `docker stats` through
+      the run record's container samples) before any type runs with `enforcement: cap`: their
+      `--memory 1g --cpus 1` is the declared `gate` bound, applied only inside a Dash job and not
+      yet measured (slice 6a review F4).
 - [ ] 6.5 `ops pool switch-mode concurrent` on each host after the five-launcher checklist,
       with the singleton guard held; two-job concurrent validation recorded in `verify.md`
       (planned proofs apart from observed evidence); decide when a failing `JOB-CATALOGUE`
       blocks `ops job run`; update `docs/runbook-h2-heavy-lock-owner.md`,
-      `docs/infra/gate-hosts.md`, `AGENTS.md` Gate and `LLM_README.md`.
-- [ ] 6.6 Uninspectable same-user processes outside host jobs (review F1): hold inspection
+      `docs/infra/gate-hosts.md`, `AGENTS.md` Gate and `LLM_README.md`. Before the switch,
+      admission enforces a per-type concurrency flag (slice 6a review F3; slice 6b owns
+      `switch-mode` and implements it): `host-pool.json` gains
+      `"concurrencyEligible": ["<type id>", …]`, default `[]`. `ops pool init` and every pool
+      open refuse 70 for an id the admitting checkout's catalogue does not name. In concurrent
+      mode a job whose type is not listed is admitted only when no other host job is reserved,
+      and no other job is admitted beside it. Today serialisation rests only on no host having
+      switched mode, and after #814 on the audit's `attribution_incomplete` finding, which refuses
+      nothing; `gate` and `test-queued` stay unlisted until their J16 gaps and their shared
+      checkout `.nx` cache are covered (`docs/infra/heavy-job-launchers.md`).
+- [x] 6.6 Uninspectable same-user processes outside host jobs (review F1): hold inspection
       refuses any same-user process whose `/proc/<pid>/fd` is access-denied. Host-job settlement
       now records such a process outside the job's scope as `uninspectable_outside_scope`, but
       worktree cleanup and `ops pool init`'s unit check still throw `cannot inspect process PID`
       on every host where `(sd-pam)` or `sshd-session` runs as the account, which is every host
       with a user manager. Decide their rule (a worktree use has no scope to compare against),
       then prove it outside a namespace before slice 6 enrolls h2puni: `ops pool init` there
-      refuses until this is done.
+      refuses until this is done. Done by J19 (design.md): `resource-holds.test.ts` outside any
+      namespace; `ops pool init` now succeeds beside this workstation's own `systemd --user`
+      (PID 2327) and `(sd-pam)` (verify.md Slice 6a).
 - [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
       `Restart=on-failure` (beside the observation units of 4.2), so a `watch` stopped by a
       refusal past the host-job retry bound (S5-A20) or any other modelled stop comes back and

@@ -85,6 +85,9 @@ The [Gate](../../AGENTS.md#gate) rules are the same as on h2puni:
 - Trust the printed `h2puni gate: running on <sha>`.
 - Exit 65 means the tree is dirty, and exit 66 means it has unreadable tracked paths.
 - `bin/with-heavy-lock.sh status` names the holder of the lock on that host.
+- Every launcher enters through `run_heavy_job`, which takes this lock on a host that is not
+  enrolled in a Dash host pool. Neither gate host is enrolled yet, and none may be before J12's
+  observe mode and singleton guard land; see [heavy job launchers](heavy-job-launchers.md).
 
 ## Capacity reports into WBS
 

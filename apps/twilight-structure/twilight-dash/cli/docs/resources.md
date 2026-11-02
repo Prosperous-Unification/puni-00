@@ -313,9 +313,21 @@ workspace slots; a host job also reserves cores, memory and exclusive units.
   Any other uninspectable process is an unknown holder and keeps the entry `blocked`. A job
   begun before a reboot is therefore blocked by every uninspectable process of the new boot. A
   daemon the payload left inside the scope blocks until it ends. The refusal names the remedy,
-  `systemctl --user stop dash-job-<id>.scope`, after which settlement retries. Worktree cleanup
-  and the unit check at `ops pool init` have no scope to compare against, so they still refuse
-  (task 6.6).
+  `systemctl --user stop dash-job-<id>.scope`, after which settlement retries. Managed-resource
+  cleanup and the unit check at `ops pool init` (and `resources init`) apply the same rule (J19):
+  such a process holds nothing only if no Dash job scope contains it, its session is no unreleased
+  use's or host job's process group, **and** it started, in this boot, before the use's leader
+  (its creator when it never ran a command) or before the initializing Dash process. A released
+  use names those in its reason the same way; any other uninspectable process blocks with
+  `cannot inspect process PID <pid> (<comm>), which may hold …` and the remedy. In every
+  position, a process in a logind login session (`/user.slice/user-<uid>.slice/session-<id>.scope`,
+  such as an `sshd-session` of an ssh login that began mid-job) is outside whenever it started,
+  unless its session id is a Dash-owned process group's. Known gap: a non-dumpable process
+  released this way that opens the job's files later is not seen (design.md J19).
+- **A unit left off its resting commit.** A payload killed before it restored its gate tree
+  (SIGKILL, `cap`'s MemoryMax) leaves the unit `blocked` as `not its resting commit` for good. The
+  reason names the remedy: once no job runs in it, `git -C <unit> checkout --detach <resting
+commit>`, and settlement retries.
 
 **WBS projection** (J10). WBS shows the pool and never admits for it. Each `synchronize` (every
 `watch` tick) first moves the unmoved `host_job_events` rows, oldest first and in one

@@ -685,7 +685,10 @@ function checkHostFacts(configuration: ResourceConfiguration, host: HostFacts): 
     if (git(['-C', path, 'status', '--porcelain', '--untracked-files=all']) !== '')
       throw new Error(`host pool unit ${path} is not clean`);
     try {
-      inspectHolds(path);
+      // Proof: inspecting with no initializer scope made `pool init succeeds beside a non-dumpable
+      // process that predates it` (resource-holds.test.ts) refuse "cannot inspect process PID"
+      // (2026-11-02, J19).
+      inspectHolds(path, initScopeOf(path));
     } catch (cause) {
       throw new Error(
         `host pool unit ${path} is held: ${cause instanceof Error ? cause.message : 'unreadable'}`,
@@ -865,19 +868,78 @@ function git(arguments_: string[], input?: string): string {
 }
 
 /**
- * A host job's scope for hold inspection (`dash-host-jobs` slice 3 reviews F1, R1): the transient
- * unit its payload ran in, the identity no process the job made can predate (its leader, or its
- * launcher before a launch), and the same-user processes recorded as outside it.
+ * What a hold inspection compares a same-user process whose descriptors are unreadable with
+ * (`dash-host-jobs` slice 3 reviews F1, R1, decision J19): the cgroup components and process
+ * sessions that make it Dash-owned, the identity nothing the owner made can predate, what a
+ * refusal says may be held and its remedy, and the processes recorded as outside.
  */
-interface JobScope {
-  unit: string;
+interface HoldScope {
+  /** Whether one component of a process's cgroup v2 path is a Dash-owned scope. */
+  owns: (component: string) => boolean;
+  /** Session ids (leader pids) of Dash-owned process groups. */
+  sessions: ReadonlySet<string>;
   before: ProcessIdentity;
+  /**
+   * The cgroup v2 path of the Dash process that owns this inspection's work, when that work can
+   * share its login session (managed uses, pool init); null for a host job, whose payload never
+   * runs in a login session (J19 amendment, review G2).
+   */
+  ownCgroup: string | null;
+  /** The object of `which may hold …` in a refusal. */
+  held: string;
+  remedy: string;
   outside: { pid: number; comm: string; start: bigint }[];
 }
 
-/** The scope of `job`: its unit is the one `ops job run` names `dash-job-<id>`. */
-function jobScopeOf(job: HostJob): JobScope {
-  return { unit: `dash-job-${job.id}.scope`, before: job.process ?? job.launcher, outside: [] };
+/** A Dash host job's transient scope, as `ops job run` names it: `dash-job-<id>.scope`. */
+const DASH_JOB_SCOPE = /^dash-job-.+\.scope$/;
+
+/**
+ * The scope of `job`: its unit is the one `ops job run` names `dash-job-<id>`; the identity is its
+ * leader, or its launcher before a launch.
+ */
+function jobScopeOf(job: HostJob): HoldScope {
+  const unit = `dash-job-${job.id}.scope`;
+  return {
+    owns: (component) => component === unit,
+    sessions: new Set(),
+    before: job.process ?? job.launcher,
+    ownCgroup: null,
+    held: "the job's files",
+    remedy: `end it, or stop the job's scope with \`systemctl --user stop ${unit}\`, and settlement retries`,
+    outside: [],
+  };
+}
+
+/**
+ * The scope `ops pool init` (and `resources init`) inspects a unit with (J19): no ledger exists
+ * yet, so every Dash job scope is owned and the identity is this Dash process itself.
+ * @throws Error when this process's own identity cannot be read.
+ */
+function initScopeOf(path: string): HoldScope {
+  const initializer = identifyProcess(process.pid);
+  if (initializer === null) throw new Error('pool initializer identity unavailable');
+  return {
+    owns: (component) => DASH_JOB_SCOPE.test(component),
+    sessions: new Set(),
+    before: initializer,
+    ownCgroup: ownCgroupPath(),
+    held: `unit ${path}`,
+    remedy: 'end it, then initialize again',
+    outside: [],
+  };
+}
+
+/**
+ * This process's cgroup v2 path, from `/proc/self/cgroup`.
+ * @throws Error when it is unreadable or names no unified hierarchy, which keeps the entry charged.
+ */
+function ownCgroupPath(): string {
+  const unified = readFileSync('/proc/self/cgroup', 'utf8')
+    .split('\n')
+    .find((line) => line.startsWith('0::'));
+  if (unified === undefined) throw new Error('this Dash process has no cgroup v2 membership');
+  return unified.slice(3);
 }
 
 /** How many outside-scope processes an entry's reason names before it only counts them. */
@@ -888,7 +950,7 @@ const OUTSIDE_NAMED = 3;
  * the most recently started first, at most {@link OUTSIDE_NAMED} named, the rest counted, so snapshots and
  * events stay small.
  */
-function outsideNote(scope: JobScope): string {
+function outsideNote(scope: HoldScope): string {
   // Most recently started first: the one an operator asks about (pids wrap; start ticks do not).
   const seen = [
     ...new Map(scope.outside.map((uninspectable) => [uninspectable.pid, uninspectable])).values(),
@@ -905,15 +967,16 @@ function outsideNote(scope: JobScope): string {
 }
 
 /**
- * Whether a same-user process whose descriptors are unreadable provably holds nothing the job
- * made: it is outside the job's scope cgroup **and** it started before the job's leader in this
- * boot. A different cgroup alone proves nothing: a payload's descendant can turn non-dumpable
- * (prctl, a setuid helper, ssh-agent, gpg-agent) and leave the scope with `systemd-run --user`.
- * A process that predates the leader cannot have inherited or been handed the job's files by it.
- * Anything else, including any process of another boot, stays an unknown holder.
- * @throws Error when its cgroup or identity cannot be read, which keeps the entry charged.
+ * Whether a same-user process whose descriptors are unreadable provably holds nothing the owner
+ * made: no component of its cgroup is an owned scope, its session is no owned process group's,
+ * **and** it started before `scope.before` in this boot. A different cgroup alone proves nothing:
+ * a payload's descendant can turn non-dumpable (prctl, a setuid helper, ssh-agent, gpg-agent) and
+ * leave the scope with `systemd-run --user`. A process that predates the leader cannot have
+ * inherited or been handed the owner's files by it. Anything else, including any process of
+ * another boot, stays an unknown holder.
+ * @throws Error when its cgroup, session or identity cannot be read, which keeps the entry charged.
  */
-function outsideScope(pid: string, scope: JobScope): boolean {
+function outsideScope(pid: string, scope: HoldScope): boolean {
   let membership: string;
   try {
     membership = readFileSync(`/proc/${pid}/cgroup`, 'utf8');
@@ -923,13 +986,52 @@ function outsideScope(pid: string, scope: JobScope): boolean {
   const unified = membership.split('\n').find((line) => line.startsWith('0::'));
   if (unified === undefined)
     throw new Error(`uninspectable PID ${pid} has no cgroup v2 membership`);
-  if (unified.slice(3).split('/').includes(scope.unit)) return false;
+  const cgroup = unified.slice(3);
+  if (cgroup.split('/').some(scope.owns)) return false;
   const identity = identifyProcess(Number(pid));
   if (identity === null) throw new Error(`uninspectable PID ${pid} has no identity`);
+  if (scope.sessions.size > 0) {
+    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    const session = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[3];
+    if (!session) throw new Error(`uninspectable PID ${pid} has no session`);
+    // Proof: without this, `a non-dumpable process in another use's process group still holds a
+    // resource` (resource-holds.test.ts) saw the use released (2026-11-02, J19).
+    if (scope.sessions.has(session)) return false;
+  }
+  // Another login session's processes (`sshd-session`, `(sd-pam)` beside it) are outside Dash-owned
+  // work whenever they started (J19 amendment, reviews F1 and G2): a `puni1` ssh login that
+  // begins during a job would otherwise hold the gate tree until it logs out. The owner's own
+  // login session is not foreign: a managed use's leader is a plain child of Dash, so a
+  // descendant that calls `setsid` and turns non-dumpable stays in Dash's session scope.
+  // Proof: without this, `pool init succeeds beside a non-dumpable process of another login
+  // session` (resource-holds.test.ts) refused and `a non-dumpable login-session process started
+  // after the job does not hold` (host-job-holds.test.ts) saw tmp `blocked`; with the owner's
+  // session exempted too, `a setsid descendant in Dash's own login session still holds`
+  // (resource-holds.test.ts) saw the resource `released` (2026-11-02, reviews F1, G2).
+  if (isForeignLoginSession(cgroup, scope.ownCgroup)) return true;
   // Proof: without the start comparison `a non-dumpable process that left for another scope
   // after the job still holds` (host-job-holds.test.ts) saw tmp `released` with the file open
   // (2026-11-02, Slice 3 review R1).
   return identity.boot === scope.before.boot && BigInt(identity.start) < BigInt(scope.before.start);
+}
+
+/**
+ * Whether cgroup v2 path `cgroup` is a logind login session, `/user.slice/user-<uid>.slice/
+ * session-<id>.scope`, other than `owner`'s own (null: every login session is foreign). PAM
+ * creates session scopes at login and only root may write them. A Dash payload cannot enter one:
+ * `systemd-run --user` puts its descendants under `user@<uid>.service`, which this refuses, and
+ * the session scope itself is not delegated to the account.
+ */
+export function isForeignLoginSession(cgroup: string, owner: string | null): boolean {
+  const components = cgroup.split('/');
+  return (
+    cgroup !== owner &&
+    components.length === 4 &&
+    components[0] === '' &&
+    components[1] === 'user.slice' &&
+    /^user-\d+\.slice$/.test(components[2] ?? '') &&
+    /^session-[A-Za-z0-9]+\.scope$/.test(components[3] ?? '')
+  );
 }
 
 /** A process's `comm`, or `?` once it is gone or unreadable: evidence text only. */
@@ -950,11 +1052,12 @@ function isAccessDenied(cause: unknown): boolean {
 
 /**
  * Same-user cwd, descriptors and mapped files are required evidence, including deleted-open files.
- * With a host job's `scope`, a same-user process whose descriptors are access-denied and that is
- * outside the scope is recorded in `scope.outside` instead of refusing; without one (worktree
- * uses, pool init) every uninspectable process refuses, as before.
+ * A same-user process whose descriptors are access-denied and that is outside `scope`
+ * ({@link outsideScope}) is recorded in `scope.outside` instead of refusing (J19: host-job
+ * settlement, managed-resource cleanup and the unit check at pool init alike); any other
+ * uninspectable process refuses, naming its pid, comm and the scope's remedy.
  */
-function inspectHolds(locator: string, scope?: JobScope): void {
+function inspectHolds(locator: string, scope: HoldScope): void {
   // Proof: returning without inspection released a live writer's directory (live-holds.log)
   // and the protected-process target in `existing account runs work` (2026-10-25).
   const mounts = readFileSync('/proc/self/mountinfo', 'utf8').split('\n');
@@ -995,7 +1098,7 @@ function inspectHolds(locator: string, scope?: JobScope): void {
       // its tmp directory` (host-job-holds.test.ts) saw tmp `blocked` "cannot inspect process
       // PID"; with `outsideScope` always true `a non-dumpable process inside the job scope still
       // holds its tmp directory` saw it `released` (2026-11-02, Slice 3 review F1).
-      if (scope !== undefined && isAccessDenied(cause) && outsideScope(pid, scope)) {
+      if (isAccessDenied(cause) && outsideScope(pid, scope)) {
         scope.outside.push({
           pid: Number(pid),
           comm: commOf(pid),
@@ -1008,9 +1111,9 @@ function inspectHolds(locator: string, scope?: JobScope): void {
       // blocked until it ends; stopping the job's scope ends it.
       // Proof: dropping the remedy made `a non-dumpable process inside the job scope still holds
       // its tmp directory` (host-job-holds.test.ts) miss `systemctl --user stop` (2026-11-02, R8).
-      if (scope !== undefined && isAccessDenied(cause))
+      if (isAccessDenied(cause))
         throw new Error(
-          `cannot inspect process PID ${pid} (${commOf(pid)}), which may hold the job's files; end it, or stop the job's scope with \`systemctl --user stop ${scope.unit}\`, and settlement retries`,
+          `cannot inspect process PID ${pid} (${commOf(pid)}), which may hold ${scope.held}; ${scope.remedy}`,
           { cause },
         );
       throw new Error(
@@ -1853,6 +1956,28 @@ export class ResourceRuntime {
       clearTimeout(timer);
     }
   }
+  /**
+   * The scope a managed resource's cleanup inspects with (J19): every Dash job scope and the
+   * process group of every unreleased use and host job are owned, and the identity is the use's
+   * owned process-group leader, or its creator when it never ran a command.
+   */
+  private useScope(use: ResourceUse): HoldScope {
+    const sessions = new Set<string>();
+    for (const other of this.list())
+      if (other.state !== 'released' && other.process !== null)
+        sessions.add(String(other.process.pid));
+    for (const job of this.listHostJobs())
+      if (job.state !== 'released' && job.process !== null) sessions.add(String(job.process.pid));
+    return {
+      owns: (component) => DASH_JOB_SCOPE.test(component),
+      sessions,
+      before: use.process ?? use.creator,
+      ownCgroup: ownCgroupPath(),
+      held: `resource ${use.id}`,
+      remedy: 'end it, and cleanup retries',
+      outside: [],
+    };
+  }
   private cleanup(id: string): void {
     const snapshot = this.inspect(id);
     if (
@@ -1884,7 +2009,7 @@ export class ResourceRuntime {
       use.cleanupGeneration += 1;
       try {
         if (ownedProcessesAlive(use)) throw new Error('owned command remains live');
-        inspectHolds(use.locator);
+        inspectHolds(use.locator, this.useScope(use));
         this.checkDependencies(use);
         const present = this.checkTarget(use);
         // Proof: bypassing absence provenance released a moved resource (unproven-absence.log).
@@ -1907,8 +2032,9 @@ export class ResourceRuntime {
       const use = this.inspect(id);
       if (use.state === 'released' || use.cleanupGeneration !== generation) return;
       try {
+        const scope = this.useScope(use);
         if (ownedProcessesAlive(use)) throw new Error('owned command remains live');
-        inspectHolds(use.locator);
+        inspectHolds(use.locator, scope);
         this.checkDependencies(use);
         const present = this.checkTarget(use);
         // Proof: bypassing absence provenance released a moved resource (unproven-absence.log).
@@ -1943,9 +2069,9 @@ export class ResourceRuntime {
           if (execution.exitCode !== 0) throw new Error('descriptor-relative removal refused');
         }
         if (this.checkTarget(use)) throw new Error('provider still contains resource');
-        inspectHolds(use.locator);
+        inspectHolds(use.locator, scope);
         use.state = 'released';
-        use.reason = 'provider absence and file holds verified';
+        use.reason = `provider absence and file holds verified${outsideNote(scope)}`;
         use.releasedDiskUnits = use.request.diskUnits;
         use.releasedWorkspaceUnits = 1;
         this.event(use, 'release_verified');
@@ -2876,7 +3002,11 @@ export class ResourceRuntime {
       if (head !== unit.restingCommit)
         return {
           state: 'blocked',
-          reason: `tree ${unit.path} is at ${head}, not its resting commit ${unit.restingCommit}`,
+          // A payload killed before it restored its tree (SIGKILL, `cap`'s MemoryMax) leaves it
+          // here for good; the remedy is the operator's, once no job runs in it (review F8).
+          // Proof: dropping the remedy failed `a dirty tree is not returned` (host-jobs.test.ts)
+          // on its `git -C … checkout` expectation (2026-11-02, review F8).
+          reason: `tree ${unit.path} is at ${head}, not its resting commit ${unit.restingCommit}; once no job runs in it, restore it with \`git -C ${unit.path} checkout --detach ${unit.restingCommit}\` and settlement retries`,
         };
       return {
         state: 'released',

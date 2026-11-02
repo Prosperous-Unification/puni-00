@@ -40,6 +40,17 @@ const scopeReason =
     ? ''
     : ` (skipped: systemd-run --user --scope answered exit ${String(scopes.exitCode)}: ${scopes.stderr.toString().trim().split('\n')[0] ?? ''})`;
 
+const ownCgroup =
+  readFileSync('/proc/self/cgroup', 'utf8')
+    .split('\n')
+    .find((line) => line.startsWith('0::'))
+    ?.slice(3) ?? '';
+/** Whether this test runs in a logind login session scope (J19 amendment, review F1). */
+const inLogin = /^\/user\.slice\/user-\d+\.slice\/session-[A-Za-z0-9]+\.scope$/.test(ownCgroup);
+const loginReason = inLogin
+  ? ''
+  : ` (skipped: this test runs in ${ownCgroup}, not a login session)`;
+
 describe('host-job hold inspection on a real host (review F1)', () => {
   const cleanups: (() => void)[] = [];
   const children: ChildProcess[] = [];
@@ -157,16 +168,39 @@ describe('host-job hold inspection on a real host (review F1)', () => {
     expect(current.state).toBe('released');
   }, 60000);
 
-  test('a non-dumpable process started after the job, outside its scope, still holds', async () => {
-    const { runtime, job, base } = await finishedJob();
-    const pid = await holder(['python3', '-c', NON_DUMPABLE_HOLDER], job, base);
-    const current = settled(runtime, job);
-    // Proof: see `outsideScope`; without its start comparison this entry was `released` with
-    // the file still open (2026-11-02, Slice 3 review R1).
-    expect(current.tmpDisk.state).toBe('blocked');
-    expect(current.tmpDisk.reason).toContain(`cannot inspect process PID ${String(pid)} (python3)`);
-    expect(existsSync(join(job.locator, 'held'))).toBe(true);
-  }, 60000);
+  test.skipIf(scopes.exitCode !== 0)(
+    `a non-dumpable process started after the job, outside its scope, still holds${scopeReason}`,
+    async () => {
+      const { runtime, job, base } = await finishedJob();
+      // Under `user@<uid>.service`, where a payload's `systemd-run --user` descendants land; a
+      // plain child of this test would share its cgroup, a login session on a workstation.
+      const pid = await holder(inScope(`holder-${randomUUID()}`), job, base);
+      const current = settled(runtime, job);
+      // Proof: see `outsideScope`; without its start comparison this entry was `released` with
+      // the file still open (2026-11-02, Slice 3 review R1).
+      expect(current.tmpDisk.state).toBe('blocked');
+      expect(current.tmpDisk.reason).toContain(
+        `cannot inspect process PID ${String(pid)} (python3)`,
+      );
+      expect(existsSync(join(job.locator, 'held'))).toBe(true);
+    },
+    60000,
+  );
+
+  test.skipIf(!inLogin)(
+    `a non-dumpable login-session process started after the job does not hold${loginReason}`,
+    async () => {
+      const { runtime, job, base } = await finishedJob();
+      // A plain child of this test, in its logind session scope: the ssh login of review F1.
+      const pid = await holder(['python3', '-c', NON_DUMPABLE_HOLDER], job, base);
+      const current = settled(runtime, job);
+      // Proof: see `outsideScope`; without the login-session test this entry was `blocked`
+      // (2026-11-02, review F1).
+      expect(current.tmpDisk.state).toBe('released');
+      expect(current.tmpDisk.reason).toContain(`${String(pid)} (python3)`);
+    },
+    60000,
+  );
 
   test.skipIf(scopes.exitCode !== 0)(
     `a non-dumpable process that left for another scope after the job still holds${scopeReason}`,
