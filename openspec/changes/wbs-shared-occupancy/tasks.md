@@ -1,13 +1,17 @@
 ## 0. Readings and landing order
 
-- [ ] 0.1 Dany confirms or amends design.md S1 to S12: first alternative A (organization
+- [x] 0.1 Dany confirms or amends design.md S1 to S12: first alternative A (organization
       occupancy) over B (shares) and C (Dash admission only), then the S5 carve-out (units
       of a shared resource are an organization fact, an exception to `wbs-permissions`'
       "ungranted is absent"), an explicit waiver of R5's production-path negative for the
       S5 redaction until a grant can deny, S7 (clamp, no portfolio levelling) and S10
-      (limits). If A holds, record it as an ADR.
-- [ ] 0.2 The owner of `wbs-resource-release` agrees to S9: this change supersedes that
-      change's five sentences on claim occupancy and schedule inputs, and whichever change
+      (limits). If A holds, record it as an ADR. Done 2026-11-01: Dany accepted S1 to S12
+      whole, alternative A and the S5 carve-out included, and that acceptance waives R5's
+      production-path negative for the S5 redaction until a grant can deny. The S1 ADR is
+      still owed.
+- [ ] 0.2 (Its sentences are amended in this branch with pointers to S9, since it landed first
+      in #735; the agreement is still open.) The owner of `wbs-resource-release` agrees to S9: this change supersedes that
+      change's six sentences on claim occupancy and schedule inputs, and whichever change
       lands second amends the other.
 - [ ] 0.3 Archive order: `wbs-resources`, `wbs-organization-limits` and `compute-providers`
       are archived before this change, since its MODIFIED deltas need their specs (validate
@@ -18,7 +22,7 @@
 
 ## 1. Directory capacity (no claim effect)
 
-- [ ] 1.0 Migration `widen_organization_audit_directory_capacity`: the compatible rebuild of
+- [x] 1.0 Migration `widen_organization_audit_directory_capacity`: the compatible rebuild of
       `organization_audit` carrying the whole current action and subject-kind vocabulary
       plus `directory_capacity_changed` and `resource`, as
       `20261022140100_widen_organization_audit_compute_providers` did; guarded `down.sql`
@@ -27,12 +31,12 @@
       Fault lines: drop one existing action from the rebuilt CHECK and the seeded row fails
       the forward test; drop the guard and the rollback runs over a
       `directory_capacity_changed` row the old CHECK rejects, and the refusal test fails.
-- [ ] 1.1 Migration `add_resource_directory_capacity` with CHECK
+- [x] 1.1 Migration `add_resource_directory_capacity` with CHECK
       `typeof(units) = 'integer' AND units >= 0`, cascade from `resource`, guarded
       `down.sql` — test: forward, back, refusal with one row; a text `'16'` is refused.
       Fault lines: drop the guard and the rollback test deletes a stated capacity; drop the
       `typeof` half and the text row is stored.
-- [ ] 1.2 `setDirectoryCapacity` on both `POST /api/directory/commands` and
+- [x] 1.2 `setDirectoryCapacity` on both `POST /api/directory/commands` and
       `POST /api/projects/:id/commands`, through one check: admin or super-admin in their own
       session or own MCP session; `forbidden` for other roles, machine principals and MCP
       consent delegations acting as an agent (both capped at member by `organizationRoleOf`); `organization_required` for a legacy resource; not
@@ -42,35 +46,41 @@
       is applied". Fault lines: skip the role check and the member's write lands; answer the
       stored role in place of `organizationRoleOf` and the admin's agent writes 16; skip the audit write and the audit test finds no row; skip the
       organization check and a legacy resource takes a capacity.
-- [ ] 1.3 Announce (S7): every applied `setDirectoryCapacity` publishes `directory_changed`
-      through `DirectoryService.announce` to each project that demands or states the
+- [x] 1.3 Announce (S7): every applied `setDirectoryCapacity` publishes `directory_changed`
+      through `DirectoryService.announce` to each project that demands, states or holds the
       resource — test: the spec's roll-up scenario. Fault line: skip the announce and a
-      space roll-up serves the stale dates scheduled against 32.
-- [ ] 1.4 Preview endpoint `POST /api/organization/resources/:resourceId/directory-capacity/preview`
+      space roll-up serves the stale dates scheduled against 32. (Built: the publication to
+      every project that states or demands the resource, proven on the memory twin; the
+      roll-up half of the scenario needs the clamp of 6.1 and is proven there. Review S3-1,
+      2026-11-01: a project holding it only through a claim's `resources` is told too, on
+      both stores, proven by the holder case of `directory-capacity.controller.db.test.ts`
+      and the `directory.setDirectoryCapacity:state-clear-remove` certification.)
+- [x] 1.4 Preview endpoint `POST /api/organization/resources/:resourceId/directory-capacity/preview`
       (S12), admin only — test: the spec's preview scenario; row count and audit count
       unchanged; a member and an admin's agent refused `forbidden`. Fault line: write
       before answering and the unchanged-count assertion fails.
-- [ ] 1.5 Route inventory: add both new routes to `ORGANIZATION_ROUTE_INVENTORY`
+- [x] 1.5 Route inventory: add both new routes to `ORGANIZATION_ROUTE_INVENTORY`
       (`apps/wbs/be-01/src/testing/organization-route-inventory.ts`) with their policies
       — test: `organization-context.controller.db.test.ts`. Fault line: register a route
-      without its inventory entry and the inventory test fails.
+      without its inventory entry and the inventory test fails. (Built for the preview; the
+      occupancy route's entry lands with 4.2, which adds the route.)
 
 ## 2. Domain: both scopes in one check
 
-- [ ] 2.1 `refuseOccupancy` takes the project's rows and the organization's rows for the
+- [x] 2.1 `refuseOccupancy` takes the project's rows and the organization's rows for the
       asked resources plus directory capacities; shortages carry `scope`; held units never
       refuse — test: one case per spec scenario (16 GB, staging, ceiling, tie, two leaves
       in one batch); fast-check model run over two projects: organization occupancy never
       exceeds a stated directory capacity after any sequence of claims, releases, undos and
       redos. Fault line: pass only the project's rows and the model run finds the 32-of-16
       sequence.
-- [ ] 2.2 Unstated directory capacity decides as before — test: the existing
+- [x] 2.2 Unstated directory capacity decides as before — test: the existing
       `claim-occupancy.test.ts` suite unchanged and green. Fault line: treat unstated as 0
       and every claim with a demand is refused.
 
 ## 3. Store and command path
 
-- [ ] 3.1 `ClaimStore.organizationOccupancyOf(resourceIds)` on SQLite and memory, joined to
+- [x] 3.1 `ClaimStore.organizationOccupancyOf(resourceIds)` on SQLite and memory, joined to
       `project_organization` so each row carries its project's organization, read on the
       batch's own connection after the batch took its turn; exposed unfenced and read
       through by the working plan — conformance tests on both stores, including "a working
@@ -78,16 +88,19 @@
       (a) read the organization's occupancy before the batch takes its turn and 3.2's race
       admits both claims; (b) read it on the observation connection and a two-claim batch
       takes 20 of 16 (the second claim does not see the first's uncommitted row).
-- [ ] 3.2 Cross-project race — test: `claim-occupancy-cross-project-race.db.test.ts`, two
+- [x] 3.2 Cross-project race — test: `claim-occupancy-cross-project-race.db.test.ts`, two
       concurrent claims in A and B asking 10 of 16, in one process and across two
       connections as `delegation-use-race.worker.ts` does; exactly one applied. Fault line:
       skip the organization check and both are stored (20 of 16).
-- [ ] 3.3 Amend ADR 0015 with the rule "a check that reads across projects needs the
+- [x] 3.3 Amend ADR 0015 with the rule "a check that reads across projects needs the
       source's lock to cover the organization"; add the source-conformance case: a batch
       claiming a resource with a directory capacity excludes a concurrent batch of another
       project of the organization. Fault line: a conformance fake source that locks per
-      project only admits both, and the case fails.
-- [ ] 3.4 Redo, undo of a release, undo of a cascading release (leaf by leaf, all or
+      project only admits both, and the case fails. (Built as case (m), which proves the
+      store-wide turn every source has: `UnitOfWork.run` takes no key, so the per-project
+      fault cannot be expressed until a source keys its coordinator; the ADR says so. Its
+      fault line is a memory coordinator granting every turn at once.)
+- [x] 3.4 Redo, undo of a release, undo of a cascading release (leaf by leaf, all or
       nothing), undo of a delete (`withClaimsRestored`), lease sweep — test: journal round
       trips in `resource-occupancy.db.test.ts` with a second project, one per spec
       scenario. Fault lines: skip the organization rows on the undo path and the undo
@@ -110,8 +123,10 @@
       reader gets units only (string search over the whole body for A's project, person,
       run and work item ids). Fault line: return holders unfiltered and the string search
       finds A's ids. No production-path negative exists until a `wbs-permissions` grant can
-      deny (waiver asked in 0.1); the negative moves to the production path in the
-      `wbs-permissions` slice that replaces the method's body.
+      deny (waived in 0.1, 2026-11-01); the negative moves to the production path in the
+      `wbs-permissions` slice that replaces the method's body. Follow-up (review S3-4):
+      `previewDirectoryCapacityWithin` hardcodes `hiddenProjects: { count: 0, units: 0 }`
+      and names every project; it must route through the read grant when `wbs-permissions` lands.
 - [ ] 4.2 `GET /api/organization/resources/:resourceId/occupancy` (S12) with
       `releasableBy` — test: the two spec scenarios; a member and an admin's agent
       refused `forbidden`. Fault lines: skip the role check and the member reads other
@@ -172,3 +187,5 @@
       state directory capacities only after a blue/green swap completes. Operator: state
       dev's `host ram` and `staging`, rerun the swarm rehearsal check 4 (`g4-multi.ts`)
       expecting B refused and `staging` refused in B; record in verify.md.
+      (Runbook lines written, with the audit rollback's manual completion command; the
+      operator half waits for a dev deploy.)

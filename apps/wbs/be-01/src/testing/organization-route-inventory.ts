@@ -127,6 +127,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'mutation',
   },
   {
+    operationId: 'postApiOrganizationResourcesByResourceIdDirectory-capacityPreview',
+    method: 'POST',
+    path: '/api/organization/resources/:resourceId/directory-capacity/preview',
+    kind: 'read',
+  },
+  {
     operationId: 'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
     method: 'PUT',
     path: '/api/compute-providers/:providerId/resources/:resourceId/capacity-report',
@@ -494,6 +500,7 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'control',
   },
   { operationId: 'postApiAuthLogin', method: 'POST', path: '/api/auth/login', kind: 'control' },
+  { operationId: 'postApiAuthReset', method: 'POST', path: '/api/auth/reset', kind: 'control' },
   { operationId: 'postApiAuthLogout', method: 'POST', path: '/api/auth/logout', kind: 'control' },
   { operationId: 'postApiAuthRefresh', method: 'POST', path: '/api/auth/refresh', kind: 'control' },
   {

@@ -10,7 +10,8 @@ import { afterEach, describe, expect, it } from 'bun:test';
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const HOST_JOB_PROJECTION = '20261101120000_add_host_job_projection';
-const AGENT_POOL_AUDIT = '20261028100100_widen_organization_audit_agent_pools';
+/** The folder right below {@link HOST_JOB_PROJECTION}: rolling back to it reverses this migration alone. */
+const DIRECTORY_CAPACITY = '20261101100100_add_resource_directory_capacity';
 const roots: string[] = [];
 
 afterEach(() => {
@@ -137,7 +138,7 @@ describe(HOST_JOB_PROJECTION, () => {
       preChangeReport,
       "UPDATE resource_capacity_report SET reserved_units = 12, reserved_dimension = 'memoryGib'",
     ]);
-    const down = await rollBack(root, dbPath, AGENT_POOL_AUDIT);
+    const down = await rollBack(root, dbPath, DIRECTORY_CAPACITY);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(`rolled back: ${HOST_JOB_PROJECTION}\n`);
@@ -152,7 +153,7 @@ describe(HOST_JOB_PROJECTION, () => {
   it('refuses rollback over one host job, keeping it', async () => {
     const { root, dbPath } = migratedStore();
     run(dbPath, [hostJob]);
-    const down = await rollBack(root, dbPath, AGENT_POOL_AUDIT);
+    const down = await rollBack(root, dbPath, DIRECTORY_CAPACITY);
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain('host jobs are projected from a resource authority');
     expect(count(dbPath, 'SELECT COUNT(*) AS n FROM resource_host_job')).toBe(1);

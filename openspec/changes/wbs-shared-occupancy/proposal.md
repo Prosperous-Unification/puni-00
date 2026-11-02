@@ -32,8 +32,8 @@ machines across projects, so this gap matters most.
   schedule hashes; reads gain fields only.
 - Units held of a shared resource are an organization fact; holder identities never cross
   into a project the reader cannot read.
-- Supersedes five sentences of `wbs-resource-release`; the change landing second amends the
-  other.
+- Supersedes six sentences of `wbs-resource-release`, which landed first; this change amends
+  them with pointers to S9.
 - Every refusal and redaction ships with a negative and a `Proof:` comment.
 
 ## Capabilities
@@ -57,8 +57,8 @@ Directory capacity, Occupancy scope (in `CONTEXT.md`).
 
 ## Decisions Recorded
 
-design.md S1 to S12, each assumed until Dany reads them. S1's choice gets an ADR if
-confirmed.
+design.md S1 to S12, each accepted by Dany on 2026-11-01. S1's choice gets an ADR, now
+that it is confirmed.
 
 ## Impact
 

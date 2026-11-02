@@ -41,6 +41,7 @@ import {
   seedOrganizationLimits,
   seedResourceCase,
   seedSavedPlanCapture,
+  SHARED_OCCUPANCY_OWNERSHIP,
   sourceConformanceRegistrations,
   type SourceDeclaration,
   type SourceReaders,
@@ -104,6 +105,9 @@ type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   ownPersonInOrganization: ReturnType<typeof openMemorySourceFixture>['ownPersonInOrganization'];
   addOrganization: ReturnType<typeof openMemorySourceFixture>['addOrganization'];
   ownProjectInOrganization: ReturnType<typeof openMemorySourceFixture>['ownProjectInOrganization'];
+  ownResourceInOrganization: ReturnType<
+    typeof openMemorySourceFixture
+  >['ownResourceInOrganization'];
   endLeasesOf: ReturnType<typeof openMemorySourceFixture>['endLeasesOf'];
   insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void>;
   journal: CommandJournalStore;
@@ -181,6 +185,9 @@ function conformanceMemorySource(
     },
     ownProjectInOrganization: (projectId: string, organizationId: string) => {
       fixture.ownProjectInOrganization(projectId, organizationId);
+    },
+    ownResourceInOrganization: (resourceId: string, organizationId: string) => {
+      fixture.ownResourceInOrganization(resourceId, organizationId);
     },
     endLeasesOf: (personId: string, at: number) => fixture.endLeasesOf(personId, at),
     insertSubtree: (copy: SubtreeCopy, stamp: WriteStamp) =>
@@ -416,6 +423,12 @@ async function openMemoryCase<Family extends ExistingFamily>(
     if (caseId === 'directory.removePerson:delegated-claims')
       await seeded.stores.claims.add([...DELEGATED_CLAIMS], [], DETERMINISTIC_SEED.stamps[0], []);
     await seedResourceCase(seeded.stores, caseId, DETERMINISTIC_SEED);
+    if ((SHARED_OCCUPANCY_OWNERSHIP.caseIds as readonly string[]).includes(caseId)) {
+      const { organizationId, otherOrganizationId, resourceId } = SHARED_OCCUPANCY_OWNERSHIP;
+      seeded.ownProjectInOrganization(DETERMINISTIC_SEED.projectIds[0], organizationId);
+      seeded.ownProjectInOrganization(DETERMINISTIC_SEED.projectIds[1], otherOrganizationId);
+      seeded.ownResourceInOrganization(resourceId, organizationId);
+    }
   });
   if (family === 'subtrees') {
     return {

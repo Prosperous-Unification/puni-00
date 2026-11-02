@@ -251,6 +251,37 @@ export function inMemoryDirectory(
       ].sort();
       return Promise.resolve({ ok: true, projectIds });
     },
+    directoryCapacitiesOf(resourceIds) {
+      return Promise.resolve(
+        [...new Set(resourceIds)]
+          .flatMap((resourceId) => {
+            const units = resourceTables.directoryCapacities.get(resourceId);
+            return units === undefined ? [] : [{ resourceId, units }];
+          })
+          .sort((left, right) => (left.resourceId < right.resourceId ? -1 : 1)),
+      );
+    },
+    // SQLite's twin: the resource's organization is its ownership row; there
+    // is no audit table to append to. The projects a demand sits in are the
+    // bound source's (`memory-stores.ts`).
+    setDirectoryCapacity(resourceId, units, _act) {
+      if (!resourceTables.resources.has(resourceId))
+        return Promise.resolve({ ok: false, reason: 'not_found' });
+      const organizationId = organizationOf.get(resourceId);
+      if (organizationId === undefined)
+        return Promise.resolve({ ok: false, reason: 'organization_required' });
+      const before = resourceTables.directoryCapacities.get(resourceId) ?? null;
+      if (units === null) resourceTables.directoryCapacities.delete(resourceId);
+      else resourceTables.directoryCapacities.set(resourceId, units);
+      const projectIds = [
+        ...new Set(
+          [...resourceTables.capacities.values()]
+            .filter((each) => each.resourceId === resourceId)
+            .map((each) => each.projectId),
+        ),
+      ].sort();
+      return Promise.resolve({ ok: true, before, after: units, organizationId, projectIds });
+    },
     // The counts are the tables' own; the rows naming a demand's project are
     // not, for `usageOfTag`'s reason, and the bound source answers them.
     usageOfResource: (resourceId) => Promise.resolve(resourceUsageOf(resourceTables, resourceId)),
@@ -258,8 +289,17 @@ export function inMemoryDirectory(
       if (!resourceTables.resources.has(resourceId))
         return Promise.resolve({ ok: false, reason: 'not_found' });
       const usage = resourceUsageOf(resourceTables, resourceId);
-      if (!cascade && (usage.demands.length > 0 || usage.capacities.length > 0))
+      // Proof: with the directory capacity left out of this test, the memory
+      // certification's `directory.setDirectoryCapacity:state-clear-remove`
+      // removed RAM unconfirmed (74 pass, 1 fail); watched 2026-10-25.
+      if (
+        !cascade &&
+        (usage.demands.length > 0 ||
+          usage.capacities.length > 0 ||
+          usage.directoryCapacity !== null)
+      )
         return Promise.resolve({ ok: false, reason: 'in_use', usage });
+      resourceTables.directoryCapacities.delete(resourceId);
       for (const [key, each] of resourceTables.demands)
         if (each.resourceId === resourceId) resourceTables.demands.delete(key);
       for (const [key, each] of resourceTables.capacities)
@@ -637,8 +677,13 @@ function resourceUsageOf(tables: MemoryResourceTables, resourceId: string) {
       .filter((each) => each.resourceId === resourceId)
       .map(({ projectId, units }) => ({ projectId, units }))
       .sort((left, right) => left.projectId.localeCompare(right.projectId)),
+    // This directory holds no claims; the bound source (`memory-stores.ts`)
+    // answers the occupying leaves in `usageOfResource` and `removeResource`,
+    // which the memory certification's `directory.removeResource:in-use-cascade`
+    // proves (the stage held by a claim alone answers in_use).
     occupancies: 0,
     // The memory twin holds no provider instance (`compute-providers` P3).
     providerId: null,
+    directoryCapacity: tables.directoryCapacities.get(resourceId) ?? null,
   };
 }

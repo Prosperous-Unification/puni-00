@@ -48,6 +48,8 @@ function seedAccountRequest(database: Database): void {
     INSERT INTO prospect_account (id, email, created_at) VALUES ('acct', '${sentinel}-owner@example.test', 10);
     INSERT INTO intake_draft (id, description, brief, claim_hash, created_at, expires_at, consumed_at) VALUES
       ('draft-a', '${sentinel} request text', '${sentinel} draft brief', 'claim-a', 10, 99999, 20);
+    UPDATE intake_draft SET scoping_version = 1, start_conversation = 1 WHERE id = 'draft-a';
+    INSERT INTO draft_scoping (draft_id, reference_text, candidate_brief, created_at, updated_at, first_content_at) VALUES ('draft-a', '${sentinel} reference', '${sentinel} candidate', 10, 11, 11);
     INSERT INTO software_request (id, account_id, draft_id, description, brief, created_at, submitted_at) VALUES
       ('req-a', 'acct', 'draft-a', '${sentinel} request text', '${sentinel} request brief', 10, 30);
     INSERT INTO proposal_submission (id, draft_id, email, brief, receipt, status, created_at, updated_at) VALUES
@@ -80,6 +82,8 @@ function seedManualProposal(database: Database): void {
   database.run(`
     INSERT INTO intake_draft (id, description, brief, claim_hash, created_at, expires_at, consumed_at) VALUES
       ('draft-m', '${sentinel} manual text', '${sentinel} manual brief', 'claim-m', 10, 99999, 20);
+    UPDATE intake_draft SET scoping_version = 1, start_conversation = 1 WHERE id = 'draft-m';
+    INSERT INTO draft_scoping (draft_id, reference_text, candidate_brief, created_at, updated_at, first_content_at) VALUES ('draft-m', '${sentinel} reference', '${sentinel} candidate', 10, 11, 11);
     INSERT INTO proposal_submission (id, draft_id, email, brief, receipt, status, created_at, updated_at) VALUES
       ('sub-m', 'draft-m', '${sentinel}-manual@example.test', '${sentinel} manual brief', 'receipt-m', 'closed', 20, 40);
     INSERT INTO submission_replay (claim_hash, idempotency_key, body_hash, receipt, expires_at) VALUES

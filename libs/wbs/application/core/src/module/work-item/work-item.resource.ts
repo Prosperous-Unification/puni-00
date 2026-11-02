@@ -23,6 +23,7 @@ import {
   type Claim,
   CLAIM_LEASE_MS,
   type ClaimCaller,
+  type ClaimRefusal,
   claimRunOf,
   type Days,
   deadlineOffsetOf,
@@ -58,10 +59,12 @@ import {
   isWithin,
   isWritableRelationshipType,
   lastWorkdayOf,
+  leafOccupancyOf,
   leaseOf,
   type LeaseReleaseReason,
   type LimitCrossed,
   MAX_ESTIMATE_DAYS,
+  mayStateDirectoryCapacityInOrganization,
   type MeasureDefinition,
   type MeasureMetric,
   type MeasureTrio,
@@ -78,6 +81,7 @@ import {
   type OccupancyRow,
   orderSteps,
   ORDINARY_BAND_RANK,
+  type OrganizationScope,
   parentIndexOf,
   placeAfter,
   POSITION_STEP,
@@ -92,6 +96,8 @@ import {
   type ResourceCapacity,
   type ResourceDemand,
   type ResourceOccupancy,
+  type ResourcesExhausted,
+  type ResourceShortage,
   type ResourceUnits,
   rollUp,
   rollUpActuals,
@@ -2016,8 +2022,19 @@ export class WorkItemService {
     if (teamId !== null && !teamNames.has(teamId)) return { kind: 'unknown_team' };
     const { statuses, stated, dependencies } = await this.statusReadsOf(projectId, rows);
     const capacities = await this.resourceCapacitiesOf(projectId);
+    const demands = await this.opts.demands.listByProject(projectId);
+    // The claim's own organization read, over every resource a leaf demands:
+    // a leaf the read lists as fitting is one a claim admits.
+    const { directoryCapacities, organizationOccupied } = await this.organizationOccupancyFor(
+      demands.map(({ resourceId }) => resourceId),
+    );
+    // Names a shortfall may need: any resource a capacity or a directory
+    // capacity makes binding.
+    // Proof: with the catalog read only when a project capacity is stated,
+    // `agrees with the claim across projects` threw `resource … is not in this
+    // read` on a directory capacity alone; watched 2026-10-25.
     const resources =
-      capacities.length === 0
+      capacities.length === 0 && directoryCapacities.length === 0
         ? []
         : access.kind === 'scoped'
           ? await directory.listInOrganization('resources', access.scope.organizationId)
@@ -2034,8 +2051,10 @@ export class WorkItemService {
       teamNames,
       teamId,
       capacities,
-      demands: await this.opts.demands.listByProject(projectId),
+      demands,
       occupancy: await this.claiming().claims.occupancyOf(projectId),
+      directoryCapacities,
+      organizationOccupied,
       resources: new Map(resources.map((resource) => [resource.id, resource] as const)),
     });
   }
@@ -3751,20 +3770,126 @@ export class WorkItemService {
     projectId: string,
     access: ResourceAccess,
   ): Promise<{
-    resources: Resource[];
+    resources: (Resource & { directoryCapacity: number | null })[];
     capacities: ResourceCapacity[];
     demands: Demand[];
   } | null> {
     if (!(await this.admits(projectId, access))) return null;
     const { resourceCapacity } = this.opts;
-    const resources =
+    const listed =
       access.kind === 'scoped'
         ? await this.opts.directory.listInOrganization('resources', access.scope.organizationId)
         : await this.opts.directory.listResources();
+    // Each resource's directory capacity beside it (`wbs-shared-occupancy`
+    // S6), null when unstated; never its holders.
+    // Proof: with null answered for every resource, `states a directory
+    // capacity on either route and reads it from both projects`
+    // (directory-capacity.controller.db.test.ts) read null; watched 2026-10-25.
+    const stated = new Map(
+      (await this.opts.directory.directoryCapacitiesOf(listed.map(({ id }) => id))).map(
+        ({ resourceId, units }) => [resourceId, units] as const,
+      ),
+    );
+    const resources = listed.map((resource) => ({
+      ...resource,
+      directoryCapacity: stated.get(resource.id) ?? null,
+    }));
     return {
       resources,
       capacities: await resourceCapacity.listFor(projectId),
       demands: await this.opts.demands.listByProject(projectId),
+    };
+  }
+
+  /**
+   * What setting a resource's directory capacity to `units` would leave
+   * (`wbs-shared-occupancy` S12), writing nothing: the units before
+   * and after, each project of the organization that holds, states or demands
+   * the resource with the units its leaves hold, the free units after (null
+   * when it would be unstated), and the refusal the write would meet.
+   *
+   * Every project of the caller's organization is readable to its members
+   * today, so none is hidden; `hiddenProjects` folds the projects
+   * `mayReadProjectWithin` denies once `wbs-permissions` grants can (task 4.1).
+   * The cap check the write will meet is task 7.1's; until it lands the
+   * refusal is always null for a resource the organization owns.
+   *
+   * Refused `forbidden` for every role but admin and super-admin, after
+   * `organizationRoleOf` (agents included), before the resource is looked up;
+   * `not_found` for a resource the organization does not hold.
+   *
+   * Proof, each watched 2026-10-25 in directory-capacity.controller.db.test.ts:
+   * with the role check skipped, `refuses a member and an admin's agent`
+   * answered the member 200; with the store's write called before answering,
+   * `previews a lowering of 16 to 10 with A at 8 and B at 6, writing nothing`
+   * found the capacity at 10 and one more audit row.
+   */
+  async previewDirectoryCapacityWithin(
+    resourceId: string,
+    units: number | null,
+    scope: OrganizationScope,
+  ): Promise<
+    | {
+        ok: true;
+        value: {
+          resourceId: string;
+          before: number | null;
+          after: number | null;
+          projects: { projectId: string; name: string; units: number }[];
+          hiddenProjects: { count: number; units: number };
+          free: number | null;
+          refusal: null;
+        };
+      }
+    | { ok: false; reason: 'forbidden' | 'not_found' }
+  > {
+    if (!mayStateDirectoryCapacityInOrganization(scope.role))
+      return { ok: false, reason: 'forbidden' };
+    const { directory } = this.opts;
+    const owned = (await directory.listInOrganization('resources', scope.organizationId)).some(
+      ({ id }) => id === resourceId,
+    );
+    if (!owned) return { ok: false, reason: 'not_found' };
+    const before =
+      (await directory.directoryCapacitiesOf([resourceId])).find(
+        (each) => each.resourceId === resourceId,
+      )?.units ?? null;
+    const rows = await this.claiming().claims.organizationOccupancyOf([resourceId]);
+    const usage = await directory.usageOfResource(resourceId);
+    const projectIds = [
+      ...new Set([
+        ...rows.map(({ projectId }) => projectId),
+        ...usage.capacities.map(({ projectId }) => projectId),
+        ...usage.rows.projects.map(({ id }) => id),
+      ]),
+    ].sort();
+    const projects: { projectId: string; name: string; units: number }[] = [];
+    for (const projectId of projectIds) {
+      const project = await this.opts.projects.findInOrganization(projectId, scope.organizationId);
+      // A project of another organization naming the resource is corrupt
+      // trusted state: a plan can name only its organization's resources.
+      if (project === null)
+        throw new Error(
+          `project ${projectId} names resource ${resourceId} outside its organization`,
+        );
+      const held =
+        occupancyByResource(rows.filter((row) => row.projectId === projectId)).find(
+          (each) => each.resourceId === resourceId,
+        )?.occupied ?? 0;
+      projects.push({ projectId, name: project.name, units: held });
+    }
+    const occupied = projects.reduce((sum, each) => sum + each.units, 0);
+    return {
+      ok: true,
+      value: {
+        resourceId,
+        before,
+        after: units,
+        projects,
+        hiddenProjects: { count: 0, units: 0 },
+        free: units === null ? null : units - occupied,
+        refusal: null,
+      },
     };
   }
 
@@ -3801,11 +3926,26 @@ export class WorkItemService {
     // batch at a time, so a concurrent claim's units are already here or not
     // yet written (claim-occupancy-race.db.test.ts).
     const occupancy = await claims.occupancyOf(projectId);
-    // The holders a `resources_exhausted` names sit on other leaves, beyond `near`.
+    const demand = lineage.isLeaf
+      ? (await this.opts.demands.listByProject(projectId))
+          .filter((each) => each.workItemId === id)
+          .map(({ resourceId, units }) => ({ resourceId, units }))
+      : [];
+    // Every resource the leaf could come to hold: what it declares, what the
+    // claim asks, and what it already holds.
+    // Proof: with the organization's units withheld from `decideClaim`,
+    // `refuses B’s 16 GB while A holds the directory’s 16, naming the
+    // organization` and three more cases (shared-occupancy.db.test.ts) failed
+    // on both stores (14 pass, 8 fail); watched 2026-10-25.
+    const { directoryCapacities, organizationOccupied } = await this.organizationOccupancyFor([
+      ...demand.map(({ resourceId }) => resourceId),
+      ...(input.resources ?? []).map(({ resourceId }) => resourceId),
+      ...occupancy.filter((row) => row.workItemId === id).map(({ resourceId }) => resourceId),
+    ]);
+    // A shortage's holders are named only once one is found (`refusedWithHolders`).
     const nameOf = await this.personNamesWithin(access, [
       input.personId,
       ...near.map(({ personId }) => personId),
-      ...occupancy.map(({ personId }) => personId),
     ]);
     if (!nameOf.has(input.personId)) return { ok: false, reason: 'unknown_person' };
     if (input.resources !== null) {
@@ -3862,16 +4002,15 @@ export class WorkItemService {
       parentClaim:
         input.parentClaimId === null ? null : await claims.findById(projectId, input.parentClaimId),
       claims: near,
-      demand: lineage.isLeaf
-        ? (await this.opts.demands.listByProject(projectId))
-            .filter((each) => each.workItemId === id)
-            .map(({ resourceId, units }) => ({ resourceId, units }))
-        : [],
+      demand,
       resources: input.resources,
       capacities: await this.resourceCapacitiesOf(projectId),
       occupancy,
+      directoryCapacities,
+      organizationOccupied,
     });
-    if (decided.kind === 'refused') return refusalOf(decided.refusal, nameOf);
+    if (decided.kind === 'refused')
+      return this.refusedWithHolders(decided.refusal, id, projectId, access, nameOf);
     // The run the decision wrote and compared: the caller's opted-in run for
     // its own person (M15), else the command's.
     const run = claimRunOf(caller, input.personId, input.runId);
@@ -4192,6 +4331,7 @@ export class WorkItemService {
     personIds: readonly string[],
   ): Promise<Map<string, string>> {
     const ids = [...new Set(personIds)];
+    const wanted = new Set(ids);
     const { directory } = this.opts;
     // Proof: with the root `listPeople()` read back in place of both branches,
     // `names the holder by the organization's name` (claim-identity.controller.db.test.ts)
@@ -4200,7 +4340,7 @@ export class WorkItemService {
     const people =
       access.kind === 'scoped'
         ? (await directory.listInOrganization('people', access.scope.organizationId)).filter(
-            (person) => ids.includes(person.id),
+            (person) => wanted.has(person.id),
           )
         : await directory.namesOf('people', ids);
     return new Map(people.map((person) => [person.id, person.name]));
@@ -4285,27 +4425,60 @@ export class WorkItemService {
       askedBy.set(leaf, vector);
     }
     const capacities = await this.resourceCapacitiesOf(projectId);
-    // Leaf by leaf, each admitted leaf's rows joining the snapshot before the
-    // next is checked: one entry may put back several leaves (a cascading
-    // release), and units the first re-takes are not free for the second.
+    // Leaf by leaf, each admitted leaf's rows joining both snapshots before
+    // the next is checked: one entry may put back several leaves (a cascading
+    // release), and units the first re-takes are not free for the second, in
+    // the project or across the organization.
     // Proof: with the admitted rows left out of the snapshot, `undo of a
     // cascading release re-acquires leaf by leaf, refused once the second leaf
     // no longer fits` (resource-occupancy.db.test.ts) answered the undo ok, over 8 GB
     // capacity, on both stores; watched 2026-10-20.
+    // Proof: with the organization's rows left out (an empty list passed),
+    // `refuses an undo of a release in A once B took the directory's 16`
+    // (shared-occupancy.db.test.ts) re-acquired 16 over B's 16, on both
+    // stores; with only the first leaf of a cascade checked against them,
+    // `refuses an undo of a cascading release leaf by leaf across projects`
+    // put both leaves back; watched 2026-10-25.
     const occupancy: OccupancyRow[] = [...(await this.claiming().claims.occupancyOf(projectId))];
+    const { directoryCapacities, organizationOccupied } = await this.organizationOccupancyFor(
+      asked.map(({ resourceId }) => resourceId),
+    );
+    const organizationTotals = new Map(
+      organizationOccupied.map(({ resourceId, units }) => [resourceId, units]),
+    );
     for (const [workItemId, units] of askedBy) {
       const exhausted = refuseOccupancy({
         workItemId,
         asked: [...units].map(([resourceId, each]) => ({ resourceId, units: each })),
         capacities,
         occupancy,
+        directoryCapacities,
+        organizationOccupied: [...organizationTotals].map(([resourceId, each]) => ({
+          resourceId,
+          units: each,
+        })),
       });
       if (exhausted === null) {
+        const before = new Map(
+          leafOccupancyOf(occupancy, workItemId).map((each) => [each.resourceId, each.units]),
+        );
         for (const row of asked) {
           const claim = byId.get(row.claimId);
           if (claim?.workItemId !== workItemId) continue;
           const { personId, runId } = claim;
           occupancy.push({ ...row, workItemId, personId, runId });
+        }
+        // The organization's totals grow by what the leaf now holds above
+        // what it held, its largest copy per resource, as the store sums.
+        for (const each of leafOccupancyOf(occupancy, workItemId)) {
+          const grown = each.units - (before.get(each.resourceId) ?? 0);
+          if (grown > 0 && organizationTotals.has(each.resourceId))
+            organizationTotals.set(
+              each.resourceId,
+              (organizationTotals.get(each.resourceId) ?? 0) + grown,
+            );
+          else if (grown > 0 && directoryCapacities.some((d) => d.resourceId === each.resourceId))
+            organizationTotals.set(each.resourceId, grown);
         }
         continue;
       }
@@ -4322,9 +4495,97 @@ export class WorkItemService {
       if (resource === undefined)
         throw new Error(`a stated capacity names absent resource ${exhausted.resourceId}`);
       const label = resource.unitLabel === '' ? '' : ` ${resource.unitLabel}`;
-      return `resources_exhausted: that needs ${String(exhausted.asked)}${label} of ${quoteName(resource.name)} and ${String(Math.max(exhausted.free, 0))} are free now.`;
+      // The scope is said only where a directory capacity is stated, so a
+      // resource with none reads as it always did.
+      const where =
+        exhausted.scope === undefined
+          ? ''
+          : exhausted.scope === 'organization'
+            ? ' across the organization'
+            : ' in this project';
+      return `resources_exhausted: that needs ${String(exhausted.asked)}${label} of ${quoteName(resource.name)} and ${String(Math.max(exhausted.free, 0))} are free now${where}.`;
     }
     return null;
+  }
+
+  /**
+   * The stated directory capacities among `resourceIds` and the units every
+   * leaf of their organizations holds of each, summed per resource
+   * (`ClaimStore.organizationUnitsOf`, `wbs-shared-occupancy` S4), read through this
+   * graph's stores: inside a batch, on the batch's own connection after it
+   * took its write turn, so a concurrent batch of another project is ordered
+   * before or after it and an earlier claim of this batch is seen. Nothing is
+   * read past the capacities when none is stated, so a resource no admin
+   * sized costs one indexed read.
+   */
+  private async organizationOccupancyFor(resourceIds: readonly string[]): Promise<{
+    directoryCapacities: ResourceCapacity[];
+    organizationOccupied: ResourceUnits[];
+  }> {
+    const unique = [...new Set(resourceIds)];
+    if (unique.length === 0) return { directoryCapacities: [], organizationOccupied: [] };
+    const directoryCapacities = await this.opts.directory.directoryCapacitiesOf(unique);
+    if (directoryCapacities.length === 0) return { directoryCapacities, organizationOccupied: [] };
+    return {
+      directoryCapacities,
+      organizationOccupied: await this.claiming().claims.organizationUnitsOf(
+        directoryCapacities.map(({ resourceId }) => resourceId),
+      ),
+    };
+  }
+
+  /**
+   * A claim's refusal as the service answers it, holders named. A
+   * `resources_exhausted` the organization bound is given its holders here,
+   * read only now (`organizationOccupancyOf`), each with its project; then
+   * every holder's name is read. A claim that fits reads neither.
+   *
+   * Proof: with the organization holders left unread, `refuses B’s 16 GB while
+   * A holds the directory’s 16, naming the organization`
+   * (shared-occupancy.db.test.ts) named nobody, on both stores; watched 2026-10-25.
+   */
+  private async refusedWithHolders(
+    refusal: ClaimRefusal,
+    workItemId: string,
+    projectId: string,
+    access: ResourceAccess,
+    nameOf: ReadonlyMap<string, string>,
+  ): Promise<ClaimRefusalOutcome> {
+    if (refusal.reason !== 'resources_exhausted') return refusalOf(refusal, nameOf);
+    const bound = refusal.resources
+      .filter((each) => each.scope === 'organization')
+      .map(({ resourceId }) => resourceId);
+    const rows =
+      bound.length === 0 ? [] : await this.claiming().claims.organizationOccupancyOf(bound);
+    const projectOf = new Map(rows.map((row) => [row.workItemId, row.projectId]));
+    const holdersOf = new Map(
+      occupancyByResource(rows.filter((row) => row.workItemId !== workItemId)).map((each) => [
+        each.resourceId,
+        each.holders.map((holder) => {
+          const held = projectOf.get(holder.workItemId);
+          if (held === undefined)
+            throw new Error(`holder ${holder.workItemId} has no project in its own read`);
+          // Named only for another project's holder (`OccupancyHolder.projectId`).
+          // Proof: with the asking project's id kept too, `names a holder's
+          // project only when it is another project` (shared-occupancy.db.test.ts)
+          // failed on both stores; watched 2026-10-25.
+          return held === projectId ? holder : { ...holder, projectId: held };
+        }),
+      ]),
+    );
+    const resources = refusal.resources.map((short): ResourceShortage =>
+      short.scope === 'organization'
+        ? { ...short, holders: holdersOf.get(short.resourceId) ?? [] }
+        : short,
+    );
+    const first = resources.at(0);
+    if (first === undefined) throw new Error('a resources_exhausted names no resource');
+    const enriched: ResourcesExhausted = { ...refusal, ...first, resources };
+    const names = await this.personNamesWithin(
+      access,
+      resources.flatMap((short) => short.holders.map(({ personId }) => personId)),
+    );
+    return refusalOf(enriched, new Map([...nameOf, ...names]));
   }
 
   /**

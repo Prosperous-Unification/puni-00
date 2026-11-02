@@ -18,6 +18,7 @@ function readRate(environment: Environment, name: string): number | undefined {
   const value = environment[name];
   if (value === undefined || value === '') return undefined;
   const rate = Number(value);
+  // Proof: bypassing validation failed both cache-aware malformed-ceiling config cases.
   if (!Number.isFinite(rate) || rate <= 0) throw new Error(`${name} must be a positive number`);
   return rate;
 }
@@ -92,6 +93,14 @@ export function readWebsiteApiConfig(environment: Environment): WebsiteApiConfig
     openRouterProvider: environment['OPENROUTER_PROVIDER'],
     openRouterInputUsdPerMillion: readRate(environment, 'OPENROUTER_INPUT_USD_PER_MILLION'),
     openRouterOutputUsdPerMillion: readRate(environment, 'OPENROUTER_OUTPUT_USD_PER_MILLION'),
+    openRouterInputCeilingUsdPerMillion: readRate(
+      environment,
+      'OPENROUTER_INPUT_CEILING_USD_PER_MILLION',
+    ),
+    openRouterOutputCeilingUsdPerMillion: readRate(
+      environment,
+      'OPENROUTER_OUTPUT_CEILING_USD_PER_MILLION',
+    ),
     openRouterPrivacyVerified: readFlag(environment, 'OPENROUTER_PRIVACY_VERIFIED'),
     openRouterReasoningEffort: readReasoningEffort(environment),
     openRouterMaxCompletionTokens: readMaxCompletionTokens(environment),
