@@ -1408,6 +1408,20 @@ for (const row of dependencyOwnerCustodyCases)
     10000,
   );
 
+interface PrehelperReportModel {
+  setupCause: unknown;
+  writer: unknown;
+  descriptor: number;
+  buffer: Buffer;
+  offset: number;
+  length: number;
+  position: unknown;
+  state: string;
+  returned: unknown;
+  cause: unknown;
+  reportingFailure: unknown;
+  failures: readonly unknown[];
+}
 interface PrehelperRefusalModel {
   cause: unknown;
   setupFailure: Error;
@@ -1442,6 +1456,27 @@ interface PrehelperRefusalModel {
   pendingAtEntry: { observer: unknown; observerSettled: boolean } | undefined;
   clockRecord: { state: string; tick: unknown } | undefined;
   clockRecords: unknown[];
+  reportCalls: {
+    writer: unknown;
+    descriptor: unknown;
+    buffer: unknown;
+    offset: unknown;
+    length: unknown;
+    position: unknown;
+    reportAtEntry: unknown;
+    stateAtEntry: unknown;
+  }[];
+  reportRecord: PrehelperReportModel | undefined;
+  reportWriter: unknown;
+  reportDescriptor: number;
+  reportReturned: unknown;
+  reportThrown: unknown;
+  reportPendingAtEntry: boolean;
+  reportProjection: unknown;
+  hostileTouches: number;
+  privateSentinel: string;
+  syntheticOperationCount: number;
+  syntheticFailureCount: number;
 }
 
 /** Compile only the selected private source boundaries into finite lexical model ports. */
@@ -1457,7 +1492,14 @@ async function observePrehelperRefusal(
     | 'non-promise'
     | 'pending-observer'
     | 'rejected-observer'
-    | 'entered-clock',
+    | 'entered-clock'
+    | 'diagnostic-complete'
+    | 'diagnostic-short'
+    | 'diagnostic-throw'
+    | 'diagnostic-unsupported'
+    | 'diagnostic-promise'
+    | 'diagnostic-unknown-setup'
+    | 'diagnostic-projection',
 ): Promise<PrehelperRefusalModel> {
   const source = await readFile(
     new URL('../fixtures/dependency-owner-custody.ts', import.meta.url),
@@ -1502,9 +1544,38 @@ const nonPromiseValue={kind:'retained-non-Promise-return'};
 const observerFailure=new Error('UC2_MODELED_OBSERVER_REFUSAL');
 let replacementObserver,replacementObservation,resolveObserver,pendingAtEntry,clockRecord;
 let readiness,markReady,rejectReadiness,readySignaled=false;
-if(mode==='pending-observer')readiness=new Promise((resolve,reject)=>{
+if(mode==='pending-observer'||mode==='diagnostic-promise')readiness=new Promise((resolve,reject)=>{
   markReady=()=>{readySignaled=true;resolve();};rejectReadiness=reject;
 });
+const privateSentinel='UC2_PRIVATE_DIAGNOSTIC_SENTINEL';
+let hostileTouches=0;
+function hostileFailure(){
+  const failure=new Error('private');
+  for(const name of ['message','name','stack','cause','errors'])
+    Object.defineProperty(failure,name,{configurable:true,get(){hostileTouches++;return privateSentinel;}});
+  Object.defineProperty(failure,'toJSON',{value(){hostileTouches++;return privateSentinel;}});
+  return failure;
+}
+if(mode==='diagnostic-complete'||mode==='diagnostic-projection')setupFailure=hostileFailure();
+const reportThrown=hostileFailure();
+const reportCalls=[];
+let reportReturned,reportReturnedObserver,resolveReportReturn,reportPendingAtEntry=false,reportProjection;
+let syntheticOperationCount=0,syntheticFailureCount=0;
+const prehelperStderr=2;
+const prehelperWriteSync=modeledDiagnosticWriteSync;
+function modeledDiagnosticWriteSync(descriptor,buffer,offset,length,position){
+  reportCalls.push({writer:prehelperWriteSync,descriptor,buffer,offset,length,position,
+    reportAtEntry:parent.report,stateAtEntry:parent.report?.state});
+  if(mode==='diagnostic-throw')throw reportThrown;
+  if(mode==='diagnostic-promise'){
+    reportReturned=new Promise(resolve=>{resolveReportReturn=resolve;});
+    reportReturnedObserver=reportReturned.then(()=>undefined,()=>undefined);
+    reportPendingAtEntry=true;markReady();return reportReturned;
+  }
+  reportReturned=mode==='diagnostic-short'?length-1:
+    mode==='diagnostic-unsupported'?length+1:length;
+  return reportReturned;
+}
 function readKernelTick(){ return 1n; }
 function clearTimeout(token){ clears.push({kind:'timeout',token}); }
 function clearInterval(token){ clears.push({kind:'interval',token}); }
@@ -1525,6 +1596,7 @@ async function runParentBoundary(){
   const timer=timerToken, keeper=keeperToken;
   parent.timer=timer;parent.keeper=keeper;
   parent.allocationStart=0n;parent.allocationEnd=18000n;
+  if(mode==='diagnostic-short'||mode==='diagnostic-throw')parent.failures.push(new Error('earlier retained failure'));
   try {
     if(['empty-roster','fulfilled-only','synchronous-refusal','non-promise',
       'pending-observer','rejected-observer','entered-clock'].includes(mode)){
@@ -1568,7 +1640,7 @@ async function runParentBoundary(){
       if(captured.observer===undefined)throw Error('modeled captured observer missing');
       savedObservers.push(captured.observer);
     }
-    if(mode==='missing-observer')parent.operations[1].observer=undefined;
+    if(mode==='missing-observer'||mode==='diagnostic-unknown-setup')parent.operations[1].observer=undefined;
     if(mode==='pending'){parent.stopped=true;throw setupFailure;}
     await pending;
 `,
@@ -1578,7 +1650,18 @@ export async function observe(){
   let cause,controllerFailure,controllerFailed=false;
   const controllerPromises=[];
   const expectedRejections=new Map();
-  if(mode==='pending-observer'){
+  if(mode==='diagnostic-projection'){
+    syntheticOperationCount=129;syntheticFailureCount=9;
+    parent.stopped=true;
+    parent.operations=Array.from({length:129},(_,index)=>({
+      label:index===0?privateSentinel:'outer.Bun.build',
+      state:index===0?privateSentinel:'rejected',original:modeledBuild,receiver:undefined,args:[privateSentinel],
+      returned:undefined,value:undefined,cause:setupFailure,promise:undefined,observer:undefined,
+      observerSettled:false,joined:false,
+    }));
+    parent.failures=Array.from({length:8},()=>hostileFailure());
+    reportProjection=projectPrehelperRefusal(setupFailure);
+  }else if(mode==='pending-observer'||mode==='diagnostic-promise'){
     const invocation=runParentBoundary();
     const invocationObserver=invocation.then(
       ()=>{if(!readySignaled)rejectReadiness(Error('model invocation missed readiness'));},
@@ -1590,6 +1673,7 @@ export async function observe(){
         if(typeof resolveObserver==='function'){
           resolveObserver();parent.operations[1].observerSettled=true;
         }
+        if(typeof resolveReportReturn==='function')resolveReportReturn('fixture-settled');
       }
     })();
     try{await controller;}catch(failure){controllerFailed=true;controllerFailure=failure;}
@@ -1611,7 +1695,11 @@ export async function observe(){
     writeAPI:modeledWrite,buildAPI:modeledBuild,returnedWrite,returnedBuild,
     originalObservers:[...savedObservers],retainedCauses:[...parent.failures],
     nonPromiseValue,replacementObserver,observerFailure,pendingAtEntry,clockRecord,
-    clockRecords:[...parent.clockOperations]};
+    clockRecords:[...parent.clockOperations],reportCalls:[...reportCalls],reportRecord:parent.report,
+    reportWriter:prehelperWriteSync,reportDescriptor:prehelperStderr,reportReturned,reportThrown,
+    reportPendingAtEntry,reportProjection,hostileTouches,privateSentinel,
+    syntheticOperationCount,syntheticFailureCount};
+  if(mode==='diagnostic-projection')return {...captured,cleanup:[]};
   if(mode==='pending'){
     if(typeof resolveBuild!=='function')throw Error('modeled pending resolver missing');
     resolveBuild('fixture-settled');
@@ -1630,6 +1718,7 @@ export async function observe(){
   if(originals.length!==expectedOriginals||savedObservers.length!==expectedOriginals)
     throw Error('modeled original/observer cleanup census differs');
   const extra=[];
+  if(reportReturned instanceof Promise)extra.push(reportReturned,reportReturnedObserver);
   if(replacementObserver!==undefined){
     extra.push(replacementObserver,replacementObservation);
     if(mode==='rejected-observer')expectedRejections.set(replacementObserver,observerFailure);
@@ -1846,4 +1935,184 @@ test('UC2 pre-helper entered clock boundary retains parent timers', async () => 
   expect(observed.clockRecord?.state).toBe('entered');
   expect(observed.clockRecord?.tick).toBeUndefined();
   assertPrehelperHold(observed, 'UC2_PARENT_ENTERED_CLOCK_RETIRED');
+});
+
+function prehelperProjectionRecord(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new Error('UC2 projected plain record absent');
+  // This test boundary validates parsed JSON shape before inspecting fixed projection fields.
+  return value as Record<string, unknown>;
+}
+
+function readPrehelperDiagnostic(value: unknown): Record<string, unknown> {
+  expect(Buffer.isBuffer(value)).toBe(true);
+  if (!Buffer.isBuffer(value)) throw new Error('UC2 projected diagnostic Buffer absent');
+  expect(value.byteLength).toBeLessThanOrEqual(32768);
+  const text = value.toString('utf8');
+  const prefix = 'UC2_PREFLIGHT_FAILURE:';
+  expect(text.startsWith(prefix)).toBe(true);
+  expect(text.endsWith('\n')).toBe(true);
+  const projected: unknown = JSON.parse(text.slice(prefix.length, -1));
+  const record = prehelperProjectionRecord(projected);
+  expect(record['schema']).toBe('uc2-prehelper-failure');
+  expect(record['version']).toBe(1);
+  expect(record['sourceEpoch']).toBe('uc2-prehelper-report-v1');
+  expect(record['phase']).toBe('pre-helper');
+  expect(record['disposition']).toBe('terminal-setup-refusal');
+  return record;
+}
+
+function prehelperReportRecord(observed: PrehelperRefusalModel): PrehelperReportModel {
+  expect(observed.reportRecord).toBeDefined();
+  if (observed.reportRecord === undefined) throw new Error('UC2 original report record absent');
+  return observed.reportRecord;
+}
+
+function assertPrehelperReportRetirement(observed: PrehelperRefusalModel): void {
+  expect(observed.stopped).toBe(true);
+  expect(observed.terminal).toBe(true);
+  expect(observed.childCount).toBe(0);
+  expect(observed.spawnEntered).toBe(false);
+  expect(observed.clears).toHaveLength(2);
+  expect(observed.clears[0]?.kind).toBe('timeout');
+  expect(observed.clears[0]?.token).toBe(observed.timer);
+  expect(observed.clears[1]?.kind).toBe('interval');
+  expect(observed.clears[1]?.token).toBe(observed.keeper);
+}
+
+test('UC2 pre-helper complete diagnostic preserves setup identity', async () => {
+  const observed = await observePrehelperRefusal('diagnostic-complete');
+  expect(observed.reportCalls.length, 'UC2_PREFLIGHT_REQUIRED_SINGLE_DIAGNOSTIC_CALL').toBe(1);
+  const record = prehelperReportRecord(observed);
+  expect(record.setupCause).toBe(observed.setupFailure);
+  expect(record.writer).toBe(observed.reportWriter);
+  expect(record.descriptor).toBe(2);
+  expect(record.descriptor).toBe(observed.reportDescriptor);
+  expect(observed.reportCalls[0]?.writer).toBe(record.writer);
+  expect(observed.reportCalls[0]?.descriptor).toBe(record.descriptor);
+  expect(observed.reportCalls[0]?.buffer).toBe(record.buffer);
+  expect(observed.reportCalls[0]?.offset).toBe(0);
+  expect(observed.reportCalls[0]?.length).toBe(record.buffer.byteLength);
+  expect(observed.reportCalls[0]?.position).toBeNull();
+  expect(observed.reportCalls[0]?.reportAtEntry).toBe(record);
+  expect(observed.reportCalls[0]?.stateAtEntry).toBe('entered');
+  expect(record.offset).toBe(0);
+  expect(record.length).toBe(record.buffer.byteLength);
+  expect(record.position).toBeNull();
+  expect(record.state).toBe('returned');
+  expect(record.returned).toBe(record.buffer.byteLength);
+  const projected = readPrehelperDiagnostic(record.buffer);
+  expect(projected['spawnEntered']).toBe(false);
+  expect(projected['children']).toBe(0);
+  expect(record.buffer.toString('utf8')).not.toContain(observed.privateSentinel);
+  expect(observed.hostileTouches).toBe(0);
+  expect(observed.cause).toBe(observed.setupFailure);
+  assertPrehelperReportRetirement(observed);
+});
+
+test('UC2 pre-helper short diagnostic retains both failures', async () => {
+  const observed = await observePrehelperRefusal('diagnostic-short');
+  expect(observed.reportCalls).toHaveLength(1);
+  const record = prehelperReportRecord(observed);
+  expect(record.state).toBe('returned');
+  expect(record.returned).toBe(record.buffer.byteLength - 1);
+  expect(record.reportingFailure).toBeInstanceOf(Error);
+  expect(record.failures).toHaveLength(2);
+  expect(record.failures[0]).toBe(observed.setupFailure);
+  expect(record.failures[1]).toBe(record.reportingFailure);
+  expect(observed.cause).toBeInstanceOf(Error);
+  if (!(observed.cause instanceof Error)) throw new Error('UC2 safe infrastructure failure absent');
+  expect(observed.cause.message).toBe('UC2 setup and diagnostic publication failed');
+  expect('cause' in observed.cause).toBe(false);
+  expect('errors' in observed.cause).toBe(false);
+  assertPrehelperReportRetirement(observed);
+});
+
+test('UC2 pre-helper thrown diagnostic retains both failures', async () => {
+  const observed = await observePrehelperRefusal('diagnostic-throw');
+  expect(observed.reportCalls).toHaveLength(1);
+  const record = prehelperReportRecord(observed);
+  expect(record.state).toBe('threw');
+  expect(record.returned).toBeUndefined();
+  expect(record.cause).toBe(observed.reportThrown);
+  expect(record.reportingFailure).toBe(observed.reportThrown);
+  expect(record.failures).toHaveLength(2);
+  expect(record.failures[0]).toBe(observed.setupFailure);
+  expect(record.failures[1]).toBe(observed.reportThrown);
+  expect(observed.cause).toBeInstanceOf(Error);
+  if (!(observed.cause instanceof Error)) throw new Error('UC2 safe infrastructure failure absent');
+  expect(observed.cause.message).toBe('UC2 setup and diagnostic publication failed');
+  expect('cause' in observed.cause).toBe(false);
+  expect('errors' in observed.cause).toBe(false);
+  expect(observed.hostileTouches).toBe(0);
+  assertPrehelperReportRetirement(observed);
+});
+
+test('UC2 pre-helper unsupported diagnostic count retains timers', async () => {
+  const observed = await observePrehelperRefusal('diagnostic-unsupported');
+  expect(observed.reportCalls).toHaveLength(1);
+  const record = prehelperReportRecord(observed);
+  expect(record.state).toBe('returned');
+  expect(record.returned).toBe(record.buffer.byteLength + 1);
+  assertPrehelperHold(observed, 'UC2_PREFLIGHT_UNSUPPORTED_REPORT_RETIRED');
+});
+
+test('UC2 pre-helper Promise diagnostic return retains timers', async () => {
+  const observed = await observePrehelperRefusal('diagnostic-promise');
+  expect(observed.reportCalls).toHaveLength(1);
+  const record = prehelperReportRecord(observed);
+  expect(record.state).toBe('returned');
+  expect(record.returned).toBe(observed.reportReturned);
+  expect(record.returned).toBeInstanceOf(Promise);
+  expect(observed.reportPendingAtEntry).toBe(true);
+  assertPrehelperHold(observed, 'UC2_PREFLIGHT_PROMISE_REPORT_RETIRED');
+});
+
+test('UC2 pre-helper unknown setup never gains release from reporting', async () => {
+  const observed = await observePrehelperRefusal('diagnostic-unknown-setup');
+  expect(observed.operations[1]?.observer).toBeUndefined();
+  expect(observed.operations[1]?.promise).toBe(observed.returnedBuild);
+  expect(observed.reportCalls).toEqual([]);
+  expect(observed.reportRecord).toBeUndefined();
+  assertPrehelperHold(observed, 'UC2_PREFLIGHT_UNKNOWN_SETUP_REPORTED');
+});
+
+test('UC2 pre-helper diagnostic projection is bounded', async () => {
+  const observed = await observePrehelperRefusal('diagnostic-projection');
+  const projected = readPrehelperDiagnostic(observed.reportProjection);
+  expect(observed.syntheticOperationCount).toBe(129);
+  expect(observed.syntheticFailureCount).toBe(9);
+  expect(observed.operations).toHaveLength(129);
+  expect(observed.retainedCauses).toHaveLength(8);
+  expect(projected['operationCount']).toBe(129);
+  expect(projected['failureCount']).toBe(9);
+  expect(projected['operationsTruncated']).toBe(true);
+  expect(projected['failuresTruncated']).toBe(true);
+  const operations: unknown = projected['operations'];
+  const failures: unknown = projected['failures'];
+  if (!Array.isArray(operations) || !Array.isArray(failures))
+    throw new Error('UC2 projected summaries absent');
+  expect(operations).toHaveLength(128);
+  expect(failures).toHaveLength(8);
+  expect(prehelperProjectionRecord(operations[0])['label']).toBe('unsupported');
+  expect(prehelperProjectionRecord(operations[0])['state']).toBe('unsupported');
+  const operationSummaries: readonly unknown[] = operations;
+  const failureSummaries: readonly unknown[] = failures;
+  for (const summary of [...operationSummaries, ...failureSummaries]) {
+    const serialized = JSON.stringify(summary);
+    if (typeof serialized !== 'string')
+      throw new Error('UC2 projected summary serialization absent');
+    expect(Buffer.byteLength(serialized, 'utf8')).toBeLessThanOrEqual(512);
+  }
+  for (const summary of failureSummaries) {
+    const failure = prehelperProjectionRecord(summary);
+    const role = failure['role'];
+    if (typeof role !== 'string') throw new Error('UC2 projected failure role absent');
+    expect(['setup', 'reporting']).toContain(role);
+    expect(failure['category']).toBe('object');
+  }
+  if (!Buffer.isBuffer(observed.reportProjection)) throw new Error('UC2 projected bytes absent');
+  expect(observed.reportProjection.toString('utf8')).not.toContain(observed.privateSentinel);
+  expect(observed.hostileTouches).toBe(0);
+  expect(observed.reportCalls).toEqual([]);
 });

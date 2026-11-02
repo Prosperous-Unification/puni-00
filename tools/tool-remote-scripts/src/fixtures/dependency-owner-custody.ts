@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeSync } from 'node:fs';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -283,6 +283,28 @@ interface ParentOperation {
   observerSettled: boolean;
   joined: boolean;
 }
+type PrehelperReportDisposition =
+  { state: 'unknown' } | { state: 'complete' } | { state: 'failed'; failure: Error };
+interface ParentReport {
+  setupCause: unknown;
+  writer: (
+    descriptor: number,
+    buffer: Buffer,
+    offset: number,
+    length: number,
+    position: null,
+  ) => unknown;
+  descriptor: number;
+  buffer: Buffer;
+  offset: 0;
+  length: number;
+  position: null;
+  state: 'entered' | 'returned' | 'threw';
+  returned: unknown;
+  cause: unknown;
+  reportingFailure: unknown;
+  failures: readonly unknown[];
+}
 const parent = {
   originals: [] as ParentOriginal[],
   failures: [] as unknown[],
@@ -292,6 +314,7 @@ const parent = {
   spawnEntered: false,
   prehelperRefusalTerminal: false,
   reported: false,
+  report: undefined as ParentReport | undefined,
   allocationStart: undefined as bigint | undefined,
   allocationEnd: undefined as bigint | undefined,
   lastTick: undefined as bigint | undefined,
@@ -338,6 +361,8 @@ function isSourcePin(value: unknown): value is SourcePin {
     /^[0-9a-f]{64}$/.test(value.sha256)
   );
 }
+const prehelperWriteSync = writeSync;
+const prehelperStderr = process.stderr.fd;
 const nativeClockRead = readFileSync;
 function throwParentClock(message: string): never {
   parent.stopped = true;
@@ -581,6 +606,142 @@ function joinPrehelperRefusal(): Promise<boolean> {
     }
     return parent.stopped && !parent.spawnEntered && parent.originals.length === 0;
   });
+}
+
+/** Projects only fixed tags from private records; raw causes, arguments and paths never enter the buffer. */
+function projectPrehelperRefusal(setupCause: unknown): Buffer | undefined {
+  function projectLabel(label: unknown): string {
+    // Proof: reporting MODEL R6 omitted label allowlisting;
+    // 'UC2 pre-helper diagnostic projection is bounded' received the model label
+    // instead of 'unsupported'; exact restoration passed (2026-11-03); label only.
+    return typeof label === 'string' && Object.hasOwn(PARENT_CAPS, label) ? label : 'unsupported';
+  }
+  function projectState(state: unknown): string {
+    const states = ['entered', 'pending', 'returned', 'fulfilled', 'threw', 'rejected'];
+    return typeof state === 'string' && states.includes(state) ? state : 'unsupported';
+  }
+  function projectCategory(value: unknown): string {
+    return value === null ? 'null' : typeof value;
+  }
+  // Proof: reporting MODEL R5 removed this slice; the synthetic129 case
+  // 'UC2 pre-helper diagnostic projection is bounded' failed operationsTruncated.
+  // Exact restoration passed (2026-11-03); operation-summary truncation only.
+  const operations = parent.operations.slice(0, 128).map((operation, index) => ({
+    index,
+    label: projectLabel(operation.label),
+    state: projectState(operation.state),
+    original: typeof operation.original === 'function',
+    promise: operation.promise !== undefined,
+    observer: operation.observer !== undefined,
+    joined: operation.joined,
+    observerSettled: operation.observerSettled,
+  }));
+  const failures = [
+    { role: 'setup', category: projectCategory(setupCause) },
+    ...parent.failures.slice(0, 7).map((failure) => ({
+      role: 'setup',
+      category: projectCategory(failure),
+    })),
+  ];
+  const clocks = parent.clockOperations.slice(0, 128).map((operation) => ({
+    state: projectState(operation.state),
+    validated: typeof operation.tick === 'bigint',
+  }));
+  for (const summary of [...operations, ...failures, ...clocks]) {
+    const serialized = JSON.stringify(summary);
+    if (typeof serialized !== 'string' || Buffer.byteLength(serialized, 'utf8') > 512)
+      return undefined;
+  }
+  const projection = {
+    schema: 'uc2-prehelper-failure',
+    version: 1,
+    sourceEpoch: 'uc2-prehelper-report-v1',
+    phase: 'pre-helper',
+    disposition: 'terminal-setup-refusal',
+    spawnEntered: parent.spawnEntered,
+    children: parent.originals.length,
+    operationCount: parent.operations.length,
+    operationsTruncated: parent.operations.length > operations.length,
+    operations,
+    failureCount: 1 + parent.failures.length,
+    failuresTruncated: 1 + parent.failures.length > failures.length,
+    failures,
+    clockCount: parent.clockOperations.length,
+    clocksTruncated: parent.clockOperations.length > clocks.length,
+    clocks,
+  };
+  const serialized = JSON.stringify(projection);
+  if (typeof serialized !== 'string') return undefined;
+  const buffer = Buffer.from('UC2_PREFLIGHT_FAILURE:' + serialized + '\n', 'utf8');
+  return buffer.byteLength <= 32768 ? buffer : undefined;
+}
+
+/** Records one synchronous write to the existing descriptor; unsupported publication retains UNKNOWN without retry. */
+function reportPrehelperRefusal(setupCause: unknown): PrehelperReportDisposition {
+  if (parent.report !== undefined) return { state: 'unknown' };
+  let buffer: Buffer | undefined;
+  try {
+    buffer = projectPrehelperRefusal(setupCause);
+  } catch (failure) {
+    parent.failures.push(failure);
+    return { state: 'unknown' };
+  }
+  if (buffer === undefined) return { state: 'unknown' };
+  const report: ParentReport = {
+    setupCause,
+    writer: prehelperWriteSync,
+    descriptor: prehelperStderr,
+    buffer,
+    offset: 0,
+    length: buffer.byteLength,
+    position: null,
+    state: 'entered',
+    returned: undefined,
+    cause: undefined,
+    reportingFailure: undefined,
+    failures: [],
+  };
+  // Proof: reporting source-image MODEL R1 omitted this record assignment;
+  // 'UC2 pre-helper complete diagnostic preserves setup identity' failed at
+  // report-record presence. Exact restoration passed (2026-11-03); retention only.
+  parent.report = report;
+  const writer = report.writer;
+  let returned: unknown;
+  try {
+    returned = writer(
+      report.descriptor,
+      report.buffer,
+      report.offset,
+      report.length,
+      report.position,
+    );
+  } catch (cause) {
+    report.state = 'threw';
+    report.cause = cause;
+    report.reportingFailure = cause;
+    report.failures = [setupCause, cause];
+    return { state: 'failed', failure: new Error('UC2 setup and diagnostic publication failed') };
+  }
+  report.returned = returned;
+  report.state = 'returned';
+  if (
+    typeof returned !== 'number' ||
+    !Number.isInteger(returned) ||
+    returned < 0 ||
+    // Proof: reporting source-image MODEL R2 omitted this upper-count limb;
+    // 'UC2 pre-helper unsupported diagnostic count retains timers' failed its
+    // HOLD identity oracle; exact restoration passed (2026-11-03); upper bound only.
+    returned > report.length
+  )
+    return { state: 'unknown' };
+  // Proof: reporting MODEL R4 accepted a short count as complete;
+  // 'UC2 pre-helper short diagnostic retains both failures' failed the
+  // reportingFailure Error oracle; exact restoration passed (2026-11-03).
+  if (returned === report.length) return { state: 'complete' };
+  const failure = new Error('UC2 diagnostic publication was incomplete');
+  report.reportingFailure = failure;
+  report.failures = [setupCause, failure];
+  return { state: 'failed', failure: new Error('UC2 setup and diagnostic publication failed') };
 }
 
 async function joinOuterOperations(): Promise<void> {
@@ -1104,8 +1265,14 @@ export async function prepareDependencyOwnerCustody(): Promise<
   } catch (cause) {
     if (parent.stopped || parent.originals.some((original) => !original.known)) {
       if (await joinPrehelperRefusal()) {
-        parent.prehelperRefusalTerminal = true;
-        throw cause;
+        const report = reportPrehelperRefusal(cause);
+        // Proof: reporting MODEL R3 bypassed this UNKNOWN retirement exclusion;
+        // 'UC2 pre-helper Promise diagnostic return retains timers' failed its
+        // HOLD identity oracle; exact restoration passed (2026-11-03).
+        if (report.state !== 'unknown') {
+          parent.prehelperRefusalTerminal = true;
+          throw report.state === 'failed' ? report.failure : cause;
+        }
       }
       return await stop(cause);
     }
