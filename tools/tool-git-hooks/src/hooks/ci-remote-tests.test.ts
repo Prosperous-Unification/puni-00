@@ -1904,3 +1904,369 @@ test('graph rest integration refuses a missing exact graph owner before any Bun 
   expect(graphRoutingEntries(invocation.stdout.toString())).toEqual([]);
   expect(executed(invocation.stdout.toString())).toEqual([]);
 });
+
+import type { ExpressionStatement, Node } from 'typescript';
+
+const GRAPH_PLACEMENT_SOURCE = 'tools/tool-remote-scripts/src/lib/initial-handoff-graph.test.ts';
+const GRAPH_PLACEMENT_SHA256 = 'e0aa42a11dcda58f07c1a38d4ba701e88ff47d488f04f0b4ede3811b84d9bdc9';
+
+type GraphPlacementMode = 'graph-identity' | 'graph-legacy';
+type GraphPlacementFault = 'none' | 'early-import' | 'missing-import' | 'preflight-rejection';
+
+/** Source-extracted orchestration with finite modeled providers; no actual native settlement is invoked. */
+async function graphPlacementSource() {
+  const ts = await import('typescript');
+  const { createHash } = await import('node:crypto');
+  const source = readFileSync(join(ROOT, GRAPH_PLACEMENT_SOURCE), 'utf8');
+  const digest = (contents: string) => createHash('sha256').update(contents).digest('hex');
+  expect(digest(source)).toBe(GRAPH_PLACEMENT_SHA256);
+  const parsed = ts.createSourceFile(GRAPH_PLACEMENT_SOURCE, source, ts.ScriptTarget.Latest, true);
+  const selections: { name: string; start: number; end: number; sha256: string }[] = [];
+  function select(name: string, kind: 'function' | 'variable') {
+    const matches = parsed.statements.filter((statement) =>
+      kind === 'function'
+        ? ts.isFunctionDeclaration(statement) && statement.name?.text === name
+        : ts.isVariableStatement(statement) &&
+          statement.declarationList.declarations.some(
+            (declaration) => ts.isIdentifier(declaration.name) && declaration.name.text === name,
+          ),
+    );
+    expect(matches).toHaveLength(1);
+    const selected = matches.at(0);
+    if (selected === undefined) throw new Error('Graph placement source selection absent: ' + name);
+    const start = selected.getStart(parsed);
+    const end = selected.end;
+    const text = source.slice(start, end);
+    selections.push({ name, start, end, sha256: digest(text) });
+    return { selected, start, text };
+  }
+  const rosters = ['closePreflightScenarios', 'closeLegacyScenarios'].map((name) => {
+    const selected = select(name, 'variable');
+    if (!ts.isVariableStatement(selected.selected))
+      throw new Error('Graph roster statement differs');
+    expect(selected.selected.declarationList.declarations).toHaveLength(1);
+    const initializer = selected.selected.declarationList.declarations.at(0)?.initializer;
+    if (
+      initializer === undefined ||
+      !ts.isAsExpression(initializer) ||
+      !ts.isArrayLiteralExpression(initializer.expression)
+    )
+      throw new Error('Graph literal roster differs');
+    return selected.text;
+  });
+  const bindings = [
+    select('closeSettlementOwner', 'variable').text,
+    ...[
+      'stopCloseSettlement',
+      'holdCloseSettlement',
+      'assertCloseSettlementStart',
+      'assertClosePreflight',
+      'readClosePreflight',
+      'assertLegacyClosePreflight',
+    ].map((name) => select(name, 'function').text),
+  ];
+  const orchestration = select('prepareClosePreflight', 'function');
+  if (
+    !ts.isFunctionDeclaration(orchestration.selected) ||
+    orchestration.selected.body === undefined
+  )
+    throw new Error('Graph preflight function body absent');
+  const imports: ExpressionStatement[] = [];
+  function visit(node: Node): void {
+    if (
+      ts.isExpressionStatement(node) &&
+      ts.isAwaitExpression(node.expression) &&
+      ts.isCallExpression(node.expression.expression) &&
+      node.expression.expression.expression.kind === ts.SyntaxKind.ImportKeyword
+    ) {
+      const arguments_ = node.expression.expression.arguments;
+      expect(arguments_).toHaveLength(1);
+      const specifier = arguments_.at(0);
+      if (
+        specifier === undefined ||
+        !ts.isStringLiteral(specifier) ||
+        specifier.text !== '@tools/test-scratch/preload'
+      )
+        throw new Error('Graph deferred import differs');
+      imports.push(node);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(orchestration.selected);
+  expect(imports).toHaveLength(1);
+  const deferred = imports.at(0);
+  const nativeBranches = orchestration.selected.body.statements.filter(
+    (statement) =>
+      ts.isIfStatement(statement) &&
+      ts.isIdentifier(statement.expression) &&
+      statement.expression.text === 'hasNativePreflight',
+  );
+  expect(nativeBranches).toHaveLength(1);
+  const branch = nativeBranches.at(0);
+  if (deferred === undefined || branch === undefined)
+    throw new Error('Graph placement boundary absent');
+  const importStart = deferred.getStart(parsed) - orchestration.start;
+  const importEnd = deferred.end - orchestration.start;
+  const branchStart = branch.getStart(parsed) - orchestration.start;
+  expect(branchStart).toBeLessThan(importStart);
+  const importText = orchestration.text.slice(importStart, importEnd);
+  const omitted = orchestration.text.slice(0, importStart) + orchestration.text.slice(importEnd);
+  const early = omitted.slice(0, branchStart) + importText + '\n' + omitted.slice(branchStart);
+  return {
+    rosters,
+    bindings,
+    orchestration: orchestration.text,
+    omitted,
+    early,
+    selections,
+    sourceSHA256: digest(source),
+  };
+}
+
+function graphPlacementFixture(
+  extracted: Awaited<ReturnType<typeof graphPlacementSource>>,
+  mode: GraphPlacementMode,
+  fault: GraphPlacementFault,
+): { root: string; image: string } {
+  const root = scratchSync('graph-deferred-hook-');
+  for (const path of ['tools/test/scratch/preload.ts', 'tools/test/scratch/index.ts']) {
+    const bytes = readFileSync(join(ROOT, path));
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    writeFileSync(join(root, path), bytes);
+    expect(readFileSync(join(root, path)).equals(bytes)).toBe(true);
+  }
+  write(root, 'bunfig.toml', '[test]\n');
+  write(
+    root,
+    'tsconfig.json',
+    JSON.stringify({
+      compilerOptions: {
+        baseUrl: '.',
+        paths: {
+          '@tools/test-scratch/preload': ['./tools/test/scratch/preload.ts'],
+        },
+      },
+    }),
+  );
+  const orchestration =
+    fault === 'early-import'
+      ? extracted.early
+      : fault === 'missing-import'
+        ? extracted.omitted
+        : extracted.orchestration;
+  const image = `
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {readFileSync,writeSync} from 'node:fs';
+import {resolve} from 'node:path';
+import {afterAll as actualAfterAll, test as actualTest} from 'bun:test';
+const graphMode=${JSON.stringify(mode)};
+const hasNativePreflight=true;
+const graphModuleEntered=performance.now();
+const rejected=${String(fault === 'preflight-rejection')};
+${extracted.rosters.join('\n')}
+${extracted.bindings.join('\n')}
+const closePreflightRecords=new Map();
+const closeLegacyRecords=new Map();
+const modeledOutcomes=[];
+const modeledOriginals=[];
+const modeledJoins=[];
+const modeledFixtures=[];
+const expectedHelpers=graphMode==='graph-identity'?14:11;
+function allJoined(){
+  return closeSettlementOwner.preflightComplete && !closeSettlementOwner.stopped &&
+    !closeSettlementOwner.uncertain && closeSettlementOwner.active.length===0 &&
+    modeledOutcomes.length===expectedHelpers && new Set(modeledOutcomes).size===expectedHelpers &&
+    modeledOriginals.length===expectedHelpers && new Set(modeledOriginals).size===expectedHelpers &&
+    modeledJoins.length===expectedHelpers && modeledJoins.every((join,index)=>
+      join.known && join.original===modeledOriginals[index] && join.outcome===modeledOutcomes[index]) &&
+    closeSettlementOwner.completed.length===expectedHelpers &&
+    closeSettlementOwner.completed.every((observed,index)=>observed===modeledOutcomes[index]) &&
+    closePreflightRecords.size===(graphMode==='graph-identity'?14:0) &&
+    closeLegacyRecords.size===(graphMode==='graph-legacy'?11:0) &&
+    (graphMode==='graph-identity'?closePreflightScenarios:closeLegacyScenarios).every((row,index)=>
+      (graphMode==='graph-identity'?closePreflightRecords:closeLegacyRecords).get(row.scenario)===modeledOutcomes[index]);
+}
+function emit(kind,fields={}){writeSync(2,'GRAPH_PLACEMENT:'+JSON.stringify({kind,allJoined:allJoined(),...fields})+'\\n');}
+Bun.plugin({name:'observe-exact-deferred-scratch-source',setup(builder){
+  builder.onLoad({filter:/preload\\.ts$/},args=>{
+    assert.equal(args.path,resolve(import.meta.dir,'../../../test/scratch/preload.ts'),'copied scratch preload path differs');
+    const contents=readFileSync(args.path,'utf8');
+    emit('preload-load');
+    return {contents,loader:'ts'};
+  });
+}});
+async function initialHandoffFixture(phase,unused,mutate){
+  const fields={};if(mutate!==undefined)mutate('handoff-intent',fields);
+  const fixture=await Promise.resolve({malformed:fields.unrecognized===true});
+  modeledFixtures.push(fixture);emit('modeled-fixture',{malformed:fixture.malformed});return fixture;
+}
+async function runCloseSettlement(scenario,fixture,classify,stages){
+  if(rejected)throw new Error('MODELED_PREFLIGHT_REJECTION');
+  assert(modeledFixtures.includes(fixture),'modeled fixture identity absent');
+  const row=(graphMode==='graph-identity'?closePreflightScenarios:closeLegacyScenarios).find(row=>row.scenario===scenario);
+  assert(row!==undefined,'modeled scenario absent');
+  assert.equal(fixture.malformed,row.fixture==='malformed-disk');
+  assert.equal(classify,graphMode==='graph-identity');
+  assert.deepEqual(stages,graphMode==='graph-identity'?row.stages:[]);
+  const original=Promise.resolve({scenario,exit:0,classifications:[],original:{accepted:true}});
+  assert(!modeledOriginals.includes(original),'modeled original Promise reused');
+  modeledOriginals.push(original);
+  const join={original,known:false,outcome:undefined};modeledJoins.push(join);
+  const outcome=await original;
+  assert.equal(modeledOriginals.at(-1),original,'modeled pending Promise identity differs');
+  assert.equal(modeledJoins.at(-1),join,'modeled pending join identity differs');
+  assert.equal(outcome.scenario,row.scenario,'modeled selected outcome differs');
+  assert(!modeledOutcomes.includes(outcome) && !closeSettlementOwner.completed.includes(outcome),
+    'modeled completed outcome reused');
+  join.outcome=outcome;join.known=true;modeledOutcomes.push(outcome);
+  closeSettlementOwner.completed.push(outcome);
+  emit('modeled-join',{scenario});return outcome;
+}
+const names=${JSON.stringify(graphRoutingTitles)};
+const graphTestDeclarations=names.map(name=>({name,options:undefined,callback:()=>{
+  if(graphMode==='graph-legacy'){
+    const row=closeLegacyScenarios.find(row=>row.title===name);assert(row!==undefined);
+    assertLegacyClosePreflight(row.scenario);
+  }else{
+    assertClosePreflight();const row=closePreflightScenarios.find(row=>row.title===name);
+    if(row!==undefined)readClosePreflight(row.scenario);
+  }
+  emit('callback',{name});
+}}));
+const graphFinalizers=[{callback:()=>emit('file-finalizer'),options:undefined}];
+function registerTest(name,callback,options){emit('test-registration',{name});actualTest(name,callback,options);}
+function registerAfterAll(callback,options){emit('finalizer-registration');actualAfterAll(callback,options);}
+${orchestration}
+emit('source-binding',${JSON.stringify({ sourceSHA256: extracted.sourceSHA256, selections: extracted.selections })});
+await prepareClosePreflight();
+`;
+  write(root, GRAPH_PLACEMENT_SOURCE, image);
+  return { root, image };
+}
+
+function invokeGraphPlacement(root: string) {
+  return Bun.spawnSync([process.execPath, 'test', '--timeout=5000', GRAPH_PLACEMENT_SOURCE], {
+    cwd: root,
+    env: {
+      PATH: process.env['PATH'],
+      HOME: process.env['HOME'],
+      FORCE_COLOR: '0',
+      NO_COLOR: '1',
+      BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
+    },
+    stdout: 'pipe',
+    stderr: 'pipe',
+    timeout: 5000,
+  });
+}
+
+/** The same consumer must reject both mutations, even if a mutated child exits successfully. */
+function expectGraphPlacement(
+  invocation: ReturnType<typeof invokeGraphPlacement>,
+  mode: GraphPlacementMode,
+): void {
+  const stderr = invocation.stderr.toString();
+  expect(invocation.signalCode, stderr).toBeUndefined();
+  expect(invocation.exitCode, stderr).toBe(0);
+  const lines = stderr.split('\n');
+  const events = lines
+    .filter((line) => line.startsWith('GRAPH_PLACEMENT:'))
+    .map((line) => {
+      const event: unknown = JSON.parse(line.slice('GRAPH_PLACEMENT:'.length));
+      if (event === null || typeof event !== 'object' || !('kind' in event))
+        throw new Error('Graph placement event malformed');
+      return event as { kind: string; allJoined: boolean; name?: string };
+    });
+  const loads = events.filter((event) => event.kind === 'preload-load');
+  const expected = graphRoutingTitles.slice(
+    mode === 'graph-identity' ? 213 : 202,
+    mode === 'graph-identity' ? 228 : 213,
+  );
+  for (const kind of ['test-registration', 'callback']) {
+    const selected = events.filter((event) => event.kind === kind);
+    expect(selected.map((event) => event.name)).toEqual(expected);
+    expect(selected.every((event) => event.allJoined)).toBe(true);
+  }
+  const finalizers = events.filter((event) => event.kind === 'finalizer-registration');
+  expect(finalizers).toHaveLength(1);
+  expect(finalizers[0]?.allJoined).toBe(true);
+  expect(events.filter((event) => event.kind === 'file-finalizer')).toHaveLength(1);
+  const starts = lines.flatMap((line, index) =>
+    line === 'scratch cleanup source=afterAll event=start' ? [index] : [],
+  );
+  const returns = lines.flatMap((line, index) =>
+    /^scratch cleanup source=afterAll event=return elapsedMs=\d+$/.test(line) ? [index] : [],
+  );
+  if (starts.length !== 1 || returns.length !== 1)
+    throw new Error('Graph placement actual scratch hook evidence differs');
+  const lastCallback = lines.findLastIndex(
+    (line) => line.startsWith('GRAPH_PLACEMENT:') && line.includes('"kind":"callback"'),
+  );
+  expect(starts[0]).toBeGreaterThan(lastCallback);
+  expect(returns[0]).toBeGreaterThan(starts[0]);
+  expect(loads).toHaveLength(1);
+  if (!Object.is(loads.at(0)?.allJoined, true))
+    throw new Error('Graph placement scratch hook loaded before modeled joins');
+  expect(events.findIndex((event) => event.kind === 'test-registration')).toBeGreaterThan(
+    events.findIndex((event) => event.kind === 'preload-load'),
+  );
+  expect(stderr).toContain('0 fail');
+}
+
+test('graph source preflight defers actual scratch hook until modeled joins and retains cleanup', async () => {
+  const extracted = await graphPlacementSource();
+  const steps = [
+    ['graph-identity', 'none'],
+    ['graph-legacy', 'none'],
+    ['graph-legacy', 'early-import'],
+    ['graph-legacy', 'none'],
+    ['graph-legacy', 'missing-import'],
+    ['graph-legacy', 'none'],
+    ['graph-legacy', 'preflight-rejection'],
+  ] as const;
+  let restoredImage: string | undefined;
+  for (const [mode, fault] of steps) {
+    const fixture = graphPlacementFixture(extracted, mode, fault);
+    if (mode === 'graph-legacy' && fault === 'none') {
+      if (restoredImage === undefined) restoredImage = fixture.image;
+      else expect(fixture.image).toBe(restoredImage);
+    }
+    const invocation = invokeGraphPlacement(fixture.root);
+    console.log(
+      'GRAPH_PLACEMENT_DIAGNOSTIC:' +
+        JSON.stringify({
+          mode,
+          fault,
+          sourceSHA256: extracted.sourceSHA256,
+          selections: extracted.selections,
+          exitCode: invocation.exitCode,
+          signalCode: invocation.signalCode,
+          stdoutBase64: invocation.stdout.toString('base64'),
+          stderrBase64: invocation.stderr.toString('base64'),
+        }),
+    );
+    if (fault === 'preflight-rejection') {
+      expect(invocation.signalCode).toBeUndefined();
+      expect(invocation.exitCode).not.toBe(0);
+      const stderr = invocation.stderr.toString();
+      expect(stderr).toContain('MODELED_PREFLIGHT_REJECTION');
+      expect(stderr).not.toContain('"kind":"preload-load"');
+      expect(stderr).not.toContain('"kind":"test-registration"');
+      expect(stderr).not.toContain('"kind":"finalizer-registration"');
+      expect(stderr).not.toContain('scratch cleanup source=afterAll event=');
+    } else if (fault === 'none') expectGraphPlacement(invocation, mode);
+    else {
+      expect(invocation.signalCode).toBeUndefined();
+      expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+      if (fault === 'missing-import')
+        expect(() => {
+          expectGraphPlacement(invocation, mode);
+        }).toThrow('Graph placement actual scratch hook evidence differs');
+      else
+        expect(() => {
+          expectGraphPlacement(invocation, mode);
+        }).toThrow('Graph placement scratch hook loaded before modeled joins');
+    }
+  }
+});
