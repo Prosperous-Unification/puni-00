@@ -87,7 +87,7 @@ describe('buildPackage', () => {
 
     const unknown = invoke(executable, ['not-a-command'], externalRoot);
     expect(unknown.exitCode).not.toBe(0);
-    expect(unknown.stderr.toString()).toContain('unknown command');
+    expect(unknown.stderr.toString()).toBe('error: Unsupported Burokrat command: not-a-command\n');
 
     const fixtureDirectory = join(externalRoot, 'fixture');
     await mkdir(fixtureDirectory);
