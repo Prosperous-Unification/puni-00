@@ -278,9 +278,10 @@ at the exact target commit under `bin/`, atomically renames the
 completed candidate, and runs it from that clone with the managed interpreter. Its HEAD must equal
 the requested full SHA and its tracked tree must be clean. The candidate contains the complete
 target build context, including Dockerfiles, publisher, supervisor installer, lockfile, `tools/`,
-`libs/`, and root configs rather than `sync.ts` alone. The local clone owns object links rather than
-an alternates pointer into the live source repository, so source `git gc` cannot invalidate a
-retained candidate. Candidates older than 24 hours are pruned before interpreter checks.
+`libs/`, and root configs rather than `sync.ts` alone. The local clone owns object links or copies
+rather than an alternates pointer: if the source itself borrows objects, the loader checks out the
+exact target before copying its reachable objects and removing the pointer. Source `git gc` cannot
+invalidate a retained candidate. Candidates older than 24 hours are pruned before interpreter checks.
 
 The full clone matters twice: the deployer reaches the deploy contract through the `@wbs/*`
 tsconfig paths, and a solver-affecting tick must give Dagger the target revision's build context.

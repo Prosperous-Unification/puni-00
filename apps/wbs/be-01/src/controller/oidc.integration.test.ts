@@ -550,6 +550,8 @@ describe('OIDC browser routes', () => {
       // Exchanges a credential for a bounded context; it writes no domain state.
       '/api/auth/context',
       '/api/auth/logout',
+      // Local cookie reset is an Origin-bound auth protocol, with no domain write.
+      '/api/auth/reset',
       '/api/auth/refresh',
       '/api/auth/register',
       // Auth protocol start uses a fresh first-party password proof instead of a bearer write scope.

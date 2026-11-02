@@ -1,3 +1,5 @@
+import { parseAnalyticsRegionResponse } from '@website/contracts';
+
 import {
   type Analytics,
   type AnalyticsPorts,
@@ -10,6 +12,7 @@ import {
   type AnalyticsOptions,
   configureAnalytics,
   type MeasurementContext,
+  resolvePage,
 } from './configuration';
 
 const instances = new WeakMap<Window, { signature: string; analytics: Analytics }>();
@@ -216,6 +219,8 @@ function createVendor(window: Window): AnalyticsPorts['vendor'] {
  * One controller per Window, shared by React and Astro; incompatible second configuration throws.
  * pageshow/focus/visibility and every dispatch/navigation reread the shared cookie. Call navigate()
  * after client navigation; call dispose() only when the whole page integration is unmounted.
+ * An unset readable choice on a registered public route resolves the regional default once, within
+ * three seconds. Failure stays unknown; choices/disposal cancel the request without replay.
  */
 export function createBrowserAnalytics(window: Window, options: AnalyticsOptions = {}): Analytics {
   const configuration = configureAnalytics(options, window.location.href);
@@ -256,8 +261,88 @@ export function createBrowserAnalytics(window: Window, options: AnalyticsOptions
     vendor: createVendor(window),
   };
   const controller = createAnalytics(options, ports);
+  let disposed = false;
+  let regionAttempted = false;
+  let cancelRegion: (() => void) | null = null;
+  // Proof: omitting cancellation failed pending regional answer is fenced after reject (signal stayed live).
+  const unsubscribeChoice = controller.subscribeChoice((choice) => {
+    if (choice !== 'unset') cancelRegion?.();
+  });
+  function resolveRegion() {
+    // Proof: removing each admission caused requests in lookup excluded for disabled/operator/saved
+    // choices/unreadable, repeated requests in region fetch is one, or a first request after disposal.
+    if (
+      disposed ||
+      regionAttempted ||
+      !configuration.enabled ||
+      controller.getChoice() !== 'unset' ||
+      resolvePage(configuration, window.location.href, '') === null
+    )
+      return;
+    regionAttempted = true;
+    const aborter = new AbortController();
+    // Proof: raising the deadline failed region request has a 3000ms deadline; removing abort
+    // left its signal live in pending regional answer is fenced after reject.
+    const timeout = window.setTimeout(cancel, 3000);
+    function cancel() {
+      aborter.abort();
+      window.clearTimeout(timeout);
+      cancelRegion = null;
+    }
+    cancelRegion = cancel;
+    async function requestRegion() {
+      let response: Response;
+      let payload: unknown;
+      try {
+        // Proof: including credentials, allowing cache, or forwarding location each failed the
+        // exact wire/privacy assertions in region fetch is one credential-free no-store request.
+        response = await window.fetch(`https://${configuration.hosts[0]}/api/analytics/region`, {
+          credentials: 'omit',
+          cache: 'no-store',
+          // Proof: omitting this policy exposed the current email query in native analytics-region.mjs Referer.
+          referrerPolicy: 'no-referrer',
+          signal: aborter.signal,
+        });
+        // Proof: accepting a valid elsewhere body with HTTP 503 failed region http retains unknown.
+        if (!response.ok) return;
+        payload = await response.json();
+      } catch (error) {
+        if (
+          error instanceof TypeError ||
+          error instanceof SyntaxError ||
+          (error instanceof Error && error.name === 'AbortError')
+        )
+          return;
+        throw error;
+      }
+      let region;
+      try {
+        // Proof: bypassing this parser granted elsewhere for identifying extra fields in region invalid-region retains unknown.
+        region = parseAnalyticsRegionResponse(payload).region;
+      } catch {
+        // Malformed external JSON is a modeled unknown regional answer.
+        return;
+      }
+      // Proof: removing this reread failed cross-host-reject after the fixture settled initial pageshow.
+      controller.sync();
+      // Proof: removing the abort fence granted a noncooperative timed-out response; removing the
+      // route admission applied a late answer on a newly unsupported route. Choice is independently fenced.
+      if (
+        aborter.signal.aborted ||
+        controller.getChoice() !== 'unset' ||
+        controller.getState().status === 'disabled'
+      )
+        return;
+      controller.setRegion(region);
+    }
+    void requestRegion().finally(() => {
+      window.clearTimeout(timeout);
+      if (!aborter.signal.aborted) cancelRegion = null;
+    });
+  }
   const sync = () => {
     controller.navigate();
+    resolveRegion();
   };
   const visible = () => {
     if (window.document.visibilityState === 'visible') sync();
@@ -267,7 +352,25 @@ export function createBrowserAnalytics(window: Window, options: AnalyticsOptions
   window.document.addEventListener('visibilitychange', visible);
   const analytics: Analytics = {
     ...controller,
+    sync: () => {
+      controller.sync();
+      resolveRegion();
+    },
+    navigate: sync,
+    dispatch: (event) => {
+      const outcome = controller.dispatch(event);
+      resolveRegion();
+      return outcome;
+    },
+    dispatchLead: (receipt, event) => {
+      const outcome = controller.dispatchLead(receipt, event);
+      resolveRegion();
+      return outcome;
+    },
     dispose: () => {
+      disposed = true;
+      cancelRegion?.();
+      unsubscribeChoice();
       window.removeEventListener('pageshow', sync);
       window.removeEventListener('focus', sync);
       window.document.removeEventListener('visibilitychange', visible);
@@ -275,5 +378,6 @@ export function createBrowserAnalytics(window: Window, options: AnalyticsOptions
     },
   };
   instances.set(window, { signature, analytics });
+  resolveRegion();
   return analytics;
 }

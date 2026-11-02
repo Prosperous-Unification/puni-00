@@ -289,3 +289,38 @@ current-main integration, hosted CI, exact-SHA canonical acceptance and merge ar
 still required. This closes the narrow policy blocker; it does not complete the
 other adapters, second durable provider, business mapping, physical continuation
 or full S7a, and authorizes no operator-store migration or production action.
+
+## Current-main prepublication checkpoint (2026-11-02)
+
+Normal commit `7c1b7314f950160ef25fbcefd9f5c8d608f5dc2f` retains the
+reviewed source plus status records as fingerprint `1743444f`, 12,730 entries.
+Its ordered parents are `d65bec33` and `c894bc45`. Every normal hook passed;
+the original Node 4 GB lint-heap failure remains retained. An 8 GB process heap
+retry passed without skipping or changing checks. External Tool Wiki activation
+remains explicitly inactive/uncertified, and hooks without matching staged paths
+reported their legitimate skips.
+
+Fetched current main is `d0be12ea17e7a7014c9d9c8b57471d48a45793df`. Its
+local merge has one comment-only conflict in the Burokrat pilot test: both
+existing Proof blocks are retained, with parsed comment-free code identical to
+both parents. Root initially staged unresolved markers before inspecting a failed
+comparison helper; the actual staged whitespace check rejected all three markers
+and no merge commit was attempted. The corrected parsed comparison passed before
+the resolved file was staged. Incoming main also contains an intentional Markdown
+hard break flagged by the whole staged whitespace check; the candidate delta
+against current main passes that check without editing upstream prose.
+
+Before the frozen install, all 102,921 existing shared dependency files were
+detached to private inodes with identical bytes/modes and preserved symlink
+targets. `bun install --frozen-lockfile --backend=copyfile` passed and installed
+main's application-exception 0.8.1, di-bag 0.5.2 and mmdb-lib 3.0.3. All 102,941
+resulting regular dependency files are private; caught-object-report-json remains
+13.0.0. No shared original inode was modified.
+
+On the integrated source and refreshed dependencies, uncached typechecks for
+Dash, Burokrat and Tool devsync passed. The two actual sender/receiver reopen
+controls, staged-before-post and accepted-before-ack, passed: 2 tests/9 assertions,
+with 27 intentionally filtered tests and both configured lifetime preloads.
+These bounded checks do not replace current hosted CI or the exact-SHA canonical
+gate. The normal integration commit, publication and release acceptance remain
+pending at this checkpoint. No operator migration or production action occurred.

@@ -790,3 +790,95 @@ test('choice observation syncs expiry, navigation, read failure and write recove
   f.analytics.reject();
   expect(f.analytics.getChoice()).toBe('rejected');
 });
+
+test('regional defaults update permission during loading without inventing a saved choice or replay', async () => {
+  const f = fixture();
+  const regions: string[] = [];
+  f.analytics.subscribeRegion((region) => regions.push(region));
+  expect(f.analytics.getRegion()).toBe('unknown');
+  f.analytics.setRegion('consent-required');
+  expect(f.permissions).toEqual(['denied']);
+  f.analytics.setRegion('elsewhere');
+  expect(f.analytics.getRegion()).toBe('elsewhere');
+  expect(f.analytics.getChoice()).toBe('unset');
+  expect(f.preference()).toBeNull();
+  expect(f.permissions).toEqual(['denied', 'granted']);
+  expect(f.analytics.getState().status).toBe('loading');
+  expect(regions).toEqual(['consent-required', 'elsewhere']);
+  await f.complete();
+  expect(f.analytics.getState().status).toBe('ready');
+  f.analytics.setRegion('unknown');
+  expect(f.permissions).toEqual(['denied', 'granted', 'denied']);
+  expect(f.analytics.getState().status).toBe('cookieless');
+  expect(f.sent.map((event) => event.name)).toEqual(['page_view']);
+  expect([...f.cookies.keys()]).toEqual(['puni_prod_ga', 'claim', 'operator']);
+});
+
+test('regional defaults never override explicit acceptance rejection or unreadable preference', () => {
+  for (const accepted of [true, false]) {
+    const f = fixture(href, JSON.stringify({ version: 1, accepted, expires: Date.UTC(2030, 0) }));
+    f.analytics.setRegion(accepted ? 'consent-required' : 'elsewhere');
+    expect(f.analytics.getChoice()).toBe(accepted ? 'accepted' : 'rejected');
+    expect(f.permissions).toEqual(accepted ? ['granted'] : []);
+    expect(f.analytics.getState().status).toBe(accepted ? 'loading' : 'denied');
+  }
+  const f = fixture();
+  f.ports.readPreference = () => ({ status: 'unavailable' });
+  f.analytics.setRegion('elsewhere');
+  expect(f.analytics.getChoice()).toBe('unavailable');
+  expect(f.permissions).toEqual(['denied']);
+  expect(f.analytics.getState()).toEqual({ status: 'unavailable', reason: 'storage' });
+});
+
+test('a failed preference write cannot revive old acceptance through a regional answer or sync', async () => {
+  const f = fixture(
+    href,
+    JSON.stringify({ version: 1, accepted: true, expires: Date.UTC(2030, 0) }),
+  );
+  await f.complete();
+  f.ports.writePreference = () => ({ status: 'unavailable' });
+  f.analytics.reject();
+  f.analytics.setRegion('elsewhere');
+  f.analytics.navigate();
+  expect(f.analytics.getChoice()).toBe('unavailable');
+  expect(f.analytics.getState()).toEqual({ status: 'unavailable', reason: 'storage' });
+  expect(f.permissions).toEqual(['granted']);
+  expect(f.analytics.dispatch({ name: 'funnel_failure', category: 'network' })).toBe('unavailable');
+});
+
+test('regional updates after disposal cannot notify or grant', async () => {
+  const f = fixture();
+  const regions: string[] = [];
+  f.analytics.subscribeRegion((region) => regions.push(region));
+  f.analytics.dispose();
+  f.analytics.setRegion('elsewhere');
+  await f.complete();
+  expect(f.analytics.getRegion()).toBe('unknown');
+  expect(regions).toEqual([]);
+  expect(f.permissions).toEqual(['denied']);
+  expect(f.analytics.getState().status).toBe('disabled');
+});
+
+test('failed preference restores storage recovery after leaving and returning to a supported route', async () => {
+  const f = fixture(
+    href,
+    JSON.stringify({ version: 1, accepted: true, expires: Date.UTC(2030, 0) }),
+  );
+  await f.complete();
+  f.ports.writePreference = () => ({ status: 'unavailable' });
+  f.analytics.reject();
+  f.setLocation('https://dev.app.puni.dev/operator');
+  f.analytics.navigate();
+  expect(f.analytics.getState().status).toBe('disabled');
+  f.setLocation(href);
+  f.analytics.navigate();
+  expect(f.analytics.getState()).toEqual({ status: 'unavailable', reason: 'storage' });
+  expect(f.analytics.getChoice()).toBe('unavailable');
+  f.analytics.setRegion('elsewhere');
+  expect(f.analytics.getState()).toEqual({ status: 'unavailable', reason: 'storage' });
+  expect(f.permissions).toEqual(['granted']);
+  f.ports.writePreference = () => ({ status: 'ok' });
+  f.analytics.reject();
+  expect(f.analytics.getChoice()).toBe('rejected');
+  expect(f.analytics.getState().status).toBe('denied');
+});
