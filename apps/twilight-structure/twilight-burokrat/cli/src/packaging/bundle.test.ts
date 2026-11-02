@@ -65,9 +65,8 @@ test('the validator and executable bundles carry no activation runtime', async (
 const RECORDED_EXECUTABLE_BYTES = 10_332_756;
 
 test('the executable bundle carries the Optique parser, at its recorded size', async () => {
-  // Proof: marking `@optique/*` external in this build made both assertions fail: the bundle no
-  // longer carried Optique's refusal text, and it was 1,041,452 bytes short of the band
-  // (2026-11-02).
+  // Proof: marking `@optique/*` external in this build failed the first assertion: the bundle no
+  // longer carried Optique's refusal text (2026-11-02).
   const built = await Bun.build(executableBuildConfig());
   if (!built.success || built.outputs.length !== 1) {
     throw new Error(`cannot build bin.mjs: ${built.logs.map(String).join('; ')}`);

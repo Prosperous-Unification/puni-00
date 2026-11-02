@@ -52,8 +52,9 @@ const selection = () =>
 
 /**
  * A Browser or Performance level mode.
- * Proof: replacing `choice` with `string` made `[TEST-AXES-115] refuses unsupported mode`
- * (browser-performance.test.ts) reach the policy reader instead of the usage refusal (2026-11-02).
+ * Proof: replacing `choice` with `string` made `a wrong operand count or mode refuses with the
+ * command usage before any read` (cli.test.ts) reach the repository reader, `not a readable Git
+ * repository`, instead of the usage refusal (2026-11-02).
  */
 const levelMode = () =>
   argument(choice(['ordinary', 'packaged', 'portable'] as const, { metavar: 'MODE' }));
@@ -532,6 +533,8 @@ export type ValidatorRequest<Name extends ValidatorCommand['command']> = Extract
 /**
  * Every installed `twib` command line: the validator commands it forwards to its toolkit's
  * `validator.mjs`, and the three it dispatches itself.
+ * Proof: adding `sourceOnlyCommands` here failed `help names every dispatched command and no
+ * other` with `candidate-identity` and `inspect-browser` received (2026-11-02).
  */
 export const installedGrammar = {
   parser: or(
@@ -605,7 +608,8 @@ function refusalOf(
   }
   const usage = name === undefined ? undefined : usageOf(commands, name);
   // Proof: returning `reason` unmapped here failed `an unknown command refuses in one line, exit
-  // 1` with Optique's "Unexpected option or subcommand: `not-a-command`." (2026-11-02).
+  // 1, through both entries` with Optique's "Unexpected option or subcommand: `apply`."
+  // (2026-11-02).
   if (usage === undefined) return `Unsupported Burokrat command: ${name ?? '<missing>'}`;
   return `${usage} (${reason})`;
 }
@@ -664,7 +668,8 @@ export function readInvocation<T extends Parser>(
       // Without these two `run` reads the terminal's colour support and width, so help and
       // refusals would vary per terminal.
       // Proof: dropping `maxWidth` failed `help parity holds under any terminal width and colour
-      // request` under `COLUMNS=30` (2026-11-02).
+      // request` with an 80-column `process.stdout` and under `COLUMNS=80` (2026-11-02). Proof: dropping `colors` failed
+      // that test under `FORCE_COLOR=1`: all 119 help lines differed by ANSI bytes (2026-11-02).
       colors: false,
       maxWidth: 120,
       aboveError: 'none',
@@ -674,6 +679,8 @@ export function readInvocation<T extends Parser>(
     });
     return { kind: 'command', command: parsed };
   } catch (cause) {
+    // Proof: rethrowing `Printed` here failed `help, help <command> and bash, zsh and fish
+    // completion print on stdout` (2026-11-02).
     if (cause instanceof Printed) return { kind: 'printed' };
     throw cause;
   }

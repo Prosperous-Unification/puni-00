@@ -697,8 +697,20 @@ describe('Burokrat command line (twilight-cli-optique)', () => {
 
   test('help parity holds under any terminal width and colour request', () => {
     const inProcess = printedBy(installedGrammar, ['--help']);
+    // A terminal reports its width on the stream; `run` reads it before `COLUMNS`. At 30
+    // columns Optique's automatic width gives up on the long usage lines and prints them
+    // unwrapped, so only a width it can honour, such as 80, would change the bytes.
+    const reported = Object.getOwnPropertyDescriptor(process.stdout, 'columns');
+    Object.defineProperty(process.stdout, 'columns', { configurable: true, value: 80 });
+    try {
+      expect(printedBy(installedGrammar, ['--help'])).toBe(inProcess);
+    } finally {
+      if (reported === undefined) Reflect.deleteProperty(process.stdout, 'columns');
+      else Object.defineProperty(process.stdout, 'columns', reported);
+    }
     const environments: Record<string, string>[] = [
       { COLUMNS: '30' },
+      { COLUMNS: '80' },
       { COLUMNS: '400' },
       { FORCE_COLOR: '1' },
     ];

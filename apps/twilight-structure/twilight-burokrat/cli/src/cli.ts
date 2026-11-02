@@ -381,8 +381,9 @@ export const validatorHandlers: Handlers = {
   },
   check: async ({ argv }) => {
     // The module reads its flags in pairs after four operands.
-    // Proof: dropping this guard let `check refuses an odd flag tail before reading` run the
-    // complete check with `--rule` but no rule (2026-11-02).
+    // Proof: dropping this guard made `check refuses an odd flag tail and explain a two-word tail
+    // before reading` run the check with `--rule` but no rule, which read the repository: `not a
+    // readable Git repository` (2026-11-02).
     if (argv.length !== 4 && argv.length !== 6 && argv.length !== 8)
       throw delegatedArityRefusal(
         'check',
@@ -685,6 +686,8 @@ function fail(cause: unknown): void {
   const message = cause instanceof Error ? cause.message : String(cause);
   // A refused command line is one `error: ` line; any other failure keeps its own first words,
   // which callers and tests match.
+  // Proof: writing the bare message here failed `an unknown command refuses in one line, exit 1,
+  // through both entries` with `Unsupported Burokrat command: apply` and no prefix (2026-11-02).
   process.stderr.write(cause instanceof UsageRefusal ? `error: ${message}\n` : `${message}\n`);
   // Proof: changing this to exit zero made the inconsistent Manual report production CLI
   // assertion accept a refused inspection despite its named stderr and empty stdout.

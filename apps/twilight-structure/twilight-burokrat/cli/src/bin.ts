@@ -98,6 +98,8 @@ try {
   await main(process.argv.slice(2));
 } catch (cause) {
   const message = cause instanceof Error ? cause.message : String(cause);
+  // Proof: writing the bare message here failed `an unknown command refuses in one line, exit 1,
+  // through both entries` on the installed entry's line (2026-11-02).
   process.stderr.write(cause instanceof UsageRefusal ? `error: ${message}\n` : `${message}\n`);
   process.exitCode = 1;
 }
