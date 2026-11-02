@@ -826,7 +826,29 @@ if (insideLinuxNamespace(import.meta.path)) {
     // the model expected `waiting` (2026-11-02, review H6).
     await fc.assert(
       fc.asyncProperty(drawRun, (drawn) => runModel(drawn, true)),
-      { numRuns: 30 },
+      {
+        numRuns: 30,
+        // One walk reaches every counter whatever the random draws do: a gate is admitted on an
+        // empty pool, an eligible publish beside it (overlapped), then an ineligible build whose
+        // envelope fits waits beside the two still unlaunched jobs (serialised, and starting
+        // counts as running).
+        // Proof: with this example removed and `numRuns` forced to 1, the counter assertion
+        // below failed with `Expected "overlapped true", Received "overlapped false"`, as CI on
+        // #802 did at cd95ce82d; without it fast-check seed 4 draws no overlap in 30 runs, and
+        // with it the same seed passes (2026-11-02).
+        examples: [
+          [
+            [
+              new Arrive(0, 0, 600),
+              new Poll(0),
+              new Arrive(0, 3, 600),
+              new Poll(0),
+              new Arrive(0, 1, 600),
+              new Poll(0),
+            ],
+          ],
+        ],
+      },
     );
     for (const [name, count] of Object.entries(concurrentReached))
       expect(`${name} ${String(count > 0)}`).toBe(`${name} true`);
