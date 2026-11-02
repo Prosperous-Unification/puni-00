@@ -276,6 +276,24 @@ the Dash process itself. Otherwise it blocks, naming the pid, comm and the remed
 settlement keeps its own scope and leader. Reason: those processes exist on every enrolled host,
 so without the rule worktree cleanup and `ops pool init` refuse everywhere.
 
+_Amendment (slice 6a review F1, 2026-11-02)._ A process whose cgroup is a logind login session,
+`/user.slice/user-<uid>.slice/session-<id>.scope`, is outside Dash-owned work whenever it started,
+in every position, host-job settlement included. Without this, a `puni1` ssh login that begins
+during a job (its `sshd-session` is same-uid, non-dumpable, outside every Dash scope and started
+after the leader) holds the gate tree until it logs out, which on h2puni is the normal case. A
+payload cannot put a process there: PAM creates session scopes at login, they are root's and not
+delegated to the account, and `systemd-run --user` puts a payload's escaping descendants under
+`user@<uid>.service`, which stays subject to the start rule. A Dash-owned process group still wins:
+a managed use launched from an ssh login runs in that login's session scope, and its session id
+keeps its descendants charged.
+
+_Known gaps (review F9)._ The rule decides by birth and placement, not by what a process opens. A
+non-dumpable process that predates the leader, or one in a login session, and that opens files in
+the locator afterwards is released over. Examples are an `ssh-agent` or `gpg-agent` started from a
+login, or a non-dumpable payload descendant that calls `setsid` while still in that login's session
+scope. The gap is confined to non-dumpable consumers: every dumpable process's descriptors, cwd and
+maps are still read.
+
 ## Risks / Trade-offs
 
 - **An envelope lies and two jobs OOM.** `observe` throttles but does not kill. Mitigations:

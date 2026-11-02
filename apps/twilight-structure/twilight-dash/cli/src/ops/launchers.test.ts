@@ -174,6 +174,7 @@ try {
       mkdirSync(join(checkout, directory), { recursive: true });
     for (const script of [
       'heavy-lock-lib.sh',
+      'with-heavy-lock.sh',
       'h2puni-gate.sh',
       'h2puni-gate-lib.sh',
       'h2puni-gate-payload.sh',
@@ -294,6 +295,53 @@ try {
       expect(existsSync(join(base, 'dash.log'))).toBe(false);
     }, 120000);
 
+    test('a configuration that appears while a gate is queued does not change its mechanism', async () => {
+      expect(existsSync(CONFIG)).toBe(false);
+      const release = join(base, 'holder-release');
+      const held = join(base, 'holder-held');
+      // A legacy holder of the canonical lock, as a gate host has today.
+      const holder = Bun.spawn(
+        [
+          'bash',
+          'bin/with-heavy-lock.sh',
+          '--',
+          'bash',
+          '-c',
+          `: > ${held}; until [ -e ${release} ]; do sleep 0.05; done`,
+        ],
+        { cwd: checkout, stdout: 'ignore', stderr: 'ignore' },
+      );
+      for (let poll = 0; !existsSync(held); poll++) {
+        if (poll > 2000) throw new Error('the holder never took the lock');
+        await Bun.sleep(5);
+      }
+      const barrier = barrierDirectory('queued');
+      const queued = launch(gate, barrier, 1, { HEAVY_LOCK_WAIT_SECONDS: '60' });
+      const queue = '/home/puni1/.cache/wbs-heavy-work.lock.queue';
+      const ticketed = (): boolean =>
+        existsSync(queue) && readdirSync(queue).some((name) => !name.startsWith('.'));
+      for (let poll = 0; !ticketed(); poll++) {
+        if (poll > 4000) throw new Error('the gate never queued');
+        await Bun.sleep(5);
+      }
+      // Enrollment arrives while the gate waits under the legacy lock.
+      writeConfig();
+      writeFileSync(release, '');
+      const result = await queued;
+      expect(await holder.exited).toBe(0);
+      // Proof: see `run_heavy_job`; without the exported verdict the payload judged the host
+      // enrolled and refused 64 for want of DASH_JOB_UNIT_GATE_TREE (2026-11-02, review F10).
+      expect(result.stderr).not.toContain('DASH_JOB_UNIT_GATE_TREE');
+      // Its ticket was in the queue before the configuration appeared (polled above); it then ran
+      // under the legacy lock. `waited` counts whole seconds, so it may read 0s.
+      expect(result.stderr).toContain('heavy lock: waited ');
+      expect(result.exitCode).toBe(0);
+      expect(
+        readdirSync(barrier).map((name) => readFileSync(join(barrier, name), 'utf8').trim()),
+      ).toEqual([checkout]);
+      rmSync(CONFIG);
+    }, 120000);
+
     test('ops pool init enrolls the host at the fixed path', () => {
       writeConfig();
       mkdirSync(ROOT, { recursive: true, mode: 0o700 });
@@ -381,6 +429,29 @@ try {
       // checkout and exited 0 (2026-11-02, slice 6a).
       expect(result.exitCode).toBe(64);
       expect(result.stderr).toContain('DASH_JOB_UNIT_GATE_TREE is not set');
+    }, 60000);
+
+    test("the shim's exact argv gets past the real Dash parser", async () => {
+      // The real checkout's library and entrypoint, not the fixture's: a renamed or removed flag
+      // in cli-parser.ts would refuse here with a usage error (review F11).
+      const outside = mkdtempSync(join(tmpdir(), 'dash-not-a-checkout-'));
+      const run = Bun.spawn(
+        [
+          'bash',
+          '-c',
+          'source "$1"; HEAVY_LOCK_JOB_TYPE=gate HEAVY_LOCK_LABEL=gate:argv run_heavy_job -- true',
+          'shim-argv',
+          join(WORKSPACE, 'bin', 'heavy-lock-lib.sh'),
+        ],
+        { cwd: outside, stdout: 'ignore', stderr: 'pipe' },
+      );
+      const stderr = await new Response(run.stderr).text();
+      // Proof: renaming `--wait-seconds` to `--wait` in the shim made this exit 64 with a usage
+      // error naming the flag instead (2026-11-02, review F11).
+      expect(stderr).toContain(
+        `error: ops job run: ${outside} is not inside a Git checkout with a job catalogue`,
+      );
+      expect(await run.exited).toBe(64);
     }, 60000);
 
     test('a configuration missing beside the ledger refuses the gate with 70', async () => {

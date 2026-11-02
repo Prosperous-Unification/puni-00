@@ -12,6 +12,9 @@ cd "$repo_root"
 # shellcheck source=bin/heavy-lock-lib.sh
 source "$repo_root/bin/heavy-lock-lib.sh"
 
+# Proof (observed 2026-11-02): removed, `bin/solver-image-publish.sh` with no sha reached
+# `run_heavy_job` and died on the unset `$1` — `47a … want exit 64, got 1` (bin/heavy-lock.test.sh,
+# case 47).
 if [[ $# -ne 1 ]]; then
   printf 'usage: %s <sha>\n' "${0##*/}" >&2
   exit 64

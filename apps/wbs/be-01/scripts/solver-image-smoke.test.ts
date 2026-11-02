@@ -199,7 +199,7 @@ describe('solver-image-smoke container bounds (dash-host-jobs J16)', () => {
   ) as { jobs: { id: string; containers: 'none' | { memoryGib: number; cpuCores: number } }[] };
   const declared = catalogue.jobs.find((job) => job.id === 'gate')?.containers;
 
-  it('runs every container it starts bounded and labelled', () => {
+  it('runs every container it starts bounded and labelled inside a Dash job', () => {
     if (declared === undefined || declared === 'none') throw new Error('gate declares no bound');
     const bound = `--memory ${String(declared.memoryGib)}g --cpus ${String(declared.cpuCores)}`;
     const smoke = runSmoke(undefined, { jobId: 'job-under-test' });
@@ -210,15 +210,24 @@ describe('solver-image-smoke container bounds (dash-host-jobs J16)', () => {
     for (const call of runs) expect(call).toContain(`${bound} --label puni.job=job-under-test `);
   });
 
-  it('runs its containers bounded and unlabelled outside a Dash job', () => {
+  it('leaves its containers unbounded outside a Dash job', () => {
     const smoke = runSmoke();
     expect(smoke.exitCode).toBe(0);
     const runs = smoke.dockerCalls.filter((call) => call.startsWith('run '));
     expect(runs).toHaveLength(4);
     for (const call of runs) {
-      expect(call).toContain('--memory 1g --cpus 1 ');
+      expect(call).not.toContain('--memory');
+      expect(call).not.toContain('--cpus');
       expect(call).not.toContain('puni.job');
     }
+    // The registry run's argv exactly as it was before slice 6a.
+    expect(
+      runs.some((call) =>
+        /^run --detach --rm --publish 127\.0\.0\.1::5000 --name wbs-solver-smoke-registry-\d+ registry:2$/.test(
+          call,
+        ),
+      ),
+    ).toBe(true);
   });
 });
 

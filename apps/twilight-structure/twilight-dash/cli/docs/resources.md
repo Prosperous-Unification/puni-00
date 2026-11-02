@@ -319,7 +319,15 @@ workspace slots; a host job also reserves cores, memory and exclusive units.
   use's or host job's process group, **and** it started, in this boot, before the use's leader
   (its creator when it never ran a command) or before the initializing Dash process. A released
   use names those in its reason the same way; any other uninspectable process blocks with
-  `cannot inspect process PID <pid> (<comm>), which may hold …` and the remedy.
+  `cannot inspect process PID <pid> (<comm>), which may hold …` and the remedy. In every
+  position, a process in a logind login session (`/user.slice/user-<uid>.slice/session-<id>.scope`,
+  such as an `sshd-session` of an ssh login that began mid-job) is outside whenever it started,
+  unless its session id is a Dash-owned process group's. Known gap: a non-dumpable process
+  released this way that opens the job's files later is not seen (design.md J19).
+- **A unit left off its resting commit.** A payload killed before it restored its gate tree
+  (SIGKILL, `cap`'s MemoryMax) leaves the unit `blocked` as `not its resting commit` for good. The
+  reason names the remedy: once no job runs in it, `git -C <unit> checkout --detach <resting
+commit>`, and settlement retries.
 
 **WBS projection** (J10). WBS shows the pool and never admits for it. Each `synchronize` (every
 `watch` tick) first moves the unmoved `host_job_events` rows, oldest first and in one

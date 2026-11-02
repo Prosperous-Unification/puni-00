@@ -1187,6 +1187,9 @@ read_host_pool_enrollment() {
     printf 'heavy job: host pool configuration %s is not a readable file\n' "$config" >&2
     return 70
   fi
+  # Proof (observed 2026-11-02): removed, the host without `jq` was still refused 70, but as a
+  # configuration that `names no root` — `46c: the refusal did not name jq`
+  # (bin/heavy-lock.test.sh, case 46).
   if ! command -v jq >/dev/null 2>&1; then
     printf 'heavy job: jq is not on PATH; it reads the root of the host pool configuration %s\n' "$config" >&2
     return 70
@@ -1222,6 +1225,8 @@ read_host_pool_enrollment() {
 # or a host that cannot measure the job; `73` an envelope the empty pool cannot hold; `75` no
 # room within the wait budget; `129`, `130`, `143` interrupted before the command started.
 run_heavy_job() {
+  # Proof (observed 2026-11-02): with the refusal reduced to an optional `--`, a command without
+  # it ran through Dash — `46d … want exit 64, got 0` (bin/heavy-lock.test.sh, case 46).
   if [[ ${1:-} != -- || $# -lt 2 ]]; then
     printf 'usage: run_heavy_job -- command [arg ...]\n' >&2
     return 64
@@ -1240,6 +1245,15 @@ run_heavy_job() {
   fi
   local enrollment
   enrollment=$(read_host_pool_enrollment) || return $?
+  # The verdict travels with the job (review F10): the payload may run long after this, under a
+  # lock it queued for, and a configuration that appeared meanwhile must not make the payload
+  # judge the host enrolled while it runs under the legacy lock, or the reverse. The argument
+  # profile constrains argv only, so the environment carries it.
+  # Proof (observed 2026-11-02): with this export removed, a gate queued on the legacy lock while
+  # the configuration appeared was refused by its payload, `this host is enrolled and
+  # DASH_JOB_UNIT_GATE_TREE is not set` — `a configuration that appears while a gate is queued
+  # does not change its mechanism` (launchers.test.ts).
+  export HEAVY_JOB_ENROLLMENT=$enrollment
   if [[ $enrollment == unenrolled ]]; then
     local legacy_status=0
     with_heavy_lock "$(resolve_heavy_lock_path)" -- "$@" || legacy_status=$?
@@ -1270,11 +1284,16 @@ run_enrolled_heavy_job() {
   shift
   local entrypoint
   entrypoint=$(resolve_dash_entrypoint)
+  # Proof (observed 2026-11-02): removed, a checkout without the entrypoint handed `bun` a path
+  # that does not exist — `46a … want exit 70, got 0` against the fake Dash
+  # (bin/heavy-lock.test.sh, case 46).
   if [[ ! -f $entrypoint ]]; then
     printf 'heavy job: the Dash entrypoint %s is missing from this checkout; this host is enrolled and runs heavy jobs only through Dash\n' \
       "$entrypoint" >&2
     return 70
   fi
+  # Proof (observed 2026-11-02): removed, `env` reported `‘bun’: No such file or directory` —
+  # `46b … want exit 70, got 127` (bin/heavy-lock.test.sh, case 46).
   if ! command -v bun >/dev/null 2>&1; then
     printf 'heavy job: bun is not on PATH; this host is enrolled and runs heavy jobs only through Dash (%s)\n' \
       "$entrypoint" >&2

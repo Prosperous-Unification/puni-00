@@ -148,6 +148,8 @@ resolve_gate_tree() {
     printf '%s\n' "$checkout"
     return 0
   fi
+  # Proof (observed 2026-11-02): removed, `maybe` was read as enrolled and gated the admitted
+  # tree — `44i … want exit 64, got 0` (bin/h2puni-gate.test.sh, case 44i).
   if [[ $enrollment != enrolled ]]; then
     printf 'h2puni gate: enrollment %q is neither enrolled nor unenrolled\n' "$enrollment" >&2
     return 64
@@ -172,6 +174,11 @@ resolve_gate_tree() {
 # The full commit id of `$3` in tree `$1`, fetched from the launcher's checkout `$2` when the
 # tree does not have it yet: an admitted gate tree is a separate clone, and the sha the launcher
 # resolved need not be in it. 64 when neither has it.
+#
+# Proof (observed 2026-11-02): with the fetch removed, an admitted tree without the commit was
+# refused — `44g … want '<sha>', got ''`; with the refusal replaced by printing the sha, a commit
+# neither tree has was handed to the checkout — `44h … want exit 64, got 0`
+# (bin/h2puni-gate.test.sh, case 44).
 resolve_gate_commit() {
   local tree=${1:?tree is required}
   local checkout=${2:?checkout is required}
@@ -290,6 +297,10 @@ run_pinned_checkout() {
   # directory with the directory scan removed; case 39 exited 0 and ran the steps
   # when a failing file scan was folded into one substitution with the directory
   # scan; case 40 exited 66 with the repair branch removed.
+  # Proof (observed 2026-11-02): with the enrolled remedy removed, an enrolled
+  # payload over a 0600 tracked file told its caller to rerun with
+  # H2PUNI_GATE_REPAIR_MODES=1, which may be admitted to the other tree — case 46
+  # failed on `the enrolled refusal names the unit to repair`.
   bash -c '
     set -euo pipefail
     repo=$1
@@ -391,7 +402,11 @@ EOF
         xargs -0 -r sh -c "find -P \"\$@\" -maxdepth 0 -type d ! -perm -0005 -print" find-closed-directories
     )
     if [[ -n $unreadable_files || -n $closed_directories ]]; then
-      printf "h2puni gate: %s has tracked paths other users cannot read after checking out %s; containers that run as the host uid would not see them. Rerun as H2PUNI_GATE_REPAIR_MODES=1 bin/h2puni-gate.sh %s to widen them under the lock:\n" "$repo" "$pinned" "$pinned" >&2
+      if [[ $settle == restore ]]; then
+        printf "h2puni gate: %s has tracked paths other users cannot read after checking out %s; containers that run as the host uid would not see them. This host is enrolled and a rerun may be admitted to the other gate tree, so repair this unit itself while no gate holds it: chmod -R go+rX -- %s\n" "$repo" "$pinned" "$repo" >&2
+      else
+        printf "h2puni gate: %s has tracked paths other users cannot read after checking out %s; containers that run as the host uid would not see them. Rerun as H2PUNI_GATE_REPAIR_MODES=1 bin/h2puni-gate.sh %s to widen them under the lock:\n" "$repo" "$pinned" "$pinned" >&2
+      fi
       if [[ -n $unreadable_files ]]; then list_bounded "$unreadable_files"; fi
       if [[ -n $closed_directories ]]; then list_bounded "$closed_directories"; fi
       exit 66

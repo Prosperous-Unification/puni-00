@@ -1521,11 +1521,86 @@ run_job_suite() {
     expect_equal "$signal_name" "$(cat "$job_scratch/signals" 2>/dev/null)" "45b: Dash received the $signal_name"
     expect_equal 1 "$(trap_runs)" "45b: the caller's EXIT trap ran once after $signal_name"
   done
+
+  # 46. What the enrolled branch needs is required, never assumed (review F6): the Dash
+  # entrypoint, `bun`, `jq`, and the `--` before the command.
+  local tools="$job_scratch/tools" tool
+  mkdir -p "$tools"
+  for tool in uname dirname env jq python3 touch; do ln -sf "$(type -P "$tool")" "$tools/$tool"; done
+  run_job_with_path() {
+    local path=$1
+    shift
+    JOB_TEST_CONFIG="$config" JOB_TEST_ROOT="$job_scratch/root" JOB_TEST_LOCK="$job_scratch/heavy.lock" \
+      JOB_TEST_LOG="$job_scratch/dash.log" JOB_TEST_TRAPS="$job_scratch/traps" PATH="$path" \
+      HEAVY_LOCK_JOB_TYPE=gate \
+      "$sh" -c "$job_inner" heavy-job-test "$job_scratch/checkout/bin/heavy-lock-lib.sh" "$@"
+  }
+  reset_job_logs
+  local entry="$job_scratch/checkout/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts"
+  mv "$entry" "$entry.away"
+  status=0
+  run_job_with_path "$job_scratch/fake-bin:$tools" -- touch "$job_scratch/ran" 2>"$job_scratch/stderr" || status=$?
+  mv "$entry.away" "$entry"
+  expect_status 70 "$status" '46a: an enrolled host without the Dash entrypoint is refused'
+  if grep -q "the Dash entrypoint $entry is missing" "$job_scratch/stderr" && [[ ! -e $job_scratch/ran ]]; then
+    pass '46a: the refusal names the entrypoint and nothing ran'
+  else fail "46a: the refusal did not name the entrypoint, or something ran: $(cat "$job_scratch/stderr")"; fi
+  status=0
+  run_job_with_path "$tools" -- touch "$job_scratch/ran" 2>"$job_scratch/stderr" || status=$?
+  expect_status 70 "$status" '46b: an enrolled host without bun is refused'
+  if grep -q 'bun is not on PATH' "$job_scratch/stderr" && [[ ! -e $job_scratch/ran ]]; then
+    pass '46b: the refusal names bun and nothing ran'
+  else fail "46b: the refusal did not name bun, or something ran: $(cat "$job_scratch/stderr")"; fi
+  rm "$tools/jq"
+  status=0
+  run_job_with_path "$job_scratch/fake-bin:$tools" -- touch "$job_scratch/ran" 2>"$job_scratch/stderr" || status=$?
+  expect_status 70 "$status" '46c: an enrolled host without jq is refused'
+  if grep -q 'jq is not on PATH' "$job_scratch/stderr" && ! dash_was_called; then
+    pass '46c: the refusal names jq and Dash never ran'
+  else fail "46c: the refusal did not name jq, or Dash ran: $(cat "$job_scratch/stderr")"; fi
+  status=0
+  HEAVY_LOCK_JOB_TYPE=gate run_job "$sh" touch "$job_scratch/ran" 2>"$job_scratch/stderr" || status=$?
+  expect_status 64 "$status" "46d: a command without the '--' is refused"
+  if [[ -e $job_scratch/ran ]] || dash_was_called; then fail "46d: something ran without the '--'"
+  else pass "46d: nothing ran without the '--'"; fi
+}
+
+# 47. The launchers' own argument refusals, through the real scripts (review F6). Each is refused
+# before `run_heavy_job`, so none touches a lock or a pool.
+run_launcher_refusals() {
+  local status sha
+  sha=$(printf '%040d' 0)
+  printf '\nlauncher refusals\n'
+  status=0
+  bash "$repo_root/bin/solver-image-publish.sh" >/dev/null 2>&1 || status=$?
+  expect_status 64 "$status" '47a: the solver publish launcher without a sha is refused'
+  status=0
+  SOLVER_PUBLISH_BUN=/bin/true SOLVER_PUBLISH_ROOT=/ \
+    bash "$repo_root/bin/solver-image-publish-payload.sh" abc >/dev/null 2>&1 || status=$?
+  expect_status 64 "$status" '47b: the solver publish payload refuses a sha that is not 40 hex'
+  status=0
+  bash "$repo_root/bin/test-queued.sh" extra >/dev/null 2>&1 || status=$?
+  expect_status 64 "$status" '47c: the test-queued launcher refuses arguments'
+  # A stub `bunx`, so a payload that ignored its arguments would not run the suite here.
+  mkdir -p "$job_scratch/stubs"
+  printf '#!/bin/sh\nexit 0\n' >"$job_scratch/stubs/bunx"
+  chmod +x "$job_scratch/stubs/bunx"
+  status=0
+  PATH="$job_scratch/stubs:$PATH" bash "$repo_root/bin/test-queued-payload.sh" extra >/dev/null 2>&1 || status=$?
+  expect_status 64 "$status" '47d: the test-queued payload refuses arguments'
+  status=0
+  SOLVER_PUBLISH_BUN=bun SOLVER_PUBLISH_ROOT=/ \
+    bash "$repo_root/bin/solver-image-publish-payload.sh" "$sha" >/dev/null 2>"$job_scratch/stderr" || status=$?
+  expect_status 64 "$status" '47e: the solver publish payload refuses a relative SOLVER_PUBLISH_BUN'
+  if grep -q 'SOLVER_PUBLISH_BUN is bun; it must be an absolute path' "$job_scratch/stderr"; then
+    pass '47e: the refusal names the variable'
+  else fail "47e: the refusal did not name the variable: $(cat "$job_scratch/stderr")"; fi
 }
 
 if [[ $(uname -s) == Linux ]]; then
   make_job_fixture
   run_job_suite /bin/bash
+  run_launcher_refusals
   rm -rf "$job_scratch"
 else
   printf '\nrun_heavy_job: skipped on %s; its enrolled branch exists only on Linux\n' "$(uname -s)"
@@ -1535,6 +1610,16 @@ fi
 # no newer bash is on PATH, so it is never skipped. The modern bash is probed by
 # path rather than through `command -v bash`, which resolves to /bin/bash inside
 # this script and silently ran the 3.2 suite twice.
+# `HEAVY_LOCK_TEST_SUITES=jobs` runs cases 40-47 alone, for fault runs against the entry; the
+# default, and CI, runs everything.
+if [[ ${HEAVY_LOCK_TEST_SUITES:-all} == jobs ]]; then
+  if [[ $failures -gt 0 ]]; then
+    printf '%d check(s) failed\n' "$failures" >&2
+    exit 1
+  fi
+  printf 'run_heavy_job checks passed (legacy cases not run)\n'
+  exit 0
+fi
 run_suite /bin/bash
 for modern_bash in /opt/homebrew/bin/bash /usr/local/bin/bash; do
   if [[ -x $modern_bash ]]; then

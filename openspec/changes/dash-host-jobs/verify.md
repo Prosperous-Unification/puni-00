@@ -1319,3 +1319,96 @@ gate, CI and lefthook select the whole tree`) passes.
   containers; a `test-queued` unit or isolation for the shared `.nx` cache; the gate host role
   must provide a launcher-only checkout and the fixed root (6.3); Dash itself could refuse a pool
   root other than the fixed one.
+
+### Review fixes (Fable, PR #816 at `f14b78dd8`, MERGE AFTER FIXES)
+
+All of F1–F11 are applied on `feat/dash-host-jobs-6a-launchers` after re-merging the plan at
+`dabffed86` (slices 4 and 5). That merge conflicted only in `tasks.md` and `verify.md`; both sides
+were kept. `runtime.ts` and `docs/resources.md` merged cleanly, and the J19 code compiles against
+their `HostJob`.
+
+- **F1 (J19 amendment).** A process whose cgroup is exactly
+  `/user.slice/user-<uid>.slice/session-<id>.scope` is outside Dash-owned work whenever it
+  started, in every position. A Dash-owned session still wins. Written into design.md J19.
+- **F2.** `docs/infra/heavy-job-launchers.md` gains a `website-dev-build` row and a direct
+  `bin/with-heavy-lock.sh -- …` row, both legacy-only and bypassing Dash on an enrolled host
+  until slice 6b; the opening sentence is corrected.
+- **F3.** Catalogue `basis` strings for `gate` and `test-queued` are updated. The inventory says
+  serialisation today rests only on no mode switch. tasks.md 6.5 specifies `concurrencyEligible`.
+- **F4.** The solver smoke applies `--memory 1g --cpus 1` and the label only when `DASH_JOB_ID`
+  is set; outside a Dash job the argv is the pre-PR one. Task 6.4 measures the peaks first.
+- **F6.** Negatives and Proofs added for: the entrypoint, `bun`, `jq` and `--` refusals (46a–d);
+  `resolve_gate_commit` (44g, 44h); the "neither" enrollment (44i); the real launcher's
+  non-commit (47); the solver and test-queued launchers and payloads (47a–e).
+  - **Uninjectable:** `initScopeOf`'s `pool initializer identity unavailable` (needs the running
+    process's own `/proc/self/stat` gone) and `outsideScope`'s `has no session` (needs a
+    `/proc/<pid>/stat` with fewer than four fields after the comm). Neither condition can be
+    produced from a test without editing the code. Both throw rather than default.
+- **F7.** Exit 66 on an enrolled gate names the unit and says `chmod -R go+rX -- <unit>`, because
+  a rerun may be admitted to the other tree (case 46).
+- **F8.** A unit off its resting commit names `git -C <unit> checkout --detach <resting>` in its
+  blocked reason, in `docs/resources.md` and in the inventory.
+- **F9.** The known gap (a non-dumpable consumer released by birth or placement that opens the
+  locator's files later) is written beside J19 and in `docs/resources.md`.
+- **F10.** `run_heavy_job` exports its verdict as `HEAVY_JOB_ENROLLMENT`; the gate payload trusts
+  it and judges afresh only without one. Test: `a configuration that appears while a gate is
+queued does not change its mechanism` (launchers.test.ts).
+- **F11.** `the shim's exact argv gets past the real Dash parser` runs the real
+  `bin/heavy-lock-lib.sh` and `entrypoint.ts`, and expects the post-parse refusal `is not inside
+a Git checkout with a job catalogue`.
+
+#### Assumptions (review fixes)
+
+- **S6-A13 Login-session shape.** Only the exact four-component path is a login session. A
+  sub-cgroup beneath a session scope, or any `session-*.scope` under `user@<uid>.service`, is not.
+- **S6-A14 `HEAVY_JOB_ENROLLMENT`.** `run_heavy_job` sets it on every call, so an inherited value
+  never outlives the launcher that set it. A value other than `enrolled` or `unenrolled` is
+  refused 64 by `resolve_gate_tree`.
+- **S6-A15 `concurrencyEligible`.** The field is a list of type ids, default `[]`, validated
+  against the admitting checkout's catalogue. An unlisted type is admitted in concurrent mode
+  only into an otherwise empty pool. Slice 6b implements it.
+- **S6-A16 Solver smoke bound.** The bound is unmeasured, so it is applied only inside a Dash
+  job, where the catalogue's `containers` declaration governs. CI and unenrolled gates keep the
+  old argv.
+- **S6-A17 `runtime.test.ts` runs with `--cgroup`.** Every process in its namespace reads `0::/`,
+  so the suite behaves the same in a login session (this workstation) and on a CI runner.
+  Without it, its protected process sat in `session-3.scope` and was released over.
+- **S6-A18 `HEAVY_LOCK_TEST_SUITES=jobs`.** This test-only knob in `bin/heavy-lock.test.sh` runs
+  cases 40 to 47 alone, for fault runs. CI and the default run everything.
+- **S6-A19 Remedies.** The enrolled exit-66 remedy is `chmod -R go+rX -- <unit>`. The
+  resting-commit remedy is `checkout --detach <resting>`, which settlement accepts because it
+  compares the commit, not the branch.
+
+#### Fault injection (review fixes)
+
+Each fault was applied by script, watched red, and restored with SHA-256 equal before and after.
+
+| Fault                                               | Went red                                                                                | Observed                                             |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| login-session test removed (`outsideScope`)         | resource-holds: init and cleanup login-session cases; host-job-holds login-session case | `blocked` / refused                                  |
+| login-session test also matches user-manager scopes | the three "in the user manager" / "outside its scope, still holds" cases                | released                                             |
+| resting-commit remedy dropped                       | host-jobs `a dirty tree is not returned`                                                | no `git -C … checkout`                               |
+| `HEAVY_JOB_ENROLLMENT` export removed               | launchers `a configuration that appears while a gate is queued …`                       | payload refused `DASH_JOB_UNIT_GATE_TREE is not set` |
+| shim flag renamed `--wait`                          | launchers: shim argv, two gates, gate beside release, failing gate                      | `Unexpected option or subcommand: --wait`, 64        |
+| `--cgroup` removed from runtime.test.ts             | `existing account runs work despite an unreadable process …`                            | released                                             |
+| entrypoint check removed                            | heavy-lock 46a                                                                          | `want exit 70, got 0`                                |
+| `bun` check removed                                 | heavy-lock 46b                                                                          | `got 127` (`env: ‘bun’: No such file`)               |
+| `jq` check removed                                  | heavy-lock 46c                                                                          | refused as `names no root`                           |
+| `--` made optional                                  | heavy-lock 46d                                                                          | `want exit 64, got 0`                                |
+| solver launcher usage removed                       | heavy-lock 47a                                                                          | `got 1` (unset `$1`)                                 |
+| solver payload 40-hex test removed                  | heavy-lock 47b                                                                          | `got 0`                                              |
+| solver payload absolute-path test removed           | heavy-lock 47e                                                                          | `got 1`, `Module not found`                          |
+| test-queued launcher refusal removed                | heavy-lock 47c                                                                          | `got 70` (went to the lock)                          |
+| test-queued payload refusal removed                 | heavy-lock 47d                                                                          | `got 0`                                              |
+| fetch removed from `resolve_gate_commit`            | gate 44g                                                                                | `got ''`                                             |
+| `resolve_gate_commit` refusal → print the sha       | gate 44h                                                                                | `want exit 64, got 0`                                |
+| "neither" enrollment refusal removed                | gate 44i                                                                                | `want exit 64, got 0`                                |
+| launcher non-commit refusal removed                 | gate 47                                                                                 | `want exit 64, got 70`                               |
+| enrolled exit-66 remedy removed                     | gate 46                                                                                 | told to rerun with `H2PUNI_GATE_REPAIR_MODES=1`      |
+| solver bound applied unconditionally                | `leaves its containers unbounded outside a Dash job`                                    | bound present outside a job                          |
+| registry run without the bound                      | `runs every container it starts bounded and labelled inside a Dash job`                 | no bound                                             |
+| label dropped                                       | same                                                                                    | no `puni.job=`                                       |
+
+#### Commands (review fixes, fresh)
+
+REVIEW_RESULTS

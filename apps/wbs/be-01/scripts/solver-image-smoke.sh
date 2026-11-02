@@ -41,14 +41,18 @@ socket_directory=''
 socket_path=''
 supervisor_pid=''
 created_images=()
-# Every container this script starts runs under the `gate` job type's declared containers bound
-# in infra/jobs/catalogue.json, which Docker's own cgroup enforces, and is labelled with the Dash
-# host job that runs the gate, which Dash reads to attribute it (`dash-host-jobs` J16). Outside a
-# Dash job (CI, an unenrolled host) there is no job to name, so no label.
-# Proof: solver-image-smoke.test.ts `runs every container it starts bounded and labelled` failed
-# with the bound dropped from the registry run and with the label dropped (2026-11-02, slice 6a).
-container_bound=(--memory 1g --cpus 1)
-if [ -n "${DASH_JOB_ID:-}" ]; then container_bound+=(--label "puni.job=$DASH_JOB_ID"); fi
+# Inside a Dash host job, every container this script starts runs under the `gate` job type's
+# declared containers bound in infra/jobs/catalogue.json, which Docker's own cgroup enforces, and
+# carries the job's label, which Dash reads to attribute it (`dash-host-jobs` J16). Outside one (CI,
+# every unenrolled gate) the argv is unchanged: the bound is declared, not yet measured (task 6.4).
+# Proof: solver-image-smoke.test.ts `runs every container it starts bounded and labelled inside a
+# Dash job` failed with the bound dropped from the registry run and with the label dropped, and
+# `leaves its containers unbounded outside a Dash job` failed with the bound applied
+# unconditionally (2026-11-02, slice 6a and review F4).
+container_bound=()
+if [ -n "${DASH_JOB_ID:-}" ]; then
+  container_bound=(--memory 1g --cpus 1 --label "puni.job=$DASH_JOB_ID")
+fi
 
 # Returns 0 when image $1 exists, 1 when Docker reports it absent and 2 when Docker cannot
 # answer, so a broken daemon cannot pass for a removed image.

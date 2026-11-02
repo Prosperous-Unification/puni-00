@@ -966,7 +966,8 @@ function outsideScope(pid: string, scope: HoldScope): boolean {
   const unified = membership.split('\n').find((line) => line.startsWith('0::'));
   if (unified === undefined)
     throw new Error(`uninspectable PID ${pid} has no cgroup v2 membership`);
-  if (unified.slice(3).split('/').some(scope.owns)) return false;
+  const components = unified.slice(3).split('/');
+  if (components.some(scope.owns)) return false;
   const identity = identifyProcess(Number(pid));
   if (identity === null) throw new Error(`uninspectable PID ${pid} has no identity`);
   if (scope.sessions.size > 0) {
@@ -977,10 +978,32 @@ function outsideScope(pid: string, scope: HoldScope): boolean {
     // resource` (resource-holds.test.ts) saw the use released (2026-11-02, J19).
     if (scope.sessions.has(session)) return false;
   }
+  // A login session's own processes (`sshd-session`, `(sd-pam)` beside it) are outside Dash-owned
+  // work whenever they started (J19 amendment, review F1): a `puni1` ssh login that begins during
+  // a job would otherwise hold the gate tree until it logs out.
+  // Proof: without this, `a non-dumpable login-session process started after the leader does not
+  // hold` (resource-holds.test.ts) saw the resource `blocked` (2026-11-02, review F1).
+  if (inLoginSession(components)) return true;
   // Proof: without the start comparison `a non-dumpable process that left for another scope
   // after the job still holds` (host-job-holds.test.ts) saw tmp `released` with the file open
   // (2026-11-02, Slice 3 review R1).
   return identity.boot === scope.before.boot && BigInt(identity.start) < BigInt(scope.before.start);
+}
+
+/**
+ * Whether cgroup v2 path `components` is a logind login session, `/user.slice/user-<uid>.slice/
+ * session-<id>.scope`, created by PAM at login and writable by root alone. A Dash payload cannot
+ * enter one: `systemd-run --user` puts its descendants under `user@<uid>.service`, which this
+ * refuses, and the session scope itself is not delegated to the account.
+ */
+function inLoginSession(components: readonly string[]): boolean {
+  return (
+    components.length === 4 &&
+    components[0] === '' &&
+    components[1] === 'user.slice' &&
+    /^user-\d+\.slice$/.test(components[2] ?? '') &&
+    /^session-[A-Za-z0-9]+\.scope$/.test(components[3] ?? '')
+  );
 }
 
 /** A process's `comm`, or `?` once it is gone or unreadable: evidence text only. */
@@ -2950,7 +2973,11 @@ export class ResourceRuntime {
       if (head !== unit.restingCommit)
         return {
           state: 'blocked',
-          reason: `tree ${unit.path} is at ${head}, not its resting commit ${unit.restingCommit}`,
+          // A payload killed before it restored its tree (SIGKILL, `cap`'s MemoryMax) leaves it
+          // here for good; the remedy is the operator's, once no job runs in it (review F8).
+          // Proof: dropping the remedy failed `a dirty tree is not returned` (host-jobs.test.ts)
+          // on its `git -C … checkout` expectation (2026-11-02, review F8).
+          reason: `tree ${unit.path} is at ${head}, not its resting commit ${unit.restingCommit}; once no job runs in it, restore it with \`git -C ${unit.path} checkout --detach ${unit.restingCommit}\` and settlement retries`,
         };
       return {
         state: 'released',

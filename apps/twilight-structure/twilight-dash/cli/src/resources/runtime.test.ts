@@ -42,6 +42,9 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
         '--pid',
         '--fork',
         '--mount-proc',
+        // A private cgroup namespace: every process reads `0::/`, never the login session scope
+        // this suite may run in, which J19 exempts (review F1) and would release over.
+        '--cgroup',
         // Match an ordinary account: inspection cannot override a process's dumpability.
         'setpriv',
         '--bounding-set=-sys_ptrace',

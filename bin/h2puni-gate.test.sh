@@ -906,6 +906,8 @@ expect_equal "$repo" "$(env -u DASH_JOB_UNIT_GATE_TREE bash -c 'source "$1"; res
   h2puni-tree-resolution "$gate_lib" "$repo" 2>/dev/null)" "44f: an unenrolled payload gates the launcher's checkout"
 
 # 44g. An admitted tree that lacks the gated commit fetches it from the launcher's checkout.
+# Proof: with the fetch removed from `resolve_gate_commit`, 44g got '' and the refusal; with its
+# refusal replaced by printing the sha, 44h exited 0 (2026-11-02, review F6).
 git -C "$repo" commit -q --allow-empty -m 'only in the launcher checkout'
 launcher_only=$(git -C "$repo" rev-parse HEAD)
 git -C "$repo" reset -q --hard HEAD~1
@@ -945,6 +947,41 @@ status=0
 bash -c 'source "$1"; shift; run_pinned_checkout "$@"' h2puni-settle "$gate_lib" \
   "$rest_tree" "$rest_a" later true 2>/dev/null || status=$?
 expect_status 64 "$status" '45d: a settle mode that is neither keep nor restore is refused'
+
+# 44i. An enrollment verdict that is neither is refused rather than read as either.
+status=0
+DASH_JOB_UNIT_GATE_TREE="$unit_tree" run_tree_resolution "$repo" maybe >/dev/null 2>&1 || status=$?
+# Proof: with the refusal removed, `maybe` fell through to the enrolled branch and gated the
+# admitted tree — `44i … want exit 64, got 0` (2026-11-02, review F6).
+expect_status 64 "$status" '44i: an enrollment that is neither enrolled nor unenrolled is refused'
+
+# 46. An enrolled gate over a tracked path closed to other users names the unit to repair: a rerun
+# with H2PUNI_GATE_REPAIR_MODES=1 may be admitted to the other gate tree (review F7).
+closed_tree="$scratch/closed-tree"
+make_repo "$closed_tree"
+closed_b=$(git -C "$closed_tree" rev-parse HEAD)
+chmod 0600 "$closed_tree/f"
+status=0
+bash -c 'source "$1"; shift; run_pinned_checkout "$@"' h2puni-closed "$gate_lib" \
+  "$closed_tree" "$closed_b" restore true 2>"$scratch/closed-stderr" || status=$?
+expect_status 66 "$status" '46: an enrolled gate over a closed tracked file is refused'
+if grep -q "repair this unit itself while no gate holds it: chmod -R go+rX -- $closed_tree" "$scratch/closed-stderr" &&
+  ! grep -q 'Rerun as H2PUNI_GATE_REPAIR_MODES=1' "$scratch/closed-stderr"; then
+  pass '46: the enrolled refusal names the unit to repair'
+else fail "46: the enrolled refusal names the unit to repair: $(cat "$scratch/closed-stderr")"; fi
+chmod 0644 "$closed_tree/f"
+
+# 47. The real launcher refuses a target that names no commit, before any lock or admission.
+status=0
+TOOL_WIKI_ACTIVATION_ROOT='' bash "$repo_root/bin/h2puni-gate.sh" not-a-commit \
+  >/dev/null 2>"$scratch/launcher-stderr" || status=$?
+# Proof: with the launcher's refusal removed, the gate went on to `run_heavy_job`, which on this
+# workstation refused the absent canonical lock directory — `47 … want exit 64, got 70`
+# (2026-11-02, review F6).
+expect_status 64 "$status" '47: the real launcher refuses a target that names no commit'
+if grep -q "h2puni gate: not-a-commit is not a commit in $repo_root" "$scratch/launcher-stderr"; then
+  pass '47: the refusal names the target and the checkout'
+else fail "47: the refusal did not name the target: $(cat "$scratch/launcher-stderr")"; fi
 
 if ((failures)); then
   printf '\n%d failing case(s)\n' "$failures" >&2

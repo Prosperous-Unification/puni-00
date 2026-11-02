@@ -37,6 +37,20 @@ const scopeReason =
 
 const ENTRYPOINT = join(import.meta.dir, '..', 'entrypoint.ts');
 
+/**
+ * Whether this test process runs in a logind login session scope, where a plainly spawned holder
+ * lands too (J19 amendment, review F1): on a workstation or an ssh login, not on a CI runner.
+ */
+const ownCgroup =
+  readFileSync('/proc/self/cgroup', 'utf8')
+    .split('\n')
+    .find((line) => line.startsWith('0::'))
+    ?.slice(3) ?? '';
+const inLogin = /^\/user\.slice\/user-\d+\.slice\/session-[A-Za-z0-9]+\.scope$/.test(ownCgroup);
+const loginReason = inLogin
+  ? ''
+  : ` (skipped: this test runs in ${ownCgroup}, not a login session)`;
+
 describe('uninspectable processes outside Dash-owned work (J19)', () => {
   const cleanups: (() => void)[] = [];
   const children: ChildProcess[] = [];
@@ -133,17 +147,39 @@ describe('uninspectable processes outside Dash-owned work (J19)', () => {
     expect(pid).toBeGreaterThan(0);
   }, 60000);
 
-  test('pool init refuses beside a non-dumpable process started after it', async () => {
-    const fixture = pool(1);
-    const pid = await nonDumpable(fixture.base);
-    // This test process is the initializer here, and it predates the holder.
-    // Proof: with `outsideScope` always true this initialized (2026-11-02, J19).
-    expect(() =>
-      ResourceRuntime.initialize(loadResourceConfiguration(fixture.config), clock, ampleHost),
-    ).toThrow(
-      `host pool unit ${fixture.trees[0] ?? ''} is held: cannot inspect process PID ${String(pid)} (python3), which may hold unit ${fixture.trees[0] ?? ''}; end it, then initialize again`,
-    );
-  }, 60000);
+  test.skipIf(scopes.exitCode !== 0)(
+    `pool init refuses beside a non-dumpable process started after it in the user manager${scopeReason}`,
+    async () => {
+      const fixture = pool(1);
+      // Under `user@<uid>.service`, where a payload's `systemd-run --user` descendants land.
+      const pid = await nonDumpable(fixture.base, `holder-${randomUUID()}`);
+      // This test process is the initializer here, and it predates the holder.
+      // Proof: with `outsideScope` always true this initialized (2026-11-02, J19).
+      expect(() =>
+        ResourceRuntime.initialize(loadResourceConfiguration(fixture.config), clock, ampleHost),
+      ).toThrow(
+        `host pool unit ${fixture.trees[0] ?? ''} is held: cannot inspect process PID ${String(pid)} (python3), which may hold unit ${fixture.trees[0] ?? ''}; end it, then initialize again`,
+      );
+    },
+    60000,
+  );
+
+  test.skipIf(!inLogin)(
+    `pool init succeeds beside a non-dumpable login-session process started after it${loginReason}`,
+    async () => {
+      const fixture = pool(1);
+      await nonDumpable(fixture.base);
+      // Proof: see `outsideScope`; without the login-session test this refused (2026-11-02, F1).
+      expect(() => {
+        ResourceRuntime.initialize(
+          loadResourceConfiguration(fixture.config),
+          clock,
+          ampleHost,
+        ).close();
+      }).not.toThrow();
+    },
+    60000,
+  );
 
   test.skipIf(scopes.exitCode !== 0)(
     `ops pool init refuses beside a non-dumpable process in a Dash job scope${scopeReason}`,
@@ -178,7 +214,8 @@ describe('uninspectable processes outside Dash-owned work (J19)', () => {
     expect(existsSync(use.locator)).toBe(false);
   }, 60000);
 
-  test('cleanup keeps a resource charged beside a non-dumpable process started after its leader', async () => {
+  /** A use whose leader runs while `during` starts a holder; resolves the use's cleanup state. */
+  async function cleanupBesideLaterHolder(unit?: string) {
     const fixture = pool(0);
     const runtime = runtimeOf(fixture.config);
     const use = await runtime.create(request('temporary_directory'), admitFixture);
@@ -193,18 +230,40 @@ describe('uninspectable processes outside Dash-owned work (J19)', () => {
       if (attempt > 3000) throw new Error('leader did not start');
       await Bun.sleep(5);
     }
-    const pid = await nonDumpable(fixture.base);
+    const pid = await nonDumpable(fixture.base, unit);
     mkdirSync(release);
     expect(await running).toBe(0);
-    const current = cleanedUp(runtime, use.id);
-    // Proof: with the start comparison dropped from `outsideScope` this was `released`
-    // (2026-11-02, J19).
-    expect(current.state).toBe('blocked');
-    expect(current.reason).toContain(
-      `cannot inspect process PID ${String(pid)} (python3), which may hold resource ${use.id}; end it, and cleanup retries`,
-    );
-    expect(existsSync(use.locator)).toBe(true);
-  }, 60000);
+    return { use, pid, current: cleanedUp(runtime, use.id) };
+  }
+
+  test.skipIf(scopes.exitCode !== 0)(
+    `cleanup keeps a resource charged beside a non-dumpable process started after its leader in the user manager${scopeReason}`,
+    async () => {
+      const { use, pid, current } = await cleanupBesideLaterHolder(`holder-${randomUUID()}`);
+      // Proof: with the start comparison dropped from `outsideScope` this was `released`
+      // (2026-11-02, J19); with the login-session test matching `user@<uid>.service` too it was
+      // `released` (2026-11-02, F1).
+      expect(current.state).toBe('blocked');
+      expect(current.reason).toContain(
+        `cannot inspect process PID ${String(pid)} (python3), which may hold resource ${use.id}; end it, and cleanup retries`,
+      );
+      expect(existsSync(use.locator)).toBe(true);
+    },
+    60000,
+  );
+
+  test.skipIf(!inLogin)(
+    `a non-dumpable login-session process started after the leader does not hold${loginReason}`,
+    async () => {
+      const { use, pid, current } = await cleanupBesideLaterHolder();
+      // Proof: see `outsideScope`; without the login-session test this was `blocked`
+      // (2026-11-02, F1).
+      expect(current.state).toBe('released');
+      expect(current.reason).toContain(`${String(pid)} (python3)`);
+      expect(existsSync(use.locator)).toBe(false);
+    },
+    60000,
+  );
 
   test("a non-dumpable process in another use's process group still holds a resource", async () => {
     const fixture = pool(0);

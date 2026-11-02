@@ -22,7 +22,12 @@ if [[ $# -ne 1 ]]; then
   exit 64
 fi
 
-enrollment=$(read_host_pool_enrollment)
+# The launcher's verdict, which `run_heavy_job` exports for its payload (review F10); judged
+# afresh only when this runs without one. `resolve_gate_tree` refuses any other value.
+enrollment=${HEAVY_JOB_ENROLLMENT:-}
+if [[ -z $enrollment ]]; then
+  enrollment=$(read_host_pool_enrollment)
+fi
 tree=$(resolve_gate_tree "$checkout" "$enrollment")
 settle=keep
 if [[ $enrollment == enrolled ]]; then

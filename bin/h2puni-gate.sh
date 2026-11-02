@@ -115,6 +115,9 @@ export H2PUNI_GATE_TRUSTED_LAUNCHER="$trusted_launcher"
 
 # Refused before the job is queued or admitted, as `gate_with_pinned_head` refuses before its
 # lock: a sha that names no commit is a typo in the caller.
+# Proof (observed 2026-11-02): removed, `bin/h2puni-gate.sh not-a-commit` reached `run_heavy_job`
+# and was refused 70 for the absent canonical lock instead — `47 … want exit 64, got 70`
+# (bin/h2puni-gate.test.sh, case 47).
 if [[ -z ${gate_sha:-} ]]; then
   printf 'h2puni gate: %s is not a commit in %s\n' "$target" "$repo_root" >&2
   exit 64

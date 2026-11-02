@@ -578,7 +578,10 @@ if (insideLinuxNamespace(import.meta.path)) {
       fixtureGit(tree, 'commit', '--quiet', '--allow-empty', '-m', 'moved');
       now += 61000;
       runtime.sweep();
-      expect(runtime.inspectHostJob(job.id).units[0]?.reason).toContain('not its resting commit');
+      const moved = runtime.inspectHostJob(job.id).units[0]?.reason;
+      expect(moved).toContain('not its resting commit');
+      // The remedy names the unit and the commit to restore (review F8).
+      expect(moved).toContain(`restore it with \`git -C ${tree} checkout --detach `);
       fixtureGit(tree, 'reset', '--quiet', '--hard', 'HEAD~1');
       now += 61000;
       runtime.sweep();

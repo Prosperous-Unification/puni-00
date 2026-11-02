@@ -145,11 +145,25 @@
       two converging applies, `changed=0` on the second.
 - [ ] 6.4 Enroll h2puni and h4claw in observe mode; run every launcher through `run_heavy_job`
       for a week; calibrate the five types cold and warm; open the catalogue PRs from `propose`.
+      During the first observe-mode gates, measure the peak memory and CPU of the solver smoke's
+      four bounded containers (`wbs-solver`, `registry:2`, the two clients; `docker stats` through
+      the run record's container samples) before any type runs with `enforcement: cap`: their
+      `--memory 1g --cpus 1` is the declared `gate` bound, applied only inside a Dash job and not
+      yet measured (slice 6a review F4).
 - [ ] 6.5 `ops pool switch-mode concurrent` on each host after the five-launcher checklist,
       with the singleton guard held; two-job concurrent validation recorded in `verify.md`
       (planned proofs apart from observed evidence); decide when a failing `JOB-CATALOGUE`
       blocks `ops job run`; update `docs/runbook-h2-heavy-lock-owner.md`,
-      `docs/infra/gate-hosts.md`, `AGENTS.md` Gate and `LLM_README.md`.
+      `docs/infra/gate-hosts.md`, `AGENTS.md` Gate and `LLM_README.md`. Before the switch,
+      admission enforces a per-type concurrency flag (slice 6a review F3; slice 6b owns
+      `switch-mode` and implements it): `host-pool.json` gains
+      `"concurrencyEligible": ["<type id>", …]`, default `[]`. `ops pool init` and every pool
+      open refuse 70 for an id the admitting checkout's catalogue does not name. In concurrent
+      mode a job whose type is not listed is admitted only when no other host job is reserved,
+      and no other job is admitted beside it. Today serialisation rests only on no host having
+      switched mode, and after #814 on the audit's `attribution_incomplete` finding, which refuses
+      nothing; `gate` and `test-queued` stay unlisted until their J16 gaps and their shared
+      checkout `.nx` cache are covered (`docs/infra/heavy-job-launchers.md`).
 - [x] 6.6 Uninspectable same-user processes outside host jobs (review F1): hold inspection
       refuses any same-user process whose `/proc/<pid>/fd` is access-denied. Host-job settlement
       now records such a process outside the job's scope as `uninspectable_outside_scope`, but
