@@ -6,7 +6,7 @@ are local facts. Its conditional runtime fold accepts claims only, and its recov
 requires reserved capacity. Existing write requests, immutable receipt lookup and complete
 write-receipt matching already belong to WBS and are consumed unchanged.
 
-[ADR 0069](../../../docs/adr/0069-outcomes-and-runtime-writes-stage-together.md) records the
+[ADR 0068](../../../docs/adr/0068-outcomes-and-runtime-writes-stage-together.md) records the
 selected coupling and alternatives. The caller supplies the business outcome and ordered
 commands; this design supplies durable staging, delivery and reconciliation.
 
@@ -341,7 +341,7 @@ adapter obligations; this packet selects none of their physical implementations.
 
 ## Risks / Trade-offs
 
-The explicit conservative restart cost belongs to ADR0069. Additional risks are incomplete
+The explicit conservative restart cost belongs to ADR0068. Additional risks are incomplete
 cross-history folds, double-counted accepted recovery, raw-family fallback in a successor and
 accidental replacement of historical original replies. Tests target each owner directly and
 through both actual providers. Real receiver commit/reply-loss/reopen and separate-process

@@ -30,5 +30,5 @@ blocks replacement while preserving the preceding capacity status. Automatic con
 and operator resolution remain required follow-up work, rather than implicit retries.
 
 New stored contracts require explicit preserving migration, genuine predecessor-writer
-proofs and refusal of unsafe downgrade. [Journaled recovery](0067-uncertain-runtime-requests-use-journaled-recovery.md)
-and [private identity encoding](0068-workflow-ids-use-json-private-keys.md) retain their boundaries.
+proofs and refusal of unsafe downgrade. [Journaled recovery](0066-uncertain-runtime-requests-use-journaled-recovery.md)
+and [private identity encoding](0067-workflow-ids-use-json-private-keys.md) retain their boundaries.

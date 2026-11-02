@@ -1,6 +1,6 @@
 # Trusted-value recovery and atomic historical cuts
 
-Approved for implementation, tests and review on 2026-10-28. The user subsequently authorized normal commit, push and merge: “you can commit and push it and than merge”. Normal hooks, independent review, applicable CI and the exact-SHA canonical gate remain required. The exact import-policy scope was approved on 2026-11-02; [execution evidence](../runtime-write-delivery/verify.md) records its verification. Operator-store migration and production remain excluded. [Intent](recovery-intent.md) and [ADR 0067](../../../docs/adr/0067-uncertain-runtime-requests-use-journaled-recovery.md) own the selected scope and trade-offs.
+Approved for implementation, tests and review on 2026-10-28. The user subsequently authorized normal commit, push and merge: “you can commit and push it and than merge”. Normal hooks, independent review, applicable CI and the exact-SHA canonical gate remain required. The exact import-policy scope was approved on 2026-11-02; [execution evidence](../runtime-write-delivery/verify.md) records its verification. Operator-store migration and production remain excluded. [Intent](recovery-intent.md) and [ADR 0066](../../../docs/adr/0066-uncertain-runtime-requests-use-journaled-recovery.md) own the selected scope and trade-offs.
 
 ## Existing boundary
 

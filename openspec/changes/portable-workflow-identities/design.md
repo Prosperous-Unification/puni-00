@@ -19,7 +19,7 @@ No operator-store migration or production factory/CLI activation.
 
 The user subsequently authorized normal commit, push and merge: “you can commit and push it and than merge”. Normal hooks, independent review, applicable CI and the exact-SHA canonical gate remain required. The exact import-policy scope was approved on 2026-11-02; [execution evidence](../runtime-write-delivery/verify.md) records its verification. Operator-store migration and production remain excluded.
 
-[ADR0068](../../../docs/adr/0068-workflow-ids-use-json-private-keys.md) records the representation
+[ADR0067](../../../docs/adr/0067-workflow-ids-use-json-private-keys.md) records the representation
 and downgrade boundary. The private codec encodes exactly JSON.stringify(logicalId).
 Decode JSON to unknown, require a string, and require exact encode/decode equality.
 Domain codecs continue to own logical constraints. Corrupt or noncanonical keys throw.

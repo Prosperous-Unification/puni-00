@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, Bun, bun:sqlite, ArkType through `@shared/validation`, existing WBS runtime contracts/client/receiver, Nx and OpenSpec.
 
-**Spec:** Read [approved intent](recovery-intent.md), [approved design](recovery-design.md), [run-coordination delta](specs/twilight/run-coordination/spec.md), [ADR 0067](../../../docs/adr/0067-uncertain-runtime-requests-use-journaled-recovery.md) and [verification record](recovery-verify.md). The design owns record semantics; this plan selects concrete source names and review boundaries.
+**Spec:** Read [approved intent](recovery-intent.md), [approved design](recovery-design.md), [run-coordination delta](specs/twilight/run-coordination/spec.md), [ADR 0066](../../../docs/adr/0066-uncertain-runtime-requests-use-journaled-recovery.md) and [verification record](recovery-verify.md). The design owns record semantics; this plan selects concrete source names and review boundaries.
 
 ## Global Constraints
 

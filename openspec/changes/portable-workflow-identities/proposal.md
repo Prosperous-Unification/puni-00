@@ -41,7 +41,7 @@ Workflow run.
 
 ## Decisions Recorded
 
-[ADR0068](../../../docs/adr/0068-workflow-ids-use-json-private-keys.md).
+[ADR0067](../../../docs/adr/0067-workflow-ids-use-json-private-keys.md).
 
 ## Impact
 

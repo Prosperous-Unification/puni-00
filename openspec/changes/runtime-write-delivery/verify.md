@@ -324,3 +324,43 @@ with 27 intentionally filtered tests and both configured lifetime preloads.
 These bounded checks do not replace current hosted CI or the exact-SHA canonical
 gate. The normal integration commit, publication and release acceptance remain
 pending at this checkpoint. No operator migration or production action occurred.
+
+## Published candidate and ADR numbering repair (2026-11-03)
+
+Published `05e8e202b9d8070350f59551f0b70ad900718721` has tree
+`f0d7c19373d1cdb0495e97639d8528c4a651f6d4`. Current CI run 41529949188
+attempt 1 executes synthetic `54b02861126d8d1a2a126ff17a6492da78bdfb1f`,
+whose ordered parents are current main `d0be12ea` and this candidate, with the
+same tree. Browser logs report 616 passes and 40 skips. The Twilight artifact
+matches its published ZIP digest and the exact executed selection: Dash reports
+5,442 passes across 157 files with 24,671 assertions, Burokrat reports 2,544
+passes across 101 files with 16,042 assertions, and the packed suite reports 84
+passes. Independent lint belongs to the still-running workspace partition.
+Partial evidence is retained under `.superpowers/artifacts/agentic-ci-browser-05e8e202b-20261103/`
+and `.superpowers/artifacts/agentic-ci-twilight-05e8e202b-20261103/`.
+
+The canonical h4 gate actually printed this exact candidate SHA and terminated
+with native exit 1. Its terminal record binds all 489,210 stdout bytes and 347
+stderr bytes, verified after transfer. The failed target is `tool-devsync:test`:
+1,022 passed and four failed because the ADR sequence skips 0066. One failure is
+the direct numbering test; the other three arise when that failure interrupts
+the actual docs target. The canonical gate did not reach its later stages and
+is not accepted. Full source fingerprint `77f9ee7c`, 12,755 entries, is unchanged
+from publication through this failure capture.
+
+The exact local ADR-index command reproduced the missing-0066 failure before
+repair, then passed one test/one assertion after mechanically renumbering only
+this branch's three unmerged ADRs and updating current references. Decision
+bodies and all checks are preserved. An initial real docs-target attempt after
+the rename failed on an old index-listed path before the renames were staged;
+that setup failure is retained, and the unchanged target must run against the
+staged successor paths. No gate success, merge or deployment follows from the
+partial CI results. Current-main integration and fresh exact-SHA release gates
+remain required, along with the rest of the original foundation scope.
+
+After staging the exact renames, the unchanged uncached `tool-devsync:check:docs`
+target passed: current documents/indexes, four tests/four assertions, retired-root
+checks and the complete root-migration report. The three cloned-checkout docs
+target regressions still require the normal commit, because their fixtures clone
+HEAD. Independent mechanical review found no Critical or Important issue; final
+source and release acceptance remain separate.

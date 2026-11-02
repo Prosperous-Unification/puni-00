@@ -12,7 +12,7 @@ business-outcome policy. One unreleased format6 cohort preserves genuine format5
 **Tech stack:** Existing Bun1.4.4, TypeScript, ArkType, bun:sqlite, Bun tests and Nx.
 
 **Spec:** [delta](specs/runtime-write-delivery/spec.md), [design](design.md),
-[intent](proposal.md) and [ADR0069](../../../docs/adr/0069-outcomes-and-runtime-writes-stage-together.md).
+[intent](proposal.md) and [ADR0068](../../../docs/adr/0068-outcomes-and-runtime-writes-stage-together.md).
 
 ## Global constraints
 

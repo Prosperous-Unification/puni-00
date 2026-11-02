@@ -53,7 +53,7 @@ Write obligation, recorded in root `CONTEXT.md`.
 
 ## Decisions Recorded
 
-[ADR 0069](../../../docs/adr/0069-outcomes-and-runtime-writes-stage-together.md).
+[ADR 0068](../../../docs/adr/0068-outcomes-and-runtime-writes-stage-together.md).
 
 ## Impact
 
