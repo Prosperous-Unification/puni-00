@@ -7,6 +7,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { monotonicClock } from '../clock';
 import { fakeCredential } from '../compute/testing/credential';
 import { ampleHost, gate, hostPoolFixture, jobType } from '../resources/host-pool.test.fixture';
+import { privateLegacyLock } from '../resources/legacy-lock.test.fixture';
 import { loadResourceConfiguration, ResourceRuntime } from '../resources/runtime';
 import { type OpsDependencies, opsHandlers, runOps } from './commands';
 import { insideOpsNamespace } from './ops.test.fixture';
@@ -35,6 +36,7 @@ if (insideOpsNamespace(import.meta.path))
     let now = start;
     const clock = { read: () => now };
 
+    let legacyLock = privateLegacyLock('/nonexistent');
     function pool(gateTrees: number) {
       now = start;
       const fixture = hostPoolFixture({
@@ -45,6 +47,7 @@ if (insideOpsNamespace(import.meta.path))
         credential: fakeCredential(),
       });
       cleanups.push(fixture.remove);
+      legacyLock = privateLegacyLock(fixture.base);
       const runtime = ResourceRuntime.initialize(
         loadResourceConfiguration(fixture.config),
         clock,
@@ -69,6 +72,7 @@ if (insideOpsNamespace(import.meta.path))
         telemetry: linuxScopeTelemetry(),
         host: ampleHost,
         user: 'puni1',
+        legacyLock: () => legacyLock,
       };
     }
 
@@ -148,6 +152,9 @@ if (insideOpsNamespace(import.meta.path))
         'host pool enrollment-one: mode observe; allocatable 8 cores, 13 GiB, 16 disk units, 16 slots; reserved 4 cores, 6 GiB, 0 disk units, 1 slots',
         `running gate gate:0a518a42 pid ${String(payload.pid)} age 1m00s envelope 4 cores 6 GiB 0 GiB tmp peak 2.5 GiB units gate_tree=${trees[0] ?? ''} settlement held (compute held, tmp held, gate_tree held)`,
         `waiting website-dev-build build:site pid ${String(process.pid)} age 55s budget 1m05s overtakes 0`,
+        // Observe mode: the shell lock's own status follows, holder first. This scenario admits
+        // through the runtime alone; `ops job run` holding the lock is in host-pool-mode.test.ts.
+        'heavy lock: holder none',
       ]);
     });
 
@@ -158,6 +165,7 @@ if (insideOpsNamespace(import.meta.path))
         'host pool enrollment-one: mode observe; allocatable 8 cores, 13 GiB, 16 disk units, 16 slots; reserved 0 cores, 0 GiB, 0 disk units, 0 slots',
         'running none',
         'waiting none',
+        'heavy lock: holder none',
       ]);
     });
 

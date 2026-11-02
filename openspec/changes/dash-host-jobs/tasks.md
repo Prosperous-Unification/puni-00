@@ -74,8 +74,9 @@
       `src/compute` belonged to slice 5's worker (verify.md Slice 3, S3-A9). `watch` still
       settles a declared-bound job with `declaredContainersOnly` (S3-A10).
 - [x] 3.3 `ops job status` (J13) — test: the one-running-one-waiting scenario, exact lines,
-      settlement state shown. The scenario's `with-heavy-lock.sh status` half needs J12's
-      observe-mode queue protocol, which lands with `run_heavy_job` in 6.1 (S3-A12).
+      settlement state shown. The scenario's `with-heavy-lock.sh status` half landed with
+      slice 6b's observe mode: `ops job status` prints the shell lock's own lines, holder
+      `dash-job-<id> <label>` first (verify.md Slice 6b; S3-A12 resolved).
 
 ## 4. Calibration, proposal, audit (needs 3)
 
@@ -122,7 +123,10 @@
       returning status; the four launchers here and `puni-pr-00`'s `build-release.sh` call it —
       test: new `bin/heavy-lock.test.sh` cases for the enrolled branch; every existing case
       passes unchanged against `with_heavy_lock`; the gate's trap-runs-once scenario; negative:
-      let a variable choose the mechanism and watch the opt-out case fail.
+      let a variable choose the mechanism and watch the opt-out case fail. Observe mode itself
+      (a Dash job under the complete shell-lock protocol, one wait budget) is Dash's side and
+      landed in slice 6b: `ops job run` queues through the library's own `with_heavy_lock`
+      (verify.md Slice 6b, S6B-A1).
 - [ ] 6.2 Five-launcher conflict inventory (J3): canonical paths, ports, release artifacts,
       caches, build engines, cross-type pairs; each conflict isolated or an exclusive unit; the
       gate split into outer launcher and admitted payload reading `DASH_JOB_UNIT_GATE_TREE`
@@ -134,7 +138,12 @@
       two converging applies, `changed=0` on the second.
 - [ ] 6.4 Enroll h2puni and h4claw in observe mode; run every launcher through `run_heavy_job`
       for a week; calibrate the five types cold and warm; open the catalogue PRs from `propose`.
-- [ ] 6.5 `ops pool switch-mode concurrent` on each host after the five-launcher checklist,
+- [x] 6.5a Code (slice 6b): `ops pool switch-mode concurrent|observe`, with `--release-guard`
+      and `--allow-empty`: the intake fence, the shell-lock drain, launcher shim verification,
+      the per-type `concurrencyEligible` admission rule and the atomic flip with its operator
+      record; the `resources watch` singleton guard; mode, guard and shell lock in `status` and
+      `inspect` (verify.md Slice 6b).
+- [ ] 6.5 Operator: `ops pool switch-mode concurrent` on each host after the five-launcher checklist,
       with the singleton guard held; two-job concurrent validation recorded in `verify.md`
       (planned proofs apart from observed evidence); decide when a failing `JOB-CATALOGUE`
       blocks `ops job run`; update `docs/runbook-h2-heavy-lock-owner.md`,

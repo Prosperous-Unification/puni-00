@@ -1,6 +1,12 @@
 import type { DashCommand } from '../cli-parser';
 import type { Monotonic, WallClock } from '../clock';
-import { type HostFacts, loadResourceConfiguration, ResourceRuntime } from '../resources/runtime';
+import { type LegacyLock, type LegacyQueueStatus, readLegacyQueue } from '../resources/legacy-lock';
+import {
+  type HostFacts,
+  type HostPoolStatus,
+  loadResourceConfiguration,
+  ResourceRuntime,
+} from '../resources/runtime';
 import { auditDrift } from './audit';
 import { renderAuditUnits, writeAuditUnits } from './audit-units';
 import { hostClassOf, readCommittedCatalogue, toolchainOf } from './catalogue';
@@ -10,6 +16,7 @@ import { causeText, OpsRefusal } from './refusal';
 import { HostJobRunRecords } from './run-records';
 import type { ScopeTelemetry } from './scope';
 import { formatHostPoolStatus } from './status';
+import { switchPoolMode, verifyEligibleTypes } from './switch-mode';
 
 /** A parsed `ops` command line, discriminated by its words after `ops`. */
 export type OpsCommand = Extract<DashCommand, { readonly command: 'ops' }>;
@@ -25,6 +32,39 @@ export interface OpsDependencies {
   readonly telemetry: ScopeTelemetry;
   readonly host: HostFacts;
   readonly user: string;
+  /** The shell lock (J12), resolved only by the commands that take or read it. */
+  readonly legacyLock: () => LegacyLock;
+}
+
+/**
+ * The shell lock, or a refusal naming why it cannot be found.
+ * @throws OpsRefusal 70 when the library is missing or answers no path.
+ */
+function resolveLegacyLock(deps: OpsDependencies, command: string): LegacyLock {
+  try {
+    return deps.legacyLock();
+  } catch (cause) {
+    throw new OpsRefusal(70, `${command}: ${causeText(cause)}`, { cause });
+  }
+}
+
+/**
+ * The shell lock's queue while it matters to the pool (J13): in observe mode, or in concurrent
+ * mode under the guard; null once the guard is released, when no Dash job takes it.
+ * @throws OpsRefusal 70 when the queue cannot be read: unknown is never reported as empty.
+ */
+function legacyQueueOf(
+  status: HostPoolStatus,
+  deps: OpsDependencies,
+  command: string,
+): LegacyQueueStatus | null {
+  if (status.mode === 'concurrent' && status.guard === 'released') return null;
+  try {
+    return readLegacyQueue(resolveLegacyLock(deps, command));
+  } catch (cause) {
+    if (cause instanceof OpsRefusal) throw cause;
+    throw new OpsRefusal(70, `${command}: ${causeText(cause)}`, { cause });
+  }
 }
 
 type OpsHandlers = {
@@ -57,6 +97,7 @@ function launcherDependencies(deps: OpsDependencies): JobRunDependencies {
     sampleIntervalMs: 10_000,
     settleBudgetMs: 30_000,
     user: deps.user,
+    legacyLock: resolveLegacyLock(deps, 'ops job run'),
   };
 }
 
@@ -186,7 +227,8 @@ export const opsHandlers: OpsHandlers = {
         const peaks = new Map(
           status.jobs.map((job) => [job.id, records.inspect(job.id)?.peakMemoryBytes ?? null]),
         );
-        for (const line of formatHostPoolStatus(status, peaks, deps.clock.read()))
+        const legacy = legacyQueueOf(status, deps, 'ops job status');
+        for (const line of formatHostPoolStatus(status, peaks, deps.clock.read(), legacy))
           deps.stdout(`${line}\n`);
       } finally {
         records.close();
@@ -198,12 +240,24 @@ export const opsHandlers: OpsHandlers = {
   },
   'pool init': (command, deps) => {
     let runtime: ResourceRuntime;
+    let configuration;
     try {
-      runtime = ResourceRuntime.initialize(
-        loadResourceConfiguration(command.config),
-        deps.clock,
-        deps.host,
+      configuration = loadResourceConfiguration(command.config);
+    } catch (cause) {
+      throw new OpsRefusal(70, `host pool ${command.config} not initialized: ${causeText(cause)}`, {
+        cause,
+      });
+    }
+    // An eligible id no launcher checkout catalogues is refused before anything is created.
+    // Proof: without it `ops pool init refuses an eligible type no catalogue names`
+    // (host-pool-mode.test.ts) initialized the pool (2026-11-02, Slice 6b).
+    if ((configuration.concurrencyEligible ?? []).length > 0)
+      verifyEligibleTypes(
+        configuration.concurrencyEligible ?? [],
+        configuration.launcherCheckouts ?? [],
       );
+    try {
+      runtime = ResourceRuntime.initialize(configuration, deps.clock, deps.host);
     } catch (cause) {
       throw new OpsRefusal(70, `host pool ${command.config} not initialized: ${causeText(cause)}`, {
         cause,
@@ -218,6 +272,8 @@ export const opsHandlers: OpsHandlers = {
           root: runtime.configuration.root,
           enrollmentId: status.enrollmentId,
           mode: status.mode,
+          guard: status.guard,
+          concurrencyEligible: runtime.configuration.concurrencyEligible ?? [],
           allocatable: status.allocatable,
           units: status.units,
           runRecords: HostJobRunRecords.pathOf(runtime.configuration.root),
@@ -231,7 +287,45 @@ export const opsHandlers: OpsHandlers = {
   'pool inspect': (command, deps) => {
     const runtime = openPool(command.config, deps.clock);
     try {
-      deps.stdout(`${JSON.stringify(runtime.hostPoolStatus())}\n`);
+      const status = runtime.hostPoolStatus();
+      const legacy = legacyQueueOf(status, deps, 'ops pool inspect');
+      deps.stdout(
+        `${JSON.stringify({
+          ...status,
+          concurrencyEligible: runtime.configuration.concurrencyEligible ?? [],
+          launcherCheckouts: runtime.configuration.launcherCheckouts ?? [],
+          legacyLock: legacy === null ? null : { holder: legacy.holder, waiters: legacy.waiters },
+        })}\n`,
+      );
+      return 0;
+    } finally {
+      runtime.close();
+    }
+  },
+  'pool switch-mode': async (command, deps) => {
+    const runtime = openPool(command.config, deps.clock);
+    try {
+      const record = await switchPoolMode(
+        runtime,
+        {
+          target: command.target,
+          operator: command.operator,
+          waitSeconds: command.waitSeconds,
+          pollSeconds: command.pollSeconds,
+          releaseGuard: command.releaseGuard,
+          allowEmpty: command.allowEmpty,
+        },
+        {
+          now: () => deps.clock.read(),
+          environment: deps.environment,
+          legacyLock: resolveLegacyLock(deps, 'ops pool switch-mode'),
+          account: deps.user,
+          report: (line) => {
+            deps.stderr(`${line}\n`);
+          },
+        },
+      );
+      deps.stdout(`${JSON.stringify(record)}\n`);
       return 0;
     } finally {
       runtime.close();

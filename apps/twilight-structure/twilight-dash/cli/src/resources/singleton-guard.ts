@@ -1,0 +1,141 @@
+import { existsSync, readdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { guardHoldFile, holdLegacyLock, legacyHoldDirectory, type LegacyLock } from './legacy-lock';
+import { GUARD_LABEL, type ResourceRuntime } from './runtime';
+
+/**
+ * How long the guard's holder queues on the shell lock per attempt: a legacy run ahead of it is
+ * at most a gate's length, and a spent attempt is simply started again on the next tick.
+ */
+const GUARD_ATTEMPT_SECONDS = 3600;
+const SWITCH_HOLD = 'dash-switch-mode';
+
+/**
+ * The concurrent-mode singleton guard (`dash-host-jobs` J12), driven by `resources watch` once a
+ * tick. While the pool is concurrent with the guard on and a ticket is queued or a host job's
+ * compute is unreleased, the guard holds the canonical flock as a legacy holder labelled
+ * {@link GUARD_LABEL}, so a stale launcher on an older checkout queues behind every host job;
+ * when that demand ends it lets go, so legacy callers run on an idle host. The holder is the
+ * shell lock's own, in its own session, and outlives this `watch`: a restarted `watch` adopts a
+ * live recorded holder rather than queue a second one.
+ *
+ * Each tick also ends the legacy holds nobody else will: an observe-mode job's once its compute
+ * is released, and a dead `switch-mode`'s.
+ */
+export class SingletonGuard {
+  private attempt: AbortController | null = null;
+
+  constructor(
+    private readonly runtime: ResourceRuntime,
+    private readonly lock: () => LegacyLock,
+    private readonly environment: Readonly<Record<string, string | undefined>>,
+    private readonly report: (line: string) => void,
+  ) {}
+
+  /**
+   * One reconciliation. Acquisition is started, never awaited: the guard queues on the shell
+   * lock in the background and is recorded once it holds.
+   * @throws when a hold file names a host job the ledger does not know: only Dash writes them.
+   */
+  tick(): void {
+    this.releaseSettledHolds();
+    const { required, demand, holder } = this.runtime.guardObligation();
+    const file = guardHoldFile(this.runtime.configuration.root);
+    if (required && demand) {
+      if (holder?.live === true || this.attempt !== null) return;
+      if (holder !== null)
+        this.report(
+          `resources: singleton guard holder pid ${String(holder.pid)} is gone while host jobs need it; the canonical flock is not held, admission waits, and the guard queues again`,
+        );
+      // A hold file without a live holder is a dead holder's; a new one takes its place.
+      rmSync(file, { force: true });
+      this.acquire(file);
+      return;
+    }
+    if (this.attempt !== null) {
+      this.attempt.abort();
+      this.attempt = null;
+    }
+    if (holder !== null) {
+      // The record goes first, the flock after it, so admission never sees a guard the flock
+      // no longer backs (see `ResourceRuntime.clearGuardHolder`).
+      if (!this.runtime.clearGuardHolder()) return;
+      rmSync(file, { force: true });
+      this.report(
+        `resources: singleton guard released the canonical flock (pid ${String(holder.pid)})`,
+      );
+      return;
+    }
+    if (existsSync(file)) rmSync(file, { force: true });
+  }
+
+  /** Withdraw a queued attempt; a guard already held stays held for the next `watch`. */
+  stop(): void {
+    this.attempt?.abort();
+    this.attempt = null;
+  }
+
+  private acquire(file: string): void {
+    const abort = new AbortController();
+    this.attempt = abort;
+    const lock = this.lock();
+    void holdLegacyLock(
+      lock,
+      {
+        holdFile: file,
+        label: GUARD_LABEL,
+        waitSeconds: GUARD_ATTEMPT_SECONDS,
+        pollSeconds: 5,
+        signal: abort.signal,
+        report: this.report,
+      },
+      this.environment,
+    ).then(
+      (outcome) => {
+        if (this.attempt === abort) this.attempt = null;
+        if (outcome.kind === 'held') {
+          // Proof: recording nothing made `two Dash jobs overlap in concurrent mode while the
+          // guard is held` (host-pool-mode.test.ts) time out waiting for admission (2026-11-02).
+          if (this.runtime.recordGuardHolder(outcome.hold.pid, lock.lockPath))
+            this.report(
+              `resources: singleton guard holds the canonical flock ${lock.lockPath} (pid ${String(outcome.hold.pid)})`,
+            );
+          else outcome.hold.release();
+        } else if (outcome.kind === 'refused')
+          this.report(
+            `resources: singleton guard got no turn on the shell lock (exit ${String(outcome.exitCode)}); queueing again`,
+          );
+      },
+      (cause: unknown) => {
+        if (this.attempt === abort) this.attempt = null;
+        this.report(
+          `resources: singleton guard attempt failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+        );
+      },
+    );
+  }
+
+  /** End the holds whose owners are done: settled observe-mode jobs and dead switches. */
+  private releaseSettledHolds(): void {
+    const directory = legacyHoldDirectory(this.runtime.configuration.root);
+    if (!existsSync(directory)) return;
+    for (const name of readdirSync(directory)) {
+      if (name === 'dash-singleton') continue;
+      if (name === SWITCH_HOLD) {
+        // Proof: without it `watch ends a dead switch-mode's legacy hold`
+        // (host-pool-mode.test.ts) kept the shell lock held for ever (2026-11-02, Slice 6b).
+        if (this.runtime.hostPoolTransition().switching?.live !== true)
+          rmSync(join(directory, name), { force: true });
+        continue;
+      }
+      const job = this.runtime.inspectHostJob(name);
+      // Proof: without it `watch ends an orphaned observe-mode hold once the job settles`
+      // (host-pool-mode.test.ts) left legacy callers queued behind a settled job (2026-11-02).
+      if (job.compute.state === 'released') {
+        rmSync(join(directory, name), { force: true });
+        this.report(`resources: released the shell lock hold of settled host job ${name}`);
+      }
+    }
+  }
+}

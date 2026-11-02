@@ -276,7 +276,8 @@ workspace slots; a host job also reserves cores, memory and exclusive units.
   of: each an absolute canonical directory outside the managed root, at the top of its own Git
   work tree, named once across all ids. Init refuses an alias, a duplicate or a non-tree.
 - **Mode and enrollment.** The ledger starts in mode `observe`; `enrollmentId` is pinned in its
-  binding. The mode changes only through the fenced switch of slice 6, never the configuration.
+  binding. The mode changes only through `ops pool switch-mode` (below), never the
+  configuration.
 - **Admission is host-local.** No WBS call precedes a host job's reservation; it runs while WBS
   is down. Its events wait in the ledger's `host_job_events` outbox for the WBS projection below.
 - **Refusals.** An envelope above `allocatable` in any dimension, or an exclusive id with no
@@ -486,7 +487,9 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
   one core and one GiB) and `calibrated` provenance (host class, instant, p95s, record ids),
   validated against `JobType`. The provenance cites only records that fed every dimension they
   were eligible for; a throttled or capped run, left out of memory, is cited on the dimension
-  lines alone (S4-A16). Exit 0.
+  lines alone (S4-A16). A record with no reading in some dimension (`not measured`) is likewise
+  not cited. Records are partitioned by `cataloguePath` here, while `audit` below judges each
+  record by job id against the current checkout's catalogue (S4-A19). Exit 0.
 
 - **`ops job audit [--now <ISO instant>]`** judges every run record, by its job id, against
   the catalogue of the checkout holding the current directory, at its HEAD. It never re-reads
@@ -521,3 +524,87 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
   systemctl --user --failed                           # a drift shows here
   journalctl --user -u dash-job-audit.service         # the drift lines
   ```
+
+### Mode lifecycle, `switch-mode` and the singleton guard (slice 6b)
+
+A host pool runs in one of two modes (`dash-host-jobs` J12, J13). The ledger (version 2)
+records the mode, the guard, the guard's holder, a `switch-mode` in progress and every
+operator mode record.
+
+- **`observe`** (the start): every host job, calibrations included, also queues on the host's
+  shell lock (`bin/heavy-lock-lib.sh`, `/home/puni1/.cache/wbs-heavy-work.lock`) after the
+  pool admits it. Dash never reimplements that protocol. `ops job run` starts the library's own
+  `with_heavy_lock` as a detached shell holder. Its ticket, deadline, holder record and label
+  `dash-job-<job id> <lane label>` are the library's, so legacy callers on any checkout share
+  one arrival order with Dash jobs. `bin/with-heavy-lock.sh status` names the holder as for any
+  run. The two queues share one wait budget: the shell lock gets what `--wait-seconds` has
+  left after admission, rounded up to whole seconds (S6B-A3). Refused there (75), or
+  interrupted (129/130/143), the job is withdrawn and its whole reservation returns at once.
+  The flock lives on the holder's fd 9, never on Dash. The holder keeps it while the hold file
+  `<root>/.dash/legacy-holds/<job id>` exists. `ops job run` removes that file once the job's
+  compute entry is released. If Dash dies first, the file stays, and `watch` removes it once
+  that entry settles, so an orphaned payload never runs beside a legacy caller. Killing the
+  holder itself makes the kernel release the flock. Its holder record is then reclaimed by the
+  next claimant as a dead pid, the library's own rule.
+- **`concurrent`**: the pool alone admits, and jobs overlap only when every type involved is in
+  the configuration's `concurrencyEligible` list. A job beside unreleased compute is admitted
+  only if its type and every running type are listed; otherwise it waits, serialised. While
+  the **guard** is on, `resources watch` holds the canonical flock as legacy holder
+  `dash-singleton` whenever a ticket is queued or any job's compute is unreleased, and releases
+  it when the pool empties. Admission waits until that holder is recorded, its process runs,
+  and the shell lock's holder record names it. A stale launcher on an older checkout therefore
+  queues behind every host job. A ticket waits at most 15 s past its own deadline for the guard
+  (S6B-A5), then is refused 75 naming it. The guard's holder outlives `watch`, and a restarted
+  `watch` adopts it. The 6.7 user unit must therefore use `KillMode=process`, or the holder
+  dies with the unit's cgroup (S6B-A8).
+
+The configuration gains two optional fields, neither pinned by the binding:
+`launcherCheckouts` (absolute paths, each named once: the checkouts whose launchers run heavy
+jobs here) and `concurrencyEligible` (job type ids, each named once; absent means none). `ops
+pool init` refuses an eligible id that no listed checkout's catalogue names at HEAD.
+
+```sh
+dash() { bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts "$@"; }
+dash ops pool switch-mode concurrent --config /path/to/host-pool.json --operator dany [--wait-seconds 1800]
+dash ops pool switch-mode concurrent --config /path/to/host-pool.json --operator dany --release-guard
+dash ops pool switch-mode observe --config /path/to/host-pool.json --operator dany   # rollback
+```
+
+**Runbook: observe → concurrent.** These are the code steps of task 6.5; the five-launcher
+checklist and the two-job validation come first.
+
+1. Every launcher checkout on the host is listed in `launcherCheckouts`, at a commit whose
+   `bin/heavy-lock-lib.sh` defines `run_heavy_job`. `switch-mode` checks HEAD and that the
+   working file equals HEAD, and refuses 70 naming the first checkout that fails. With no
+   checkout listed it refuses 64.
+2. `concurrencyEligible` names the types validated for overlap. With none listed, the switch
+   refuses 64, because nothing would change; `--allow-empty` flips anyway. An id that no
+   listed catalogue names is refused 64.
+3. `resources watch` runs (task 6.7). In concurrent mode nothing is admitted without it.
+4. Run `switch-mode concurrent`. It **stops intake**: from then on every poll, queued waiters
+   included, is refused 75 `intake stopped while ops pool switch-mode … drains the pool`, until
+   the switch ends or its process dies (S6B-A4). It then **drains the shell lock** by queueing
+   on it as legacy holder `dash-switch-mode` within `--wait-seconds`. Holding it proves every
+   legacy holder, every waiter ahead and every observe-mode Dash job has finished. It refuses
+   75 while any waiter queues behind it, naming each, since that is a launcher still taking
+   the legacy path. Last, it **flips** in one ledger transaction: the fence must be its own,
+   and no ticket or unreleased compute may remain. Mode `concurrent`, guard on, and the record
+   (`sequence`, `at`, `operator`, `account`, `action`, `from`, `to`, `evidence`: each checkout
+   and HEAD verified, the eligible types, the drained lock) commit together. The record is
+   printed as JSON. Any refusal reopens intake. A second `switch-mode` while one is live is
+   refused 75 (the fence is a ledger row written under `BEGIN IMMEDIATE`, S6B-A6).
+5. Once no checkout on the host can run a launcher without the shim, record it with
+   `switch-mode concurrent --release-guard`. That checks the launchers again and writes a
+   `release-guard` record. `watch` then lets go of the flock, and admission no longer waits
+   for it.
+
+**Rollback** is `switch-mode observe`. It stops intake, waits for the pool to drain of host
+jobs (no ticket, no unreleased compute), refusing 75 at `--wait-seconds` naming what is still
+there, then flips with its record. The guard is on again for the next flip.
+
+`ops job status` names the mode, and in concurrent mode the guard and its holder. It adds a
+`switching to …; intake stopped` line while a switch is live. While the shell lock matters
+(observe mode, or the guard on), it then prints the lock's own `status` lines verbatim, holder
+first. `ops pool inspect` adds `concurrencyEligible`, `launcherCheckouts`, `guard`,
+`guardHolder`, `switching`, `modeRecords` and `legacyLock` (holder and waiters, or null once
+the guard is released).

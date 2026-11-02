@@ -1,7 +1,9 @@
 import {
   argument,
+  choice,
   command,
   constant,
+  flag,
   formatUsage,
   type InferValue,
   integer,
@@ -236,7 +238,6 @@ function opsCommand<const Words extends string, const Fields extends Record<stri
 /**
  * `ops`, the first typed namespace (`dash-host-jobs` J17): host jobs and the host pool. The
  * grammar is parsed here, not in its module, because it has no hand-written parser to keep.
- * `switch-mode` arrives with slice 6.
  */
 const opsNamespace = command(
   'ops',
@@ -329,11 +330,49 @@ const opsNamespace = command(
         opsCommand(
           'inspect',
           'pool inspect',
-          'Print the host pool as JSON: mode, budgets, reservations, jobs and waiters.',
+          'Print the host pool as JSON: mode, guard, eligibility, budgets, reservations, jobs, waiters and the shell lock.',
           { config: poolConfig() },
         ),
+        opsCommand(
+          'switch-mode',
+          'pool switch-mode',
+          'Drain the pool and the shell lock, verify the launchers, and flip the mode in the ledger with your record.',
+          {
+            config: poolConfig(),
+            target: argument(choice(['observe', 'concurrent'] as const, { metavar: 'MODE' }), {
+              description: message`The mode to switch to: concurrent, or observe to roll back.`,
+            }),
+            operator: option('--operator', flagValue('NAME'), {
+              description: message`Who switches; the mode record names them beside the account.`,
+            }),
+            waitSeconds: withDefault(
+              option('--wait-seconds', integer({ min: 0, metavar: 'SECONDS' }), {
+                description: message`How long to wait for the drain; default 1800, then 75.`,
+              }),
+              1800,
+            ),
+            pollSeconds: withDefault(
+              option('--poll-seconds', integer({ min: 1, max: 30, metavar: 'SECONDS' }), {
+                description: message`Seconds between drain polls, 1 to 30; default 5.`,
+              }),
+              5,
+            ),
+            releaseGuard: withDefault(
+              flag('--release-guard', {
+                description: message`With concurrent: record that no stale checkout can execute, ending the singleton guard.`,
+              }),
+              false,
+            ),
+            allowEmpty: withDefault(
+              flag('--allow-empty', {
+                description: message`With concurrent: flip although concurrencyEligible lists no type.`,
+              }),
+              false,
+            ),
+          },
+        ),
       ),
-      { brief: message`Initialize and inspect the host pool.` },
+      { brief: message`Initialize, inspect and switch the host pool.` },
     ),
   ),
   { brief: message`Operate this host: host jobs and the host pool.` },

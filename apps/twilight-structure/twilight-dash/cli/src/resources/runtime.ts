@@ -68,6 +68,18 @@ const Configuration = type({
   }).onUndeclaredKey('reject'),
   exclusiveUnits: 'Record<string, string[]>',
   enrollmentId: Identifier,
+  /**
+   * The checkouts whose launchers run heavy jobs on this host (J12): `ops pool switch-mode
+   * concurrent` verifies each carries `run_heavy_job` at HEAD. Not pinned by the binding: the
+   * operator adds a checkout as the host gains one.
+   */
+  'launcherCheckouts?': 'string[]',
+  /**
+   * The job types that may run beside another host job in concurrent mode (J12, PR #816
+   * review): a job is admitted beside unreleased compute only when its type and every running
+   * type are listed; otherwise it waits, serialised as in observe mode. Absent means none.
+   */
+  'concurrencyEligible?': 'string[]',
 }).onUndeclaredKey('reject');
 export type ResourceConfiguration = Omit<
   typeof Configuration.infer,
@@ -362,7 +374,7 @@ export interface HostJobRequest {
   waitSeconds: number;
   /**
    * A calibration run (J9): admitted only once the pool has drained (nothing reserved, no unit
-   * held, no starting or held host job), then holding the whole `allocatable` vector and every
+   * of its type's ids held), then holding the whole `allocatable` vector and every
    * exclusive unit; the envelope's own size is not checked against `allocatable`.
    */
   calibration?: true;
@@ -397,6 +409,8 @@ export type HostJobAdmission =
       ahead: HostJobTicket[];
       /** Free units that cannot be handed out now: dirty, deleted or unreadable trees. */
       unavailableUnits: { path: string; reason: string }[];
+      /** Present while concurrent mode waits for the singleton guard (J12), not for room. */
+      awaiting?: 'singleton guard';
     }
   | { kind: 'refused'; exitCode: 73 | 75; reason: string };
 
@@ -415,15 +429,99 @@ export const declaredContainersOnly: ContainerEvidence = {
   containersGone: (job) => job.descriptor.containers === 'none',
 };
 
+/** The two mechanisms a pool runs under (J12): the legacy queue as well, or the pool alone. */
+export type HostPoolModeName = 'observe' | 'concurrent';
+
+/** The label the singleton guard's legacy holder records in the shell lock (J12). */
+export const GUARD_LABEL = 'dash-singleton';
+
+/**
+ * How long past its own deadline a ticket waits for the singleton guard in concurrent mode
+ * (S6B-A5): `watch` takes the guard on its next tick once a ticket is queued, so a wait-zero
+ * caller is not refused for the instant it takes the guard to arrive.
+ */
+export const GUARD_WAIT_MS = 15_000;
+
+/**
+ * The legacy holder through which the `resources watch` singleton holds the canonical flock in
+ * concurrent mode (J12): its process identity, the lock path its holder record lives beside and
+ * when it was recorded.
+ */
+export interface GuardHolder extends ProcessIdentity {
+  lockPath: string;
+  since: number;
+}
+const GuardHolderShape = type({
+  '...': ProcessIdentityShape,
+  lockPath: 'string > 0',
+  since: 'number',
+}).onUndeclaredKey('reject');
+
+/** A `switch-mode` in progress: its process, target and operator; intake stays stopped while it lives. */
+export interface ModeSwitch extends ProcessIdentity {
+  target: HostPoolModeName;
+  operator: string;
+  since: number;
+}
+const ModeSwitchShape = type({
+  '...': ProcessIdentityShape,
+  target: "'observe'|'concurrent'",
+  operator: 'string > 0',
+  since: 'number',
+}).onUndeclaredKey('reject');
+
+/** One operator record of the pool's mode (J12): who, when, from and to, and what was verified. */
+export interface ModeRecord {
+  sequence: number;
+  at: number;
+  operator: string;
+  account: string;
+  action: 'switch' | 'release-guard';
+  from: string;
+  to: string;
+  evidence: string[];
+}
+const ModeRecordShape = type({
+  at: 'number',
+  operator: 'string > 0',
+  account: 'string > 0',
+  action: "'switch'|'release-guard'",
+  from: 'string > 0',
+  to: 'string > 0',
+  evidence: 'string[]',
+}).onUndeclaredKey('reject');
+
+/** The pool's transition state as status shows it; `live` says whether the process still runs. */
+export interface HostPoolTransition {
+  mode: HostPoolModeName;
+  guard: 'on' | 'released';
+  guardHolder: (GuardHolder & { live: boolean }) | null;
+  switching: (ModeSwitch & { live: boolean }) | null;
+}
+
+/**
+ * A mode change the pool refuses (J12): 64 a switch to the mode it is in or a guard already
+ * released, 75 another switch in progress or a pool not drained.
+ */
+export class HostPoolModeRefusal extends Error {
+  override readonly name = 'HostPoolModeRefusal';
+  constructor(
+    readonly exitCode: 64 | 75,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 /** The host pool as `ops job status` reads it: mode, budget, reservations, jobs and waiters. */
-export interface HostPoolStatus {
-  mode: 'observe' | 'concurrent';
+export interface HostPoolStatus extends HostPoolTransition {
   enrollmentId: string;
   allocatable: PoolVector;
   reserved: PoolVector;
   units: { exclusiveId: string; path: string; heldBy: string | null }[];
   jobs: HostJob[];
   waiters: HostJobTicket[];
+  modeRecords: ModeRecord[];
 }
 
 /** What one host job reserves (J4, J9): the pool vector, and its disk charge in GiB for WBS. */
@@ -485,9 +583,27 @@ function settlementOf(job: HostJob): string {
   ]);
 }
 
-/** The ledger schema this Dash writes; {@link ResourceRuntime.open} steps 0 forward to it. */
-const LEDGER_VERSION = 1;
+/** The ledger schema this Dash writes; {@link ResourceRuntime.open} steps 0 and 1 forward to it. */
+const LEDGER_VERSION = 2;
 const LEDGER_V0_TABLES = ['binding', 'cursor', 'events', 'sqlite_sequence', 'uses'];
+const LEDGER_V1_TABLES = [
+  'binding',
+  'cursor',
+  'events',
+  'host_job_events',
+  'host_job_tickets',
+  'host_jobs',
+  'host_pool',
+  'sqlite_sequence',
+  'uses',
+];
+/**
+ * Version 2 (`dash-host-jobs` J12): the singleton guard's state and holder, the fence of a
+ * `switch-mode` in progress, and the operator's mode records. A ledger reaching version 2 from
+ * observe mode keeps it; the guard starts on, so the first flip to concurrent holds it.
+ */
+const HOST_POOL_TRANSITION_SCHEMA =
+  "ALTER TABLE host_pool ADD COLUMN guard TEXT NOT NULL DEFAULT 'on' CHECK(guard IN ('on','released')); ALTER TABLE host_pool ADD COLUMN guard_holder TEXT; ALTER TABLE host_pool ADD COLUMN switching TEXT; CREATE TABLE host_pool_mode_records (sequence INTEGER PRIMARY KEY AUTOINCREMENT, record TEXT NOT NULL)";
 const HOST_POOL_SCHEMA =
   "CREATE TABLE host_jobs (id TEXT PRIMARY KEY, snapshot TEXT NOT NULL); CREATE TABLE host_job_tickets (sequence INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, label TEXT NOT NULL, request TEXT NOT NULL, pid INTEGER NOT NULL, boot TEXT NOT NULL, start TEXT NOT NULL, arrived_at INTEGER NOT NULL, deadline INTEGER NOT NULL, overtakes INTEGER NOT NULL DEFAULT 0); CREATE TABLE host_job_events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, event TEXT NOT NULL, published INTEGER NOT NULL DEFAULT 0); CREATE TABLE host_pool (id INTEGER PRIMARY KEY CHECK(id=1), mode TEXT NOT NULL CHECK(mode IN ('observe','concurrent'))); INSERT INTO host_pool VALUES (1,'observe')";
 interface TicketRow {
@@ -622,6 +738,25 @@ function checkPoolShape(parsed: typeof Configuration.infer): void {
       seen.add(path);
     }
   }
+  const eligible = new Set<string>();
+  for (const id of parsed.concurrencyEligible ?? []) {
+    // Proof: without either refusal `the pool shape refuses each malformed statement`
+    // (host-jobs.test.ts) loaded its concurrency-eligibility row (2026-11-02, Slice 6b).
+    if (!/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(id))
+      throw new Error(`host pool concurrency-eligible type ${id} is not a job type id`);
+    if (eligible.has(id))
+      throw new Error(`host pool concurrency-eligible type ${id} is named twice`);
+    eligible.add(id);
+  }
+  const launchers = new Set<string>();
+  for (const path of parsed.launcherCheckouts ?? []) {
+    // Proof: without either refusal `the pool shape refuses each malformed statement`
+    // (host-jobs.test.ts) loaded its launcher-checkout row (2026-11-02, Slice 6b).
+    if (!isAbsolute(path) || resolve(path) !== path)
+      throw new Error(`host pool launcher checkout ${path} must be an absolute normalized path`);
+    if (launchers.has(path)) throw new Error(`host pool launcher checkout ${path} is named twice`);
+    launchers.add(path);
+  }
 }
 
 /** What init checks a host pool's budgets against; {@link linuxHostFacts} reads the machine. */
@@ -734,6 +869,14 @@ function identifyProcess(pid: number): ProcessIdentity | null {
 function isMissing(cause: unknown): boolean {
   return (
     cause instanceof Error && 'code' in cause && (cause.code === 'ENOENT' || cause.code === 'ESRCH')
+  );
+}
+/** Whether `identity` (this process's, read now) is the process `recorded` names. */
+function sameProcess(identity: ProcessIdentity | null, recorded: ProcessIdentity): boolean {
+  return (
+    identity?.pid === recorded.pid &&
+    identity.boot === recorded.boot &&
+    identity.start === recorded.start
   );
 }
 function alive(identity: ProcessIdentity): boolean {
@@ -1086,7 +1229,7 @@ export class ResourceRuntime {
     writeFileSync(path, '', { flag: 'wx', mode: 0o600 });
     const db = new Database(path);
     db.run(
-      `PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; CREATE TABLE binding (identity TEXT NOT NULL); CREATE TABLE uses (id TEXT PRIMARY KEY, snapshot TEXT NOT NULL); CREATE TABLE events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, event TEXT NOT NULL, published INTEGER NOT NULL DEFAULT 0); CREATE TABLE cursor (id INTEGER PRIMARY KEY CHECK(id=1), value INTEGER NOT NULL); INSERT INTO cursor VALUES (1,0); ${HOST_POOL_SCHEMA}; PRAGMA user_version=${String(LEDGER_VERSION)}`,
+      `PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; CREATE TABLE binding (identity TEXT NOT NULL); CREATE TABLE uses (id TEXT PRIMARY KEY, snapshot TEXT NOT NULL); CREATE TABLE events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, event TEXT NOT NULL, published INTEGER NOT NULL DEFAULT 0); CREATE TABLE cursor (id INTEGER PRIMARY KEY CHECK(id=1), value INTEGER NOT NULL); INSERT INTO cursor VALUES (1,0); ${HOST_POOL_SCHEMA}; ${HOST_POOL_TRANSITION_SCHEMA}; PRAGMA user_version=${String(LEDGER_VERSION)}`,
     );
     const root = lstatSync(configuration.root);
     db.query('INSERT INTO binding VALUES (?)').run(
@@ -1171,8 +1314,9 @@ export class ResourceRuntime {
    * Step the ledger forward to {@link LEDGER_VERSION} in one `BEGIN IMMEDIATE`, or refuse.
    * Version 0 (no `user_version`, the four `dash-resource-cleanup` tables) gains the host pool
    * tables in mode `observe` and the extended binding, only when its binding is exactly this
-   * configuration's version-0 binding. A version this Dash does not know is refused: it may be a
-   * newer schema, and nothing here can step it back.
+   * configuration's version-0 binding; version 1 (those tables) gains the transition state of
+   * J12, only when its tables are exactly version 1's. A version this Dash does not know is
+   * refused: it may be a newer schema, and nothing here can step it back.
    */
   private static migrate(
     db: Database,
@@ -1186,12 +1330,12 @@ export class ResourceRuntime {
     };
     if (version() === LEDGER_VERSION) return;
     const migrated = db
-      .transaction((): boolean => {
+      .transaction((): number | null => {
         const found = version();
-        if (found === LEDGER_VERSION) return false;
+        if (found === LEDGER_VERSION) return null;
         // Proof: without it, `refuses a ledger version it does not know` (host-jobs.test.ts)
         // treated version 9 as version 0 and refused only on its tables (2026-11-01, Slice 2).
-        if (found !== 0)
+        if (found !== 0 && found !== 1)
           throw new Error(
             `resource ledger version ${String(found)} is unknown to this Dash; refusing to guess its schema`,
           );
@@ -1202,28 +1346,35 @@ export class ResourceRuntime {
           .all()
           .map((table) => table.name);
         // Proof: without it `refuses a version-0 ledger with unexpected tables`
-        // (host-jobs.test.ts) migrated a ledger it did not write (2026-11-01, verify.md Slice 2).
-        if (JSON.stringify(tables) !== JSON.stringify(LEDGER_V0_TABLES))
-          throw new Error(`resource ledger version 0 has unexpected tables: ${tables.join(', ')}`);
-        const binding = db.query<{ identity: string }, []>('SELECT identity FROM binding').get();
-        // Proof: without it, `migrates a version-0 ledger forward, only under its own binding`
-        // (host-jobs.test.ts) rebound another authority's ledger (2026-11-01, verify.md Slice 2).
-        if (
-          binding?.identity !== JSON.stringify(ResourceRuntime.legacyBinding(configuration, root))
-        )
-          throw new Error('resource authority binding mismatch');
-        db.run(HOST_POOL_SCHEMA);
-        db.query('UPDATE binding SET identity=?').run(
-          JSON.stringify(ResourceRuntime.binding(configuration, root)),
-        );
+        // (host-jobs.test.ts) migrated a ledger it did not write (2026-11-01, verify.md Slice 2);
+        // for version 1, `refuses a version-1 ledger with unexpected tables` (2026-11-02, Slice 6b).
+        const expected = found === 0 ? LEDGER_V0_TABLES : LEDGER_V1_TABLES;
+        if (JSON.stringify(tables) !== JSON.stringify(expected))
+          throw new Error(
+            `resource ledger version ${String(found)} has unexpected tables: ${tables.join(', ')}`,
+          );
+        if (found === 0) {
+          const binding = db.query<{ identity: string }, []>('SELECT identity FROM binding').get();
+          // Proof: without it, `migrates a version-0 ledger forward, only under its own binding`
+          // (host-jobs.test.ts) rebound another authority's ledger (2026-11-01, verify.md Slice 2).
+          if (
+            binding?.identity !== JSON.stringify(ResourceRuntime.legacyBinding(configuration, root))
+          )
+            throw new Error('resource authority binding mismatch');
+          db.run(HOST_POOL_SCHEMA);
+          db.query('UPDATE binding SET identity=?').run(
+            JSON.stringify(ResourceRuntime.binding(configuration, root)),
+          );
+        }
+        db.run(HOST_POOL_TRANSITION_SCHEMA);
         db.run(`PRAGMA user_version=${String(LEDGER_VERSION)}`);
-        return true;
+        return found;
       })
       .immediate();
     // `open` has no report sink and this happens once per ledger: say it on stderr.
-    if (migrated)
+    if (migrated !== null)
       process.stderr.write(
-        `resources: migrated ledger ${join(configuration.root, '.dash', 'resources.sqlite')} from version 0 to ${String(LEDGER_VERSION)} (host pool)\n`,
+        `resources: migrated ledger ${join(configuration.root, '.dash', 'resources.sqlite')} from version ${String(migrated)} to ${String(LEDGER_VERSION)} (host pool)\n`,
       );
   }
   /** Close this connection without altering durable obligations. */
@@ -2221,23 +2372,26 @@ export class ResourceRuntime {
   }
   /**
    * A persisted host-job snapshot. Only this class writes the owner-only ledger, so malformed
-   * JSON throws rather than defaulting; a row from before `reserved` was persisted (slice 4
-   * review A3) reads it from its descriptor, as `reservations()` computed it then.
+   * JSON throws rather than defaulting. A row from before `reserved` was persisted (slice 4
+   * review A3) reads it from its descriptor, as `reservations()` computed it then; a calibration
+   * row without one cannot exist (calibration and `reserved` landed in one slice), so it throws.
    */
   private hostJobOf(snapshot: string): HostJob {
     const parsed = HostJobShape.assert(JSON.parse(snapshot));
     // Proof: dropping the fallback made `a ledger row written before `reserved` was persisted
     // reads it from its descriptor` (calibrate.test.ts) read no reservation (2026-11-02, A3).
     if (parsed.reserved !== undefined) return { ...parsed, reserved: parsed.reserved };
-    const reserved = parsed.calibration
-      ? this.wholePool()
-      : {
-          cpuCores: parsed.descriptor.envelope.cpuCores,
-          memoryGib: parsed.descriptor.envelope.memoryGib,
-          diskUnits: parsed.diskUnits,
-          workspaceSlots: 1,
-          tmpDiskGib: parsed.descriptor.envelope.tmpDiskGib,
-        };
+    // Proof: deriving it from `wholePool()` again made `a calibration row without its
+    // reservation is refused` (calibrate.test.ts) read the row (2026-11-02, Slice 6b, S3 follow-up b).
+    if (parsed.calibration === true)
+      throw new Error(`host job ${parsed.id} is a calibration with no persisted reservation`);
+    const reserved = {
+      cpuCores: parsed.descriptor.envelope.cpuCores,
+      memoryGib: parsed.descriptor.envelope.memoryGib,
+      diskUnits: parsed.diskUnits,
+      workspaceSlots: 1,
+      tmpDiskGib: parsed.descriptor.envelope.tmpDiskGib,
+    };
     return { ...parsed, reserved };
   }
   private diskUnitsOf(descriptor: JobTypeDescriptor): number {
@@ -2517,6 +2671,15 @@ export class ResourceRuntime {
         this.db.query('DELETE FROM host_job_tickets WHERE id=?').run(ticket);
         return { kind: 'refused', exitCode: 75, reason };
       };
+      // A switch-mode in progress stops intake (J12), queued tickets included: the pool must
+      // drain, and a caller refused 75 retries as it does for a busy host (S6B-A4).
+      const fence = this.liveSwitch();
+      // Proof: without it `switch-mode stops intake, queued waiters included`
+      // (host-pool-mode.test.ts) admitted the build while the switch drained (2026-11-02, Slice 6b).
+      if (fence !== null)
+        return refuse(
+          `${named}: intake stopped while ops pool switch-mode ${fence.target} by ${fence.operator} (pid ${String(fence.pid)}) drains the pool; retry once it ends`,
+        );
       // A wait-zero ticket is never "spent": its deadline is its arrival, which the enqueue's
       // fsync already put in the past; it is decided once, below.
       // Proof: without the `waitSeconds > 0` guard, `a wait-zero caller on an empty pool is
@@ -2531,6 +2694,24 @@ export class ResourceRuntime {
       // with room` (host-jobs.test.ts) was admitted (2026-11-01, verify.md Slice 2).
       if (request.waitSeconds === 0 && ahead.length > 0)
         return refuse(`${named}: wait budget 0 with live tickets ahead: ${aheadText()}`);
+      // Concurrent mode under the guard admits only while the `watch` singleton holds the
+      // canonical flock (J12), so a stale launcher's `flock` path queues behind every host job.
+      const pool = this.poolRow();
+      // Proof: without it `a legacy caller waits while a Dash job runs in concurrent mode`
+      // (host-pool-mode.test.ts) saw the job admitted with no guard and the legacy caller run
+      // beside it (2026-11-02, Slice 6b).
+      if (pool.mode === 'concurrent' && pool.guard === 'on' && !this.guardHeld(pool.guardHolder)) {
+        if (now >= Math.max(mine.deadline, mine.arrived_at + GUARD_WAIT_MS))
+          return refuse(
+            `${named}: the singleton guard is not held (resources watch holds the canonical flock as ${GUARD_LABEL} while host jobs run; is it running?); ahead: ${aheadText()}`,
+          );
+        return {
+          kind: 'waiting',
+          ahead: ahead.map((row) => this.ticketView(row)),
+          unavailableUnits: [],
+          awaiting: 'singleton guard',
+        };
+      }
       const { vector: reserved, units: held } = this.reservations();
       const allocatable = this.allocatable();
       // A free unit must also be ready: readable, clean, its HEAD known. Read once per poll.
@@ -2564,16 +2745,14 @@ export class ResourceRuntime {
         return named.length === 0 ? '' : `; units not free: ${named.join(', ')}`;
       };
       /**
-       * Whether a calibration of `descriptor` may start: nothing reserved in any dimension, no
-       * starting or held host job, free space for the whole disk budget, and every unit of
-       * every id the type names neither held nor unready. Units of other ids are not its
+       * Whether a calibration of `descriptor` may start: nothing reserved in any dimension (a
+       * starting or held job always reserves a workspace slot, since its tmp entry settles only
+       * after its compute), free space for the whole disk budget, and every unit of every id
+       * the type names neither held nor unready. Units of other ids are not its
        * concern (S4-A14).
        */
       const drained = (descriptor: JobTypeDescriptor): boolean =>
         POOL_DIMENSIONS.every((dimension) => reserved[dimension] === 0) &&
-        // Unreachable alone through the catalogue (every type has a core and a GiB, so every
-        // starting or held job reserves); kept for a zero-envelope descriptor (verify.md).
-        this.listHostJobs().every((job) => job.state !== 'starting' && job.state !== 'held') &&
         // Proof: without it `a calibration waits for free space for the whole disk budget,
         // naming the shortfall` (calibrate.test.ts) admitted it (2026-11-02, Slice 4 review A13).
         this.freeSpaceCovers(allocatable.diskUnits) &&
@@ -2582,8 +2761,22 @@ export class ResourceRuntime {
         // the pool made `… naming no unit holds none and ignores a dirty tree` refuse it 75
         // (2026-11-02, review A5, A13).
         unitsOf(descriptor).every((path) => !held.has(path) && 'commit' in ready(path));
+      const eligible = new Set(this.configuration.concurrencyEligible ?? []);
+      const running = this.listHostJobs().filter((job) => job.compute.state !== 'released');
+      /**
+       * Concurrent mode overlaps only eligible types (J12): beside any unreleased compute, both
+       * the newcomer's type and every running type must be listed; observe mode serialises
+       * through the shell lock already.
+       */
+      const mayOverlap = (descriptor: JobTypeDescriptor): boolean =>
+        pool.mode !== 'concurrent' ||
+        running.length === 0 ||
+        (eligible.has(descriptor.id) && running.every((job) => eligible.has(job.descriptor.id)));
       const fits = (row: TicketRow): boolean => {
         const { descriptor, calibration } = this.ticketRequest(row);
+        // Proof: without it `an ineligible type beside an eligible one is serialised`
+        // (host-pool-mode.test.ts) admitted the second job beside the first (2026-11-02, Slice 6b).
+        if (!mayOverlap(descriptor)) return false;
         // Proof: admitting a calibration on the envelope fit made `a calibration waits for
         // the pool to drain` (calibrate.test.ts) admit it beside a held gate (2026-11-02, Slice 4).
         if (calibration === true) return drained(descriptor);
@@ -3066,16 +3259,11 @@ export class ResourceRuntime {
       };
     }
   }
-  /** What the host is doing: mode, budget, reservations, units, unreleased jobs, waiters. */
+  /** What the host is doing: mode, guard, budget, reservations, units, unreleased jobs, waiters. */
   hostPoolStatus(): HostPoolStatus {
-    const mode = this.db.query<{ mode: string }, []>('SELECT mode FROM host_pool WHERE id=1').get();
-    // Proof: without it `status refuses an unreadable pool mode` (host-jobs.test.ts) threw a
-    // bare TypeError on the missing row instead of naming it (2026-11-01, verify.md Slice 2).
-    if (mode?.mode !== 'observe' && mode?.mode !== 'concurrent')
-      throw new Error('host pool mode unreadable');
     const { vector, units } = this.reservations();
     return {
-      mode: mode.mode,
+      ...this.hostPoolTransition(),
       enrollmentId: this.configuration.enrollmentId,
       allocatable: this.allocatable(),
       reserved: vector,
@@ -3084,6 +3272,310 @@ export class ResourceRuntime {
       ),
       jobs: this.listHostJobs().filter((job) => job.state !== 'released'),
       waiters: this.tickets().map((row) => this.ticketView(row)),
+      modeRecords: this.modeRecords(),
     };
+  }
+  /** The pool's mode, guard and fence, each holder named with whether it still runs. */
+  hostPoolTransition(): HostPoolTransition {
+    const pool = this.poolRow();
+    return {
+      mode: pool.mode,
+      guard: pool.guard,
+      guardHolder:
+        pool.guardHolder === null ? null : { ...pool.guardHolder, live: alive(pool.guardHolder) },
+      switching:
+        pool.switching === null ? null : { ...pool.switching, live: alive(pool.switching) },
+    };
+  }
+  /** Every operator mode record, oldest first. */
+  modeRecords(): ModeRecord[] {
+    return this.db
+      .query<{ sequence: number; record: string }, []>(
+        'SELECT sequence, record FROM host_pool_mode_records ORDER BY sequence',
+      )
+      .all()
+      .map((row) => ({
+        sequence: row.sequence,
+        ...ModeRecordShape.assert(JSON.parse(row.record)),
+      }));
+  }
+  /**
+   * The pool row. Only this class writes the owner-only ledger, so a mode, guard or holder it
+   * cannot read throws rather than defaulting.
+   */
+  private poolRow(): {
+    mode: HostPoolModeName;
+    guard: 'on' | 'released';
+    guardHolder: GuardHolder | null;
+    switching: ModeSwitch | null;
+  } {
+    const row = this.db
+      .query<
+        { mode: string; guard: string; guard_holder: string | null; switching: string | null },
+        []
+      >('SELECT mode, guard, guard_holder, switching FROM host_pool WHERE id=1')
+      .get();
+    // Proof: without it `status refuses an unreadable pool mode` (host-jobs.test.ts) threw a
+    // bare TypeError on the missing row instead of naming it (2026-11-01, verify.md Slice 2).
+    if (row === null || (row.mode !== 'observe' && row.mode !== 'concurrent'))
+      throw new Error('host pool mode unreadable');
+    if (row.guard !== 'on' && row.guard !== 'released')
+      throw new Error('host pool guard state unreadable');
+    return {
+      mode: row.mode,
+      guard: row.guard,
+      guardHolder:
+        row.guard_holder === null ? null : GuardHolderShape.assert(JSON.parse(row.guard_holder)),
+      switching: row.switching === null ? null : ModeSwitchShape.assert(JSON.parse(row.switching)),
+    };
+  }
+  /**
+   * Whether `holder` holds the canonical flock now: its process runs, and the shell lock's
+   * holder record names its pid with the guard's label. The lock library removes that record
+   * before it closes the flock (`release_heavy_lock` in `bin/heavy-lock-lib.sh`), so a record naming the guard proves the flock is still held.
+   * @throws when the record is present but unreadable: unknown, never "not held" or "held".
+   */
+  private guardHeld(holder: GuardHolder | null): boolean {
+    if (holder === null || !alive(holder)) return false;
+    const recorded = (name: string): string | null => {
+      try {
+        return readFileSync(join(`${holder.lockPath}.d`, name), 'utf8').trim();
+      } catch (cause) {
+        if (isMissing(cause)) return null;
+        throw new Error(`singleton guard record ${holder.lockPath}.d/${name} unreadable`, {
+          cause,
+        });
+      }
+    };
+    // Proof: trusting the identity alone made `a guard whose holder record names another pid
+    // is not held` (host-pool-mode.test.ts) admit a job (2026-11-02, Slice 6b).
+    return recorded('holder') === String(holder.pid) && recorded('label') === GUARD_LABEL;
+  }
+  /** The live fence of a `switch-mode` in progress, or null; a dead switcher's fence is void. */
+  private liveSwitch(): ModeSwitch | null {
+    const { switching } = this.poolRow();
+    return switching !== null && alive(switching) ? switching : null;
+  }
+  /** What keeps the pool from being drained of host jobs: queued tickets and unreleased compute. */
+  private undrained(): string[] {
+    return [
+      ...this.tickets().map((row) => `${row.label} (pid ${String(row.pid)}, waiting)`),
+      ...this.listHostJobs()
+        .filter((job) => job.compute.state !== 'released')
+        .map((job) => `${job.label} (${job.state}, compute ${job.compute.state})`),
+    ];
+  }
+  /**
+   * The singleton guard's obligation now (J12): `required` in concurrent mode while the guard is
+   * on; `demand` while any ticket is queued or any host job's compute is unreleased, the span in
+   * which a host job may be starting or running; the recorded holder, with whether it runs.
+   */
+  guardObligation(): {
+    required: boolean;
+    demand: boolean;
+    holder: (GuardHolder & { live: boolean }) | null;
+  } {
+    const transition = this.hostPoolTransition();
+    return {
+      required: transition.mode === 'concurrent' && transition.guard === 'on',
+      demand: this.undrained().length > 0,
+      holder: transition.guardHolder,
+    };
+  }
+  /**
+   * Record `pid`, whose shell holder now holds the flock at `lockPath` as {@link GUARD_LABEL},
+   * as the singleton guard. Returns false, recording nothing, when the guard is no longer
+   * required or a live holder is already recorded; the caller then releases its hold.
+   * @throws when `pid` has no readable identity.
+   */
+  recordGuardHolder(pid: number, lockPath: string): boolean {
+    const identity = identifyProcess(pid);
+    if (identity === null) throw new Error(`singleton guard holder ${String(pid)} is gone`);
+    return this.transaction(() => {
+      const pool = this.poolRow();
+      if (pool.mode !== 'concurrent' || pool.guard !== 'on') return false;
+      if (pool.guardHolder !== null && alive(pool.guardHolder)) return false;
+      const holder: GuardHolder = { ...identity, lockPath, since: this.clock.read() };
+      this.db
+        .query('UPDATE host_pool SET guard_holder=? WHERE id=1')
+        .run(JSON.stringify(GuardHolderShape.assert(holder)));
+      return true;
+    });
+  }
+  /**
+   * Forget the recorded guard holder once nothing needs it: always outside concurrent mode or
+   * with the guard released, otherwise only while no ticket is queued and no compute is held.
+   * Returns false, keeping the record, while demand remains; the caller releases the flock only
+   * after this commits, so admission never sees a guard the flock no longer backs.
+   */
+  clearGuardHolder(): boolean {
+    return this.transaction(() => {
+      const pool = this.poolRow();
+      const required = pool.mode === 'concurrent' && pool.guard === 'on';
+      // Proof: clearing under demand made `two Dash jobs overlap in concurrent mode while the
+      // guard is held` (host-pool-mode.test.ts) see the legacy caller run beside them (2026-11-02).
+      if (required && this.undrained().length > 0) return false;
+      this.db.query('UPDATE host_pool SET guard_holder=NULL WHERE id=1').run();
+      return true;
+    });
+  }
+  /**
+   * Stop intake for a switch of the pool to `target` (J12): from here every poll refuses 75
+   * until this process ends or {@link abandonModeSwitch}/{@link completeModeSwitch} clears it.
+   * @throws HostPoolModeRefusal 64 when the pool is in `target` already, 75 while another live
+   * `switch-mode` holds the fence.
+   */
+  beginModeSwitch(target: HostPoolModeName, operator: string): ModeSwitch {
+    const identity = identifyProcess(process.pid);
+    if (identity === null) throw new Error('switch-mode process identity unavailable');
+    return this.transaction(() => {
+      const pool = this.poolRow();
+      const other = pool.switching !== null && alive(pool.switching) ? pool.switching : null;
+      // Proof: without it `a second switch-mode is refused while the first drains`
+      // (host-pool-mode.test.ts) took the fence over (2026-11-02, Slice 6b).
+      if (other !== null)
+        throw new HostPoolModeRefusal(
+          75,
+          `host pool ${this.configuration.enrollmentId}: switch-mode ${other.target} by ${other.operator} (pid ${String(other.pid)}) is in progress`,
+        );
+      if (pool.mode === target)
+        throw new HostPoolModeRefusal(
+          64,
+          `host pool ${this.configuration.enrollmentId} is in ${target} mode already`,
+        );
+      const fence: ModeSwitch = { ...identity, target, operator, since: this.clock.read() };
+      this.db
+        .query('UPDATE host_pool SET switching=? WHERE id=1')
+        .run(JSON.stringify(ModeSwitchShape.assert(fence)));
+      return fence;
+    });
+  }
+  /** Reopen intake after a refused switch: clears the fence when it is this process's. */
+  abandonModeSwitch(): void {
+    const identity = identifyProcess(process.pid);
+    this.transaction(() => {
+      const { switching } = this.poolRow();
+      if (switching !== null && sameProcess(identity, switching))
+        this.db.query('UPDATE host_pool SET switching=NULL WHERE id=1').run();
+    });
+  }
+  /** What keeps the pool from being drained of host jobs, or nothing (J12). */
+  modeDrain(): string[] {
+    return this.undrained();
+  }
+  /**
+   * Flip the pool to `target` in one transaction (J12): the fence must be this process's, the
+   * pool drained of tickets and unreleased compute, and the record of who, when, from, to and
+   * `evidence` is written beside the flip. The guard is on after every flip, so concurrent mode
+   * starts guarded and a rollback leaves the next flip guarded.
+   * @throws HostPoolModeRefusal 75 when the pool is not drained or the fence is not this
+   * process's (another switch, or none).
+   */
+  completeModeSwitch(
+    target: HostPoolModeName,
+    operator: string,
+    account: string,
+    evidence: string[],
+  ): ModeRecord {
+    const identity = identifyProcess(process.pid);
+    return this.transaction(() => {
+      const pool = this.poolRow();
+      const fence = pool.switching;
+      if (fence === null || !sameProcess(identity, fence) || fence.target !== target)
+        throw new HostPoolModeRefusal(
+          75,
+          `host pool ${this.configuration.enrollmentId}: this switch-mode no longer holds the intake fence`,
+        );
+      const ahead = this.undrained();
+      // Proof: without it `switch-mode observe waits for the pool to drain of host jobs`
+      // (host-pool-mode.test.ts) flipped beside a held job (2026-11-02, Slice 6b).
+      if (ahead.length > 0)
+        throw new HostPoolModeRefusal(
+          75,
+          `host pool ${this.configuration.enrollmentId} is not drained of host jobs: ${ahead.join(', ')}`,
+        );
+      this.db
+        .query("UPDATE host_pool SET mode=?, guard='on', switching=NULL WHERE id=1")
+        .run(target);
+      return this.modeRecord({
+        at: this.clock.read(),
+        operator,
+        account,
+        action: 'switch',
+        from: pool.mode,
+        to: target,
+        evidence,
+      });
+    });
+  }
+  /**
+   * The operator's record that no stale checkout can execute (J12): the guard is released and
+   * concurrent mode runs on the pool alone; `watch` lets go of the flock on its next tick.
+   * @throws HostPoolModeRefusal 64 outside concurrent mode or with the guard already released,
+   * 75 while a `switch-mode` holds the fence.
+   */
+  releaseGuard(operator: string, account: string, evidence: string[]): ModeRecord {
+    return this.transaction(() => {
+      const pool = this.poolRow();
+      const fence = pool.switching !== null && alive(pool.switching) ? pool.switching : null;
+      if (fence !== null)
+        throw new HostPoolModeRefusal(
+          75,
+          `host pool ${this.configuration.enrollmentId}: switch-mode ${fence.target} by ${fence.operator} (pid ${String(fence.pid)}) is in progress`,
+        );
+      if (pool.mode !== 'concurrent' || pool.guard !== 'on')
+        throw new HostPoolModeRefusal(
+          64,
+          `host pool ${this.configuration.enrollmentId} has no guard to release: mode ${pool.mode}, guard ${pool.guard}`,
+        );
+      this.db.query("UPDATE host_pool SET guard='released' WHERE id=1").run();
+      return this.modeRecord({
+        at: this.clock.read(),
+        operator,
+        account,
+        action: 'release-guard',
+        from: 'concurrent guarded',
+        to: 'concurrent unguarded',
+        evidence,
+      });
+    });
+  }
+  private modeRecord(record: Omit<ModeRecord, 'sequence'>): ModeRecord {
+    const inserted = this.db
+      .query<{ sequence: number }, [string]>(
+        'INSERT INTO host_pool_mode_records(record) VALUES (?) RETURNING sequence',
+      )
+      .get(JSON.stringify(ModeRecordShape.assert(record)));
+    if (inserted === null) throw new Error('host pool mode record unwritten');
+    return { sequence: inserted.sequence, ...record };
+  }
+  /**
+   * Release every entry of a host job its own launcher admitted and never launched or prepared
+   * (J12): the legacy queue refused it, or the launcher was interrupted while queueing there.
+   * The launcher is this process and no payload, directory or tree write can have happened, so
+   * nothing waits for the launch grace; each unit still returns only on its own evidence.
+   * @throws when the job was prepared, launched, is not starting, or another process launched it.
+   */
+  withdrawUnlaunchedHostJob(id: string, reason: string): HostJob {
+    const identity = identifyProcess(process.pid);
+    return this.transaction(() => {
+      const job = this.inspectHostJob(id);
+      // Proof: without it `a withdrawal of a prepared job is refused` (host-pool-mode.test.ts)
+      // released a job whose tmp directory exists (2026-11-02, Slice 6b).
+      if (job.state !== 'starting' || job.process !== null || job.dev !== null)
+        throw new Error(`host job ${id} is not an unprepared admission`);
+      if (!sameProcess(identity, job.launcher))
+        throw new Error(`host job ${id} was admitted for another launcher`);
+      const before = settlementOf(job);
+      job.compute = { state: 'released', reason: `never launched: ${reason}` };
+      job.tmpDisk = this.tmpIntent(job);
+      job.units = job.units.map((unit) => ({ ...unit, ...this.unitEvidence(unit, job) }));
+      job.launchFailure = `payload did not run: ${reason}`;
+      job.endedAt = this.clock.read();
+      this.summarize(job);
+      this.scheduleSettlement(job);
+      this.recordSettlement(job, before);
+      return job;
+    });
   }
 }

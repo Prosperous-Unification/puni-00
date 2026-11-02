@@ -1,3 +1,4 @@
+import type { LegacyQueueStatus } from '../resources/legacy-lock';
 import type { HostPoolStatus } from '../resources/runtime';
 
 const GIB = 1024 ** 3;
@@ -18,17 +19,33 @@ export function formatSpan(milliseconds: number): string {
  * first for a calibration run, J9; type, label, pid,
  * age, envelope, peak so far, units held, settlement state), then each waiter oldest first (age,
  * budget left, overtake count). `peaks` maps a job id to the largest `memory.peak` its run
- * record sampled; a job with none reads `peak unmeasured`.
+ * record sampled; a job with none reads `peak unmeasured`. The pool line names the mode and, in
+ * concurrent mode, the singleton guard and its holder; a live `switch-mode` gets a line of its
+ * own. `legacy`, while the shell lock matters (observe mode, or the guard on), follows verbatim
+ * as `bin/with-heavy-lock.sh status` prints it, holder first (J12, J13).
  */
 export function formatHostPoolStatus(
   status: HostPoolStatus,
   peaks: ReadonlyMap<string, number | null>,
   now: number,
+  legacy: LegacyQueueStatus | null,
 ): string[] {
   const { allocatable, reserved } = status;
+  const holder = status.guardHolder;
+  const guard =
+    status.mode === 'observe'
+      ? ''
+      : status.guard === 'released'
+        ? ', guard released'
+        : `, guard on (${holder === null ? 'not held' : `held by pid ${String(holder.pid)}${holder.live ? '' : ', gone'}`})`;
   const lines = [
-    `host pool ${status.enrollmentId}: mode ${status.mode}; allocatable ${String(allocatable.cpuCores)} cores, ${String(allocatable.memoryGib)} GiB, ${String(allocatable.diskUnits)} disk units, ${String(allocatable.workspaceSlots)} slots; reserved ${String(reserved.cpuCores)} cores, ${String(reserved.memoryGib)} GiB, ${String(reserved.diskUnits)} disk units, ${String(reserved.workspaceSlots)} slots`,
+    `host pool ${status.enrollmentId}: mode ${status.mode}${guard}; allocatable ${String(allocatable.cpuCores)} cores, ${String(allocatable.memoryGib)} GiB, ${String(allocatable.diskUnits)} disk units, ${String(allocatable.workspaceSlots)} slots; reserved ${String(reserved.cpuCores)} cores, ${String(reserved.memoryGib)} GiB, ${String(reserved.diskUnits)} disk units, ${String(reserved.workspaceSlots)} slots`,
   ];
+  const fence = status.switching;
+  if (fence?.live === true)
+    lines.push(
+      `switching to ${fence.target} by ${fence.operator} pid ${String(fence.pid)} age ${formatSpan(now - fence.since)}; intake stopped`,
+    );
   if (status.jobs.length === 0) lines.push('running none');
   for (const job of status.jobs) {
     const { envelope } = job.descriptor;
@@ -53,5 +70,6 @@ export function formatHostPoolStatus(
     lines.push(
       `waiting ${waiter.calibration ? 'calibration ' : ''}${waiter.type} ${waiter.label} pid ${String(waiter.pid)} age ${formatSpan(now - waiter.arrivedAt)} budget ${formatSpan(waiter.deadline - now)} overtakes ${String(waiter.overtakes)}`,
     );
+  if (legacy !== null) lines.push(...legacy.lines);
   return lines;
 }

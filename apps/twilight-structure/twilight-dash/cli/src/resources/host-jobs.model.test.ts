@@ -26,7 +26,7 @@ import {
  * The host pool's admission queue and settlement against a model (`dash-host-jobs` J5, J6,
  * J2', J18), with `fc.asyncModelRun`. Seven contenders, each a real waiter process (`sleep`)
  * whose identity its ticket and job record, over two ledger connections, draw arrivals of five
- * job types (a gate holding a tree, a build, a whole-pool calibration, a type with declared
+ * job types (a gate holding a tree, a build, a plain run as large as the pool, a type with declared
  * containers, and one larger than the host), polls, preparations, launches of real payload
  * processes, payload exits, container stops, cancellations, clock advances across wait
  * budgets, the reclaim minute and the launch grace, settlement sweeps, and a crash of the
@@ -54,7 +54,8 @@ if (insideLinuxNamespace(import.meta.path)) {
     // Three gates fit every dimension but trees, so the unit check alone holds the third.
     jobType('gate', 2, 4, ['gate_tree']),
     jobType('website-dev-build', 2, 2),
-    jobType('calibration', 8, 13),
+    // A plain run whose envelope is the whole pool; not a calibration (that is CALIBRATION below).
+    jobType('whole-pool-run', 8, 13),
     { ...jobType('solver-image-publish', 1, 1), containers: { memoryGib: 1, cpuCores: 1 } },
     jobType('oversize', 4, 14),
     // A real calibration (J9): admitted only on a drained pool, charging the whole
@@ -71,7 +72,7 @@ if (insideLinuxNamespace(import.meta.path)) {
     barrierFormed: 0,
     overtakes: 0,
     treeBound: 0,
-    calibration: 0,
+    wholePoolRun: 0,
     drainedCalibration: 0,
     calibrationWaited: 0,
     reclaimed: 0,
@@ -345,7 +346,7 @@ if (insideLinuxNamespace(import.meta.path)) {
       }
       if (outcome.kind === 'admitted') {
         reached.admitted += 1;
-        if (TYPES[mine.type]?.id === 'calibration') reached.calibration += 1;
+        if (TYPES[mine.type]?.id === 'whole-pool-run') reached.wholePoolRun += 1;
         if (mine.type === CALIBRATION) {
           reached.drainedCalibration += 1;
           expect(outcome.job.calibration).toBe(true);

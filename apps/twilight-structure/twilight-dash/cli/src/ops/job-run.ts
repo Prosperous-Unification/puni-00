@@ -5,6 +5,12 @@ import { Readable, Writable } from 'node:stream';
 
 import type { Monotonic, WallClock } from '../clock';
 import {
+  holdLegacyLock,
+  jobHoldFile,
+  type LegacyHold,
+  type LegacyLock,
+} from '../resources/legacy-lock';
+import {
   type ContainerEvidence,
   declaredContainersOnly,
   type HostFacts,
@@ -20,7 +26,7 @@ import {
   toolchainOf,
 } from './catalogue';
 import { checkDockerAvailable, ContainerWatch, dockerContainerEvidence } from './containers';
-import { causeText, OpsRefusal } from './refusal';
+import { causeText, type OpsExitCode, OpsRefusal } from './refusal';
 import { HostJobRunRecords, type RunSample } from './run-records';
 import {
   checkScopeAvailable,
@@ -58,6 +64,8 @@ export interface JobRunDependencies {
   readonly settleBudgetMs: number;
   /** The account the linger fix names. */
   readonly user: string;
+  /** The shell lock every host job also queues on in observe mode (J12). */
+  readonly legacyLock: LegacyLock;
 }
 
 /**
@@ -338,6 +346,8 @@ async function executeHostJob(
   isCalibration: boolean,
 ): Promise<number> {
   const catalogued = readCataloguedJob(deps.cwd, request.type, request.argv);
+  // One total wait (J12): the pool's admission and, in observe mode, the shell lock's queue.
+  const arrivedAt = deps.clock.read();
   const toolchain = toolchainOf(deps.environment);
   const typeId = catalogued.descriptor.id;
   let runtime: ResourceRuntime;
@@ -406,29 +416,145 @@ async function executeHostJob(
     }
     if (admission.kind === 'refused') throw new OpsRefusal(admission.exitCode, admission.reason);
     if (admission.kind === 'waiting') throw new Error('host job admission returned while waiting');
+    // The pool's mode cannot change under an admitted job: a switch waits for every unreleased
+    // compute entry, this one included (J12).
+    const legacyHold =
+      runtime.hostPoolTransition().mode === 'observe'
+        ? await queueOnLegacyLock(runtime, admission.job, request, arrivedAt, deps, interruption)
+        : null;
     const containers =
       docker === null ? declaredContainersOnly : dockerContainerEvidence(docker, deps.environment);
-    return await runAdmitted(
-      runtime,
-      records,
-      admission.job,
-      catalogued,
-      systemdRun,
-      docker,
-      containers,
-      request,
-      toolchain,
-      deps,
-      interruption,
-      (handler) => {
-        forward.to = handler;
-      },
-    );
+    try {
+      return await runAdmitted(
+        runtime,
+        records,
+        admission.job,
+        catalogued,
+        systemdRun,
+        docker,
+        containers,
+        request,
+        toolchain,
+        deps,
+        interruption,
+        (handler) => {
+          forward.to = handler;
+        },
+      );
+    } finally {
+      if (legacyHold !== null) await endLegacyHold(runtime, admission.job.id, legacyHold, deps);
+    }
   } finally {
     for (const signal of signals) process.removeListener(signal, onSignal);
     records.close();
     runtime.close();
   }
+}
+
+/**
+ * Observe mode (J12): queue the admitted job on the shell lock with what is left of its one wait
+ * budget, so legacy callers and Dash jobs share one order. The hold's ticket, deadline, holder
+ * record and label (`dash-job-<id> <label>`) are the shell lock's own; the job launches only
+ * once it holds. A refusal or an interruption there withdraws the job, which was never prepared
+ * or launched, releasing its reservation at once.
+ * @throws OpsRefusal 75 when the shell lock gives no turn within the budget left, 129/130/143
+ * when interrupted while queued there, 70 for any other refusal of the shell lock.
+ */
+async function queueOnLegacyLock(
+  runtime: ResourceRuntime,
+  job: HostJob,
+  request: JobRunRequest,
+  arrivedAt: number,
+  deps: JobRunDependencies,
+  interruption: Interruption,
+): Promise<LegacyHold> {
+  // Whole seconds, rounded up: the shell lock counts its budget in seconds, and a sub-second
+  // admission must not cost a caller its last second (S6B-A3).
+  const remaining = Math.max(
+    0,
+    Math.ceil((arrivedAt + request.waitSeconds * 1000 - deps.clock.read()) / 1000),
+  );
+  const outcome = await holdLegacyLock(
+    deps.legacyLock,
+    {
+      holdFile: jobHoldFile(runtime.configuration.root, job.id),
+      label: `dash-job-${job.id} ${request.label}`,
+      waitSeconds: remaining,
+      pollSeconds: request.pollSeconds,
+      signal: interruption.signal,
+      report: deps.report,
+    },
+    deps.environment,
+  );
+  if (outcome.kind === 'held') return outcome.hold;
+  const signal = interruption.received();
+  const [code, reason]: [OpsExitCode, string] =
+    outcome.kind === 'cancelled'
+      ? [
+          interruptedCode(signal ?? 'SIGTERM'),
+          `interrupted by ${signal ?? 'SIGTERM'} while queued on the shell lock (observe mode)`,
+        ]
+      : outcome.exitCode === 75
+        ? [
+            75,
+            `the shell lock gave no turn within the ${String(remaining)}s left of its wait budget (observe mode)`,
+          ]
+        : [70, `the shell lock refused it with exit ${String(outcome.exitCode)} (observe mode)`];
+  // Proof: without the withdrawal `a legacy deadline withdraws the Dash job`
+  // (host-pool-mode.test.ts) left the job starting with its cores reserved (2026-11-02, Slice 6b).
+  runtime.withdrawUnlaunchedHostJob(job.id, reason);
+  throw new OpsRefusal(
+    code,
+    `ops job run: ${job.descriptor.id} ${job.label} refused: ${reason}; its reservation is withdrawn`,
+  );
+}
+
+/**
+ * Let go of the shell lock once the job's compute is released (J12): the payload's processes
+ * are gone, which is what the lock serialised. A compute entry still outstanding keeps the hold
+ * file, and `watch` removes it when that entry settles, so a surviving child never runs beside
+ * a legacy caller.
+ */
+async function endLegacyHold(
+  runtime: ResourceRuntime,
+  jobId: string,
+  hold: LegacyHold,
+  deps: JobRunDependencies,
+): Promise<void> {
+  let released: boolean;
+  try {
+    released = runtime.inspectHostJob(jobId).compute.state === 'released';
+  } catch (cause) {
+    deps.report(
+      `ops job: ${jobId} keeps the shell lock: its compute entry is unreadable (${causeText(cause)}); watch releases it`,
+    );
+    return;
+  }
+  if (!released) {
+    deps.report(
+      `ops job: ${jobId} keeps the shell lock until its compute settles; watch releases it`,
+    );
+    return;
+  }
+  hold.release();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const ended = await Promise.race([
+    hold.exited.then(
+      () => true,
+      () => true,
+    ),
+    new Promise<boolean>((resolveGrace) => {
+      timer = setTimeout(() => {
+        resolveGrace(false);
+      }, 10_000);
+    }),
+  ]);
+  clearTimeout(timer);
+  deps.report(
+    ended
+      ? `ops job: ${jobId} released the shell lock`
+      : `ops job: ${jobId} removed its shell lock hold; holder ${String(hold.pid)} has not exited yet`,
+  );
 }
 
 /** Kill the whole session of `pid`; a session already gone is not an error. */

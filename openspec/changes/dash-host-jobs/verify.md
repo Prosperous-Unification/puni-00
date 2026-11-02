@@ -1084,6 +1084,14 @@ true`, a gate naming `gate_tree`). It is admitted only on a drained model pool, 
 - **S4-A17** A ledger row without `reserved` (written before this fix) reads its reservation
   from its descriptor: the envelope, its tmp disk units and one slot, or `allocatable` if
   flagged `calibration`. No such calibration row exists outside this branch's tests.
+  Amended by slice 6b (S3 follow-up b): a `calibration` row without `reserved` now throws.
+  Calibration and `reserved` landed together, so such a row is a broken invariant, not an old
+  row.
+- **S4-A19** `propose` partitions records by `cataloguePath`: a record admitted from another
+  checkout's catalogue is named and left out. `audit` judges every record by job id against the
+  current checkout's catalogue. The two answer different questions: which measurements
+  describe this catalogue's entry, and whether any run overran what it was admitted under.
+  Recorded in `docs/resources.md`. Added by slice 6b, S3 follow-up d.
 
 #### Fault injection (review fixes)
 

@@ -222,7 +222,7 @@ if (insideLinuxNamespace(import.meta.path)) {
       const binding = db.query<{ identity: string }, []>('SELECT identity FROM binding').get();
       const legacy = (JSON.parse(binding?.identity ?? '[]') as string[]).slice(0, 11);
       db.run(
-        'DROP TABLE host_jobs; DROP TABLE host_job_tickets; DROP TABLE host_job_events; DROP TABLE host_pool; PRAGMA user_version=0',
+        'DROP TABLE host_jobs; DROP TABLE host_job_tickets; DROP TABLE host_job_events; DROP TABLE host_pool; DROP TABLE host_pool_mode_records; PRAGMA user_version=0',
       );
       db.query('UPDATE binding SET identity=?').run(
         JSON.stringify(legacy.map((field) => (field === 'runtime-one' ? 'runtime-two' : field))),
@@ -771,7 +771,7 @@ if (insideLinuxNamespace(import.meta.path)) {
       const binding = db.query<{ identity: string }, []>('SELECT identity FROM binding').get();
       const legacy = (JSON.parse(binding?.identity ?? '[]') as string[]).slice(0, 11);
       db.run(
-        'DROP TABLE host_jobs; DROP TABLE host_job_tickets; DROP TABLE host_job_events; DROP TABLE host_pool; CREATE TABLE stranger (id INTEGER); PRAGMA user_version=0',
+        'DROP TABLE host_jobs; DROP TABLE host_job_tickets; DROP TABLE host_job_events; DROP TABLE host_pool; DROP TABLE host_pool_mode_records; CREATE TABLE stranger (id INTEGER); PRAGMA user_version=0',
       );
       db.query('UPDATE binding SET identity=?').run(JSON.stringify(legacy));
       db.close();
@@ -828,6 +828,16 @@ if (insideLinuxNamespace(import.meta.path)) {
           'must be an absolute normalized path',
         ],
         [{ exclusiveUnits: { gate_tree: ['/x/../y'] } }, 'must be an absolute normalized path'],
+        [
+          { launcherCheckouts: ['relative/checkout'] },
+          'launcher checkout relative/checkout must be',
+        ],
+        [{ launcherCheckouts: ['/x/a', '/x/a'] }, 'launcher checkout /x/a is named twice'],
+        [{ concurrencyEligible: ['Gate'] }, 'concurrency-eligible type Gate is not a job type id'],
+        [
+          { concurrencyEligible: ['gate', 'gate'] },
+          'concurrency-eligible type gate is named twice',
+        ],
       ];
       for (const [overrides, refusal] of rows) {
         const fixture = hostPoolFixture(shape, overrides);
@@ -916,6 +926,43 @@ if (insideLinuxNamespace(import.meta.path)) {
       runtime.close();
     });
 
+    test('migrates a version-1 ledger to the transition state, keeping its mode', () => {
+      const { root, config, runtime } = pool(scenarioPool);
+      runtime.close();
+      const ledger = join(root, '.dash', 'resources.sqlite');
+      // Reduce the fresh ledger to exactly what slices 2 to 5 wrote (version 1).
+      const db = new Database(ledger);
+      db.run(
+        'DROP TABLE host_pool_mode_records; ALTER TABLE host_pool DROP COLUMN guard; ALTER TABLE host_pool DROP COLUMN guard_holder; ALTER TABLE host_pool DROP COLUMN switching; PRAGMA user_version=1',
+      );
+      db.close();
+      const migrated = ResourceRuntime.open(loadResourceConfiguration(config), clock);
+      try {
+        expect(migrated.hostPoolTransition()).toEqual({
+          mode: 'observe',
+          guard: 'on',
+          guardHolder: null,
+          switching: null,
+        });
+        expect(migrated.modeRecords()).toEqual([]);
+      } finally {
+        migrated.close();
+      }
+    });
+
+    test('refuses a version-1 ledger with unexpected tables', () => {
+      const { root, config, runtime } = pool(scenarioPool);
+      runtime.close();
+      const db = new Database(join(root, '.dash', 'resources.sqlite'));
+      db.run(
+        'DROP TABLE host_pool_mode_records; ALTER TABLE host_pool DROP COLUMN guard; ALTER TABLE host_pool DROP COLUMN guard_holder; ALTER TABLE host_pool DROP COLUMN switching; CREATE TABLE stranger (id INTEGER); PRAGMA user_version=1',
+      );
+      db.close();
+      expect(() => ResourceRuntime.open(loadResourceConfiguration(config), clock)).toThrow(
+        'resource ledger version 1 has unexpected tables: binding, cursor, events, host_job_events, host_job_tickets, host_jobs, host_pool, sqlite_sequence, stranger, uses',
+      );
+    });
+
     test('migration names the ledger and the version step once', () => {
       const { root, config, runtime } = pool(scenarioPool);
       runtime.close();
@@ -924,7 +971,7 @@ if (insideLinuxNamespace(import.meta.path)) {
       const binding = db.query<{ identity: string }, []>('SELECT identity FROM binding').get();
       const legacy = (JSON.parse(binding?.identity ?? '[]') as string[]).slice(0, 11);
       db.run(
-        'DROP TABLE host_jobs; DROP TABLE host_job_tickets; DROP TABLE host_job_events; DROP TABLE host_pool; PRAGMA user_version=0',
+        'DROP TABLE host_jobs; DROP TABLE host_job_tickets; DROP TABLE host_job_events; DROP TABLE host_pool; DROP TABLE host_pool_mode_records; PRAGMA user_version=0',
       );
       db.query('UPDATE binding SET identity=?').run(JSON.stringify(legacy));
       db.close();
@@ -941,7 +988,7 @@ if (insideLinuxNamespace(import.meta.path)) {
         process.stderr.write = write;
       }
       expect(lines).toEqual([
-        `resources: migrated ledger ${ledger} from version 0 to 1 (host pool)\n`,
+        `resources: migrated ledger ${ledger} from version 0 to 2 (host pool)\n`,
       ]);
     });
   });

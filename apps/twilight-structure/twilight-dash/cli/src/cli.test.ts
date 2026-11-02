@@ -464,6 +464,7 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
       'job status',
       'pool init',
       'pool inspect',
+      'pool switch-mode',
     ]);
   });
 
@@ -471,7 +472,7 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
     // A JavaScript caller bypassing the parser; the type admits only declared words.
     const bypass = {
       command: 'ops',
-      words: 'pool switch-mode',
+      words: 'pool teleport',
       config: 'x',
     } as unknown as OpsCommand;
     let refusal: unknown;
@@ -486,12 +487,15 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
         telemetry: linuxScopeTelemetry(),
         host: { cpuCores: () => 1, memoryGib: () => 1 },
         user: 'nobody',
+        legacyLock: () => {
+          throw new Error('no ops command ran');
+        },
       });
     } catch (cause) {
       refusal = cause;
     }
     expect(refusal instanceof Error && refusal.message).toBe(
-      'Unsupported Dash command: ops pool switch-mode',
+      'Unsupported Dash command: ops pool teleport',
     );
   });
 
@@ -642,6 +646,9 @@ describe('help shows each delegated module grammar', () => {
       () => undefined,
       () => {
         throw new Error('resources connected before refusing');
+      },
+      () => {
+        throw new Error('resources read the shell lock before refusing');
       },
     ).catch((cause: unknown) => (cause instanceof Error ? cause.message : String(cause)));
     const actions = String(refusal)
