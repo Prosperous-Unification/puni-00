@@ -255,7 +255,9 @@ test('store commands refuse grammar faults before any state', async () => {
   ];
   for (const argv of cases) {
     const { refusal, output } = await refusalOf(argv);
-    expect(refusal.message, argv.join(' ')).toBe(`usage: twilight-dash ${argv[0]} <service.json>`);
+    expect(refusal.message, argv.join(' ')).toMatch(
+      new RegExp(`^usage: twilight-dash ${argv[0]} SERVICE_JSON \\(.+\\)$`),
+    );
     expect(output, argv.join(' ')).toEqual([]);
     expect(readdirSync(configuration.stateDirectory), argv.join(' ')).toEqual([]);
   }

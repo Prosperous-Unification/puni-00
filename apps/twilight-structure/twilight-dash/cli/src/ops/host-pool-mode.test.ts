@@ -6,10 +6,15 @@ import { join } from 'node:path';
 import { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, test } from 'bun:test';
 
+import { parseDashRequest } from '../cli-parser';
 import { monotonicClock, wallClock } from '../clock';
 import { fakeCredential } from '../compute/testing/credential';
 import { WbsUnreachable } from '../mcp/wbs-tools';
 import { runResources } from '../resources/command';
+
+/** `resources <argv>` as the parser hands it to `runResources`. */
+const resourcesCommand = (argv: readonly string[]) =>
+  parseDashRequest('resources', ['resources', ...argv]);
 import {
   ampleHost,
   fixtureGit,
@@ -920,10 +925,11 @@ if (insideOpsNamespace(import.meta.path)) {
         script,
         [
           `import { runResources } from ${JSON.stringify(join(import.meta.dir, '..', 'resources', 'command'))};`,
+          `import { parseDashRequest } from ${JSON.stringify(join(import.meta.dir, '..', 'cli-parser'))};`,
           `import { WbsUnreachable } from ${JSON.stringify(join(import.meta.dir, '..', 'mcp', 'wbs-tools'))};`,
           `const lock = ${JSON.stringify(fixture.lock)};`,
           'const tools = { call: async () => { throw new WbsUnreachable("fixture WBS is down"); }, close: async () => undefined };',
-          `process.exitCode = await runResources(['watch', '--config', ${JSON.stringify(fixture.config)}], { read: () => Date.now() }, () => undefined, () => tools, () => lock);`,
+          `process.exitCode = await runResources(parseDashRequest('resources', ['resources', 'watch', '--config', ${JSON.stringify(fixture.config)}]), { read: () => Date.now() }, () => undefined, () => tools, () => lock);`,
         ].join('\n'),
       );
       const watch = spawn(process.execPath, [script], { stdio: ['ignore', 'ignore', 'inherit'] });
@@ -998,7 +1004,7 @@ if (insideOpsNamespace(import.meta.path)) {
       };
       expect(
         await runResources(
-          ['sweep', '--config', fixture.config],
+          resourcesCommand(['sweep', '--config', fixture.config]),
           clock,
           (text) => out.push(text),
           () => tools,

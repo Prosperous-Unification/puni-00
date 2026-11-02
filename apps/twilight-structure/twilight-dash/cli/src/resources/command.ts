@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 
+import type { DashRequest } from '../cli-parser';
 import type { WallClock } from '../clock';
 import type { ApiKey, McpEndpoint } from '../mcp/machine-token';
 import type { WbsTools } from '../mcp/wbs-tools';
@@ -14,60 +15,22 @@ import {
 import { SingletonGuard } from './singleton-guard';
 
 /**
- * Parse the complete resource CLI grammar before reading credentials or opening the ledger.
- * `connect` opens WBS's tools for the configured MCP endpoint and key; it is called once, and
- * the tools are closed before the command returns. `legacyLock` is resolved only when `watch`'s
- * singleton guard first needs the shell lock (`dash-host-jobs` J12).
+ * Runs one parsed `resources` action (its grammar is `cli-parser.ts`'s, parsed before this reads
+ * credentials or opens the ledger). `connect` opens WBS's tools for the configured MCP endpoint
+ * and key; it is called once, and the tools are closed before the command returns. `legacyLock`
+ * is resolved only when `watch`'s singleton guard first needs the shell lock (`dash-host-jobs`
+ * J12).
  */
 export async function runResources(
-  argv: readonly string[],
+  request: DashRequest<'resources'>,
   clock: WallClock,
   write: (text: string) => unknown,
   connect: (endpoint: McpEndpoint, key: ApiKey) => WbsTools,
   legacyLock: () => LegacyLock,
 ): Promise<number> {
-  const action = argv.at(0);
-  const tail = argv.slice(1);
-  const actions = ['init', 'create', 'exec', 'run', 'inspect', 'cleanup', 'sweep', 'sync', 'watch'];
-  if (action === undefined || !actions.includes(action))
-    throw new Error(
-      'resources requires init, create, exec, run, inspect, cleanup, sweep, sync, or watch',
-    );
-  const separator = tail.indexOf('--');
-  const flags = separator < 0 ? tail : tail.slice(0, separator);
-  const command = separator < 0 ? [] : tail.slice(separator + 1);
-  const allowed = new Set([
-    '--config',
-    ...(['create', 'exec'].includes(action) ? ['--request'] : []),
-    ...(['run', 'inspect', 'cleanup'].includes(action) ? ['--use'] : []),
-    ...(action === 'cleanup' ? ['--revision', '--incarnation', '--reason'] : []),
-  ]);
-  const values = new Map<string, string>();
-  for (let index = 0; index < flags.length; index += 2) {
-    const name = flags[index];
-    const value = flags[index + 1];
-    if (!name || !allowed.has(name) || values.has(name) || !value || value.startsWith('--'))
-      throw new Error('invalid resource command flags');
-    values.set(name, value);
-  }
-  const required = (name: string): string => {
-    const value = values.get(name);
-    if (!value) throw new Error(`resources requires ${name}`);
-    return value;
-  };
-  const config = required('--config');
-  if (['create', 'exec'].includes(action)) required('--request');
-  if (['run', 'cleanup'].includes(action)) required('--use');
-  if (action === 'cleanup') {
-    required('--incarnation');
-    required('--reason');
-    if (!/^[1-9]\d*$/.test(required('--revision'))) throw new Error('invalid resource revision');
-  }
-  if (['exec', 'run'].includes(action) !== command.length > 0)
-    throw new Error('resources exec/run requires -- followed by a command');
-  const configuration = loadResourceConfiguration(config);
+  const configuration = loadResourceConfiguration(request.config);
   const runtime =
-    action === 'init'
+    request.action === 'init'
       ? ResourceRuntime.initialize(configuration, clock, linuxHostFacts)
       : ResourceRuntime.open(configuration, clock);
   const report = (value: unknown): void => {
@@ -81,7 +44,7 @@ export async function runResources(
   process.once('SIGTERM', cancel);
   process.once('SIGINT', cancel);
   try {
-    if (action === 'init') {
+    if (request.action === 'init') {
       report({
         initialized: true,
         root: configuration.root,
@@ -90,24 +53,24 @@ export async function runResources(
       });
       return 0;
     }
-    if (action === 'inspect') {
-      const id = values.get('--use');
+    if (request.action === 'inspect') {
+      const id = request.use;
       report(id === undefined ? runtime.list() : runtime.inspect(id));
       return 0;
     }
-    if (action === 'create' || action === 'exec') {
-      let request: unknown;
+    if (request.action === 'create' || request.action === 'exec') {
+      let creation: unknown;
       try {
-        request = JSON.parse(readFileSync(required('--request'), 'utf8'));
+        creation = JSON.parse(readFileSync(request.request, 'utf8'));
       } catch {
         throw new Error('resource request file unreadable or malformed');
       }
       // ResourceRuntime.create validates this untrusted JSON once at its public boundary.
-      const use = await runtime.create(request as CreationRequest, tools);
+      const use = await runtime.create(creation as CreationRequest, tools);
       report(use);
-      if (action === 'create') return 0;
+      if (request.action === 'create') return 0;
       try {
-        return await runtime.run(use.id, command, cancellation.signal);
+        return await runtime.run(use.id, request.argv, cancellation.signal);
       } finally {
         const latest = runtime.inspect(use.id);
         if (!latest.sealed && latest.state !== 'released')
@@ -121,10 +84,10 @@ export async function runResources(
         report(runtime.inspect(use.id));
       }
     }
-    if (action === 'run') {
-      const id = required('--use');
+    if (request.action === 'run') {
+      const id = request.use;
       try {
-        return await runtime.run(id, command, cancellation.signal);
+        return await runtime.run(id, request.argv, cancellation.signal);
       } finally {
         const latest = runtime.inspect(id);
         if (!latest.sealed && latest.state !== 'released')
@@ -138,19 +101,14 @@ export async function runResources(
         report(runtime.inspect(id));
       }
     }
-    if (action === 'cleanup') {
+    if (request.action === 'cleanup') {
       report(
-        runtime.requestCleanup(
-          required('--use'),
-          Number(required('--revision')),
-          required('--incarnation'),
-          required('--reason'),
-        ),
+        runtime.requestCleanup(request.use, request.revision, request.incarnation, request.reason),
       );
       report(runtime.sweep());
       return 0;
     }
-    if (action === 'sweep') {
+    if (request.action === 'sweep') {
       report(runtime.sweep());
       // Dead tickets go too, so neither a switch's drain nor the guard's demand waits on them
       // (review K3).
@@ -167,7 +125,7 @@ export async function runResources(
       report({ legacyHolds: holds });
       return 0;
     }
-    if (action === 'sync') {
+    if (request.action === 'sync') {
       await runtime.synchronize(tools);
       report({ cursor: runtime.requestCursor(), pendingEvents: runtime.outbox().length });
       return 0;

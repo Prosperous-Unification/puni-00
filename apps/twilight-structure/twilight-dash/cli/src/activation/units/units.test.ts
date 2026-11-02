@@ -276,8 +276,8 @@ test('render-observation-units refuses a malformed grammar before any effect', a
         () => 'resolved',
         (cause: unknown) => String(cause),
       );
-      expect(refusal, JSON.stringify(argv)).toBe(
-        'Error: Usage: render-observation-units <layout.json> <new-dir>',
+      expect(refusal, JSON.stringify(argv)).toMatch(
+        /^UsageRefusal: usage: twilight-dash render-observation-units LAYOUT_JSON NEW_DIRECTORY \(.+\)$/,
       );
       expect(existsSync(outputDirectory), JSON.stringify(argv)).toBe(false);
     }

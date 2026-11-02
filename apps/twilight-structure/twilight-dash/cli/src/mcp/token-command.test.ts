@@ -4,8 +4,12 @@ import { join } from 'node:path';
 
 import { afterAll, afterEach, describe, expect, test } from 'bun:test';
 
+import { parseDashRequest } from '../cli-parser';
 import { urlOf } from './machine-token';
 import { runMcpCommand } from './token-command';
+
+/** `mcp <argv>` as the parser hands it to `runMcpCommand`. */
+const tokenCommand = (argv: readonly string[]) => parseDashRequest('mcp', ['mcp', ...argv]);
 
 /**
  * `mcp token` against a fake token endpoint, for what the real stack
@@ -60,8 +64,8 @@ function scripted(answers: { at: number; answer: () => Response }[]) {
   const requests: { url: string; form: URLSearchParams; authorization: string | null }[] = [];
   const sleeps: number[] = [];
   const printed: string[] = [];
-  const run = (flags: readonly string[] = ['--key-file', keyPath]): Promise<unknown> =>
-    runMcpCommand(['token', '--resource', RESOURCE, ...flags], {
+  const run = async (flags: readonly string[] = ['--key-file', keyPath]): Promise<unknown> =>
+    runMcpCommand(tokenCommand(['token', '--resource', RESOURCE, ...flags]), {
       send: (input, init) => {
         const headers = new Headers(init?.headers);
         requests.push({
@@ -184,13 +188,13 @@ describe('the token request', () => {
     const seen: string[] = [];
     const printed: string[] = [];
     await runMcpCommand(
-      [
+      tokenCommand([
         'token',
         '--resource',
         RESOURCE,
         '--github-actions-audience',
         'https://wbs.example/mcp/oauth',
-      ],
+      ]),
       {
         send: (input, init) => {
           const url = urlOf(input);
@@ -221,16 +225,19 @@ describe('the token request', () => {
     const sent: unknown[] = [];
     expect(
       await rejection(
-        runMcpCommand(['token', '--resource', RESOURCE, '--github-actions-audience', 'wbs'], {
-          send: (input) => {
-            sent.push(input);
-            return Promise.reject(new Error('nothing is sent'));
+        runMcpCommand(
+          tokenCommand(['token', '--resource', RESOURCE, '--github-actions-audience', 'wbs']),
+          {
+            send: (input) => {
+              sent.push(input);
+              return Promise.reject(new Error('nothing is sent'));
+            },
+            monotonic: { now: () => 0 },
+            sleep: () => Promise.resolve(),
+            environment: { ACTIONS_ID_TOKEN_REQUEST_URL: 'https://actions.example/token' },
+            write: () => undefined,
           },
-          monotonic: { now: () => 0 },
-          sleep: () => Promise.resolve(),
-          environment: { ACTIONS_ID_TOKEN_REQUEST_URL: 'https://actions.example/token' },
-          write: () => undefined,
-        }),
+        ),
       ),
     ).toContain('ACTIONS_ID_TOKEN_REQUEST_TOKEN is required');
     expect(sent).toEqual([]);
@@ -247,7 +254,7 @@ describe('refusals before any request', () => {
     ['an unknown flag', ['--key-file', keyPath, '--key', KEY]],
   ])('refuses %s', async (_label, flags) => {
     const helper = scripted([{ at: 0, answer: issued }]);
-    expect(await rejection(helper.run(flags))).toContain('usage: mcp token');
+    expect(await rejection(helper.run(flags))).toContain('usage: twilight-dash mcp token ');
     expect(helper.requests).toEqual([]);
   });
 
@@ -255,20 +262,23 @@ describe('refusals before any request', () => {
     const helper = scripted([{ at: 0, answer: issued }]);
     expect(
       await rejection(
-        runMcpCommand(['token', '--resource', 'http://wbs.example/mcp', '--key-file', keyPath], {
-          send: (input) => {
-            helper.requests.push({
-              url: urlOf(input),
-              form: new URLSearchParams(),
-              authorization: null,
-            });
-            return Promise.resolve(issued());
+        runMcpCommand(
+          tokenCommand(['token', '--resource', 'http://wbs.example/mcp', '--key-file', keyPath]),
+          {
+            send: (input) => {
+              helper.requests.push({
+                url: urlOf(input),
+                form: new URLSearchParams(),
+                authorization: null,
+              });
+              return Promise.resolve(issued());
+            },
+            monotonic: { now: () => 0 },
+            sleep: () => Promise.resolve(),
+            environment: {},
+            write: () => undefined,
           },
-          monotonic: { now: () => 0 },
-          sleep: () => Promise.resolve(),
-          environment: {},
-          write: () => undefined,
-        }),
+        ),
       ),
     ).toContain('--resource must be https, or http on loopback');
     expect(helper.requests).toEqual([]);
@@ -381,13 +391,13 @@ describe('a redirect of the token request', () => {
     writeFileSync(assertionPath, 'workload.assertion.jwt');
     const printed: string[] = [];
     const refusal = runMcpCommand(
-      [
+      tokenCommand([
         'token',
         '--resource',
         `http://127.0.0.1:${String(endpoint.port)}/mcp`,
         '--assertion-file',
         assertionPath,
-      ],
+      ]),
       {
         send: (input, init) => fetch(input, init),
         monotonic: { now: () => 0 },

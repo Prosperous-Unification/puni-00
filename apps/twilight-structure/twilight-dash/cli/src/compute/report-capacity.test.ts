@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { afterAll, describe, expect, test } from 'bun:test';
 
+import { parseDashRequest } from '../cli-parser';
 import { ApiKey, mcpEndpointOf } from '../mcp/machine-token';
 import { scriptedTools } from '../mcp/testing/scripted-tools';
 import { type ToolAnswer, WbsUnreachable } from '../mcp/wbs-tools';
@@ -568,7 +569,7 @@ describe('a stub provider', () => {
     const spy = spyingStub();
     const exit = await exitOf(
       reportCapacityCommand(
-        ['--config', configPath],
+        parseDashRequest('report-capacity', ['report-capacity', '--config', configPath]),
         { kubernetes: spy.adapter },
         dependencies(() => tools, 0).deps,
       ),

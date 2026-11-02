@@ -3,83 +3,11 @@ import { join } from 'node:path';
 
 import { canonicalJson } from '@twilight-burokrat/contracts';
 
+import type { DashRequest } from '../cli-parser';
 import { listAcceptedOutcomes, readRepositorySlug } from './accepted-outcomes';
 import { buildEfficiencyBreakdown, renderEfficiencyBreakdown } from './efficiency-breakdown';
 import { importHarnessUsage } from './harness-usage';
 import { loadRateCard } from './rate-card';
-
-const singleFlags = ['--repository', '--since', '--until', '--rate-card', '--output'] as const;
-const repeatedFlags = ['--claude-projects', '--codex-sessions'] as const;
-type SingleFlag = (typeof singleFlags)[number];
-type RepeatedFlag = (typeof repeatedFlags)[number];
-
-export const usage =
-  'usage: dash account-outcomes --repository <path> --since <instant> --until <instant> --rate-card <path> --output <new-dir> [--claude-projects <dir>]... [--codex-sessions <dir>]...';
-
-interface Invocation {
-  readonly single: (flag: SingleFlag) => string;
-  readonly repeated: (flag: RepeatedFlag) => readonly string[];
-}
-
-const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
-
-/** The whole grammar is resolved before any directory, repository or card is touched. */
-function parseInvocation(argv: readonly string[]): Invocation {
-  const single = new Map<SingleFlag, string>();
-  const repeated = new Map<RepeatedFlag, string[]>();
-  for (let position = 0; position < argv.length; position += 2) {
-    const flag = argv.at(position);
-    const value = argv.at(position + 1);
-    // Proof: removing value rejection let `--output` swallow the next flag in
-    // `a valueless flag refuses before reading` (2026-10-22).
-    if (
-      flag === undefined ||
-      value === undefined ||
-      value.trim().length === 0 ||
-      value.startsWith('--')
-    ) {
-      throw new Error(usage);
-    }
-    if ((singleFlags as readonly string[]).includes(flag)) {
-      // Proof: removing duplicate rejection let the second `--since` win silently.
-      if (single.has(flag as SingleFlag)) throw new Error(usage);
-      single.set(flag as SingleFlag, value);
-      continue;
-    }
-    if ((repeatedFlags as readonly string[]).includes(flag)) {
-      repeated.set(flag as RepeatedFlag, [...(repeated.get(flag as RepeatedFlag) ?? []), value]);
-      continue;
-    }
-    // Proof: removing the allowlist reached the repository with an unknown flag in
-    // `unknown flags refuse before reading`.
-    throw new Error(usage);
-  }
-  for (const flag of singleFlags) if (!single.has(flag)) throw new Error(usage);
-  if (
-    (repeated.get('--claude-projects')?.length ?? 0) +
-      (repeated.get('--codex-sessions')?.length ?? 0) ===
-    0
-  ) {
-    throw new Error(usage);
-  }
-  const since = requireFlag(single, '--since');
-  const until = requireFlag(single, '--until');
-  if (!INSTANT.test(since) || !INSTANT.test(until)) {
-    throw new Error('period bounds must be UTC instants like 2026-10-15T00:00:00Z');
-  }
-  // Proof: dropping this check made an empty period print a breakdown of nothing.
-  if (!(until > since)) throw new Error('--until must be after --since');
-  return {
-    single: (flag) => requireFlag(single, flag),
-    repeated: (flag) => repeated.get(flag) ?? [],
-  };
-}
-
-function requireFlag(values: ReadonlyMap<SingleFlag, string>, flag: SingleFlag): string {
-  const value = values.get(flag);
-  if (value === undefined) throw new Error(usage);
-  return value;
-}
 
 /** Creates one new owner-only file; a write or close failure removes only that file. */
 function publish(path: string, bytes: string): void {
@@ -105,23 +33,25 @@ function publish(path: string, bytes: string): void {
  * Turns one period's harness logs, the repository's merge history and a rate card into an
  * efficiency breakdown: `harness-usage.json`, `efficiency-breakdown.json` and
  * `efficiency-breakdown.md` in a new output directory, then one summary line. Dash reads no
- * clock here; the period is the caller's statement.
+ * clock here; the period is the caller's statement, its bounds and order checked by
+ * `cli-parser.ts` before this runs.
  *
- * @throws on invalid invocation, an existing output path, an absent or malformed input, or a
- * repository without `main` or an `origin` on GitHub. Nothing is written before every input
- * has been read and folded.
+ * @throws on an existing output path, an absent or malformed input, or a repository without
+ * `main` or an `origin` on GitHub. Nothing is written before every input has been read and
+ * folded.
  */
-export function accountOutcomes(argv: readonly string[], write: (text: string) => unknown): void {
-  const invocation = parseInvocation(argv);
-  const output = invocation.single('--output');
-  const repository = invocation.single('--repository');
-  const period = { since: invocation.single('--since'), until: invocation.single('--until') };
-  const rateCard = loadRateCard(invocation.single('--rate-card'));
+export function accountOutcomes(
+  request: DashRequest<'account-outcomes'>,
+  write: (text: string) => unknown,
+): void {
+  const { output, repository } = request;
+  const period = { since: request.since, until: request.until };
+  const rateCard = loadRateCard(request.rateCard);
   const slug = readRepositorySlug(repository);
   const outcomes = listAcceptedOutcomes(repository, period);
   const usage = importHarnessUsage({
-    claudeProjects: invocation.repeated('--claude-projects'),
-    codexSessions: invocation.repeated('--codex-sessions'),
+    claudeProjects: request.claudeProjects,
+    codexSessions: request.codexSessions,
     period,
     repositorySlug: slug,
   });
