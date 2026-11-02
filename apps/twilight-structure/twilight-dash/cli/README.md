@@ -18,6 +18,18 @@ and exposes the local commands below, plus the managed resource runtime:
 | `report-capacity --config <owner-only file>`                                                                                                                              | measures each bound resource through its compute provider and reports it to WBS until a refusal; see [`report-capacity`](#report-capacity)                                                       |
 | `mcp token --resource <url> (--key-file <path> \| --assertion-file <path> \| --github-actions-audience <aud>) [--run <id>]`                                               | prints a fresh WBS MCP bearer as a header map for Claude Code's `headersHelper`, from an API key or a workload token; see [`mcp token`](#mcp-token)                                              |
 | `pool import <pool-keys.json> --store <directory>`                                                                                                                        | stores an agent pool's keys for `mcp token`, each agent with its own MCP config and run, after every key issued a token; see [`pool import`](#pool-import)                                       |
+| `ops job run --config <path> --type <id> [--label <lane>] [--wait-seconds <n>] [--poll-seconds <n>] -- <command>...`                                                      | admits a host job from the host pool, runs it measured in its own systemd user scope and exits with its status; see [host jobs](docs/resources.md#ops-pool-and-ops-job-slice-3)                  |
+| `ops job status --config <path>`                                                                                                                                          | prints the running host jobs, then the waiters oldest first; see [host jobs](docs/resources.md#ops-pool-and-ops-job-slice-3)                                                                     |
+| `ops pool init --config <path>`, `ops pool inspect --config <path>`                                                                                                       | initialize the host pool (the resource ledger and its run records), or print it as JSON; see [host jobs](docs/resources.md#ops-pool-and-ops-job-slice-3)                                         |
+
+`twilight-dash --help` and `twilight-dash help <command>` print help generated from the
+[command-line parser](src/cli-parser.ts) on stdout and exit 0; `twilight-dash completion bash|zsh|fish`
+prints a shell completion script. A refused command line prints one `error: ` line on stderr and
+exits 1 (64 for an `ops` command): `Unsupported Dash command: <name>`, or the command's
+`usage: twilight-dash <command> …` line with the reason. `plan-enrollment` and the `ops` commands
+are parsed whole by the parser; every other command hands the words after its name (after
+`mcp token` and `pool import`, their two words) to its own module unchanged, which checks them
+and refuses in its own usage line.
 
 ## Managed resource cleanup
 
@@ -26,6 +38,8 @@ directories, Git worktrees and their commands through a separate durable reserva
 Start with the [resource runbook](docs/resources.md) for the current-account setup and cleanup inspection requirements,
 owner-only enrollment, automatic Claude/Codex command wrappers, copied generated dependencies,
 WBS authority binding and truthful cleanup blockers. Existing unmanaged sessions are untracked.
+The same ledger is the host pool that admits host jobs (gates, release builds) by cores, memory,
+disk and exclusive units, host-locally: see [host pool and host jobs](docs/resources.md#host-pool-and-host-jobs).
 
 ## Activation controller
 

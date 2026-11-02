@@ -21,7 +21,7 @@ import {
 } from '@twilight-burokrat/contracts';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'bun:test';
 
-import { runDash } from '../cli';
+import { runDashArguments } from '../cli';
 
 const navigatorRoot = join(import.meta.dir, '../../../../twilight-navigator/cli/src');
 const burokrat = join(import.meta.dir, '../../../../twilight-burokrat/cli/src/cli.ts');
@@ -474,7 +474,7 @@ test('dispatcher uses no clocks or fleet planner', async () => {
   const forbidden = () => {
     throw new Error('forbidden dependency');
   };
-  await runDash(['record-progress', ...buildFlags()], {
+  await runDashArguments(['record-progress', ...buildFlags()], {
     clock: { read: forbidden },
     monotonic: { now: forbidden },
     planEnrollment: forbidden,

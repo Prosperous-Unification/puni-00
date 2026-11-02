@@ -12,7 +12,7 @@ import {
 } from '@twilight-burokrat/judge';
 import { afterAll, describe, expect, test } from 'bun:test';
 
-import { runDash } from '../cli';
+import { runDashArguments } from '../cli';
 import type { WallClock } from '../clock';
 import {
   activationCheckAuthority,
@@ -183,7 +183,7 @@ describe('twilight-dash run-activation-checks', () => {
       const fixture = candidate({ skipping });
       const checkRuns = join(scratch(), 'check-runs');
       let output = '';
-      await runDash(['run-activation-checks', ...argvFor(fixture, checkRuns)], {
+      await runDashArguments(['run-activation-checks', ...argvFor(fixture, checkRuns)], {
         clock: steppingClock(),
         monotonic: { now: () => 0 },
         planEnrollment: () => Promise.reject(new Error('no enrollment here')),

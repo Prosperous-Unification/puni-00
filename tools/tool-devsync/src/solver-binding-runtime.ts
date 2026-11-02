@@ -224,6 +224,7 @@ export function createTargetSolverBindingRuntime(
           'install',
           '--frozen-lockfile',
         ]);
+        // Job type `solver-image-publish` in infra/jobs/catalogue.json.
         await run(
           'solver image publish',
           [
