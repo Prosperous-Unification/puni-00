@@ -500,6 +500,15 @@ function outerOperation<Arguments extends unknown[], Returned>(
 function joinPrehelperRefusal(): Promise<boolean> {
   if (!parent.stopped || parent.spawnEntered || parent.originals.length !== 0)
     return Promise.resolve(false);
+  // Proof: source-image MODEL C omitted this grouped clock exclusion;
+  // 'UC2 pre-helper entered clock boundary retains parent timers' failed,
+  // then exact restoration passed (2026-11-02); entered state only.
+  if (
+    parent.clockOperations.some(
+      (operation) => operation.state !== 'returned' || typeof operation.tick !== 'bigint',
+    )
+  )
+    return Promise.resolve(false);
   const captured = parent.operations.map((operation) => ({
     operation,
     label: operation.label,
@@ -521,13 +530,22 @@ function joinPrehelperRefusal(): Promise<boolean> {
       typeof record.original !== 'function' ||
       !(promise instanceof Promise) ||
       record.operation.returned !== promise ||
+      // Proof: source-image MODEL M omitted this Promise check; the owning
+      // 'UC2 pre-helper absent observer retains parent timers' failed.
+      // Exact restoration passed (2026-11-02); model boundary only.
       !(observer instanceof Promise) ||
+      // Proof: source-image MODEL P omitted only this EARLY settled check;
+      // 'UC2 pre-helper pending observer retains parent timers' failed after
+      // controlled settlement; exact restoration passed (2026-11-02).
       !record.operation.observerSettled ||
       (record.state !== 'fulfilled' && record.state !== 'rejected')
     )
       return Promise.resolve(false);
     promises.push(promise, observer);
   }
+  // Proof: source-image MODEL R omitted this API-rejection requirement;
+  // 'UC2 pre-helper empty operation roster retains parent timers' failed,
+  // then exact restoration passed (2026-11-02).
   if (!captured.some((record) => record.state === 'rejected')) return Promise.resolve(false);
   return Promise.allSettled(promises).then((outcomes) => {
     for (const [index, record] of captured.entries()) {
@@ -536,6 +554,9 @@ function joinPrehelperRefusal(): Promise<boolean> {
       const operation = record.operation;
       if (
         settled === undefined ||
+        // Proof: source-image MODEL O omitted this fulfilled-outcome check;
+        // 'UC2 pre-helper rejected observer retains parent timers' failed,
+        // then exact restoration passed (2026-11-02).
         observed?.status !== 'fulfilled' ||
         operation.label !== record.label ||
         operation.original !== record.original ||

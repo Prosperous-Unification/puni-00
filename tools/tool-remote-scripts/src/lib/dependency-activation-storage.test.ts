@@ -1421,6 +1421,8 @@ interface PrehelperRefusalModel {
   clears: { kind: string; token: unknown }[];
   operations: {
     original: unknown;
+    returned: unknown;
+    cause: unknown;
     promise: unknown;
     observer: unknown;
     state: string;
@@ -1434,11 +1436,28 @@ interface PrehelperRefusalModel {
   originalObservers: unknown[];
   retainedCauses: unknown[];
   cleanup: PromiseSettledResult<unknown>[];
+  nonPromiseValue: unknown;
+  replacementObserver: unknown;
+  observerFailure: Error;
+  pendingAtEntry: { observer: unknown; observerSettled: boolean } | undefined;
+  clockRecord: { state: string; tick: unknown } | undefined;
+  clockRecords: unknown[];
 }
 
 /** Compile only the selected private source boundaries into finite lexical model ports. */
 async function observePrehelperRefusal(
-  mode: 'terminal' | 'pending' | 'missing-observer' | 'spawn-entered',
+  mode:
+    | 'terminal'
+    | 'pending'
+    | 'missing-observer'
+    | 'spawn-entered'
+    | 'empty-roster'
+    | 'fulfilled-only'
+    | 'synchronous-refusal'
+    | 'non-promise'
+    | 'pending-observer'
+    | 'rejected-observer'
+    | 'entered-clock',
 ): Promise<PrehelperRefusalModel> {
   const source = await readFile(
     new URL('../fixtures/dependency-owner-custody.ts', import.meta.url),
@@ -1472,18 +1491,27 @@ async function observePrehelperRefusal(
     refusal,
     `
 const mode = ${JSON.stringify(mode)};
-const setupFailure = new Error('UC2_MODELED_SETUP_REFUSAL');
+let setupFailure = new Error('UC2_MODELED_SETUP_REFUSAL');
 const holdFailure = new Error('UC2_MODELED_HOLD_SENTINEL');
 const timerToken = {kind:'parent-timeout-token'};
 const keeperToken = {kind:'parent-interval-token'};
 const clears = [];
 const savedObservers = [];
 let returnedWrite, returnedBuild, resolveBuild;
+const nonPromiseValue={kind:'retained-non-Promise-return'};
+const observerFailure=new Error('UC2_MODELED_OBSERVER_REFUSAL');
+let replacementObserver,replacementObservation,resolveObserver,pendingAtEntry,clockRecord;
+let readiness,markReady,rejectReadiness,readySignaled=false;
+if(mode==='pending-observer')readiness=new Promise((resolve,reject)=>{
+  markReady=()=>{readySignaled=true;resolve();};rejectReadiness=reject;
+});
 function readKernelTick(){ return 1n; }
 function clearTimeout(token){ clears.push({kind:'timeout',token}); }
 function clearInterval(token){ clears.push({kind:'interval',token}); }
 function modeledWrite(){ returnedWrite=Promise.resolve('written'); return returnedWrite; }
 function modeledBuild(){
+  if(mode==='synchronous-refusal')throw setupFailure;
+  if(mode==='non-promise'){returnedBuild=nonPromiseValue;return returnedBuild;}
   returnedBuild=mode==='pending'
     ?new Promise(resolve=>{resolveBuild=resolve;})
     :Promise.reject(setupFailure);
@@ -1498,6 +1526,41 @@ async function runParentBoundary(){
   parent.timer=timer;parent.keeper=keeper;
   parent.allocationStart=0n;parent.allocationEnd=18000n;
   try {
+    if(['empty-roster','fulfilled-only','synchronous-refusal','non-promise',
+      'pending-observer','rejected-observer','entered-clock'].includes(mode)){
+      if(mode==='empty-roster'){parent.stopped=true;throw setupFailure;}
+      await outerOperation('outer.fs.writeFile',modeledWrite,undefined,[]);
+      if(parent.operations[0].observer===undefined)throw Error('modeled write observer missing');
+      savedObservers.push(parent.operations[0].observer);
+      if(mode==='fulfilled-only'){parent.stopped=true;throw setupFailure;}
+      let pending;
+      try{pending=outerOperation('outer.Bun.build',modeledBuild,undefined,[]);}
+      catch(failure){setupFailure=failure;throw failure;}
+      const record=parent.operations[1];
+      if(record.observer===undefined)throw Error('modeled build observer missing');
+      savedObservers.push(record.observer);
+      const settled=await Promise.allSettled([pending]);
+      if(settled[0].status!=='rejected'||settled[0].reason!==setupFailure)
+        throw Error('modeled build original rejection differs');
+      if(mode==='pending-observer'||mode==='rejected-observer'){
+        replacementObserver=mode==='pending-observer'
+          ?new Promise(resolve=>{resolveObserver=resolve;})
+          :Promise.reject(observerFailure);
+        replacementObservation=replacementObserver.then(()=>undefined,()=>undefined);
+        record.observer=replacementObserver;
+        record.observerSettled=mode==='rejected-observer';
+        if(mode==='rejected-observer')await replacementObservation;
+      }
+      if(mode==='entered-clock'){
+        clockRecord={state:'entered',returned:undefined,cause:undefined,tick:undefined};
+        parent.clockOperations.push(clockRecord);
+      }
+      if(mode==='pending-observer'){
+        pendingAtEntry={observer:record.observer,observerSettled:record.observerSettled};
+        markReady();
+      }
+      throw setupFailure;
+    }
     await outerOperation('outer.fs.writeFile',modeledWrite,undefined,[]);
     parent.spawnEntered=mode==='spawn-entered';
     const pending=outerOperation('outer.Bun.build',modeledBuild,undefined,[]);
@@ -1512,30 +1575,75 @@ async function runParentBoundary(){
     catchFinally,
     `
 export async function observe(){
-  let cause;
-  try{await runParentBoundary();}catch(failure){cause=failure;}
+  let cause,controllerFailure,controllerFailed=false;
+  const controllerPromises=[];
+  const expectedRejections=new Map();
+  if(mode==='pending-observer'){
+    const invocation=runParentBoundary();
+    const invocationObserver=invocation.then(
+      ()=>{if(!readySignaled)rejectReadiness(Error('model invocation missed readiness'));},
+      failure=>{cause=failure;if(!readySignaled)rejectReadiness(failure);},
+    );
+    const controller=(async()=>{
+      try{await readiness;}
+      finally{
+        if(typeof resolveObserver==='function'){
+          resolveObserver();parent.operations[1].observerSettled=true;
+        }
+      }
+    })();
+    try{await controller;}catch(failure){controllerFailed=true;controllerFailure=failure;}
+    // Controller finally settles the dependency BEFORE this invocation join.
+    await invocationObserver;
+    controllerPromises.push(invocation,invocationObserver,readiness,controller);
+    if(cause!==undefined)expectedRejections.set(invocation,cause);
+    if(controllerFailed){
+      expectedRejections.set(controller,controllerFailure);
+      if(!readySignaled)expectedRejections.set(readiness,controllerFailure);
+    }
+  }else{
+    try{await runParentBoundary();}catch(failure){cause=failure;}
+  }
   const captured={cause,setupFailure,holdFailure,stopped:parent.stopped,
     spawnEntered:parent.spawnEntered,childCount:parent.originals.length,
     terminal:parent.prehelperRefusalTerminal,timer:timerToken,keeper:keeperToken,
     clears:[...clears],operations:parent.operations.map(record=>({...record})),
     writeAPI:modeledWrite,buildAPI:modeledBuild,returnedWrite,returnedBuild,
-    originalObservers:[...savedObservers],retainedCauses:[...parent.failures]};
+    originalObservers:[...savedObservers],retainedCauses:[...parent.failures],
+    nonPromiseValue,replacementObserver,observerFailure,pendingAtEntry,clockRecord,
+    clockRecords:[...parent.clockOperations]};
   if(mode==='pending'){
     if(typeof resolveBuild!=='function')throw Error('modeled pending resolver missing');
     resolveBuild('fixture-settled');
   }
-  const originals=parent.operations.map(record=>record.promise);
-  if(originals.some(promise=>!(promise instanceof Promise)))
-    throw Error('modeled original Promise absent');
-  const cleanup=await Promise.allSettled([...originals,...savedObservers]);
-  if(cleanup.length!==4)throw Error('modeled original/observer cleanup census differs');
+  const originals=[];
+  for(const record of parent.operations){
+    if(record.promise instanceof Promise){
+      originals.push(record.promise);
+      if(record.state==='rejected')expectedRejections.set(record.promise,record.cause);
+    }else if(!['synchronous-refusal','non-promise'].includes(mode)){
+      throw Error('modeled original Promise absent');
+    }
+  }
+  const expectedOriginals=mode==='empty-roster'?0:
+    ['fulfilled-only','synchronous-refusal','non-promise'].includes(mode)?1:2;
+  if(originals.length!==expectedOriginals||savedObservers.length!==expectedOriginals)
+    throw Error('modeled original/observer cleanup census differs');
+  const extra=[];
+  if(replacementObserver!==undefined){
+    extra.push(replacementObserver,replacementObservation);
+    if(mode==='rejected-observer')expectedRejections.set(replacementObserver,observerFailure);
+  }
+  const cleanupPromises=[...originals,...savedObservers,...extra,...controllerPromises];
+  const cleanup=await Promise.allSettled(cleanupPromises);
   for(let index=0;index<cleanup.length;index++){
-    const outcome=cleanup[index];
-    if(index===1&&mode!=='pending'){
-      if(outcome.status!=='rejected'||outcome.reason!==setupFailure)
+    const outcome=cleanup[index],original=cleanupPromises[index];
+    if(expectedRejections.has(original)){
+      if(outcome.status!=='rejected'||outcome.reason!==expectedRejections.get(original))
         throw Error('modeled original rejection identity differs');
     }else if(outcome.status!=='fulfilled')throw Error('modeled fixture observer unsettled');
   }
+  if(controllerFailed)throw controllerFailure;
   return {...captured,cleanup};
 }
 `,
@@ -1641,4 +1749,101 @@ test('UC2 pre-helper spawn entry without child retains parent timers', async () 
   expect(observed.operations[1]?.original).toBe(observed.buildAPI);
   expect(observed.operations[1]?.promise).toBe(observed.returnedBuild);
   expect(observed.cleanup).toHaveLength(4);
+});
+
+function assertPrehelperHold(observed: PrehelperRefusalModel, oracle: string): void {
+  expect(observed.cause, oracle).toBe(observed.holdFailure);
+  expect(observed.retainedCauses).toHaveLength(1);
+  expect(observed.retainedCauses[0]).toBe(observed.setupFailure);
+  expect(observed.stopped).toBe(true);
+  expect(observed.terminal).toBe(false);
+  expect(observed.clears).toEqual([]);
+  expect(observed.childCount).toBe(0);
+  expect(observed.spawnEntered).toBe(false);
+}
+
+test('UC2 pre-helper empty operation roster retains parent timers', async () => {
+  const observed = await observePrehelperRefusal('empty-roster');
+  expect(observed.operations).toEqual([]);
+  expect(observed.cleanup).toEqual([]);
+  assertPrehelperHold(observed, 'UC2_PARENT_EMPTY_ROSTER_RETIRED');
+});
+
+test('UC2 pre-helper fulfilled-only roster retains parent timers', async () => {
+  const observed = await observePrehelperRefusal('fulfilled-only');
+  expect(observed.operations).toHaveLength(1);
+  expect(observed.operations[0]?.original).toBe(observed.writeAPI);
+  expect(observed.operations[0]?.promise).toBe(observed.returnedWrite);
+  expect(observed.operations[0]?.observer).toBe(observed.originalObservers[0]);
+  expect(observed.operations[0]?.state).toBe('fulfilled');
+  expect(observed.cleanup.every((outcome) => outcome.status === 'fulfilled')).toBe(true);
+  assertPrehelperHold(observed, 'UC2_PARENT_FULFILLED_ONLY_RETIRED');
+});
+
+test('UC2 pre-helper synchronous delegate refusal retains parent timers', async () => {
+  const observed = await observePrehelperRefusal('synchronous-refusal');
+  expect(observed.operations).toHaveLength(2);
+  expect(observed.operations[1]?.original).toBe(observed.buildAPI);
+  expect(observed.operations[1]?.state).toBe('threw');
+  expect(observed.operations[1]?.cause).toBe(observed.setupFailure);
+  expect(observed.operations[1]?.returned).toBeUndefined();
+  expect(observed.operations[1]?.promise).toBeUndefined();
+  expect(observed.operations[1]?.observer).toBeUndefined();
+  expect(observed.cleanup).toHaveLength(2);
+  assertPrehelperHold(observed, 'UC2_PARENT_SYNC_REFUSAL_RETIRED');
+});
+
+test('UC2 pre-helper non-Promise delegate return retains parent timers', async () => {
+  const observed = await observePrehelperRefusal('non-promise');
+  expect(observed.operations).toHaveLength(2);
+  expect(observed.operations[1]?.original).toBe(observed.buildAPI);
+  expect(observed.operations[1]?.state).toBe('threw');
+  expect(observed.operations[1]?.returned).toBe(observed.nonPromiseValue);
+  expect(observed.returnedBuild).toBe(observed.nonPromiseValue);
+  expect(observed.operations[1]?.cause).toBe(observed.setupFailure);
+  expect(observed.setupFailure.message).toBe('UC2 fixed outer API did not return its Promise');
+  expect(observed.operations[1]?.promise).toBeUndefined();
+  expect(observed.operations[1]?.observer).toBeUndefined();
+  expect(observed.cleanup).toHaveLength(2);
+  assertPrehelperHold(observed, 'UC2_PARENT_NON_PROMISE_RETIRED');
+});
+
+test('UC2 pre-helper pending observer retains parent timers', async () => {
+  const observed = await observePrehelperRefusal('pending-observer');
+  expect(observed.operations).toHaveLength(2);
+  expect(observed.operations[1]?.original).toBe(observed.buildAPI);
+  expect(observed.operations[1]?.promise).toBe(observed.returnedBuild);
+  expect(observed.operations[1]?.observer).toBe(observed.replacementObserver);
+  expect(observed.originalObservers[1]).not.toBe(observed.replacementObserver);
+  expect(observed.pendingAtEntry?.observer).toBe(observed.replacementObserver);
+  expect(observed.pendingAtEntry?.observerSettled).toBe(false);
+  assertPrehelperHold(observed, 'UC2_PARENT_PENDING_OBSERVER_RETIRED');
+});
+
+test('UC2 pre-helper rejected observer retains parent timers', async () => {
+  const observed = await observePrehelperRefusal('rejected-observer');
+  expect(observed.operations).toHaveLength(2);
+  expect(observed.operations[1]?.original).toBe(observed.buildAPI);
+  expect(observed.operations[1]?.promise).toBe(observed.returnedBuild);
+  expect(observed.operations[1]?.observer).toBe(observed.replacementObserver);
+  expect(observed.originalObservers[1]).not.toBe(observed.replacementObserver);
+  expect(observed.operations[1]?.observerSettled).toBe(true);
+  expect(
+    observed.cleanup.some(
+      (outcome) => outcome.status === 'rejected' && outcome.reason === observed.observerFailure,
+    ),
+  ).toBe(true);
+  assertPrehelperHold(observed, 'UC2_PARENT_REJECTED_OBSERVER_RETIRED');
+});
+
+test('UC2 pre-helper entered clock boundary retains parent timers', async () => {
+  const observed = await observePrehelperRefusal('entered-clock');
+  expect(observed.operations).toHaveLength(2);
+  expect(observed.operations[1]?.original).toBe(observed.buildAPI);
+  expect(observed.operations[1]?.promise).toBe(observed.returnedBuild);
+  expect(observed.clockRecords).toHaveLength(1);
+  expect(observed.clockRecords[0]).toBe(observed.clockRecord);
+  expect(observed.clockRecord?.state).toBe('entered');
+  expect(observed.clockRecord?.tick).toBeUndefined();
+  assertPrehelperHold(observed, 'UC2_PARENT_ENTERED_CLOCK_RETIRED');
 });
