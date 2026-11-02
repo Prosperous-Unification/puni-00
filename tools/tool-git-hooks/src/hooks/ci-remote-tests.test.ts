@@ -46,7 +46,8 @@ function write(root: string, path: string, content: string): void {
 }
 
 function fixture(): string {
-  const root = scratchSync('remote-ci-leaves-');
+  const root = graphRoutingFixture();
+  write(root, `${PROJECT}/test/ci-leaf.ts`, readFileSync(CLI, 'utf8'));
   for (const path of [`${PROJECT}/project.json`, 'nx.json', '.bun-version'])
     write(root, path, readFileSync(join(ROOT, path), 'utf8'));
   write(root, 'tools/test/scratch/preload.ts', '');
@@ -107,7 +108,7 @@ function invoke(root: string, leaf: string, preload?: string) {
     [
       process.execPath,
       ...(preload === undefined ? [] : ['--preload', preload]),
-      CLI,
+      join(root, PROJECT, 'test/ci-leaf.ts'),
       root,
       leaf,
       `--head=${head}`,
@@ -127,23 +128,7 @@ function executed(output: string): string[] {
 
 test('fresh fixed leaves preserve real canonical Bun discovery including future and collision files', () => {
   const root = fixture();
-  const canonical = Bun.spawnSync(
-    [
-      process.execPath,
-      'test',
-      'src',
-      ...explicit,
-      '--preload',
-      '../test/scratch/preload.ts',
-      '--timeout=10000',
-    ],
-    {
-      cwd: join(root, PROJECT),
-      env: { ...process.env, CLAUDECODE: '0', AGENT: '0' },
-      stdout: 'pipe',
-      stderr: 'pipe',
-    },
-  );
+  const canonical = invokeGraphRouting(root, ['canonical']);
   expect(canonical.exitCode).toBe(0);
   const model = invoke(root, 'model');
   const continuation = invoke(root, 'model-continuation');
@@ -169,10 +154,14 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
   const rest = invoke(root, 'rest');
   expect(model.exitCode, model.stderr.toString()).toBe(0);
   expect(rest.exitCode, rest.stderr.toString()).toBe(0);
+  expectFullGraphRouting(canonical.stdout.toString());
+  expectFullGraphRouting(rest.stdout.toString());
   const singleton = executed(model.stdout.toString());
   const complement = executed(rest.stdout.toString());
   expect(singleton).toEqual([MODEL]);
   expect(complement).toContain('src/new.test.ts');
+  expect(complement).toContain('src/lib/initial-handoff-graph-extra.test.ts');
+  expect(complement).toContain('elsewhere/src/lib/initial-handoff-graph.test.ts');
   expect(complement).toContain('src/lib/source-role-process-extra.test.ts');
   expect(complement).toContain(`elsewhere/${SOURCE[0]}`);
   expect(complement).toContain('elsewhere/src-shadow/new.test.ts');
@@ -286,15 +275,11 @@ test.each([
   const canonical = project.targets['test'];
   if (fault === 'command')
     canonical.options.command = canonical.options.command.replace(
-      'test/fixture-failure.test.ts ',
-      '',
+      'test/run-tests.ts',
+      'test/run-other.ts',
     );
   if (fault === 'cwd') canonical.options.cwd = '.';
-  if (fault === 'preload')
-    canonical.options.command = canonical.options.command.replace(
-      '../test/scratch/preload.ts',
-      '../other.ts',
-    );
+  if (fault === 'preload') canonical.options.command += ' --preload ../other.ts';
   if (fault === 'dependency') canonical.dependsOn = [];
   if (fault === 'environment')
     project.targets['test:ci:model'].options.env = { CLAUDECODE: '1', AGENT: '0' };
@@ -471,6 +456,7 @@ test('actual noncached Nx leaf targets preserve environment and run dependency b
 test('the leaf refuses immutable-head and discovery/environment overrides before execution', () => {
   for (const fault of [
     'head',
+    'foreign-root',
     'default-env',
     'default-dependency',
     'leaf-defaults',
@@ -501,8 +487,15 @@ test('the leaf refuses immutable-head and discovery/environment overrides before
     const head = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], { cwd: root, stdout: 'pipe' })
       .stdout.toString()
       .trim();
+    const moduleRoot = fault === 'foreign-root' ? fixture() : root;
     const invocation = Bun.spawnSync(
-      [process.execPath, CLI, root, 'model', `--head=${fault === 'head' ? 'f'.repeat(40) : head}`],
+      [
+        process.execPath,
+        join(moduleRoot, PROJECT, 'test/ci-leaf.ts'),
+        root,
+        'model',
+        `--head=${fault === 'head' ? 'f'.repeat(40) : head}`,
+      ],
       {
         env: { ...process.env, CLAUDECODE: fault === 'environment' ? '1' : '0', AGENT: '0' },
         stdout: 'pipe',
@@ -510,6 +503,8 @@ test('the leaf refuses immutable-head and discovery/environment overrides before
         timeout: 5000,
       },
     );
+    if (fault === 'foreign-root')
+      expect(invocation.stderr.toString()).toContain('Remote leaf module/root binding differs');
     expect(invocation.exitCode, fault).not.toBe(0);
     expect(executed(invocation.stdout.toString()), fault).toEqual([]);
   }
@@ -530,17 +525,20 @@ test('the leaf refuses an unsupported Bun pin or test-selection environment', ()
     const head = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], { cwd: root, stdout: 'pipe' })
       .stdout.toString()
       .trim();
-    const child = Bun.spawnSync([process.execPath, CLI, root, 'model', `--head=${head}`], {
-      env: {
-        ...process.env,
-        CLAUDECODE: '0',
-        AGENT: '0',
-        ...(fault === 'selection' ? { BUN_TEST_TIMEOUT: '20000' } : {}),
+    const child = Bun.spawnSync(
+      [process.execPath, join(root, PROJECT, 'test/ci-leaf.ts'), root, 'model', `--head=${head}`],
+      {
+        env: {
+          ...process.env,
+          CLAUDECODE: '0',
+          AGENT: '0',
+          ...(fault === 'selection' ? { BUN_TEST_TIMEOUT: '20000' } : {}),
+        },
+        stdout: 'pipe',
+        stderr: 'pipe',
+        timeout: 5000,
       },
-      stdout: 'pipe',
-      stderr: 'pipe',
-      timeout: 5000,
-    });
+    );
     expect(child.exitCode, fault).not.toBe(0);
     expect(executed(child.stdout.toString()), fault).toEqual([]);
   }
@@ -719,7 +717,7 @@ test('remainder rejects a malformed terminal outer summary after a real nested c
   const preload = join(root, 'terminal-summary-view.ts');
   writeFileSync(
     preload,
-    "\nconst spawn = Bun.spawn;\nBun.spawn = (...args) => {\n  const child = spawn(...args);\n  const stderr = new ReadableStream({async start(controller) {\n    try {\n      const text = await new Response(child.stderr).text();\n      const summaries = [...text.matchAll(/Ran (\\d+) tests? across (\\d+) files?\\.[^\\r\\n]*/g)];\n      if (summaries.length !== 2 || summaries[0][2] !== '1' || Number(summaries[1][2]) <= 1)\n        throw new Error('expected one joined nested and one outer receipt');\n      const final = summaries[1][0];\n      if (text.split(final).length !== 2) throw new Error('outer receipt not unique');\n      process.stderr.write('TERMINAL_OUTER_SUMMARY_CORRUPTED_ONCE\\n');\n      controller.enqueue(new TextEncoder().encode(text.replace(final, final.replace('Ran ', 'UNSUPPORTED '))));\n      controller.close();\n    } catch (cause) {controller.error(cause);}\n  }});\n  return new Proxy(child, {get(target, property) {\n    if (property === 'stderr') return stderr;\n    const value = Reflect.get(target, property, target);\n    return typeof value === 'function' ? value.bind(target) : value;\n  }});\n};\n",
+    "\nconst spawn = Bun.spawn;\nBun.spawn = (...args) => {\n  const child = spawn(...args);\n  if (!Array.isArray(args[0]) || args[0][1] !== 'test' || args[0][2] !== 'src') return child;\n  const stderr = new ReadableStream({async start(controller) {\n    try {\n      const text = await new Response(child.stderr).text();\n      const summaries = [...text.matchAll(/Ran (\\d+) tests? across (\\d+) files?\\.[^\\r\\n]*/g)];\n      if (summaries.length !== 2 || summaries[0][2] !== '1' || Number(summaries[1][2]) <= 1)\n        throw new Error('expected one joined nested and one outer receipt');\n      const final = summaries[1][0];\n      if (text.split(final).length !== 2) throw new Error('outer receipt not unique');\n      process.stderr.write('TERMINAL_OUTER_SUMMARY_CORRUPTED_ONCE\\n');\n      controller.enqueue(new TextEncoder().encode(text.replace(final, final.replace('Ran ', 'UNSUPPORTED '))));\n      controller.close();\n    } catch (cause) {controller.error(cause);}\n  }});\n  return new Proxy(child, {get(target, property) {\n    if (property === 'stderr') return stderr;\n    const value = Reflect.get(target, property, target);\n    return typeof value === 'function' ? value.bind(target) : value;\n  }});\n};\n",
   );
   const refused = invoke(root, 'rest', preload);
   expect(executed(refused.stdout.toString())).toContain('src/new.test.ts');
@@ -1681,7 +1679,7 @@ test('graph launcher routing refuses ambient selection families before any marke
 
 test('graph launcher routing executes the marker202 legacy11 identity15 union serially', () => {
   const root = graphRoutingFixture();
-  const invocation = invokeGraphRouting(root, ['graph']);
+  const invocation = invokeGraphRouting(root, ['graph'], { FORCE_COLOR: '1' });
   expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
   expectFullGraphRouting(invocation.stdout.toString());
   expect(executed(invocation.stdout.toString())).toEqual([]);
@@ -1724,4 +1722,185 @@ test('graph launcher routing owns the canonical graph once while preserving coll
   const firstRemainder = lines.findIndex((line) => line.startsWith('EXECUTED='));
   const finalGraph = lines.findLastIndex((line) => line.startsWith('GRAPH_ROUTE_CASE='));
   expect(firstRemainder).toBeGreaterThan(finalGraph);
+});
+
+function graphRestFixture(fault: GraphRoutingFault = 'none'): string {
+  const root = graphRoutingFixture(fault);
+  write(root, `${PROJECT}/test/ci-leaf.ts`, readFileSync(CLI, 'utf8'));
+  for (const path of [MODEL, CONTINUATION, ...SOURCE, RESTORATION, POLICY, COMPLETE])
+    write(
+      root,
+      `${PROJECT}/${path}`,
+      `
+import {test,expect} from 'bun:test';
+for(let index=0;index<${String(path === RESTORATION ? 23 : path === POLICY ? 8 : path === COMPLETE ? 39 : 1)};index++)
+ test(${JSON.stringify(path)}+index,()=>{console.log('ISOLATED_OWNER='+${JSON.stringify(path)});expect(true).toBe(true);});
+`,
+    );
+  for (const path of [
+    'src/lib/dependency-product-process-model-extra.test.ts',
+    `elsewhere/${MODEL}`,
+  ])
+    write(
+      root,
+      `${PROJECT}/${path}`,
+      `
+import {test,expect} from 'bun:test';
+test(${JSON.stringify(path)},()=>{console.log('EXECUTED='+${JSON.stringify(path)});expect(true).toBe(true);});
+`,
+    );
+  for (const args of [
+    ['init', '--quiet'],
+    ['config', 'user.name', 'Remote graph rest test'],
+    ['config', 'user.email', 'remote-graph-rest@example.test'],
+    ['add', '.'],
+    ['commit', '--quiet', '-m', 'graph rest fixture'],
+  ]) {
+    const invocation = Bun.spawnSync(['git', ...args], {
+      cwd: root,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    if (invocation.exitCode !== 0) throw new Error(invocation.stderr.toString());
+  }
+  return root;
+}
+
+/** Waits the actual copied leaf with full captures; neither timeout nor signal substitutes for return. */
+function invokeGraphRest(root: string, preload?: string) {
+  const path = process.env['PATH'];
+  const home = process.env['HOME'];
+  if (path === undefined || home === undefined)
+    throw new Error('Graph rest fixture requires PATH and HOME');
+  const checkedOut = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], {
+    cwd: root,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  if (checkedOut.exitCode !== 0) throw new Error(checkedOut.stderr.toString());
+  const head = checkedOut.stdout.toString().trim();
+  const argv = [
+    process.execPath,
+    ...(preload === undefined ? [] : ['--preload', preload]),
+    join(root, PROJECT, 'test/ci-leaf.ts'),
+    root,
+    'rest',
+    `--head=${head}`,
+  ];
+  const invocation = Bun.spawnSync(argv, {
+    cwd: root,
+    env: {
+      PATH: path,
+      HOME: home,
+      LANG: 'C.UTF-8',
+      LC_ALL: 'C.UTF-8',
+      TZ: 'UTC',
+      TERM: 'dumb',
+      NO_COLOR: '1',
+      FORCE_COLOR: '0',
+      NODE_ENV: 'test',
+      CLAUDECODE: '0',
+      AGENT: '0',
+      BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
+      TMPDIR: join(root, 'child-scratch'),
+    },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  console.log(
+    'GRAPH_REST_DIAGNOSTIC:' +
+      JSON.stringify({
+        argv,
+        cwd: root,
+        exitCode: invocation.exitCode,
+        stdoutBase64: invocation.stdout.toString('base64'),
+        stderrBase64: invocation.stderr.toString('base64'),
+      }),
+  );
+  expect(invocation.signalCode, invocation.stderr.toString()).toBeUndefined();
+  return invocation;
+}
+
+function graphRestReceipt(stdout: string): Record<string, unknown> {
+  const last = stdout.trimEnd().split('\n').at(-1);
+  if (last === undefined) throw new Error('Actual rest receipt absent');
+  const receipt: unknown = JSON.parse(last);
+  if (typeof receipt !== 'object' || receipt === null || Array.isArray(receipt))
+    throw new Error('Actual rest receipt must be an object');
+  return receipt as Record<string, unknown>; // Boundary: parsed object/null/array shape checked above.
+}
+
+test('graph rest integration composes graph once before the disjoint collision-preserving remainder', () => {
+  const root = graphRestFixture();
+  const invocation = invokeGraphRest(root);
+  expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+  const stdout = invocation.stdout.toString();
+  expectFullGraphRouting(stdout);
+  const remainder = [
+    ...explicit,
+    'src/new.test.ts',
+    'src/lib/initial-handoff-graph-extra.test.ts',
+    'elsewhere/src/lib/initial-handoff-graph.test.ts',
+    'src/lib/dependency-product-process-model-extra.test.ts',
+    `elsewhere/${MODEL}`,
+  ];
+  expect(executed(stdout)).toEqual(remainder.sort());
+  expect(stdout).not.toContain('ISOLATED_OWNER=');
+  const lines = stdout.split('\n');
+  expect(lines.findIndex((line) => line.startsWith('EXECUTED='))).toBeGreaterThan(
+    lines.findLastIndex((line) => line.startsWith('GRAPH_ROUTE_CASE=')),
+  );
+  const graphLines = lines.filter(
+    (line) => line.startsWith('{') && line.includes('"kind":"remote-graph-composite"'),
+  );
+  expect(graphLines).toHaveLength(1);
+  const graph: unknown = JSON.parse(graphLines[0]);
+  expect(graph).toMatchObject({
+    kind: 'remote-graph-composite',
+    callbacks: 228,
+    uniqueGraphFiles: 1,
+  });
+  expect(invocation.stderr.toString()).toMatch(
+    /12 pass\r?\n[ \t]*0 fail\r?\n[ \t]*12 expect\(\) calls\r?\nRan 12 tests across 12 files\./,
+  );
+  expect(graphRestReceipt(stdout)).toMatchObject({
+    leaf: 'rest',
+    fresh: true,
+    tests: 240,
+    files: 13,
+    exitCode: 0,
+  });
+});
+
+test('graph rest integration stops after a known failed ordinary phase before remainder', () => {
+  const invocation = invokeGraphRest(graphRestFixture('failed-ordinary'));
+  expect(graphRoutingEntries(invocation.stdout.toString())).toEqual(['graph-ordinary']);
+  expect(invocation.exitCode).toBe(1);
+  expect(invocation.stderr.toString()).toContain('GRAPH_ROUTE_EXPECTED_FAILURE');
+  expect(graphRoutingCases(invocation.stdout.toString())).toHaveLength(202);
+  expect(executed(invocation.stdout.toString())).toEqual([]);
+  expect(invocation.stdout.toString()).not.toContain('"fresh":true');
+});
+
+test('graph rest integration stops after a successful201 phase before remainder', () => {
+  const invocation = invokeGraphRest(graphRestFixture('missing-ordinary'));
+  expect(graphRoutingEntries(invocation.stdout.toString())).toEqual(['graph-ordinary']);
+  expect(invocation.exitCode).toBe(1);
+  expect(graphRoutingCases(invocation.stdout.toString())).toHaveLength(201);
+  expect(invocation.stderr.toString()).toContain('201 pass');
+  expect(executed(invocation.stdout.toString())).toEqual([]);
+  expect(invocation.stdout.toString()).not.toContain('"fresh":true');
+});
+
+test('graph rest integration refuses a missing exact graph owner before any Bun child dispatch', () => {
+  const root = graphRestFixture();
+  rmSync(join(root, PROJECT, GRAPH_ROUTING_FILE));
+  const starts = recordChildStarts(root);
+  const invocation = invokeGraphRest(root, starts.preload);
+  expect(invocation.stderr.toString()).toContain('ENOENT');
+  expect(invocation.stderr.toString()).toContain(GRAPH_ROUTING_FILE);
+  expect(invocation.exitCode).toBe(1);
+  expect(existsSync(starts.marker)).toBe(false);
+  expect(graphRoutingEntries(invocation.stdout.toString())).toEqual([]);
+  expect(executed(invocation.stdout.toString())).toEqual([]);
 });

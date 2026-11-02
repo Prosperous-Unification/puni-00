@@ -3,7 +3,10 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { isDeepStrictEqual, stripVTControlCharacters } from 'node:util';
 
+import { CommandFailure, runGraphTests } from './run-tests';
+
 const PROJECT = 'tools/tool-remote-scripts';
+const GRAPH_FILE = 'src/lib/initial-handoff-graph.test.ts';
 const MODEL = 'src/lib/dependency-product-process-model.test.ts';
 const CONTINUATION = 'src/lib/dependency-participant-continuation-model.test.ts';
 const RESTORATION = 'src/lib/dependency-source-restoration.test.ts';
@@ -89,7 +92,7 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
   const targets = requireRecord(project['targets']);
   const canonical = requireRecord(targets['test']);
   const options = requireRecord(canonical['options']);
-  const expectedCommand = ['bun', 'test', ...DISCOVERY, ...OPTIONS].join(' ');
+  const expectedCommand = 'bun run test/run-tests.ts canonical';
   // Proof: omitting command/dependency/target-shape refusals admitted their actual-runner negatives.
   if (
     !isDeepStrictEqual(Object.keys(canonical).sort(), [
@@ -190,6 +193,7 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
   ])
     requireFile(join(repository, PROJECT, path));
   requireFile(join(repository, 'tools/test/scratch/preload.ts'));
+  if (leaf === 'rest') requireFile(join(repository, PROJECT, GRAPH_FILE));
   // Proof: dotted/widened ignores and a dropped discovery token broke real canonical union/disjointness.
   // Proof: dropping only the continuation ignore duplicated its actual Bun coverage in rest (2026-10-29).
   // Proof: dropping six source ignores duplicated their actual canonical union/disjoint coverage (2026-10-29).
@@ -219,6 +223,7 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
                   `--path-ignore-patterns=${RESTORATION}`,
                   `--path-ignore-patterns=${POLICY}`,
                   `--path-ignore-patterns=${COMPLETE}`,
+                  `--path-ignore-patterns=${GRAPH_FILE}`,
                 ];
 }
 
@@ -229,7 +234,10 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
  * malformed final output rather than falling back to an earlier child. A successful child must have
  * actually run nonempty tests. The inherited23, policy8 and complete39 singleton receipts require their
  * complete assigned pass/test counts and no outer skip, todo or filtering; nested summaries
- * cannot supply that terminal receipt.
+ * cannot supply that terminal receipt. Rest first awaits the module-bound complete graph receipt;
+ * only its successful return permits the historical disjoint remainder. Its final tests/files sum
+ * actual graph callbacks/unique graph files with the actual qualified remainder counts. Known graph
+ * nonzero preserves status; UNKNOWN remains pending and cannot start remainder or publish fresh success.
  */
 export async function runRemoteTests(
   repositoryPath: string,
@@ -237,6 +245,11 @@ export async function runRemoteTests(
   head: string,
 ): Promise<void> {
   const repository = resolve(repositoryPath);
+  if (
+    repository !== resolve(import.meta.dir, '../../..') ||
+    realpathSync(repository) !== repository
+  )
+    throw new Error('Remote leaf module/root binding differs');
   // Proof: omitting the leaf allowlist admitted unknown as the complementary actual Bun execution.
   if (
     leafName !== 'model' &&
@@ -262,6 +275,16 @@ export async function runRemoteTests(
     throw new Error('Remote leaf checkout does not match the immutable head');
   const args = executionArguments(repository, leafName);
   const started = performance.now();
+  async function runGraphComposition() {
+    try {
+      return await runGraphTests(repository);
+    } catch (cause) {
+      if (cause instanceof CommandFailure) throw new TestFailure(cause.status);
+      throw cause;
+    }
+  }
+  const graph = leafName === 'rest' ? await runGraphComposition() : undefined;
+  if (graph !== undefined) process.stdout.write(JSON.stringify(graph) + '\n');
   const child = Bun.spawn([process.execPath, ...args], {
     cwd: join(repository, PROJECT),
     env: process.env,
@@ -318,7 +341,7 @@ export async function runRemoteTests(
   )
     throw new Error('Remote leaf produced no successful nonempty execution receipt');
   process.stdout.write(
-    `${JSON.stringify({ head, leaf: leafName, fresh: true, tests: Number(receipt[3]), files: Number(receipt[4]), elapsedMs: Math.round(performance.now() - started), exitCode: status })}\n`,
+    `${JSON.stringify({ head, leaf: leafName, fresh: true, tests: Number(receipt[3]) + (graph === undefined ? 0 : graph.callbacks), files: Number(receipt[4]) + (graph === undefined ? 0 : graph.uniqueGraphFiles), elapsedMs: Math.round(performance.now() - started), exitCode: status })}\n`,
   );
 }
 

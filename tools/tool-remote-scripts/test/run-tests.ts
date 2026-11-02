@@ -195,7 +195,7 @@ interface PhaseReceipt extends ExecutionReceipt {
   readonly stdoutSHA256: string;
   readonly stderrSHA256: string;
 }
-class CommandFailure extends Error {
+export class CommandFailure extends Error {
   constructor(readonly status: number) {
     super(`Remote test child exited ${String(status)}`);
   }
@@ -474,8 +474,23 @@ function readReceipt(stderr: Buffer, expectedCallbacks?: number): ExecutionRecei
   return { passed, tests, files, titles };
 }
 
-async function runCommand(command: RemoteTestCommand): Promise<void> {
-  const repository = resolve(import.meta.dir, '../../..');
+interface GraphReceipt {
+  readonly kind: 'remote-graph-composite';
+  readonly source: { readonly path: string; readonly sha256: string };
+  readonly censusSHA256: string;
+  readonly callbacks: number;
+  readonly uniqueGraphFiles: 1;
+  readonly phases: readonly PhaseReceipt[];
+}
+interface GraphPartitionReceipt extends Omit<GraphReceipt, 'kind'> {
+  readonly kind: 'remote-graph-partition';
+}
+
+/** The argument binds this copied module; it cannot select a foreign checkout before file reads or acquisition. */
+function bindRepository(repository: string): void {
+  const moduleRoot = resolve(import.meta.dir, '../../..');
+  if (repository !== moduleRoot || resolve(repository) !== moduleRoot)
+    throw new Error('Remote test launcher module/root binding differs');
   const project = join(repository, PROJECT);
   const graph = join(project, GRAPH_FILE);
   const preload = join(repository, 'tools/test/scratch/preload.ts');
@@ -500,10 +515,10 @@ async function runCommand(command: RemoteTestCommand): Promise<void> {
     join(homedir(), '.bunfig.toml'),
   ])
     refuseConfiguration(path);
-  if (command === 'canonical')
-    for (const path of DISCOVERY.slice(1)) requireFile(join(project, path));
-  const graphSHA256 = createHash('sha256').update(readFileSync(graph)).digest('hex');
-  const owner: CommandOwner = {
+}
+
+function createCommandOwner(): CommandOwner {
+  return {
     active: [],
     completed: [],
     failures: [],
@@ -512,7 +527,18 @@ async function runCommand(command: RemoteTestCommand): Promise<void> {
     reported: false,
     keeper: undefined,
   };
-  const baseEnvironment = { ...process.env };
+}
+
+async function runSelectedGraphTests(
+  repository: string,
+  command: 'graph' | GraphTestMode,
+): Promise<GraphReceipt | GraphPartitionReceipt> {
+  bindRepository(repository);
+  readRemoteTestCommand([command], process.env);
+  const graph = join(repository, PROJECT, GRAPH_FILE);
+  const graphSHA256 = createHash('sha256').update(readFileSync(graph)).digest('hex');
+  const owner = createCommandOwner();
+  const baseEnvironment = { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' };
   async function phase(mode: GraphTestMode, callbacks: number): Promise<PhaseReceipt> {
     const argv = [process.execPath, 'test', `./${PROJECT}/${GRAPH_FILE}`, '--timeout=10000'];
     if (mode === 'graph-ordinary') argv.push('--preload', './tools/test/scratch/preload.ts');
@@ -538,12 +564,10 @@ async function runCommand(command: RemoteTestCommand): Promise<void> {
   }
   try {
     const selected =
-      command === 'canonical' || command === 'graph'
-        ? PHASES
-        : PHASES.filter((entry) => entry.mode === command);
+      command === 'graph' ? PHASES : PHASES.filter((entry) => entry.mode === command);
     const phases: PhaseReceipt[] = [];
     for (const entry of selected) phases.push(await phase(entry.mode, entry.callbacks));
-    if (selected.length === 3) {
+    if (command === 'graph') {
       const names = phases.flatMap((entry) => entry.titles);
       if (
         names.length !== 228 ||
@@ -552,18 +576,52 @@ async function runCommand(command: RemoteTestCommand): Promise<void> {
       )
         throw new Error('Remote graph composition differs from the frozen228 declaration census');
     }
-    const graphReceipt = {
-      kind: selected.length === 3 ? 'remote-graph-composite' : 'remote-graph-partition',
+    return {
+      kind: command === 'graph' ? 'remote-graph-composite' : 'remote-graph-partition',
       source: { path: `${PROJECT}/${GRAPH_FILE}`, sha256: graphSHA256 },
       censusSHA256: GRAPH_TITLES_SHA256,
       callbacks: phases.reduce((count, entry) => count + entry.tests, 0),
       uniqueGraphFiles: 1,
       phases,
     };
-    if (command !== 'canonical') {
-      console.log(JSON.stringify(graphReceipt));
-      return;
-    }
+  } catch (cause) {
+    owner.stopped = true;
+    owner.failures.push(cause);
+    if (owner.uncertain || owner.active.length !== 0) return holdOriginals(owner);
+    throw cause;
+  }
+}
+
+/**
+ * Streams three owned graph partitions and returns their validated actual composite without printing it.
+ * Repository must bind this module; closed selection/environment, physical files, Bun pin and configuration
+ * checks precede every child. Known nonzero throws CommandFailure with the original status; UNKNOWN
+ * retains original custody indefinitely and never resolves a receipt or permits a later phase.
+ */
+export async function runGraphTests(repository: string): Promise<GraphReceipt> {
+  const receipt = await runSelectedGraphTests(repository, 'graph');
+  if (receipt.kind !== 'remote-graph-composite')
+    throw new Error('Remote graph composition did not return the complete graph receipt');
+  return receipt;
+}
+
+async function runCommand(command: RemoteTestCommand): Promise<void> {
+  const repository = resolve(import.meta.dir, '../../..');
+  if (command !== 'canonical') {
+    const receipt =
+      command === 'graph'
+        ? await runGraphTests(repository)
+        : await runSelectedGraphTests(repository, command);
+    console.log(JSON.stringify(receipt));
+    return;
+  }
+  bindRepository(repository);
+  readRemoteTestCommand([command], process.env);
+  const project = join(repository, PROJECT);
+  for (const path of DISCOVERY.slice(1)) requireFile(join(project, path));
+  const graphReceipt = await runGraphTests(repository);
+  const owner = createCommandOwner();
+  try {
     const argv = [
       process.execPath,
       'test',
@@ -573,7 +631,7 @@ async function runCommand(command: RemoteTestCommand): Promise<void> {
       '--timeout=10000',
       `--path-ignore-patterns=${GRAPH_FILE}`,
     ];
-    const remainder = await invokeTests(owner, argv, project, baseEnvironment);
+    const remainder = await invokeTests(owner, argv, project, { ...process.env });
     if (remainder.exit !== 0) throw new CommandFailure(remainder.exit);
     const remainderReceipt = readReceipt(remainder.stderr);
     console.log(
