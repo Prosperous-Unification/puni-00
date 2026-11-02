@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { Usage } from '@optique/core';
@@ -146,13 +146,23 @@ describe('twin dispatch', () => {
   });
 
   test('Missing Navigator flag: the entrypoint refuses with the command usage, exit 2', () => {
-    const run = runTwin(['plan-reference', ...planReferenceFlags().slice(2)]);
+    // FORCE_COLOR asks Optique for ANSI colour; the refusal line must stay plain bytes.
+    const run = runTwin(['plan-reference', ...planReferenceFlags().slice(2)], { FORCE_COLOR: '1' });
     expect(run.exitCode).toBe(2);
     expect(run.stdout).toBe('');
     expect(run.stderr).toMatch(
       /^error: usage: twin plan-reference --export PATH .*\(Missing required twin flag: --export\)\n$/u,
     );
+    expect(run.stderr).not.toContain('\u001b');
     expect(readdirSync(scratch.path)).toEqual([]);
+  });
+
+  test('accepts the --flag=value spelling', async () => {
+    const flags = planReferenceFlags();
+    const joined = [`${flags[0]}=${flags[1]}`, ...flags.slice(2)];
+    const run = await runTwinInProcess(['plan-reference', ...joined]);
+    expect(run.exitCode).toBe(1);
+    expect(run.stderr).toMatch(/plan export is missing/);
   });
 
   test('a stray argument refuses with the command usage', async () => {
@@ -214,18 +224,34 @@ describe('twin help and completion', () => {
     expect(printedBy(['help', 'admit-progress'])).toContain('--accepted-reference PATH');
   });
 
-  test('help parity holds under any terminal width', () => {
+  test('help parity holds under any terminal width and colour request', () => {
     const inProcess = printedBy(['--help']);
-    for (const columns of ['30', '400']) {
-      const execution = Bun.spawnSync({
-        cmd: [process.execPath, join(import.meta.dir, 'entrypoint.ts'), '--help'],
-        env: { ...process.env, COLUMNS: columns },
-        stderr: 'pipe',
-        stdout: 'pipe',
-      });
-      expect(execution.exitCode, columns).toBe(0);
-      expect(execution.stdout.toString('utf8'), columns).toBe(inProcess);
+    const environments: Record<string, string>[] = [
+      { COLUMNS: '30' },
+      { COLUMNS: '400' },
+      { FORCE_COLOR: '1' },
+    ];
+    for (const environment of environments) {
+      const label = JSON.stringify(environment);
+      const run = runTwin(['--help'], environment);
+      expect(run.exitCode, label).toBe(0);
+      expect(run.stdout, label).toBe(inProcess);
     }
+  });
+
+  test('the README shows the generated help', () => {
+    // Proof: rewording `help`'s line in the README block failed this test (2026-11-02).
+    const readme = readFileSync(join(import.meta.dir, '..', 'README.md'), 'utf8');
+    const block = /`twin --help` prints[^`]*```text\n([\s\S]*?)```/u.exec(readme)?.[1];
+    expect(block).toBe(printedBy(['--help']));
+  });
+
+  test('<command> --help prints that command; help <unknown> refuses in one line', async () => {
+    expect(printedBy(['plan-reference', '--help'])).toContain('Usage: twin plan-reference');
+    await expectUsageRefusal(
+      ['help', 'bogus'],
+      /^error: usage: twin help \(Unexpected option or subcommand: `bogus`\.\)\n$/u,
+    );
   });
 
   test('help and bash, zsh and fish completion print on stdout', () => {

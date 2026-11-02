@@ -10,7 +10,7 @@ Tests ran with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`.
 | Command                                                                                     | Result                                                                                                                                              |
 | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bun add --exact @optique/core@1.3.6 @optique/run@1.3.6`                                    | `package.json` and `bun.lock` lines identical to PR #807's                                                                                          |
-| `bunx nx run twilight-navigator:test --skip-nx-cache`                                       | `109 pass`, `0 fail`, `Ran 109 tests across 4 files`                                                                                                |
+| `bunx nx run twilight-navigator:test --skip-nx-cache`                                       | `112 pass`, `0 fail`, `Ran 112 tests across 4 files` (after the review fixes)                                                                       |
 | `bunx nx run twilight-navigator:typecheck --skip-nx-cache`                                  | `Successfully ran target typecheck`                                                                                                                 |
 | `bunx nx run twilight-navigator:lint --skip-nx-cache`                                       | `Successfully ran target lint`                                                                                                                      |
 | `bunx prettier --check` on the touched files                                                | `All matched files use Prettier code style!`                                                                                                        |
@@ -43,10 +43,24 @@ SHA-256; `git diff --quiet` held afterwards.
 | F2 `receiptToCommands` removed from the parser's command list | `help names every dispatched command and no other`                              | `- Expected - 1`, `+ Received + 0`                                                        |
 | F3 value `pattern` dropped                                    | `refuses a valueless flag before any read`                                      | reached the reader: `plan export is missing: …`                                           |
 | F4 unknown-command reason returned unmapped                   | `refuses an unsupported command before any read, exit 2 through the entrypoint` | stderr line differed from `error: Unsupported twin command: apply`                        |
-| F5 `maxWidth` dropped                                         | `help parity holds under any terminal width`                                    | `COLUMNS=30` help differed from the in-process help                                       |
+| F5 `maxWidth` dropped                                         | `help parity holds under any terminal width and colour request`                 | `COLUMNS=30` help differed from the in-process help                                       |
 | F6 object `unexpectedInput` dropped                           | `refuses an unknown flag before any read`                                       | Optique's ``Unexpected option or subcommand: `--force`.``                                 |
 | F7 `--change` wrapped in `optional`                           | `refuses a missing flag before any read`                                        | reached the reader: `plan export is missing: …`                                           |
 | F8 entrypoint `process.exitCode = 1`                          | `refuses an unsupported command before any read, exit 2 through the entrypoint` | `Expected: 2`, `Received: 1`                                                              |
+
+### Review fixes (Fable review of 2887552d5), 2026-11-02
+
+The same script, the same restoration check:
+
+| Fault                                                | Test that went red                                                         | Observed                                                                    |
+| ---------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| G1 `run`'s `colors: false` dropped                   | `help parity holds under any terminal width and colour request`            | under `FORCE_COLOR=1` 13 help lines differed; the refusal line stayed plain |
+| G2 `help`/`completion` branch of `refusalOf` dropped | `<command> --help prints that command; help <unknown> refuses in one line` | `error: Unsupported twin command: help`                                     |
+| G3 `completion` brief dropped (`reason` whole)       | `completion without a shell, and --version, refuse in one line`            | the completion help page inside the line                                    |
+| G4 `duplicate` wording dropped                       | `refuses a duplicate flag before any read`                                 | ``(`--change` cannot be used multiple times.)``                             |
+| G5 `Printed` no longer caught                        | `help and bash, zsh and fish completion print on stdout`                   | fail                                                                        |
+| G6 README help block reworded                        | `the README shows the generated help`                                      | `- Expected - 1`, `+ Received + 1`                                          |
+| G7 `usageOf` formats with `colors: true`             | `Missing Navigator flag: …` (under `FORCE_COLOR=1`)                        | ANSI bytes in the refusal line                                              |
 
 ### Not verified
 

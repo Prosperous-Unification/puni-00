@@ -39,6 +39,8 @@ function requiredFlag(
   return option(name, string({ metavar, pattern: /^(?!--)[\s\S]+$/u }), {
     description: [text(description)],
     errors: {
+      // Proof: dropping `duplicate` made `refuses a duplicate flag before any read` see Optique's
+      // own wording instead of `Duplicate twin flag: --change` (2026-11-02).
       duplicate: [text(`Duplicate twin flag: ${name}`)],
       endOfInput: [text(`twin flag has no value: ${name}`)],
       invalidValue: [text(`twin flag has no value: ${name}`)],
@@ -173,6 +175,8 @@ function usageOf(name: string): string | undefined {
     candidate.usage.some((term) => term.type === 'command' && term.name === name),
   );
   if (parser === undefined) return undefined;
+  // Proof: `colors: true` here failed `Missing Navigator flag: …` under `FORCE_COLOR=1` with
+  // ANSI bytes in the refusal line (2026-11-02).
   return `usage: ${formatUsage(programName, parser.usage, { colors: false })}`;
 }
 
@@ -188,8 +192,13 @@ function refusalOf(args: readonly string[], errorText: string): string {
     .replace(/\s+/gu, ' ')
     .trim();
   const name = args.at(0);
+  // `help <unknown>` refuses with the help usage, not `Unsupported twin command:` (N-A12).
+  // Proof: dropping this branch failed `<command> --help prints that command; help <unknown>
+  // refuses in one line` with `error: Unsupported twin command: help` (2026-11-02).
   if (name === 'help' || name === 'completion') {
     // `completion` without a shell follows its first sentence with its whole help page.
+    // Proof: returning `reason` whole here failed `completion without a shell, and --version,
+    // refuse in one line` with the help page inside the line (2026-11-02).
     const brief = reason.includes('Usage:') ? /^[^.]*\./u.exec(reason)?.[0] : undefined;
     return `usage: ${programName} ${name} (${brief ?? reason})`;
   }
@@ -234,8 +243,11 @@ export function readNavigatorInvocation(
       },
       // Without these two `run` reads the terminal's colour support and width, so help and
       // refusals would vary per terminal.
-      // Proof: dropping `maxWidth` failed `help parity holds under any terminal width` under
-      // `COLUMNS=30` (2026-11-02).
+      // Proof: dropping `maxWidth` failed `help parity holds under any terminal width and colour
+      // request` under `COLUMNS=30` (2026-11-02).
+      // Proof: dropping `colors` failed that test under `FORCE_COLOR=1`: 13 help lines differed
+      // by ANSI bytes (2026-11-02). Refusal lines stayed plain without it; `usageOf`'s own
+      // `colors: false` guards them.
       colors: false,
       maxWidth: 120,
       aboveError: 'none',
@@ -244,6 +256,8 @@ export function readNavigatorInvocation(
     });
     return { kind: 'command', command: parsed };
   } catch (cause) {
+    // Proof: rethrowing `Printed` here failed `help and bash, zsh and fish completion print on
+    // stdout` (2026-11-02).
     if (cause instanceof Printed) return { kind: 'printed' };
     throw cause;
   }

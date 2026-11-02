@@ -49,6 +49,14 @@ plan-reference`" is the message after that prefix, as in Dash's `error: usage: t
 - N-A8: `twin --version` refuses `Unsupported twin command: --version` (C4 omits a version).
 - N-A9: the generated completion scripts call `twin` to complete, so they need a `twin` on
   `PATH`; none is installed yet, and the README says so.
+- N-A10: `--flag=value` is now accepted (`--export=<path>` reaches the reader); the old loop
+  refused it as `Unsupported twin flag: --export=<path>`. Pinned by `accepts the --flag=value
+spelling`.
+- N-A11: `twin <command> --help` now prints that command's help, exit 0; the old loop refused
+  `--help` as an unsupported flag.
+- N-A12: `twin help <unknown>` refuses `usage: twin help (Unexpected option or subcommand:
+\`<unknown>\`.)`, not `Unsupported twin command: <unknown>`: the first word, `help`, is a
+  command, and the reason names the unknown one.
 
 ## 3. Burokrat (into main, after the `JOB-CATALOGUE` slice is open)
 

@@ -13,7 +13,8 @@ progress receipt comes back. Burokrat declares and validates both
 ## Commands
 
 The command line is parsed by [Optique](../../../../docs/adr/0064-use-optique-for-clis.md)
-from `src/cli-parser.ts`, and help is generated from it. `twin --help` prints (2026-11-02):
+from `src/cli-parser.ts`, and help is generated from it. `twin --help` prints (a test
+compares this block with the generated help):
 
 ```text
 Usage: twin admit-progress --receipt PATH --plan-reference PATH --tasks PATH --accepted-reference PATH --output PATH
@@ -32,8 +33,8 @@ Usage: twin admit-progress --receipt PATH --plan-reference PATH --tasks PATH --a
   --help                      Show help information.
 ```
 
-`twin help <command>` prints one command with every flag. `twin completion bash|zsh|fish`
-prints a completion script; the script calls `twin` again to complete, so it needs `twin` on
+`twin help <command>` and `twin <command> --help` print one command with every flag.
+`twin completion bash|zsh|fish|nu|pwsh` prints a completion script; the script calls `twin` again to complete, so it needs `twin` on
 `PATH` (for example a wrapper running `bun …/entrypoint.ts "$@"`). Navigator has no `--version`
 until it is published.
 

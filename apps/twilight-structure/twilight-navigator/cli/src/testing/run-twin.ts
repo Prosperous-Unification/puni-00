@@ -36,10 +36,17 @@ export async function runTwinInProcess(argv: readonly string[]): Promise<TwinRun
   }
 }
 
-/** The real `twin` entrypoint run as a child process, with its exit code and both streams. */
-export function runTwin(argv: readonly string[]): TwinRun {
+/**
+ * The real `twin` entrypoint run as a child process, with its exit code and both streams;
+ * `environment` entries override the inherited environment.
+ */
+export function runTwin(
+  argv: readonly string[],
+  environment: Readonly<Record<string, string>> = {},
+): TwinRun {
   const child = Bun.spawnSync({
     cmd: [process.execPath, 'run', ENTRYPOINT, ...argv],
+    env: { ...process.env, ...environment },
     stdout: 'pipe',
     stderr: 'pipe',
   });
