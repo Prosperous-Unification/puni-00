@@ -14,6 +14,10 @@ const INJECTED_REPORTING_FAULT = 'injected reporting fault: makeReportPair threw
  * named import in `report-failure.ts` included, and the original is restored before this returns,
  * whatever `run` did.
  *
+ * Bun tests only: it imports `bun:test`, and the shared namespace is a property of Bun's CommonJS
+ * interop, not an ESM guarantee. Vitest suites mock `application-exception` instead, as
+ * `app-fault.test.tsx` in fe-01 does.
+ *
  * @param run Synchronous work that reports one or more failures.
  * @returns Whatever `run` returned.
  * @throws {TypeError} When `run` returns a promise: its continuation would outlive the restore

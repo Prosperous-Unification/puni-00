@@ -16,7 +16,8 @@ exception catalogue.
 - **`index.ts`** — the complete production surface.
 - **`testing.ts`** — `@shared/failures/testing`, test-only: makes the report
   library throw so a test reaches the reporting-loss branch. Never imported by
-  production code; it imports `bun:test`.
+  production code; it imports `bun:test`, so Vitest suites mock
+  `application-exception` instead.
 
 ## Refusals
 
