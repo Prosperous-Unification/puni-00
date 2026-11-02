@@ -417,7 +417,9 @@ async function executeHostJob(
     if (admission.kind === 'refused') throw new OpsRefusal(admission.exitCode, admission.reason);
     if (admission.kind === 'waiting') throw new Error('host job admission returned while waiting');
     // The pool's mode cannot change under an admitted job: a switch waits for every unreleased
-    // compute entry, this one included (J12).
+    // compute entry, this one included (J12). Proof: skipping the shell lock here made `a Dash
+    // job never overlaps a legacy holder` (host-pool-mode.test.ts) see the runs overlap
+    // (2026-11-02, Slice 6b).
     const legacyHold =
       runtime.hostPoolTransition().mode === 'observe'
         ? await queueOnLegacyLock(runtime, admission.job, request, arrivedAt, deps, interruption)
@@ -530,6 +532,8 @@ async function endLegacyHold(
     );
     return;
   }
+  // Proof: releasing regardless made `a surviving child keeps the shell lock until its compute
+  // settles` (host-pool-mode.test.ts) see the holder gone (2026-11-02, Slice 6b).
   if (!released) {
     deps.report(
       `ops job: ${jobId} keeps the shell lock until its compute settles; watch releases it`,

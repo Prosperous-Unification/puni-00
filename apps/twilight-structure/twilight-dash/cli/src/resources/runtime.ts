@@ -2674,7 +2674,7 @@ export class ResourceRuntime {
       // A switch-mode in progress stops intake (J12), queued tickets included: the pool must
       // drain, and a caller refused 75 retries as it does for a busy host (S6B-A4).
       const fence = this.liveSwitch();
-      // Proof: without it `switch-mode stops intake, queued waiters included`
+      // Proof: without it `stops intake, queued waiters included`
       // (host-pool-mode.test.ts) admitted the build while the switch drained (2026-11-02, Slice 6b).
       if (fence !== null)
         return refuse(
@@ -2697,9 +2697,8 @@ export class ResourceRuntime {
       // Concurrent mode under the guard admits only while the `watch` singleton holds the
       // canonical flock (J12), so a stale launcher's `flock` path queues behind every host job.
       const pool = this.poolRow();
-      // Proof: without it `a legacy caller waits while a Dash job runs in concurrent mode`
-      // (host-pool-mode.test.ts) saw the job admitted with no guard and the legacy caller run
-      // beside it (2026-11-02, Slice 6b).
+      // Proof: without it `without the guard a job waits, then is refused 75`
+      // (host-pool-mode.test.ts) saw the job admitted with no guard holding the flock (2026-11-02, Slice 6b).
       if (pool.mode === 'concurrent' && pool.guard === 'on' && !this.guardHeld(pool.guardHolder)) {
         if (now >= Math.max(mine.deadline, mine.arrived_at + GUARD_WAIT_MS))
           return refuse(
@@ -3412,8 +3411,9 @@ export class ResourceRuntime {
     return this.transaction(() => {
       const pool = this.poolRow();
       const required = pool.mode === 'concurrent' && pool.guard === 'on';
-      // Proof: clearing under demand made `two Dash jobs overlap in concurrent mode while the
-      // guard is held` (host-pool-mode.test.ts) see the legacy caller run beside them (2026-11-02).
+      // The guard asks only once it saw no demand; this re-check closes the race with a ticket
+      // queued since. Proof: without it `the guard record is not cleared while a ticket is
+      // queued or compute is held` (host-pool-mode.test.ts) cleared it (2026-11-02, Slice 6b).
       if (required && this.undrained().length > 0) return false;
       this.db.query('UPDATE host_pool SET guard_holder=NULL WHERE id=1').run();
       return true;
@@ -3431,7 +3431,8 @@ export class ResourceRuntime {
     return this.transaction(() => {
       const pool = this.poolRow();
       const other = pool.switching !== null && alive(pool.switching) ? pool.switching : null;
-      // Proof: without it `a second switch-mode is refused while the first drains`
+      // Proof: without it `stops intake, queued waiters included, and refuses a
+      // second switch while the first drains`
       // (host-pool-mode.test.ts) took the fence over (2026-11-02, Slice 6b).
       if (other !== null)
         throw new HostPoolModeRefusal(
@@ -3487,8 +3488,8 @@ export class ResourceRuntime {
           `host pool ${this.configuration.enrollmentId}: this switch-mode no longer holds the intake fence`,
         );
       const ahead = this.undrained();
-      // Proof: without it `switch-mode observe waits for the pool to drain of host jobs`
-      // (host-pool-mode.test.ts) flipped beside a held job (2026-11-02, Slice 6b).
+      // Proof: without it `switch-mode concurrent refuses while a host job is admitted`
+      // (host-pool-mode.test.ts) flipped beside an admitted job (2026-11-02, Slice 6b).
       if (ahead.length > 0)
         throw new HostPoolModeRefusal(
           75,

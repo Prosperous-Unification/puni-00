@@ -95,8 +95,8 @@ export class SingletonGuard {
       (outcome) => {
         if (this.attempt === abort) this.attempt = null;
         if (outcome.kind === 'held') {
-          // Proof: recording nothing made `two Dash jobs overlap in concurrent mode while the
-          // guard is held` (host-pool-mode.test.ts) time out waiting for admission (2026-11-02).
+          // Proof: recording nothing made `two eligible Dash jobs overlap while the guard
+          // holds` (host-pool-mode.test.ts) time out waiting for admission (2026-11-02).
           if (this.runtime.recordGuardHolder(outcome.hold.pid, lock.lockPath))
             this.report(
               `resources: singleton guard holds the canonical flock ${lock.lockPath} (pid ${String(outcome.hold.pid)})`,
@@ -123,7 +123,8 @@ export class SingletonGuard {
     for (const name of readdirSync(directory)) {
       if (name === 'dash-singleton') continue;
       if (name === SWITCH_HOLD) {
-        // Proof: without it `watch ends a dead switch-mode's legacy hold`
+        // Proof: without it `watch ends an orphaned observe-mode hold once the job
+        // settles, and a dead switch-mode hold`
         // (host-pool-mode.test.ts) kept the shell lock held for ever (2026-11-02, Slice 6b).
         if (this.runtime.hostPoolTransition().switching?.live !== true)
           rmSync(join(directory, name), { force: true });

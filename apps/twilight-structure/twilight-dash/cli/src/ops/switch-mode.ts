@@ -61,7 +61,7 @@ function git(checkout: string, ...arguments_: string[]): { status: number | null
  * checkout that is unreadable or lacks the shim.
  */
 export function verifyLauncherCheckouts(checkouts: readonly string[]): string[] {
-  // Proof: without it `switch-mode refuses a configuration naming no launcher checkout`
+  // Proof: without it `refuses a configuration naming no launcher checkout`
   // (host-pool-mode.test.ts) flipped with nothing verified (2026-11-02, Slice 6b).
   if (checkouts.length === 0)
     throw new OpsRefusal(
@@ -87,15 +87,15 @@ export function verifyLauncherCheckouts(checkouts: readonly string[]): string[] 
       );
     const head = git(checkout, 'rev-parse', '--verify', 'HEAD^{commit}').stdout.trim();
     const library = git(checkout, 'show', 'HEAD:bin/heavy-lock-lib.sh');
-    // Proof: without it `switch-mode refuses a launcher checkout without the shim`
+    // Proof: without it `refuses a launcher checkout without the shim`
     // (host-pool-mode.test.ts) flipped beside a stale checkout (2026-11-02, Slice 6b).
     if (library.status !== 0 || !/^run_heavy_job\(\) \{$/m.test(library.stdout))
       throw new OpsRefusal(
         70,
         `ops pool switch-mode: launcher checkout ${checkout} at ${head || 'no HEAD'} has no run_heavy_job in bin/heavy-lock-lib.sh; a launcher there would take the legacy lock alone`,
       );
-    // Proof: without it `switch-mode refuses a launcher whose working library differs from
-    // HEAD` (host-pool-mode.test.ts) verified HEAD while the edited file ran (2026-11-02).
+    // Proof: without it `refuses a launcher checkout without the shim, or whose
+    // working library differs from HEAD` (host-pool-mode.test.ts) verified HEAD while the edited file ran (2026-11-02).
     if (git(checkout, 'diff', '--quiet', 'HEAD', '--', 'bin/heavy-lock-lib.sh').status !== 0)
       throw new OpsRefusal(
         70,
@@ -121,7 +121,8 @@ export function verifyEligibleTypes(
     ),
   );
   for (const id of eligible)
-    // Proof: without it `an eligible id no catalogue names is refused` (host-pool-mode.test.ts)
+    // Proof: without it `refuses an empty eligibility list unless --allow-empty, and
+    // an eligible id no catalogue names` (host-pool-mode.test.ts)
     // flipped with the typo listed (2026-11-02, Slice 6b).
     if (!named.has(id))
       throw new OpsRefusal(
@@ -174,7 +175,7 @@ export async function switchPoolMode(
   if (request.target === 'concurrent') {
     evidence.push(...verifyLauncherCheckouts(checkouts));
     evidence.push(verifyEligibleTypes(eligible, checkouts));
-    // Proof: without it `switch-mode concurrent refuses an empty eligibility list`
+    // Proof: without it `refuses an empty eligibility list unless --allow-empty`
     // (host-pool-mode.test.ts) flipped a pool that would serialise everything (2026-11-02).
     if (eligible.length === 0 && !request.allowEmpty)
       throw new OpsRefusal(
@@ -209,7 +210,7 @@ export async function switchPoolMode(
         );
       try {
         const queue = readLegacyQueue(deps.legacyLock);
-        // Proof: without it `switch-mode refuses while a legacy waiter queues behind it`
+        // Proof: without it `refuses while a legacy waiter queues behind it`
         // (host-pool-mode.test.ts) flipped with a legacy launcher still queued (2026-11-02).
         if (queue.waiters.length > 0)
           throw new OpsRefusal(

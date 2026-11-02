@@ -140,7 +140,13 @@ if (insideOpsNamespace(import.meta.path)) {
     fixture: Pool,
     type: string,
     name: string,
-    options: { seconds: number; waitSeconds: number; report?: string[] },
+    options: {
+      seconds: number;
+      waitSeconds: number;
+      report?: string[];
+      settleBudgetMs?: number;
+      payload?: string;
+    },
   ): Promise<number> {
     const deps: JobRunDependencies = {
       clock,
@@ -157,7 +163,7 @@ if (insideOpsNamespace(import.meta.path)) {
       telemetry: fakeScopeTelemetry(join(fixture.base, 'cgroupfs')),
       host: ampleHost,
       sampleIntervalMs: 10_000,
-      settleBudgetMs: 20_000,
+      settleBudgetMs: options.settleBudgetMs ?? 20_000,
       user: 'puni1',
       legacyLock: fixture.lock,
     };
@@ -168,7 +174,7 @@ if (insideOpsNamespace(import.meta.path)) {
         label: `lane:${name}`,
         waitSeconds: options.waitSeconds,
         pollSeconds: 1,
-        argv: [fixture.payload],
+        argv: [options.payload ?? fixture.payload],
       },
       deps,
     );
@@ -310,6 +316,46 @@ if (insideOpsNamespace(import.meta.path)) {
       await legacy.exited;
     });
 
+    test('a surviving child keeps the shell lock until its compute settles, then watch lets go', async () => {
+      const fixture = pool();
+      const leaver = payloadScript(join(fixture.base, 'leaver.sh'), 'sleep 3 &\nexit 0');
+      const report: string[] = [];
+      expect(
+        await run(fixture, 'eligible', 'leaver', {
+          seconds: 0,
+          waitSeconds: 0,
+          report,
+          settleBudgetMs: 300,
+          payload: leaver,
+        }),
+      ).toBe(0);
+      expect(
+        report.some((line) =>
+          line.endsWith('keeps the shell lock until its compute settles; watch releases it'),
+        ),
+      ).toBe(true);
+      expect(readLegacyQueue(fixture.lock).holder.kind).toBe('held');
+      const early = startLegacyCaller(fixture.lock, 'early', fixture.log, {
+        waitSeconds: 0,
+        seconds: 0,
+      });
+      expect(await early.exited).toBe(75);
+      const runtime = runtimeOf(fixture);
+      const guard = new SingletonGuard(runtime, () => fixture.lock, process.env, silent);
+      const job = runtime.listHostJobs().at(0);
+      if (job === undefined) throw new Error('no host job recorded');
+      await eventually(
+        'the surviving child to end and the job to settle',
+        () => {
+          runtime.settleHostJob(job.id, { containersGone: () => true });
+          guard.tick();
+          return readLegacyQueue(fixture.lock).holder.kind === 'none';
+        },
+        20_000,
+      );
+      expect(runtime.inspectHostJob(job.id).compute.state).toBe('released');
+    });
+
     test('a withdrawal of a prepared job is refused', () => {
       const fixture = pool();
       const runtime = runtimeOf(fixture);
@@ -399,6 +445,25 @@ if (insideOpsNamespace(import.meta.path)) {
       expect(transition.switching).toBeNull();
       expect(readLegacyQueue(fixture.lock).holder).toEqual({ kind: 'none' });
       expect((await switchMode(fixture, 'concurrent')).code).toBe(64);
+    });
+
+    test('switch-mode concurrent refuses while a host job is admitted, and reopens intake', async () => {
+      const fixture = pool();
+      const runtime = runtimeOf(fixture);
+      // Admitted by the pool alone, not yet on the shell lock: the drain of the lock cannot see it.
+      const queued = runtime.enqueueHostJob(
+        { descriptor: jobType('eligible', 1, 1), label: 'lane:admitted', waitSeconds: 0 },
+        process.pid,
+      );
+      if (queued.kind !== 'queued') throw new Error(queued.reason);
+      const admitted = runtime.pollHostJob(queued.ticket, silent);
+      if (admitted.kind !== 'admitted') throw new Error(admitted.kind);
+      const refused = await switchMode(fixture, 'concurrent');
+      expect(refused.code).toBe(75);
+      expect(refused.stderr).toContain('is not drained of host jobs: lane:admitted (starting');
+      expect(runtime.hostPoolTransition()).toMatchObject({ mode: 'observe', switching: null });
+      runtime.withdrawUnlaunchedHostJob(admitted.job.id, 'test');
+      expect((await switchMode(fixture, 'concurrent')).code).toBe(0);
     });
 
     test('refuses a configuration naming no launcher checkout', async () => {
@@ -609,6 +674,22 @@ if (insideOpsNamespace(import.meta.path)) {
           'the singleton guard is not held',
         );
       });
+    });
+
+    test('the guard record is not cleared while a ticket is queued or compute is held', async () => {
+      const fixture = await concurrentPool();
+      const runtime = runtimeOf(fixture);
+      expect(runtime.recordGuardHolder(process.pid, fixture.lock.lockPath)).toBe(true);
+      const queued = runtime.enqueueHostJob(
+        { descriptor: jobType('eligible', 1, 1), label: 'lane:demand', waitSeconds: 30 },
+        process.pid,
+      );
+      if (queued.kind !== 'queued') throw new Error(queued.reason);
+      expect(runtime.clearGuardHolder()).toBe(false);
+      expect(runtime.hostPoolTransition().guardHolder?.pid).toBe(process.pid);
+      runtime.withdrawHostJob(queued.ticket);
+      expect(runtime.clearGuardHolder()).toBe(true);
+      expect(runtime.hostPoolTransition().guardHolder).toBeNull();
     });
 
     test('a guard whose holder record names another pid is not held', async () => {
