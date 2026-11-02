@@ -140,7 +140,7 @@ Full local monorepo `bunx nx run-many -t test lint typecheck build` and h2/h4 ga
 were not run. Hosted PR CI is a distinct required gate. Original run41370408113
 failed twilight-burokrat's11pilot cases because the actual country archive lacked
 an exact binary declaration; the repair and focused proof are recorded above.
-Fresh hosted [run41376475116](https://github.com/Prosperous-Unification/puni-00/actions/runs/41376475116) is in progress on combined source1e01. It is required before normal main integration; no bypass, admin merge or full-gate success is claimed. Private consumer [PR74](https://github.com/Prosperous-Unification/puni-pr-00/pull/74) passed its required [source CI](https://github.com/Prosperous-Unification/puni-pr-00/actions/runs/41377918615). This evidence/tasks follow-up changes documentation only and does not supersede the runtime head under test.
+Fresh hosted [run41376475116](https://github.com/Prosperous-Unification/puni-00/actions/runs/41376475116) completed successfully on source `1e01c122cd3e138c30e35cad755bd328b262740a`; both workspace/twilight gates, all four pixel shards and the aggregate gate passed. Normal exact-head PR812 merge produced main `1366cdd8ff0f2134f3b1b9c827b99b6ea223ce7b` at03:46:11UTC; no bypass/admin merge was used. Private consumer [PR74](https://github.com/Prosperous-Unification/puni-pr-00/pull/74) passed its required [source CI](https://github.com/Prosperous-Unification/puni-pr-00/actions/runs/41377918615). This evidence/tasks follow-up changes documentation only and does not supersede the runtime head under test.
 
 Actual `bunx nx format:check --all` output was empty with exit0 (no differing
 files). Scoped formatting/diff checks cover subsequent task documentation/policy.
@@ -174,9 +174,75 @@ integration decisions are covered by actual geometry and causal negatives.
 
 ## Implementation signal and decision
 
-Runtime range: `c894bc45e9299348fa6688141282840136995814..1e01c122cd3e138c30e35cad755bd328b262740a`, normally committed and pushed to [PR812](https://github.com/Prosperous-Unification/puni-00/pull/812). Runtime tree was clean before this documentation follow-up. Private runtime0001d4c plus documentationf5cbb29 is published to privatePR74; its five canonical trees equal the approved public6e71 pin. This verification/tasks follow-up contains no runtime source edits. Final clean status and hosted gate outcomes are recorded during normal PR integration. **Source/browser acceptance passed; required CI and delta promotion are still pending, so this is not an archive or deployment claim.**
+Runtime range: `c894bc45e9299348fa6688141282840136995814..1e01c122cd3e138c30e35cad755bd328b262740a`, normally committed and pushed to [PR812](https://github.com/Prosperous-Unification/puni-00/pull/812). Runtime tree was clean before this documentation follow-up. Private runtime0001d4c plus documentationf5cbb29 is published to privatePR74; its five canonical trees equal the approved public6e71 pin. This verification/tasks follow-up contains no runtime source edits. Final clean status and hosted gate outcomes are recorded during normal PR integration. **Source/browser acceptance and required PR CI passed. Delta promotion remains pending; this is not an archive or deployment claim.**
 
 The requested reminder is a committed dated maintenance note, **not a scheduled
 notification or automatic download**. Inference activation, production release,
 real GA account verification and the older full-launch AI-quality gate are outside
 this change and remain held/unverified. No production deployment occurred.
+
+## Final normal integration
+
+Public [PR812](https://github.com/Prosperous-Unification/puni-00/pull/812) merged
+into main at `1366cdd8ff0f2134f3b1b9c827b99b6ea223ce7b` after successful
+[required workflow41376475116](https://github.com/Prosperous-Unification/puni-00/actions/runs/41376475116).
+Its reviewed head is1e01c122c; CI used validated synthetic merge
+`a30b921721f30dad08cb378cca581712de85f72f` against main98e7b00.
+The main merge retains the reviewed runtime tree; this follow-up changes only
+this verification record and completed task checkboxes.
+
+Actual completed gate output excerpts below have ANSI color removed, not results
+normalized. The complete workspace output is the retained
+`nx-gate-log-workspace-1/nx-gate.log` workflow artifact; GitHub's job console
+keeps only its last200lines. Local copies are
+`/tmp/puni-country-integration-20261102/public-workspace-final-artifact/nx-gate.log`
+and the corresponding workspace/twilight job logs.
+
+```text
+NX   Successfully ran targets test, typecheck, build for 53 projects and 9 tasks they depend on
+NX   Successfully ran target lint for 53 projects and 1 task they depend on
+NX   Successfully ran target lint:source for project twilight-burokrat
+```
+
+The exact recorded commands use run-many test/typecheck/build for the53project
+workspace set (`elapsedMs:4476813,exitCode:0`), affected lint against the validated
+base/head (`547399,0`), and uncached Burokrat source lint (`36948,0`). This is
+the current split CI contract; the single unscoped local four-target command
+was not run. The workflow also passed solver image smoke, heavy-lock/head-pinning
+and dev-entrypoint tests, secrets/private-nesting/doc/Compose/migration/corpus
+checks and both OpenSpec checks. Existing OpenSpec warnings and two unchanged
+tool-devsync unused eslint-disable warnings were reported; no warning-free claim.
+
+Actual Twilight output:
+
+```text
+2544 pass
+0 fail
+Ran 2544 tests across 101 files. [2281.13s]
+NX   Successfully ran targets test, typecheck, build for 2 projects and 4 tasks they depend on
+84 pass
+0 fail
+Ran 84 tests across 9 files. [255.72s]
+```
+
+Private [PR74](https://github.com/Prosperous-Unification/puni-pr-00/pull/74)
+merged into main at `de9fc93b102495babdd6761b26e008d290b28a31`; required
+[PR CI41377918615](https://github.com/Prosperous-Unification/puni-pr-00/actions/runs/41377918615)
+and exact main's [post-merge CI41378796204](https://github.com/Prosperous-Unification/puni-pr-00/actions/runs/41378796204)
+passed. Public main push workflows are separate follow-up executions; their
+future outcomes are not asserted by this completed PR acceptance.
+
+The loopback preview was restarted from private main de9fc93 and checked ready
+at localhost4321(site),4201(app),3101(API). Local paid inference and analytics
+are disabled; the demo may use simulated AI. The real local regional endpoint
+returns200,no-store,unknown with November2026/December1 metadata. The identified
+old Astro process was stopped only after exact cwd/argv ownership verification;
+other previews were not signaled. No development or production deployment occurred.
+
+Reversible integration decisions: app card stays in flow while site floats
+(different placement); owner main changes retained (extra regression/build work);
+shortest-phone hero moves up32px (higher tiny-screen composition); overflow uses
+clientWidth (different measurement reference); focus uses bounded actual-state
+observation (brief test wait); keyboard ring is3px (stronger visible outline);
+Cloud maximum lifetime is15minutes (larger reservation, explicit stop at finish).
+The original strict layout/privacy/focus assertions retain causal negatives.
