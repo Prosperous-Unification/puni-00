@@ -106,3 +106,19 @@ describe('night site header', () => {
     });
   });
 });
+
+test('shared public footer and compact Build credit expose DB-IP attribution and licence details', async () => {
+  const React = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { SiteFooter, AnalyticsCredit, siteOrigin } = await import('./chrome');
+  for (const component of [SiteFooter, AnalyticsCredit]) {
+    const container = dom.window.document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(React.createElement(component));
+    expect(container.querySelector('a[href="https://db-ip.com"]')?.textContent).toBe(
+      'IP Geolocation by DB-IP',
+    );
+    expect(container.querySelector(`a[href="${siteOrigin}/privacy/"]`)?.textContent).toMatch(
+      /Privacy|Source and licence/,
+    );
+  }
+});

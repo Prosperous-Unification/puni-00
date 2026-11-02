@@ -154,3 +154,15 @@ _Avoid_: Anonymous visitor tracking
 
 **Analytics event**:
 A usage signal about progress through the public website funnel, distinct from a durable Funnel count.
+
+**Country estimate**:
+The approximate country associated with a visitor's current network address, which is not proof of nationality, residence or precise location.
+_Avoid_: Visitor location, nationality
+
+**Consent region**:
+The configured group of countries where PUNI asks for an explicit analytics-cookie choice before allowing those cookies.
+_Avoid_: Europe, regulated country
+
+**Regional default**:
+The initial analytics-cookie permission used when the visitor has no valid saved choice. A saved acceptance or rejection takes precedence.
+_Avoid_: Implied consent, automatic acceptance

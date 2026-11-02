@@ -209,6 +209,18 @@ export function SiteHeader({
   );
 }
 
+/** Visible dataset attribution shared by the public app footers; source/licence live in privacy. */
+export function AnalyticsCredit() {
+  return (
+    <span className="analytics-credit">
+      {/* Proof: removing the linked credit failed shared public footer and compact Build credit. */}
+      <a href="https://db-ip.com">IP Geolocation by DB-IP</a>
+      {' · '}
+      <a href={`${siteOrigin}/privacy/`}>Source and licence</a>
+    </span>
+  );
+}
+
 export function SiteFooter() {
   return (
     <footer className="site-footer">
@@ -226,6 +238,7 @@ export function SiteFooter() {
       </nav>
       <div className="footer-base">
         <span>© {new Date().getFullYear()} PUNI</span>
+        <AnalyticsCredit />
         <FooterWordmark />
       </div>
     </footer>
