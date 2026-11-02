@@ -1186,3 +1186,231 @@ before any request`, at its 5 s default timeout. It spawns the entrypoint, which
   - It fails the same way on an untouched `b116cb40e` checkout (22 pass, 1 fail), so it predates
     this branch. It is the import-cost follow-up of task 3.1 (review R6).
 - `twilight-dash:typecheck` and `:lint` (`--skip-nx-cache`) succeed.
+
+## Slice 6b — observe mode, switch-mode, singleton guard (tasks 6.1 observe half, 6.5a)
+
+Branch `feat/dash-host-jobs-6b-transition` from slice 4's `efd168e40`. It implements J12 and
+J13 on Dash's side, in five parts:
+
+- **Observe mode.** Every host job also runs under the shell lock's complete queue protocol,
+  with one wait budget.
+- **`ops pool switch-mode`.** It stops intake, drains, verifies the launchers and flips the
+  mode with the operator's record. It also rolls back and releases the guard.
+- **The guard.** In concurrent mode, the `resources watch` singleton holds the canonical flock
+  as `dash-singleton`.
+- **Concurrency eligibility.** The per-type `concurrencyEligible` admission rule, added from
+  PR #816's review.
+- **Status.** Mode, guard and the shell lock appear in `ops job status` and `ops pool inspect`.
+
+The slice also carries the five S3 follow-ups of PR #814's second review. Nothing touched a
+host, and `bin/` is unchanged (`git diff --quiet efd168e40 HEAD -- bin/` exits 0). Code:
+
+- `src/resources/legacy-lock.ts`: the shell holder and the status reader.
+- `src/resources/singleton-guard.ts`: the guard.
+- `src/ops/switch-mode.ts`: `switch-mode`.
+- `runtime.ts`: ledger version 2, the fence, the guard checks, eligibility and withdrawal.
+- `job-run.ts`: the observe-mode queue.
+- `commands.ts`, `status.ts`, `cli-parser.ts`, `resources/command.ts`: wiring.
+
+Tests: `src/resources/legacy-lock.test.ts` (8) and `src/ops/host-pool-mode.test.ts` (23).
+
+S3 follow-ups of PR #814:
+
+- **(a)** `propose`'s null-measure branch marks the record partial. Test: `a record not
+measured in one dimension is not cited`.
+- **(b)** `hostJobOf` throws on a calibration row without `reserved` (S4-A17 amended). Test:
+  `a calibration row without its reservation is refused`.
+- **(c)** `drained()`'s unbreakable "no starting or held job" conjunct is deleted. A starting
+  or held job always reserves a workspace slot, so reserved-is-zero is the check.
+- **(d)** S4-A19, recorded above and in `docs/resources.md`.
+- **(e)** The model test's plain whole-pool type is renamed `whole-pool-run`, and its counter
+  `wholePoolRun`.
+
+### Assumptions (open decisions taken per design.md; overrulable by id)
+
+- **S6B-A1 The shell lock's own protocol.** Dash never reimplements the flock queue. In observe
+  mode `ops job run` starts `bin/heavy-lock-lib.sh`'s own `with_heavy_lock` on the canonical
+  path as a detached shell holder, after pool admission and before the job is prepared.
+  Ticket, deadline, holder record, label and dead-ticket reclaim are the library's. The
+  library is the one in the checkout Dash runs from (`src/resources` sits six levels below the
+  workspace root). The path is whatever its `resolve_heavy_lock_path` answers. Neither has a
+  flag or variable.
+- **S6B-A2 Who holds the flock.** The shell holder (bash, its own session, working directory
+  `/`) holds it on its fd 9 while the hold file `<root>/.dash/legacy-holds/<job id>` exists.
+  `status` therefore names the holder's pid, not the payload's: the label
+  `dash-job-<job id> <lane label>` ties the two, and `ops job status` names the payload pid.
+  The brief expected the hold to end if Dash died. This design keeps it, which is stronger:
+  - **Dash dies mid-hold:** the holder keeps the flock. `watch` removes the hold file once the
+    job's compute entry is released, and the holder then exits and releases. Tested.
+  - **The holder is killed outright:** the kernel releases the flock. The holder record
+    survives and the next claimant reclaims it from the dead pid (`claim_heavy_lock`'s rule).
+    Tested.
+- **S6B-A3 One wait budget.** The shell lock gets `ceil(arrival + wait − now)` seconds, so a
+  sub-second admission does not cost a caller its last second. The total may therefore exceed
+  `--wait-seconds` by under one second.
+- **S6B-A4 Intake stop.** While a live `switch-mode` holds the fence, every poll is refused 75
+  `intake stopped …`, queued waiters included, so the drain is bounded. 75 is the code callers
+  already retry as a busy host. A dead switcher's fence is void.
+- **S6B-A5 Waiting for the guard.** In concurrent mode under the guard, a ticket waits for the
+  guard until 15 s past its own deadline (`GUARD_WAIT_MS`), then is refused 75 naming it. The
+  grace is what keeps a wait-zero caller working: `watch` takes the guard on its next tick.
+- **S6B-A6 Fence and singleton guard.** Concurrent `switch-mode`s are fenced by a ledger row
+  (`host_pool.switching`, the switcher's pid, boot and start identity) written under
+  `BEGIN IMMEDIATE`, not by a lock file. The guard's own singleton is the flock: a second
+  `watch`'s attempt queues behind the first's holder.
+- **S6B-A7 Guard release.** `switch-mode concurrent --release-guard` re-verifies the launchers
+  and writes a `release-guard` mode record. Every flip sets the guard on, so a rollback leaves
+  the next flip guarded.
+- **S6B-A8 The 6.7 unit.** The guard's holder outlives `watch` by design, but a systemd unit
+  with the default `KillMode=control-group` kills it with `watch`. Task 6.7's unit needs
+  `KillMode=process`. Open, recorded in `docs/resources.md`.
+- **S6B-A9 What releases the shell lock.** It is released once the job's compute entry is
+  released, so the payload's processes are gone. Tmp and tree entries may still be
+  outstanding, as with a legacy run, whose lock ends with its command.
+- **S6B-A10 Launcher checkouts.** The checkouts are named in an optional configuration field,
+  `launcherCheckouts`, which the binding does not pin. `switch-mode` requires at least one
+  (64). For each it checks three things: the path is the top of a work tree; `run_heavy_job()`
+  is defined in `bin/heavy-lock-lib.sh` at HEAD; and the working file equals HEAD. A failure
+  is 70.
+- **S6B-A11 Concurrency eligibility (PR #816 review).** `concurrencyEligible` is optional,
+  absent meaning none; ids are job-type-shaped and each named once. Config load checks the
+  shape only, since it has no catalogue. `ops pool init` and `switch-mode concurrent` refuse
+  64 an id that no `launcherCheckouts` catalogue names at HEAD. `switch-mode concurrent`
+  refuses an empty list 64 unless `--allow-empty`. In observe mode the rule is moot, since the
+  shell lock serialises everything.
+- **S6B-A12 Drain proof.** `switch-mode concurrent` drains the shell lock by holding it, as
+  legacy holder `dash-switch-mode`. It refuses 75 while any waiter queues behind it, since
+  that waiter is a launcher still on the legacy path. Rollback drains the pool alone.
+- **S6B-A13 Ledger version 2.** Version 2 adds `host_pool.guard`, `guard_holder`, `switching`
+  and the table `host_pool_mode_records`. Versions 0 and 1 step forward in one transaction,
+  each only when its tables are exactly that version's.
+- **S6B-A14 Tests and the canonical path.** No test touches `/home/puni1/.cache`. Every test
+  uses the real library on a private path, except one. `the installed entrypoint runs a job`
+  goes through production composition, so its pool runs concurrent and unguarded.
+- **S6B-A15 Slice 6a interplay.** Two changes are needed when 6a and 6b meet. Both are written
+  as a follow-up below, because 6a's files are not edited here:
+  - 6a's `launchers.test.ts` builds `JobRunDependencies` itself and now needs `legacyLock`;
+  - its two-gates-at-once case runs in observe mode, which 6b serialises.
+
+### Fault injection
+
+Method: `fault.py` replaces one exact text in the named file, runs the named test file with
+`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset (inside the suite's own namespace, filtered to
+the test), then writes the original bytes back and compares SHA-256. Every fault was watched
+red and every file was restored byte for byte. The SHA-256 values below are those of the
+committed files.
+
+| File (SHA-256 before and after)                        | Fault injected                                                       | Test that went red                                                                     | Observed                                    |
+| ------------------------------------------------------ | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `src/ops/propose.ts` `118c5f2d…752227a`                | Fa: `take()`'s null branch does not mark the record partial          | `a record not measured in one dimension is not cited` (propose.test.ts)                | `calibration-4` in `recordIds`              |
+| `src/resources/runtime.ts` `edc1b820…ba798eee`         | Fb: a calibration row without `reserved` derives `wholePool()` again | `a calibration row without its reservation is refused` (calibrate.test.ts)             | did not throw                               |
+| runtime.ts                                             | F1: intake fence dropped from admission                              | `stops intake, queued waiters included, …` (host-pool-mode.test.ts)                    | `expected a refusal`: the job ran           |
+| runtime.ts                                             | F2: guard check dropped from admission                               | `without the guard a job waits, then is refused 75 naming it`                          | admitted, not `waiting`                     |
+| runtime.ts                                             | F2b: the same, end to end                                            | `two eligible Dash jobs overlap while the guard holds; …`                              | holder line not `dash-singleton`            |
+| runtime.ts                                             | F3: guard trusts the recorded identity alone                         | `a guard whose holder record names another pid is not held`                            | admitted                                    |
+| runtime.ts                                             | F4: guard record cleared under demand                                | `the guard record is not cleared while a ticket is queued or compute is held`          | `true`, expected `false`                    |
+| runtime.ts                                             | F5: a second switch takes the fence over                             | `stops intake, … and refuses a second switch while the first drains`                   | second switch not refused 75                |
+| runtime.ts                                             | F6: flip without the in-transaction drain check                      | `switch-mode concurrent refuses while a host job is admitted, and reopens intake`      | exit 0, expected 75                         |
+| `src/ops/job-run.ts` `3f4031be…3d64b6e4`               | F7: a shell-lock refusal does not withdraw the job                   | `a legacy deadline withdraws the Dash job: 75, nothing reserved, no ticket left`       | job `starting`, expected `released`         |
+| runtime.ts                                             | F8: withdrawal accepts a prepared job                                | `a withdrawal of a prepared job is refused`                                            | did not throw                               |
+| runtime.ts                                             | F9: concurrency-eligibility rule dropped                             | `an ineligible type beside an eligible one is serialised`                              | the runs overlapped                         |
+| `src/ops/switch-mode.ts` `24ed6f40…5da1945b`           | F10: switch ignores waiters queued behind it                         | `refuses while a legacy waiter queues behind it, and reopens intake`                   | exit 0, expected 75                         |
+| switch-mode.ts                                         | F11: `run_heavy_job` check dropped                                   | `refuses a launcher checkout without the shim, or whose working library differs …`     | exit 0, expected 70                         |
+| switch-mode.ts                                         | F12: working-file-equals-HEAD check dropped                          | the same                                                                               | exit 0, expected 70                         |
+| switch-mode.ts                                         | F13: empty eligibility accepted                                      | `refuses an empty eligibility list unless --allow-empty, and an eligible id …`         | exit 0, expected 64                         |
+| switch-mode.ts                                         | F14: eligible ids not checked against the catalogues                 | the same                                                                               | exit 0, expected 64                         |
+| `src/ops/commands.ts` `ae72e4fa…5652d667`              | F15: `ops pool init` skips the eligibility check                     | `ops pool init refuses an eligible type no catalogue names, creating nothing`          | exit 0, expected 64                         |
+| `src/resources/command.ts` `e1e8f996…c61c925`          | F16: `watch` does not tick the guard                                 | `resources watch holds the guard for a queued job and lets go when the pool empties`   | failed after 32.0 s; no assertion line kept |
+| `src/resources/singleton-guard.ts` `02378860…b965100c` | F17: guard never records its holder                                  | `two eligible Dash jobs overlap while the guard holds; …`                              | `timed out waiting for both payloads`       |
+| singleton-guard.ts                                     | F18: a dead switch-mode's hold is kept                               | `watch ends an orphaned observe-mode hold once the job settles, and a dead …`          | holder never exited (60 s timeout)          |
+| singleton-guard.ts                                     | F19: a settled job's hold is kept                                    | the same                                                                               | holder never exited (60 s timeout)          |
+| job-run.ts                                             | F20: observe mode skips the shell lock                               | `a Dash job never overlaps a legacy holder, and two Dash jobs serialise`               | the runs overlapped                         |
+| job-run.ts                                             | F21: the shell lock released with compute outstanding                | `a surviving child keeps the shell lock until its compute settles, then watch lets go` | holder gone while the child lived           |
+| runtime.ts                                             | F22: version-1 table check dropped                                   | `refuses a version-1 ledger with unexpected tables` (host-jobs.test.ts)                | migrated it                                 |
+| runtime.ts                                             | F23: launcher checkout named-twice check dropped                     | `the pool shape refuses each malformed statement` (host-jobs.test.ts)                  | loaded                                      |
+| runtime.ts                                             | F24: eligible id named-twice check dropped                           | the same                                                                               | loaded                                      |
+
+Two first-cut negatives stayed green and were replaced; the table shows the final ones:
+
+- **F4.** The overlap test never reaches `clearGuardHolder`'s own demand re-check, because
+  the guard asks only after it has seen no demand.
+- **F6.** The rollback test never reaches `completeModeSwitch`'s drain check, because
+  rollback drains first.
+
+Each now has a direct test of the production method.
+
+Not provable alone, so stated rather than tested:
+
+- **The shell holder's `trap '' PIPE`.** It matters only once Dash's stderr reader is gone and
+  the library then writes a failure line. No test provokes a library failure after the claim.
+- **`readLegacyQueue`'s refusal of a line it cannot parse.** The library prints only the
+  shapes parsed. Its refusal of an unreadable holder (exit 70) is tested.
+
+### Commands (fresh, 2026-11-02, `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset for tests)
+
+| Command                                                                                                                                                                                                                                  | Result                                                                                                                         |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `bun test src/ops src/resources/{legacy-lock,host-jobs,host-jobs.model,host-job-holds,host-job-publication}.test.ts src/cli.test.ts src/no-ambient-clock.test.ts` (in `apps/twilight-structure/twilight-dash/cli`, the target's preload) | exit 0; 103 pass, 0 fail across 15 files (outer); the namespaced files' inner runs all pass, `host-pool-mode.test.ts` 23 of 23 |
+| `bash bin/heavy-lock.test.sh` (unchanged)                                                                                                                                                                                                | exit 0, `all heavy-lock checks passed`                                                                                         |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                                                                                                                                    | exit 0                                                                                                                         |
+| `bunx nx run twilight-dash:lint --skip-nx-cache`                                                                                                                                                                                         | exit 0                                                                                                                         |
+| `bunx nx run twilight-dash:build --skip-nx-cache`                                                                                                                                                                                        | exit 0                                                                                                                         |
+| `bunx openspec validate dash-host-jobs --json`                                                                                                                                                                                           | `passed: 1, failed: 0`                                                                                                         |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                                                                              | exit 0                                                                                                                         |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                                                                                                                                                                         | FULL_RESULT                                                                                                                    |
+
+### Skipped or unverified
+
+- **No host was touched.** Nothing was enrolled, `switch-mode` never ran against
+  `/home/puni1`, and the canonical lock was never taken. The production composition
+  (`productionLegacyLock`) is tested only for its answer: the library beside this checkout and
+  `/home/puni1/.cache/wbs-heavy-work.lock`.
+- **The 6.7 systemd unit's `KillMode`** (S6B-A8) is not written; that is task 6.7.
+- **Watch wiring.** The guard's wiring into `resources watch` is proven by one test that runs
+  `runResources watch` as a process, with an unreachable fake WBS. No real WBS was involved.
+- **Slice 6a.** `launchers.test.ts` was not run against this branch, because 6a is not merged
+  here. The follow-up below is what a merge needs.
+- **The real-scope `the installed entrypoint runs a job` test** now runs in concurrent,
+  unguarded mode (S6B-A14). The observe path through the production entrypoint is not
+  exercised.
+
+### Follow-up for slice 6a (`launchers.test.ts`, not edited here)
+
+Whichever of #816 and this PR merges second needs this change, or 6a's launcher suite fails
+to typecheck (`legacyLock` is a required `JobRunDependencies` field). Its two-gates and
+gate-beside-release cases would also serialise, because a fresh pool is in observe mode:
+
+```diff
+--- a/apps/twilight-structure/twilight-dash/cli/src/ops/launchers.test.ts
++++ b/apps/twilight-structure/twilight-dash/cli/src/ops/launchers.test.ts
+@@ FIXTURE_DASH
+ import { runHostJob } from ${JSON.stringify(join(DASH_SOURCE, 'ops', 'job-run'))};
++import { productionLegacyLock } from ${JSON.stringify(join(DASH_SOURCE, 'resources', 'legacy-lock'))};
+@@
+       user: 'puni1',
++      // Inside the namespace /home/puni1/.cache is tmpfs, so the canonical lock is a fixture.
++      legacyLock: productionLegacyLock(),
+     },
+@@ function writeConfig()
+         exclusiveUnits: { gate_tree: units },
+         enrollmentId: 'enrollment-one',
++        launcherCheckouts: [checkout],
++        concurrencyEligible: ['gate', 'release-build'],
+       }),
+@@ test('ops pool init enrolls the host at the fixed path', …)
+       expect(existsSync(LEDGER)).toBe(true);
++      // Two jobs overlap only in concurrent mode; the guard needs a running `watch`, which
++      // this suite does not start, so it is released at once (both through the entrypoint).
++      for (const flags of [[], ['--release-guard']]) {
++        const switched = Bun.spawnSync(
++          [process.execPath, join(DASH_SOURCE, 'entrypoint.ts'), 'ops', 'pool', 'switch-mode',
++           'concurrent', '--config', CONFIG, '--operator', 'launchers-test', ...flags],
++          { stdout: 'pipe', stderr: 'pipe' },
++        );
++        expect(switched.exitCode, switched.stderr.toString()).toBe(0);
++      }
+```
+
+The fixture checkout must hold a committed `bin/heavy-lock-lib.sh` defining `run_heavy_job`,
+which 6a's fixture checkout copies. Its catalogue must name `gate` and `release-build`. The
+unenrolled-host case before `ops pool init` is unaffected.

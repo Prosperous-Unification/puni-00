@@ -565,8 +565,9 @@ if (insideOpsNamespace(import.meta.path)) {
         expect(job.exitCode).toBe(0);
         expect(job.state).toBe('released');
         // Observe mode (J12): the shell lock's own claim line, then settlement, then its release.
-        expect(report).toEqual([
-          'heavy lock: waited 0s behind 0 tickets',
+        // The claim line counts whole seconds, so a loaded host may say 1s.
+        expect(report[0]).toMatch(/^heavy lock: waited \d+s behind 0 tickets$/);
+        expect(report.slice(1)).toEqual([
           `ops job: ${jobId} compute released: owned process group terminal and declared containers gone`,
           `ops job: ${jobId} tmp released: tmp directory removed and holds verified`,
           `ops job: ${jobId} unit gate_tree ${trees[0] ?? ''} released: tree clean at its resting commit`,
