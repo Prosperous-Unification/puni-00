@@ -5,6 +5,8 @@ repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"
 
 # shellcheck source=bin/heavy-lock-lib.sh
+# shellcheck disable=SC1091 # Followed only under `shellcheck -x`, which tool-fleet:check does
+# not pass; the `source=` directive above names the file for runs that do.
 source "$repo_root/bin/heavy-lock-lib.sh"
 
 # The outer launcher: the build itself is `bin/publish-release-payload.sh`, run under the heavy
