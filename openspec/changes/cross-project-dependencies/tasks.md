@@ -1314,6 +1314,8 @@ The annotated inert diagnostic checkpoint additionally passed all scoped statics
 
 The bounded FRC1–FRC4 private cleanup slice is accepted at its actual epochs: RED6/5, same11 GREEN11/0, four exact omission/restoration pairs8calls, adjacent Proof comments, configured statics and a falsifiable six-transform compiler bridge. See `verify-source-frontend-current-epoch.md`; metadata caveats and historical failures remain recorded. This checks only these four small fixture tasks. FEP5, inner-Vite original ownership, full native/CI/gates and dependency feature delivery remain open; no parent completion or architectural adoption follows.
 
+The separately reviewed [nine private extracted Vite comparisons](verify-source-frontend-current-epoch.md#private-extracted-vite-lifecycle-comparisons--nine-inert-actuals-2026-11-03) add four intended negative and five positive inert actuals at frozen source images. They neither complete FEP5 nor change any parent checkbox; installed dependency/producer adoption, per-statement R5 necessity, full inner ownership, current CI/gates, main and deployment remain open or held.
+
 ### Capable mounted incoming-v12 import acceptance — 2026-11-02
 
 - [x] 8.1-mounted-incoming. Preserve the historical synthetic rich roundtrip and exercise the same complete incoming/internal identity/remapping/history assertions through the actual capable mounted HTTP importer without a synthetic importer. Include existing two incapable controls; run the required actual OpenAPI prerequisite and four focused cases, configured types/lint/format, and independent review. Evidence: [mounted incoming acceptance](verify-import-compatibility.md#capable-mounted-incoming-v12-transaction-acceptance--2026-11-02).
