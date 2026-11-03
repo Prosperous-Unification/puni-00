@@ -93,3 +93,12 @@ Normal dev configuration rendering SHALL preserve the authorized punispace #puni
 
 - **WHEN** the authorized receiver is adopted through a reviewed, gated release and Alertmanager is recreated
 - **THEN** its existing persistent volume and protected secret are retained, the actual mounted config and loaded policy verify, original release manifests remain unchanged, the old config is restored only after it is unmounted, and firing/recovery delivery survives a further recreation
+
+### Requirement: Mounted configuration content matches its verified release
+
+Runtime preflight SHALL measure configuration content through the captured running container identity. It MUST refuse absent, failed, malformed, ambiguous or disagreeing fixed-path measurements; trusted host pathname bytes alone SHALL NOT establish mounted content.
+
+#### Scenario: Host config pathname is replaced while a predecessor remains mounted
+
+- **WHEN** the verified host release pathname contains trusted replacement bytes but the configuration measured through the captured container identity differs, or that bounded fixed-path observation is unavailable or invalid
+- **THEN** runtime preflight refuses without emitting configuration contents, while all existing host-release file and ownership checks remain required

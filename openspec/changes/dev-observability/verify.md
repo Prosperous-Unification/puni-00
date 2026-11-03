@@ -1123,10 +1123,13 @@ This is a local source integration for the registry monitoring prerequisite, bas
 on clean maintained-main `f6b2fec3326caa7cd23a71d76b3a36ce2ad613d3`. Applied reviewed
 commits `6a058008077aed53c9c3aaf6499932fd2df6879c` and
 `18a49644572da5e6f987a249c47c6cf9d927ce08` in that order without importing their
-ancestors. No dependency, architecture or provider change was needed. The receiver,
+ancestors. No dependency, architecture or provider change was needed. At integration
+checkpoint `422c38a736e6b588bdff8995cfc08e516452e177`, the receiver,
 protected-secret reader, immutable notification-release reader/validator and their
-tests/fixture match the reviewed source exactly. Current-main's ephemeral-loopback
-source-test transport and package-level fixture location are preserved.
+tests/fixture matched the reviewed source exactly. The fix-round record below
+identifies the later intentional mounted-content correction. Current-main's
+ephemeral-loopback source-test transport and package-level fixture location are
+preserved.
 
 Frozen `bun install --frozen-lockfile` succeeded with Bun 1.4.4. The inspected owning
 project baseline passed 337 tests, zero failures, 651 assertions across 11 files.
@@ -1155,10 +1158,10 @@ to this package: HTTP uses owned loopback listeners, SSH/Docker transports are
 fixtures, and Python/shell readers use owned ordinary files. No root/remote test,
 provider request, live secret-file read or notification occurred.
 
-The reviewed production guards/callers and adjacent Proof comments are unchanged;
-the dated omission evidence above remains historical rather than a newly repeated
-mutation suite. Fresh tests include real missing/unreadable file negatives and
-actual runtime preflight validation. Integration-only documentation changes fix
+At that original integration checkpoint, reviewed production guards/callers and
+adjacent Proof comments were unchanged; the dated omission evidence above remained
+historical rather than a newly repeated mutation suite. Fresh tests included real
+missing/unreadable file negatives and actual runtime preflight validation. Integration-only documentation changes fix
 the notification renderer's full repository path and label dated deployment
 observations as historical. Raw local logs and the exact focused assertion are in
 `/tmp/registry-monitoring-source-integration-20261103/` and the local SDD task report.
@@ -1167,3 +1170,67 @@ Full host gates, whole-repository/remote/root/native-registry tests, live adopti
 notification delivery and recreation/persistence drills were not run in this
 source-only slice. They are not established by these local results. Neither the
 broader registry Task 5.1 nor the live receiver tasks are closed here.
+
+## Fix round 1: measured mounted config bytes — 2026-11-03
+
+Review I1 found that hashing Docker's host Source pathname could certify trusted
+replacement bytes while Alertmanager's file bind mount retained a different
+predecessor inode. On base `422c38a736e6b588bdff8995cfc08e516452e177`, the focused
+`bun test tools/tool-observability-stack/src/dev/notification-files.test.ts
+--test-name-pattern 'host replacement'` regression failed twice: both the production
+reader and actual snapshot expression returned success. The fixture opens a real
+owned predecessor, atomically replaces its host pathname with trusted config, and
+observes different predecessor/replacement hashes. Docker's checksum transport is
+modeled; this is not a live-container bind-mount proof.
+
+After all existing host release checks, the production reader now invokes only
+`sudo -n docker exec <captured-container-id> sha256sum /etc/puni/alertmanager.yaml`
+through the existing eight-second `run` adapter, without a shell or config output.
+It refuses missing/failed/timed-out checksum dependencies, absent/malformed/
+ambiguous fixed-path output and disagreement with the verified host config hash.
+The snapshot schema, trusted-rendering comparison and all host ownership/mode/link/
+path/size/read limits remain required. The protected-secret reader is unchanged.
+The focused reader suite then passed 41 tests, zero failures, 152 assertions.
+
+Seven deliberate source mutations produced the intended failures before restoration:
+
+| Mutation                                           | Actual production-path witness                                                                                        |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Remove checksum-format guard                       | Wrong-path and duplicate checksum responses both falsely returned success; two snapshot-expression regressions failed |
+| Remove mounted/host hash comparison                | Both actual host-replacement regressions falsely returned success; two tests failed                                   |
+| Replace container observation with the host hash   | Successful production path omitted the required checksum request; one test failed                                     |
+| Use container name instead of captured ID          | Exact modeled transport refused the changed identity; successful production-path test failed                          |
+| Use foreign config path or command                 | Exact modeled transport refused each changed argv; each successful production-path test failed                        |
+| Change adapter deadline from eight to nine seconds | Modeled transport refused the changed bounded invocation; successful production-path test failed                      |
+
+Adjacent Proof comments describe these separate fault scopes. Raw mutations,
+commands, hashes and failed assertions are retained in
+`/tmp/registry-monitoring-source-integration-20261103/fix-round-1/omissions.json`
+and sibling named source/log files. Restored production Python SHA256 is
+`a4cba13dda1c012b87ecf2844ec732dfa24aa88689898670ab36c4e7c7e2fa18`.
+This fix intentionally differs from the reviewed upstream: runtime-snapshot.py
+adds the observation and two predicates, notification-files.test.ts extends the
+owned-file/model transport coverage, and notification-release.ts updates JSDoc.
+Earlier upstream-equality receipts apply only to integration checkpoint `422c38a73`.
+
+Fresh owning-project checks ran once, with only the conflicting NO_COLOR variable
+unset to remove the previously disclosed Node tooling warning:
+
+```sh
+env -u NO_COLOR NX_DAEMON=false bunx nx run tool-observability-stack:test --skip-nx-cache
+env -u NO_COLOR NX_DAEMON=false bunx nx run tool-observability-stack:lint --skip-nx-cache
+env -u NO_COLOR NX_DAEMON=false bunx nx run tool-observability-stack:typecheck --skip-nx-cache
+env -u NO_COLOR NX_DAEMON=false bunx nx run tool-observability-stack:build --skip-nx-cache
+```
+
+All four exited zero. Tests passed 448, zero failures, 969 assertions across 15
+files in 21.54 seconds. Lint output was clean. Forced typechecking and package-asset
+build passed. Affected formatting and strict owning-change validation accompany
+the local fix commit; exact commands and receipts are in the appended task report.
+No unrelated toolchain code or dependency changed.
+
+Actual installed checksum-tool availability, live-container mounted-file
+measurement, host gates, loaded policy, live adoption, notification delivery and
+recreation remain unverified. No real Docker/sudo/root/remote/namespace/native
+registry action was run, and no live secret was accessed. No parent/live task is
+closed by this source-only correction.

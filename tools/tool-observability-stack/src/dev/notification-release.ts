@@ -69,7 +69,7 @@ export function renderNotificationRelease(sourceCommit: string) {
   };
 }
 
-/** Revalidates actual mounted-file hashes against current trusted rendering, including the exact retained-volume overlay. A self-consistent host manifest alone cannot establish policy. Source identity is recorded provenance, not proof of Git review/gating or an apply authorization. */
+/** Revalidates reader evidence against current trusted rendering, including the exact retained-volume overlay. The authenticated reader first reconciles the host config hash with a fixed-path checksum through the captured running container ID; host pathname bytes alone cannot establish mounted content. A self-consistent host manifest alone cannot establish policy. Source identity is recorded provenance, not proof of Git review/gating or an apply authorization. */
 export function validateNotificationRelease(input: unknown) {
   // Proof: schema omission admits foreign purpose and extra files in notification-release.test.ts.
   const observed = Observation.assert(input);

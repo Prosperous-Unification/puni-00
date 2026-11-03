@@ -309,6 +309,22 @@ raise. The TypeScript boundary checks the exact manifest schema, source-director
 relationship, and both measured and declared hashes against current trusted
 rendering. Matching host-supplied hashes alone cannot authorize another policy.
 
+A file bind mount can retain a predecessor inode after the host source pathname is
+atomically replaced. Host-file hashes therefore do not establish mounted content.
+After the existing host-release checks, the snapshot runs only
+`sha256sum /etc/puni/alertmanager.yaml` through `docker exec` on that captured
+running container ID, using the existing eight-second subprocess adapter and no shell. It requires
+one lowercase SHA256 result naming that exact config path and equality with the
+verified host config hash. Missing executables/files, failed or timed-out commands,
+empty/malformed/ambiguous output and disagreement refuse preflight. Only checksum
+metadata is captured; configuration contents are not emitted. The host-file size,
+read, ownership, mode and link checks remain required.
+
+The 2026-11-03 regression uses real owned files and a descriptor pinned across an
+atomic host-path replacement, with the Docker checksum transport modeled. Actual
+installed checksum-tool availability and live-container mounted-file verification
+remain unverified by this source-only fix; no adoption or loaded-policy proof follows.
+
 The initial transition has a deliberately separate predecessor check: the new
 preflight refuses an old unowned config mount, and the old manifests must still
 be reconciled. Perform these steps in order, retaining receipts:

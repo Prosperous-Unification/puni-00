@@ -115,7 +115,7 @@ def read_notification_file(path):
         os.close(descriptor)
 
 def read_notification_release(records):
-    """Measure only the inspected service's readonly versioned bind mount, never manifest-supplied paths."""
+    """Verify owned host release files and checksum the fixed config through the inspected container ID. A host pathname replacement cannot prove the bytes pinned by a file bind mount; only the matching container observation completes this evidence."""
     record = require_alertmanager(records)
     mounts = [mount for mount in record['Mounts'] if mount['Destination'] == '/etc/puni/alertmanager.yaml']
     # Proof: mount-guard omission emits evidence from writable/duplicate/volume config mounts in notification-files.test.ts.
@@ -129,6 +129,14 @@ def read_notification_release(records):
     manifest = json.loads(read_notification_file(directory / 'manifest.json'))
     actual = {name: hashlib.sha256(read_notification_file(directory / name)).hexdigest()
               for name in ['alertmanager.yaml', 'compose.slack.json']}
+    # Proof: skipping this observation or changing its captured ID/fixed argv/deadline fails the notification-files.test.ts success path and snapshot measurement faults.
+    checksum = run('sudo', '-n', 'docker', 'exec', record['Id'], 'sha256sum', '/etc/puni/alertmanager.yaml')
+    # Proof: removing this guard admits wrong-path/ambiguous checksum output in actual snapshot-expression tests in notification-files.test.ts.
+    if not re.fullmatch(r'[a-f0-9]{64}  /etc/puni/alertmanager[.]yaml', checksum):
+        raise RuntimeError('Invalid mounted notification configuration checksum')
+    # Proof: removing this guard certifies an actual atomic host-path replacement while a distinct open descriptor models predecessor mount bytes in both reader/snapshot tests.
+    if checksum[:64] != actual['alertmanager.yaml']:
+        raise RuntimeError('Mounted notification configuration differs from host release')
     return {'directory': str(directory), 'mountedPath': mounted, 'manifest': manifest, 'actual': actual}
 
 def container(record):

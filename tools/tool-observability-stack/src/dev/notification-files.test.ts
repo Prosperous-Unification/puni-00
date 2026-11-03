@@ -19,6 +19,8 @@ interface Evidence {
   bytesRead: number[];
   opened: number[];
   closed: number[];
+  checksumCommands: string[][];
+  replacement?: { hostHash: string; mountedHash: string; replaced: boolean };
   notificationRelease?: {
     directory: string;
     mountedPath: string;
@@ -31,7 +33,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true });
 });
 
-/** Executes the production Python reader and actual snapshot field with real files. ROOT, Docker records and the named UID/GID/concurrent-growth stat faults are modeled; there is no host or secret access. */
+/** Executes the production Python reader and actual snapshot field with real files. ROOT, Docker records/checksum transport and the named UID/GID/concurrent-growth stat faults are modeled. The replacement fixture pins a real predecessor descriptor across an atomic host-path replacement; no actual container, live monitoring host or secret is accessed. */
 function observeFiles(fault: string, mode: 'reader' | 'snapshot' = 'reader') {
   const root = mkdtempSync(join(tmpdir(), 'puni-notification-files-'));
   roots.push(root);
@@ -124,6 +126,40 @@ containers = json.loads(${JSON.stringify(JSON.stringify(containers))})
 reads = []
 opened = []
 closed = []
+checksum_commands = []
+replacement = None
+mounted_hash = hashlib.sha256(${JSON.stringify(rendered.files['alertmanager.yaml'])}.encode()).hexdigest()
+if ${JSON.stringify(fault)} == 'replaced-config':
+    target = pathlib.Path(${JSON.stringify(target)})
+    target.write_text('untrusted predecessor config\\n')
+    with target.open('rb') as pinned:
+        predecessor_inode = os.fstat(pinned.fileno()).st_ino
+        successor = target.with_name('replacement.yaml')
+        successor.write_text(${JSON.stringify(rendered.files['alertmanager.yaml'])})
+        successor.chmod(0o644)
+        os.replace(successor, target)
+        mounted_hash = hashlib.sha256(pinned.read()).hexdigest()
+        replacement = {'hostHash': hashlib.sha256(target.read_bytes()).hexdigest(),
+                       'mountedHash': mounted_hash, 'replaced': target.stat().st_ino != predecessor_inode}
+def execute_checksum(argv, **options):
+    checksum_commands.append(list(argv))
+    if tuple(argv) != ('sudo', '-n', 'docker', 'exec', 'a' * 64, 'sha256sum', '/etc/puni/alertmanager.yaml'):
+        raise RuntimeError('Unexpected mounted configuration checksum command')
+    if options != {'text': True, 'timeout': 8}:
+        raise RuntimeError('Mounted configuration checksum lost its bounded adapter contract')
+    encoded = mounted_hash + '  /etc/puni/alertmanager.yaml\\n'
+    fault = ${JSON.stringify(fault)}
+    if fault == 'checksum-failed': raise subprocess.CalledProcessError(7, argv, output=encoded)
+    if fault == 'checksum-timeout': raise subprocess.TimeoutExpired(argv, 8)
+    if fault == 'checksum-missing': raise FileNotFoundError('modeled missing checksum executable')
+    if fault == 'checksum-empty': return ''
+    if fault == 'checksum-malformed': return 'not a checksum'
+    if fault == 'checksum-ambiguous': return encoded + encoded
+    if fault == 'checksum-path': return mounted_hash + '  /etc/puni/foreign.yaml\\n'
+    if fault == 'checksum-uppercase': return mounted_hash.upper() + '  /etc/puni/alertmanager.yaml\\n'
+    if fault == 'checksum-foreign': return '0' * 64 + '  /etc/puni/alertmanager.yaml\\n'
+    return encoded
+subprocess.check_output = execute_checksum
 native_open = os.open
 native_close = os.close
 native_stat = os.fstat
@@ -162,9 +198,9 @@ if ${JSON.stringify(mode)} == 'snapshot':
 try:
     observed = verify()
 except Exception:
-    print(json.dumps({'bytesRead': reads, 'opened': opened, 'closed': closed}))
+    print(json.dumps({'bytesRead': reads, 'opened': opened, 'closed': closed, 'checksumCommands': checksum_commands, 'replacement': replacement}))
     raise
-print(json.dumps({'notificationRelease': observed, 'bytesRead': reads, 'opened': opened, 'closed': closed}))
+print(json.dumps({'notificationRelease': observed, 'bytesRead': reads, 'opened': opened, 'closed': closed, 'checksumCommands': checksum_commands, 'replacement': replacement}))
 `;
   // The test owns and bounds this process group, including a FIFO-open mutation.
   const supervisor = `
@@ -201,6 +237,7 @@ test('actual notification reader measures all three owned regular files from the
   expect(checked.code).toBe(0);
   const emitted = JSON.parse(checked.stdout) as Evidence;
   expect(emitted.bytesRead).toHaveLength(3);
+  expect(emitted.checksumCommands).toHaveLength(1);
   expect(emitted.closed).toEqual(emitted.opened);
   // ROOT is the sole modeled filesystem boundary; return it to the production path before policy validation.
   const observed = emitted.notificationRelease;
@@ -262,7 +299,12 @@ for (const fault of [
   test('actual notification reader refuses ' + fault + ' before reading files', () => {
     const checked = observeFiles(fault);
     expect(checked.code).not.toBe(0);
-    expect(JSON.parse(checked.stdout)).toEqual({ bytesRead: [], opened: [], closed: [] });
+    expect(JSON.parse(checked.stdout)).toMatchObject({
+      bytesRead: [],
+      opened: [],
+      closed: [],
+      checksumCommands: [],
+    });
   });
 
 for (const fault of ['none', 'missing'])
@@ -274,3 +316,46 @@ for (const fault of ['none', 'missing'])
     if (fault === 'none') expect(emitted.notificationRelease).toBeDefined();
     else expect(checked.stdout).not.toContain('notificationRelease');
   });
+
+for (const mode of ['reader', 'snapshot'] as const)
+  test(
+    'notification ' +
+      mode +
+      ' refuses a trusted host replacement while the modeled mount pins predecessor bytes',
+    () => {
+      const checked = observeFiles('replaced-config', mode);
+      const emitted = JSON.parse(checked.stdout) as Evidence;
+      expect(emitted.replacement?.replaced).toBe(true);
+      expect(emitted.replacement?.hostHash).not.toBe(emitted.replacement?.mountedHash);
+      expect(checked.code).not.toBe(0);
+      expect(checked.stderr).toContain(
+        'Mounted notification configuration differs from host release',
+      );
+      expect(emitted.checksumCommands).toHaveLength(1);
+      expect(emitted.notificationRelease).toBeUndefined();
+      expect(checked.stdout + checked.stderr).not.toContain('untrusted predecessor config');
+    },
+  );
+
+for (const fault of [
+  'checksum-failed',
+  'checksum-timeout',
+  'checksum-missing',
+  'checksum-empty',
+  'checksum-malformed',
+  'checksum-ambiguous',
+  'checksum-path',
+  'checksum-uppercase',
+  'checksum-foreign',
+])
+  test(
+    'actual snapshot notification field refuses modeled ' + fault + ' mounted measurement',
+    () => {
+      const checked = observeFiles(fault, 'snapshot');
+      const emitted = JSON.parse(checked.stdout) as Evidence;
+      expect(checked.code).not.toBe(0);
+      expect(emitted.checksumCommands).toHaveLength(1);
+      expect(emitted.notificationRelease).toBeUndefined();
+      expect(emitted.closed).toEqual(emitted.opened);
+    },
+  );
