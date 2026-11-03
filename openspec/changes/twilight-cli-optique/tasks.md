@@ -15,25 +15,36 @@
 - [x] 1.3 `--help`, `help <command>`, `completion` — test: help names every dispatched command
       (derived from the parser, compared with the dispatcher's table); completion zsh prints.
 - [x] 1.4 README and `docs/platform-map.md` section 4 line for Dash.
-- [ ] 1.5 The four pairwise-loop commands `record-progress`, `record-progress-v2`,
+- [x] 1.5 The four pairwise-loop commands `record-progress`, `record-progress-v2`,
       `account-outcomes`, `report-capacity` get typed options; their handlers take the typed
       object; the module `usage` constants and loops are deleted; the pinned prefix becomes
       `usage: twilight-dash <command>`; a test states `--flag=value` acceptance; negatives
       re-watched. Handler signatures change here. Tests pinning the old wording:
       `progress/record-progress.test.ts`, `ledger/account-outcomes.test.ts`, `cli.test.ts`.
-- [ ] 1.6 The four authority commands (`bootstrap-authority`, `inspect-authority`,
+- [x] 1.6 The four authority commands (`bootstrap-authority`, `inspect-authority`,
       `recover-publication`, `submit-admission`) and the two observation-store commands
       (`bootstrap-observation`, `migrate-observation`): positional grammars typed. Handler
       signatures change here. Tests pinning the old wording: `cli.test.ts`,
       `authority/integration.test.ts`, `authority/integration-races.test.ts`,
       `activation/observation-commands.db.test.ts`, `activation/controller.db.test.ts`.
-- [ ] 1.7 `render-observation-units` and `run-activation-checks`. Handler signatures change
+- [x] 1.7 `render-observation-units` and `run-activation-checks`. Handler signatures change
       here. Tests pinning the old wording: `activation/units/units.test.ts`, `cli.test.ts`.
-- [ ] 1.8 `mcp token` and `pool import`: the entrypoint fast path kept, boot time measured and
+- [x] 1.8 `mcp token` and `pool import`: the entrypoint fast path kept, boot time measured and
       kept; the exclusive credential group as Optique's `or`. Handler signatures change here.
       Tests pinning the old wording: `mcp/token-command.test.ts`, `mcp/pool-import.test.ts`.
-- [ ] 1.9 `resources` as nested commands, last. Handler signatures change here. Tests pinning
+- [x] 1.9 `resources` as nested commands, last. Handler signatures change here. Tests pinning
       the old wording: `cli.test.ts` and the resources module's own tests.
+- Note (1.5–1.9, `feat/twilight-cli-optique-dash-typing`): every command is typed in
+  `cli-parser.ts`, each handler takes `DashRequest<name>`, every module flag loop and usage
+  constant is deleted, and the spec's transitional clause is removed. `account-outcomes`' two
+  cross-option rules run in the parser after `run` (D-A4); `mcp token`'s credential group is an
+  Optique `or`; `resources` is nine nested commands. Pinned lines changed, faults and boot time:
+  verify.md, _Dash typing_.
+- Follow-up (review T7): `plan-enrollment` and `ops` keep `flagValue`, which accepts a
+  whitespace-only value, while the fifteen retyped commands refuse it (`operand`); unify them in
+  one change that names the affected `ops` callers.
+- Follow-up (review T5): if `launchers.test.ts`' namespace wrapper fails again, record the inner
+  failing test from its printed output (the wrapper already prints it; D-A12 records the one seen).
 
 ## 2. Navigator (into main)
 

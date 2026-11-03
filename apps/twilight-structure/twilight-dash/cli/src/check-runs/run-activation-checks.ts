@@ -14,6 +14,7 @@ import {
   serializeCanonical,
 } from '@twilight-burokrat/judge';
 
+import type { DashRequest } from '../cli-parser';
 import type { WallClock } from '../clock';
 
 /** The recorder name every ledger this command writes carries; Burokrat's preparers expect it. */
@@ -50,47 +51,6 @@ export interface CheckRunDependencies {
 export interface RecordedCheckRuns {
   readonly ledger: CheckRunLedger;
   readonly streams: ReadonlyMap<string, Uint8Array>;
-}
-
-export const usage =
-  'usage: twilight-dash run-activation-checks --candidate-repository <checkout> ' +
-  '--candidate-sha <40-hex sha> --candidate-policy <committed path> --check-runs <new directory>';
-const flags = [
-  '--candidate-repository',
-  '--candidate-sha',
-  '--candidate-policy',
-  '--check-runs',
-] as const;
-type Flag = (typeof flags)[number];
-
-function readFlags(argv: readonly string[]): Record<Flag, string> {
-  const values = new Map<string, string>();
-  for (let index = 0; index < argv.length; index += 2) {
-    const flag = argv[index];
-    const value = argv.at(index + 1);
-    // Proof (2026-10-12): deleting this refusal let `--candidate-revision` pass unread and the
-    // command reach the executor; `refuses grammar faults and unusable directories before any
-    // effect` expected `unknown --candidate-revision` and received `this case must not run a
-    // check`.
-    if (!(flags as readonly string[]).includes(flag)) throw new Error(`${usage} (unknown ${flag})`);
-    if (values.has(flag)) throw new Error(`${usage} (repeated ${flag})`);
-    if (value === undefined || value.length === 0 || value.startsWith('--')) {
-      throw new Error(`${usage} (${flag} has no value)`);
-    }
-    values.set(flag, value);
-  }
-  // The loop below assigns every member of `flags` or throws, and `flags` is this record's key
-  // set, so the cast is discharged before the value escapes this function.
-  const resolved = {} as Record<Flag, string>;
-  for (const flag of flags) {
-    const value = values.get(flag);
-    if (value === undefined) throw new Error(`${usage} (missing ${flag})`);
-    resolved[flag] = value;
-  }
-  if (!/^[0-9a-f]{40}$/.test(resolved['--candidate-sha'])) {
-    throw new Error(`${usage} (--candidate-sha is not a 40-hex sha)`);
-  }
-  return resolved;
 }
 
 function git(repository: string, argv: readonly string[]): string {
@@ -287,18 +247,17 @@ export const spawnCheck: ExecuteCheck = (invocation) => {
  * directory that exists or sits inside the candidate, runs each check on the injected executor and
  * wall clock, and writes the ledger both Burokrat preparers take as `--check-runs`. Stateless: no
  * store, no lock, no network of its own; it shares only `clock.ts` with Dash's two authorities.
- * @throws `Error` for a grammar fault, an unusable checkout or directory, or a refused plan.
+ * @throws `Error` for an unusable checkout or directory, or a refused plan.
  */
 export function runActivationChecksCommand(
-  argv: readonly string[],
+  request: DashRequest<'run-activation-checks'>,
   deps: CheckRunDependencies,
 ): void {
-  const options = readFlags(argv);
-  const repository = realpathSync(resolve(options['--candidate-repository']));
-  const revision = options['--candidate-sha'];
-  const directory = assertFreshOutside(repository, options['--check-runs']);
+  const repository = realpathSync(resolve(request.candidateRepository));
+  const revision = request.candidateSha;
+  const directory = assertFreshOutside(repository, request.checkRuns);
   assertCommittedCheckout(repository, revision);
-  const plan = planCandidateCheckRuns(repository, revision, options['--candidate-policy']);
+  const plan = planCandidateCheckRuns(repository, revision, request.candidatePolicy);
   const recorded = recordCheckRuns(plan, repository, deps);
   const written = writeCheckRuns(directory, recorded);
   const lines = [

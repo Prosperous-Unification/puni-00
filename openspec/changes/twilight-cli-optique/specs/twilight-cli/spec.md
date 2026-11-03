@@ -6,16 +6,13 @@ Each Twilight CLI (Twilight Dash, Twilight Burokrat, Twilight Navigator) SHALL d
 commands as `@optique/core` parsers in one module per CLI and SHALL run them through
 `@optique/run` with injected stdout, stderr and exit, so the command handlers receive a typed
 object and never read `argv`. No command's name, flags, files, outputs or semantics SHALL
-change. Until its grammar is typed, a command whose module parses its own grammar SHALL pass the
-words after its name through unchanged; the list of such commands is recorded in verify.md and
-shrinks per tasks 1.5 to 1.9.
+change, except that every option also accepts the `--flag=value` spelling.
 
-#### Scenario: A delegated command receives its words unchanged
+#### Scenario: A handler receives the parsed object
 
-- **WHEN** `twilight-dash inspect-authority <repository> --session <id>` runs while
-  `inspect-authority` still parses its own grammar
-- **THEN** its module receives `<repository> --session <id>` exactly and refuses or accepts them
-  as before
+- **WHEN** `twilight-dash inspect-authority <repository> --session=<id>` runs
+- **THEN** its handler receives `{ command: 'inspect-authority', repository, session }` and no
+  argv, exactly as for `--session <id>`
 
 #### Scenario: The same command, the same output
 
@@ -28,8 +25,8 @@ shrinks per tasks 1.5 to 1.9.
 A parse failure SHALL produce exactly one `error: ` line on stderr, nothing on stdout, and the
 exit code the CLI's entrypoint tests pin: 1 for Twilight Dash, 2 for Twilight Navigator, 1 for
 Twilight Burokrat. An unknown command SHALL refuse with a line containing `Unsupported <tool>
-command: <name>`; a missing or malformed argument SHALL refuse with a line beginning
-`usage: <tool> <command>`. No refusal SHALL run a handler or read a file.
+command: <name>`; a missing or malformed argument SHALL refuse with one `error: ` line whose
+message begins `usage: <tool> <command>`. No refusal SHALL run a handler or read a file.
 
 #### Scenario: Unknown Dash command
 
@@ -40,14 +37,16 @@ command: <name>`; a missing or malformed argument SHALL refuse with a line begin
 #### Scenario: Missing Navigator flag
 
 - **WHEN** `twin plan-reference` runs without `--export`
-- **THEN** stderr holds one line beginning `usage: twin plan-reference`, the exit code is 2, and
+- **THEN** stderr holds one `error: ` line whose message begins `usage: twin plan-reference`,
+  the exit code is 2, and
   no file is read
 
 #### Scenario: Burokrat without `--now`
 
 - **WHEN** `twib inspect-browser-t2 <repository> <sha> <policy> <capability> <ledger>` runs
   without `--now`
-- **THEN** stderr holds one line beginning `usage: twilight-burokrat inspect-browser-t2`, the
+- **THEN** stderr holds one `error: ` line whose message begins
+  `usage: twilight-burokrat inspect-browser-t2`, the
   exit code is 1, and no repository is read
 
 ### Requirement: Help, version and completion are generated from the parsers
@@ -61,8 +60,13 @@ accepts and no other.
 
 - **WHEN** `twilight-dash --help` runs, at any terminal width
 - **THEN** stdout names every command Dash dispatches (those `runDash` dispatches, and `mcp` and
-  `pool`, which the entrypoint dispatches) and no other, a delegated command's help shows its
-  module's documented grammar, and the exit code is 0
+  `pool`, which the entrypoint dispatches) and no other, and the exit code is 0
+
+#### Scenario: Help for one command
+
+- **WHEN** `twilight-dash resources cleanup --help` runs
+- **THEN** stdout is that command's generated help, holding
+  `Usage: twilight-dash resources cleanup`, and the exit code is 0
 
 #### Scenario: Completion
 
