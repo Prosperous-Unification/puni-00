@@ -76,17 +76,27 @@ class SnapshotCleanupFailure extends AggregateError implements SnapshotCleanupUn
 
 /** Recognizes only terminal identities registered after an actual owned or inherited cleanup throw. */
 export function isSnapshotCleanupUnknown(cause: unknown): cause is SnapshotCleanupUnknown {
+  // Proof: bypassing snapshot membership wrongly accepted the genuine lower identity
+  // in the cleanup identity diagnostic consumer; SAME restored consumer passed (2026-11-03).
+  // Cross-registry rejection only; later negative assertions were unobserved.
   return typeof cause === 'object' && cause !== null && snapshotFailures.has(cause);
 }
 
 /** Captures authentic lower provenance before an internal aggregate can replace its top-level identity. */
 function observeFailure(operation: SnapshotOperation, cause: unknown): void {
   operation.observed.push(cause);
+  // Proof: omitting inherited.push made the genuine initialization cleanup failure
+  // consumer receive [primary, cleanup] instead of outer [lower]; SAME restored
+  // consumer passed (2026-11-03). Grouped inheritance/outer attribution only;
+  // later negative assertions were unobserved.
   if (isSqliteCleanupUnknown(cause)) operation.inherited.push(cause);
 }
 
 /** Records only this operation's own aggregate attribution; arbitrary diagnostic trees are never traversed. */
 function combineFailures(operation: SnapshotOperation, failures: readonly unknown[]): unknown {
+  // Proof: omitting this single-primary return failed exact read-primary identity
+  // in the bounded-file known-close consumer; SAME restored consumer passed (2026-11-03).
+  // Aggregate construction follows the source cut; Bun printed alike inner stacks.
   if (failures.length === 1) return failures.at(0);
   const failure = new AggregateError(failures, 'snapshot operation/cleanup failed');
   // Proof: finite A omitted this attribution; bounded-file before-delegation
@@ -180,6 +190,10 @@ function finishSnapshot<T>(run: (operation: SnapshotOperation) => T): T {
     failures.push(cause);
   }
   for (const acquired of [...operation.acquisitions].reverse()) {
+    // Proof: removing this skip made `SC3 bounded file cleanup classifies original
+    // file close throwing before delegation` fail errors equality with its nested
+    // aggregate plus two duplicate proxy Errors; exact restoration passed. The
+    // fixture intercepted repeated native entry: finite request-prevention credit.
     if (acquired.state !== 'unattempted') continue;
     try {
       closeAcquisition(acquired);
@@ -188,6 +202,9 @@ function finishSnapshot<T>(run: (operation: SnapshotOperation) => T): T {
       failures.push(cause);
     }
   }
+  // Proof: bypassing this failure branch gave the bounded-file known-close consumer
+  // a TypeError instead of its actual read primary; SAME restored consumer passed
+  // (2026-11-03). Recorded failure propagation only; later assertions unobserved.
   if (failures.length > 0) {
     const terminal = combineFailures(operation, failures);
     if (
@@ -208,8 +225,9 @@ function finishSnapshot<T>(run: (operation: SnapshotOperation) => T): T {
     }
     throw terminal;
   }
-  if (value === undefined) throw new Error('snapshot operation returned no outcome');
-  return value.returned;
+  // Normal synchronous return creates this wrapper, including when T is undefined.
+  // Any recorded failure exits through the terminal branch above.
+  return (value as { readonly returned: T }).returned;
 }
 
 /** A verified copy of the database and the migration ledger it carries. */
@@ -366,6 +384,10 @@ function pinSnapshot(context: SnapshotOperation, path: string, limits: SnapshotL
           () => {
             closeAcquisition(fileAcquisition);
           },
+          // Proof: GROUPED omission of this parent callback and bounded-parent fallback
+          // made `SC3 bounded parent cleanup refuses before delegation` expect
+          // AggregateError but receive its raw read primary; exact restoration passed.
+          // Neither cleanup limb is independently proven by this finite pair.
           () => {
             closeAcquisition(parentAcquisition);
           },

@@ -570,6 +570,7 @@ it('bounded semantic primary survives the delegated actual SQLite connection clo
 });
 
 type BoundedCloseFault = 'none' | 'before' | 'after';
+type BoundedPartialFault = 'file-open' | 'metadata' | 'expiry';
 interface BoundedOriginal {
   readonly kind: 'parent' | 'file';
   readonly descriptor: number;
@@ -579,6 +580,7 @@ interface BoundedOriginal {
   attempts: number;
   entries: number;
   returns: number;
+  nativeThrow?: { readonly thrown: unknown };
   retirementEntries: number;
   retirementReturns: number;
 }
@@ -589,20 +591,41 @@ function captureBoundedClose(
   parentPath: string,
   fault: BoundedCloseFault,
   target: BoundedOriginal['kind'] = 'file',
+  scenario?: BoundedPartialFault,
 ) {
   const originals: BoundedOriginal[] = [];
-  const primary = new Error('SC3 actual bounded read primary');
+  const primary = new Error(
+    scenario === 'file-open'
+      ? 'SC3 actual bounded file open primary'
+      : scenario === 'metadata'
+        ? 'SC3 actual bounded metadata primary'
+        : 'SC3 actual bounded read primary',
+  );
   const cleanup =
     target === 'parent' && fault === 'before'
       ? 'SC3 original bounded parent close primitive fault'
       : new Error(`SC3 original bounded ${target} close fault`);
+  const parentCleanup = new Error('SC3 original bounded parent close fault');
   const open = filesystem.openSync;
   const close = filesystem.closeSync;
   const read = filesystem.readSync;
+  const stat = filesystem.fstatSync;
+  const semantic = connections.openReadOnlyConnection;
+  const now = performance.now.bind(performance);
   let reads = 0;
+  let fileOpenAttempts = 0;
+  let fileOpenReturns = 0;
+  let metadataAttempts = 0;
+  let semanticEntries = 0;
+  let expiryObserved = false;
   const opened = spyOn(filesystem, 'openSync').mockImplementation(
     (...args: Parameters<typeof open>) => {
+      if (scenario === 'file-open' && args[0] === path) {
+        fileOpenAttempts += 1;
+        throw primary;
+      }
       const descriptor = open(...args);
+      if (args[0] === path) fileOpenReturns += 1;
       if (args[0] === parentPath || args[0] === path)
         originals.push({
           kind: args[0] === parentPath ? 'parent' : 'file',
@@ -624,6 +647,36 @@ function captureBoundedClose(
     reads += 1;
     throw primary;
   });
+  const metadata =
+    scenario === 'metadata'
+      ? spyOn(filesystem, 'fstatSync').mockImplementation(
+          // The delegated calls retain Node's original fstatSync overload and return type.
+          ((...args: Parameters<typeof stat>) => {
+            if (originals.length === 2 && args[0] === originals[0]?.descriptor) {
+              metadataAttempts += 1;
+              throw primary;
+            }
+            return stat(...args);
+          }) as typeof stat,
+        )
+      : undefined;
+  const clock =
+    scenario === 'expiry'
+      ? spyOn(performance, 'now').mockImplementation(() => {
+          if (originals.length === 2) {
+            expiryObserved = true;
+            return now() + 10001;
+          }
+          return now();
+        })
+      : undefined;
+  const semanticOpen =
+    scenario === undefined
+      ? undefined
+      : spyOn(connections, 'openReadOnlyConnection').mockImplementation((...args) => {
+          semanticEntries += 1;
+          return semantic(...args);
+        });
   const closed: BoundedOriginal[] = [];
   const closing = spyOn(filesystem, 'closeSync').mockImplementation((descriptor) => {
     const original = originals.find((acquired) => acquired.descriptor === descriptor);
@@ -635,60 +688,104 @@ function captureBoundedClose(
     closed.push(original);
     if (original.attempts !== 1)
       throw new Error('SC3 duplicate original close attempt refused', { cause: original });
-    // eslint-disable-next-line @typescript-eslint/only-throw-error -- this reviewed fixture preserves the exact Error or parent-before primitive cleanup outcome; wrapping would change its identity
-    if (original.kind === target && fault === 'before') throw cleanup;
+    if (scenario === 'file-open' && original.kind === 'parent') throw parentCleanup;
+    if ((scenario === 'metadata' || scenario === 'expiry') && original.kind === 'file') {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- the selected cleanup retains its exact identity
+      throw cleanup;
+    }
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- parent-before uses its reviewed primitive cleanup identity
+    if (scenario === undefined && original.kind === target && fault === 'before') throw cleanup;
     original.entries += 1;
-    original.close.call(original.receiver, ...original.args);
+    try {
+      original.close.call(original.receiver, ...original.args);
+    } catch (cause) {
+      original.nativeThrow = { thrown: cause };
+      throw cause;
+    }
     original.returns += 1;
-    // eslint-disable-next-line @typescript-eslint/only-throw-error -- this reviewed fixture preserves the exact Error or parent-before primitive cleanup outcome; wrapping would change its identity
-    if (original.kind === target && fault === 'after') throw cleanup;
+    if (scenario === 'metadata' && original.kind === 'parent') throw parentCleanup;
+    if (scenario === undefined && original.kind === target && fault === 'after') {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- preserve the selected original cleanup identity
+      throw cleanup;
+    }
   });
   return {
     originals,
     closed,
     primary,
     cleanup,
+    parentCleanup,
     close,
     get reads() {
       return reads;
+    },
+    get fileOpenAttempts() {
+      return fileOpenAttempts;
+    },
+    get fileOpenReturns() {
+      return fileOpenReturns;
+    },
+    get metadataAttempts() {
+      return metadataAttempts;
+    },
+    get semanticEntries() {
+      return semanticEntries;
+    },
+    get expiryObserved() {
+      return expiryObserved;
     },
     /** Runs after production assertions, including assertion failure; never retries an entered close. */
     retire: () => {
       opened.mockRestore();
       chunk.mockRestore();
+      metadata?.mockRestore();
+      clock?.mockRestore();
+      semanticOpen?.mockRestore();
       closing.mockRestore();
       if (
-        originals.length !== 2 ||
+        originals.length !== (scenario === 'file-open' ? 1 : 2) ||
         originals[0]?.kind !== 'parent' ||
-        originals[1]?.kind !== 'file' ||
-        originals[0].descriptor === originals[1].descriptor
+        (scenario !== 'file-open' &&
+          (originals[1]?.kind !== 'file' || originals[0]?.descriptor === originals[1]?.descriptor))
       )
-        throw new Error('SC3 STOP: bounded original roster is not two distinct live descriptors', {
-          cause: { originals, closed, primary, cleanup },
+        throw new Error('SC3 STOP: bounded acquisition roster or live identity ambiguous', {
+          cause: { originals, closed, primary, cleanup, parentCleanup },
         });
       for (const original of originals) {
         if (
-          original.entries !== original.returns ||
-          original.retirementEntries !== original.retirementReturns
+          original.close !== close ||
+          original.receiver !== filesystem ||
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime fixture record may be malformed despite its tuple type
+          original.args.length !== 1 ||
+          original.args[0] !== original.descriptor ||
+          original.nativeThrow !== undefined ||
+          !(
+            (original.entries === 0 && original.returns === 0) ||
+            (original.entries === 1 && original.returns === 1)
+          ) ||
+          original.retirementEntries !== 0 ||
+          original.retirementReturns !== 0
         )
           throw new Error(
-            'SC3 STOP: original native close entered without return; retain evidence',
+            'SC3 STOP: original native provenance or retirement state unsupported; retain evidence',
             {
-              cause: { originals, closed, primary, cleanup },
+              cause: { originals, closed, primary, cleanup, parentCleanup },
             },
           );
         if (
           original.returns + original.retirementReturns !== 1 &&
           !(
-            fault === 'before' &&
-            original.kind === target &&
-            original.attempts === 1 &&
+            ((scenario === undefined && fault === 'before' && original.kind === target) ||
+              (scenario === 'file-open' && original.kind === 'parent') ||
+              ((scenario === 'metadata' || scenario === 'expiry') && original.kind === 'file')) &&
+            (scenario === undefined || original.attempts === 1) &&
             original.entries === 0 &&
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- retain the explicit zero-entry first-retirement precondition
             original.retirementEntries === 0
           )
         )
           throw new Error('SC3 STOP: original has no authorized first-delegation retirement', {
-            cause: { originals, closed, primary, cleanup },
+            cause: { originals, closed, primary, cleanup, parentCleanup },
           });
       }
       for (const original of originals) {
@@ -699,26 +796,33 @@ function captureBoundedClose(
         } catch (cause) {
           throw new Error('SC3 STOP: fixture first native close did not return; retain evidence', {
             // eslint-disable-next-line preserve-caught-error -- STOP retains the exact caught failure with its original native/ledger evidence in this cause object
-            cause: { original, originals, closed, primary, cleanup, failure: cause },
+            cause: { original, originals, closed, primary, cleanup, parentCleanup, failure: cause },
           });
         }
         original.retirementReturns += 1;
       }
       const expectedRetirement =
-        target === 'parent' && fault === 'before'
-          ? [
-              [1, 1],
-              [0, 0],
-            ]
-          : fault === 'before'
+        scenario === 'file-open'
+          ? [[1, 1]]
+          : scenario === 'metadata' || scenario === 'expiry'
             ? [
                 [0, 0],
                 [1, 1],
               ]
-            : [
-                [0, 0],
-                [0, 0],
-              ];
+            : target === 'parent' && fault === 'before'
+              ? [
+                  [1, 1],
+                  [0, 0],
+                ]
+              : fault === 'before'
+                ? [
+                    [0, 0],
+                    [1, 1],
+                  ]
+                : [
+                    [0, 0],
+                    [0, 0],
+                  ];
       expect(
         originals.map((original) => [original.retirementEntries, original.retirementReturns]),
       ).toEqual(expectedRetirement);
@@ -1811,4 +1915,488 @@ it('SC3 bounded parent cleanup refuses after native return', () => {
   } finally {
     fixture.retire();
   }
+});
+
+it('SC3 file-open refusal retains acquired parent cleanup', () => {
+  const dir = scratch();
+  const path = skeletonDatabase(dir);
+  const fixture = captureBoundedClose(path, dir, 'none', 'file', 'file-open');
+  try {
+    let observed: unknown;
+    try {
+      verifySnapshotBounded(path, { maxBytes: 1073741824, deadline: performance.now() + 10000 });
+    } catch (cause) {
+      observed = cause;
+    }
+    expect(observed).toBeInstanceOf(AggregateError);
+    if (!(observed instanceof AggregateError)) throw new Error('SC3 file-open attribution absent');
+    expect(observed.errors).toEqual([fixture.primary, fixture.parentCleanup]);
+    expect(observed.errors[0]).toBe(fixture.primary);
+    expect(observed.errors[1]).toBe(fixture.parentCleanup);
+    expect(fixture.fileOpenAttempts).toBe(1);
+    expect(fixture.fileOpenReturns).toBe(0);
+    expect(fixture.originals.map((original) => original.kind)).toEqual(['parent']);
+    expect(fixture.closed).toEqual(fixture.originals);
+    expect(
+      fixture.originals.map((original) => [original.attempts, original.entries, original.returns]),
+    ).toEqual([[1, 0, 0]]);
+    expect(fixture.reads).toBe(0);
+    expect(fixture.semanticEntries).toBe(0);
+    for (const original of fixture.originals) {
+      expect(original.close).toBe(fixture.close);
+      expect(original.receiver).toBe(filesystem);
+      expect(original.args).toEqual([original.descriptor]);
+    }
+    expect(isSnapshotCleanupUnknown(observed)).toBe(true);
+  } finally {
+    fixture.retire();
+  }
+});
+
+it('SC3 metadata refusal retains both ordered cleanup failures', () => {
+  const dir = scratch();
+  const path = skeletonDatabase(dir);
+  const fixture = captureBoundedClose(path, dir, 'none', 'file', 'metadata');
+  try {
+    let observed: unknown;
+    try {
+      verifySnapshotBounded(path, { maxBytes: 1073741824, deadline: performance.now() + 10000 });
+    } catch (cause) {
+      observed = cause;
+    }
+    expect(observed).toBeInstanceOf(AggregateError);
+    if (!(observed instanceof AggregateError)) throw new Error('SC3 metadata attribution absent');
+    expect(observed.errors).toEqual([fixture.primary, fixture.cleanup, fixture.parentCleanup]);
+    expect(observed.errors[0]).toBe(fixture.primary);
+    expect(observed.errors[1]).toBe(fixture.cleanup);
+    expect(observed.errors[2]).toBe(fixture.parentCleanup);
+    expect(fixture.metadataAttempts).toBe(1);
+    expect(fixture.fileOpenReturns).toBe(1);
+    expect(fixture.originals.map((original) => original.kind)).toEqual(['parent', 'file']);
+    expect(fixture.originals[0]?.descriptor).not.toBe(fixture.originals[1]?.descriptor);
+    expect(fixture.closed).toEqual([...fixture.originals].reverse());
+    expect(
+      fixture.originals.map((original) => [original.attempts, original.entries, original.returns]),
+    ).toEqual([
+      [1, 1, 1],
+      [1, 0, 0],
+    ]);
+    expect(fixture.reads).toBe(0);
+    expect(fixture.semanticEntries).toBe(0);
+    for (const original of fixture.originals) {
+      expect(original.close).toBe(fixture.close);
+      expect(original.receiver).toBe(filesystem);
+      expect(original.args).toEqual([original.descriptor]);
+    }
+    expect(isSnapshotCleanupUnknown(observed)).toBe(true);
+  } finally {
+    fixture.retire();
+  }
+});
+
+it('SC3 expired operation still attempts original cleanup', () => {
+  const dir = scratch();
+  const path = skeletonDatabase(dir);
+  const fixture = captureBoundedClose(path, dir, 'none', 'file', 'expiry');
+  try {
+    let observed: unknown;
+    try {
+      verifySnapshotBounded(path, { maxBytes: 1073741824, deadline: performance.now() + 10000 });
+    } catch (cause) {
+      observed = cause;
+    }
+    expect(observed).toBeInstanceOf(AggregateError);
+    if (!(observed instanceof AggregateError)) throw new Error('SC3 expiry attribution absent');
+    const failures: readonly unknown[] = observed.errors;
+    const deadline = failures[0];
+    if (!(deadline instanceof Error)) throw new Error('SC3 actual deadline primary absent');
+    expect(deadline.message).toBe('snapshot original deadline exceeded');
+    expect(observed.errors).toEqual([deadline, fixture.cleanup]);
+    expect(observed.errors[1]).toBe(fixture.cleanup);
+    expect(fixture.expiryObserved).toBe(true);
+    expect(fixture.fileOpenReturns).toBe(1);
+    expect(fixture.originals.map((original) => original.kind)).toEqual(['parent', 'file']);
+    expect(fixture.originals[0]?.descriptor).not.toBe(fixture.originals[1]?.descriptor);
+    expect(fixture.closed).toEqual([...fixture.originals].reverse());
+    expect(
+      fixture.originals.map((original) => [original.attempts, original.entries, original.returns]),
+    ).toEqual([
+      [1, 1, 1],
+      [1, 0, 0],
+    ]);
+    expect(fixture.reads).toBe(0);
+    expect(fixture.semanticEntries).toBe(0);
+    for (const original of fixture.originals) {
+      expect(original.close).toBe(fixture.close);
+      expect(original.receiver).toBe(filesystem);
+      expect(original.args).toEqual([original.descriptor]);
+    }
+    expect(isSnapshotCleanupUnknown(observed)).toBe(true);
+  } finally {
+    fixture.retire();
+  }
+});
+
+type PublicationKind = 'file' | 'parent';
+type PublicationFault = 'before' | 'after';
+interface PublicationOriginal {
+  readonly kind: PublicationKind;
+  readonly generation: number;
+  readonly descriptor: number;
+  readonly receiver: typeof filesystem;
+  readonly close: typeof filesystem.closeSync;
+  readonly args: [number];
+  fsyncEntries: number;
+  fsyncReturns: number;
+  attempts: number;
+  entries: number;
+  returns: number;
+  nativeThrow?: { readonly thrown: unknown };
+  retirementEntries: number;
+  retirementReturns: number;
+}
+
+/** Captures each returned publication open by phase and generation, even if its FD integer is reused. */
+function captureLegacyPublicationClose(
+  partialPath: string,
+  parentPath: string,
+  target: PublicationKind,
+  fault: PublicationFault,
+) {
+  const originals: PublicationOriginal[] = [];
+  const active = new Map<number, PublicationOriginal>();
+  const closed: PublicationOriginal[] = [];
+  const cleanup = new Error(`SC3 original legacy publication ${target} close fault`);
+  const open = filesystem.openSync;
+  const sync = filesystem.fsyncSync;
+  const close = filesystem.closeSync;
+  const opened = spyOn(filesystem, 'openSync').mockImplementation(
+    (...args: Parameters<typeof open>) => {
+      const descriptor = open(...args);
+      if (args[0] !== partialPath && args[0] !== parentPath) return descriptor;
+      const original: PublicationOriginal = {
+        kind: args[0] === partialPath ? 'file' : 'parent',
+        generation: originals.length + 1,
+        descriptor,
+        receiver: filesystem,
+        close,
+        args: [descriptor],
+        fsyncEntries: 0,
+        fsyncReturns: 0,
+        attempts: 0,
+        entries: 0,
+        returns: 0,
+        retirementEntries: 0,
+        retirementReturns: 0,
+      };
+      originals.push(original);
+      if (active.has(descriptor))
+        throw new Error('SC3 STOP: new publication open collided with a live acquisition', {
+          cause: { originals, active, closed, cleanup },
+        });
+      active.set(descriptor, original);
+      return descriptor;
+    },
+  );
+  const synced = spyOn(filesystem, 'fsyncSync').mockImplementation((descriptor) => {
+    const original = active.get(descriptor);
+    if (original !== undefined) original.fsyncEntries += 1;
+    sync(descriptor);
+    if (original !== undefined) original.fsyncReturns += 1;
+  });
+  const closing = spyOn(filesystem, 'closeSync').mockImplementation((descriptor) => {
+    const original = active.get(descriptor);
+    if (original === undefined) {
+      close(descriptor);
+      return;
+    }
+    original.attempts += 1;
+    closed.push(original);
+    if (original.attempts !== 1)
+      throw new Error('SC3 duplicate publication close attempt refused before native entry', {
+        cause: { original, originals, active, closed },
+      });
+    if (original.kind === target && fault === 'before') throw cleanup;
+    original.entries += 1;
+    try {
+      original.close.call(original.receiver, ...original.args);
+    } catch (cause) {
+      original.nativeThrow = { thrown: cause };
+      throw cause;
+    }
+    original.returns += 1;
+    // eslint-disable-next-line drizzle/enforce-delete-with-where -- active is a Map of captured file descriptors, not a Drizzle table
+    active.delete(descriptor);
+    if (original.kind === target && fault === 'after') throw cleanup;
+  });
+  return {
+    originals,
+    active,
+    closed,
+    cleanup,
+    close,
+    /** Restores observers and first-closes only the selected known never-entered original. */
+    retire: () => {
+      opened.mockRestore();
+      synced.mockRestore();
+      closing.mockRestore();
+      if (
+        originals.length !== (target === 'file' ? 1 : 2) ||
+        originals[0]?.kind !== 'file' ||
+        (target === 'parent' && originals[1]?.kind !== 'parent')
+      )
+        throw new Error('SC3 STOP: incomplete publication acquisition roster', {
+          cause: { originals, active, closed, cleanup },
+        });
+      for (const original of originals) {
+        if (
+          original.entries !== original.returns ||
+          original.retirementEntries !== original.retirementReturns
+        )
+          throw new Error('SC3 STOP: original native close entered without return', {
+            cause: { original, originals, active, closed, cleanup },
+          });
+        if (
+          original.returns !== 1 &&
+          !(
+            original.kind === target &&
+            fault === 'before' &&
+            original.attempts === 1 &&
+            original.entries === 0 &&
+            original.retirementEntries === 0 &&
+            active.get(original.descriptor) === original
+          )
+        )
+          throw new Error('SC3 STOP: original has no authorized first-close retirement', {
+            cause: { original, originals, active, closed, cleanup },
+          });
+      }
+      for (const original of originals) {
+        if (original.returns === 1) continue;
+        original.retirementEntries += 1;
+        try {
+          original.close.call(original.receiver, ...original.args);
+        } catch (cause) {
+          throw new Error('SC3 STOP: fixture first native close did not return', {
+            // eslint-disable-next-line preserve-caught-error -- STOP retains the native failure with every captured acquisition and phase.
+            cause: { original, originals, active, closed, cleanup, failure: cause },
+          });
+        }
+        original.retirementReturns += 1;
+        // eslint-disable-next-line drizzle/enforce-delete-with-where -- active is a Map of captured file descriptors, not a Drizzle table
+        active.delete(original.descriptor);
+      }
+      const expectedRetirement =
+        target === 'file' && fault === 'before'
+          ? [[1, 1]]
+          : target === 'parent' && fault === 'before'
+            ? [
+                [0, 0],
+                [1, 1],
+              ]
+            : target === 'parent'
+              ? [
+                  [0, 0],
+                  [0, 0],
+                ]
+              : [[0, 0]];
+      expect(
+        originals.map((original) => [original.retirementEntries, original.retirementReturns]),
+      ).toEqual(expectedRetirement);
+    },
+  };
+}
+
+it('SC3 legacy publication file cleanup refuses before delegation', () => {
+  const dir = scratch();
+  const source = skeletonDatabase(dir);
+  const path = join(dir, 'copy.db');
+  const partial = join(dir, '.copy.db.partial');
+  const fixture = captureLegacyPublicationClose(partial, dir, 'file', 'before');
+  try {
+    let observed: unknown;
+    try {
+      snapshotDatabase(source, path);
+    } catch (cause) {
+      observed = cause;
+    }
+    expect(observed).toBeInstanceOf(AggregateError);
+    if (!(observed instanceof AggregateError))
+      throw new Error('SC3 publication attribution absent');
+    expect(observed.errors).toEqual([fixture.cleanup]);
+    expect(observed.errors[0]).toBe(fixture.cleanup);
+    expect(fixture.originals.map((original) => [original.kind, original.generation])).toEqual([
+      ['file', 1],
+    ]);
+    expect(
+      fixture.originals.map((original) => [original.fsyncEntries, original.fsyncReturns]),
+    ).toEqual([[1, 1]]);
+    expect(fixture.closed).toEqual(fixture.originals);
+    expect(
+      fixture.originals.map((original) => [original.attempts, original.entries, original.returns]),
+    ).toEqual([[1, 0, 0]]);
+    const selected = fixture.originals.at(0);
+    if (selected === undefined) throw new Error('SC3 publication file acquisition absent');
+    expect(fixture.active.get(selected.descriptor)).toBe(selected);
+    for (const original of fixture.originals) {
+      expect(original.close).toBe(fixture.close);
+      expect(original.receiver).toBe(filesystem);
+      expect(original.args).toEqual([original.descriptor]);
+    }
+    expect(existsSync(partial)).toBe(true);
+    expect(existsSync(path)).toBe(false);
+    expect(isSnapshotCleanupUnknown(observed)).toBe(true);
+  } finally {
+    fixture.retire();
+  }
+  expect(verifySnapshot(partial).migrations).toEqual([SKELETON]);
+  expect(markers(partial)).toEqual(['before']);
+});
+
+it('SC3 legacy publication file cleanup refuses after native return', () => {
+  const dir = scratch();
+  const source = skeletonDatabase(dir);
+  const path = join(dir, 'copy.db');
+  const partial = join(dir, '.copy.db.partial');
+  const fixture = captureLegacyPublicationClose(partial, dir, 'file', 'after');
+  try {
+    let observed: unknown;
+    try {
+      snapshotDatabase(source, path);
+    } catch (cause) {
+      observed = cause;
+    }
+    expect(observed).toBeInstanceOf(AggregateError);
+    if (!(observed instanceof AggregateError))
+      throw new Error('SC3 publication attribution absent');
+    expect(observed.errors).toEqual([fixture.cleanup]);
+    expect(observed.errors[0]).toBe(fixture.cleanup);
+    expect(fixture.originals.map((original) => [original.kind, original.generation])).toEqual([
+      ['file', 1],
+    ]);
+    expect(
+      fixture.originals.map((original) => [original.fsyncEntries, original.fsyncReturns]),
+    ).toEqual([[1, 1]]);
+    expect(fixture.closed).toEqual(fixture.originals);
+    expect(
+      fixture.originals.map((original) => [original.attempts, original.entries, original.returns]),
+    ).toEqual([[1, 1, 1]]);
+    expect(fixture.active.size).toBe(0);
+    for (const original of fixture.originals) {
+      expect(original.close).toBe(fixture.close);
+      expect(original.receiver).toBe(filesystem);
+      expect(original.args).toEqual([original.descriptor]);
+    }
+    expect(existsSync(partial)).toBe(true);
+    expect(existsSync(path)).toBe(false);
+    expect(isSnapshotCleanupUnknown(observed)).toBe(true);
+  } finally {
+    fixture.retire();
+  }
+  expect(verifySnapshot(partial).migrations).toEqual([SKELETON]);
+  expect(markers(partial)).toEqual(['before']);
+});
+
+it('SC3 legacy publication parent cleanup refuses before delegation', () => {
+  const dir = scratch();
+  const source = skeletonDatabase(dir);
+  const path = join(dir, 'copy.db');
+  const partial = join(dir, '.copy.db.partial');
+  const fixture = captureLegacyPublicationClose(partial, dir, 'parent', 'before');
+  try {
+    let observed: unknown;
+    try {
+      snapshotDatabase(source, path);
+    } catch (cause) {
+      observed = cause;
+    }
+    expect(observed).toBeInstanceOf(AggregateError);
+    if (!(observed instanceof AggregateError))
+      throw new Error('SC3 publication attribution absent');
+    expect(observed.errors).toEqual([fixture.cleanup]);
+    expect(observed.errors[0]).toBe(fixture.cleanup);
+    expect(fixture.originals.map((original) => [original.kind, original.generation])).toEqual([
+      ['file', 1],
+      ['parent', 2],
+    ]);
+    expect(
+      fixture.originals.map((original) => [original.fsyncEntries, original.fsyncReturns]),
+    ).toEqual([
+      [1, 1],
+      [1, 1],
+    ]);
+    expect(fixture.closed).toEqual(fixture.originals);
+    expect(
+      fixture.originals.map((original) => [original.attempts, original.entries, original.returns]),
+    ).toEqual([
+      [1, 1, 1],
+      [1, 0, 0],
+    ]);
+    const selected = fixture.originals.at(1);
+    if (selected === undefined) throw new Error('SC3 publication parent acquisition absent');
+    expect(fixture.active.get(selected.descriptor)).toBe(selected);
+    for (const original of fixture.originals) {
+      expect(original.close).toBe(fixture.close);
+      expect(original.receiver).toBe(filesystem);
+      expect(original.args).toEqual([original.descriptor]);
+    }
+    expect(existsSync(partial)).toBe(false);
+    expect(existsSync(path)).toBe(true);
+    expect(isSnapshotCleanupUnknown(observed)).toBe(true);
+  } finally {
+    fixture.retire();
+  }
+  expect(verifySnapshot(path).migrations).toEqual([SKELETON]);
+  expect(markers(path)).toEqual(['before']);
+});
+
+it('SC3 legacy publication parent cleanup refuses after native return', () => {
+  const dir = scratch();
+  const source = skeletonDatabase(dir);
+  const path = join(dir, 'copy.db');
+  const partial = join(dir, '.copy.db.partial');
+  const fixture = captureLegacyPublicationClose(partial, dir, 'parent', 'after');
+  try {
+    let observed: unknown;
+    try {
+      snapshotDatabase(source, path);
+    } catch (cause) {
+      observed = cause;
+    }
+    expect(observed).toBeInstanceOf(AggregateError);
+    if (!(observed instanceof AggregateError))
+      throw new Error('SC3 publication attribution absent');
+    expect(observed.errors).toEqual([fixture.cleanup]);
+    expect(observed.errors[0]).toBe(fixture.cleanup);
+    expect(fixture.originals.map((original) => [original.kind, original.generation])).toEqual([
+      ['file', 1],
+      ['parent', 2],
+    ]);
+    expect(
+      fixture.originals.map((original) => [original.fsyncEntries, original.fsyncReturns]),
+    ).toEqual([
+      [1, 1],
+      [1, 1],
+    ]);
+    expect(fixture.closed).toEqual(fixture.originals);
+    expect(
+      fixture.originals.map((original) => [original.attempts, original.entries, original.returns]),
+    ).toEqual([
+      [1, 1, 1],
+      [1, 1, 1],
+    ]);
+    expect(fixture.active.size).toBe(0);
+    for (const original of fixture.originals) {
+      expect(original.close).toBe(fixture.close);
+      expect(original.receiver).toBe(filesystem);
+      expect(original.args).toEqual([original.descriptor]);
+    }
+    expect(existsSync(partial)).toBe(false);
+    expect(existsSync(path)).toBe(true);
+    expect(isSnapshotCleanupUnknown(observed)).toBe(true);
+  } finally {
+    fixture.retire();
+  }
+  expect(verifySnapshot(path).migrations).toEqual([SKELETON]);
+  expect(markers(path)).toEqual(['before']);
 });

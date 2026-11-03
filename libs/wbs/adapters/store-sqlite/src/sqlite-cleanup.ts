@@ -52,5 +52,8 @@ export function createSqliteCleanupFailure(
 
 /** Recognizes only failures registered by the internal boundary, without inspecting diagnostics. */
 export function isSqliteCleanupUnknown(cause: unknown): cause is SqliteCleanupUnknown {
+  // Proof: bypassing SQLite membership wrongly accepted the genuine snapshot identity
+  // in the cleanup identity diagnostic consumer; SAME restored consumer passed (2026-11-03).
+  // Cross-registry rejection only; later negative assertions were unobserved.
   return typeof cause === 'object' && cause !== null && failures.has(cause);
 }
