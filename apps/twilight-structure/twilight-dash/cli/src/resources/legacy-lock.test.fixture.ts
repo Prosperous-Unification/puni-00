@@ -71,30 +71,57 @@ export function startLegacyCaller(
   return { pid: child.pid, exited };
 }
 
-/** The `start`/`end` intervals of each name in `log`, in milliseconds. */
-export function intervalsOf(log: string): Map<string, { start: number; end: number | null }> {
-  const spans = new Map<string, { start: number; end: number | null }>();
+/**
+ * A run's span in an append-only log: `start` and `end` are the positions of its lines, which
+ * order every writer by the instant its append happened (each line is one `O_APPEND` write);
+ * `startMs` and `endMs` are the wall clock the writer read, kept for diagnostics only.
+ */
+export interface Span {
+  start: number;
+  end: number | null;
+  startMs: number;
+  endMs: number | null;
+}
+
+/**
+ * The span of each name in `log` (`start <name> <ms>` and `end <name> <ms>` lines). Order is
+ * read from the positions of the lines, never from the clocks the writers read: a wall clock a
+ * runner steps backwards, or two readings within one millisecond, cannot fake or hide an
+ * overlap (CI of #825). A name started twice, or ended unstarted, is a broken log and throws.
+ */
+export function intervalsOf(log: string): Map<string, Span> {
+  const spans = new Map<string, Span>();
   if (!existsSync(log)) return spans;
-  for (const line of readFileSync(log, 'utf8').split('\n')) {
+  const lines = readFileSync(log, 'utf8')
+    .split('\n')
+    .filter((line) => line !== '');
+  for (const [position, line] of lines.entries()) {
     const [event, name, at] = line.split(' ') as [string, string?, string?];
-    if (name === undefined || at === undefined) continue;
-    if (event === 'start') spans.set(name, { start: Number(at), end: null });
-    if (event === 'end') {
-      const span = spans.get(name);
-      if (span !== undefined) span.end = Number(at);
+    if (name === undefined || at === undefined || (event !== 'start' && event !== 'end'))
+      throw new Error(`span log ${log} line ${String(position + 1)} malformed: ${line}`);
+    const span = spans.get(name);
+    if (event === 'start') {
+      if (span !== undefined) throw new Error(`span log ${log}: ${name} started twice`);
+      spans.set(name, { start: position, end: null, startMs: Number(at), endMs: null });
+      continue;
     }
+    if (span?.end !== null)
+      throw new Error(`span log ${log}: ${name} ended without a start, or twice`);
+    span.end = position;
+    span.endMs = Number(at);
   }
   return spans;
 }
 
-/** Whether two closed spans overlap. */
-export function overlaps(
-  left: { start: number; end: number | null },
-  right: { start: number; end: number | null },
-): boolean {
-  const leftEnd = left.end ?? Number.POSITIVE_INFINITY;
-  const rightEnd = right.end ?? Number.POSITIVE_INFINITY;
-  return left.start < rightEnd && right.start < leftEnd;
+/**
+ * Whether two finished spans overlap: one started before the other's end line was written.
+ * Positions are distinct, so spans that merely touch never overlap.
+ * @throws when either span has no end: an unfinished run is not evidence either way.
+ */
+export function overlaps(left: Span, right: Span): boolean {
+  if (left.end === null || right.end === null)
+    throw new Error('a span without an end line cannot be judged for overlap');
+  return left.start < right.end && right.start < left.end;
 }
 
 /** Poll `probe` every 50 ms until it is true or `ms` pass; throws naming `what` on timeout. */
