@@ -30,11 +30,11 @@ const PINS = {
   },
   'bun.lock': {
     bytes: 534113,
-    sha256: '3aa01285fd014ed1e93776cdae4afcd988aa96488d8e3f6cd6bda94e97c64c55',
+    sha256: '129512f0a0fc719b814e7998353190f8827d96085f99000c418c6988ebbbb728',
   },
   'package.json': {
-    bytes: 4987,
-    sha256: 'ddaea2e9e1064e6589223f554681b4a880dd41266a9a45e906a6af196459202f',
+    bytes: 4992,
+    sha256: '6482624ce19f7d9ea6cd919328f839e3bb7bb8c48ae120a4f5c3104e9a87c381',
   },
   'node_modules/vite/package.json': {
     bytes: 5093,
