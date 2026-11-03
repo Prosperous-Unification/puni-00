@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -11,9 +12,27 @@ import {
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 
+import type { Parser } from '@optique/core';
 import { afterEach, describe, expect, test } from 'bun:test';
 
+import { runCli, validatorHandlers } from './cli';
+import {
+  commandNamesOf,
+  delegatedGrammars,
+  type Grammar,
+  installedGrammar,
+  readInvocation,
+  registerShortName,
+  type ValidatorCommand,
+  validatorGrammar,
+} from './cli-parser';
 import { type CliInvocation, invokeCli } from './invoke-cli';
+import { prepareActivationUsage } from './policy/prepare-activation-cli';
+import { prepareRelocationActivationUsage } from './policy/prepare-relocation-activation-cli';
+import { checkUsage, explainUsage } from './rules/check';
+import { scenarioUsage } from './rules/scenario-command';
+import { templateUsage } from './templates/verify';
+import { workflowBindingUsage } from './workflow-binding';
 
 const repositories: string[] = [];
 const cliPath = join(import.meta.dir, 'cli.ts');
@@ -488,7 +507,8 @@ test('submit-admission is an unknown command', () => {
   // Proof: restoring the route in cli.ts (importing Dash's moved store) made the cli.ts entry
   // print `admission packet base must be an object` instead of `unknown command`; restoring only
   // the bin.ts `validatorCommands` entry made the bin.ts entry dispatch to the validator and
-  // exit `null` instead of 1 (2026-10-11).
+  // exit `null` instead of 1 (2026-10-11). Both entries now parse with `cli-parser.ts`, whose
+  // refusal reads `Unsupported Burokrat command:` (twilight-cli-optique C3).
   for (const entry of [cliPath, join(import.meta.dir, 'bin.ts')]) {
     const invocation = Bun.spawnSync(
       [
@@ -504,9 +524,339 @@ test('submit-admission is an unknown command', () => {
     );
     expect(invocation.exitCode, entry).toBe(1);
     expect(invocation.stderr.toString('utf8'), entry).toContain(
-      'unknown command: submit-admission',
+      'error: Unsupported Burokrat command: submit-admission',
     );
     expect(invocation.stdout.toString('utf8'), entry).toBe('');
   }
   expect(existsSync(join(repository, '.git', 'module-wiki'))).toBe(false);
+});
+
+const binPath = join(import.meta.dir, 'bin.ts');
+
+/** Spawns one Burokrat entry with `environment` added, as a shell would. */
+function spawnEntry(
+  entry: string,
+  argv: readonly string[],
+  environment: Record<string, string> = {},
+): { exitCode: number | null; stdout: string; stderr: string } {
+  const invocation = Bun.spawnSync([process.execPath, entry, ...argv], {
+    env: { ...process.env, ...environment },
+    stderr: 'pipe',
+    stdout: 'pipe',
+  });
+  return {
+    exitCode: invocation.exitCode,
+    stdout: invocation.stdout.toString('utf8'),
+    stderr: invocation.stderr.toString('utf8'),
+  };
+}
+
+/** What `grammar` prints for `argv`, in-process. */
+function printedBy<T extends Parser>(grammar: Grammar<T>, argv: string[]) {
+  let printed = '';
+  const invocation = readInvocation(grammar, argv, {
+    stdout: (text) => {
+      printed += text;
+    },
+    version: '0.0.0-test',
+  });
+  expect(invocation.kind).toBe('printed');
+  return printed;
+}
+
+/** The command names the generated help lists, one per line of its command section, above the footer. */
+function helpCommands(help: string): string[] {
+  const commandSection = help.split('Commands that parse their own arguments:')[0];
+  return [...commandSection.matchAll(/^ {2}([a-z][a-z0-9-]*) /gmu)]
+    .map((match) => match[1])
+    .filter((name) => name !== 'help' && name !== 'completion');
+}
+
+/**
+ * A repository path that does not exist: a refusal that read the repository or any input would
+ * name it, so a usage refusal that does not proves nothing was read.
+ */
+const absentRepository = join(tmpdir(), 'burokrat-cli-parser-absent-repository');
+
+/** The six dated commands, each with its operands but no `--now`. */
+const datedCommands: readonly (readonly string[])[] = [
+  ['inspect-browser-t2', absentRepository, 'a'.repeat(40), 'policy', 'capability', 'ledger'],
+  ['inspect-browser-t2-policy', absentRepository, 'a'.repeat(40), 'policy', 'c', 'l', 'proposed'],
+  ['inspect-browser-scenario-ledger', absentRepository, 'a'.repeat(40), 'p', 'c', 'l'],
+  ['inspect-scenario-ledger', absentRepository, 'a'.repeat(40), 'p', 'level', 'c', 'l'],
+  ['inspect-manual', absentRepository, 'a'.repeat(40), 'policy', 'report.json'],
+  ['inspect-manual-observation', absentRepository, 'a'.repeat(40), 'policy', 'report.json'],
+];
+
+async function expectUsageRefusal(argv: readonly string[], line: RegExp): Promise<void> {
+  const invocation = await invokeCli(argv);
+  expect(invocation.stderr).toMatch(/^error: [^\n]*\n$/u);
+  expect(invocation.stderr).toMatch(line);
+  expect(invocation.stdout).toBe('');
+  expect(invocation.exitCode).toBe(1);
+}
+
+describe('Burokrat command line (twilight-cli-optique)', () => {
+  // Spawns Bun more than once; Bun's 5 s default fails it when this file runs alone.
+  test('Burokrat without --now refuses in one usage line', async () => {
+    const spawned = spawnEntry(cliPath, datedCommands[0]);
+    expect(spawned.exitCode).toBe(1);
+    expect(spawned.stdout).toBe('');
+    expect(spawned.stderr).toMatch(
+      /^error: usage: twilight-burokrat inspect-browser-t2 [^\n]*\(inspect-browser-t2 requires --now <UTC instant>; Twilight Dash supplies the evaluation instant\)\n$/u,
+    );
+    const colored = spawnEntry(cliPath, datedCommands[0], { FORCE_COLOR: '1' });
+    expect(colored.stderr).toBe(spawned.stderr);
+    for (const argv of datedCommands) {
+      await expectUsageRefusal(
+        argv,
+        new RegExp(`^error: usage: twilight-burokrat ${argv[0]} .*${argv[0]} requires --now`, 'u'),
+      );
+    }
+  }, 60_000);
+
+  test('a dated command takes --now anywhere, in either spelling', () => {
+    const instant = '2026-11-02T00:00:00.000Z';
+    const [name, ...operands] = datedCommands[4];
+    const spellings = [
+      [name, ...operands, '--now', instant],
+      [name, '--now', instant, ...operands],
+      [name, ...operands, `--now=${instant}`],
+    ];
+    const parsed = spellings.map((argv) =>
+      readInvocation(validatorGrammar, argv, { stdout: () => undefined }),
+    );
+    for (const invocation of parsed) {
+      expect(invocation).toEqual({
+        kind: 'command',
+        command: {
+          command: 'inspect-manual',
+          repository: absentRepository,
+          revision: 'a'.repeat(40),
+          rulePolicy: 'policy',
+          report: 'report.json',
+          now: instant,
+        },
+      });
+    }
+  });
+
+  test('an unknown command refuses in one line, exit 1, through both entries', async () => {
+    await expectUsageRefusal(['apply'], /^error: Unsupported Burokrat command: apply\n$/u);
+    await expectUsageRefusal([], /^error: Unsupported Burokrat command: <missing>\n$/u);
+    // `lint` is the installed executable's own command; the validator never took it.
+    await expectUsageRefusal(
+      ['lint', 'working', '.', 'HEAD'],
+      /^error: Unsupported Burokrat command: lint\n$/u,
+    );
+    const installed = spawnEntry(binPath, ['apply']);
+    expect(installed.exitCode).toBe(1);
+    expect(installed.stdout).toBe('');
+    expect(installed.stderr).toBe('error: Unsupported Burokrat command: apply\n');
+  });
+
+  test('a wrong operand count or mode refuses with the command usage before any read', async () => {
+    await expectUsageRefusal(
+      ['inspect-level-facts', absentRepository, 'a'.repeat(40), 'authority', 'extra'],
+      /^error: usage: twilight-burokrat inspect-level-facts REPOSITORY COMMITTED-SHA AUTHORITY \(Unexpected option or subcommand: `extra`\.\)\n$/u,
+    );
+    await expectUsageRefusal(
+      ['inspect-browser-performance', absentRepository, 'a'.repeat(40), 'policy', 'bogus', 'a'],
+      /^error: usage: twilight-burokrat inspect-browser-performance .*Expected one of "ordinary", "packaged", and "portable", but got "bogus"/u,
+    );
+    await expectUsageRefusal(
+      ['check-indexes', 'bogus', absentRepository, 'HEAD'],
+      /^error: usage: twilight-burokrat check-indexes SELECTION REPOSITORY REVISION-OR-BASE /u,
+    );
+  });
+
+  test('check refuses an odd flag tail and explain a two-word tail before reading', async () => {
+    await expectUsageRefusal(
+      ['check', 'working', absentRepository, 'HEAD', 'policy.json', '--rule'],
+      /^error: usage: twilight-burokrat check <committed\|staged\|working> .* \(takes 4 operands and up to 2 flags, got 5 words\)\n$/u,
+    );
+    await expectUsageRefusal(
+      ['explain', 'MOD-INDEX', absentRepository],
+      /^error: usage: twilight-burokrat explain <rule-id> \[<repository> <rule-policy-json>\] \(takes 1 or 3 words, got 2\)\n$/u,
+    );
+  });
+
+  test('runCli refuses a command no handler takes', () => {
+    // A JavaScript caller can pass what the parser never produces.
+    const forged = { command: 'submit-admission' } as unknown as ValidatorCommand;
+    expect(() => runCli(forged)).toThrow('Unsupported Burokrat command: submit-admission');
+  });
+
+  test('help names every dispatched command and no other', () => {
+    const dispatched = [
+      ...new Set(Object.keys(validatorHandlers).map((name) => name.split(' ')[0])),
+    ].sort();
+    expect(helpCommands(printedBy(validatorGrammar, ['--help'])).sort()).toEqual(dispatched);
+    expect(commandNamesOf(validatorGrammar).sort()).toEqual(dispatched);
+    // The installed executable forwards every validator command but the two source-only ones,
+    // and dispatches three of its own.
+    const installed = [
+      ...dispatched.filter((name) => name !== 'candidate-identity' && name !== 'inspect-browser'),
+      'lint',
+      'prepare-activation',
+      'prepare-relocation-activation',
+    ].sort();
+    expect(helpCommands(printedBy(installedGrammar, ['--help'])).sort()).toEqual(installed);
+    expect(commandNamesOf(installedGrammar).sort()).toEqual(installed);
+  });
+
+  // Spawns Bun more than once; Bun's 5 s default fails it when this file runs alone.
+  test('help parity holds under any terminal width and colour request', () => {
+    const inProcess = printedBy(installedGrammar, ['--help']);
+    // A terminal reports its width on the stream; `run` reads it before `COLUMNS`. At 30
+    // columns Optique's automatic width gives up on the long usage lines and prints them
+    // unwrapped, so only a width it can honour, such as 80, would change the bytes.
+    const reported = Object.getOwnPropertyDescriptor(process.stdout, 'columns');
+    Object.defineProperty(process.stdout, 'columns', { configurable: true, value: 80 });
+    try {
+      expect(printedBy(installedGrammar, ['--help'])).toBe(inProcess);
+    } finally {
+      if (reported === undefined) Reflect.deleteProperty(process.stdout, 'columns');
+      else Object.defineProperty(process.stdout, 'columns', reported);
+    }
+    const environments: Record<string, string>[] = [
+      { COLUMNS: '30' },
+      { COLUMNS: '80' },
+      { COLUMNS: '400' },
+      { FORCE_COLOR: '1' },
+    ];
+    for (const environment of environments) {
+      const label = JSON.stringify(environment);
+      const spawned = spawnEntry(binPath, ['--help'], environment);
+      expect(spawned.exitCode, label).toBe(0);
+      expect(spawned.stderr, label).toBe('');
+      expect(spawned.stdout, label).toBe(inProcess);
+    }
+  }, 60_000);
+
+  test('the README shows the generated help', () => {
+    // Proof: rewording the `inspect-manual` line in the README block failed this test (2026-11-02).
+    const readme = readFileSync(join(import.meta.dir, '..', 'README.md'), 'utf8');
+    const block = /`twib --help` prints[^`]*```text\n([\s\S]*?)```/u.exec(readme)?.[1];
+    expect(block).toBe(printedBy(installedGrammar, ['--help']));
+  });
+
+  test('twib --version prints the manifest version; the validator has none', async () => {
+    const manifest = JSON.parse(
+      readFileSync(join(import.meta.dir, '..', 'package.json'), 'utf8'),
+    ) as {
+      version: string;
+    };
+    const spawned = spawnEntry(binPath, ['--version']);
+    expect(spawned.exitCode).toBe(0);
+    expect(spawned.stderr).toBe('');
+    expect(spawned.stdout).toBe(`${manifest.version}\n`);
+    await expectUsageRefusal(['--version'], /^error: Unsupported Burokrat command: --version\n$/u);
+  });
+
+  test('help, help <command> and bash, zsh and fish completion print on stdout', () => {
+    const expected: Record<string, RegExp> = {
+      '--help': /^Usage: twilight-burokrat /u,
+      'help inspect-manual': /Usage: twilight-burokrat inspect-manual --now INSTANT REPOSITORY /u,
+      'inspect-manual --help': /Usage: twilight-burokrat inspect-manual /u,
+      'help lint': /Usage: twilight-burokrat lint SELECTION REPOSITORY REVISION-OR-BASE/u,
+      'completion bash': /complete .*twilight-burokrat/u,
+      'completion zsh': /^#compdef twilight-burokrat twib\n/u,
+      'completion fish': /complete -c twilight-burokrat/u,
+    };
+    for (const [line, stdout] of Object.entries(expected)) {
+      expect(printedBy(installedGrammar, line.split(' ')), line).toMatch(stdout);
+    }
+    expect(printedBy(installedGrammar, ['help', 'check']).replace(/\s+/gu, ' ')).toContain(
+      '<committed|staged|working> <repository> <revision-or-base> <rule-policy-json>',
+    );
+    const candidates = printedBy(installedGrammar, ['completion', 'zsh', '']);
+    for (const name of commandNamesOf(installedGrammar)) expect(candidates).toContain(name);
+  });
+
+  test("every delegated grammar is its module's usage line", () => {
+    // Proof: restoring `template`'s `<id>` metavars in `delegatedGrammars` failed this test with
+    // `<template-id>` expected (2026-11-03).
+    const moduleUsages: Record<keyof typeof delegatedGrammars, string> = {
+      check: checkUsage,
+      explain: explainUsage,
+      scenario: scenarioUsage,
+      template: templateUsage,
+      'validate workflow-binding': workflowBindingUsage,
+      'prepare-activation': prepareActivationUsage,
+      'prepare-relocation-activation': prepareRelocationActivationUsage,
+    };
+    for (const [words, grammar] of Object.entries(delegatedGrammars)) {
+      expect(moduleUsages[words as keyof typeof delegatedGrammars], words).toBe(
+        `usage: twilight-burokrat ${words} ${grammar}`,
+      );
+    }
+  });
+
+  test('<delegated command> --help prints its help; other words reach the module', () => {
+    for (const argv of [
+      ['check', '--help'],
+      ['validate', 'workflow-binding', '--help'],
+      ['template', '--help'],
+    ]) {
+      const words = argv.slice(0, -1).join(' ');
+      expect(printedBy(installedGrammar, argv), words).toContain(
+        `Usage: twilight-burokrat ${words} [...]`,
+      );
+    }
+    for (const tail of [
+      ['--version'],
+      ['--now=2026-11-02T00:00:00.000Z'],
+      ['--', '--help'],
+      ['working', '.', 'HEAD', 'policy.json', '--help'],
+    ]) {
+      expect(
+        readInvocation(validatorGrammar, ['check', ...tail], { stdout: () => undefined }),
+      ).toEqual({
+        kind: 'command',
+        command: { command: 'check', argv: tail },
+      });
+    }
+  });
+
+  test('completion scripts register twib beside twilight-burokrat', () => {
+    const registrations: Record<string, readonly RegExp[]> = {
+      bash: [/^ {2}complete -F _twilight-burokrat -- twilight-burokrat twib$/mu],
+      zsh: [
+        /^#compdef twilight-burokrat twib$/mu,
+        /^ {2}compdef _optique:twilight-burokrat twilight-burokrat twib$/mu,
+      ],
+      fish: [/^complete -c twib -f -a '\(__twilight-burokrat_complete\)'$/mu],
+    };
+    for (const [shell, lines] of Object.entries(registrations)) {
+      const script = printedBy(installedGrammar, ['completion', shell]);
+      for (const line of lines) expect(script, shell).toMatch(line);
+    }
+    // Proof: returning the script unchanged when its registration is absent made this expect a
+    // throw and receive a script that completes only `twilight-burokrat` (2026-11-03).
+    expect(() => registerShortName('zsh', '#compdef other\n')).toThrow(
+      'the zsh completion script has no registration line: #compdef twilight-burokrat',
+    );
+  });
+
+  test('twib completion zsh prints a script on stdout that completes inspect-manual', () => {
+    const script = spawnEntry(binPath, ['completion', 'zsh']);
+    expect(script.exitCode).toBe(0);
+    expect(script.stderr).toBe('');
+    expect(script.stdout).toStartWith('#compdef twilight-burokrat twib\n');
+    const candidates = spawnEntry(binPath, ['completion', 'zsh', 'inspect-man']);
+    expect(candidates.exitCode).toBe(0);
+    expect(candidates.stdout).toContain('inspect-manual');
+  });
+
+  test('help <unknown> and completion without a shell refuse in one line', async () => {
+    await expectUsageRefusal(
+      ['help', 'bogus'],
+      /^error: usage: twilight-burokrat help \(Unexpected option or subcommand: `bogus`\.\)\n$/u,
+    );
+    await expectUsageRefusal(
+      ['completion'],
+      /^error: usage: twilight-burokrat completion \(Missing shell name for completion\.\)\n$/u,
+    );
+  });
 });

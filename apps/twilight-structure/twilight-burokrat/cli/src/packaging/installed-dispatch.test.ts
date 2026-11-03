@@ -32,7 +32,7 @@ test('installed executable dispatches Performance, specification and Manual diag
       });
       expect(invocation.exitCode).toBe(1);
       expect(invocation.stderr.toString()).toContain(usage);
-      expect(invocation.stderr.toString()).not.toContain(`unknown command: ${command}`);
+      expect(invocation.stderr.toString()).not.toContain('Unsupported Burokrat command');
     }
   } finally {
     rmSync(packageRoot, { recursive: true, force: true });

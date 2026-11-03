@@ -16,6 +16,7 @@ in those docs, not here.
 | [cutover plan](cutover-plan.md)                   | the one-time Compose → k3s production move (prepared, not authorized)                                            |
 | [enroll h4claw and h3mon](enroll-h4claw-h3mon.md) | preflight, backups, bootstrap, join and rollback; September execution record and October read-only observations  |
 | [gate hosts](gate-hosts.md)                       | the `gate_host` role: a second `bin/h2puni-gate.sh` host with its own heavy lock, and launching a gate on h4claw |
+| [heavy job launchers](heavy-job-launchers.md)     | `run_heavy_job`, the five launchers and their payloads, the conflict inventory; no host enrolled yet             |
 | `infra/terraform/README.md`                       | Terragrunt provision/destroy inputs: backend evidence, variables, the token                                      |
 
 ## Commands

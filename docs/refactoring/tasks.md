@@ -191,6 +191,8 @@ Nothing below has an owning task in the external queue (`backlog/tasks/task-NNN 
       holder — so raise it to cover two gates and say what the number is derived from; (6)
       `bin/with-heavy-lock.sh status` could mark a waiter whose budget has run out as expired in
       its own right, since such a ticket is reclaimable and its owner has already given up.
+      Closed for enrolled hosts by `dash-host-jobs` (its host pool replaces this lock there);
+      still open for every unenrolled host, which keeps the shell lock.
 - [ ] Wiki policy rule overlap: a `*.test.ts` under a `fixtures/` segment matches both the `test`
       (suffix) and `fixture` (segment) `contentRules` in `docs/wiki-policy/policy.json`, and
       `classify-entries` refuses the whole candidate. Give the `fixture` rule the

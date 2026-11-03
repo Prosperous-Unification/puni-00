@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
-import { runDash } from '../cli';
+import { runDashArguments } from '../cli';
 import { ObservationStoreError } from './observation-commands';
 import { readObservationStateConfig } from './observation-service';
 import { withRecoveryObservation } from './observation-state';
@@ -66,7 +66,7 @@ function restore(inputs: ObservationServiceInputs, dump: string) {
 test('the relocated schema equals the v10 golden text', async () => {
   const configuration = writeObservationServiceConfiguration();
   scratch.push(configuration.root);
-  await runDash(
+  await runDashArguments(
     ['bootstrap-observation', configuration.configurationPath],
     dependencies([], 1_000_000),
   );
@@ -117,7 +117,7 @@ test('a Burokrat-written v10 store opens in Dash and continues its attempt seque
 
   let refusal: unknown;
   try {
-    await runDash(
+    await runDashArguments(
       ['migrate-observation', configuration.configurationPath],
       dependencies([], recorded.recovery.next_attempt_at),
     );

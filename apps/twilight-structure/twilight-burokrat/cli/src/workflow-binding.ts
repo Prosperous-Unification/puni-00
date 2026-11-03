@@ -151,13 +151,16 @@ export function readWorkflowBinding(
  * Returns the accepted digest without writing output; prompt paths use the supplied root.
  * @throws {WorkflowBindingError} for invalid CLI grammar or binding acceptance failures.
  */
+/**
+ * The usage line of `validate workflow-binding`; `cli-parser.ts`'s help shows the same grammar
+ * (cli.test.ts).
+ */
+export const workflowBindingUsage =
+  'usage: twilight-burokrat validate workflow-binding <file> --steps <comma-list>';
+
 export function runWorkflowBindingCommand(args: readonly string[], repositoryRoot: string): string {
   const refuseArguments = () => {
-    throw new WorkflowBindingError(
-      'invalid_arguments',
-      'arguments',
-      'usage: twib validate workflow-binding <file> --steps <comma-list>',
-    );
+    throw new WorkflowBindingError('invalid_arguments', 'arguments', workflowBindingUsage);
   };
   // Proof: removing exact arity let the spawned extra-operand command succeed; its refusal test failed.
   if (args.length !== 5) refuseArguments();

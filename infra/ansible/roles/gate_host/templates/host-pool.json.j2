@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 3,
+  "root": {{ puni_gate_pool_root | to_json }},
+  "authorityId": {{ puni_gate_host_pool.authorityId | to_json }},
+  "epoch": {{ puni_gate_host_pool.epoch | to_json }},
+  "providerId": {{ puni_gate_host_pool.providerId | to_json }},
+  "mcpResource": {{ puni_gate_host_pool.mcpResource | to_json }},
+  "credential": {{ puni_gate_host_pool.credential | to_json }},
+  "diskUnitBytes": {{ puni_gate_pool_disk_unit_bytes | int }},
+  "diskBudgetUnits": {{ puni_gate_host_pool.diskBudgetUnits | int }},
+  "workspaceSlots": {{ puni_gate_pool_workspace_slots | int }},
+  "headroomBytes": {{ puni_gate_pool_headroom_bytes | int }},
+  "cpuCores": {{ puni_gate_pool_cpu_cores | int }},
+  "memoryGib": {{ puni_gate_pool_memory_gib | int }},
+  "headroom": {{ puni_gate_pool_headroom | to_json }},
+  "exclusiveUnits": {{ puni_gate_pool_exclusive_units | to_json }},
+  "enrollmentId": {{ puni_gate_pool_enrollment_id | to_json }},
+  "launcherCheckouts": {{ puni_gate_pool_launcher_checkouts | to_json }},
+  "concurrencyEligible": {{ puni_gate_pool_concurrency_eligible | to_json }}
+}

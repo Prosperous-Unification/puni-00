@@ -11,26 +11,13 @@ import {
 } from '@twilight-burokrat/contracts';
 import { type PlanDocument, planDocument } from '@wbs/contracts';
 
-import type { FlagValues } from './cli';
+import type { NavigatorRequest } from './cli-parser';
 import {
   createExclusiveFiles,
   decodeRequiredText,
   parseRequiredJson,
   readRequiredBytes,
 } from './required-file';
-
-/** The flags of `twin plan-reference`, each required once. */
-export const PLAN_REFERENCE_FLAGS = [
-  '--export',
-  '--repository',
-  '--change',
-  '--planning-commit',
-  '--source-base',
-  '--requirements',
-  '--output',
-] as const;
-
-type PlanReferenceFlag = (typeof PLAN_REFERENCE_FLAGS)[number];
 
 /** Explicit supported wire versions; a future WBS bump requires contract review here. */
 const NAVIGATOR_PLAN_DOCUMENT_VERSIONS = [7, 8, 9, 10, 11] as const;
@@ -385,9 +372,11 @@ function prettyJson(value: unknown): string {
  * directory and returns the plan reference's digest. Every input is read and validated, and
  * the record is decoded through Burokrat, before the first output file is created.
  */
-export async function runPlanReference(request: FlagValues<PlanReferenceFlag>): Promise<string> {
-  const exportPath = request('--export');
-  const requirementsPath = request('--requirements');
+export async function runPlanReference(
+  request: NavigatorRequest<'plan-reference'>,
+): Promise<string> {
+  const exportPath = request.export;
+  const requirementsPath = request.requirements;
   const exportBytes = await readRequiredBytes(exportPath, EXPORT_ROLE);
   const requirementsBytes = await readRequiredBytes(requirementsPath, REQUIREMENTS_ROLE);
   // Proof: removing this decode failed `refuses a missing, unreadable or malformed requirements
@@ -397,11 +386,11 @@ export async function runPlanReference(request: FlagValues<PlanReferenceFlag>): 
   const tasks = derivePlanTasks(document, wireVersion);
 
   const planRef: PlanRef = {
-    repository: request('--repository'),
+    repository: request.repository,
     plan: document.project.id,
-    change: request('--change'),
-    planningCommit: request('--planning-commit'),
-    sourceBaseCommit: request('--source-base'),
+    change: request.change,
+    planningCommit: request.planningCommit,
+    sourceBaseCommit: request.sourceBase,
     requirementsDigest: sha256Hex(requirementsBytes),
   };
   const body = {
@@ -419,8 +408,8 @@ export async function runPlanReference(request: FlagValues<PlanReferenceFlag>): 
   const record = parseOrThrow(PlanReferenceRecord, { ...body, referenceDigest: digestOf(body) });
 
   await createExclusiveFiles([
-    { path: join(request('--output'), 'tasks.json'), text: prettyJson(tasks) },
-    { path: join(request('--output'), 'plan-reference.json'), text: prettyJson(record) },
+    { path: join(request.output, 'tasks.json'), text: prettyJson(tasks) },
+    { path: join(request.output, 'plan-reference.json'), text: prettyJson(record) },
   ]);
   return record.referenceDigest;
 }

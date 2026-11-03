@@ -162,6 +162,11 @@ fail() {
 
 pass() { printf '  ok: %s\n' "$1"; }
 
+expect_equal() {
+  local want=$1 got=$2 what=$3
+  if [[ $want == "$got" ]]; then pass "$what"; else fail "$what: want '$want', got '$got'"; fi
+}
+
 # One exact line somewhere in $2, which is how the report's format is pinned
 # without pinning the order of lines around it.
 expect_line() {
@@ -1258,10 +1263,369 @@ run_suite() {
   rm -rf "$lock"*
 }
 
+# `run_heavy_job`, the production entry (`dash-host-jobs` J12, J13), cases 40-45.
+#
+# Driven through a fixture checkout holding a byte-for-byte copy of the library, so the Dash
+# entrypoint it resolves relative to itself is the fixture's, and a fake `bun` first on PATH
+# stands in for Dash: it records its arguments and environment and then runs the payload, exits
+# with `$JOB_TEST_DASH`, or waits for a signal. The fixed paths are redefined in the test shell,
+# the same seam `run_locked` uses for the lock path: no variable reaches the library itself.
+# Every case above is untouched and still drives `with_heavy_lock` directly (J18).
+job_scratch=
+make_job_fixture() {
+  job_scratch=$(mktemp -d "${TMPDIR:-/tmp}/heavy-job-test.XXXXXX")
+  local checkout="$job_scratch/checkout"
+  mkdir -p "$checkout/bin" "$checkout/apps/twilight-structure/twilight-dash/cli/src" \
+    "$job_scratch/fake-bin" "$job_scratch/root/.dash" "$job_scratch/config-dir"
+  cp "$lock_lib" "$checkout/bin/heavy-lock-lib.sh"
+  : >"$checkout/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts"
+  cat >"$job_scratch/fake-bin/bun" <<'FAKE'
+#!/usr/bin/env python3
+import os, signal, subprocess, sys, time
+arguments = sys.argv[1:]
+with open(os.environ['JOB_TEST_LOG'], 'a') as log:
+    log.write('argv ' + ' '.join(arguments) + '\n')
+    for name in ('HEAVY_LOCK_WAIT_SECONDS', 'HEAVY_LOCK_POLL_SECONDS'):
+        log.write('dash-env %s=%s\n' % (name, os.environ.get(name, 'unset')))
+mode = os.environ.get('JOB_TEST_DASH', 'run')
+if mode == 'signal':
+    def answer(number, _frame):
+        with open(os.environ['JOB_TEST_SIGNALS'], 'a') as received:
+            received.write(signal.Signals(number).name.removeprefix('SIG') + '\n')
+        sys.exit(128 + number)
+    for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(number, answer)
+    open(os.environ['JOB_TEST_READY'], 'w').close()
+    for _ in range(600):
+        time.sleep(0.05)
+    sys.exit(97)
+if mode != 'run':
+    sys.exit(int(mode))
+sys.exit(subprocess.call(arguments[arguments.index('--') + 1:]))
+FAKE
+  chmod +x "$job_scratch/fake-bin/bun"
+  printf '{"root":"%s"}\n' "$job_scratch/root" >"$job_scratch/config-dir/host-pool.json"
+}
+
+# Run `run_heavy_job "$@"` as a caller script would: the fixture library sourced, the fixed
+# paths pointed at the fixture, and an EXIT trap that counts its own runs.
+# shellcheck disable=SC2016 # Single quotes are the point: a script for the inner shell.
+job_inner='source "$1"; shift
+resolve_host_pool_config_path() { printf "%s\n" "$JOB_TEST_CONFIG"; }
+resolve_host_pool_root() { printf "%s\n" "$JOB_TEST_ROOT"; }
+resolve_heavy_lock_path() { printf "%s\n" "$JOB_TEST_LOCK"; }
+trap "printf \"exit\n\" >>\"\$JOB_TEST_TRAPS\"" EXIT
+run_heavy_job "$@"'
+run_job() {
+  local sh=$1
+  shift
+  JOB_TEST_CONFIG="$job_scratch/config-dir/host-pool.json" \
+    JOB_TEST_ROOT="$job_scratch/root" \
+    JOB_TEST_LOCK="$job_scratch/heavy.lock" \
+    JOB_TEST_LOG="$job_scratch/dash.log" \
+    JOB_TEST_TRAPS="$job_scratch/traps" \
+    PATH="$job_scratch/fake-bin:$PATH" \
+    "$sh" -c "$job_inner" heavy-job-test "$job_scratch/checkout/bin/heavy-lock-lib.sh" "$@"
+}
+reset_job_logs() { rm -f "$job_scratch/dash.log" "$job_scratch/traps" "$job_scratch/ran"; }
+dash_was_called() { [[ -s $job_scratch/dash.log ]]; }
+trap_runs() { if [[ -e $job_scratch/traps ]]; then wc -l <"$job_scratch/traps" | tr -d ' '; else printf '0\n'; fi; }
+
+run_job_suite() {
+  local sh=$1 status config="$job_scratch/config-dir/host-pool.json" ledger="$job_scratch/root/.dash/resources.sqlite"
+  printf '\nrun_heavy_job with %s\n' "$sh"
+  # A type inherited from whoever runs this suite would hide case 43.
+  unset HEAVY_LOCK_JOB_TYPE
+
+  # 40a. A configuration missing beside a ledger is a broken enrolled host: 70, neither mechanism.
+  reset_job_logs
+  mv "$config" "$config.away"
+  : >"$ledger"
+  status=0
+  HEAVY_LOCK_JOB_TYPE=gate run_job "$sh" -- touch "$job_scratch/ran" 2>"$job_scratch/stderr" || status=$?
+  expect_status 70 "$status" '40a: a configuration missing beside a ledger is refused'
+  if grep -q "host pool configuration $config is missing beside the ledger $ledger" "$job_scratch/stderr"; then
+    pass '40a: the refusal names the configuration and the ledger'
+  else fail "40a: the refusal did not name both: $(cat "$job_scratch/stderr")"; fi
+  if [[ -e $job_scratch/ran || -e $job_scratch/heavy.lock.d ]] || dash_was_called; then
+    fail '40a: a mechanism ran beside the missing configuration'
+  else pass '40a: neither Dash nor the legacy lock ran'; fi
+
+  # 40b. No configuration and no ledger: the legacy lock, unchanged.
+  reset_job_logs
+  rm -f "$ledger"
+  status=0
+  HEAVY_LOCK_JOB_TYPE=gate run_job "$sh" -- touch "$job_scratch/ran" 2>"$job_scratch/stderr" || status=$?
+  expect_status 0 "$status" '40b: an unenrolled host runs the job'
+  if [[ -e $job_scratch/ran ]] && grep -q 'heavy lock: waited 0s behind 0 tickets' "$job_scratch/stderr" && ! dash_was_called; then
+    pass '40b: it ran under the legacy lock, not Dash'
+  else fail "40b: it did not run under the legacy lock: $(cat "$job_scratch/stderr")"; fi
+  mv "$config.away" "$config"
+
+  # 40c-40f. A configuration that exists must be a readable file naming the fixed root.
+  reset_job_logs
+  chmod 000 "$config"
+  status=0
+  HEAVY_LOCK_JOB_TYPE=gate run_job "$sh" -- true 2>"$job_scratch/stderr" || status=$?
+  chmod 600 "$config"
+  if [[ $(id -u) -eq 0 ]]; then
+    pass '40c: skipped, root reads a mode-000 file'
+  else
+    expect_status 70 "$status" '40c: an unreadable configuration is refused'
+    if grep -q "host pool configuration $config is not a readable file" "$job_scratch/stderr"; then
+      pass '40c: the refusal says the configuration is unreadable'
+    else fail "40c: the refusal did not say the configuration is unreadable: $(cat "$job_scratch/stderr")"; fi
+  fi
+  mv "$config" "$config.file"
+  mkdir "$config"
+  status=0
+  HEAVY_LOCK_JOB_TYPE=gate run_job "$sh" -- true 2>"$job_scratch/stderr" || status=$?
+  expect_status 70 "$status" '40d: a configuration that is a directory is refused'
+  rmdir "$config"
+  printf '{"root":"/elsewhere"}\n' >"$config"
+  status=0
+  HEAVY_LOCK_JOB_TYPE=gate run_job "$sh" -- true 2>"$job_scratch/stderr" || status=$?
+  expect_status 70 "$status" '40e: a configuration naming another root is refused'
+  if grep -q 'names root /elsewhere' "$job_scratch/stderr"; then pass '40e: the refusal names the root'
+  else fail "40e: the refusal did not name the root: $(cat "$job_scratch/stderr")"; fi
+  printf '{}\n' >"$config"
+  status=0
+  HEAVY_LOCK_JOB_TYPE=gate run_job "$sh" -- true 2>"$job_scratch/stderr" || status=$?
+  expect_status 70 "$status" '40f: a configuration naming no root is refused'
+  mv "$config.file" "$config"
+  if dash_was_called; then fail '40c-40f: Dash ran over a configuration it could not trust'
+  else pass '40c-40f: Dash never ran over an untrusted configuration'; fi
+
+  # 40g. Enrolled: Dash of this checkout, with every flag explicit.
+  reset_job_logs
+  status=0
+  HEAVY_LOCK_JOB_TYPE=gate run_job "$sh" -- touch "$job_scratch/ran" 2>"$job_scratch/stderr" || status=$?
+  expect_status 0 "$status" '40g: an enrolled host runs the job through Dash'
+  expect_equal "argv $job_scratch/checkout/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job run --type gate --config $config --wait-seconds 0 --poll-seconds 5 --label unlabeled -- touch $job_scratch/ran" \
+    "$(sed -n 1p "$job_scratch/dash.log")" '40g: Dash gets the type, the configuration and every budget as flags'
+  if [[ -e $job_scratch/ran && ! -e $job_scratch/heavy.lock.d ]]; then pass '40g: the payload ran and the legacy lock was not taken'
+  else fail '40g: the payload did not run, or the legacy lock was taken'; fi
+
+  # 41. A ledger this account cannot see past is unknown, not absent.
+  reset_job_logs
+  mv "$config" "$config.away"
+  chmod 000 "$job_scratch/root"
+  status=0
+  HEAVY_LOCK_JOB_TYPE=gate run_job "$sh" -- touch "$job_scratch/ran" 2>"$job_scratch/stderr" || status=$?
+  chmod 700 "$job_scratch/root"
+  mv "$config.away" "$config"
+  if [[ $(id -u) -eq 0 ]]; then
+    pass '41: skipped, root searches a mode-000 directory'
+  else
+    expect_status 70 "$status" '41: a ledger behind an unsearchable directory is refused'
+    if grep -q "cannot tell whether $ledger exists: $job_scratch/root is not a searchable directory" "$job_scratch/stderr"; then
+      pass '41: the refusal names the directory'
+    else fail "41: the refusal did not name the directory: $(cat "$job_scratch/stderr")"; fi
+  fi
+
+  # 42. No variable selects the mechanism: every override a caller might reach for is ignored.
+  reset_job_logs
+  status=0
+  HEAVY_LOCK_MECHANISM=legacy HEAVY_LOCK_LEGACY=1 DASH_HOST_POOL_CONFIG=/nonexistent \
+    WBS_HEAVY_LOCK="$job_scratch/other.lock" HEAVY_LOCK_JOB_TYPE=gate \
+    run_job "$sh" -- true 2>"$job_scratch/stderr" || status=$?
+  expect_status 0 "$status" '42a: an enrolled host with override variables runs the job'
+  if dash_was_called && [[ ! -e $job_scratch/heavy.lock.d && ! -e $job_scratch/other.lock.d ]]; then
+    pass '42b: the override variables did not choose the legacy lock'
+  else fail "42b: want 'dash', got 'legacy'"; fi
+
+  # 43. A caller without a type is refused on either host, before either mechanism.
+  reset_job_logs
+  status=0
+  run_job "$sh" -- touch "$job_scratch/ran" 2>"$job_scratch/stderr" || status=$?
+  expect_status 64 "$status" '43a: an enrolled caller with no type is refused'
+  if grep -q 'HEAVY_LOCK_JOB_TYPE' "$job_scratch/stderr" && ! dash_was_called && [[ ! -e $job_scratch/ran ]]; then
+    pass '43a: the refusal names the variable and nothing ran'
+  else fail "43a: the refusal did not name HEAVY_LOCK_JOB_TYPE or something ran: $(cat "$job_scratch/stderr")"; fi
+  mv "$config" "$config.away"
+  status=0
+  run_job "$sh" -- touch "$job_scratch/ran" 2>"$job_scratch/stderr" || status=$?
+  expect_status 64 "$status" '43b: an unenrolled caller with no type is refused'
+  if [[ -e $job_scratch/ran ]]; then fail '43b: the payload ran without a type'; else pass '43b: nothing ran'; fi
+  status=0
+  HEAVY_LOCK_JOB_TYPE='Gate X' run_job "$sh" -- true 2>"$job_scratch/stderr" || status=$?
+  expect_status 64 "$status" '43c: a type that is not a catalogue id is refused'
+  mv "$config.away" "$config"
+
+  # 44. Budgets reach Dash as flags and never reach the payload, exported or not.
+  reset_job_logs
+  local payload_env="$job_scratch/payload-env"
+  # shellcheck disable=SC2016 # Single quotes are the point: the payload expands these itself.
+  local report_env='printf "%s %s\n" "${HEAVY_LOCK_WAIT_SECONDS-unset}" "${HEAVY_LOCK_POLL_SECONDS-unset}" >"$0"'
+  status=0
+  HEAVY_LOCK_JOB_TYPE=gate HEAVY_LOCK_LABEL=gate:0a518a42 \
+    run_job "$sh" -- bash -c "$report_env" "$payload_env" 2>"$job_scratch/stderr" || status=$?
+  expect_status 0 "$status" '44a: a labelled job runs'
+  if grep -q -- '--label gate:0a518a42 --' "$job_scratch/dash.log"; then pass '44a: the label reaches Dash as a flag'
+  else fail "44a: the label did not reach Dash: $(cat "$job_scratch/dash.log")"; fi
+  reset_job_logs
+  status=0
+  HEAVY_LOCK_WAIT_SECONDS=1800 HEAVY_LOCK_POLL_SECONDS=7 HEAVY_LOCK_JOB_TYPE=gate \
+    run_job "$sh" -- bash -c "$report_env" "$payload_env" 2>"$job_scratch/stderr" || status=$?
+  expect_status 0 "$status" '44b: a job with exported budgets runs'
+  if grep -q -- '--wait-seconds 1800 --poll-seconds 7 ' "$job_scratch/dash.log"; then pass '44b: both budgets reach Dash as flags'
+  else fail "44b: the budgets did not reach Dash as flags: $(cat "$job_scratch/dash.log")"; fi
+  expect_equal 'unset unset' "$(cat "$payload_env" 2>/dev/null)" "44c: the payload's environment has no budget"
+  if grep -q 'dash-env HEAVY_LOCK_WAIT_SECONDS=unset' "$job_scratch/dash.log"; then pass "44d: Dash's environment has no budget either"
+  else fail "44d: Dash's environment carried the budget"; fi
+  # The gate's own shape: the budget is a shell variable it never exports.
+  reset_job_logs
+  status=0
+  JOB_TEST_CONFIG="$config" JOB_TEST_ROOT="$job_scratch/root" JOB_TEST_LOCK="$job_scratch/heavy.lock" \
+    JOB_TEST_LOG="$job_scratch/dash.log" JOB_TEST_TRAPS="$job_scratch/traps" PATH="$job_scratch/fake-bin:$PATH" \
+    HEAVY_LOCK_JOB_TYPE=gate \
+    "$sh" -c 'HEAVY_LOCK_WAIT_SECONDS=1800; '"$job_inner" heavy-job-test "$job_scratch/checkout/bin/heavy-lock-lib.sh" \
+    -- bash -c "$report_env" "$payload_env" 2>"$job_scratch/stderr" || status=$?
+  expect_status 0 "$status" "44f: the gate's unexported budget runs"
+  if grep -q -- '--wait-seconds 1800 ' "$job_scratch/dash.log"; then pass '44f: an unexported budget reaches Dash as a flag'
+  else fail "44f: the unexported budget did not reach Dash: $(cat "$job_scratch/dash.log")"; fi
+  expect_equal 'unset unset' "$(cat "$payload_env" 2>/dev/null)" "44g: the payload's environment has no unexported budget"
+
+  # 45a. Every status Dash or the payload ends with is the caller's, and its EXIT trap runs once.
+  local code
+  for code in 42 64 65 66 70 73 74 75 78; do
+    reset_job_logs
+    status=0
+    JOB_TEST_DASH=$code HEAVY_LOCK_JOB_TYPE=gate run_job "$sh" -- true 2>/dev/null || status=$?
+    expect_status "$code" "$status" "45a: Dash's $code is the caller's"
+    expect_equal 1 "$(trap_runs)" "45a: the caller's EXIT trap ran once after $code"
+  done
+
+  # 45b. A signal to the launcher alone reaches Dash at once, and the caller exits with Dash's status.
+  local signal_name want launcher
+  for signal_name in TERM INT HUP; do
+    case $signal_name in TERM) want=143 ;; INT) want=130 ;; HUP) want=129 ;; esac
+    reset_job_logs
+    rm -f "$job_scratch/signals" "$job_scratch/ready"
+    # Job control, as case 27h has it: without it a background launcher starts with SIGINT
+    # ignored, and bash cannot trap a signal ignored on entry.
+    set -m
+    JOB_TEST_DASH=signal JOB_TEST_SIGNALS="$job_scratch/signals" JOB_TEST_READY="$job_scratch/ready" \
+      JOB_TEST_CONFIG="$config" JOB_TEST_ROOT="$job_scratch/root" JOB_TEST_LOCK="$job_scratch/heavy.lock" \
+      JOB_TEST_LOG="$job_scratch/dash.log" JOB_TEST_TRAPS="$job_scratch/traps" PATH="$job_scratch/fake-bin:$PATH" \
+      HEAVY_LOCK_JOB_TYPE=gate \
+      "$sh" -c "$job_inner" heavy-job-test "$job_scratch/checkout/bin/heavy-lock-lib.sh" -- true 2>/dev/null &
+    launcher=$!
+    set +m
+    local polls=0
+    while [[ ! -e $job_scratch/ready && $polls -lt 400 ]]; do sleep 0.05; polls=$((polls + 1)); done
+    kill "-$signal_name" "$launcher"
+    status=0
+    wait "$launcher" || status=$?
+    expect_status "$want" "$status" "45b: a $signal_name to the launcher ends it with Dash's status"
+    expect_equal "$signal_name" "$(cat "$job_scratch/signals" 2>/dev/null)" "45b: Dash received the $signal_name"
+    expect_equal 1 "$(trap_runs)" "45b: the caller's EXIT trap ran once after $signal_name"
+  done
+
+  # 46. What the enrolled branch needs is required, never assumed (review F6): the Dash
+  # entrypoint, `bun`, `jq`, and the `--` before the command.
+  local tools="$job_scratch/tools" tool
+  mkdir -p "$tools"
+  for tool in uname dirname env jq python3 touch; do ln -sf "$(type -P "$tool")" "$tools/$tool"; done
+  run_job_with_path() {
+    local path=$1
+    shift
+    JOB_TEST_CONFIG="$config" JOB_TEST_ROOT="$job_scratch/root" JOB_TEST_LOCK="$job_scratch/heavy.lock" \
+      JOB_TEST_LOG="$job_scratch/dash.log" JOB_TEST_TRAPS="$job_scratch/traps" PATH="$path" \
+      HEAVY_LOCK_JOB_TYPE=gate \
+      "$sh" -c "$job_inner" heavy-job-test "$job_scratch/checkout/bin/heavy-lock-lib.sh" "$@"
+  }
+  reset_job_logs
+  local entry="$job_scratch/checkout/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts"
+  mv "$entry" "$entry.away"
+  status=0
+  run_job_with_path "$job_scratch/fake-bin:$tools" -- touch "$job_scratch/ran" 2>"$job_scratch/stderr" || status=$?
+  mv "$entry.away" "$entry"
+  expect_status 70 "$status" '46a: an enrolled host without the Dash entrypoint is refused'
+  if grep -q "the Dash entrypoint $entry is missing" "$job_scratch/stderr" && [[ ! -e $job_scratch/ran ]]; then
+    pass '46a: the refusal names the entrypoint and nothing ran'
+  else fail "46a: the refusal did not name the entrypoint, or something ran: $(cat "$job_scratch/stderr")"; fi
+  status=0
+  run_job_with_path "$tools" -- touch "$job_scratch/ran" 2>"$job_scratch/stderr" || status=$?
+  expect_status 70 "$status" '46b: an enrolled host without bun is refused'
+  if grep -q 'bun is not on PATH' "$job_scratch/stderr" && [[ ! -e $job_scratch/ran ]]; then
+    pass '46b: the refusal names bun and nothing ran'
+  else fail "46b: the refusal did not name bun, or something ran: $(cat "$job_scratch/stderr")"; fi
+  rm "$tools/jq"
+  status=0
+  run_job_with_path "$job_scratch/fake-bin:$tools" -- touch "$job_scratch/ran" 2>"$job_scratch/stderr" || status=$?
+  expect_status 70 "$status" '46c: an enrolled host without jq is refused'
+  if grep -q 'jq is not on PATH' "$job_scratch/stderr" && ! dash_was_called; then
+    pass '46c: the refusal names jq and Dash never ran'
+  else fail "46c: the refusal did not name jq, or Dash ran: $(cat "$job_scratch/stderr")"; fi
+  status=0
+  HEAVY_LOCK_JOB_TYPE=gate run_job "$sh" touch "$job_scratch/ran" 2>"$job_scratch/stderr" || status=$?
+  expect_status 64 "$status" "46d: a command without the '--' is refused"
+  if [[ -e $job_scratch/ran ]] || dash_was_called; then fail "46d: something ran without the '--'"
+  else pass "46d: nothing ran without the '--'"; fi
+}
+
+# 47. The launchers' own argument refusals, through the real scripts (review F6). Each is refused
+# before `run_heavy_job`, so none touches a lock or a pool.
+run_launcher_refusals() {
+  local status sha
+  sha=$(printf '%040d' 0)
+  printf '\nlauncher refusals\n'
+  status=0
+  bash "$repo_root/bin/solver-image-publish.sh" >/dev/null 2>&1 || status=$?
+  expect_status 64 "$status" '47a: the solver publish launcher without a sha is refused'
+  status=0
+  SOLVER_PUBLISH_BUN=/bin/true SOLVER_PUBLISH_ROOT=/ \
+    bash "$repo_root/bin/solver-image-publish-payload.sh" abc >/dev/null 2>&1 || status=$?
+  expect_status 64 "$status" '47b: the solver publish payload refuses a sha that is not 40 hex'
+  status=0
+  bash "$repo_root/bin/test-queued.sh" extra >/dev/null 2>&1 || status=$?
+  expect_status 64 "$status" '47c: the test-queued launcher refuses arguments'
+  # A stub `bunx`, so a payload that ignored its arguments would not run the suite here.
+  mkdir -p "$job_scratch/stubs"
+  printf '#!/bin/sh\nexit 0\n' >"$job_scratch/stubs/bunx"
+  chmod +x "$job_scratch/stubs/bunx"
+  status=0
+  PATH="$job_scratch/stubs:$PATH" bash "$repo_root/bin/test-queued-payload.sh" extra >/dev/null 2>&1 || status=$?
+  expect_status 64 "$status" '47d: the test-queued payload refuses arguments'
+  status=0
+  SOLVER_PUBLISH_BUN=bun SOLVER_PUBLISH_ROOT=/ \
+    bash "$repo_root/bin/solver-image-publish-payload.sh" "$sha" >/dev/null 2>"$job_scratch/stderr" || status=$?
+  expect_status 64 "$status" '47e: the solver publish payload refuses a relative SOLVER_PUBLISH_BUN'
+  if grep -q 'SOLVER_PUBLISH_BUN is bun; it must be an absolute path' "$job_scratch/stderr"; then
+    pass '47e: the refusal names the variable'
+  else fail "47e: the refusal did not name the variable: $(cat "$job_scratch/stderr")"; fi
+
+  # 48. Enrollment is judged from the fixed paths only, never inherited (review G1): no launcher,
+  # payload or library expands a `HEAVY_JOB_ENROLLMENT` a caller could forge.
+  local readers
+  readers=$(grep -n -E '\$\{?HEAVY_JOB_ENROLLMENT|export HEAVY_JOB_ENROLLMENT' "$repo_root"/bin/*.sh | grep -v '\.test\.sh:')
+  expect_equal '' "$readers" '48: no launcher, payload or library reads HEAVY_JOB_ENROLLMENT'
+}
+
+if [[ $(uname -s) == Linux ]]; then
+  make_job_fixture
+  run_job_suite /bin/bash
+  run_launcher_refusals
+  rm -rf "$job_scratch"
+else
+  printf '\nrun_heavy_job: skipped on %s; its enrolled branch exists only on Linux\n' "$(uname -s)"
+fi
+
 # /bin/bash is 3.2 on macOS and is what a `#!/usr/bin/env bash` script gets when
 # no newer bash is on PATH, so it is never skipped. The modern bash is probed by
 # path rather than through `command -v bash`, which resolves to /bin/bash inside
 # this script and silently ran the 3.2 suite twice.
+# `HEAVY_LOCK_TEST_SUITES=jobs` runs cases 40-47 alone, for fault runs against the entry; the
+# default, and CI, runs everything.
+if [[ ${HEAVY_LOCK_TEST_SUITES:-all} == jobs ]]; then
+  if [[ $failures -gt 0 ]]; then
+    printf '%d check(s) failed\n' "$failures" >&2
+    exit 1
+  fi
+  printf 'run_heavy_job checks passed (legacy cases not run)\n'
+  exit 0
+fi
 run_suite /bin/bash
 for modern_bash in /opt/homebrew/bin/bash /usr/local/bin/bash; do
   if [[ -x $modern_bash ]]; then

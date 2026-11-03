@@ -1,5 +1,6 @@
 import { parseSecretsOrThrow } from '@shared/validation';
 
+import type { DashRequest } from '../cli-parser';
 import type { Monotonic } from '../clock';
 import {
   ApiKey,
@@ -31,16 +32,8 @@ export interface McpTokenDependencies {
   readonly write: (text: string) => unknown;
 }
 
-const USAGE =
-  'usage: mcp token --resource <url> (--key-file <path> | --assertion-file <path> | --github-actions-audience <audience>) [--run <id>]';
-const FLAGS = new Set([
-  '--resource',
-  '--key-file',
-  '--assertion-file',
-  '--github-actions-audience',
-  '--run',
-]);
-const CREDENTIAL_FLAGS = ['--key-file', '--assertion-file', '--github-actions-audience'] as const;
+/** The one credential an `mcp token` command line names, exactly one by its grammar. */
+type Credential = DashRequest<'mcp'>['credential'];
 
 /** A machine credential as one token request presents it. */
 type Presentation =
@@ -68,37 +61,13 @@ const JWT_SHAPE = /^eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/;
  * names the status and OAuth error, never the key, the assertion or the token.
  */
 export async function runMcpCommand(
-  argv: readonly string[],
+  command: DashRequest<'mcp'>,
   deps: McpTokenDependencies,
 ): Promise<void> {
   const started = deps.monotonic.now();
-  const [subcommand, ...flags] = argv;
-  if (subcommand !== 'token') throw new Error(USAGE);
-  const values = new Map<string, string>();
-  for (let index = 0; index < flags.length; index += 2) {
-    const name = flags.at(index);
-    const value = flags.at(index + 1);
-    if (
-      name === undefined ||
-      !FLAGS.has(name) ||
-      values.has(name) ||
-      value === undefined ||
-      value.length === 0 ||
-      value.startsWith('--')
-    ) {
-      throw new Error(USAGE);
-    }
-    values.set(name, value);
-  }
-  const resource = values.get('--resource');
-  const chosen = CREDENTIAL_FLAGS.filter((name) => values.has(name));
-  // Proof: admitting two credential flags made `refuses no credential or two` read the first
-  // and print a token (2026-10-27).
-  if (resource === undefined || chosen.length !== 1) throw new Error(USAGE);
-  const endpoint = mcpEndpointOf(resource);
-  const runFlag = values.get('--run');
-  const run = runFlag === undefined ? undefined : runOf(runFlag);
-  const presentation = presentationOf(chosen[0], values, deps);
+  const endpoint = mcpEndpointOf(command.resource);
+  const run = command.run === undefined ? undefined : runOf(command.run);
+  const presentation = presentationOf(command.credential, deps);
 
   const form = new URLSearchParams({ resource: endpoint.resource });
   const headers = new Headers({
@@ -140,13 +109,7 @@ export async function runMcpCommand(
   deps.write(`${JSON.stringify({ Authorization: `Bearer ${issued.access_token}` })}\n`);
 }
 
-function presentationOf(
-  flag: (typeof CREDENTIAL_FLAGS)[number] | undefined,
-  values: ReadonlyMap<string, string>,
-  deps: McpTokenDependencies,
-): Presentation {
-  const value = flag === undefined ? undefined : values.get(flag);
-  if (flag === undefined || value === undefined) throw new Error(USAGE);
+function presentationOf({ flag, value }: Credential, deps: McpTokenDependencies): Presentation {
   // A key or a token pasted where a path belongs would be echoed by a file error; refuse it
   // naming only the flag.
   // Proof: without this check `a key given to --key-file` and `a token given to
