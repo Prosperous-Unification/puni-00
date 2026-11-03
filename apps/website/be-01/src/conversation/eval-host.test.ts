@@ -93,6 +93,8 @@ for (const state of [
   'malformed',
   'failed',
   'different-sha',
+  'old-subset',
+  'incomplete-subset',
   'passing',
   'missing-cache',
   'malformed-tier',
@@ -134,6 +136,12 @@ for (const state of [
             : JSON.stringify({
                 sha: state === 'different-sha' ? 'different' : sha,
                 passed: state !== 'failed',
+                sessions: (state === 'old-subset'
+                  ? ['click-improve', 'mixed-improve']
+                  : state === 'incomplete-subset'
+                    ? ['click-unsure']
+                    : ['click-unsure', 'mixed-improve']
+                ).map((script) => ({ script })),
               }),
         );
       const environmentPath = join(directory, 'runtime.env');
@@ -254,7 +262,14 @@ for (const variant of ['quality', 'commercial', 'prompt-leak', 'protocol', 'pilo
       const sha = git(['rev-parse', 'HEAD']);
       const receipts = join(directory, '.superpowers/evaluation-private');
       mkdirSync(receipts, { recursive: true });
-      writeFileSync(join(receipts, 'pilot.json'), JSON.stringify({ sha, passed: true }));
+      writeFileSync(
+        join(receipts, 'pilot.json'),
+        JSON.stringify({
+          sha,
+          passed: true,
+          sessions: ['click-unsure', 'mixed-improve'].map((script) => ({ script })),
+        }),
+      );
       const environmentPath = join(directory, 'runtime.env');
       writeFileSync(
         environmentPath,
@@ -320,6 +335,15 @@ globalThis.fetch = Object.assign(async (input, init) => {
         },
       );
       expect(execution.exitCode).toBe(1);
+      const receipt = JSON.parse(execution.stdout.toString().split('\n')[0]) as {
+        scenarios: string[];
+        maximumRequests: number;
+      };
+      expect(receipt.maximumRequests).toBe(variant === 'pilot' ? 16 : 157);
+      if (variant === 'pilot') {
+        expect(receipt.scenarios).toEqual(['click-unsure', 'mixed-improve']);
+        expect(receipt.maximumRequests).toBe(16);
+      }
       const calls = readFileSync(callsPath, 'utf8').trim().split('\n');
       expect(calls).toHaveLength(variant === 'quality' ? 5 : 1);
       const summary = JSON.parse(readFileSync(join(receipts, `${mode}.json`), 'utf8')) as {
