@@ -8,18 +8,8 @@ import {
 } from '@twilight-burokrat/contracts';
 import type { PlanCommandWire } from '@wbs/contracts';
 
-import type { FlagValues } from './cli';
+import type { NavigatorRequest } from './cli-parser';
 import { createExclusiveFiles, parseRequiredJson, readRequiredBytes } from './required-file';
-
-/** The flags of `twin receipt-to-commands`, each required once. */
-export const RECEIPT_TO_COMMANDS_FLAGS = [
-  '--receipt',
-  '--plan-reference',
-  '--tasks',
-  '--output',
-] as const;
-
-type ReceiptToCommandsFlag = (typeof RECEIPT_TO_COMMANDS_FLAGS)[number];
 
 /** The document a person or the WBS MCP posts to `POST /api/projects/:id/commands`. */
 export interface CommandBatchDocument {
@@ -90,20 +80,20 @@ export function commandsForReceipt(
  * returns its digest. Nothing is sent; applying the batch is a person's or the WBS MCP's act.
  */
 export async function runReceiptToCommands(
-  request: FlagValues<ReceiptToCommandsFlag>,
+  request: NavigatorRequest<'receipt-to-commands'>,
 ): Promise<string> {
-  const receipt = await readDecoded(request('--receipt'), 'progress receipt', (input) =>
+  const receipt = await readDecoded(request.receipt, 'progress receipt', (input) =>
     parseOrThrow(ProgressReceiptRecord, input),
   );
-  const reference = await readDecoded(request('--plan-reference'), 'plan reference', (input) =>
+  const reference = await readDecoded(request.planReference, 'plan reference', (input) =>
     parseOrThrow(PlanReferenceRecord, input),
   );
-  const tasks = await readDecoded(request('--tasks'), 'task export', (input) =>
+  const tasks = await readDecoded(request.tasks, 'task export', (input) =>
     parseOrThrow(PlanTasks, input),
   );
   const batch = commandsForReceipt(receipt, reference, tasks);
   await createExclusiveFiles([
-    { path: request('--output'), text: `${JSON.stringify(batch, null, 2)}\n` },
+    { path: request.output, text: `${JSON.stringify(batch, null, 2)}\n` },
   ]);
   return digestOf(batch);
 }

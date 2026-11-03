@@ -93,6 +93,10 @@ function readJournal(repository: string): ScenarioJournal {
 }
 
 /** Pure proposed import/allocation or provenance check for one selected OpenSpec source. */
+/** The usage line of `scenario`; `cli-parser.ts`'s help shows the same grammar (cli.test.ts). */
+export const scenarioUsage =
+  'usage: twilight-burokrat scenario <import|allocate|validate> <repository> <openspec-spec-path> [--predecessor <id>]';
+
 export function writeScenarioCommand(argv: readonly string[]): void {
   const [command, action, repository, rawSource, flag, predecessor] = argv;
   // Proof: replacing this usage refusal with `return` made unsupported `destroy` exit 0;
@@ -103,9 +107,7 @@ export function writeScenarioCommand(argv: readonly string[]): void {
     (argv.length !== 4 && argv.length !== 6) ||
     (argv.length === 6 && (action !== 'allocate' || flag !== '--predecessor'))
   ) {
-    throw new Error(
-      'usage: twilight-burokrat scenario <import|allocate|validate> <repository> <openspec-spec-path> [--predecessor <id>]',
-    );
+    throw new Error(scenarioUsage);
   }
   // Proof: bypassing SourcePath made the invalid-source CLI negative report a missing
   // specification file instead of rejecting the path at the input boundary.

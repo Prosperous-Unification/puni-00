@@ -26,14 +26,24 @@ and exposes the local commands below, plus the managed resource runtime:
 | `ops job render-audit-units --config <path> --bun <path> --dash <path> --checkout <path> --output-directory <dir>`                                                        | writes the weekly systemd user timer and service for `ops job audit`; installs nothing; see [calibration](docs/resources.md#calibration-proposal-and-audit-slice-4)                                                  |
 | `ops pool init --config <path>`, `ops pool inspect --config <path>`                                                                                                       | initialize the host pool (the resource ledger and its run records), or print it as JSON; see [host jobs](docs/resources.md#ops-pool-and-ops-job-slice-3)                                                             |
 
-`twilight-dash --help` and `twilight-dash help <command>` print help generated from the
-[command-line parser](src/cli-parser.ts) on stdout and exit 0; `twilight-dash completion bash|zsh|fish`
-prints a shell completion script. A refused command line prints one `error: ` line on stderr and
-exits 1 (64 for an `ops` command): `Unsupported Dash command: <name>`, or the command's
-`usage: twilight-dash <command> …` line with the reason. `plan-enrollment` and the `ops` commands
-are parsed whole by the parser; every other command hands the words after its name (after
-`mcp token` and `pool import`, their two words) to its own module unchanged, which checks them
-and refuses in its own usage line.
+`twilight-dash --help`, `twilight-dash help <command>` and `twilight-dash <command> --help` print
+help generated from the [command-line parser](src/cli-parser.ts) on stdout and exit 0;
+`twilight-dash completion bash|zsh|fish` prints a shell completion script. Every command's grammar
+is typed there and refused before any handler runs, so a refused line reads no file and opens no
+store or connection. A refused command line prints one `error: ` line on stderr and exits 1 (64
+for an `ops` command other than `ops release`): `Unsupported Dash command: <name>`, or the usage of the deepest command it
+names (`usage: twilight-dash resources cleanup …`) with the reason, which never quotes an operand.
+Options accept `--flag=value` as well as `--flag value`, in any order around the positional
+operands: the generated usage lists options first, while the table above and the runbooks show the
+operands first, and both parse.
+
+## Release operations
+
+`ops release plan|run TARGET --config PATH --environment development|production --profile dev-fast|full`
+selects an owner-configured adapter with optional `--ref REF` and `--public-ref REF` overrides.
+`dev-fast` is development-only and carries a distinct acceptance claim from `full`.
+See [release operations](docs/releases.md) for protected configuration, source selection and the
+adapter protocol. `ops release --help` prints the command grammar without loading any configuration.
 
 ## Managed resource cleanup
 
