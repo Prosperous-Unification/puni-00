@@ -34,6 +34,10 @@ _Avoid_: Product category
 A selectable response to the current scoping question, offered alongside the visitor's own words and an uncertainty option.
 _Avoid_: Required answer
 
+**Public scoping material**:
+Reviewed examples, offer labels and human-review facts intended to be shared with visitors during a scoping conversation.
+_Avoid_: Private instructions, visitor instructions
+
 **Question acknowledgement**:
 An optional contextual comment from the assistant connecting the visitor's answer to the next scoping question.
 _Avoid_: Follow-up question

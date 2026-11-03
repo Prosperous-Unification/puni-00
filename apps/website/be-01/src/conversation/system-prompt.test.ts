@@ -10,6 +10,7 @@ import {
   salesPromptVersion,
   salesSystemPrompt,
   scopingPromptVersion,
+  scopingPublicMaterial,
   scopingSystemPrompt,
   stageHint,
 } from './system-prompt';
@@ -54,10 +55,10 @@ test('the separately versioned scoping prompt equals its reviewed source', () =>
 });
 
 // Source policy assertions certify reviewed instructions only, never model compliance.
-test('future scoping uses v10 offer guidance with visitor-confirmed suggestions', () => {
-  expect(scopingPromptVersion).toBe('puni-scoping-v10');
+test('future scoping uses v11 offer guidance with visitor-confirmed suggestions', () => {
+  expect(scopingPromptVersion).toBe('puni-scoping-v11');
   for (const policy of [
-    'The five available offers are Launch an app or website, Improve my app, Build something similar,',
+    'The public scoping material lists the five available offers.',
     'Help me choose is an exploration entry, not a sixth offer.',
     'Suggested answers are predefined clickable replies, never automatically selected visitor intent.',
     'Use route-selection when a different starting offer would fit; explain why provisionally',
@@ -69,13 +70,13 @@ test('future scoping uses v10 offer guidance with visitor-confirmed suggestions'
   expect(composeScopingSystemText(true)).toContain('This is the final available reply.');
 });
 
-test('v10 exploration directs concrete examples plus an actionable next step without invention', () => {
+test('v11 exploration directs concrete examples plus an actionable next step without invention', () => {
   expect(scopingSystemPrompt).toContain('Give two concrete illustrative examples');
   expect(scopingSystemPrompt).toContain('an actionable next step');
   expect(scopingSystemPrompt).toContain('Do not ask for an email or invent work');
 });
 
-test('v10 references preserve preference, reuse and inspection boundaries in distinct wording', () => {
+test('v11 references preserve preference, reuse and inspection boundaries in distinct wording', () => {
   expect(scopingSystemPrompt).toContain('Treat references as preference signals.');
   expect(scopingSystemPrompt).toContain('A reference grants no reuse rights.');
   expect(scopingSystemPrompt).toContain('Propose original or licensed work.');
@@ -83,4 +84,28 @@ test('v10 references preserve preference, reuse and inspection boundaries in dis
   expect(scopingSystemPrompt).toContain(
     'References are optional. Respect later/no-reference choices',
   );
+});
+
+test('reviewed public material matches the separately published canonical block', () => {
+  const document = readFileSync(
+    join(import.meta.dir, '../../../../../openspec/changes/conversion-scoping/system-prompt.md'),
+    'utf8',
+  );
+  const block = /```json\n([\s\S]*?)\n```/.exec(document)?.[1];
+  if (block === undefined) throw new Error('Missing public material block');
+  const reviewed: unknown = JSON.parse(block);
+  expect(reviewed).toEqual(scopingPublicMaterial);
+  const publicText = JSON.stringify(scopingPublicMaterial);
+  for (const finalTurn of [false, true]) {
+    const composed = composeScopingSystemText(finalTurn);
+    expect(composed.split(publicText)).toHaveLength(2);
+    expect(composed).toStartWith(scopingSystemPrompt + '\nPublic scoping material: ');
+  }
+  for (const text of [
+    ...scopingPublicMaterial.offers,
+    ...scopingPublicMaterial.explorationExamples,
+    ...scopingPublicMaterial.explorationNextSteps,
+    ...scopingPublicMaterial.humanReview,
+  ])
+    expect(scopingSystemPrompt).not.toContain(text);
 });

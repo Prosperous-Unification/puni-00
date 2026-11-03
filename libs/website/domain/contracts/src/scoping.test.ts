@@ -39,7 +39,13 @@ for (const punctuation of ['?', '？', '؟'])
     });
   });
 
-for (const version of ['puni-scoping-v7', 'puni-scoping-v8', 'puni-scoping-v9', 'puni-scoping-v10'])
+for (const version of [
+  'puni-scoping-v7',
+  'puni-scoping-v8',
+  'puni-scoping-v9',
+  'puni-scoping-v10',
+  'puni-scoping-v11',
+])
   test(`${version} omits a question-shaped acknowledgement for the recorded operation identity`, () => {
     const question = {
       ...reply,

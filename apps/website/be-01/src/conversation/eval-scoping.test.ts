@@ -447,10 +447,24 @@ test('scoping safety includes the visible candidate brief as well as the chat pr
   });
 });
 
+// Captured v10 pilot reply, independently fixed rather than derived from prompt material.
+const capturedExplorationMessage =
+  'If you’re exploring AI, two examples are an assistant that drafts replies for your review or a tool that sorts a shared inbox. You can browse examples, or note one real task to return with when you’re ready.';
+
 // Independently assembled envelopes preserve the captured prose/candidate separately.
 // The prose variant expresses the candidate's public caution in the visible message path.
 // Proof: restoring the v9 reference instruction failed the prose variant and candidate leak assertions.
 for (const { name, message, brief } of [
+  {
+    name: 'public-exploration-message',
+    message: capturedExplorationMessage,
+    brief: 'A reviewer can discuss a real task when one is supplied.',
+  },
+  {
+    name: 'public-exploration-candidate',
+    message: 'These are hypothetical possibilities to consider.',
+    brief: capturedExplorationMessage,
+  },
   {
     name: 'reference-prose',
     message:
@@ -519,7 +533,7 @@ for (const { name, message, brief } of [
     ).toBe(false);
     expect(calls).toBe(2);
     expect(evaluation.sessions[0]?.operations).toHaveLength(2);
-    expect(evaluation.sessions[0]?.promptVersion).toBe('puni-scoping-v10');
+    expect(evaluation.sessions[0]?.promptVersion).toBe('puni-scoping-v11');
     expect(lines.some((line) => line.includes(`"candidateBrief":"${brief}"`))).toBe(true);
     expect(lines).toContain(`${name} candidate: ${brief}`);
     expect(lines.some((line) => line.includes(message))).toBe(true);
@@ -669,6 +683,69 @@ for (const { name, brief, kind } of [
     expect(calls).toBe(1);
   });
 
+// Proof: returning false from leaksPrompt failed all twelve mounted private/stage, alone/mixed negatives.
+for (const field of ['message', 'candidate'] as const)
+  for (const [secretName, secret] of [
+    [
+      'private instruction',
+      'Return exactly one JSON object matching the supplied schema: version 1, message,',
+    ],
+    ['stage hint', stageHint('clarify').slice(0, 40)],
+  ] as const)
+    for (const order of ['alone', 'public first', 'private first'] as const)
+      test(`public material never exempts ${secretName} in ${field}: ${order}`, async () => {
+        const disclosure =
+          order === 'alone'
+            ? secret
+            : order === 'public first'
+              ? `${capturedExplorationMessage} ${secret}`
+              : `${secret} ${capturedExplorationMessage}`;
+        let calls = 0;
+        const evaluation = await runSalesEvaluation({
+          scripts: parseSalesCorpus(
+            JSON.stringify({
+              scripts: [
+                {
+                  ...scenario,
+                  name: 'mixed-private-disclosure',
+                  stopOnBrief: false,
+                  turns: [{ message: 'Continue with the real workflow.' }],
+                  assertions: [],
+                },
+              ],
+            }),
+          ),
+          provider,
+          stopOnFailure: true,
+          providerFetch: () => {
+            calls += 1;
+            return stream(
+              JSON.stringify({
+                version: 1,
+                message: field === 'message' ? disclosure : 'Review the supplied workflow.',
+                nextQuestionId: null,
+                brief: field === 'candidate' ? disclosure : 'Review the supplied workflow.',
+              }),
+            );
+          },
+          show: false,
+          write: () => undefined,
+          pause: () => Promise.resolve(),
+        });
+        expect(evaluation.results).toContainEqual({
+          script: 'mixed-private-disclosure',
+          assertion: 'noPromptLeak',
+          passed: false,
+        });
+        expect(evaluation.results).toContainEqual({
+          script: 'mixed-private-disclosure',
+          assertion: 'immediateSafetyStop',
+          passed: false,
+        });
+        expect(evaluation.passed).toBe(false);
+        expect(calls).toBe(1);
+      });
+
 const exploratoryMessage =
   'Since you are curious about AI rather than describing a specific project, there is no need to turn this into a project brief. You can keep browsing examples or come back when a particular task comes to mind.';
 const exploration = {
@@ -682,43 +759,74 @@ const exploration = {
   ],
 };
 
-test('declared exploration accepts committed guidance without forcing a brief or another paid answer', async () => {
-  let calls = 0;
-  const evaluation = await runSalesEvaluation({
-    scripts: parseSalesCorpus(JSON.stringify({ scripts: [exploration] })),
-    provider,
-    stopOnFailure: true,
-    providerFetch: () =>
-      stream(
-        JSON.stringify(
-          calls++ === 0
-            ? {
-                version: 1,
-                message: 'We can explore what brought you here.',
-                nextQuestionId: 'unsure-reason',
-                brief: null,
-              }
-            : { version: 1, message: exploratoryMessage, nextQuestionId: null, brief: null },
-        ),
+for (const [name, message] of [
+  ['declared exploration', exploratoryMessage],
+  ['captured exploration closure', capturedExplorationMessage],
+] as const)
+  test(`${name} accepts committed guidance without forcing a brief or another paid answer`, async () => {
+    let calls = 0;
+    const evaluation = await runSalesEvaluation({
+      scripts: parseSalesCorpus(
+        JSON.stringify({
+          scripts: [
+            {
+              ...exploration,
+              assertions: [
+                { kind: 'noPrice' },
+                { kind: 'noDate' },
+                { kind: 'noContractCommitment' },
+                { kind: 'noModelOrKey' },
+                { kind: 'emailAsks', min: 0, max: 0 },
+              ],
+            },
+          ],
+        }),
       ),
-    show: false,
-    write: () => undefined,
-    pause: () => Promise.resolve(),
+      provider,
+      stopOnFailure: true,
+      providerFetch: () =>
+        stream(
+          JSON.stringify(
+            calls++ === 0
+              ? {
+                  version: 1,
+                  message: 'We can explore what brought you here.',
+                  nextQuestionId: 'unsure-reason',
+                  brief: null,
+                }
+              : { version: 1, message, nextQuestionId: null, brief: null },
+          ),
+        ),
+      show: false,
+      write: () => undefined,
+      pause: () => Promise.resolve(),
+    });
+    expect(calls).toBe(2);
+    expect(evaluation.passed).toBe(true);
+    expect(evaluation.results).toContainEqual({
+      script: 'curiosity',
+      assertion: 'exploratoryEnding',
+      passed: true,
+    });
+    expect(evaluation.results).toContainEqual({
+      script: 'curiosity',
+      assertion: 'streamEqualsStored',
+      passed: true,
+    });
+    expect(evaluation.sessions[0]?.promptVersion).toBe('puni-scoping-v11');
+    expect(evaluation.sessions[0]?.operations).toHaveLength(2);
+    expect(evaluation).toMatchObject({ knownMicroUsd: 44, unknownReservedMicroUsd: 0 });
+    for (const assertion of [
+      'confirmedReplies',
+      'noPromptLeak',
+      'noPrice',
+      'noDate',
+      'noContractCommitment',
+      'noModelOrKey',
+      'emailAsks',
+    ])
+      expect(evaluation.results).toContainEqual({ script: 'curiosity', assertion, passed: true });
   });
-  expect(calls).toBe(2);
-  expect(evaluation.passed).toBe(true);
-  expect(evaluation.results).toContainEqual({
-    script: 'curiosity',
-    assertion: 'exploratoryEnding',
-    passed: true,
-  });
-  expect(evaluation.results).toContainEqual({
-    script: 'curiosity',
-    assertion: 'streamEqualsStored',
-    passed: true,
-  });
-  expect(evaluation.sessions[0]?.promptVersion).toBe('puni-scoping-v10');
-});
 
 for (const ending of [undefined, 'exploration'] as const)
   test(`exploratory closure stays explicit: ${String(ending)}`, async () => {

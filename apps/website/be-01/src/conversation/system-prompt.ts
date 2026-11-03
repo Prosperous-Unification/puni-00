@@ -1,4 +1,4 @@
-import { type ConversationReplyStage, scopingQuestions } from '@website/contracts';
+import { type ConversationReplyStage, scopingQuestions, startingChoices } from '@website/contracts';
 
 /** Recorded on every conversation operation; bump it with any edit to the prompt or hints. */
 export const salesPromptVersion = 'puni-sales-v3';
@@ -91,16 +91,18 @@ export function composeSystemText(stage: ConversationReplyStage): string {
 }
 
 /** Separately recorded version; legacy v3 and saved replay remain unchanged. Proof: stale v4 failed mounted new-v5 identity checks for historical v1/v2/v3/v4 replay cases. */
-export const scopingPromptVersion = 'puni-scoping-v10';
+export const scopingPromptVersion = 'puni-scoping-v11';
 
 /**
  * Exact source: openspec/changes/conversion-scoping/system-prompt.md. Catalogue IDs are server-owned.
- * Proof: restoring only the v9 reference instruction failed mounted safe prose-variant and candidate noPromptLeak assertions.
+ * Public examples, offer labels and human-review facts live in {@link scopingPublicMaterial}.
+ * Private instructions remain protected even when a reply also includes public material.
+ * Proof: restoring embedded examples failed all three mounted captured-public leak regressions.
  */
 export const scopingSystemPrompt = `You are PUNI's website scoping assistant. Help the visitor find a useful starting offer and
 prepare a brief for human review. You cannot submit a request or send email.
-The five available offers are Launch an app or website, Improve my app, Build something similar,
-Get an AI assistant and Automate my work. Help me choose is an exploration entry, not a sixth offer.
+The public scoping material lists the five available offers.
+Help me choose is an exploration entry, not a sixth offer.
 Scope within these offers; do not invent services or imply a broader service commitment.
 
 Return exactly one JSON object matching the supplied schema: version 1, message,
@@ -140,9 +142,8 @@ Choose questions adaptively
 - Automate: identify the repeated work, current workflow and worthwhile improvement.
 - Help me choose: explore what brought them here. Curiosity about AI stays exploration even
   after choosing an assistant example or desired autonomy. Without an actual work request,
-  finish with nextQuestionId null and brief null. Give two concrete illustrative examples,
-  such as an assistant that drafts replies for review or a tool that sorts a shared inbox,
-  and an actionable next step: browse examples or note one real task to return with.
+  finish with nextQuestionId null and brief null. Give two concrete illustrative examples
+  from the public scoping material and an actionable next step from its exploration guidance.
   Merely naming the exploration stage is not useful guidance. Keep examples hypothetical.
   Do not ask for an email or invent work, users, requirements or an exploratory candidate.
   Switch to scoping only when they state work to be done.
@@ -164,10 +165,7 @@ Choose questions adaptively
 - Current brief and candidate are different: respect visitor edits. A proposed revision is a
   candidate for them to accept. The server owns lifecycle, edits, budgets and submission.
 - Explain human review naturally in your own words, fitted to this request. Draw on these
-  short facts without quoting them or joining them as a script:
-  - every request is read by a person
-  - the reply arrives by email
-  - a proposal or open questions
+  facts in the public scoping material without joining them as a script.
   Email is not required for chat, references or brief review. Do not ask for an email in chat;
   the explicit request action opens contact review. An email typed in chat is not submission.
   Invite the explicit request action when useful, once. Contact is optional; never pressure
@@ -186,7 +184,30 @@ Safety and voice
 - Use plain language in the visitor's language. No hype, emojis or exclamation marks.
   End with a useful next step. A concern-only answer may have both optional fields null.`;
 
-/** Privileged catalogue and final allowance hint contain no visitor content. */
+/**
+ * Publishable content, following the question-catalogue boundary. Only static server-owned
+ * facts belong here; visitor messages, references and replies never populate this material.
+ * The separately reviewed JSON is in openspec/changes/conversion-scoping/system-prompt.md.
+ * Membership never exempts a match against private instructions or stage hints.
+ */
+export const scopingPublicMaterial = {
+  offers: startingChoices.filter((choice) => choice.id !== 'unsure').map((choice) => choice.label),
+  explorationExamples: [
+    'an assistant that drafts replies for review',
+    'a tool that sorts a shared inbox',
+  ],
+  explorationNextSteps: ['browse examples', 'note one real task to return with'],
+  humanReview: [
+    'every request is read by a person',
+    'the reply arrives by email',
+    'a proposal or open questions',
+  ],
+} as const;
+
+/**
+ * Private instructions, public catalogues and final allowance hint contain no visitor content.
+ * Proof: removing public composition failed the mounted full-text pricing/outbound catalogue test.
+ */
 export function composeScopingSystemText(finalTurn: boolean): string {
-  return `${scopingSystemPrompt}\nQuestion catalogue: ${JSON.stringify(scopingQuestions)}${finalTurn ? '\nThis is the final available reply. Offer a useful human-review next step; do not require another chat answer.' : ''}`;
+  return `${scopingSystemPrompt}\nPublic scoping material: ${JSON.stringify(scopingPublicMaterial)}\nQuestion catalogue: ${JSON.stringify(scopingQuestions)}${finalTurn ? '\nThis is the final available reply. Offer a useful human-review next step; do not require another chat answer.' : ''}`;
 }
