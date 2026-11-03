@@ -28,12 +28,12 @@ const INPUTS = {
     sha256: '7c8d1168a38f89c4bf3390c12664d769d8d5f447041b7125ec4e99be4366b5b1',
   },
   'bun.lock': {
-    bytes: 533044,
-    sha256: 'bf54a6c6202a5d8f54f9bb8fe7e76935a8f4c667c660da720db3fd5f16391383',
+    bytes: 534113,
+    sha256: '3aa01285fd014ed1e93776cdae4afcd988aa96488d8e3f6cd6bda94e97c64c55',
   },
   'package.json': {
-    bytes: 4885,
-    sha256: 'bf45a6e5f8f806d2762dfb22af77375a9ad55d806781a34812812de31f07eb74',
+    bytes: 4987,
+    sha256: 'ddaea2e9e1064e6589223f554681b4a880dd41266a9a45e906a6af196459202f',
   },
   'node_modules/vite/package.json': {
     bytes: 5093,
