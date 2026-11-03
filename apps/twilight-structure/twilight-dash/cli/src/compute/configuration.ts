@@ -149,7 +149,7 @@ const Configuration = type({
 /**
  * The file's bytes, opened without following a link and checked on the open descriptor: a
  * regular file owned by this user with no group or other permission bits, since it holds the
- * credential.
+ * credential or authorizes executable configuration.
  * @throws ConfigurationRefusal `config_absent`, `config_unreadable`, `credential_not_owner_only`.
  */
 export function readOwnerOnly(path: string): string {
@@ -177,7 +177,7 @@ export function readOwnerOnly(path: string): string {
     if ((opened.mode & 0o077) !== 0 || opened.uid !== process.getuid?.()) {
       throw new ConfigurationRefusal(
         'credential_not_owner_only',
-        `${path} holds the WBS credential and must be owned by this user with mode 0600`,
+        `${path} contains protected settings and must be owned by this user with mode 0600`,
       );
     }
     const buffer = Buffer.alloc(MAX_CONFIGURATION_BYTES + 1);

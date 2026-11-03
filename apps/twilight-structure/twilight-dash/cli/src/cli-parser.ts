@@ -494,8 +494,56 @@ function opsCommand<const Words extends string, const Fields extends Record<stri
 }
 
 /**
- * `ops`, the first typed namespace (`dash-host-jobs` J17): host jobs and the host pool. The
- * grammar is parsed here, not in its module, because it has no hand-written parser to keep.
+ * One release action with explicit profile and source selection, before any adapter read.
+ * Proof: adding an ignored --force option made `grammar refuses unknown flag` execute its adapter.
+ */
+function declareReleaseAction<const Action extends 'plan' | 'run'>(action: Action) {
+  return opsCommand(
+    action,
+    `release ${action}`,
+    `${action === 'plan' ? 'Plan' : 'Run'} a dev-fast or full release.`,
+    {
+      action: constant(action),
+      // Proof: dropping pattern ran the adapter in `a configured malformed target is refused`.
+      target: argument(string({ metavar: 'TARGET', pattern: /^[a-z][a-z0-9-]*$/u })),
+      config: operandOption('--config', 'PATH', 'The owner-only release dispatch configuration.'),
+      // Proof: adding unknown to the enum failed `grammar refuses invalid environment` with full.
+      environment: option(
+        '--environment',
+        choice(['development', 'production'] as const, { metavar: 'development|production' }),
+        {
+          description: message`The explicit destination environment.`,
+        },
+      ),
+      // Proof: allowing unsafe or defaulting full ran adapters in the invalid/missing profile cases.
+      profile: option(
+        '--profile',
+        choice(['dev-fast', 'full'] as const, { metavar: 'dev-fast|full' }),
+        {
+          description: message`dev-fast uses focused development checks; full uses complete verification.`,
+        },
+      ),
+      // Proof: selecting the last of repeated refs failed `grammar refuses duplicate flag`.
+      ref: optional(operandOption('--ref', 'REF', 'The private source branch override.')),
+      publicRef: optional(
+        operandOption('--public-ref', 'REF', 'The public source branch override.'),
+      ),
+    },
+  );
+}
+
+// Proof: admitting deploy as another action failed `grammar refuses invalid action`.
+const releaseNamespace = command(
+  'release',
+  or(declareReleaseAction('plan'), declareReleaseAction('run')),
+  {
+    brief: message`Plan or run a configured release with explicit dev-fast or full verification.`,
+  },
+);
+
+/**
+ * `ops` has one typed grammar for release operations, host jobs and the host pool. Release
+ * dispatch remains independent of the heavier authority and host-job runtime.
  */
 const opsNamespace = command(
   'ops',
@@ -576,6 +624,8 @@ const opsNamespace = command(
       ),
       { brief: message`Run and inspect host jobs.` },
     ),
+    // Proof: removing this branch failed the actual-entrypoint standard-equals adapter test.
+    releaseNamespace,
     command(
       'pool',
       or(
@@ -633,7 +683,7 @@ const opsNamespace = command(
       { brief: message`Initialize, inspect and switch the host pool.` },
     ),
   ),
-  { brief: message`Operate this host: host jobs and the host pool.` },
+  { brief: message`Operate releases, host jobs and the host pool.` },
 );
 
 const commands = [...dispatchedCommands, opsNamespace, ...entrypointCommands];
@@ -646,6 +696,17 @@ export const dashParser = or(or(...dispatchedCommands), opsNamespace, ...entrypo
 
 /** A parsed Dash command line, discriminated by `command`. */
 export type DashCommand = InferValue<typeof dashParser>;
+
+/** The centrally parsed release request, handled before the authority graph is loaded. */
+export type ReleaseCommand = InferValue<typeof releaseNamespace>;
+
+/**
+ * Select release operations from the parsed ops namespace without loading their handler.
+ * Proof: broadening to every ops command failed `host status never follows release dispatch`.
+ */
+export function isReleaseCommand(command: DashCommand): command is ReleaseCommand {
+  return command.command === 'ops' && command.words.startsWith('release ');
+}
 
 /** The parsed request of the Dash command (or commands) `Name`, as its handler receives it. */
 export type DashRequest<Name extends DashCommand['command']> = Extract<
@@ -800,6 +861,12 @@ function refusalOf(args: readonly string[], errorText: string): string {
  * the hand-written loops checked before any read. Undefined when the line is coherent.
  */
 function incoherenceOf(command: DashCommand): string | undefined {
+  if (isReleaseCommand(command)) {
+    // Proof: replacing this condition with false ran an adapter in `production dev-fast cannot execute`.
+    return command.profile === 'dev-fast' && command.environment !== 'development'
+      ? 'dev-fast is development-only; select full explicitly'
+      : undefined;
+  }
   if (command.command !== 'account-outcomes') return undefined;
   // Proof: dropping this check made `refuses what no single option can: no log directory, an
   // inverted period` see the line accepted (2026-11-02).

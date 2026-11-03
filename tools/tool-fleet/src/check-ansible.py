@@ -134,11 +134,16 @@ def run(argv, extra_env):
     return completed.returncode, completed.stdout, completed.stderr
 
 
+K3S_GROUPS = ("k3s_bootstrap_servers", "k3s_join_servers", "k3s_agents")
+
+
 def kernel_settings():
-    """Renders the base role's sysctl template for every host of the static inventories.
+    """Renders the base role's sysctl template for every k3s host of the static inventories.
 
     Strict undefined, as the template module fails on a missing variable; an inventory that does
     not list is reported with its error rather than dropped, so the judgement cannot go vacuous.
+    A host in no k3s group is skipped only when it is in `gate_hosts` (h2puni is a gate host and
+    never a node); any other such host is reported, so a node cannot leave its group unnoticed.
     """
     import jinja2
 
@@ -154,8 +159,22 @@ def kernel_settings():
             rendered.append({"inventory": inventory, "host": None, "capabilities": None,
                              "rendered": None, "error": stderr[-2000:]})
             continue
-        hostvars = json.loads(stdout).get("_meta", {}).get("hostvars", {})
+        listed = json.loads(stdout)
+        hostvars = listed.get("_meta", {}).get("hostvars", {})
+
+        def members(group):
+            return set(listed.get(group, {}).get("hosts", []))
+
+        k3s_hosts = set().union(*(members(group) for group in K3S_GROUPS))
+        # Proof: adding a stray host to `all.hosts` of production-existing-hosts.yml made
+        # tool-fleet:check fail naming that host; refusing every non-k3s host failed it on h2puni.
         for host, variables in sorted(hostvars.items()):
+            if host not in k3s_hosts:
+                if host not in members("gate_hosts"):
+                    rendered.append({"inventory": inventory, "host": host, "capabilities": None,
+                                     "rendered": None,
+                                     "error": "in no k3s group and not in gate_hosts"})
+                continue
             entry = {"inventory": inventory, "host": host,
                      "capabilities": variables.get("puni_node_capabilities"),
                      "rendered": None, "error": None}
