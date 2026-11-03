@@ -415,6 +415,7 @@ test('rollback independently refuses lifecycle-only and association-only residue
 test('rollback removes both empty lifecycle tables and their migration ledger entry', () => {
   expect(rollbackTo(path, MIGRATIONS, PREVIOUS)).toEqual([
     '20261102120000_add_access_grants',
+    '20261101120000_add_host_job_projection',
     '20261101100100_add_resource_directory_capacity',
     '20261101100000_widen_organization_audit_directory_capacity',
     '20261028100100_widen_organization_audit_agent_pools',

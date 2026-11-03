@@ -168,9 +168,19 @@ describe('tree inventory helpers', () => {
     expect(() => parseIndexEntries(['garbage'])).toThrow('unexpected git ls-files line');
   });
 
-  it('owns infra and deploy shell scripts plus publish-release', () => {
+  it('owns infra and deploy shell scripts plus the release and heavy-job launchers', () => {
     expect(fleetShellScripts(['infra/ci/a.sh', 'deploy/b.sh', 'bin/c.sh', 'infra/d.bash'])).toEqual(
-      ['bin/publish-release.sh', 'deploy/b.sh', 'infra/ci/a.sh'],
+      [
+        'bin/h2puni-gate-payload.sh',
+        'bin/publish-release-payload.sh',
+        'bin/publish-release.sh',
+        'bin/solver-image-publish-payload.sh',
+        'bin/solver-image-publish.sh',
+        'bin/test-queued-payload.sh',
+        'bin/test-queued.sh',
+        'deploy/b.sh',
+        'infra/ci/a.sh',
+      ],
     );
   });
 

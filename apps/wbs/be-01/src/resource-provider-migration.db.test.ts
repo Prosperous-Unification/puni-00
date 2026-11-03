@@ -21,7 +21,7 @@ const MEASURES = [
   '20261023150000_key_step_measure',
   '20261023140000_add_measure',
 ];
-/** `wbs-shared-occupancy`'s two migrations, which reverse right after {@link ACCESS_GRANTS}. */
+/** `wbs-shared-occupancy`'s two migrations, which reverse right after the host job projection. */
 const SHARED_OCCUPANCY = [
   '20261101100100_add_resource_directory_capacity',
   '20261101100000_widen_organization_audit_directory_capacity',
@@ -100,6 +100,7 @@ function limitsOnlyStore(): string {
     '20261028100000_add_agent_pool',
     '20261028100100_widen_organization_audit_agent_pools',
     ...SHARED_OCCUPANCY,
+    '20261101120000_add_host_job_projection',
     ACCESS_GRANTS,
   ])
     rmSync(join(root, 'drizzle', name), { recursive: true });
@@ -204,7 +205,7 @@ describe(RESOURCE_PROVIDER, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${ACCESS_GRANTS}, ${SHARED_OCCUPANCY.join(', ')}, 20261028100100_widen_organization_audit_agent_pools, 20261028100000_add_agent_pool, 20261026130000_widen_organization_audit_machine_tokens, 20261026120000_add_command_journal_person, 20261025130000_add_resource_runtime, 20261025120000_add_resource_use, ${MEASURES.join(', ')}, ${CLAIM_LEASE}, ${AUDIT_WIDENING}, ${RESOURCE_PROVIDER}\n`,
+      `rolled back: ${ACCESS_GRANTS}, 20261101120000_add_host_job_projection, ${SHARED_OCCUPANCY.join(', ')}, 20261028100100_widen_organization_audit_agent_pools, 20261028100000_add_agent_pool, 20261026130000_widen_organization_audit_machine_tokens, 20261026120000_add_command_journal_person, 20261025130000_add_resource_runtime, 20261025120000_add_resource_use, ${MEASURES.join(', ')}, ${CLAIM_LEASE}, ${AUDIT_WIDENING}, ${RESOURCE_PROVIDER}\n`,
     );
     expect(columnsOf(dbPath, 'resource')).not.toContain('provider_id');
     expect(columnsOf(dbPath, 'compute_provider')).toEqual([]);

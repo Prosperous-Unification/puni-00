@@ -67,11 +67,11 @@ organization-scope grant's `scope_id` equals its `organization_id`).
 | one matrix cell flipped (`package-contributor` × `package.write` emptied) | seeds every built-in role with exactly its matrix column, cell by cell         |
 | the matrix reader skips an unknown permission instead of throwing         | refuses an unknown permission, an unknown role and an unknown cell             |
 
-## Actualized 2026-11-03 (merge with main `d0be12ea1`)
+## Actualized 2026-11-03 (merges with main `d0be12ea1` and `07c47b69c`)
 
 The design chain (#723–#726) is merged, so this change's and `wbs-custom-permissions`'
 texts are main's; only the 1.1 and 1.2 ticks and the two verify.md files are this
-branch's. The folder moved after main's newest (`20261101100100_add_resource_directory_capacity`):
+branch's. The folder moved after main's newest (`20261101120000_add_host_job_projection` after the second merge):
 `20261025100000_add_access_grants` is now `20261102120000_add_access_grants`, and every
 test listing the stack names it last (first to reverse). Main's text added
 `access_role.reaches_restricted` (CP18: default 0, seeded 1 for `org-admin` and
@@ -85,11 +85,11 @@ credential backfill is unchanged: main's `machine_credential` keeps `person_id`,
 | `env -u CLAUDECODE bunx nx run-many -t test --projects=wbs-store-sqlite,wbs-domain,wbs-be-01 --skip-nx-cache` | exit 0, 3 projects    |
 | `env -u CLAUDECODE bun test src/access-grant-migration.db.test.ts` (be-01)                                    | 20 pass, 0 fail       |
 | `env -u CLAUDECODE bun test src/access-role.test.ts` (domain)                                                 | 43 pass, 0 fail       |
-| `bunx nx affected -t typecheck --base=origin/main`                                                            | 51 projects, exit 0   |
-| `bunx nx affected -t lint --base=origin/main`                                                                 | 51 projects, exit 0   |
+| `bunx nx affected -t typecheck --base=origin/main`                                                            | 54 projects, exit 0   |
+| `bunx nx affected -t lint --base=origin/main`                                                                 | 54 projects, exit 0   |
 | `bunx nx format:check --all`                                                                                  | exit 0                |
-| `bunx openspec validate --all --json`                                                                         | 316 items, 316 passed |
-| CI's migration lint over `git ls-files '*.sql'`                                                               | exit 0, 254 files     |
+| `bunx openspec validate --all --json`                                                                         | 318 items, 318 passed |
+| CI's migration lint over `git ls-files '*.sql'`                                                               | exit 0, 256 files     |
 
 | Fault (2026-11-03)                                                    | Case that failed                                                                            |
 | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |

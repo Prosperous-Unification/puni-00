@@ -134,6 +134,7 @@ describe('shared people audit', () => {
       rollbackTo(path, MIGRATIONS_FOLDER, '20261011120000_add_browser_auth_lifecycle'),
     ).toEqual([
       '20261102120000_add_access_grants',
+      '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
       '20261101100000_widen_organization_audit_directory_capacity',
       '20261028100100_widen_organization_audit_agent_pools',

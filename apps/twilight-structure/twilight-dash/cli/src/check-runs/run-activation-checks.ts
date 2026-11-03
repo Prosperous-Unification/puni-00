@@ -52,7 +52,7 @@ export interface RecordedCheckRuns {
   readonly streams: ReadonlyMap<string, Uint8Array>;
 }
 
-const usage =
+export const usage =
   'usage: twilight-dash run-activation-checks --candidate-repository <checkout> ' +
   '--candidate-sha <40-hex sha> --candidate-policy <committed path> --check-runs <new directory>';
 const flags = [

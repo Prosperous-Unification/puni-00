@@ -14,10 +14,15 @@ import {
 const flags = ['--entries', '--plan-reference', '--tasks', '--output'] as const;
 type Flag = (typeof flags)[number];
 
+/** The one line a progress command refuses with when its grammar is wrong. */
+export function progressUsage(version: 1 | 2): string {
+  const command = version === 1 ? 'record-progress' : 'record-progress-v2';
+  return `usage: dash ${command} ${flags.map((flag) => `${flag} <path>`).join(' ')}`;
+}
+
 /** Strict grammar is resolved before any file is opened; diagnostics never echo operands. */
 function parseFlags(argv: readonly string[], version: 1 | 2): (flag: Flag) => string {
-  const command = version === 1 ? 'record-progress' : 'record-progress-v2';
-  const usage = `usage: dash ${command} ${flags.map((flag) => `${flag} <path>`).join(' ')}`;
+  const usage = progressUsage(version);
   const allowed = new Set<string>(flags);
   const values = new Map<string, string>();
   for (let position = 0; position < argv.length; position += 2) {

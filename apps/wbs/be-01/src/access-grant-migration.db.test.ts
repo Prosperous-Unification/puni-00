@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 const FOLDER = new URL('../drizzle', import.meta.url).pathname;
 const MIGRATION = '20261102120000_add_access_grants';
-const BASELINE = '20261101100100_add_resource_directory_capacity';
+const BASELINE = '20261101120000_add_host_job_projection';
 const MATRIX = parsePermissionMatrix(
   readFileSync(
     new URL('../../../../openspec/changes/wbs-permissions/permission-matrix.md', import.meta.url),

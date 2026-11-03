@@ -12,6 +12,7 @@ import {
   resolvePlainSelectors,
   sidewaysObservations,
 } from './direction';
+import { judgeJobCatalogue } from './job-catalogue';
 import type { KindGraph } from './kinds';
 import { moduleLayoutObservations } from './kinds';
 import {
@@ -284,6 +285,20 @@ const scenarioRule: RegisteredRule = {
   },
 };
 
+const jobCatalogueRule: RegisteredRule = {
+  id: 'JOB-CATALOGUE',
+  family: 'host-jobs',
+  statement:
+    "Every job type in the candidate's job catalogue is well formed, uniquely named, starts from an entrypoint present at the revision, runs under declared container bounds, has an estimate that has not expired at the supplied instant, and reserves no less than its calibrated p95.",
+  source:
+    'openspec/changes/dash-host-jobs/specs/host-jobs/spec.md#requirement-the-job-catalogue-names-every-job-type',
+  inputs: ['candidate.entries', 'invocation.evaluatedAt'],
+  evaluate: (context) =>
+    evaluateWrapped(() =>
+      judgeJobCatalogue(context.repository, context.candidate.entries, context.evaluatedAt),
+    ),
+};
+
 function graphRule(
   id: string,
   family: string,
@@ -414,6 +429,7 @@ const rules: readonly RegisteredRule[] = [
   plainTypeScriptRule,
   performanceRule,
   scenarioRule,
+  jobCatalogueRule,
   ...kindDirectionRules,
 ];
 

@@ -1382,8 +1382,14 @@ CONTENT=NEVER`),
       new URL('../../../bin/h2puni-gate-steps.sh', import.meta.url),
       'utf8',
     );
+    // The gate is an outer launcher and its admitted payload (`dash-host-jobs` J15).
+    const payload = await readFile(
+      new URL('../../../bin/h2puni-gate-payload.sh', import.meta.url),
+      'utf8',
+    );
     expect(gate).toContain('export NX_DAEMON=false');
-    expect(gate).toContain('bin/h2puni-gate-steps.sh');
+    expect(gate).toContain('bin/h2puni-gate-payload.sh');
+    expect(payload).toContain('bin/h2puni-gate-steps.sh');
     // Proof: moving the smoke command into the steps script without following that production
     // call failed here on `Expected to contain: WBS_RUN_SOLVER_ORPHAN_PROC=1`.
     expect(steps).toContain('WBS_RUN_SOLVER_ORPHAN_PROC=1');

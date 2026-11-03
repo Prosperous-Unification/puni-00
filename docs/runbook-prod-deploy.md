@@ -670,10 +670,11 @@ backfills one grant per membership, one `package-manager` grant per organization
 whose owner is a current member, and capped copies for live credentials bound to a member. No
 release reads them yet; `organization_membership.role` stays the authority. It is the newest
 folder, so it reverses first; the folders before it reverse in their own order after it (the
-directory capacity pair of "Directory capacity" below, then agent pools and machine tokens). `down.sql` refuses under
+host job projection, the directory capacity pair of "Directory capacity" below, then agent
+pools and machine tokens). `down.sql` refuses under
 the named guard for each of: a grant whose origin is not `backfill`, an access group, a custom
 role, and a permission row of any role but a built-in. Record and delete each, then run
-`migrate-down-cli.ts --to=20261101100100_add_resource_directory_capacity` to reverse it alone;
+`migrate-down-cli.ts --to=20261101120000_add_host_job_projection` to reverse it alone;
 backfilled grants and the built-ins are dropped without a refusal, because the migration
 recreates them.
 

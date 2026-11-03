@@ -413,6 +413,7 @@ describe('the WBS domain migration', () => {
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
         '20261102120000_add_access_grants',
+        '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
         '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
@@ -810,6 +811,7 @@ describe('the capacity migrations', () => {
 
       expect(reversed).toEqual([
         '20261102120000_add_access_grants',
+        '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
         '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
@@ -1345,6 +1347,7 @@ describe('the work item team migration', () => {
       // the literal answer `rollbackTo` gave.
       expect(reversed).toEqual([
         '20261102120000_add_access_grants',
+        '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
         '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
@@ -1647,6 +1650,7 @@ describe('the priority band migration', () => {
       // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
         '20261102120000_add_access_grants',
+        '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
         '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
@@ -2001,6 +2005,7 @@ describe('the plan event migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
         '20261102120000_add_access_grants',
+        '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
         '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
@@ -2293,6 +2298,7 @@ describe('the actual migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
         '20261102120000_add_access_grants',
+        '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
         '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
@@ -2629,6 +2635,7 @@ describe('the step progress migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([
         '20261102120000_add_access_grants',
+        '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
         '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
@@ -2949,6 +2956,7 @@ describe('the not-before reason migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, STEP_PROGRESS)).toEqual([
         '20261102120000_add_access_grants',
+        '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
         '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
@@ -3260,6 +3268,7 @@ describe('the tag migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([
         '20261102120000_add_access_grants',
+        '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
         '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
@@ -3676,6 +3685,7 @@ describe('the service migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([
         '20261102120000_add_access_grants',
+        '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
         '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
@@ -3884,6 +3894,7 @@ describe('the work-item-service migration', () => {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, SERVICE)).toEqual([
       '20261102120000_add_access_grants',
+      '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
       '20261101100000_widen_organization_audit_directory_capacity',
       '20261028100100_widen_organization_audit_agent_pools',
@@ -4103,6 +4114,7 @@ describe('the work-item-service migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, SERVICE)).toEqual([
         '20261102120000_add_access_grants',
+        '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
         '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
@@ -4455,6 +4467,7 @@ describe('the step measure migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, WORK_ITEM_SERVICE)).toEqual([
         '20261102120000_add_access_grants',
+        '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
         '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
@@ -4606,6 +4619,7 @@ describe('the person kind migration', () => {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, STEP_MEASURE)).toEqual([
       '20261102120000_add_access_grants',
+      '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
       '20261101100000_widen_organization_audit_directory_capacity',
       '20261028100100_widen_organization_audit_agent_pools',
@@ -4897,6 +4911,7 @@ describe('the person kind migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, STEP_MEASURE)).toEqual([
         '20261102120000_add_access_grants',
+        '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
         '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
@@ -5149,6 +5164,7 @@ describe('the step allowance migration', () => {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, STEP_CODE)).toEqual([
         '20261102120000_add_access_grants',
+        '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
         '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
@@ -5239,6 +5255,7 @@ describe('the step allowance migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, STEP_CODE)).toEqual([
         '20261102120000_add_access_grants',
+        '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
         '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
