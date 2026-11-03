@@ -220,6 +220,14 @@ export default ({
       rules: boundary(['^@wbs/contracts$']),
     },
     {
+      // `ops job run` reads the job catalogue through Burokrat's shared contract
+      // (`dash-host-jobs` slice 1, S1-A1); no other ops module reaches Burokrat.
+      // Proof: without this entry uncached `twilight-dash:lint` failed `ops/catalogue.ts:4`
+      // with `Imports of apps are forbidden` (2026-11-02, verify.md Slice 3).
+      files: ['apps/twilight-structure/twilight-dash/cli/src/ops/catalogue.ts'],
+      rules: boundary(['^@twilight-burokrat/contracts$']),
+    },
+    {
       files: ['apps/twilight-structure/twilight-dash/cli/src/resources/**/*.ts'],
       // Proof: removing this exact override failed `Dash resources reach only the WBS
       // transport contract at their scoped paths`; sibling/relative imports remain denied.

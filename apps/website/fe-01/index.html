@@ -15,9 +15,84 @@
       name="description"
       content="Shape a software request and ask PUNI for a human proposal."
     />
+    <style>
+      html {
+        background: #0b0915;
+        color: #f4f2f7;
+        font-family: 'Geist', 'Helvetica Neue', Arial, sans-serif;
+      }
+      body {
+        margin: 0;
+      }
+      .initial-loading,
+      .initial-noscript {
+        background: #0b0915;
+        color: #f4f2f7;
+        font-family: 'Geist', 'Helvetica Neue', Arial, sans-serif;
+        min-height: 100svh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        padding: 24px;
+        box-sizing: border-box;
+        font-size: 14px;
+      }
+      .initial-loading p {
+        margin: 0;
+      }
+      .initial-spinner {
+        width: 24px;
+        height: 24px;
+        flex-shrink: 0;
+        box-sizing: border-box;
+        border: 2px solid #c4bdd0;
+        border-top-color: #f6ae4c;
+        border-radius: 50%;
+        animation: initial-spin 0.8s linear infinite;
+      }
+      .initial-noscript {
+        flex-direction: column;
+        text-align: center;
+      }
+      .initial-noscript a {
+        color: inherit;
+      }
+      @keyframes initial-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .initial-spinner {
+          animation: none;
+        }
+      }
+    </style>
+    <noscript
+      ><style>
+        .initial-loading {
+          display: none;
+        }
+      </style></noscript
+    >
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="initial-loading" role="status">
+        <span class="initial-spinner" aria-hidden="true"></span>
+        <p>Opening your request…</p>
+      </div>
+    </div>
+    <noscript>
+      <div class="initial-noscript">
+        <p>
+          Your request workspace needs JavaScript. Enable it to continue, or contact PUNI through
+          the website.
+        </p>
+        <a href="https://puni.dev/#request">Contact PUNI</a>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

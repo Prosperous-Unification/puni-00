@@ -2,14 +2,22 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { readReplyReplacement, replyReplacePart, solveBrowserCheck } from '@website/contracts';
+import {
+  type ConversationScoping,
+  getScopingQuestion,
+  type QuestionId,
+  readReplyReplacement,
+  replyReplacePart,
+  type ScopingAnswerRequest,
+  solveBrowserCheck,
+} from '@website/contracts';
 import { WebsiteStore } from '@website/store-sqlite';
 import { isTextUIPart, readUIMessageStream, type UIMessageChunk } from 'ai';
 import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
 import { createWebsiteApi, type WebsiteApiConfig } from '../server';
-import type { ProviderFetch } from './stream';
+import { type ProviderFetch, replayReply } from './stream';
 import {
   composeSystemText,
   providerDeclineReply,
@@ -43,7 +51,9 @@ const visitorAddress = '203.0.113.7';
 type Step =
   | {
       reply: string;
+      raw?: boolean;
       usage?: {
+        cost?: unknown;
         prompt_tokens: number;
         completion_tokens: number;
         completion_tokens_details?: { reasoning_tokens: number };
@@ -52,7 +62,7 @@ type Step =
     }
   | { status: number }
   | { hang: string }
-  | { contentFilter: true; partial?: string }
+  | { contentFilter: true; partial?: string; missingUsage?: boolean }
   | {
       /** An HTTP 200 stream whose error chunk carries `metadata.error_type`, as OpenRouter sends it. */
       streamError: 'refusal' | 'provider_error';
@@ -63,6 +73,10 @@ type Step =
 
 interface OutboundBody {
   model: string;
+  response_format?: {
+    type: string;
+    json_schema: { name: string; strict: boolean; schema: unknown };
+  };
   max_completion_tokens: number;
   reasoning?: unknown;
   messages: { role: string; content: string | { type: string; text: string }[] }[];
@@ -120,11 +134,18 @@ function fakeOpenRouter(next: (call: number) => Step) {
             id: 'gen-1',
             model: 'openai/gpt-4.1-mini',
             choices: [{ index: 0, delta: {}, finish_reason: 'content_filter' }],
-            usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+            ...(step.missingUsage
+              ? {}
+              : { usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, cost: 0 } }),
           }),
       );
     if ('streamError' in step) {
-      const refusalUsage = { prompt_tokens: 927, completion_tokens: 23, total_tokens: 950 };
+      const refusalUsage = {
+        prompt_tokens: 927,
+        completion_tokens: 23,
+        total_tokens: 950,
+        cost: 0,
+      };
       const error = {
         code: step.streamError === 'refusal' ? 403 : 502,
         message: 'Upstream stopped',
@@ -153,9 +174,13 @@ function fakeOpenRouter(next: (call: number) => Step) {
       id: 'gen-1',
       model: 'openai/gpt-4.1-mini',
       choices: [{ index: 0, delta: {}, finish_reason: step.finish ?? 'stop' }],
-      ...(usage === null ? {} : { usage: { ...usage, total_tokens: 0 } }),
+      ...(usage === null ? {} : { usage: { cost: 0, ...usage, total_tokens: 0 } }),
     };
-    return new Response(`${delta(step.reply)}data: ${JSON.stringify(final)}\n\ndata: [DONE]\n\n`, {
+    const reply =
+      bodies.at(-1)?.response_format && !step.raw
+        ? JSON.stringify({ version: 1, message: step.reply, nextQuestionId: null, brief: null })
+        : step.reply;
+    return new Response(`${delta(reply)}data: ${JSON.stringify(final)}\n\ndata: [DONE]\n\n`, {
       headers: { 'content-type': 'text/event-stream' },
     });
   };
@@ -181,6 +206,8 @@ function paidConfig(
     openRouterProvider: 'azure/swedencentral',
     openRouterInputUsdPerMillion: 0.44,
     openRouterOutputUsdPerMillion: 1.76,
+    openRouterInputCeilingUsdPerMillion: 0.44,
+    openRouterOutputCeilingUsdPerMillion: 1.76,
     openRouterPrivacyVerified: true,
     providerFetch,
     ...overrides,
@@ -210,6 +237,7 @@ async function beginVisitor(api: Api, description = 'A booking tool for a bike w
 }
 
 interface View {
+  scoping: ConversationScoping;
   stage: string;
   turns: { role: string; content: string }[];
   visitorTurnsRemaining: number;
@@ -218,7 +246,12 @@ interface View {
   brief: string;
   csrfToken: string;
   initialOperation: { state: string; idempotencyKey: string; truncated: boolean };
-  latestOperation: { state: string; idempotencyKey: string; message: string } | null;
+  latestOperation: {
+    state: string;
+    idempotencyKey: string;
+    message: string;
+    answer: ScopingAnswerRequest | null;
+  } | null;
   exhaustedReason: string | null;
   challenge: {
     salt: string;
@@ -1043,7 +1076,7 @@ test('a cleanup fence suppresses later provider text and final usage before the 
         id: 'gen-late',
         model: 'openai/gpt-4.1-mini',
         choices: [{ index: 0, delta: { content }, finish_reason: finish ? 'stop' : null }],
-        ...(finish ? { usage: { prompt_tokens: 900, completion_tokens: 60 } } : {}),
+        ...(finish ? { usage: { prompt_tokens: 900, completion_tokens: 60, cost: 0 } } : {}),
       })}\n\n`,
     );
   const config = paidConfig(
@@ -1094,6 +1127,15 @@ test('a cleanup fence suppresses later provider text and final usage before the 
   }
 });
 
+/** The admission marker precedes provider output; mid-stream cancellation waits for actual text. */
+async function readProviderText(reader: ReadableStreamDefaultReader<Uint8Array>) {
+  for (;;) {
+    const chunk = await reader.read();
+    if (chunk.done) throw new Error('Provider stream ended before text');
+    if (new TextDecoder().decode(chunk.value).includes('text-delta')) return;
+  }
+}
+
 test('a browser disconnect mid-stream aborts the call and leaves the operation unknown', async () => {
   const fake = fakeOpenRouter(() => ({ hang: 'Partial' }));
   const config = paidConfig(fake.providerFetch);
@@ -1102,7 +1144,7 @@ test('a browser disconnect mid-stream aborts the call and leaves the operation u
   const streaming = await sendInitial(api, visitor);
   const reader = streaming.body?.getReader();
   if (!reader) throw new Error('Missing stream body');
-  await reader.read();
+  await readProviderText(reader);
   await reader.cancel();
   await Bun.sleep(20);
   expect(fake.signals[0]?.aborted).toBe(true);
@@ -1110,11 +1152,11 @@ test('a browser disconnect mid-stream aborts the call and leaves the operation u
   api.close();
 });
 
-/** Starts a hanging reply under `key`, reads its first chunk, cancels it and drains the stream. */
+/** Starts a hanging reply under `key`, waits for provider text, cancels it and drains the stream. */
 async function stopReply(api: Api, visitor: Visitor, request: Promise<Response>, key: string) {
   const reader = (await request).body?.getReader();
   if (!reader) throw new Error('Missing stream body');
-  await reader.read();
+  await readProviderText(reader);
   const cancelled = await api.fetch(post('/conversation/cancel', visitor, { idempotencyKey: key }));
   expect(cancelled.status).toBe(200);
   while (!(await reader.read()).done);
@@ -1131,6 +1173,8 @@ test('a stopped reply keeps the conversation open and counts its full reservatio
   const config = paidConfig(fake.providerFetch, {
     openRouterInputUsdPerMillion: 10,
     openRouterOutputUsdPerMillion: 10,
+    openRouterInputCeilingUsdPerMillion: 10,
+    openRouterOutputCeilingUsdPerMillion: 10,
   });
   const api = mountApi(config);
   const visitor = await beginVisitor(api);
@@ -1311,10 +1355,12 @@ test('an unavailable provider refuses a broken store admission without contactin
   WebsiteStore.prototype.admitConversationOperation = function () {
     return {
       kind: 'started',
+      isNewInput: true,
       id: 'injected-invalid-admission',
       conversationId: 'injected',
       stage: 'clarify',
       history: [],
+      context: { scoping: { version: 'legacy' }, brief: '', visitorTurns: 0 },
     };
   };
   try {
@@ -2083,4 +2129,1370 @@ test('a later turn sends the model no refused exchange, but keeps every other tu
   expect(view.turns.map(({ content }) => content)).toContain('Track my ex secretly');
   expect(view.visitorTurnsRemaining).toBe(4);
   api.close();
+});
+
+async function beginScopingVisitor(
+  api: Api,
+  startConversation = true,
+  description = '  Persisted opening  ',
+): Promise<Visitor> {
+  const intake = await api.fetch(
+    new Request('http://localhost:3101/intakes', {
+      method: 'POST',
+      headers: { origin: publicOrigin, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        description,
+        startingChoice: 'launch',
+        startConversation,
+      }),
+    }),
+  );
+  expect(intake.status).toBe(201);
+  const cookie = intake.headers.get('set-cookie')?.split(';')[0];
+  if (!cookie) throw new Error('Missing claim');
+  const view = await readConversation(api, cookie);
+  return { cookie, csrf: view.csrfToken, initialKey: view.initialOperation.idempotencyKey };
+}
+
+async function sendAutomatic(api: Api, visitor: Visitor, check?: unknown) {
+  return api.fetch(
+    post('/conversation/stream', visitor, {
+      idempotencyKey: 'browser-chosen-key',
+      initial: true,
+      automatic: true,
+      message: 'Forged browser opening',
+      ...(check ? { check } : {}),
+    }),
+    visitorAddress,
+  );
+}
+
+test('scoping initial intent admits two tabs and repeated navigation only once', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'First question' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  await readConversation(api, visitor.cookie);
+  await readConversation(api, visitor.cookie);
+  expect(fake.bodies).toHaveLength(0);
+  expect(operations(config.databasePath)).toHaveLength(0);
+  const check = await solveCheck(api, visitor);
+  const [first, otherTab] = await Promise.all([
+    sendAutomatic(api, visitor, check),
+    sendAutomatic(api, visitor, check),
+  ]);
+  expect([first.status, otherTab.status].sort()).toEqual([200, 409]);
+  const wires = await Promise.all([first.text(), otherTab.text()]);
+  expect(wires.filter((wire) => wire.includes('data-conversation-admission'))).toHaveLength(1);
+  const replay = await sendAutomatic(api, visitor);
+  expect(replay.status).toBe(200);
+  expect(await replay.text()).toContain('First question');
+  expect(fake.bodies).toHaveLength(1);
+  expect(operations(config.databasePath)).toHaveLength(1);
+  expect(fake.bodies[0]?.messages.map(textOf).at(-1)).toEqual({
+    role: 'user',
+    text: '  Persisted opening  ',
+  });
+  const database = new Database(config.databasePath, { readonly: true });
+  expect(database.query('SELECT idempotency_key FROM conversation_operation').get()).toEqual({
+    idempotency_key: visitor.initialKey,
+  });
+  database.close();
+  api.close();
+});
+
+for (const opening of ['legacy', 'manual'] as const)
+  test(`scoping automatic start refuses ${opening} intent but explicit Send works`, async () => {
+    const fake = fakeOpenRouter(() => ({ reply: 'Explicit reply' }));
+    const config = paidConfig(fake.providerFetch);
+    const api = mountApi(config);
+    const visitor =
+      opening === 'legacy' ? await beginVisitor(api) : await beginScopingVisitor(api, false);
+    const check = await solveCheck(api, visitor);
+    const refused = await sendAutomatic(api, visitor, check);
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toEqual({ code: 'automatic_forbidden' });
+    expect(fake.bodies).toHaveLength(0);
+    expect(operations(config.databasePath)).toHaveLength(0);
+    const explicit = await sendInitial(api, visitor);
+    expect(explicit.status).toBe(200);
+    await explicit.text();
+    expect(fake.bodies).toHaveLength(1);
+    api.close();
+  });
+
+test('scoping unknown initial never automatically retries, explicit Retry retains identity', async () => {
+  const fake = fakeOpenRouter((call) =>
+    call === 1 ? { status: 502 } : { reply: 'Retry confirmed' },
+  );
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  const first = await sendAutomatic(api, visitor, await solveCheck(api, visitor));
+  expect(await first.text()).toContain('data-conversation-admission');
+  expect((await readConversation(api, visitor.cookie)).initialOperation.state).toBe('unknown');
+  const automatic = await sendAutomatic(api, visitor);
+  expect(automatic.status).toBe(409);
+  expect(await automatic.json()).toEqual({ code: 'automatic_forbidden' });
+  expect(fake.bodies).toHaveLength(1);
+  expect(operations(config.databasePath)).toHaveLength(1);
+  const explicit = await sendInitial(api, visitor);
+  expect(explicit.status).toBe(200);
+  expect(await explicit.text()).not.toContain('data-conversation-admission');
+  expect(fake.bodies).toHaveLength(2);
+  expect(operations(config.databasePath)).toHaveLength(2);
+  api.close();
+});
+
+test('scoping malformed flags and automatic follow-ups reserve and call nothing', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Unexpected' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  for (const fields of [
+    { initial: 'true' },
+    { initial: true, automatic: 'true' },
+    { initial: true, automatic: null },
+    {
+      initial: true,
+      selected: { questionId: 'launch-purpose', answerId: 'buy-book', revision: 0 },
+    },
+    { automatic: true, message: 'follow-up' },
+  ]) {
+    const response = await api.fetch(
+      post('/conversation/stream', visitor, { idempotencyKey: 'invalid-flag-key', ...fields }),
+    );
+    expect(response.status).toBe(400);
+  }
+  expect(fake.bodies).toHaveLength(0);
+  expect(operations(config.databasePath)).toHaveLength(0);
+  api.close();
+});
+
+function setQuestion(databasePath: string, revision: number, questionId = 'launch-purpose') {
+  const database = new Database(databasePath);
+  database
+    .query('UPDATE draft_scoping SET question_id = ?, revision = ?')
+    .run(questionId, revision);
+  database.close();
+}
+
+test('scoping answers preserve and price full text, replay old revisions and refuse different stale keys', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Confirmed question' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  await (await sendInitial(api, visitor)).text();
+  setQuestion(config.databasePath, 1);
+  const selected = { questionId: 'launch-purpose', answerId: 'buy-book', revision: 1 };
+  const explanation = '  ' + 'x'.repeat(1996) + '  ';
+  const fields = { idempotencyKey: 'selected-key-001', selected, message: explanation };
+  const accepted = await api.fetch(post('/conversation/stream', visitor, fields));
+  expect(accepted.status).toBe(200);
+  await accepted.text();
+  expect(fake.bodies[1]?.messages.map(textOf).at(-1)).toEqual({
+    role: 'user',
+    text: 'Buy or book\n\n' + explanation,
+  });
+  const saved = await readConversation(api, visitor.cookie);
+  expect(saved.turns.at(-2)?.content).toBe('Buy or book\n\n' + explanation);
+  const database = new Database(config.databasePath, { readonly: true });
+  const reservation = database
+    .query<{ reserved_micro_usd: number }, []>(
+      'SELECT reserved_micro_usd FROM conversation_operation ORDER BY rowid DESC LIMIT 1',
+    )
+    .get();
+  const outbound = fake.bodies.at(1);
+  if (!outbound) throw new Error('Selected answer has no outbound request');
+  const serializedMessages = JSON.stringify(
+    outbound.messages.map((message) => {
+      const { role, text } = textOf(message);
+      return { role, content: text };
+    }),
+  );
+  // Independently apply the reservation contract to the actual complete provider-bound request:
+  // every UTF-8 byte, 2,000 framing tokens, and the known 400-token completion ceiling.
+  const expectedReservation = Math.ceil(
+    (Buffer.byteLength(serializedMessages, 'utf8') +
+      Buffer.byteLength(JSON.stringify(outbound.response_format?.json_schema.schema), 'utf8') +
+      2000) *
+      0.44 +
+      400 * 1.76,
+  );
+  expect(reservation?.reserved_micro_usd).toBe(expectedReservation);
+  database.close();
+  const initialReplay = await sendAutomatic(api, visitor);
+  expect(initialReplay.status).toBe(200);
+  expect(await initialReplay.text()).toContain('Confirmed question');
+  const afterInitialReplay = await readConversation(api, visitor.cookie);
+  expect(afterInitialReplay.scoping).toEqual(saved.scoping);
+  expect(afterInitialReplay.turns).toEqual(saved.turns);
+  expect(operations(config.databasePath)).toHaveLength(2);
+  const wrongQuestion = await api.fetch(
+    post('/conversation/stream', visitor, {
+      ...fields,
+      idempotencyKey: 'wrong-question-key',
+      selected: { questionId: 'launch-stage', answerId: 'not-sure', revision: 1 },
+    }),
+  );
+  expect(wrongQuestion.status).toBe(409);
+  expect(await wrongQuestion.json()).toEqual({ code: 'stale_answer' });
+  setQuestion(config.databasePath, 2, 'launch-stage');
+  const replay = await api.fetch(post('/conversation/stream', visitor, fields));
+  expect(replay.status).toBe(200);
+  expect(await replay.text()).toContain('Confirmed question');
+  const afterSelectionReplay = await readConversation(api, visitor.cookie);
+  expect(afterSelectionReplay.scoping).toMatchObject({
+    version: 1,
+    questionId: 'launch-stage',
+    revision: 2,
+  });
+  expect(afterSelectionReplay.turns).toEqual(saved.turns);
+  const stale = await api.fetch(
+    post('/conversation/stream', visitor, { ...fields, idempotencyKey: 'different-stale-key' }),
+  );
+  expect(stale.status).toBe(409);
+  expect(await stale.json()).toEqual({ code: 'stale_answer' });
+  const conflict = await api.fetch(
+    post('/conversation/stream', visitor, { ...fields, message: 'changed' }),
+  );
+  expect(conflict.status).toBe(409);
+  expect(await conflict.json()).toEqual({ code: 'idempotency_conflict' });
+  const invalidReplay = await api.fetch(
+    post('/conversation/stream', visitor, {
+      ...fields,
+      selected: { ...selected, answerId: 'unknown' },
+    }),
+  );
+  expect(invalidReplay.status).toBe(400);
+  expect(fake.bodies).toHaveLength(2);
+  expect(operations(config.databasePath)).toHaveLength(2);
+  api.close();
+});
+
+test('scoping rejects invalid selections before reservation and accepts typed-only or choice-only answers', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Question' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  await (await sendInitial(api, visitor)).text();
+  setQuestion(config.databasePath, 1);
+  const selected = { questionId: 'launch-purpose', answerId: 'buy-book', revision: 1 };
+  for (const fields of [
+    { selected: { ...selected, label: 'Forged' } },
+    { selected: { ...selected, questionId: 'unknown' } },
+    { selected: { ...selected, revision: -1 } },
+    { selected: { ...selected, revision: '1' } },
+    { selected: { ...selected, revision: Number.MAX_SAFE_INTEGER + 1 } },
+    { selected: { answerId: 'buy-book', revision: 1 } },
+    { selected: { questionId: 'launch-purpose', answerId: 'buy-book' } },
+    { selected: null },
+    { selected: [] },
+    { selected: 'bad' },
+    { selected: { ...selected, answerId: 'unknown' } },
+    { selected, message: 'x'.repeat(2001) },
+    { message: 'x'.repeat(2001) },
+  ]) {
+    const response = await api.fetch(
+      post('/conversation/stream', visitor, { idempotencyKey: 'invalid-selection', ...fields }),
+    );
+    expect(response.status).toBe(400);
+  }
+  expect(fake.bodies).toHaveLength(1);
+  expect(operations(config.databasePath)).toHaveLength(1);
+  const choice = await api.fetch(
+    post('/conversation/stream', visitor, { idempotencyKey: 'choice-only-key', selected }),
+  );
+  expect(choice.status).toBe(200);
+  await choice.text();
+  expect(fake.bodies[1]?.messages.map(textOf).at(-1)?.text).toBe('Buy or book');
+  const typed = await sendMessage(api, visitor, 'typed-only-key', '  ' + 't'.repeat(1996) + '  ');
+  expect(typed.status).toBe(200);
+  await typed.text();
+  expect(fake.bodies[2]?.messages.map(textOf).at(-1)?.text).toBe('  ' + 't'.repeat(1996) + '  ');
+  expect(fake.bodies).toHaveLength(3);
+  api.close();
+});
+
+test('scoping stale race from a second connection refuses before pricing or provider', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Initial question' }));
+  let changed = false;
+  let prices = 0;
+  const config = paidConfig(fake.providerFetch, {
+    openStore: (databasePath) => {
+      const store = new WebsiteStore(databasePath);
+      const admit = store.admitConversationOperation.bind(store);
+      store.admitConversationOperation = (admission) => {
+        if (admission.answer?.selected && !changed) {
+          changed = true;
+          // A committed writer between HTTP's snapshot and the actual admission transaction.
+          const other = new Database(databasePath);
+          other.query('UPDATE draft_scoping SET revision = revision + 1').run();
+          other.close();
+        }
+        const pricing = admission.pricing;
+        return admit({
+          ...admission,
+          pricing:
+            pricing.kind === 'paid'
+              ? {
+                  kind: 'paid',
+                  price: (history, stage, context) => {
+                    prices++;
+                    return pricing.price(history, stage, context);
+                  },
+                }
+              : pricing,
+        });
+      };
+      return store;
+    },
+  });
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  await (await sendInitial(api, visitor)).text();
+  setQuestion(config.databasePath, 1);
+  const stale = await api.fetch(
+    post('/conversation/stream', visitor, {
+      idempotencyKey: 'racing-answer-key',
+      selected: { questionId: 'launch-purpose', answerId: 'buy-book', revision: 1 },
+    }),
+  );
+  expect(stale.status).toBe(409);
+  expect(await stale.json()).toEqual({ code: 'stale_answer' });
+  expect(changed).toBe(true);
+  expect(prices).toBe(1);
+  expect(fake.bodies).toHaveLength(1);
+  expect(operations(config.databasePath)).toHaveLength(1);
+  api.close();
+});
+
+test('scoping equal answer labels retain distinct normalized question and revision identity', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Confirmed' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  await (await sendInitial(api, visitor)).text();
+  setQuestion(config.databasePath, 1);
+  const first = await api.fetch(
+    post('/conversation/stream', visitor, {
+      idempotencyKey: 'same-label-answer',
+      selected: { questionId: 'launch-purpose', answerId: 'not-sure', revision: 1 },
+    }),
+  );
+  expect(first.status).toBe(200);
+  await first.text();
+  setQuestion(config.databasePath, 2, 'launch-stage');
+  for (const selected of [
+    { questionId: 'launch-stage', answerId: 'not-sure', revision: 2 },
+    { questionId: 'launch-purpose', answerId: 'not-sure', revision: 2 },
+  ]) {
+    const conflict = await api.fetch(
+      post('/conversation/stream', visitor, { idempotencyKey: 'same-label-answer', selected }),
+    );
+    expect(conflict.status).toBe(409);
+    expect(await conflict.json()).toEqual({ code: 'idempotency_conflict' });
+  }
+  expect(fake.bodies).toHaveLength(2);
+  expect(operations(config.databasePath)).toHaveLength(2);
+  api.close();
+});
+
+test('scoping selected Retry survives remount with exact persisted raw answer', async () => {
+  const fake = fakeOpenRouter((call) => (call === 2 ? { status: 502 } : { reply: 'Confirmed' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  await (await sendInitial(api, visitor)).text();
+  setQuestion(config.databasePath, 1);
+  const answer = {
+    selected: { questionId: 'launch-purpose', answerId: 'buy-book', revision: 1 },
+    message: '  Exact explanation  ',
+  };
+  const first = await api.fetch(
+    post('/conversation/stream', visitor, { idempotencyKey: 'selected-retry-key', ...answer }),
+  );
+  expect(await first.text()).toContain('data-conversation-admission');
+  const current = await readConversation(api, visitor.cookie);
+  expect(current.latestOperation).toMatchObject({
+    state: 'unknown',
+    idempotencyKey: 'selected-retry-key',
+    answer,
+  });
+  const retry = await api.fetch(
+    post('/conversation/stream', visitor, {
+      idempotencyKey: current.latestOperation?.idempotencyKey,
+      ...current.latestOperation?.answer,
+    }),
+  );
+  expect(retry.status).toBe(200);
+  expect(await retry.text()).not.toContain('data-conversation-admission');
+  expect(fake.bodies).toHaveLength(3);
+  expect(fake.bodies[2]?.messages.map(textOf).at(-1)?.text).toBe(
+    'Buy or book\n\n  Exact explanation  ',
+  );
+  expect(operations(config.databasePath)).toHaveLength(3);
+  api.close();
+});
+
+for (const exhaustion of ['turns', 'conversation_spend'] as const)
+  test(`scoping mounted completed replays survive ${exhaustion} exhaustion with no provider or pricing`, async () => {
+    let prices = 0;
+    const fake = fakeOpenRouter((call) => ({
+      reply: `Confirmed reply ${String(call)}`,
+      ...(exhaustion === 'conversation_spend'
+        ? { usage: { prompt_tokens: 12400, completion_tokens: 100 } }
+        : {}),
+    }));
+    const config = paidConfig(fake.providerFetch, {
+      ...(exhaustion === 'conversation_spend'
+        ? {
+            openRouterInputUsdPerMillion: 4,
+            openRouterOutputUsdPerMillion: 4,
+            openRouterInputCeilingUsdPerMillion: 4,
+            openRouterOutputCeilingUsdPerMillion: 4,
+          }
+        : {}),
+      openStore: (path) => {
+        const store = new WebsiteStore(path);
+        const admit = store.admitConversationOperation.bind(store);
+        store.admitConversationOperation = (request) => {
+          const pricing = request.pricing;
+          return admit({
+            ...request,
+            pricing:
+              pricing.kind === 'paid'
+                ? {
+                    kind: 'paid',
+                    price: (history, stage, context) => {
+                      prices++;
+                      return pricing.price(history, stage, context);
+                    },
+                  }
+                : pricing,
+          });
+        };
+        return store;
+      },
+    });
+    const api = mountApi(config);
+    const visitor = await beginScopingVisitor(api);
+    await (await sendInitial(api, visitor)).text();
+    setQuestion(config.databasePath, 1);
+    const fields = {
+      idempotencyKey: 'selected-exhaustion-key',
+      selected: { questionId: 'launch-purpose', answerId: 'buy-book', revision: 1 },
+      message: 'Exact explanation',
+    };
+    const selected = await api.fetch(post('/conversation/stream', visitor, fields));
+    expect(selected.status).toBe(200);
+    await selected.text();
+    setQuestion(config.databasePath, 2, 'launch-stage');
+    if (exhaustion === 'turns')
+      for (let turn = 3; turn <= 8; turn++) {
+        const next = await sendMessage(
+          api,
+          visitor,
+          `fill-turn-${String(turn)}`,
+          `More ${String(turn)}`,
+        );
+        expect(next.status).toBe(200);
+        await next.text();
+      }
+    const exhausted = await sendMessage(api, visitor, 'exhaust-budget-key', 'One more');
+    expect(exhausted.status).toBe(429);
+    expect(await exhausted.json()).toMatchObject({ exhaustedReason: exhaustion });
+    const callsBeforeReplay = fake.bodies.length;
+    const pricesBeforeReplay = prices;
+    const ledger = operations(config.databasePath);
+    const before = await readConversation(api, visitor.cookie);
+    const initialReplay = await sendAutomatic(api, visitor);
+    expect(initialReplay.status).toBe(200);
+    expect(await initialReplay.text()).toContain('Confirmed reply 1');
+    const selectedReplay = await api.fetch(post('/conversation/stream', visitor, fields));
+    expect(selectedReplay.status).toBe(200);
+    expect(await selectedReplay.text()).toContain('Confirmed reply 2');
+    const conflict = await api.fetch(
+      post('/conversation/stream', visitor, { ...fields, message: 'Changed explanation' }),
+    );
+    expect(conflict.status).toBe(409);
+    expect(await conflict.json()).toEqual({ code: 'idempotency_conflict' });
+    const fresh = await sendMessage(api, visitor, 'fresh-exhausted-key', 'Fresh attempt');
+    expect(fresh.status).toBe(429);
+    expect(await fresh.json()).toMatchObject({ exhaustedReason: exhaustion });
+    expect(fake.bodies).toHaveLength(callsBeforeReplay);
+    expect(prices).toBe(pricesBeforeReplay);
+    expect(operations(config.databasePath)).toEqual(ledger);
+    const after = await readConversation(api, visitor.cookie);
+    expect(after.turns).toEqual(before.turns);
+    expect(after.scoping).toEqual(before.scoping);
+    expect(after.exhaustedReason).toBe(before.exhaustedReason);
+    api.close();
+  });
+
+function structuredReply(
+  message: string,
+  nextQuestionId: QuestionId | null = null,
+  brief: string | null = null,
+): Step {
+  return { reply: JSON.stringify({ version: 1, message, nextQuestionId, brief }), raw: true };
+}
+
+test('structured question is committed as prose and replay never restores an old question', async () => {
+  const fake = fakeOpenRouter((call) =>
+    call === 1
+      ? structuredReply('Let us narrow this down.', 'launch-purpose')
+      : structuredReply('Ready for a person.', null, 'A booking tool for customers.'),
+  );
+  const config = paidConfig(fake.providerFetch, {
+    openRouterMaxCompletionTokens: 700,
+    openRouterReasoningEffort: 'low',
+  });
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  const first = await (await sendInitial(api, visitor)).text();
+  expect(first).toContain('Let us narrow this down.');
+  expect(await assembleReply(first)).toBe(
+    'Let us narrow this down.\n\n' + getScopingQuestion('launch-purpose').label,
+  );
+  expect(first).toContain(getScopingQuestion('launch-purpose').label);
+  expect(first).not.toContain('nextQuestionId');
+  const view = await readConversation(api, visitor.cookie);
+  expect(view.scoping).toMatchObject({ version: 1, questionId: 'launch-purpose', revision: 1 });
+  expect(view.turns.at(-1)?.content).toBe(
+    'Let us narrow this down.\n\n' + getScopingQuestion('launch-purpose').label,
+  );
+  expect(fake.bodies[0]?.response_format).toMatchObject({
+    type: 'json_schema',
+    json_schema: { strict: true },
+  });
+  expect(fake.bodies[0]?.max_completion_tokens).toBe(700);
+  await (
+    await sendMessage(api, visitor, 'structured-followup', 'Customers should book repairs')
+  ).text();
+  const saved = await readConversation(api, visitor.cookie);
+  expect(saved.brief).toBe('A booking tool for customers.');
+  expect(saved.scoping).toMatchObject({ questionId: null, revision: 2 });
+  const replay = await (await sendInitial(api, visitor)).text();
+  expect(replay).toContain('Let us narrow this down.');
+  expect(replay).not.toContain('nextQuestionId');
+  expect((await readConversation(api, visitor.cookie)).scoping).toEqual(saved.scoping);
+  expect(fake.bodies).toHaveLength(2);
+  expect(
+    fake.bodies[1]?.messages
+      .map(textOf)
+      .some((turn) => turn.text.includes(getScopingQuestion('launch-purpose').label)),
+  ).toBe(true);
+  api.close();
+});
+
+for (const invalid of [
+  '{"version":1',
+  '{"version":1,"message":"UNTRUSTED","nextQuestionId":"forged","brief":"UNTRUSTED"}',
+  'UNTRUSTED',
+])
+  test(`structured invalid envelope settles actual usage without capture: ${invalid}`, async () => {
+    const fake = fakeOpenRouter(() => ({
+      reply: invalid,
+      raw: true,
+      usage: { prompt_tokens: 900, completion_tokens: 60, cost: 0 },
+    }));
+    const config = paidConfig(fake.providerFetch);
+    const api = mountApi(config);
+    const visitor = await beginScopingVisitor(api);
+    const wire = await (await sendInitial(api, visitor)).text();
+    expect(wire).not.toContain('UNTRUSTED');
+    expect(wire).not.toContain('nextQuestionId');
+    expect(wire).toContain('invalid_scoping_reply');
+    const view = await readConversation(api, visitor.cookie);
+    expect(view.brief).toBe('');
+    expect(view.scoping).toMatchObject({ revision: 0, questionId: null, candidateBrief: null });
+    expect(view.latestOperation).toMatchObject({ replyFailure: 'invalid_scoping_reply' });
+    const counter = new WebsiteStore(config.databasePath);
+    expect(counter.readFunnelCounts(Date.now()).days[0]?.briefsCaptured).toBe(0);
+    counter.close();
+    const database = new Database(config.databasePath, { readonly: true });
+    expect(
+      database
+        .query(
+          'SELECT state, settlement, settled_micro_usd, brief_capture, reply_failure FROM conversation_operation',
+        )
+        .get(),
+    ).toEqual({
+      state: 'completed',
+      settlement: 'usage',
+      settled_micro_usd: 502,
+      brief_capture: null,
+      reply_failure: 'invalid_scoping_reply',
+    });
+    database.close();
+    expect(await (await sendInitial(api, visitor)).text()).toContain('invalid_scoping_reply');
+    expect(fake.bodies).toHaveLength(1);
+    api.close();
+  });
+
+test('structured immediate brief captures once across repeated candidates and preserves visitor edits', async () => {
+  const fake = fakeOpenRouter((call) =>
+    structuredReply('Please review this.', null, `Candidate ${String(call)}`),
+  );
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  await (await sendInitial(api, visitor)).text();
+  expect((await readConversation(api, visitor.cookie)).brief).toBe('Candidate 1');
+  const store = new WebsiteStore(config.databasePath);
+  expect(store.readFunnelCounts(Date.now()).days[0]?.briefsCaptured).toBe(1);
+  await (await sendMessage(api, visitor, 'candidate-again', 'Please revise')).text();
+  expect((await readConversation(api, visitor.cookie)).brief).toBe('Candidate 1');
+  expect((await readConversation(api, visitor.cookie)).scoping).toMatchObject({
+    candidateBrief: 'Candidate 2',
+  });
+  expect(store.readFunnelCounts(Date.now()).days[0]?.briefsCaptured).toBe(1);
+  store.close();
+  api.close();
+});
+
+for (const scenario of [
+  { name: 'missing usage', step: { ...structuredReply('Never show'), usage: null }, cost: null },
+  {
+    name: 'invalid usage',
+    step: { ...structuredReply('Never show'), usage: { prompt_tokens: -1, completion_tokens: 10 } },
+    cost: null,
+  },
+  {
+    name: 'refusal missing usage',
+    step: { contentFilter: true, missingUsage: true, partial: 'UNTRUSTED' },
+    cost: null,
+  },
+  { name: 'refusal explicit zero', step: { contentFilter: true, partial: 'UNTRUSTED' }, cost: 0 },
+  {
+    name: 'refusal known usage',
+    step: { streamError: 'refusal', usagePlacement: 'error_chunk', partial: 'UNTRUSTED' },
+    cost: 449,
+  },
+  {
+    name: 'truncated valid JSON',
+    step: { ...structuredReply('UNTRUSTED'), finish: 'length' },
+    cost: 502,
+  },
+  {
+    name: 'reasoning included once',
+    step: {
+      ...structuredReply('Confirmed'),
+      usage: {
+        prompt_tokens: 900,
+        completion_tokens: 660,
+        completion_tokens_details: { reasoning_tokens: 600 },
+      },
+    },
+    cost: 1558,
+  },
+] satisfies { name: string; step: Step; cost: number | null }[]) {
+  test(`structured accounting ${scenario.name}`, async () => {
+    const fake = fakeOpenRouter(() => scenario.step);
+    const config = paidConfig(fake.providerFetch, { openRouterMaxCompletionTokens: 700 });
+    const api = mountApi(config);
+    const visitor = await beginScopingVisitor(api);
+    const wire = await (await sendInitial(api, visitor)).text();
+    expect(wire).not.toContain('UNTRUSTED');
+    expect(wire).not.toContain('nextQuestionId');
+    const operation = operations(config.databasePath)[0];
+    if (scenario.cost === null) {
+      expectCeilingSettled(config.databasePath, [0]);
+      expect(wire).not.toContain('Never show');
+      expect((await readConversation(api, visitor.cookie)).turns).toEqual([]);
+    } else
+      expect(operation).toMatchObject({
+        state: 'completed',
+        settlement: 'usage',
+        settled_micro_usd: scenario.cost,
+      });
+    expect(fake.bodies).toHaveLength(1);
+    api.close();
+  });
+}
+
+for (const exit of ['cancel', 'disconnect', 'erase'] as const)
+  test(`structured ${exit} exposes no buffered envelope and releases reservation`, async () => {
+    const fake = fakeOpenRouter(() => ({ hang: '{"message":"SECRET BUFFER"' }));
+    const config = paidConfig(fake.providerFetch);
+    const api = mountApi(config);
+    const visitor = await beginScopingVisitor(api);
+    const response = await sendInitial(api, visitor);
+    const body = response.body;
+    if (!body) throw new Error('Missing stream');
+    // Wait for transport admission, without depending on speculative text becoming visible.
+    for (let attempt = 0; fake.signals.length === 0 && attempt < 100; attempt += 1)
+      await Bun.sleep(5);
+    expect(fake.signals).toHaveLength(1);
+    if (exit === 'disconnect') await body.cancel();
+    else {
+      const wire = response.text();
+      if (exit === 'erase') fenceFromCleanup(config.databasePath);
+      else
+        expect(
+          (
+            await api.fetch(
+              post('/conversation/cancel', visitor, { idempotencyKey: visitor.initialKey }),
+            )
+          ).status,
+        ).toBe(200);
+      expect(await wire).not.toContain('SECRET BUFFER');
+    }
+    for (let attempt = 0; !fake.signals[0]?.aborted && attempt < 100; attempt += 1)
+      await Bun.sleep(5);
+    expect(fake.signals[0]?.aborted).toBe(true);
+    expectCeilingSettled(config.databasePath, [0]);
+    expect(count(config.databasePath, 'SELECT count(*) AS count FROM conversation_turn')).toBe(0);
+    api.close();
+  });
+
+test('structured settlement rollback never publishes prose or question actions', async () => {
+  const fake = fakeOpenRouter(() => structuredReply('SECRET UNCOMMITTED', 'launch-purpose'));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  const database = new Database(config.databasePath);
+  database.run(
+    "CREATE TRIGGER inject_failure BEFORE INSERT ON conversation_turn BEGIN SELECT RAISE(ABORT, 'injected failed turn'); END",
+  );
+  const wire = await (await sendInitial(api, visitor)).text();
+  expect(wire).not.toContain('SECRET UNCOMMITTED');
+  expect(wire).not.toContain(getScopingQuestion('launch-purpose').label);
+  expect(chunkTypes(wire)).not.toContain('finish');
+  expectCeilingSettled(config.databasePath, [0]);
+  expect((await readConversation(api, visitor.cookie)).scoping).toMatchObject({
+    revision: 0,
+    questionId: null,
+  });
+  database.close();
+  api.close();
+});
+
+// Deterministic shape/control fixtures. The scripted transport makes no model-quality claim.
+for (const route of [
+  {
+    choice: 'launch',
+    question: 'launch-purpose',
+    answer: 'buy-book',
+    brief: 'Visitors book appointments.',
+  },
+  {
+    choice: 'improve',
+    question: 'improve-blocker',
+    answer: 'bugs',
+    brief: 'Inspect recurring bugs; cause is unknown.',
+  },
+  {
+    choice: 'similar',
+    question: 'similar-change',
+    answer: 'simpler',
+    brief: 'Explore a simpler experience; details to confirm.',
+  },
+  {
+    choice: 'assistant',
+    question: 'assistant-help',
+    answer: 'tasks',
+    brief: 'Explore help with tasks and follow-ups.',
+  },
+  {
+    choice: 'automate',
+    question: 'automate-task',
+    answer: 'documents',
+    brief: 'Explore document and reporting automation.',
+  },
+  {
+    choice: 'unsure',
+    question: 'unsure-reason',
+    answer: 'repetitive-work',
+    brief: 'Identify repetitive work before deciding on software.',
+  },
+] as const)
+  test(`structured route ${route.choice} finishes through reviewed choices`, async () => {
+    const fake = fakeOpenRouter((call) =>
+      call === 1
+        ? structuredReply('One useful detail.', route.question)
+        : structuredReply('Review with a person.', null, route.brief),
+    );
+    const config = paidConfig(fake.providerFetch);
+    const api = mountApi(config);
+    const intake = await api.fetch(
+      new Request('http://localhost:3101/intakes', {
+        method: 'POST',
+        headers: { origin: publicOrigin, 'content-type': 'application/json' },
+        body: JSON.stringify({ startingChoice: route.choice, startConversation: true }),
+      }),
+    );
+    const cookie = intake.headers.get('set-cookie')?.split(';')[0];
+    if (!cookie) throw new Error('Missing claim');
+    const view = await readConversation(api, cookie);
+    const visitor = {
+      cookie,
+      csrf: view.csrfToken,
+      initialKey: view.initialOperation.idempotencyKey,
+    };
+    await (await sendInitial(api, visitor)).text();
+    const answered = await api.fetch(
+      post('/conversation/stream', visitor, {
+        idempotencyKey: 'chosen-answer',
+        selected: { questionId: route.question, answerId: route.answer, revision: 1 },
+      }),
+    );
+    expect(answered.status).toBe(200);
+    await answered.text();
+    expect((await readConversation(api, cookie)).brief).toBe(route.brief);
+    expect(fake.bodies).toHaveLength(2);
+    api.close();
+  });
+
+test('structured eight-turn allowance includes landing and sends final handoff hint', async () => {
+  const fake = fakeOpenRouter(() => structuredReply('A useful next step.'));
+  const config = paidConfig(fake.providerFetch, { openRouterMaxCompletionTokens: 700 });
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  await (await sendInitial(api, visitor)).text();
+  for (let turn = 2; turn <= 8; turn += 1)
+    await (await sendMessage(api, visitor, `structured-turn-${String(turn)}`, 'Continue')).text();
+  expect(fake.bodies).toHaveLength(8);
+  expect(fake.bodies[6]?.messages.map(textOf)[0]?.text).not.toContain('final available reply');
+  expect(fake.bodies[7]?.messages.map(textOf)[0]?.text).toContain('final available reply');
+  expect((await readConversation(api, visitor.cookie)).visitorTurnsRemaining).toBe(0);
+  expect((await sendMessage(api, visitor, 'ninth-turn', 'Continue')).status).toBe(429);
+  expect(fake.bodies).toHaveLength(8);
+  api.close();
+});
+
+for (const limit of ['conversation', 'source', 'site', 'pause'] as const)
+  test(`structured reservation participates in ${limit} ceiling`, async () => {
+    const fake = fakeOpenRouter(() => structuredReply('Confirmed'));
+    const config = paidConfig(fake.providerFetch, { openRouterMaxCompletionTokens: 700 });
+    const api = mountApi(config);
+    const visitor = await beginScopingVisitor(api);
+    if (limit === 'site') fillSiteDay(config.databasePath, 1000);
+    if (limit === 'pause') seedLegacyProviderCall(config.databasePath, 7_999_000);
+    if (limit === 'conversation' || limit === 'source') {
+      await (await sendInitial(api, visitor)).text();
+      const database = new Database(config.databasePath);
+      database.run(
+        `UPDATE conversation_operation SET settled_micro_usd = ${String(limit === 'source' ? 299000 : 149000)}, overrun = 1`,
+      );
+      if (limit === 'source')
+        database.run("UPDATE conversation_operation SET source_hash = 'old-source'");
+      database.close();
+    }
+    // Source spend needs the earlier source lineage while allowing a new conversation's own budget.
+    let target = visitor;
+    if (limit === 'source') {
+      target = await beginScopingVisitor(api);
+      const database = new Database(config.databasePath);
+      database.run(
+        'UPDATE conversation_operation SET source_hash = (SELECT source_hash FROM conversation LIMIT 1)',
+      );
+      database.close();
+    }
+    const response =
+      limit === 'conversation'
+        ? await sendMessage(api, target, 'over-budget', 'Continue')
+        : await sendInitial(api, target);
+    expect(response.status).toBe(limit === 'pause' ? 503 : 429);
+    expect(fake.bodies).toHaveLength(limit === 'source' || limit === 'conversation' ? 1 : 0);
+    api.close();
+  });
+
+test('structured four-call concurrency reserves and releases all calls', async () => {
+  const fake = fakeOpenRouter(() => ({ hang: 'SECRET PENDING' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const streams: Response[] = [];
+  for (let index = 0; index < 4; index += 1) {
+    const visitor = await beginScopingVisitor(api);
+    const response = await sendInitial(api, visitor, `198.51.100.${String(index + 1)}`);
+    expect(response.status).toBe(200);
+    streams.push(response);
+  }
+  const fifth = await beginScopingVisitor(api);
+  expect((await sendInitial(api, fifth, '198.51.100.9')).status).toBe(429);
+  for (const stream of streams) await stream.body?.cancel();
+  for (
+    let attempt = 0;
+    operations(config.databasePath).some((operation) => operation.state === 'inflight') &&
+    attempt < 100;
+    attempt += 1
+  )
+    await Bun.sleep(5);
+  expectCeilingSettled(config.databasePath, [0, 1, 2, 3]);
+  expect((await sendInitial(api, fifth, '198.51.100.9')).status).toBe(200);
+  api.close();
+});
+
+test('structured admission snapshot prices and sends old context while settlement preserves intervening edits', async () => {
+  const fake = fakeOpenRouter(() => structuredReply('A candidate.', null, 'Model candidate'));
+  const config = paidConfig(fake.providerFetch, { openRouterMaxCompletionTokens: 700 });
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  const admission: WebsiteStore['admitConversationOperation'] = Reflect.get(
+    WebsiteStore.prototype,
+    'admitConversationOperation',
+  );
+  WebsiteStore.prototype.admitConversationOperation = function (request) {
+    const admitted = admission.call(this, request);
+    if (admitted.kind === 'started') {
+      this.editScoping(
+        request.claimHash,
+        0,
+        { kind: 'references', references: 'SECRET LATER REFERENCE' },
+        Date.now(),
+      );
+      this.editScoping(
+        request.claimHash,
+        1,
+        { kind: 'brief', brief: 'Visitor edited brief' },
+        Date.now(),
+      );
+      this.editScoping(request.claimHash, 2, { kind: 'decline_email' }, Date.now());
+    }
+    return admitted;
+  };
+  try {
+    await (await sendInitial(api, visitor)).text();
+    const sent = fake.bodies[0];
+    if (!sent.response_format) throw new Error('Missing structured request');
+    const messages = JSON.stringify(
+      sent.messages.map((message) => {
+        const { role, text } = textOf(message);
+        return { role, content: text };
+      }),
+    );
+    expect(messages).not.toContain('SECRET LATER REFERENCE');
+    expect(messages).not.toContain('Visitor edited brief');
+    expect(operations(config.databasePath)[0]?.reserved_micro_usd).toBe(
+      Math.ceil(
+        (Buffer.byteLength(messages) +
+          Buffer.byteLength(JSON.stringify(sent.response_format.json_schema.schema)) +
+          2000) *
+          0.44 +
+          700 * 1.76,
+      ),
+    );
+    expect(sent.provider).toMatchObject({
+      only: ['azure/swedencentral'],
+      allow_fallbacks: false,
+      require_parameters: true,
+      zdr: true,
+      data_collection: 'deny',
+      max_price: { prompt: 0.44, completion: 1.76, request: 0 },
+    });
+    const view = await readConversation(api, visitor.cookie);
+    expect(view.brief).toBe('Visitor edited brief');
+    expect(view.scoping).toMatchObject({
+      references: 'SECRET LATER REFERENCE',
+      revision: 4,
+      emailInvitationDeclined: true,
+      candidateBrief: 'Model candidate',
+    });
+  } finally {
+    WebsiteStore.prototype.admitConversationOperation = admission;
+    api.close();
+  }
+});
+
+for (const path of ['typed', 'uncertain', 'curious'] as const)
+  test(`structured scripted ${path} context preserves useful nonfabricated progression`, async () => {
+    const fake = fakeOpenRouter((call) =>
+      path === 'typed'
+        ? structuredReply('You already described booking.', 'launch-stage')
+        : call === 1
+          ? structuredReply(
+              'Examples can help.',
+              path === 'curious' ? 'unsure-reason' : 'launch-purpose',
+            )
+          : structuredReply(
+              'We can explore examples without assuming a project.',
+              'explore-examples',
+            ),
+    );
+    const config = paidConfig(fake.providerFetch);
+    const api = mountApi(config);
+    const visitor = await beginScopingVisitor(
+      api,
+      true,
+      path === 'typed' ? 'Customers should book bicycle repairs online.' : 'Help me choose',
+    );
+    await (await sendInitial(api, visitor)).text();
+    if (path !== 'typed') {
+      const questionId = path === 'curious' ? 'unsure-reason' : 'launch-purpose';
+      const answerId = path === 'curious' ? 'ai-curiosity' : 'not-sure';
+      await (
+        await api.fetch(
+          post('/conversation/stream', visitor, {
+            idempotencyKey: 'uncertain-answer',
+            selected: { questionId, answerId, revision: 1 },
+            message: 'Please explain with examples',
+          }),
+        )
+      ).text();
+      expect(fake.bodies[1]?.messages.map(textOf).at(-1)?.text).toContain(
+        'Please explain with examples',
+      );
+    }
+    const view = await readConversation(api, visitor.cookie);
+    expect(view.brief).toBe('');
+    expect(view.scoping).toMatchObject({
+      questionId: path === 'typed' ? 'launch-stage' : 'explore-examples',
+      candidateBrief: null,
+    });
+    api.close();
+  });
+
+test('structured real deadline aborts buffered output at full reservation', async () => {
+  const fake = fakeOpenRouter(() => ({ hang: 'SECRET TIMEOUT' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  const wire = await (await sendInitial(api, visitor)).text();
+  expect(wire).not.toContain('SECRET TIMEOUT');
+  expect(chunkTypes(wire)).toContain('error');
+  expect(fake.signals[0]?.aborted).toBe(true);
+  expectCeilingSettled(config.databasePath, [0]);
+  api.close();
+}, 35_000);
+
+test('structured source permits three conversations per day and refuses the fourth', async () => {
+  const fake = fakeOpenRouter(() => structuredReply('Confirmed'));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  for (let index = 0; index < 3; index += 1) {
+    const visitor = await beginScopingVisitor(api);
+    const response = await sendInitial(api, visitor);
+    expect(response.status).toBe(200);
+    await response.text();
+  }
+  const fourth = await beginScopingVisitor(api);
+  const response = await sendInitial(api, fourth);
+  expect(response.status).toBe(429);
+  expect(await response.json()).toEqual({ code: 'source_limit', exhaustedReason: 'source_spend' });
+  expect(fake.bodies).toHaveLength(3);
+  api.close();
+});
+
+test('admission marker identifies fresh logical input, authoritative typed question and invalid output, never replay', async () => {
+  const fake = fakeOpenRouter((call) =>
+    call === 1 ? { reply: 'First question' } : { reply: 'INVALID SYNTHETIC', raw: true },
+  );
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  try {
+    const visitor = await beginScopingVisitor(api);
+    const initial = await (await sendInitial(api, visitor)).text();
+    expect(initial).toContain('"type":"data-conversation-admission","data":{"kind":"initial"}');
+    expect(await (await sendInitial(api, visitor)).text()).not.toContain(
+      'data-conversation-admission',
+    );
+    setQuestion(config.databasePath, 1, 'launch-stage');
+    const answer = await (
+      await sendMessage(api, visitor, 'admitted-text', 'Synthetic typed answer')
+    ).text();
+    expect(answer).toContain('"kind":"answer","question_id":"launch-stage","answer_mode":"text"');
+    expect(answer).toContain('invalid_scoping_reply');
+    expect(
+      await (await sendMessage(api, visitor, 'admitted-text', 'Synthetic typed answer')).text(),
+    ).not.toContain('data-conversation-admission');
+    const database = new Database(config.databasePath);
+    database.query('UPDATE draft_scoping SET question_id = NULL').run();
+    database.close();
+    const continuation = await (
+      await sendMessage(api, visitor, 'admitted-continuation', 'Another synthetic answer')
+    ).text();
+    expect(continuation).toContain('"kind":"continuation"');
+    expect(continuation).not.toContain('"question_id"');
+  } finally {
+    api.close();
+  }
+});
+
+for (const setting of [
+  'openRouterInputCeilingUsdPerMillion',
+  'openRouterOutputCeilingUsdPerMillion',
+] as const) {
+  for (const ceiling of [undefined, 0.01, Number.POSITIVE_INFINITY]) {
+    test(`cache-aware pricing refuses ${setting} ${String(ceiling)} and preserves manual conversion`, async () => {
+      const fake = fakeOpenRouter(() => ({ reply: 'Never purchased' }));
+      const config = paidConfig(fake.providerFetch, { [setting]: ceiling });
+      const api = mountApi(config);
+      const visitor = await beginVisitor(api);
+      const refused = await sendInitial(api, visitor);
+      expect(refused.status).toBe(503);
+      expect(await refused.json()).toEqual({ code: 'provider_unconfigured' });
+      expect(fake.bodies).toHaveLength(0);
+      expect((await readConversation(api, visitor.cookie)).provider).toBe('disabled');
+      const submitted = await api.fetch(
+        post('/proposals', visitor, {
+          email: 'fixture@example.test',
+          brief: 'A manually reviewed booking tool.',
+          idempotencyKey: 'manual-ceilings',
+        }),
+      );
+      expect(submitted.status).toBe(201);
+      api.close();
+    });
+  }
+}
+
+for (const route of ['legacy', 'structured', 'invalid-structured', 'refusal'] as const) {
+  for (const charge of [
+    { name: 'surcharge', cost: 0.0006, expected: 600 },
+    { name: 'missing', cost: undefined, expected: null },
+    { name: 'negative', cost: -1, expected: null },
+    { name: 'unsafe', cost: Number.MAX_SAFE_INTEGER, expected: null },
+    { name: 'zero', cost: 0, expected: 502 },
+  ]) {
+    test(`cache-aware ${route} settlement ${charge.name}`, async () => {
+      const fake = fakeOpenRouter(() =>
+        route === 'legacy'
+          ? { reply: 'Confirmed reply.' }
+          : route === 'invalid-structured'
+            ? { reply: '{', raw: true }
+            : structuredReply('Confirmed reply.'),
+      );
+      const providerFetch: ProviderFetch = async (input, init) => {
+        const response = await fake.providerFetch(input, init);
+        const wire = (await response.text())
+          .split('\n')
+          .map((line) => {
+            if (!line.startsWith('data: ') || line === 'data: [DONE]') return line;
+            const chunk = JSON.parse(line.slice(6)) as {
+              usage?: { cost?: number };
+              choices?: { finish_reason?: string }[];
+            };
+            if (chunk.usage) chunk.usage.cost = charge.cost;
+            if (route === 'refusal' && chunk.choices?.[0]?.finish_reason === 'stop')
+              chunk.choices[0].finish_reason = 'content_filter';
+            return 'data: ' + JSON.stringify(chunk);
+          })
+          .join('\n');
+        return new Response(wire, { headers: { 'content-type': 'text/event-stream' } });
+      };
+      const config = paidConfig(providerFetch);
+      const api = mountApi(config);
+      const visitor = route === 'legacy' ? await beginVisitor(api) : await beginScopingVisitor(api);
+      await (await sendInitial(api, visitor)).text();
+      if (charge.expected === null) expectCeilingSettled(config.databasePath, [0]);
+      else
+        expect(operations(config.databasePath)[0]).toMatchObject({
+          state: 'completed',
+          settlement: 'usage',
+          settled_micro_usd: charge.expected,
+        });
+      api.close();
+    });
+  }
+}
+
+test('cache-aware reservation uses effective ceilings while routing retains base prices', async () => {
+  const fake = fakeOpenRouter(() => structuredReply('Confirmed'));
+  const config = paidConfig(fake.providerFetch, {
+    openRouterInputUsdPerMillion: 0.11,
+    openRouterOutputUsdPerMillion: 0.55,
+    openRouterInputCeilingUsdPerMillion: 0.275,
+    openRouterOutputCeilingUsdPerMillion: 0.825,
+    openRouterMaxCompletionTokens: 700,
+  });
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  await (await sendInitial(api, visitor)).text();
+  expect(operations(config.databasePath)[0]?.reserved_micro_usd).toBeGreaterThan(4000);
+  expect(fake.bodies[0]?.provider['max_price']).toEqual({
+    prompt: 0.11,
+    completion: 0.55,
+    request: 0,
+  });
+  api.close();
+});
+
+test('cache-aware reported overrun is recorded without clamping and trips the next site admission pause', async () => {
+  const fake = fakeOpenRouter(() => ({
+    reply: 'Confirmed',
+    usage: { prompt_tokens: 900, completion_tokens: 60, cost: 8.1 },
+  }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  await (await sendInitial(api, visitor)).text();
+  expect(operations(config.databasePath)[0]?.settled_micro_usd).toBe(8_100_000);
+  expect(
+    count(
+      config.databasePath,
+      'SELECT count(*) AS count FROM conversation_operation WHERE overrun = 1',
+    ),
+  ).toBe(1);
+  const next = await beginVisitor(api);
+  const refused = await sendInitial(api, next, '198.51.100.19');
+  expect(refused.status).toBe(503);
+  expect(await refused.json()).toEqual({ code: 'provider_paused' });
+  expect(fake.bodies).toHaveLength(1);
+  api.close();
+});
+
+test('cache-aware unsafe token count and nonfinite serialized charge retain the full reservation', async () => {
+  for (const usage of [
+    { prompt_tokens: Number.MAX_SAFE_INTEGER + 1, completion_tokens: 1, cost: 0 },
+    { prompt_tokens: 900, completion_tokens: 60, cost: Number.NaN },
+    { prompt_tokens: 900, completion_tokens: 60, cost: '0.01' },
+  ]) {
+    const fake = fakeOpenRouter(() => ({ reply: 'Unconfirmed', usage }));
+    const config = paidConfig(fake.providerFetch);
+    const api = mountApi(config);
+    const visitor = await beginVisitor(api);
+    await (await sendInitial(api, visitor)).text();
+    expectCeilingSettled(config.databasePath, [0]);
+    api.close();
+  }
+});
+
+test('cache-aware pilot charge rounds up to 490 micro-USD through SDK raw usage', async () => {
+  const fake = fakeOpenRouter(() => ({
+    reply: 'Confirmed',
+    usage: { prompt_tokens: 3246, completion_tokens: 79, cost: 0.0004896925 },
+  }));
+  const config = paidConfig(fake.providerFetch, {
+    openRouterInputUsdPerMillion: 0.11,
+    openRouterOutputUsdPerMillion: 0.55,
+  });
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  await (await sendInitial(api, visitor)).text();
+  expect(operations(config.databasePath)[0]?.settled_micro_usd).toBe(490);
+  api.close();
+});
+
+test('cache-aware unsafe reservation refuses before paid transport', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Never purchased' }));
+  const config = paidConfig(fake.providerFetch, {
+    openRouterInputCeilingUsdPerMillion: Number.MAX_SAFE_INTEGER,
+  });
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  const failure = await sendInitial(api, visitor).catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(Error);
+  expect(String(failure)).toContain('safe micro-USD');
+  expect(fake.bodies).toHaveLength(0);
+  expect(operations(config.databasePath)).toHaveLength(0);
+  api.close();
+});
+
+for (const historicalVersion of [
+  'puni-scoping-v1',
+  'puni-scoping-v2',
+  'puni-scoping-v3',
+  'puni-scoping-v4',
+  'puni-scoping-v5',
+  'puni-scoping-v6',
+  'puni-scoping-v7',
+  'opaque-historical',
+])
+  test(`new scoping operations record v8 while historical ${historicalVersion} replies replay without a paid call`, async () => {
+    const fake = fakeOpenRouter(() =>
+      structuredReply('A saved question? What is holding it back?', 'improve-blocker'),
+    );
+    const config = paidConfig(fake.providerFetch);
+    const api = mountApi(config);
+    try {
+      const visitor = await beginScopingVisitor(api);
+      await (await sendInitial(api, visitor)).text();
+      expect(operations(config.databasePath)[0]?.prompt_version).toBe('puni-scoping-v8');
+      const database = new Database(config.databasePath);
+      database.query('UPDATE conversation_operation SET prompt_version = ?').run(historicalVersion);
+      const historicalText = ['puni-scoping-v6', 'puni-scoping-v7'].includes(historicalVersion)
+        ? getScopingQuestion('improve-blocker').label
+        : `A saved question? What is holding it back?\n\n${getScopingQuestion('improve-blocker').label}`;
+      database
+        .query("UPDATE conversation_turn SET content = ? WHERE role = 'assistant'")
+        .run(historicalText);
+      database.close();
+      const saved = await readConversation(api, visitor.cookie);
+      const savedOperations = operations(config.databasePath);
+      const replay = await (await sendInitial(api, visitor)).text();
+      expect(await assembleReply(replay)).toBe(historicalText);
+      const lastTurn = saved.turns.at(-1);
+      if (!lastTurn) throw new Error('Missing historical assistant turn');
+      expect(await assembleReply(replay)).toBe(lastTurn.content);
+      expect(fake.bodies).toHaveLength(1);
+      expect(operations(config.databasePath)).toEqual(savedOperations);
+      const replayed = await readConversation(api, visitor.cookie);
+      expect(replayed.turns).toEqual(saved.turns);
+      expect(replayed.scoping).toEqual(saved.scoping);
+      await (
+        await sendMessage(api, visitor, 'v8-after-old-replay', 'The problem is recurring bugs.')
+      ).text();
+      expect(operations(config.databasePath).map((operation) => operation.prompt_version)).toEqual([
+        historicalVersion,
+        'puni-scoping-v8',
+      ]);
+      expect(fake.bodies).toHaveLength(2);
+    } finally {
+      api.close();
+    }
+  });
+
+test('v8 question duplication is omitted identically in fresh stream, stored turn and replay', async () => {
+  const fake = fakeOpenRouter(() =>
+    structuredReply('The obstacle is recurring bugs. What is holding it back?', 'improve-blocker'),
+  );
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  try {
+    const visitor = await beginScopingVisitor(api);
+    const first = await assembleReply(await (await sendInitial(api, visitor)).text());
+    expect(first).toBe(getScopingQuestion('improve-blocker').label);
+    const stored = await readConversation(api, visitor.cookie);
+    expect(stored.turns.at(-1)?.content).toBe(first);
+    const replay = await assembleReply(await (await sendInitial(api, visitor)).text());
+    expect(replay).toBe(first);
+    expect(fake.bodies).toHaveLength(1);
+    const database = new Database(config.databasePath);
+    const operation = database
+      .query<{ reply: string; prompt_version: string }, []>(
+        'SELECT reply, prompt_version FROM conversation_operation',
+      )
+      .get();
+    expect(operation?.reply).toContain('The obstacle is recurring bugs. What is holding it back?');
+    expect(operation?.prompt_version).toBe('puni-scoping-v8');
+    database.close();
+  } finally {
+    api.close();
+  }
+});
+
+test('v8 concern-only question and candidate brief stay verbatim through fresh, store and replay', async () => {
+  const message = 'Can PUNI review this? We can discuss the affected workflow.';
+  const brief = 'Visitor asks for review? The recurring bug affects a checkout.';
+  const fake = fakeOpenRouter(() => structuredReply(message, null, brief));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  try {
+    const visitor = await beginScopingVisitor(api);
+    expect(await assembleReply(await (await sendInitial(api, visitor)).text())).toBe(message);
+    const stored = await readConversation(api, visitor.cookie);
+    expect(stored.turns.at(-1)?.content).toBe(message);
+    if (stored.scoping.version !== 1) throw new Error('Missing scoping state');
+    expect(stored.scoping.candidateBrief).toBe(brief);
+    expect(await assembleReply(await (await sendInitial(api, visitor)).text())).toBe(message);
+    expect(fake.bodies).toHaveLength(1);
+  } finally {
+    api.close();
+  }
+});
+
+test('structured replay refuses a missing recorded prompt identity', () => {
+  expect(() =>
+    replayReply(
+      JSON.stringify({
+        version: 1,
+        message: 'Question?',
+        nextQuestionId: 'improve-blocker',
+        brief: null,
+      }),
+      1,
+    ),
+  ).toThrow('prompt identity');
 });

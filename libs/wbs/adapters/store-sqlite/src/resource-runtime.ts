@@ -4,6 +4,7 @@ import {
   type ResourceRuntimeAdmissionReceipt,
   type ResourceRuntimeEvent,
   resourceRuntimeEvent,
+  type ResourceRuntimeHostJobUse,
   resourceUse,
 } from '@wbs/contracts';
 import type { ResourceRuntime, ResourceRuntimeActor, ResourceUseAnswer } from '@wbs/core';
@@ -25,6 +26,7 @@ import {
 import {
   resourceAuthorityRecord,
   resourceCleanupRequestRecord,
+  resourceHostJobRecord,
   resourceRuntimeEventRecord,
   resourceRuntimeUseRecord,
   resourceUseEventRecord,
@@ -315,6 +317,16 @@ export class SqliteResourceRuntime implements ResourceRuntime {
           !event.evidence.locator.trim())
       )
         return refused('invalid_body');
+      // `returned` is a host job's settlement and only a host job's (`dash-host-jobs` J2').
+      // Proof: with this check made `false`, `refuses what a host job cannot be`
+      // (host-job-use.controller.db.test.ts) saw a `removed` host job answer 200 (2026-11-01).
+      if (
+        event.kind === 'release_verified' &&
+        (event.evidence?.disposition === 'returned') !== (event.use.kind === 'host_job')
+      )
+        return refused('invalid_body');
+      if (event.use.kind === 'host_job')
+        return ingestHostJob(tx, authority, { ...event, use: event.use }, fingerprint, at);
       // Proof: comparing with delivery time rejected an overdue but valid historical retention event and blocked its following sequence (2026-10-25).
       if (
         event.kind === 'retained' &&
@@ -631,24 +643,7 @@ export class SqliteResourceRuntime implements ResourceRuntime {
             )
             .run();
       }
-      const response = {
-        acceptedSequence: event.sequence,
-        useId: event.useId,
-        revision: event.revision,
-      };
-      tx.insert(resourceRuntimeEventRecord)
-        .values({
-          authorityId,
-          eventId: event.eventId,
-          sequence: event.sequence,
-          fingerprint,
-          response,
-        })
-        .run();
-      tx.update(resourceAuthorityRecord)
-        .set({ acceptedSequence: event.sequence })
-        .where(eq(resourceAuthorityRecord.authorityId, authorityId))
-        .run();
+      const response = acceptRuntimeEvent(tx, authorityId, event, fingerprint);
       if (event.kind === 'registered' && !admitted) queueEndedAttempt(tx, use, actor, at);
       return { ok: true, value: response };
     });
@@ -691,6 +686,119 @@ export class SqliteResourceRuntime implements ResourceRuntime {
     });
   }
 }
+/** Records the accepted envelope and advances the authority's sequence, in the ingesting transaction. */
+function acceptRuntimeEvent(
+  tx: ImmediateTransaction,
+  authorityId: string,
+  event: ResourceRuntimeEvent,
+  fingerprint: string,
+): { acceptedSequence: number; useId: string; revision: number } {
+  const response = {
+    acceptedSequence: event.sequence,
+    useId: event.useId,
+    revision: event.revision,
+  };
+  tx.insert(resourceRuntimeEventRecord)
+    .values({
+      authorityId,
+      eventId: event.eventId,
+      sequence: event.sequence,
+      fingerprint,
+      response,
+    })
+    .run();
+  tx.update(resourceAuthorityRecord)
+    .set({ acceptedSequence: event.sequence })
+    .where(eq(resourceAuthorityRecord.authorityId, authorityId))
+    .run();
+  return response;
+}
+
+/**
+ * Projects one host job event (`dash-host-jobs` J10): `registered` at revision 1 creates the
+ * row, owned by the authority and its organization; `release_verified` at revision 2, carrying
+ * the same declaration and the settlement evidence (`returned`, J2'), marks it returned. No
+ * other kind exists for a host job, and nothing here admits, refuses or ends one: the host pool
+ * already did. Planning links are kept as sent and never resolved, so a deleted project, work
+ * item or person cannot strand the use. The caller has checked epoch, sequence, reason, instant
+ * and evidence shape.
+ */
+function ingestHostJob(
+  tx: ImmediateTransaction,
+  authority: ResourceAuthority,
+  event: ResourceRuntimeEvent & { use: ResourceRuntimeHostJobUse },
+  fingerprint: string,
+  at: number,
+): ResourceUseAnswer<{ acceptedSequence: number; useId: string; revision: number }> {
+  const declaration = JSON.stringify(event.use);
+  const stored = tx
+    .select()
+    .from(resourceHostJobRecord)
+    .where(eq(resourceHostJobRecord.useId, event.useId))
+    .get();
+  if (event.kind === 'registered') {
+    // A registration attests an admission, never a settlement.
+    // Proof: without this check, `refuses what a host job cannot be` accepted a registration
+    // carrying evidence, 200 for 400 (2026-11-02).
+    if (event.evidence !== undefined) return refused('invalid_body');
+    // Proof, each watched 2026-11-02 in `refuses what a host job cannot be`: without
+    // `stored !== undefined` a second registration answered 500 (primary key), not 409; without
+    // the revision check a revision-2 registration answered 200; without the request check a
+    // registration carrying `requestId` answered 200; without the `resource_use` lookup a host
+    // job registered over a worktree use's id answered 200.
+    if (
+      stored !== undefined ||
+      event.revision !== 1 ||
+      event.requestId !== undefined ||
+      tx.select().from(resourceUseRecord).where(eq(resourceUseRecord.id, event.useId)).get() !==
+        undefined
+    )
+      return refused('conflict');
+    tx.insert(resourceHostJobRecord)
+      .values({
+        useId: event.useId,
+        authorityId: authority.authorityId,
+        organizationId: authority.organizationId,
+        providerId: authority.providerId,
+        incarnation: event.incarnation,
+        revision: 1,
+        declaration,
+        state: 'registered',
+        registeredAt: at,
+      })
+      .run();
+  } else if (event.kind === 'release_verified') {
+    // Proof, each watched in `refuses what a host job cannot be`: without the declaration
+    // comparison a return under another label answered 200 for 409 (2026-11-01); without the
+    // incarnation comparison a return of another incarnation, without the request check a return
+    // carrying `requestId`, and without the authority comparison another authority's return of
+    // this job each answered 200 (2026-11-02).
+    if (
+      stored?.authorityId !== authority.authorityId ||
+      stored.organizationId !== authority.organizationId ||
+      stored.incarnation !== event.incarnation ||
+      stored.state !== 'registered' ||
+      event.revision !== 2 ||
+      event.requestId !== undefined ||
+      stored.declaration !== declaration
+    )
+      return refused('conflict');
+    tx.update(resourceHostJobRecord)
+      .set({
+        state: 'release_verified',
+        revision: 2,
+        releasedAt: at,
+        evidence: JSON.stringify(event.evidence),
+      })
+      .where(eq(resourceHostJobRecord.useId, event.useId))
+      .run();
+  } else return refused('invalid_body');
+  return {
+    ok: true,
+    value: acceptRuntimeEvent(tx, authority.authorityId, event, fingerprint),
+  };
+}
+
 /** A delayed registration cannot miss an attempt-end signal that committed before its outbox arrived. */
 function queueEndedAttempt(
   tx: ImmediateTransaction,

@@ -13,7 +13,19 @@ const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.ur
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const AGENT_POOL = '20261028100000_add_agent_pool';
 const AGENT_POOL_AUDIT = '20261028100100_widen_organization_audit_agent_pools';
+const HOST_JOB_PROJECTION = '20261101120000_add_host_job_projection';
 const MACHINE_TOKENS = '20261026130000_widen_organization_audit_machine_tokens';
+/**
+ * The later folders, left out of every store here: the directory capacity
+ * widening rebuilds `organization_audit` again and recreates the issuance
+ * indexes, which would hide this rebuild's own omission of one.
+ * Proof: with them kept, `fails task 1.2’s insert when the forward rebuild
+ * omits an issuance index` answered "recorded"; watched 2026-11-01.
+ */
+const LATER = [
+  '20261101100000_widen_organization_audit_directory_capacity',
+  '20261101100100_add_resource_directory_capacity',
+];
 /** 2026-10-28T09:00:00Z, a real-epoch instant, as task 1.2's own test uses. */
 const MORNING = Date.UTC(2026, 9, 28, 9, 0, 0);
 const POOL = '00000000-0000-4000-8000-0000000000a1';
@@ -38,6 +50,7 @@ function migratedStore(edit?: { file: string; from: string; to: string }): {
   roots.push(root);
   const folder = join(root, 'drizzle');
   cpSync(MIGRATIONS, folder, { recursive: true });
+  for (const name of LATER) rmSync(join(folder, name), { recursive: true });
   if (edit !== undefined) {
     const target = join(folder, edit.file);
     const text = readFileSync(target, 'utf8');
@@ -155,7 +168,9 @@ describe(AGENT_POOL, () => {
     const down = await rollBack(root, dbPath, MACHINE_TOKENS);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${AGENT_POOL_AUDIT}, ${AGENT_POOL}\n`);
+    expect(down.stdout).toContain(
+      `rolled back: ${HOST_JOB_PROJECTION}, ${AGENT_POOL_AUDIT}, ${AGENT_POOL}\n`,
+    );
     expect(
       count(
         dbPath,
@@ -224,7 +239,7 @@ describe(AGENT_POOL_AUDIT, () => {
     const down = await rollBack(root, dbPath, AGENT_POOL);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${AGENT_POOL_AUDIT}\n`);
+    expect(down.stdout).toContain(`rolled back: ${HOST_JOB_PROJECTION}, ${AGENT_POOL_AUDIT}\n`);
     expect(await recordIssuance(dbPath, 'run-a')).toBe('recorded');
     expect(() => {
       run(dbPath, [auditRow('x1', 'agent_pool_created', 'agent_pool')]);
@@ -250,6 +265,7 @@ describe(AGENT_POOL_AUDIT, () => {
     roots.push(scratch);
     const baselineFolder = join(scratch, 'drizzle');
     cpSync(MIGRATIONS, baselineFolder, { recursive: true });
+    for (const name of LATER) rmSync(join(baselineFolder, name), { recursive: true });
     rmSync(join(baselineFolder, AGENT_POOL_AUDIT), { recursive: true });
     rmSync(join(baselineFolder, AGENT_POOL), { recursive: true });
     const baselinePath = join(scratch, 'plan.db');

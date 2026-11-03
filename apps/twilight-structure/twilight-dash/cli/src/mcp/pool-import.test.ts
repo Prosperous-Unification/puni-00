@@ -17,6 +17,7 @@ import { join } from 'node:path';
 
 import { afterAll, describe, expect, test } from 'bun:test';
 
+import { parseDashRequest } from '../cli-parser';
 import { urlOf } from './machine-token';
 import { type PoolFiles, runPoolCommand, systemPoolFiles } from './pool-import';
 
@@ -108,8 +109,8 @@ function endpoint(refused: ReadonlySet<string> = new Set(), options: EndpointOpt
   const printed: string[] = [];
   const sleeps: number[] = [];
   const rateLimits = [...(options.rateLimits ?? [])];
-  const run = (argv: readonly string[]): Promise<void> =>
-    runPoolCommand(argv, {
+  const run = async (argv: readonly string[]): Promise<void> =>
+    runPoolCommand(parseDashRequest('pool', ['pool', ...argv]), {
       send: (input, init) => {
         const key = keyOfRequest(new Headers(init?.headers).get('authorization'));
         requests.push({
@@ -418,7 +419,9 @@ describe('twilight-dash pool import', () => {
     const message = await rejection(fake.run(['import', keyOf(1, 1), '--store', fresh('s')]));
     expect(message).toBe('pool import names the pool key file, not its contents');
     expect(message).not.toContain('wbs_mk_');
-    expect(await rejection(fake.run(['import', 'file.json']))).toStartWith('usage: pool import');
+    expect(await rejection(fake.run(['import', 'file.json']))).toStartWith(
+      'usage: twilight-dash pool import ',
+    );
   });
 });
 

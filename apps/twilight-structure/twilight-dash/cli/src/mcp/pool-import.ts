@@ -17,6 +17,7 @@ import { dirname, join, resolve } from 'node:path';
 
 import { parseSecretsOrThrow, type } from '@shared/validation';
 
+import type { DashRequest } from '../cli-parser';
 import { ConfigurationRefusal, readOwnerOnly } from '../compute/configuration';
 import {
   ApiKey,
@@ -72,7 +73,6 @@ export const systemPoolFiles: PoolFiles = {
   },
 };
 
-const USAGE = 'usage: pool import <pool-keys.json> --store <directory>';
 const DOCUMENT_FORMAT = 'wbs-agent-pool-keys';
 /**
  * be-01 caps a pool at 100 agents (`createAgentPool`). A document of 100 fits `readOwnerOnly`'s
@@ -158,22 +158,9 @@ interface PoolAgent {
  * person name and the token endpoint's status and OAuth error.
  */
 export async function runPoolCommand(
-  argv: readonly string[],
+  { file, store }: DashRequest<'pool'>,
   deps: PoolImportDependencies,
 ): Promise<void> {
-  const file = argv.at(1);
-  const store = argv.at(3);
-  if (
-    argv.length !== 4 ||
-    argv.at(0) !== 'import' ||
-    argv.at(2) !== '--store' ||
-    file === undefined ||
-    file.length === 0 ||
-    store === undefined ||
-    store.length === 0
-  ) {
-    throw new Error(USAGE);
-  }
   // A key or the whole document pasted where the path belongs would be echoed by a file error.
   // Proof: without this check `refuses a key pasted where the file belongs` got the file refusal
   // `the pool key file does not exist` instead of this one (2026-10-28).

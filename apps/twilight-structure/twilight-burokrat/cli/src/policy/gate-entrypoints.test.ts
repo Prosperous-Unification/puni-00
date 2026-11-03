@@ -1216,7 +1216,10 @@ await import(${JSON.stringify(productionSnapshotter)});
         Record<string, { cache?: boolean; inputs?: string[]; options?: { command?: string } }>
       >;
     };
-    const hostGate = readFileSync(join(workspace, 'bin', 'h2puni-gate.sh'), 'utf8');
+    // The gate is an outer launcher and its admitted payload (`dash-host-jobs` J15).
+    const hostGate = ['h2puni-gate.sh', 'h2puni-gate-payload.sh']
+      .map((name) => readFileSync(join(workspace, 'bin', name), 'utf8'))
+      .join('\n');
     const hostSteps = readFileSync(join(workspace, 'bin', 'h2puni-gate-steps.sh'), 'utf8');
     const ci = readFileSync(join(workspace, '.github', 'workflows', 'ci.yml'), 'utf8');
     const trustedCi = readFileSync(

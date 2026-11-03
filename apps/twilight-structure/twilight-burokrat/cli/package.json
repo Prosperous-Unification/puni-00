@@ -2,6 +2,31 @@
   "name": "twilight-burokrat",
   "version": "0.1.0",
   "description": "Module knowledge and trusted repository admission toolkit",
+  "keywords": [
+    "twilight-structure",
+    "burokrat",
+    "repository-admission",
+    "module-index",
+    "agentic",
+    "bun"
+  ],
+  "author": {
+    "name": "PUNI",
+    "url": "https://puni.dev"
+  },
+  "homepage": "https://puni.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Prosperous-Unification/puni-00.git",
+    "directory": "apps/twilight-structure/twilight-burokrat/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/Prosperous-Unification/puni-00/issues"
+  },
+  "funding": {
+    "type": "individual",
+    "url": "https://puni.dev"
+  },
   "type": "module",
   "bin": {
     "twilight-burokrat": "dist/bin.mjs",
