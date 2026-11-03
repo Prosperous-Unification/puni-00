@@ -166,3 +166,7 @@ _Avoid_: Europe, regulated country
 **Regional default**:
 The initial analytics-cookie permission used when the visitor has no valid saved choice. A saved acceptance or rejection takes precedence.
 _Avoid_: Implied consent, automatic acceptance
+
+**Guarded security outcome**:
+An explicitly declared evaluation outcome proving that an upstream injection guardrail blocked an attack after safe confirmed replies, while the blocked operation remains unconfirmed with unknown charge.
+_Avoid_: Confirmed reply, model-quality success

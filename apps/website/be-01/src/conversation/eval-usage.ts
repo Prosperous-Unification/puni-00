@@ -1,9 +1,12 @@
+import { observeSecurityEvidence, type SecurityEvidence } from './eval-provider';
 import { isRecord } from './eval-scoping';
 import { type ProviderFetch, readFinalCharge, readFinalUsage } from './stream';
 
 export interface OperationMeasure {
   /** Actual response status, or null until transport resolves and when it throws. */
   httpStatus: number | null;
+  securityEvidence: SecurityEvidence;
+  reservedMicroUsd: number;
   promptTokens: number | null;
   completionTokens: number | null;
   reasoningTokens: number | null;
@@ -25,7 +28,7 @@ export function meterUsage(
   maximumMicroUsd?: number,
 ) {
   const operations: OperationMeasure[] = [];
-  const pending: Promise<void>[] = [];
+  const pending: Promise<{ ok: true } | { ok: false; error: unknown }>[] = [];
   const providerFetch: ProviderFetch = async (input, init) => {
     if (typeof init.body !== 'string') throw new Error('Evaluation provider body must be JSON');
     const request: unknown = JSON.parse(init.body);
@@ -53,6 +56,8 @@ export function meterUsage(
       throw new Error('Evaluation spend bound reached before provider request');
     const operation: OperationMeasure = {
       httpStatus: null,
+      securityEvidence: 'unproven',
+      reservedMicroUsd: ceiling,
       promptTokens: null,
       completionTokens: null,
       reasoningTokens: null,
@@ -69,9 +74,17 @@ export function meterUsage(
     };
     operations.push(operation);
     const started = performance.now();
-    const response = await base(input, init);
+    const headers = new Headers(init.headers);
+    // Proof: removing this documented opt-in failed metadata observation adds only documented header.
+    headers.set('X-OpenRouter-Metadata', 'enabled');
+    const response = await base(input, { ...init, headers });
     // Proof: the injected HTTP 503 kept its response but the mounted meter receipt lacked status before this assignment.
     operation.httpStatus = response.status;
+    if (!response.ok) {
+      operation.securityEvidence = await observeSecurityEvidence(response);
+      operation.latencyMilliseconds = Math.round(performance.now() - started);
+      return response;
+    }
     if (!response.body) {
       operation.latencyMilliseconds = performance.now() - started;
       return response;
@@ -142,7 +155,11 @@ export function meterUsage(
         operation.knownMicroUsd = charge.accountedMicroUsd;
         operation.reportedCostUsd = charge.reportedCostUsd;
         operation.unknownReservedMicroUsd = 0;
-      })(),
+        // Attach rejection observation immediately; settle still rethrows every accounting error.
+      })().then(
+        () => ({ ok: true as const }),
+        (error: unknown) => ({ ok: false as const, error }),
+      ),
     );
     return new Response(forApi, {
       status: response.status,
@@ -150,8 +167,29 @@ export function meterUsage(
       headers: response.headers,
     });
   };
-  return { providerFetch, operations, settle: () => Promise.all(pending) };
+  return {
+    providerFetch,
+    operations,
+    settle: async () => {
+      // Proof: swallowing this error failed meter defers accounting parse rejection to settle.
+      for (const accounting of await Promise.all(pending))
+        if (!accounting.ok) throw accounting.error;
+    },
+  };
 }
+/**
+ * True only while the complete positive reservation remains unknown, without any known charge.
+ * Proof: removing known-charge, positivity and equality separately admitted known, empty and zero/partial
+ * receipt faults after real provider observation in eval-guarded.test.ts.
+ */
+export function retainsUnknownReservation(operation: OperationMeasure): boolean {
+  return (
+    operation.knownMicroUsd === 0 &&
+    operation.reservedMicroUsd > 0 &&
+    operation.unknownReservedMicroUsd === operation.reservedMicroUsd
+  );
+}
+
 export function totalUsage(operations: OperationMeasure[]) {
   return operations.reduce(
     (totals, operation) => ({

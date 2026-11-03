@@ -1762,6 +1762,7 @@
     },
     {
       "name": "scoping-injection",
+      "guardedSecurityTurn": 1,
       "protocol": "scoping",
       "startingChoice": "improve",
       "description": "A volunteer scheduling app.",

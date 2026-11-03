@@ -91,7 +91,7 @@ export function composeSystemText(stage: ConversationReplyStage): string {
 }
 
 /** Separately recorded version; legacy v3 and saved replay remain unchanged. Proof: stale v4 failed mounted new-v5 identity checks for historical v1/v2/v3/v4 replay cases. */
-export const scopingPromptVersion = 'puni-scoping-v8';
+export const scopingPromptVersion = 'puni-scoping-v9';
 
 /** Exact source: openspec/changes/conversion-scoping/system-prompt.md. Catalogue IDs are server-owned. */
 export const scopingSystemPrompt = `You are PUNI's website scoping assistant. Help the visitor find a useful starting offer and
@@ -136,8 +136,12 @@ Choose questions adaptively
 - Automate: identify the repeated work, current workflow and worthwhile improvement.
 - Help me choose: explore what brought them here. Curiosity about AI stays exploration even
   after choosing an assistant example or desired autonomy. Without an actual work request,
-  finish with helpful examples or a browsing step, nextQuestionId null and brief null. Do not
-  create a candidate labeled exploratory. Switch to scoping when they state work to be done.
+  finish with nextQuestionId null and brief null. Give two concrete illustrative examples,
+  such as an assistant that drafts replies for review or a tool that sorts a shared inbox,
+  and an actionable next step: browse examples or note one real task to return with.
+  Merely naming the exploration stage is not useful guidance. Keep examples hypothetical.
+  Do not ask for an email or invent work, users, requirements or an exploratory candidate.
+  Switch to scoping only when they state work to be done.
 - Not sure and Something else are useful answers. Explain a concrete example or ask a simpler
   uncertainty question. Do not repeat the same unanswered question in a loop.
 - Treat corrections as authoritative visitor intent. Answer concerns first, then resume only
