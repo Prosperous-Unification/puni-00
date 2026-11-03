@@ -19,7 +19,7 @@ Application deployment redesign, CI optimization, full delivery-timing collectio
 
 ## Constraints
 
-Preserve the working dev observer, Grafana defaults, MLflow and existing history. Keep the shared observation model provider-neutral. Reuse platform ownership, pinned versions, Flux reconciliation and existing fleet/lab tools. Do not bypass unready dependencies or infer cluster access from SSH access. New safety checks require production-path negative proofs. Production activation, secret changes and final merge remain separately authorized.
+Preserve the dev observer, Grafana defaults, MLflow and existing history. Keep the shared observation model provider-neutral. Reuse ownership, pins, Flux and fleet/lab tools; budget components separately on existing hosts. Do not bypass unready dependencies or infer cluster access from SSH access. New safety checks require production-path negative proofs. Production activation, secret changes and final merge remain separately authorized.
 
 ## Capabilities
 
