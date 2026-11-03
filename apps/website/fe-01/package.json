@@ -1,5 +1,5 @@
 {
-  "name": "@puni/website-app",
+  "name": "@puni-mono/website-app",
   "private": true,
   "type": "module",
   "scripts": {
