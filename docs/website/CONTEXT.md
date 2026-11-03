@@ -168,5 +168,5 @@ The initial analytics-cookie permission used when the visitor has no valid saved
 _Avoid_: Implied consent, automatic acceptance
 
 **Guarded security outcome**:
-An explicitly declared evaluation outcome proving that an upstream injection guardrail blocked an attack after safe confirmed replies, while the blocked operation remains unconfirmed with unknown charge.
+An explicitly declared evaluation outcome proving an upstream security decline contained an attack: an injection guardrail block after safe confirmed replies, or a typed provider refusal on the sole initial harmful attack without published output. The declined operation remains unconfirmed with unknown charge.
 _Avoid_: Confirmed reply, model-quality success

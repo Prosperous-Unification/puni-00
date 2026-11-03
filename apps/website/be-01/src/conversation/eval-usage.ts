@@ -1,4 +1,9 @@
-import { observeSecurityEvidence, type SecurityEvidence } from './eval-provider';
+import {
+  observeRefusalEvidence,
+  observeSecurityEvidence,
+  type RefusalEvidence,
+  type SecurityEvidence,
+} from './eval-provider';
 import { isRecord } from './eval-scoping';
 import { type ProviderFetch, readFinalCharge, readFinalUsage } from './stream';
 
@@ -6,6 +11,7 @@ export interface OperationMeasure {
   /** Actual response status, or null until transport resolves and when it throws. */
   httpStatus: number | null;
   securityEvidence: SecurityEvidence;
+  refusalEvidence: RefusalEvidence;
   reservedMicroUsd: number;
   promptTokens: number | null;
   completionTokens: number | null;
@@ -21,15 +27,30 @@ export interface OperationMeasure {
   model: string | null;
   finishReason: string | null;
 }
-/** Tees only visible metadata. Final cumulative usage replaces earlier observations; reasoning is a completion subset. */
+/**
+ * Tees only visible metadata. Final cumulative usage replaces earlier observations; reasoning is a completion subset.
+ * Refusal observation is bounded and optional; accounting failures still propagate from settle.
+ * Proof: removing the request counter bought a second operation in the hard-cap mounted test;
+ * removing bound validation admitted all five invalid bounds. Removing consumer invalidation
+ * left positive refusal evidence after cancellation; closing instead of forwarding the source
+ * error failed metering preserves source error in eval-initial-refusal.test.ts.
+ */
 export function meterUsage(
   base: ProviderFetch,
   rates: { input: number; output: number; inputCeiling: number; outputCeiling: number },
   maximumMicroUsd?: number,
+  maximumRequests?: number,
 ) {
   const operations: OperationMeasure[] = [];
   const pending: Promise<{ ok: true } | { ok: false; error: unknown }>[] = [];
+  if (
+    maximumRequests !== undefined &&
+    (!Number.isSafeInteger(maximumRequests) || maximumRequests <= 0)
+  )
+    throw new Error('Evaluation request bound must be a positive safe integer');
   const providerFetch: ProviderFetch = async (input, init) => {
+    if (maximumRequests !== undefined && operations.length >= maximumRequests)
+      throw new Error('Evaluation request bound reached before provider request');
     if (typeof init.body !== 'string') throw new Error('Evaluation provider body must be JSON');
     const request: unknown = JSON.parse(init.body);
     if (!isRecord(request) || typeof request['max_completion_tokens'] !== 'number')
@@ -57,6 +78,7 @@ export function meterUsage(
     const operation: OperationMeasure = {
       httpStatus: null,
       securityEvidence: 'unproven',
+      refusalEvidence: 'unproven',
       reservedMicroUsd: ceiling,
       promptTokens: null,
       completionTokens: null,
@@ -89,6 +111,22 @@ export function meterUsage(
       operation.latencyMilliseconds = performance.now() - started;
       return response;
     }
+    const observation = new AbortController();
+    const abortObservation = () => {
+      observation.abort();
+    };
+    init.signal?.addEventListener('abort', abortObservation, { once: true });
+    if (init.signal?.aborted) observation.abort();
+    pending.push(
+      observeRefusalEvidence(response, observation.signal).then(
+        (evidence) => {
+          operation.refusalEvidence = observation.signal.aborted ? 'cancelled' : evidence;
+          init.signal?.removeEventListener('abort', abortObservation);
+          return { ok: true as const };
+        },
+        (error: unknown) => ({ ok: false as const, error }),
+      ),
+    );
     const [forApi, forMeter] = response.body.tee();
     pending.push(
       (async () => {
@@ -161,7 +199,31 @@ export function meterUsage(
         (error: unknown) => ({ ok: false as const, error }),
       ),
     );
-    return new Response(forApi, {
+    const apiReader = forApi.getReader();
+    let apiCancelled = false;
+    const published = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        try {
+          const next = await apiReader.read();
+          if (apiCancelled) return;
+          if (next.done) controller.close();
+          else controller.enqueue(next.value);
+        } catch (error) {
+          if (apiCancelled) return;
+          observation.abort();
+          operation.refusalEvidence = 'unreadable';
+          controller.error(error);
+        }
+      },
+      cancel(reason: unknown) {
+        apiCancelled = true;
+        observation.abort();
+        operation.refusalEvidence = 'cancelled';
+        // A tee cancellation waits for other branches; forward cancellation without delaying the consumer.
+        void apiReader.cancel(reason);
+      },
+    });
+    return new Response(published, {
       status: response.status,
       statusText: response.statusText,
       headers: response.headers,

@@ -1,4 +1,5 @@
 import { isRecord } from './eval-scoping';
+import { isRefusalChunk } from './stream';
 
 /** Fixed, content-free evidence from one response; every nonpositive category remains unknown. */
 export type SecurityEvidence =
@@ -67,4 +68,86 @@ export async function observeSecurityEvidence(response: Response): Promise<Secur
     })
     ? 'injection-blocked'
     : 'unproven';
+}
+
+/** Fixed evidence from one bounded HTTP 200 SSE observation, distinct from injection guardrails. */
+export type RefusalEvidence =
+  | 'provider-refusal'
+  | 'unproven'
+  | 'malformed'
+  | 'too-large'
+  | 'unreadable'
+  | 'cancelled'
+  | 'conflicting';
+
+/**
+ * Observes a clone within 32 KiB, requiring complete UTF-8 SSE frames and exact production
+ * {@link isRefusalChunk} semantics. DONE is optional; a finish reason or prose proves nothing.
+ * Optional observation failures never replace the original source error, bytes or accounting.
+ * Proof: independently bypassing status, exact type,32KiB, fatal UTF-8, complete frames,
+ * JSON validity and error-conflict checks admitted their raw-source negatives in
+ * eval-initial-refusal.test.ts. Removing cancellation checks admitted an already-cancelled
+ * finite refusal; replacing read failure with positive evidence failed its unreadable test.
+ */
+export async function observeRefusalEvidence(
+  response: Response,
+  signal?: AbortSignal,
+): Promise<RefusalEvidence> {
+  if (response.status !== 200) return 'unproven';
+  if (signal?.aborted) return 'cancelled';
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  // Cancellation is optional observer cleanup; a rejected cancel still invalidates evidence via signal.
+  const cancel = () => {
+    if (reader) void reader.cancel();
+  };
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    reader = response.clone().body?.getReader();
+    if (!reader) return 'malformed';
+    signal?.addEventListener('abort', cancel, { once: true });
+    for (;;) {
+      const next = await reader.read();
+      if (signal?.aborted) return 'cancelled';
+      if (next.done) break;
+      bytes += next.value.byteLength;
+      if (bytes > 32_768) {
+        cancel();
+        return 'too-large';
+      }
+      chunks.push(next.value);
+    }
+  } catch {
+    return signal?.aborted ? 'cancelled' : 'unreadable';
+  } finally {
+    signal?.removeEventListener('abort', cancel);
+  }
+  let source: string;
+  try {
+    source = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks));
+  } catch {
+    return 'malformed';
+  }
+  const frames = source.replaceAll('\r\n', '\n').split('\n\n');
+  // An unterminated final event is not positive evidence, even if its JSON is complete.
+  if (frames.pop() !== '') return 'malformed';
+  let refusal = false;
+  let conflicting = false;
+  for (const frame of frames) {
+    const payload = frame
+      .split('\n')
+      .flatMap((line) => (line.startsWith('data:') ? [line.slice(5).replace(/^ /, '')] : []))
+      .join('\n');
+    if (!payload || payload === '[DONE]') continue;
+    let chunk: unknown;
+    try {
+      chunk = JSON.parse(payload);
+    } catch {
+      return 'malformed';
+    }
+    if (!isRecord(chunk)) return 'malformed';
+    if (isRefusalChunk(chunk)) refusal = true;
+    else if (chunk['error'] !== undefined && chunk['error'] !== null) conflicting = true;
+  }
+  return conflicting ? 'conflicting' : refusal ? 'provider-refusal' : 'unproven';
 }
