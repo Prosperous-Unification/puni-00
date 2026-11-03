@@ -6,7 +6,18 @@ Each Twilight CLI (Twilight Dash, Twilight Burokrat, Twilight Navigator) SHALL d
 commands as `@optique/core` parsers in one module per CLI and SHALL run them through
 `@optique/run` with injected stdout, stderr and exit, so the command handlers receive a typed
 object and never read `argv`. No command's name, flags, files, outputs or semantics SHALL
-change, except that every option also accepts the `--flag=value` spelling.
+change, except that every option also accepts the `--flag=value` spelling. Until task 3.4
+types them, Twilight Burokrat's `check`, `explain`, `scenario`, `template`,
+`validate workflow-binding`, `prepare-activation` and `prepare-relocation-activation` SHALL pass
+the words after their names unchanged to the modules that parse them, and their help SHALL show
+each module's usage grammar.
+
+#### Scenario: A delegated Burokrat command receives its words unchanged
+
+- **WHEN** `twib check working <repository> HEAD <policy> --rule JOB-CATALOGUE --now <instant>`
+  runs
+- **THEN** the `check` module receives `working <repository> HEAD <policy> --rule JOB-CATALOGUE
+--now <instant>` exactly and judges as before
 
 #### Scenario: A handler receives the parsed object
 

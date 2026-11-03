@@ -72,6 +72,14 @@ export function explainRule(
 }
 
 /** `explain <rule-id>` or `explain <rule-id> <repository> <rule-policy-json>` */
+/** The usage line of `explain`; `cli-parser.ts`'s help shows the same grammar (cli.test.ts). */
+export const explainUsage =
+  'usage: twilight-burokrat explain <rule-id> [<repository> <rule-policy-json>]';
+
+/** The usage line of `check`; `cli-parser.ts`'s help shows the same grammar (cli.test.ts). */
+export const checkUsage =
+  'usage: twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>] [--performance-evidence <json>] [--now <UTC instant>]';
+
 export function writeExplainCommand(argv: readonly string[]): void {
   const [, ruleId, repository, rulePolicyPath] = argv;
   process.stdout.write(
@@ -337,9 +345,7 @@ function candidateRequest(kind: string, revision: string): CandidateRequest {
   // Proof: on 2026-09-20, treating `bogus` as committed replaced this usage refusal with the
   // unrelated missing-classification-policy diagnostic.
   if (kind !== 'committed' && kind !== 'staged' && kind !== 'working') {
-    throw new Error(
-      'usage: twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>] [--performance-evidence <json>] [--now <UTC instant>]',
-    );
+    throw new Error(checkUsage);
   }
   return kind === 'committed' ? { kind, revision } : { kind, base: revision };
 }
