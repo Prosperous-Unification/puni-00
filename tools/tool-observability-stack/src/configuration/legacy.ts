@@ -20,7 +20,7 @@ const PlatformRedaction = type({
 export const legacyAdmission =
   'resource.attributes["deployment.environment.name"] != "dev" or resource.attributes["service.name"] == nil or resource.attributes["service.name"] == ""';
 
-/** Reuses the platform credential-shape policy; absent/malformed trusted policy throws. */
+/** Reuses the platform credential-shape policy and the authorized #puni-alerts receiver; the webhook stays in the persistent Alertmanager volume. Absent/malformed trusted policy throws. */
 export function createLegacyConfiguration(
   platformAgentPath: string | URL = new URL(
     '../../../../infra/platform/telemetry/agent/agent.yaml',
@@ -202,13 +202,26 @@ export function createLegacyConfiguration(
     alertmanager: {
       global: { resolve_timeout: '1m' },
       route: {
-        receiver: 'local-only',
+        receiver: 'slack-puni',
         group_by: ['alertname', 'environment', 'service'],
         group_wait: '1s',
         group_interval: '30s',
         repeat_interval: '4h',
       },
-      receivers: [{ name: 'local-only' }],
+      receivers: [
+        {
+          name: 'slack-puni',
+          slack_configs: [
+            {
+              api_url_file: '/alertmanager/secrets/slack-webhook',
+              channel: '#puni-alerts',
+              send_resolved: true,
+              title: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}',
+              text: '{{ range .Alerts }}*{{ .Annotations.summary }}*\n{{ .Annotations.description }}\nSeverity: {{ .Labels.severity }} | Environment: {{ .Labels.environment }} | Service: {{ .Labels.service }}\n{{ end }}',
+            },
+          ],
+        },
+      ],
     },
   };
 }

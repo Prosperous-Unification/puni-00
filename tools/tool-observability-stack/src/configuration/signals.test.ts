@@ -99,8 +99,10 @@ it('legacy dev rendering preserves validated behavior', () => {
   const settings = Object.fromEntries(
     Object.entries(files).filter(([name]) => names.includes(name)),
   );
+  // The pin moved with main's adopted slack-puni receiver in alertmanager.yaml (#833, 2026-11-03);
+  // the five other rendered files are unchanged.
   expect(createHash('sha256').update(JSON.stringify(settings)).digest('hex')).toBe(
-    'c19542eb466fbe7d7115450d1f383abd1723440949921c09adf8b5b1f7555390',
+    '5730092205e714cf33414bec1d7fa670b20ebb7520139782a8b24ec426cef552',
   );
 });
 

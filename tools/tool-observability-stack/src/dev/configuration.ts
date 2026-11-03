@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 
+import { type } from 'arktype';
 import { stringify } from 'yaml';
 
 import { createLegacyConfiguration, legacyAdmission } from '../configuration/legacy';
@@ -7,6 +8,37 @@ import { renderDevCompose } from './deployment';
 
 /** Preserves the transitional Compose rendering while shared persistent profiles converge. */
 export const createDevConfiguration = createLegacyConfiguration;
+
+const Alertmanager = type({
+  global: { resolve_timeout: "'1m'", '+': 'reject' },
+  route: {
+    receiver: "'slack-puni'",
+    group_by: 'string[]',
+    group_wait: "'1s'",
+    group_interval: "'30s'",
+    repeat_interval: "'4h'",
+    '+': 'reject',
+  },
+  receivers: type({
+    name: "'slack-puni'",
+    slack_configs: type({
+      api_url_file: "'/alertmanager/secrets/slack-webhook'",
+      channel: "'#puni-alerts'",
+      send_resolved: 'true',
+      title: 'string > 0',
+      text: 'string > 0',
+      '+': 'reject',
+    })
+      .array()
+      .atLeastLength(1)
+      .atMostLength(1),
+    '+': 'reject',
+  })
+    .array()
+    .atLeastLength(1)
+    .atMostLength(1),
+  '+': 'reject',
+});
 
 export type DevConfiguration = ReturnType<typeof createDevConfiguration>;
 
@@ -64,13 +96,9 @@ export function assertDevConfiguration(configuration: DevConfiguration): void {
     )
       throw new Error('dev admission must reject unknown or production environment');
   }
-  // Proof: removing this throw failed the external webhook-recipient negative.
-  if (
-    configuration.alertmanager.receivers.length !== 1 ||
-    Object.keys(configuration.alertmanager.receivers[0]).join() !== 'name' ||
-    configuration.alertmanager.route.receiver !== configuration.alertmanager.receivers[0].name
-  )
-    throw new Error('external recipient refused');
+  // Proof: removing this guard makes all14 actual-renderer recipient/route/transport refusal cases emit deployment files in slack.test.ts.
+  if (!Alertmanager.allows(configuration.alertmanager))
+    throw new Error('unapproved alert recipient');
 }
 
 /** Only the two fixed new project queue volumes may be initialized; no host mount is accepted. */

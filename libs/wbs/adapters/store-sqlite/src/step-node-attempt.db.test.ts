@@ -429,7 +429,9 @@ describe('StepNodeAttemptRepository', () => {
         starter.onerror = reject;
       });
       starter.postMessage({ path, barrier, startedAt: 100 });
-      const deadline = Date.now() + 5_000;
+      // Worker start-up carries the whole store module graph: 3.9 s on a green CI run and
+      // 5.2-5.3 s on two loaded runners (2026-11-03), so 5 s refused a healthy worker.
+      const deadline = Date.now() + 30_000;
       while (Atomics.load(state, 0) < 1 && Date.now() < deadline) {
         await Bun.sleep(5);
       }
