@@ -1443,6 +1443,16 @@ interface PrehelperRefusalModel {
     joined: boolean;
     observerSettled: boolean;
   }[];
+  savedOperationEvidence: {
+    promise: unknown;
+    observer: unknown;
+    returned: unknown;
+    cause: unknown;
+    outcome: PromiseSettledResult<unknown>;
+    observerOutcome: PromiseSettledResult<unknown>;
+  }[];
+  replacementReturned: unknown;
+  mismatchFailure: Error;
   writeAPI: unknown;
   buildAPI: unknown;
   returnedWrite: unknown;
@@ -1490,6 +1500,9 @@ async function observePrehelperRefusal(
     | 'fulfilled-only'
     | 'synchronous-refusal'
     | 'non-promise'
+    | 'missing-original'
+    | 'changed-returned'
+    | 'cause-mismatch'
     | 'pending-observer'
     | 'rejected-observer'
     | 'entered-clock'
@@ -1497,6 +1510,9 @@ async function observePrehelperRefusal(
     | 'diagnostic-short'
     | 'diagnostic-throw'
     | 'diagnostic-unsupported'
+    | 'diagnostic-undefined'
+    | 'diagnostic-negative'
+    | 'diagnostic-fractional'
     | 'diagnostic-promise'
     | 'diagnostic-unknown-setup'
     | 'diagnostic-projection',
@@ -1539,6 +1555,9 @@ const timerToken = {kind:'parent-timeout-token'};
 const keeperToken = {kind:'parent-interval-token'};
 const clears = [];
 const savedObservers = [];
+const savedOperationEvidence = [];
+let replacementReturned,replacementReturnedObserver;
+const mismatchFailure=new Error('UC2_MODELED_DIFFERENT_REJECTION');
 let returnedWrite, returnedBuild, resolveBuild;
 const nonPromiseValue={kind:'retained-non-Promise-return'};
 const observerFailure=new Error('UC2_MODELED_OBSERVER_REFUSAL');
@@ -1573,7 +1592,10 @@ function modeledDiagnosticWriteSync(descriptor,buffer,offset,length,position){
     reportPendingAtEntry=true;markReady();return reportReturned;
   }
   reportReturned=mode==='diagnostic-short'?length-1:
-    mode==='diagnostic-unsupported'?length+1:length;
+    mode==='diagnostic-unsupported'?length+1:
+    mode==='diagnostic-undefined'?undefined:
+    mode==='diagnostic-negative'?-1:
+    mode==='diagnostic-fractional'?0.5:length;
   return reportReturned;
 }
 function readKernelTick(){ return 1n; }
@@ -1599,7 +1621,8 @@ async function runParentBoundary(){
   if(mode==='diagnostic-short'||mode==='diagnostic-throw')parent.failures.push(new Error('earlier retained failure'));
   try {
     if(['empty-roster','fulfilled-only','synchronous-refusal','non-promise',
-      'pending-observer','rejected-observer','entered-clock'].includes(mode)){
+      'pending-observer','rejected-observer','entered-clock',
+      'missing-original','changed-returned','cause-mismatch'].includes(mode)){
       if(mode==='empty-roster'){parent.stopped=true;throw setupFailure;}
       await outerOperation('outer.fs.writeFile',modeledWrite,undefined,[]);
       if(parent.operations[0].observer===undefined)throw Error('modeled write observer missing');
@@ -1614,6 +1637,22 @@ async function runParentBoundary(){
       const settled=await Promise.allSettled([pending]);
       if(settled[0].status!=='rejected'||settled[0].reason!==setupFailure)
         throw Error('modeled build original rejection differs');
+      if(['missing-original','changed-returned','cause-mismatch'].includes(mode)){
+        for(const original of parent.operations){
+          if(!(original.promise instanceof Promise)||!(original.observer instanceof Promise))
+            throw Error('modeled original evidence absent before perturbation');
+          const outcomes=await Promise.allSettled([original.promise,original.observer]);
+          savedOperationEvidence.push({promise:original.promise,observer:original.observer,
+            returned:original.returned,cause:original.cause,outcome:outcomes[0],observerOutcome:outcomes[1]});
+        }
+        if(mode==='missing-original')record.promise=undefined;
+        if(mode==='changed-returned'){
+          replacementReturned=Promise.resolve('written');
+          replacementReturnedObserver=replacementReturned.then(()=>undefined,()=>undefined);
+          parent.operations[0].returned=replacementReturned;
+        }
+        if(mode==='cause-mismatch')record.cause=mismatchFailure;
+      }
       if(mode==='pending-observer'||mode==='rejected-observer'){
         replacementObserver=mode==='pending-observer'
           ?new Promise(resolve=>{resolveObserver=resolve;})
@@ -1693,6 +1732,7 @@ export async function observe(){
     terminal:parent.prehelperRefusalTerminal,timer:timerToken,keeper:keeperToken,
     clears:[...clears],operations:parent.operations.map(record=>({...record})),
     writeAPI:modeledWrite,buildAPI:modeledBuild,returnedWrite,returnedBuild,
+    savedOperationEvidence:[...savedOperationEvidence],replacementReturned,mismatchFailure,
     originalObservers:[...savedObservers],retainedCauses:[...parent.failures],
     nonPromiseValue,replacementObserver,observerFailure,pendingAtEntry,clockRecord,
     clockRecords:[...parent.clockOperations],reportCalls:[...reportCalls],reportRecord:parent.report,
@@ -1705,6 +1745,12 @@ export async function observe(){
     resolveBuild('fixture-settled');
   }
   const originals=[];
+  if(['missing-original','changed-returned','cause-mismatch'].includes(mode)){
+    for(const saved of savedOperationEvidence){
+      originals.push(saved.promise);
+      if(saved.outcome.status==='rejected')expectedRejections.set(saved.promise,saved.outcome.reason);
+    }
+  }else{
   for(const record of parent.operations){
     if(record.promise instanceof Promise){
       originals.push(record.promise);
@@ -1713,11 +1759,13 @@ export async function observe(){
       throw Error('modeled original Promise absent');
     }
   }
+  }
   const expectedOriginals=mode==='empty-roster'?0:
     ['fulfilled-only','synchronous-refusal','non-promise'].includes(mode)?1:2;
   if(originals.length!==expectedOriginals||savedObservers.length!==expectedOriginals)
     throw Error('modeled original/observer cleanup census differs');
   const extra=[];
+  if(replacementReturned!==undefined)extra.push(replacementReturned,replacementReturnedObserver);
   if(reportReturned instanceof Promise)extra.push(reportReturned,reportReturnedObserver);
   if(replacementObserver!==undefined){
     extra.push(replacementObserver,replacementObservation);
@@ -1937,6 +1985,61 @@ test('UC2 pre-helper entered clock boundary retains parent timers', async () => 
   assertPrehelperHold(observed, 'UC2_PARENT_ENTERED_CLOCK_RETIRED');
 });
 
+test('UC2 pre-helper missing original Promise retains timers', async () => {
+  const observed = await observePrehelperRefusal('missing-original');
+  expect(observed.savedOperationEvidence).toHaveLength(2);
+  expect(observed.savedOperationEvidence[1]?.promise).toBe(observed.returnedBuild);
+  expect(observed.savedOperationEvidence[1]?.observer).toBe(observed.originalObservers[1]);
+  expect(observed.savedOperationEvidence[1]?.outcome).toEqual({
+    status: 'rejected',
+    reason: observed.setupFailure,
+  });
+  expect(observed.savedOperationEvidence[1]?.observerOutcome).toEqual({
+    status: 'fulfilled',
+    value: undefined,
+  });
+  expect(observed.operations[1]?.promise).toBeUndefined();
+  expect(observed.operations[1]?.returned).toBe(observed.returnedBuild);
+  expect(observed.cleanup).toHaveLength(4);
+  assertPrehelperHold(observed, 'UC2_PREFLIGHT_MISSING_ORIGINAL_RETIRED');
+});
+
+test('UC2 pre-helper changed returned original retains timers', async () => {
+  const observed = await observePrehelperRefusal('changed-returned');
+  expect(observed.savedOperationEvidence).toHaveLength(2);
+  expect(observed.savedOperationEvidence[0]?.promise).toBe(observed.returnedWrite);
+  expect(observed.savedOperationEvidence[0]?.returned).toBe(observed.returnedWrite);
+  expect(observed.savedOperationEvidence[0]?.observer).toBe(observed.originalObservers[0]);
+  expect(observed.savedOperationEvidence[0]?.outcome).toEqual({
+    status: 'fulfilled',
+    value: 'written',
+  });
+  expect(observed.operations[0]?.returned).toBe(observed.replacementReturned);
+  expect(observed.replacementReturned).not.toBe(observed.returnedWrite);
+  expect(await observed.replacementReturned).toBe('written');
+  expect(observed.operations[0]?.promise).toBe(observed.returnedWrite);
+  expect(observed.operations[0]?.observer).toBe(observed.originalObservers[0]);
+  expect(observed.cleanup).toHaveLength(6);
+  assertPrehelperHold(observed, 'UC2_PREFLIGHT_CHANGED_RETURNED_RETIRED');
+});
+
+test('UC2 pre-helper rejected cause mismatch retains timers', async () => {
+  const observed = await observePrehelperRefusal('cause-mismatch');
+  expect(observed.savedOperationEvidence).toHaveLength(2);
+  expect(observed.savedOperationEvidence[1]?.promise).toBe(observed.returnedBuild);
+  expect(observed.savedOperationEvidence[1]?.observer).toBe(observed.originalObservers[1]);
+  expect(observed.savedOperationEvidence[1]?.cause).toBe(observed.setupFailure);
+  expect(observed.savedOperationEvidence[1]?.outcome).toEqual({
+    status: 'rejected',
+    reason: observed.setupFailure,
+  });
+  expect(observed.operations[1]?.cause).toBe(observed.mismatchFailure);
+  expect(observed.mismatchFailure).not.toBe(observed.setupFailure);
+  expect(observed.operations[1]?.promise).toBe(observed.returnedBuild);
+  expect(observed.cleanup).toHaveLength(4);
+  assertPrehelperHold(observed, 'UC2_PREFLIGHT_REJECTED_CAUSE_MISMATCH_RETIRED');
+});
+
 function prehelperProjectionRecord(value: unknown): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value))
     throw new Error('UC2 projected plain record absent');
@@ -2055,6 +2158,60 @@ test('UC2 pre-helper unsupported diagnostic count retains timers', async () => {
   expect(record.state).toBe('returned');
   expect(record.returned).toBe(record.buffer.byteLength + 1);
   assertPrehelperHold(observed, 'UC2_PREFLIGHT_UNSUPPORTED_REPORT_RETIRED');
+});
+
+test('UC2 pre-helper undefined diagnostic return retains timers', async () => {
+  const observed = await observePrehelperRefusal('diagnostic-undefined');
+  expect(observed.reportCalls).toHaveLength(1);
+  const record = prehelperReportRecord(observed);
+  expect(record.setupCause).toBe(observed.setupFailure);
+  expect(record.writer).toBe(observed.reportWriter);
+  expect(observed.reportCalls[0]?.writer).toBe(record.writer);
+  expect(observed.reportCalls[0]?.reportAtEntry).toBe(record);
+  expect(observed.reportCalls[0]?.stateAtEntry).toBe('entered');
+  expect(record.state).toBe('returned');
+  expect(record.returned).toBe(observed.reportReturned);
+  expect(record.returned).toBe(undefined);
+  assertPrehelperOriginals(observed);
+  expect(observed.operations[0]?.observer).toBe(observed.originalObservers[0]);
+  expect(observed.operations[1]?.observer).toBe(observed.originalObservers[1]);
+  assertPrehelperHold(observed, 'UC2_PREFLIGHT_UNDEFINED_REPORT_RETIRED');
+});
+
+test('UC2 pre-helper negative diagnostic return retains timers', async () => {
+  const observed = await observePrehelperRefusal('diagnostic-negative');
+  expect(observed.reportCalls).toHaveLength(1);
+  const record = prehelperReportRecord(observed);
+  expect(record.setupCause).toBe(observed.setupFailure);
+  expect(record.writer).toBe(observed.reportWriter);
+  expect(observed.reportCalls[0]?.writer).toBe(record.writer);
+  expect(observed.reportCalls[0]?.reportAtEntry).toBe(record);
+  expect(observed.reportCalls[0]?.stateAtEntry).toBe('entered');
+  expect(record.state).toBe('returned');
+  expect(record.returned).toBe(observed.reportReturned);
+  expect(record.returned).toBe(-1);
+  assertPrehelperOriginals(observed);
+  expect(observed.operations[0]?.observer).toBe(observed.originalObservers[0]);
+  expect(observed.operations[1]?.observer).toBe(observed.originalObservers[1]);
+  assertPrehelperHold(observed, 'UC2_PREFLIGHT_NEGATIVE_REPORT_RETIRED');
+});
+
+test('UC2 pre-helper fractional diagnostic return retains timers', async () => {
+  const observed = await observePrehelperRefusal('diagnostic-fractional');
+  expect(observed.reportCalls).toHaveLength(1);
+  const record = prehelperReportRecord(observed);
+  expect(record.setupCause).toBe(observed.setupFailure);
+  expect(record.writer).toBe(observed.reportWriter);
+  expect(observed.reportCalls[0]?.writer).toBe(record.writer);
+  expect(observed.reportCalls[0]?.reportAtEntry).toBe(record);
+  expect(observed.reportCalls[0]?.stateAtEntry).toBe('entered');
+  expect(record.state).toBe('returned');
+  expect(record.returned).toBe(observed.reportReturned);
+  expect(record.returned).toBe(0.5);
+  assertPrehelperOriginals(observed);
+  expect(observed.operations[0]?.observer).toBe(observed.originalObservers[0]);
+  expect(observed.operations[1]?.observer).toBe(observed.originalObservers[1]);
+  assertPrehelperHold(observed, 'UC2_PREFLIGHT_FRACTIONAL_REPORT_RETIRED');
 });
 
 test('UC2 pre-helper Promise diagnostic return retains timers', async () => {

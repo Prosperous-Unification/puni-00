@@ -523,6 +523,9 @@ function outerOperation<Arguments extends unknown[], Returned>(
 }
 /** Joins terminal private API records without reopening work; delegate provenance comes from the closed outerOperation call sites. */
 function joinPrehelperRefusal(): Promise<boolean> {
+  // Proof: finite original MODEL S omitted both mirrored spawnEntered predicates;
+  // 'UC2 pre-helper spawn entry without child retains parent timers' failed HOLD
+  // identity; exact restoration passed (2026-11-03). Grouped predicates only; no real spawn.
   if (!parent.stopped || parent.spawnEntered || parent.originals.length !== 0)
     return Promise.resolve(false);
   // Proof: source-image MODEL C omitted this grouped clock exclusion;
@@ -554,6 +557,10 @@ function joinPrehelperRefusal(): Promise<boolean> {
       !Object.hasOwn(PARENT_CAPS, record.label) ||
       typeof record.original !== 'function' ||
       !(promise instanceof Promise) ||
+      // Proof: finite original MODEL T omitted both mirrored returned identities;
+      // 'UC2 pre-helper changed returned original retains timers' failed
+      // UC2_PREFLIGHT_CHANGED_RETURNED_RETIRED; exact restoration passed
+      // (2026-11-03). Grouped identity predicates only.
       record.operation.returned !== promise ||
       // Proof: source-image MODEL M omitted this Promise check; the owning
       // 'UC2 pre-helper absent observer retains parent timers' failed.
@@ -588,6 +595,8 @@ function joinPrehelperRefusal(): Promise<boolean> {
         operation.receiver !== record.receiver ||
         operation.args !== record.args ||
         operation.promise !== record.promise ||
+        // Proof: finite original MODEL T above omitted this mirrored limb too;
+        // the changed-returned HOLD consumer failed, then exact restoration passed (2026-11-03).
         operation.returned !== record.promise ||
         operation.observer !== record.observer ||
         operation.state !== record.state ||
@@ -596,14 +605,25 @@ function joinPrehelperRefusal(): Promise<boolean> {
         !operation.observerSettled
       )
         return false;
+      // Proof: finite original MODEL O omitted only the rejected-cause identity;
+      // 'UC2 pre-helper rejected cause mismatch retains timers' failed
+      // UC2_PREFLIGHT_REJECTED_CAUSE_MISMATCH_RETIRED; exact restoration
+      // passed (2026-11-03). Same rejected-cause example only.
       if (
         record.state === 'fulfilled'
           ? settled.status !== 'fulfilled' || !Object.is(settled.value, record.value)
           : settled.status !== 'rejected' || !Object.is(settled.reason, record.cause)
       )
         return false;
+      // Proof: finite original MODEL J omitted only this joined assignment;
+      // 'UC2 pre-helper known build refusal retires only parent timers' failed
+      // operations.every(operation => operation.joined); exact restoration
+      // passed (2026-11-03). Joined bookkeeping only.
       operation.joined = true;
     }
+    // Proof: finite original MODEL S above also omitted this final spawnEntered
+    // predicate; spawn-entered HOLD identity failed, then exact restoration passed
+    // (2026-11-03). Grouped predicates only; no real spawn.
     return parent.stopped && !parent.spawnEntered && parent.originals.length === 0;
   });
 }
@@ -719,14 +739,30 @@ function reportPrehelperRefusal(setupCause: unknown): PrehelperReportDisposition
     report.state = 'threw';
     report.cause = cause;
     report.reportingFailure = cause;
+    // Proof: finite reporting MODEL thrown-failure-pair omitted only this pair;
+    // 'UC2 pre-helper thrown diagnostic retains both failures' failed
+    // record.failures length (expected 2, received 0); exact restoration passed
+    // (2026-11-03). This thrown example's private ordered retention only.
     report.failures = [setupCause, cause];
+    // Proof: finite reporting MODEL safe-outward-failure returned the retained
+    // thrown Error here; 'UC2 pre-helper thrown diagnostic retains both failures'
+    // failed the safe fixed-message consumer with the private sentinel. Exact
+    // restoration passed (2026-11-03); this thrown example only.
     return { state: 'failed', failure: new Error('UC2 setup and diagnostic publication failed') };
   }
   report.returned = returned;
   report.state = 'returned';
   if (
     typeof returned !== 'number' ||
+    // Proof: finite reporting MODEL integer omitted only this limb;
+    // 'UC2 pre-helper fractional diagnostic return retains timers' failed
+    // UC2_PREFLIGHT_FRACTIONAL_REPORT_RETIRED; exact restoration passed
+    // (2026-11-03). Fractional 0.5 lexical writer example only.
     !Number.isInteger(returned) ||
+    // Proof: finite reporting MODEL lower-bound omitted only this limb;
+    // 'UC2 pre-helper negative diagnostic return retains timers' failed
+    // UC2_PREFLIGHT_NEGATIVE_REPORT_RETIRED; exact restoration passed
+    // (2026-11-03). Negative -1 lexical writer example only.
     returned < 0 ||
     // Proof: reporting source-image MODEL R2 omitted this upper-count limb;
     // 'UC2 pre-helper unsupported diagnostic count retains timers' failed its
