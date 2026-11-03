@@ -10,33 +10,33 @@ const writeBuiltArtifact: (destination: string, artifact: BuildArtifact) => Prom
   Bun.write;
 const readBinaryFile: (path: string) => Promise<Buffer> = readFile;
 
-const SUBJECT = '/home/df/.codex/worktrees/8291/puni-00';
+const SUBJECT = '/home/df/.codex/worktrees/681e/puni-00';
 const GRAPH_INPUT =
   '/tmp/puni-uc1-identity-r5-controller-r1-preparation-20261102/actual/R1-negative/source-before.ts';
 const SOURCE_PATHS = [
-  '/home/df/.codex/worktrees/8291/puni-00/tools/tool-remote-scripts/src/lib/edge-ownership.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/tools/tool-remote-scripts/src/lib/edge-ownership.test.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/tools/tool-remote-scripts/src/lib/dependency-activation-storage.test.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/tools/tool-remote-scripts/src/lib/dependency-activation-owner.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/tools/tool-remote-scripts/src/lib/solver-exclusion.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/tools/tool-remote-scripts/src/lib/lock.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/tools/tool-remote-scripts/src/lib/directory-file.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/tools/tool-remote-scripts/src/lib/initial-handoff-graph.test.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.test.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/tools/tool-remote-scripts/src/fixtures/dependency-participant-restoration.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/tools/tool-remote-scripts/src/fixtures/namespace-audit.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/tools/tool-remote-scripts/src/fixtures/source-startup.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/tools/tool-remote-scripts/src/fixtures/source-database-binding.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/libs/wbs/adapters/store-sqlite/src/db.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/tools/tool-remote-scripts/src/lib/edge-ownership.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/tools/tool-remote-scripts/src/lib/edge-ownership.test.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/tools/tool-remote-scripts/src/lib/dependency-activation-storage.test.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/tools/tool-remote-scripts/src/lib/dependency-activation-owner.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/tools/tool-remote-scripts/src/lib/solver-exclusion.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/tools/tool-remote-scripts/src/lib/lock.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/tools/tool-remote-scripts/src/lib/directory-file.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/tools/tool-remote-scripts/src/lib/initial-handoff-graph.test.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.test.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/tools/tool-remote-scripts/src/fixtures/dependency-participant-restoration.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/tools/tool-remote-scripts/src/fixtures/namespace-audit.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/tools/tool-remote-scripts/src/fixtures/source-startup.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/tools/tool-remote-scripts/src/fixtures/source-database-binding.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/libs/wbs/adapters/store-sqlite/src/db.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.ts',
   '/tmp/puni-uc1-identity-r5-controller-r1-preparation-20261102/actual/R1-negative/source-before.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/libs/wbs/adapters/store-sqlite/src/migrate.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts',
-  '/home/df/.codex/worktrees/8291/puni-00/tools/tool-remote-scripts/src/fixtures/dependency-owner-custody.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/libs/wbs/adapters/store-sqlite/src/migrate.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts',
+  '/home/df/.codex/worktrees/681e/puni-00/tools/tool-remote-scripts/src/fixtures/dependency-owner-custody.ts',
 ];
 /** Explicit passthroughs avoid Bun 1.4.4's unbound node_fs in this re-export chain. */
 const LEDGER =
