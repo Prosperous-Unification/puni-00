@@ -170,9 +170,11 @@ if sys.argv[1:] == ['h3']:
     containers = docker('inspect', *identifiers)
     volumes = docker('volume', 'inspect', *[PROJECT + '_' + name for name in ['elasticsearch', 'kibana', 'collector', 'gateway', 'prometheus', 'alertmanager']])
     mem = dict(line.split(':', 1) for line in pathlib.Path('/proc/meminfo').read_text().splitlines())
-    # Proof: replacing this reader call with a constant produces claimed evidence without any reader invocation.
+    # Proof: omitting this production guard falsely certifies missing/unreadable/malformed fixtures and skips the observed reader in alert-secret.test.ts snapshot tests.
+    verify_slack_secret(containers)
+    # Proof: forwarding a verifier return here exposes the injected credential-shaped return in alert-secret.test.ts actual producer/output test; only this fixed marker is output.
     # Proof: replacing notificationRelease's actual reader with a constant skips all file reads; snapshot-field tests fail in notification-files.test.ts.
-    snapshot = {'hostname': run('hostname'), 'slackSecret': verify_slack_secret(containers), 'notificationRelease': read_notification_release(containers), 'memory': int(mem['MemAvailable'].split()[0]) * 1024,
+    snapshot = {'hostname': run('hostname'), 'slackSecret': 'verified', 'notificationRelease': read_notification_release(containers), 'memory': int(mem['MemAvailable'].split()[0]) * 1024,
                 'storage': run('sudo', '-n', 'df', '-Pk', '/var/lib/docker'),
                 'dockerVersion': run('sudo', '-n', 'docker', 'version', '--format', '{{.Server.Version}}'),
                 'listeners': run('ss', '-H', '-ltn'), 'checks': checks, 'manifests': manifests,

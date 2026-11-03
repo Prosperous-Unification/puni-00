@@ -1234,3 +1234,61 @@ measurement, host gates, loaded policy, live adoption, notification delivery and
 recreation remain unverified. No real Docker/sudo/root/remote/namespace/native
 registry action was run, and no live secret was accessed. No parent/live task is
 closed by this source-only correction.
+
+## Explicit nonsecret readiness output after CI alert — 2026-11-03
+
+The parent supplied Python CodeQL analysis `2084138050` for draft PR 833 at
+`eb05eaeb960cfde99dd60dece4813010190fdc3d`: check `125815833859` failed with
+alert 95 (`py/clear-text-logging-sensitive-data`). Its exact SARIF trace marks
+`verify_slack_secret(containers)` as a sensitive source, flowing through
+snapshot.slackSecret into JSON stdout. The helper's current ordinary return was
+only the literal verified marker; the annotation alone is not evidence that
+credential bytes were actually disclosed. No alert dismissal, scanner change or
+symbol rename was used.
+
+A new test injected a synthetic credential-shaped return after the real owned-file
+verification. Before the production change, the actual selected producer/output
+statements serialized that return: one focused regression failed on its no-secret
+output assertion. The snapshot now calls the existing verifier as a required guard
+and separately serializes the fixed literal verified marker. Its return is ignored;
+all validation exceptions still prevent successful output, and the snapshot schema
+is unchanged. The underlying reader, mounted-config checksum checks, transports and
+all file/resource boundaries remain unchanged.
+
+Snapshot tests now select and execute the real adjacent production guard statements,
+the actual readiness-field expression and the actual final JSON output expression
+in their source order. They omit unrelated snapshot fields instead of reproducing
+the guard in a handwritten harness. A deliberate verifier-return fault wraps the
+actual reader only after it verifies an owned synthetic file. No real credential
+or monitoring container is involved.
+
+Focused tests passed 36, zero failures, 129 assertions. Removing the actual verifier
+statement made four actual snapshot tests fail: the valid fixture lost its reader
+invocation and missing/unreadable/malformed fixtures falsely returned success.
+Replacing the fixed field with the verifier return made the injected-return test
+fail on the synthetic value appearing in output. Both source mutations were saved,
+observed and restored; adjacent Proof comments name those scopes. Raw red/green,
+mutated source and assertion receipts are under
+`/tmp/registry-monitoring-source-integration-20261103/ci-codeql/`.
+
+Fresh owning-project commands each ran once with the conflicting NO_COLOR unset:
+
+```sh
+env -u NO_COLOR NX_DAEMON=false bunx nx run tool-observability-stack:test --skip-nx-cache
+env -u NO_COLOR NX_DAEMON=false bunx nx run tool-observability-stack:lint --skip-nx-cache
+env -u NO_COLOR NX_DAEMON=false bunx nx run tool-observability-stack:typecheck --skip-nx-cache
+env -u NO_COLOR NX_DAEMON=false bunx nx run tool-observability-stack:build --skip-nx-cache
+```
+
+All exited zero: 451 tests, zero failures, 980 assertions across 15 files in
+21.02 seconds; lint, forced typecheck and package-asset build passed with clean
+output. Affected formatting, strict owning OpenSpec and normal hooks accompany
+the local correction; exact commands and final hashes are in the task report.
+The prior 448-test and review receipts remain scoped to the prior HEAD.
+
+This is local source/test evidence only. A fresh remote CodeQL analysis has not
+been run here; the parent owns push and actual CI verification. Remote CI is not
+claimed fixed by these local results. Installed checksum availability, live
+container/secret readiness, adoption, delivery and recreation remain unverified.
+No root, real Docker/sudo, remote/provider, namespace or native-registry operation
+was run, and no actual secret was read. Broader/live tasks remain open.

@@ -109,7 +109,7 @@ const binaryHash = '281c51a2542784f8b46df5ad8f7a22ab4f29b738a90b15a7bd1c9937a743
 
 /** Authenticated snapshots are still external input. Validates only the already staged
  * releases, preserved baseline and named resources; never authorizes arbitrary host/service operations.
- * Slack secret evidence is emitted only after the fixed host reader checks its protected file.
+ * Slack readiness is a fixed literal emitted only after the producer calls its required protected-file verifier; verifier return values never enter snapshot output.
  * A stale checkpoint is retained evidence, not a launch success claim. The observer validates its full schema on start.
  */
 export function validateRuntimeSnapshot(monitor: unknown, observer: unknown, now: number) {

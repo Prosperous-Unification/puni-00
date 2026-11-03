@@ -49,7 +49,7 @@ test('runtime preflight accepts only verified Slack secret evidence with the exi
 
 const webhook = 'https://' + 'hooks.slack.com/services/T0CDTQBSBU0/BFAKE/TESTONLY';
 
-/** Actual Python helper and its fixed shell reader use real ordinary files. Only the Docker invocation/path and UID:GID role are modeled; no container or actual webhook is used. */
+/** Actual Python helper and its fixed shell reader use real ordinary files. Only the Docker invocation/path, UID:GID role and deliberate verifier-return fault are modeled. Snapshot mode executes the actual adjacent guard statements, readiness field and JSON output expression selected from production AST; unrelated snapshot fields are omitted. No container or actual webhook is used. */
 function readSecret(fault: string, mode: 'reader' | 'snapshot' = 'reader') {
   const root = mkdtempSync(join(tmpdir(), 'puni-alert-secret-'));
   roots.push(root);
@@ -140,14 +140,42 @@ def execute(argv, **options):
     reads.append(len(encoded))
     return encoded
 subprocess.check_output = execute
+if ${JSON.stringify(fault)} == 'credential-return':
+    actual_verifier = verify_slack_secret
+    def altered_verifier(records):
+        actual_verifier(records)
+        return ${JSON.stringify(webhook)}
+    verify_slack_secret = altered_verifier
 import inspect
 verify = lambda: verify_slack_secret(containers) if inspect.signature(verify_slack_secret).parameters else verify_slack_secret()
 if ${JSON.stringify(mode)} == 'snapshot':
-    import ast
-    fields = [value for node in ast.walk(ast.parse(${JSON.stringify(source)})) if isinstance(node, ast.Dict) for key, value in zip(node.keys, node.values) if isinstance(key, ast.Constant) and key.value == 'slackSecret']
+    import ast, contextlib, io
+    tree = ast.parse(${JSON.stringify(source)})
+    branches = [node for node in tree.body if isinstance(node, ast.If)]
+    if len(branches) != 1:
+        raise RuntimeError('Missing unique actual snapshot producer branch')
+    statements = branches[0].body
+    snapshots = [(index, node) for index, node in enumerate(statements) if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'snapshot' for target in node.targets)]
+    if len(snapshots) != 1:
+        raise RuntimeError('Missing unique actual h3 snapshot assignment')
+    index, assignment = snapshots[0]
+    fields = [(key, value) for key, value in zip(assignment.value.keys, assignment.value.values) if isinstance(key, ast.Constant) and key.value == 'slackSecret']
     if len(fields) != 1:
         raise RuntimeError('Missing unique actual snapshot secret expression')
-    verify = lambda: eval(compile(ast.fix_missing_locations(ast.Expression(fields[0])), '<snapshot>', 'eval'))
+    start = index
+    while start > 0 and isinstance(statements[start - 1], ast.Expr):
+        start -= 1
+    output = [node for node in tree.body if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == 'print']
+    if len(output) != 1:
+        raise RuntimeError('Missing unique actual snapshot output')
+    selected = ast.Assign(targets=assignment.targets, value=ast.Dict(keys=[fields[0][0]], values=[fields[0][1]]))
+    producer = ast.fix_missing_locations(ast.Module(body=statements[start:index] + [selected] + output, type_ignores=[]))
+    def produce():
+        stream = io.StringIO()
+        with contextlib.redirect_stdout(stream):
+            exec(compile(producer, '<snapshot>', 'exec'), globals())
+        return json.loads(stream.getvalue())['slackSecret']
+    verify = produce
 try:
     status = verify()
 except Exception:
@@ -202,7 +230,7 @@ for (const fault of [
     if (fault === 'missing') expect(checked.stderr).toMatch(/not a regular file/);
   });
 
-for (const fault of ['none', 'missing'])
+for (const fault of ['none', 'missing', 'unreadable', 'malformed'])
   test('actual snapshot field requires its secret reader: ' + fault, () => {
     const checked = readSecret(fault, 'snapshot');
     expect(checked.code).toBe(fault === 'none' ? 0 : 1);
@@ -233,3 +261,13 @@ for (const fault of [
     expect(checked.stdout).not.toContain('verified');
     expect(checked.stdout + checked.stderr).not.toContain(webhook);
   });
+
+test('actual snapshot output ignores a credential-shaped verifier return after required verification', () => {
+  const checked = readSecret('credential-return', 'snapshot');
+  expect(checked.code).toBe(0);
+  expect(checked.stdout + checked.stderr).not.toContain(webhook);
+  expect(JSON.parse(checked.stdout)).toMatchObject({
+    slackSecret: 'verified',
+    readerInvocations: 1,
+  });
+});

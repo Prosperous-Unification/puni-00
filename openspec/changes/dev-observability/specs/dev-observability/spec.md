@@ -74,6 +74,11 @@ The implementation SHALL include OpenSpec verification evidence, reproducible de
 
 Normal dev configuration rendering SHALL preserve the authorized punispace #puni-alerts Slack destination and recovery notifications using only the existing persistent secret-file reference. It MUST refuse local-only fallback, inline webhook values, extra recipients and unapproved route or HTTP-transport overrides. Deployment MUST separately verify that the expected protected secret is readable and valid; configuration-check success alone SHALL NOT establish notification readiness.
 
+#### Scenario: Readiness output excludes verifier return values
+
+- **WHEN** protected-secret readiness is checked for a runtime snapshot
+- **THEN** the verifier is invoked before successful output, only the fixed verified marker is serialized regardless of its return value, and a verification exception prevents successful output
+
 #### Scenario: Configuration is regenerated
 
 - **WHEN** the normal dev configuration is rendered for another deployment

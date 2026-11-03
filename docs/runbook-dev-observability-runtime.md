@@ -275,8 +275,10 @@ readiness. The authenticated runtime snapshot now inspects the unique running
 Alertmanager container and its owned persistent volume, then reads only the fixed
 secret from that exact container ID. It requires canonical file identity,
 UID:GID65534:65534, mode0600, one link, at most1024bytes and the exact authorized
-workspace URL shape. It returns only slackSecret:verified; missing, unreadable,
-linked, malformed or oversized material refuses before runtime preflight succeeds.
+workspace URL shape. The snapshot calls this verifier as a required guard, then
+emits only the fixed slackSecret:verified readiness marker. Verifier return values
+never enter JSON output, including a credential-shaped return. Missing, unreadable,
+linked, malformed or oversized material throws before successful snapshot output.
 The read is capped at1025bytes with an eight-second command deadline. Re-run fresh
 preflight immediately before an intended deployment; this observation expires with
 the existing sixty-second runtime snapshot.
