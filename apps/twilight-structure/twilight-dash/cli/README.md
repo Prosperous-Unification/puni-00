@@ -31,11 +31,19 @@ help generated from the [command-line parser](src/cli-parser.ts) on stdout and e
 `twilight-dash completion bash|zsh|fish` prints a shell completion script. Every command's grammar
 is typed there and refused before any handler runs, so a refused line reads no file and opens no
 store or connection. A refused command line prints one `error: ` line on stderr and exits 1 (64
-for an `ops` command): `Unsupported Dash command: <name>`, or the usage of the deepest command it
+for an `ops` command other than `ops release`): `Unsupported Dash command: <name>`, or the usage of the deepest command it
 names (`usage: twilight-dash resources cleanup …`) with the reason, which never quotes an operand.
 Options accept `--flag=value` as well as `--flag value`, in any order around the positional
 operands: the generated usage lists options first, while the table above and the runbooks show the
 operands first, and both parse.
+
+## Release operations
+
+`ops release plan|run TARGET --config PATH --environment development|production --profile dev-fast|full`
+selects an owner-configured adapter with optional `--ref REF` and `--public-ref REF` overrides.
+`dev-fast` is development-only and carries a distinct acceptance claim from `full`.
+See [release operations](docs/releases.md) for protected configuration, source selection and the
+adapter protocol. `ops release --help` prints the command grammar without loading any configuration.
 
 ## Managed resource cleanup
 

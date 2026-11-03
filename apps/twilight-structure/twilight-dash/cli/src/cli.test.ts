@@ -442,7 +442,9 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
   test('every ops command the parser declares has a handler, and every handler a command', () => {
     // Proof: adding `ops job audit` to the parser and not to `opsHandlers` failed this
     // assertion with `+ "job audit"` (2026-11-01, Slice 3).
-    expect(opsParserWords()).toEqual(Object.keys(opsHandlers).sort());
+    expect(opsParserWords()).toEqual(
+      [...Object.keys(opsHandlers), 'release plan', 'release run'].sort(),
+    );
     expect(opsParserWords()).toEqual([
       'job audit',
       'job calibrate',
@@ -453,6 +455,8 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
       'pool init',
       'pool inspect',
       'pool switch-mode',
+      'release plan',
+      'release run',
     ]);
   });
 
@@ -664,6 +668,8 @@ describe('typed command grammars (tasks 1.5–1.9)', () => {
       'ops pool init',
       'ops pool inspect',
       'ops pool switch-mode',
+      'ops release plan',
+      'ops release run',
       'plan-enrollment',
       'pool import',
       'record-progress',
@@ -1066,4 +1072,33 @@ describe('typed command grammars (tasks 1.5–1.9)', () => {
       new UsageRefusal('bootstrap-authority r names bootstrap-authority, not report-capacity'),
     );
   });
+});
+
+test('runDashArguments refuses lightweight release requests before a heavy handler', async () => {
+  const planner = observePlanner();
+  let refusal: unknown;
+  try {
+    await runDashArguments(
+      [
+        'ops',
+        'release',
+        'plan',
+        'website',
+        '--config',
+        '/unused/release.json',
+        '--environment',
+        'development',
+        '--profile',
+        'full',
+      ],
+      dependencies(planner.run),
+    );
+  } catch (cause) {
+    refusal = cause;
+  }
+  expect(refusal).toBeInstanceOf(UsageRefusal);
+  expect(refusal instanceof Error && refusal.message).toBe(
+    'ops release is dispatched by entrypoint.ts',
+  );
+  expect(planner.calls).toEqual([]);
 });

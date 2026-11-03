@@ -12,7 +12,13 @@ import {
 } from './authority/authority-commands';
 import { submitAdmission } from './authority/submit-admission';
 import { runActivationChecksCommand, spawnCheck } from './check-runs/run-activation-checks';
-import { type DashCommand, parseDashCommand, UsageRefusal } from './cli-parser';
+import {
+  type DashCommand,
+  isReleaseCommand,
+  parseDashCommand,
+  type ReleaseCommand,
+  UsageRefusal,
+} from './cli-parser';
 import type { Monotonic, WallClock } from './clock';
 import { dockerAdapter } from './compute/docker';
 import { kubernetesStubAdapter } from './compute/kubernetes';
@@ -54,7 +60,8 @@ export async function runFleetPlan(argv: readonly string[]): Promise<void> {
 }
 
 /** The commands `entrypoint.ts` dispatches itself, so `mcp token` never loads this module. */
-type EntrypointCommand = Extract<DashCommand, { readonly command: 'mcp' | 'pool' }>;
+type EntrypointCommand =
+  Extract<DashCommand, { readonly command: 'mcp' | 'pool' }> | ReleaseCommand;
 
 /** A parsed command `runDash` dispatches. */
 export type DispatchedCommand = Exclude<DashCommand, EntrypointCommand>;
@@ -243,15 +250,19 @@ export async function runDash(command: DispatchedCommand, deps: DashDependencies
  * that hold a command line rather than a parsed command, such as the dispatcher tests.
  *
  * @throws UsageRefusal before any handler runs when the line is refused, prints only help, or
- * names `mcp` or `pool`, which only `entrypoint.ts` dispatches.
+ * names `mcp`, `pool` or `ops release`, which only `entrypoint.ts` dispatches.
  */
 export async function runDashArguments(
   argv: readonly string[],
   deps: DashDependencies,
 ): Promise<void> {
   const command = parseDashCommand(argv);
-  if (command.command === 'mcp' || command.command === 'pool') {
-    throw new UsageRefusal(`${command.command} is dispatched by entrypoint.ts`);
+  // Proof: removing the release predicate sent `runDashArguments refuses lightweight release`
+  // into the heavy handler and lost its modeled UsageRefusal.
+  if (command.command === 'mcp' || command.command === 'pool' || isReleaseCommand(command)) {
+    throw new UsageRefusal(
+      `${isReleaseCommand(command) ? 'ops release' : command.command} is dispatched by entrypoint.ts`,
+    );
   }
   await runDash(command, deps);
 }

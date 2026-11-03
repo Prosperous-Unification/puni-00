@@ -63,9 +63,12 @@ it('uses a selected ready upstream booking for a mounted rank move without optim
     "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('selected-ana', 'org-a', 'Ana')",
   );
   for (const [index, project] of projects.entries()) {
+    // The unranked directory uses creation time then UUID; this scenario needs A/B/C chronology.
+    // Proof: tied lower timestamps with descending IDs failed starts[0]; after distinct stamps,
+    // forcing Fast at shared-people's selected-booking boundary still failed the same assertion.
     h.sqlite.run(
-      "UPDATE project SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
-      [project.id],
+      "UPDATE project SET created_at = ?, start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
+      [index + 1, project.id],
     );
     const rowId = `selected-row-${String(index)}`;
     const days = index === 0 ? 1 : 2;

@@ -1,4 +1,4 @@
-import type { DashCommand } from '../cli-parser';
+import type { DashCommand, ReleaseCommand } from '../cli-parser';
 import type { Monotonic, WallClock } from '../clock';
 import {
   legacyHoldDirectory,
@@ -23,8 +23,8 @@ import type { ScopeTelemetry } from './scope';
 import { formatHostPoolStatus } from './status';
 import { checkEligibleTypes, switchPoolMode } from './switch-mode';
 
-/** A parsed `ops` command line, discriminated by its words after `ops`. */
-export type OpsCommand = Extract<DashCommand, { readonly command: 'ops' }>;
+/** A parsed host-job or pool command line, discriminated by its words after `ops`. */
+export type OpsCommand = Exclude<Extract<DashCommand, { readonly command: 'ops' }>, ReleaseCommand>;
 
 /** Everything the `ops` commands reach outside their arguments, composed by `cli.ts`. */
 export interface OpsDependencies {
