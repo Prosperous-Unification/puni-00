@@ -1,4 +1,4 @@
-import { readDashInvocation, UsageRefusal } from './cli-parser';
+import { isReleaseCommand, readDashInvocation, UsageRefusal } from './cli-parser';
 import { monotonicClock, wallClock } from './clock';
 
 /**
@@ -22,14 +22,17 @@ try {
     process.stdout.write(text);
   });
   const command = invocation.kind === 'command' ? invocation.command : undefined;
-  if (command?.command === 'mcp') {
+  if (command !== undefined && isReleaseCommand(command)) {
+    const { runOpsCommand } = await import('./ops/release');
+    process.exitCode = await runOpsCommand(command, (text) => process.stdout.write(text));
+  } else if (command?.command === 'mcp') {
     // `mcp token` runs as Claude Code's `headersHelper`, whose 10 s budget counts from spawn:
     // it loads only its own modules (about 0.1 s), not `cli.ts`'s command graph (about 2.5 s,
     // measured 2026-10-27).
     // Proof: not dispatching `mcp` made `the entrypoint prints only the header map…` see exit 1
     // where 0 was expected (2026-10-27).
     const { runMcpCommand } = await import('./mcp/token-command');
-    await runMcpCommand([command.subcommand, ...command.argv], {
+    await runMcpCommand(command, {
       send: (input, init) => fetch(input, init),
       monotonic: monotonicClock(),
       sleep: (milliseconds) => Bun.sleep(milliseconds),
@@ -38,7 +41,7 @@ try {
     });
   } else if (command?.command === 'pool') {
     const { runPoolCommand, systemPoolFiles } = await import('./mcp/pool-import');
-    await runPoolCommand([command.subcommand, ...command.argv], {
+    await runPoolCommand(command, {
       send: (input, init) => fetch(input, init),
       write: (text) => process.stdout.write(text),
       helper: [process.execPath, import.meta.path],
@@ -56,7 +59,11 @@ try {
   }
 } catch (cause) {
   process.stderr.write(refusalLine(cause));
-  // `ops` keeps the shell lock's exit codes (`dash-host-jobs` J13), where a usage error is 64.
+  // Host-job/pool usage keeps the shell lock's 64 (`dash-host-jobs` J13); release keeps 1.
+  // Proof: removing the release exception failed `grammar refuses missing profile` with exit 64.
   // Proof: exiting 1 here failed `an ops usage refusal exits 64` (cli.test.ts) (2026-11-01).
-  process.exitCode = cause instanceof UsageRefusal && process.argv[2] === 'ops' ? 64 : 1;
+  process.exitCode =
+    cause instanceof UsageRefusal && process.argv[2] === 'ops' && process.argv[3] !== 'release'
+      ? 64
+      : 1;
 }

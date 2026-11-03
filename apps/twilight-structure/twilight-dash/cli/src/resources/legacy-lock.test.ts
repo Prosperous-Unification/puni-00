@@ -10,6 +10,7 @@ import {
   eventually,
   intervalsOf,
   LOCK_LIBRARY,
+  overlaps,
   privateLegacyLock,
   startLegacyCaller,
 } from './legacy-lock.test.fixture';
@@ -19,6 +20,50 @@ import {
  * is a real `with_heavy_lock` ticket, holder record and label, so `status` and legacy callers
  * see it as one of their own, and it outlives the Dash process that took it.
  */
+describe('span logs judge order by line position, never by clock (CI of #825)', () => {
+  function logOf(lines: string[]): string {
+    const directory = mkdtempSync(join(tmpdir(), 'dash-span-log-'));
+    const log = join(directory, 'log');
+    writeFileSync(log, `${lines.join('\n')}\n`);
+    return log;
+  }
+  function spanOf(spans: ReturnType<typeof intervalsOf>, name: string) {
+    const span = spans.get(name);
+    if (span === undefined) throw new Error(`no span ${name}`);
+    return span;
+  }
+
+  test('a wall clock stepped backwards between two runs fakes no overlap', () => {
+    // b ran after a, but its clock read 1 s earlier than a's end.
+    const spans = intervalsOf(logOf(['start a 1000', 'end a 3000', 'start b 2000', 'end b 4000']));
+    // Proof: judging by the clocks (start/end set from the ms field) made this see an overlap
+    // (2026-11-03, fix/observe-mode-span-overlap).
+    expect(overlaps(spanOf(spans, 'a'), spanOf(spans, 'b'))).toBe(false);
+  });
+
+  test('runs that touch within one millisecond do not overlap; interleaved lines do', () => {
+    const touching = intervalsOf(
+      logOf(['start a 1000', 'end a 2000', 'start b 2000', 'end b 3000']),
+    );
+    expect(overlaps(spanOf(touching, 'a'), spanOf(touching, 'b'))).toBe(false);
+    const interleaved = intervalsOf(
+      logOf(['start a 1000', 'start b 1500', 'end a 2000', 'end b 3000']),
+    );
+    expect(overlaps(spanOf(interleaved, 'a'), spanOf(interleaved, 'b'))).toBe(true);
+  });
+
+  test('an unfinished span, a repeated start or a stray end is refused, not read as overlap', () => {
+    const open = intervalsOf(logOf(['start a 1000', 'start b 1500', 'end b 3000']));
+    // Proof: reading a missing end as +∞ made this report an overlap instead of refusing
+    // (2026-11-03, fix/observe-mode-span-overlap).
+    expect(() => overlaps(spanOf(open, 'a'), spanOf(open, 'b'))).toThrow(
+      'a span without an end line cannot be judged for overlap',
+    );
+    expect(() => intervalsOf(logOf(['start a 1', 'start a 2']))).toThrow('a started twice');
+    expect(() => intervalsOf(logOf(['end a 1']))).toThrow('a ended without a start');
+  });
+});
+
 describe('the legacy holder (J12)', () => {
   const directories: string[] = [];
   afterEach(() => {

@@ -58,9 +58,9 @@ const REPORTING_LOST_SENTENCE = 'the failure could not be described';
  *
  * **Nothing here may throw, and two things very nearly do.** This runs inside
  * `componentDidCatch`, where a throw is not caught by the boundary already handling the
- * fault: it escapes upward, and with it the page. A caught value that cannot be inspected —
- * an `Error` whose `message` is a throwing own accessor, one whose cause is a revoked
- * `Proxy` — must therefore come back as an outcome and never as a second failure.
+ * fault: it escapes upward, and with it the page. A report that cannot be built — since
+ * caught-object-report-json 15 that is a fault inside the reporting library, not any caught
+ * value — must therefore come back as an outcome and never as a second failure.
  * `reportFailure` models its own half; the selector is this function's to protect, so it is
  * called **after** the report, only when the report succeeded, and inside a guard. A value
  * that already defeated the reporter is never offered a selector, because reading it is what
@@ -88,9 +88,9 @@ export function discloseFault(
   select?: (thrown: unknown) => string | null,
 ): DisclosedFault {
   const reporting = reportFailure(thrown, { redact: FAULT_REDACTION });
-  // Proof: moving the selector above this guard offered an unreportable value to it;
-  // 'never offers an unreportable value to a disclosure selector' observed one call (N10,
-  // 2026-09-21).
+  // Proof: moving the selector above this guard, with `makeReportPair` made to throw, offered
+  // the unreported value to it; 'never offers an unreportable value to a disclosure selector'
+  // observed one call (2026-11-02; first watched as N10, 2026-09-21).
   if (!reporting.reported) {
     return {
       sentence: REPORTING_LOST_SENTENCE,

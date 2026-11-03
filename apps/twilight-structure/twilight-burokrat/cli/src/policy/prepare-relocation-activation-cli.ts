@@ -54,16 +54,21 @@ const defaults: Partial<Record<Flag, string>> = {
   'validator-entry': 'apps/twilight-structure/twilight-burokrat/cli/src/cli.ts',
 };
 
+/**
+ * The usage line of `prepare-relocation-activation`; `cli-parser.ts`'s help shows the same grammar
+ * (cli.test.ts).
+ */
+export const prepareRelocationActivationUsage = `usage: twilight-burokrat prepare-relocation-activation ${flags
+  .map((flag) => (flag in defaults ? `[--${flag} <value>]` : `--${flag} <value>`))
+  .join(' ')}`;
+
 function readArguments(argv: readonly string[]): Record<Flag, string> {
   const selected = new Map<string, string>();
   for (let index = 0; index < argv.length; index += 2) {
     const name = argv[index];
     const value = argv[index + 1];
     if (!name.startsWith('--') || index + 1 >= argv.length) {
-      const usage = flags
-        .map((flag) => (flag in defaults ? `[--${flag} <value>]` : `--${flag} <value>`))
-        .join(' ');
-      throw new Error(`usage: prepare-relocation-activation ${usage}`);
+      throw new Error(prepareRelocationActivationUsage);
     }
     const flag = name.slice(2);
     // Proof: forcing this refusal false let `--candidate-revision` pass unread and the command

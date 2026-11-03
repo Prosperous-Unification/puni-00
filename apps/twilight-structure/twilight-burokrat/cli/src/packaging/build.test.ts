@@ -87,7 +87,7 @@ describe('buildPackage', () => {
 
     const unknown = invoke(executable, ['not-a-command'], externalRoot);
     expect(unknown.exitCode).not.toBe(0);
-    expect(unknown.stderr.toString()).toContain('unknown command');
+    expect(unknown.stderr.toString()).toBe('error: Unsupported Burokrat command: not-a-command\n');
 
     const fixtureDirectory = join(externalRoot, 'fixture');
     await mkdir(fixtureDirectory);
@@ -208,11 +208,11 @@ describe('buildPackage', () => {
     );
     expect(ruleHelp.stdout.toString()).toContain('twilight-burokrat explain <rule-id>');
     expect(ruleHelp.stdout.toString()).toContain(
-      'twilight-burokrat validate-plan-tasks <plan-reference.json> <tasks.json>',
+      'twilight-burokrat validate-plan-tasks PLAN-REFERENCE-JSON TASKS-JSON',
     );
 
     expect(ruleHelp.stdout.toString()).toContain(
-      'twilight-burokrat validate-progress-receipt <receipt.json> <plan-reference.json> <tasks.json>',
+      'twilight-burokrat validate-progress-receipt RECEIPT-JSON PLAN-REFERENCE-JSON TASKS-JSON',
     );
 
     const templateHelp = invoke(executable, ['--help'], externalRoot);

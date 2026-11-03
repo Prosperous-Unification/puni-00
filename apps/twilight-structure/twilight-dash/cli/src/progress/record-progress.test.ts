@@ -303,7 +303,7 @@ for (const name of [
     const invocation = invokeDash(argv);
     expect(invocation.exitCode).toBe(1);
     expect(invocation.stdout).toBe('');
-    expect(invocation.stderr).toContain('usage: dash record-progress');
+    expect(invocation.stderr).toContain('usage: twilight-dash record-progress ');
     expect(invocation.stderr).not.toContain('missing:');
     expect(existsSync(output)).toBe(false);
   });
