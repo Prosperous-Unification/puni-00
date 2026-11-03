@@ -1872,8 +1872,11 @@ await import(${JSON.stringify(productionSnapshotter)});
     // `Expected: 75 · Received: 50`; restoring the chosen 75 minutes passed.
     // Proof (2026-10-30): the obsolete production workspace allowance of 90 failed
     // this focused case with `Expected: 120 · Received: 90`; choosing 120 passed both assertions.
+    // Proof (2026-11-03): the production Twilight allowance of 75 failed this focused
+    // case with `Expected: 120 · Received: 75` (native exit 1); choosing 120 passed
+    // both assertions (native exit 0). Receipts: ci-allowance-task1-attempt17-{red,green}.
     expect(ci.jobs?.gate_workspace?.['timeout-minutes']).toBe(120);
-    expect(ci.jobs?.gate_twilight?.['timeout-minutes']).toBe(75);
+    expect(ci.jobs?.gate_twilight?.['timeout-minutes']).toBe(120);
   });
 
   test('committed entrypoint certifies the exact external-trust fixture', () => {
