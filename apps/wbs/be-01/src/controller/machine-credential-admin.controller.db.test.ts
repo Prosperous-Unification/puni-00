@@ -3,7 +3,7 @@ import { digestMachineSecret } from '@wbs/core';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { exportJWK, generateKeyPair } from 'jose';
 
-import { addAgentPerson } from '../testing/machine-credential-fixture';
+import { addAgentPerson, MACHINE_BEARER_NOT_ACCEPTED } from '../testing/machine-credential-fixture';
 import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import {
   type Answer,
@@ -345,11 +345,10 @@ describe('rotation', () => {
     expect((await asAgent(created.key, 'GET', '/api/projects')).status).toBe(200);
     expect((await asAgent(next, 'GET', '/api/projects')).status).toBe(200);
     clockAt = t0 + 25 * HOUR;
-    // Through mcp-01, the grant's lifetime cap at the secret's expiry also
-    // refuses the old key; on `/api` only the expiry predicate of
-    // `admitMachineCredential` does. Removed by 7.1 (M9): the `/api` line.
+    // Through mcp-01 the grant's lifetime cap at the secret's expiry refuses
+    // the old key as well as `admitMachineCredential`'s expiry predicate, whose
+    // own negative is `machine-credential.test.ts` since 7.1 (M9).
     expect(await asAgent(created.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
-    expect(await h.callWith(created.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
     expect((await asAgent(next, 'GET', '/api/projects')).status).toBe(200);
 
     const audit = auditRows().filter((row) => row.action === 'machine_credential_rotated');
@@ -486,11 +485,10 @@ describe('who may administer', () => {
         status: 403,
         body: { error: 'insufficient_scope' },
       });
-      // Removed by 7.1 (M9): the key itself as a Bearer on `/api`.
-      expect(await h.callWith(created.key, method, path, body)).toEqual({
-        status: 403,
-        body: { error: 'insufficient_scope' },
-      });
+      // The key itself as a Bearer on `/api` is refused before any route (M9).
+      expect(await h.callWith(created.key, method, path, body)).toEqual(
+        MACHINE_BEARER_NOT_ACCEPTED,
+      );
     }
     expect(credentialCount()).toBe(1);
     expect(rows('SELECT id FROM machine_credential_secret')).toHaveLength(1);
@@ -561,7 +559,7 @@ describe("a credential's person", () => {
         error: 'in_use',
         at: 0,
         kind: 'deletePerson',
-        usage: { projects: [], members: [], pinnedCredentials: 0, machineCredentials: 1 },
+        usage: { projects: [], members: [], machineCredentials: 1 },
       },
     });
     expect(credentialCount()).toBe(1);
@@ -596,7 +594,7 @@ describe("a credential's person", () => {
           error: 'in_use',
           at: 0,
           kind: 'patchPerson',
-          usage: { projects: [], members: [], pinnedCredentials: 0, machineCredentials: 1 },
+          usage: { projects: [], members: [], machineCredentials: 1 },
         },
       });
     expect(rows("SELECT account_id FROM person WHERE id = 'claire'")).toEqual([
@@ -628,7 +626,7 @@ describe("a credential's person", () => {
         error: 'in_use',
         at: 0,
         kind: 'patchPerson',
-        usage: { projects: [], members: [], pinnedCredentials: 0, machineCredentials: 1 },
+        usage: { projects: [], members: [], machineCredentials: 1 },
       },
     });
     expect(rows("SELECT kind FROM person WHERE id = 'claire'")).toEqual([{ kind: 'agent' }]);

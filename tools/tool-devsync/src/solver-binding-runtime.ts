@@ -243,25 +243,24 @@ export function createTargetSolverBindingRuntime(
           'install',
           '--frozen-lockfile',
         ]);
+        // Job type `solver-image-publish` in infra/jobs/catalogue.json.
         await run(
           'solver image publish',
           [
             // The target is a detached, target-lock-installed candidate. The
-            // durable lock wrapper belongs to the live checkout; the build
-            // entrypoint and dependency resolution remain pinned to the
-            // candidate revision.
-            join(sourceRepository, 'bin/with-heavy-lock.sh'),
-            '--',
-            'env',
-            `WBS_SHA=${sourceSha}`,
-            target.bunPath,
-            'run',
-            join(target.root, 'tools/tool-dagger/src/main.ts'),
-            'be',
+            // durable launcher belongs to the live checkout and enters through
+            // `run_heavy_job` (`dash-host-jobs` J12); the build entrypoint and
+            // dependency resolution remain pinned to the candidate revision,
+            // whose Bun and root reach the payload through the environment
+            // because the type's argument profile is the sha alone.
+            join(sourceRepository, 'bin/solver-image-publish.sh'),
+            sourceSha,
           ],
           {
             REGISTRY_PASS: registryPassword,
             HEAVY_LOCK_WAIT_SECONDS: SOLVER_PUBLISH_LOCK_WAIT_SECONDS,
+            SOLVER_PUBLISH_BUN: target.bunPath,
+            SOLVER_PUBLISH_ROOT: target.root,
             ...cleanTreeEnvironment,
           },
         );

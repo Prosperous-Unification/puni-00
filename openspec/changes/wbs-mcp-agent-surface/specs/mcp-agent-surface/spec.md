@@ -136,6 +136,76 @@ a client that asks for either machine grant (new behaviour).
 - **WHEN** a public client registers for `authorization_code` with auth method `none`
 - **THEN** it is registered as before
 
+### Requirement: A consent client may register as confidential and must then authenticate
+
+Dynamic registration SHALL accept `token_endpoint_auth_method` `none`, `client_secret_basic`
+or `client_secret_post` for the consent grants (`authorization_code`, `refresh_token`), SHALL
+read an absent method as `client_secret_basic` (RFC 7591 §2), and SHALL refuse any other method
+`400 invalid_client_metadata`. The metadata SHALL list all three methods in every deployment. A confidential registration
+SHALL answer a fresh high-entropy `client_secret` once, with `client_secret_expires_at`, and
+mcp-01 SHALL store only its digest. At the token endpoint, a confidential client's
+`authorization_code` and `refresh_token` requests SHALL present that secret by the registered
+method only, compared in constant time, and PKCE S256 stays mandatory; a missing or wrong
+secret, a secret by the other method, and a secret from a public client SHALL answer
+`401 invalid_client` with `WWW-Authenticate: Basic`. A refused code is burned. Public clients
+are unchanged, except that any `Authorization` header from a public client is refused. A
+refresh of a family issued to a confidential client SHALL answer `401 invalid_client` unless a
+live client of that method authenticates, also when the client row is gone. A code exchange
+SHALL write its family and promote its client in one transaction, after signing. A registered
+client's secret SHALL never authenticate a machine grant, and an API key SHALL never
+authenticate a consent grant (new behaviour).
+
+#### Scenario: claude.ai registers a confidential connector
+
+- **WHEN** a client registers with `token_endpoint_auth_method: client_secret_post`,
+  `grant_types: ['authorization_code', 'refresh_token']` and an allowlisted callback
+- **THEN** it is answered `201` with its `client_id`, a `client_secret`,
+  `client_secret_expires_at` and `token_endpoint_auth_method: client_secret_post`, and the
+  store holds the secret's digest, never the secret
+
+#### Scenario: A confidential code needs its secret
+
+- **WHEN** a confidential client's code is exchanged without its secret, or with a wrong one
+- **THEN** the answer is `401 invalid_client`, and the same code with the right secret then
+  answers `invalid_grant`
+
+#### Scenario: The registered method only
+
+- **WHEN** a `client_secret_basic` client sends its secret in the body, or a
+  `client_secret_post` client sends it by HTTP Basic
+- **THEN** the answer is `401 invalid_client`
+
+#### Scenario: A confidential refresh needs its secret
+
+- **WHEN** a confidential client's refresh token is presented without the secret
+- **THEN** the answer is `401 invalid_client`, the family is not ended, and the same refresh
+  with the secret succeeds
+
+#### Scenario: Client secrets and API keys stay apart
+
+- **WHEN** a confidential client's id and secret are sent on `client_credentials`, or an API
+  key is sent by HTTP Basic on `authorization_code` or `refresh_token`
+- **THEN** each is refused (`401 invalid_client`, or `invalid_grant` for a code issued to
+  another client), and be-01's grant route is never asked
+
+#### Scenario: An absent method is client_secret_basic
+
+- **WHEN** a client registers without `token_endpoint_auth_method`
+- **THEN** it is answered `201` with `token_endpoint_auth_method: client_secret_basic` and a
+  `client_secret`
+
+#### Scenario: A confidential family fails closed without its client
+
+- **WHEN** a confidential client's row is deleted, or rewritten as public, and its family's
+  refresh token is presented with the `client_id` alone or with the old secret
+- **THEN** the answer is `401 invalid_client`, while a public family whose client row is gone
+  still refreshes
+
+#### Scenario: Public clients are unchanged
+
+- **WHEN** a client registered with `none` exchanges and refreshes with its `client_id` alone
+- **THEN** both succeed as before
+
 ### Requirement: mcp-01 accepts no upstream token after activation
 
 After activation, `/mcp` SHALL refuse a token of the configured upstream issuer

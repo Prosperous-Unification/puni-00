@@ -7,6 +7,7 @@ import type {
   OccupancyRow,
   Resource,
   ResourceCapacity,
+  ResourceUnits,
   StoredProgress,
   WorkItemStatus,
 } from '@wbs/domain';
@@ -40,6 +41,13 @@ export interface ExecutionReads {
   readonly demands: readonly Demand[];
   /** The project's occupancy rows: one per claim and resource (`ClaimStore.occupancyOf`). */
   readonly occupancy: readonly OccupancyRow[];
-  /** Every resource a capacity names, by id, under the caller's names. */
+  /**
+   * The stated directory capacities of every resource a leaf of the project
+   * demands (`wbs-shared-occupancy` S1); one unstated has no entry.
+   */
+  readonly directoryCapacities: readonly ResourceCapacity[];
+  /** What every leaf of the organization holds of those resources (`ClaimStore.organizationUnitsOf`). */
+  readonly organizationOccupied: readonly ResourceUnits[];
+  /** Every resource a capacity or a directory capacity names, by id, under the caller's names. */
   readonly resources: ReadonlyMap<string, Resource>;
 }

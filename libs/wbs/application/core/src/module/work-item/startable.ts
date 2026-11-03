@@ -7,6 +7,7 @@ import {
   isStartableStatus,
   leafOccupancyOf,
   occupancyByResource,
+  type OccupancyScope,
   projectExecutionBlockers,
   refuseOccupancy,
   type Resource,
@@ -89,6 +90,12 @@ export interface Shortfall {
   readonly asked: number;
   readonly free: number;
   readonly shortfall: number;
+  /**
+   * The check that bound it (`wbs-shared-occupancy` S3), present only for a
+   * resource with a directory capacity: `free` is then the organization's
+   * when it binds.
+   */
+  readonly scope?: OccupancyScope;
 }
 
 /**
@@ -190,7 +197,8 @@ export type { ExecutionReads as StartableReads } from '../../ports/execution-rea
  * occupancy, and in `doesNotFit` with the first exhausted resource otherwise.
  * An unheld leaf carries its declared demand; a leaf some claim already holds
  * carries its standing copy, so it always fits. An unstated capacity never excludes; a stated 0 excludes any
- * demand on it. Occupancy is the project's only.
+ * demand on it. A resource with a directory capacity is also counted across
+ * the organization, exactly as the claim counts it (`wbs-shared-occupancy` S3).
  *
  * @throws when required execution evidence, a status, a person name, a team name or a stated capacity's
  * resource is missing: each is read from the same observation as the rows, so
@@ -275,6 +283,14 @@ export function findStartableWork(reads: StartableReads): StartableWork {
         : (demandOf.get(workItemId) ?? []),
       capacities: reads.capacities,
       occupancy: reads.occupancy,
+      // The claim's own inputs, so a leaf listed as fitting is one a claim
+      // admits, across the organization too (`wbs-shared-occupancy` S6).
+      // Proof: with both answered empty, `agrees with the claim across
+      // projects` (shared-occupancy.db.test.ts) listed B's leaf as startable
+      // and its claim was refused resources_exhausted, on both stores;
+      // watched 2026-10-25.
+      directoryCapacities: reads.directoryCapacities,
+      organizationOccupied: reads.organizationOccupied,
     });
     if (refusal === null) return null;
     const { name, unitLabel } = resourceOf(refusal.resourceId);
@@ -285,6 +301,7 @@ export function findStartableWork(reads: StartableReads): StartableWork {
       asked: refusal.asked,
       free: refusal.free,
       shortfall: refusal.asked - refusal.free,
+      ...(refusal.scope === undefined ? {} : { scope: refusal.scope }),
     };
   };
   const prerequisites: StepPrerequisites[] = [];

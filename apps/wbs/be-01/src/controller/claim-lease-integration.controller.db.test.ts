@@ -10,6 +10,7 @@ import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-ac
 import { afterEach, expect, it, spyOn } from 'bun:test';
 
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import { type ComposedHarnessOptions, OrganizationHarness } from '../testing/organization-harness';
 
 const T = 1_900_000_000_000;
@@ -20,7 +21,13 @@ afterEach(async () => {
 
 async function fixture(options: ComposedHarnessOptions = {}) {
   let now = T;
-  const harness = OrganizationHarness.openComposedWith({ ...options, now: () => now });
+  // Agents reach be-01 through mcp-01's grant since M9 (`wbs-mcp-agent-surface` 7.1).
+  const machineGrants = await forwardingMachineGrants();
+  const harness = OrganizationHarness.openComposedWith({
+    ...options,
+    machineGrants,
+    now: () => now,
+  });
   opened.push(harness);
   await harness.register('ada');
   harness.organization('org-a');
@@ -70,7 +77,8 @@ async function fixture(options: ComposedHarnessOptions = {}) {
     "INSERT INTO resource_organization (resource_id, organization_id, name) VALUES ('lease-slot', 'org-a', 'slot')",
   );
   const owner = projects[0];
-  const claim = await harness.callWith(
+  const claim = await callForwarded(
+    harness,
     credential.key,
     'POST',
     `/api/projects/${owner.projectId}/commands`,
@@ -85,6 +93,7 @@ async function fixture(options: ComposedHarnessOptions = {}) {
         },
       ],
     },
+    { now },
   );
   if (claim.status !== 200) throw new Error(`claim refused: ${JSON.stringify(claim)}`);
   // Synthetic stored authority exercises historical connected reads; mounted authoring stays inactive.

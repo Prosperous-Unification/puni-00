@@ -2,6 +2,7 @@ import { readPreconditions } from '@wbs/core/service/compensating';
 import { afterEach, expect, test } from 'bun:test';
 
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import { callForwarded } from '../testing/mcp-forwarded-call';
 import { closeFixture, harness, openFixture, readTables } from './cross-project-dependency-fixture';
 
 afterEach(closeFixture);
@@ -147,7 +148,7 @@ test('connected replay rebases only its acting person stack and discards only it
   });
   const route = `/api/projects/${fixture.owner.projectId}`;
   const command = (key: string, commands: unknown[]) =>
-    harness.callWith(key, 'POST', `${route}/commands`, { commands });
+    callForwarded(harness, key, 'POST', `${route}/commands`, { commands });
   expect(
     (await command(first.key, [{ kind: 'addTypedDependency', ...fixture.input }])).status,
   ).toBe(200);
@@ -185,11 +186,11 @@ test('connected replay rebases only its acting person stack and discards only it
       ])
     ).status,
   ).toBe(200);
-  expect((await harness.callWith(first.key, 'POST', `${route}/undo`)).status).toBe(200);
+  expect((await callForwarded(harness, first.key, 'POST', `${route}/undo`)).status).toBe(200);
   expect(readOther()).toEqual(other);
-  expect((await harness.callWith(first.key, 'POST', `${route}/redo`)).status).toBe(200);
+  expect((await callForwarded(harness, first.key, 'POST', `${route}/redo`)).status).toBe(200);
   expect(readOther()).toEqual(other);
-  expect((await harness.callWith(first.key, 'POST', `${route}/undo`)).status).toBe(200);
+  expect((await callForwarded(harness, first.key, 'POST', `${route}/undo`)).status).toBe(200);
   expect(readOther()).toEqual(other);
   expect(
     (
@@ -206,7 +207,7 @@ test('connected replay rebases only its acting person stack and discards only it
   ).toBe(200);
   const before = readTables();
   const sent = [...pushes];
-  const refused = await harness.callWith(first.key, 'POST', `${route}/undo`);
+  const refused = await callForwarded(harness, first.key, 'POST', `${route}/undo`);
   expect(refused.status).toBe(409);
   expect(refused.body).toMatchObject({ error: 'stale_undo' });
   expect(readTables()).toEqual(

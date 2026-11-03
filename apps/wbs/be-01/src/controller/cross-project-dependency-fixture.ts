@@ -12,6 +12,7 @@ import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { expect } from 'bun:test';
 
+import { forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 export let harness: OrganizationHarness;
@@ -27,6 +28,8 @@ export async function openFixture(options?: {
   afterRequestResolve = undefined;
   harness = OrganizationHarness.openComposedWith({
     sessionBinding: true,
+    // Agents reach be-01 through mcp-01's grant since M9 (`wbs-mcp-agent-surface` 7.1).
+    machineGrants: await forwardingMachineGrants(),
     ...(options?.dependencyCapability === undefined
       ? {}
       : { dependencyCapability: options.dependencyCapability }),

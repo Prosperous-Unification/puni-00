@@ -1,5 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts/mcp-internal-auth';
 import { expect, setDefaultTimeout, test } from 'bun:test';
 
 import { readDocument, toolsFromDocument } from './openapi-tools';
@@ -90,7 +91,10 @@ async function openFixture(active = true, scopes = ['read', 'write'], faults: Fi
     }
     const ready = JSON.parse(printed.split('\n')[0] ?? '') as {
       port: number;
+      /** The machine grant the backend's key was exchanged for. */
       key: string;
+      /** mcp-01's dedicated secret, which every grant-bearing call carries. */
+      secret: string;
       controlToken: string;
       predecessor: Endpoint;
       successor: Endpoint;
@@ -127,9 +131,14 @@ async function openFixture(active = true, scopes = ['read', 'write'], faults: Fi
         WBS_API_URL: apiUrl,
       },
       // Forward the actual generated URL, headers and body without adding browser authority.
+      // The secret stands in for mcp-01's machine path (M3, M14), which sends it beside a
+      // grant; `forwarded` keeps what the generated tool call itself sent.
       fetchImpl: (url, init) => {
         forwarded.push({ url, ...init });
-        return fetch(url, init);
+        return fetch(url, {
+          ...init,
+          headers: { ...init.headers, [MCP_INTERNAL_SECRET_HEADER]: ready.secret },
+        });
       },
       reportUnexpectedToolFailure: (cause) => {
         throw cause;
@@ -201,6 +210,7 @@ async function openFixture(active = true, scopes = ['read', 'write'], faults: Fi
           method,
           headers: {
             authorization: `Bearer ${ready.key}`,
+            [MCP_INTERNAL_SECRET_HEADER]: ready.secret,
             ...(body === undefined ? {} : { 'content-type': 'application/json' }),
           },
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),

@@ -252,7 +252,6 @@ export class MemoryState {
       this.tables.directory.organizationMembers,
       next.tables.directory.organizationMembers,
     );
-    replaceMap(this.tables.directory.credentialPins, next.tables.directory.credentialPins);
     // Proof: with the resource copy removed, ten of resource-command.test.ts's
     // thirteen cases read no resource after the batch that declared it had
     // committed; watched 2026-10-20.
@@ -265,6 +264,13 @@ export class MemoryState {
       next.tables.directory.resources.capacities,
     );
     replaceMap(this.tables.directory.resources.demands, next.tables.directory.resources.demands);
+    // Proof: with the capacities' copy removed, `states and clears a directory
+    // capacity with its unit of work` (directory-capacity.test.ts in
+    // core) read no capacity after it committed; watched 2026-10-25.
+    replaceMap(
+      this.tables.directory.resources.directoryCapacities,
+      next.tables.directory.resources.directoryCapacities,
+    );
     // Proof: with this copy removed, `defines, patches and removes a measure,
     // listing it after the seeded five` (measure-command.test.ts) read no
     // `gpu_minutes` after its batch committed; watched 2026-10-23.
@@ -422,6 +428,36 @@ export function bindStores(
         projectIds: [...new Set([...written.projectIds, ...demandProjectsOf(resourceId)])].sort(),
       };
     },
+    // SQLite's twin over the ownership this source keeps: every id not the
+    // organization's, an unowned project included.
+    // Proof: with this override removed, the scoped directory capacity write
+    // of directory-capacity.test.ts threw `the in-memory directory has
+    // no project ownership` (2 pass, 2 fail); watched 2026-10-25.
+    projectsOutside(projectIds, organizationId) {
+      return Promise.resolve(
+        projectIds.filter(
+          (id) => state.tables.organizationLimits.projectOrganization.get(id) !== organizationId,
+        ),
+      );
+    },
+    // The announce set is SQLite's: the projects that demand, state or hold
+    // the resource, a holder only in the resource's own organization (review S3-1).
+    // Proof: with the holders left out, the memory certification's
+    // `directory.setDirectoryCapacity:state-clear-remove` read `[]`; watched 2026-11-01.
+    async setDirectoryCapacity(resourceId, units, act) {
+      const written = await fixtureDirectory.setDirectoryCapacity(resourceId, units, act);
+      if (!written.ok) return written;
+      const holding = occupyingProjectsOf(resourceId).filter(
+        (id) =>
+          state.tables.organizationLimits.projectOrganization.get(id) === written.organizationId,
+      );
+      return {
+        ...written,
+        projectIds: [
+          ...new Set([...written.projectIds, ...demandProjectsOf(resourceId), ...holding]),
+        ].sort(),
+      };
+    },
     // Occupancies live in the source's claim table, out of the fixture's sight,
     // and refuse an unconfirmed removal and go with a confirmed one, as SQLite's do.
     // Facts live in the source's measure table, out of the fixture's sight.
@@ -563,7 +599,6 @@ export function bindStores(
       people: [],
       members: [],
       claims: [],
-      pinnedCredentials: 0,
       machineCredentials: 0,
       capacityOf: new Map<string, number>(),
       workItems: rows.flat(),
@@ -726,6 +761,8 @@ export function bindStores(
         projects: state.tables.projects,
         workItems: state.tables.workItems,
         people: state.tables.directory.people,
+        projectOrganization: state.tables.organizationLimits.projectOrganization,
+        resourceOrganization: state.tables.directory.organizationOf,
       },
     ),
     dependencies,

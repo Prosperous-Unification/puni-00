@@ -7,6 +7,19 @@ afterEach(() => {
   for (const harness of opened.splice(0)) harness.close();
 });
 
+/**
+ * Seeds the asserted topology independently of creation-time/ID tie breaks.
+ * Proof: tied timestamps and descending IDs failed the unranked endpoint case;
+ * explicit ranks passed, and omitting production connection endpoints still failed it.
+ */
+function rankProjects(harness: OrganizationHarness, projectIds: readonly string[]): void {
+  for (const [index, projectId] of projectIds.entries())
+    harness.sqlite.run(
+      'INSERT INTO project_rank (project_id, organization_id, position, created_at, created_by) VALUES (?, ?, ?, 1, ?)',
+      [projectId, 'org-a', index + 1, harness.userId('ada')],
+    );
+}
+
 it('records a cold shared command fan-out without a preceding tree GET', async () => {
   let holdFirstPush = false;
   let releasePush!: () => void;
@@ -49,6 +62,7 @@ it('records a cold shared command fan-out without a preceding tree GET', async (
   };
   const upstream = await create('Upstream');
   const downstream = await create('Downstream');
+  rankProjects(harness, [upstream.projectId, downstream.projectId]);
   harness.sqlite.run("INSERT INTO person (id, name) VALUES ('ana', 'Ana')");
   harness.sqlite.run(
     "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ana', 'org-a', 'Ana')",
@@ -260,6 +274,10 @@ it('records distinct sorted causes from a directory-only batch across old shared
     if (step === undefined) throw new Error('project creation omitted its first step');
     projects.push({ projectId: body.project.id, stepId: step.id });
   }
+  rankProjects(
+    harness,
+    projects.map((project) => project.projectId),
+  );
   harness.sqlite.run("INSERT INTO person (id, name) VALUES ('ana', 'Ana')");
   harness.sqlite.run(
     "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ana', 'org-a', 'Ana')",
@@ -364,6 +382,10 @@ it('keeps both changed connection endpoints as durable causes on assignment remo
     if (step === undefined) throw new Error('project creation omitted its first step');
     projects.push({ projectId: body.project.id, stepId: step.id });
   }
+  rankProjects(
+    harness,
+    projects.map((project) => project.projectId),
+  );
   for (const [id, name] of [
     ['ana', 'Ana'],
     ['ben', 'Ben'],

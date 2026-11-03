@@ -293,24 +293,19 @@ describe('admitted runtime observation', () => {
       stamp,
     );
     sqlite.db.run(
-      `INSERT INTO external_identity (id,user_id,issuer,subject,person_id,created_at) VALUES ('pin','ada','https://idp.test','fleet','other',1)`,
-    );
-    sqlite.db.run(
       `UPDATE organization_membership SET role='admin' WHERE organization_id='org-a' AND user_id='ada'`,
     );
-    const pinned: RuntimeContext = {
+    // A machine credential's own person is the pin (`wbs-machine-credentials` A12, A18): an
+    // upstream pair pins nothing since the operator links retired.
+    const pinnedTo = (personId: string): RuntimeContext => ({
       ...context,
-      actor: {
-        ...actor,
-        authentication: { kind: 'upstream', issuer: 'https://idp.test', subject: 'fleet' },
-      },
-    };
-    expect(await runtime.captureRuntimeObservation(pinned)).toEqual({
+      actor: { ...actor, authentication: { kind: 'machine', credentialId: 'key-1', personId } },
+    });
+    expect(await runtime.captureRuntimeObservation(pinnedTo('other'))).toEqual({
       ok: false,
       reason: 'credential_not_for_person',
     });
-    sqlite.db.run(`UPDATE external_identity SET person_id='agent' WHERE id='pin'`);
-    expect(await runtime.captureRuntimeObservation(pinned)).toHaveProperty(
+    expect(await runtime.captureRuntimeObservation(pinnedTo('agent'))).toHaveProperty(
       'scope.personId',
       'agent',
     );
@@ -425,15 +420,12 @@ describe('admitted runtime observation', () => {
   it.each(['project', 'person', 'actor', 'organization', 'credential'])(
     'retains the original %s while queued on the real source',
     async (field) => {
-      const { source, sqlite, runtime, observe } = await seeded();
+      const { source, runtime, observe } = await seeded();
       const before = await observe();
       await source.stores.directory.addPerson(
         { id: 'other', name: 'Other', kind: 'agent' },
         [],
         stamp,
-      );
-      sqlite.db.run(
-        `INSERT INTO external_identity (id,user_id,issuer,subject,person_id,created_at) VALUES ('pin','ada','https://idp.test','pinned','other',1)`,
       );
       const mutable = {
         projectId: 'a1',
@@ -441,9 +433,9 @@ describe('admitted runtime observation', () => {
         actor: {
           ...actor,
           authentication: {
-            kind: 'upstream' as const,
-            issuer: 'https://idp.test',
-            subject: 'original',
+            kind: 'machine' as const,
+            credentialId: 'key-1',
+            personId: 'agent',
           },
         },
         access: {
@@ -474,7 +466,7 @@ describe('admitted runtime observation', () => {
           mutable.access.scope.organizationId = 'org-b';
           break;
         case 'credential':
-          mutable.actor.authentication.subject = 'pinned';
+          mutable.actor.authentication.personId = 'other';
           break;
         default:
           throw new Error('unknown mutation field');

@@ -274,7 +274,9 @@ try {
       manual.proposalPosts,
       manualEmail,
       `manual-${width}`,
-      manual.page.getByRole('heading', { name: 'A person will review your brief.' }),
+      manual.page.getByRole('heading', {
+        name: 'A person will review your brief and reply by email.',
+      }),
     );
     const manualReference = await manual.page.locator('.reference').innerText();
     await shoot(manual.page, `manual-receipt-${width}`);

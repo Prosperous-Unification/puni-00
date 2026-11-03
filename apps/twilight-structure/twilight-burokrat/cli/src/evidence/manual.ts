@@ -142,13 +142,17 @@ export class EvaluationInstantError extends Error {
  * Decodes the caller's `--now` value: a canonical UTC instant, `Z`-suffixed, with or without
  * milliseconds, naming a real calendar time.
  *
+ * `command` names the caller in the refusal; `check` passes its own name.
  * @throws {EvaluationInstantError} `absent` when no value was given, `malformed` otherwise.
  */
-export function readEvaluationInstant(value: string | undefined): Date {
+export function readEvaluationInstant(
+  value: string | undefined,
+  command: 'inspect-manual' | 'check' = 'inspect-manual',
+): Date {
   if (value === undefined)
     throw new EvaluationInstantError(
       'absent',
-      'inspect-manual requires --now <UTC instant>; Twilight Dash supplies the evaluation instant',
+      `${command} requires --now <UTC instant>; Twilight Dash supplies the evaluation instant`,
     );
   const millis = Date.parse(value);
   const canonical = value.includes('.') ? value : value.replace('Z', '.000Z');
@@ -158,7 +162,7 @@ export function readEvaluationInstant(value: string | undefined): Date {
   if (!Number.isFinite(millis) || new Date(millis).toISOString() !== canonical)
     throw new EvaluationInstantError(
       'malformed',
-      `inspect-manual --now is not a UTC instant: ${value}`,
+      `${command} --now is not a UTC instant: ${value}`,
     );
   return new Date(millis);
 }

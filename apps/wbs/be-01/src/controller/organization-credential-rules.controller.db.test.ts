@@ -428,16 +428,13 @@ describe('session policy', () => {
  * A10): enforced SSO and the session policy admit its API key, which acts as
  * its person's bound account in its own organization. The key reaches be-01
  * through mcp-01's forwarded grant, over be-01's production composition; the
- * `/api` entry is removed by 7.1 (M9).
+ * key itself on `/api` is refused before these rules (M9,
+ * `machine-credential.controller.db.test.ts`).
  */
 const MACHINE_TRANSPORTS = [
   [
     'through mcp-01',
     (key: string) => callForwarded(h, key, 'GET', '/api/projects', undefined, { now: clock }),
-  ],
-  [
-    'as a Bearer on /api, removed by 7.1 (M9)',
-    (key: string) => h.callWith(key, 'GET', '/api/projects'),
   ],
 ] as const;
 

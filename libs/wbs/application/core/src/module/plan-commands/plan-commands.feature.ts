@@ -397,8 +397,8 @@ export class PlanCommandRunner {
   constructor(private readonly opts: PlanCommandRunnerOptions) {}
 
   /**
-   * Under legacy access, with no credential pair: before activation no
-   * credential is linked, so none is pinned (`link-credential-cli.ts` refuses).
+   * Under legacy access, with no credential: before activation no machine
+   * credential admits a request, so none is pinned.
    */
   run(
     projectId: string,
@@ -789,11 +789,7 @@ export class PlanCommandRunner {
             // reached the receipt INSERT but saw "missing staged renewal or progress" instead
             // of "after lease renewal" (full 61: 57 pass, 4 fail). Exact restoration passed the
             // same 61 tests with 364 expectations; watched 2026-10-28.
-            if (
-              !('ok' in applied) &&
-              commandCredential !== null &&
-              'personId' in commandCredential
-            ) {
+            if (!('ok' in applied) && commandCredential !== null) {
               // Only the grant's own run when it opted in (M15); every lease
               // of the person otherwise.
               // Proof: with `null` for the run here, `a run-scoped write renews

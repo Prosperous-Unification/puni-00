@@ -135,8 +135,24 @@ export async function readExecutionIn(
   const teamNames = new Map(teams.map((team) => [team.id, team.name]));
   if (teamId !== null && !teamNames.has(teamId)) return { kind: 'unknown_team' };
   const capacities = await read(new ResourceCapacityRepository(db, OPEN).listFor(projectId));
+  const demands = await read(new DemandRepository(db, OPEN).listByProject(projectId));
+  // The claim's own organization read over every resource a leaf demands, as
+  // `WorkItemService.startableWithin` reads it (`wbs-shared-occupancy` S6).
+  // Proof: with both answered empty, `agrees with the claim across projects`
+  // (shared-occupancy.db.test.ts, live-plan store) listed B's leaf as
+  // startable; watched 2026-11-03.
+  const demanded = [...new Set(demands.map(({ resourceId }) => resourceId))];
+  const directoryCapacities =
+    demanded.length === 0 ? [] : await read(directory.directoryCapacitiesOf(demanded));
+  const organizationOccupied =
+    directoryCapacities.length === 0
+      ? []
+      : await read(
+          claims.organizationUnitsOf(directoryCapacities.map(({ resourceId }) => resourceId)),
+        );
+  // A directory capacity alone can bind, so its resource must be nameable too.
   const resources =
-    capacities.length === 0
+    capacities.length === 0 && directoryCapacities.length === 0
       ? []
       : await read(
           access.kind === 'scoped'
@@ -157,8 +173,10 @@ export async function readExecutionIn(
       teamNames,
       teamId,
       capacities,
-      demands: await read(new DemandRepository(db, OPEN).listByProject(projectId)),
+      demands,
       occupancy: await read(claims.occupancyOf(projectId)),
+      directoryCapacities,
+      organizationOccupied,
       resources: new Map(resources.map((resource) => [resource.id, resource])),
     },
   };

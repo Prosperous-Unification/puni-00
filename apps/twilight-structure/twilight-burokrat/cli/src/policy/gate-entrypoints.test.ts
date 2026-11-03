@@ -1216,7 +1216,10 @@ await import(${JSON.stringify(productionSnapshotter)});
         Record<string, { cache?: boolean; inputs?: string[]; options?: { command?: string } }>
       >;
     };
-    const hostGate = readFileSync(join(workspace, 'bin', 'h2puni-gate.sh'), 'utf8');
+    // The gate is an outer launcher and its admitted payload (`dash-host-jobs` J15).
+    const hostGate = ['h2puni-gate.sh', 'h2puni-gate-payload.sh']
+      .map((name) => readFileSync(join(workspace, 'bin', name), 'utf8'))
+      .join('\n');
     const hostSteps = readFileSync(join(workspace, 'bin', 'h2puni-gate-steps.sh'), 'utf8');
     const ci = readFileSync(join(workspace, '.github', 'workflows', 'ci.yml'), 'utf8');
     const trustedCi = readFileSync(
@@ -1872,7 +1875,9 @@ await import(${JSON.stringify(productionSnapshotter)});
     // Proof (2026-10-20): run 39340424241 exposed the stale Twilight expectation.
     // Restoring its production allowance to 50 failed this focused test with
     // `Expected: 75 · Received: 50`; restoring the chosen 75 minutes passed.
-    expect(ci.jobs?.gate_workspace?.['timeout-minutes']).toBe(90);
+    // Proof (2026-10-30): the obsolete production workspace allowance of 90 failed
+    // this focused case with `Expected: 120 · Received: 90`; choosing 120 passed both assertions.
+    expect(ci.jobs?.gate_workspace?.['timeout-minutes']).toBe(120);
     expect(ci.jobs?.gate_twilight?.['timeout-minutes']).toBe(75);
   });
 

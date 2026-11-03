@@ -160,14 +160,20 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
         // A machine grant's bearer-level refusals (`wbs-mcp-agent-surface`
         // M3, M14) reach any route the same way: `internal_unauthorized` for
         // a missing or wrong mcp-01 secret, `unknown_grant_key` for a grant
-        // under no configured key.
+        // under no configured key. `machine_bearer_not_accepted`
+        // (`wbs-mcp-agent-surface` M9) is a machine bearer on any route.
+        // Proof: with it dropped from this condition, `is refused
+        // machine_bearer_not_accepted before any credential read or key set
+        // fetch` (oidc-credential.controller.db.test.ts) answered 500
+        // `undeclared refusal`; watched 2026-10-29.
         if (
           !identity.ok &&
           'error' in identity.body &&
           (identity.body.error === 'unknown_identity' ||
             identity.body.error === 'invalid_token' ||
             identity.body.error === 'internal_unauthorized' ||
-            identity.body.error === 'unknown_grant_key')
+            identity.body.error === 'unknown_grant_key' ||
+            identity.body.error === 'machine_bearer_not_accepted')
         )
           return Response.json(identity.body, {
             status: 401,
@@ -224,6 +230,7 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
             request: admission.request,
           });
         // Proof: removing this check admits the undeclared-query fixture (200 instead of 400).
+        // Proof: removing this guard made mounted `refuses reset bodies, queries and unsupported methods` answer 204 instead of 400 for a reset query.
         if (endpoint.shape.query === undefined && admission.request.url.searchParams.size > 0) {
           return classifyFailure(endpoint, {
             part: 'query',
@@ -280,6 +287,7 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
         // GET/HEAD length, nonempty-chunked and zero-chunk body framing.
         // Proof: deleting source from this condition admits every nonempty
         // undeclared POST body (200 instead of 400).
+        // Proof: removing this guard made mounted `refuses reset bodies, queries and unsupported methods` answer 204 instead of 400 for a reset body.
         if (endpoint.shape.body === undefined && (hasUnreadableBody || source !== '')) {
           return classifyFailure(endpoint, {
             part: 'body',

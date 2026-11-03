@@ -6,6 +6,7 @@ import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import { decodeJwt } from 'jose';
 
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 let harness: OrganizationHarness;
@@ -33,6 +34,8 @@ async function openHarness() {
   observedPushes = 0;
   harness = OrganizationHarness.openComposedWith({
     sessionBinding: true,
+    // Agents reach be-01 through mcp-01's grant since M9 (`wbs-mcp-agent-surface` 7.1).
+    machineGrants: await forwardingMachineGrants(),
     now: () => instant,
     afterResolve: () => afterResolve?.(),
     onBorrowedUnitOfWork: () => {
@@ -683,7 +686,8 @@ test('mounted machine import refuses revocation queued after request resolution'
       resolved,
     );
   };
-  const pending = harness.callWith(
+  const pending = callForwarded(
+    harness,
     credential.key,
     'POST',
     '/api/projects/import',

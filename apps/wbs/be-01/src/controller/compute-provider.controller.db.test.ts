@@ -5,7 +5,11 @@ import { generateKeyPair } from 'jose';
 
 import { openDrizzle } from '../repository/db';
 import { WriteCoordinator } from '../repository/gate';
-import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import {
+  addAgentPerson,
+  issueApiKey,
+  MACHINE_BEARER_NOT_ACCEPTED,
+} from '../testing/machine-credential-fixture';
 import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import {
   type Answer,
@@ -23,9 +27,9 @@ import { delegationFor, mapUpstream } from '../testing/scim-fixture';
  *
  * An agent's key reaches be-01 on the MCP path (`wbs-mcp-agent-surface` task
  * 7.0): mcp-01 exchanges it for a grant and forwards each tool call with it
- * ({@link callForwarded}). The cases marked "removed by 7.1 (M9)" send the key
- * itself as a Bearer on `/api`, as Dash's `report-capacity` still does until
- * task 7.2 makes it an MCP client.
+ * ({@link callForwarded}), as Dash's `report-capacity` does since task 7.2. The
+ * key itself as a Bearer on `/api` is refused `machine_bearer_not_accepted`
+ * (M9, task 7.1).
  */
 const PATH = '/api/organization/compute-providers';
 
@@ -119,7 +123,7 @@ function report(key: string, providerId: string, resourceId: string, body: unkno
   return callForwarded(h, key, 'PUT', reportPath(providerId, resourceId), body);
 }
 
-/** A capacity report bearing `bearer` itself on `/api`: a delegation, or a raw key until 7.1. */
+/** A capacity report bearing `bearer` itself on `/api`: a delegation, or a refused raw key. */
 function reportBearing(bearer: string, providerId: string, resourceId: string, body: unknown) {
   return h.callWith(bearer, 'PUT', reportPath(providerId, resourceId), body);
 }
@@ -180,6 +184,7 @@ async function readResources(username: string) {
       name: string;
       kind: string;
       unitLabel: string;
+      directoryCapacity?: number | null;
       providerId: string | null;
       provider?: { kind: string; name: string };
       report?: Record<string, unknown>;
@@ -276,7 +281,7 @@ describe('provider instance administration', () => {
   });
 
   // The routes are `humanOnly`, so mcp-01 lists no tool for them; be-01 still
-  // refuses a forwarded grant. The raw key's refusal goes with 7.1 (M9).
+  // refuses a forwarded grant, and the raw key before any route (M9).
   it('refuses a machine key and an MCP delegation every route insufficient_scope', async () => {
     const id = await registered('dany', 'h4claw');
     const { agent } = await keys();
@@ -291,11 +296,7 @@ describe('provider instance administration', () => {
         status: 403,
         body: { error: 'insufficient_scope' },
       });
-      // Removed by 7.1 (M9): the key itself as a Bearer on `/api`.
-      expect(await h.callWith(agent, method, path, body)).toEqual({
-        status: 403,
-        body: { error: 'insufficient_scope' },
-      });
+      expect(await h.callWith(agent, method, path, body)).toEqual(MACHINE_BEARER_NOT_ACCEPTED);
     }
     h.close();
     const signing = await generateKeyPair('RS256');
@@ -482,6 +483,7 @@ describe("a resource's provider reference", () => {
       kind: 'divisible',
       unitLabel: 'GB',
       providerId: null,
+      directoryCapacity: null,
     });
     const listed = (await h.call('dany', 'GET', PATH)).body as {
       computeProviders: { resources: number }[];
@@ -654,6 +656,100 @@ describe('a capacity report', () => {
     expect(auditRows()).toHaveLength(2);
   });
 
+  // `dash-host-jobs` 5.1, "Reserved beside measured" and "A report without reserved units".
+  it('stores reserved units beside measured usage; a pre-change body answers as before', async () => {
+    const t = Date.now() - 600_000;
+    const reserved = await report(agent, h4claw, ram, {
+      observedAt: t,
+      cadenceSeconds: 300,
+      outcome: {
+        kind: 'measured',
+        capacityUnits: 15,
+        usageUnits: 8,
+        reservedUnits: 12,
+        reservedDimension: 'memoryGib',
+      },
+    });
+    expect(reserved.status).toBe(200);
+    expect((reserved.body as { outcome: unknown }).outcome).toEqual({
+      kind: 'measured',
+      capacityUnits: 15,
+      usageUnits: 8,
+      reservedUnits: 12,
+      reservedDimension: 'memoryGib',
+    });
+    expect(
+      rows('SELECT usage_units, reserved_units, reserved_dimension FROM resource_capacity_report'),
+    ).toEqual([{ usage_units: 8, reserved_units: 12, reserved_dimension: 'memoryGib' }]);
+    expect((await readResources('mem')).resources.find((each) => each.id === ram)).toMatchObject({
+      report: reserved.body,
+    });
+    const preChange = await report(agent, h4claw, ram, measured(t + 300_000));
+    expect(preChange.status).toBe(200);
+    expect(JSON.stringify(preChange.body)).toBe(
+      JSON.stringify({
+        observedAt: t + 300_000,
+        cadenceSeconds: 300,
+        outcome: { kind: 'measured', capacityUnits: 15, usageUnits: 8 },
+        providerId: h4claw,
+        reportedBy: 'dash-a',
+        reportedAt: (preChange.body as { reportedAt: number }).reportedAt,
+      }),
+    );
+    expect(
+      rows('SELECT usage_units, reserved_units, reserved_dimension FROM resource_capacity_report'),
+    ).toEqual([{ usage_units: 8, reserved_units: null, reserved_dimension: null }]);
+    // The same body again is idempotent only with the same reserved units.
+    expect(
+      (
+        await report(agent, h4claw, ram, {
+          ...measured(t + 300_000),
+          outcome: {
+            kind: 'measured',
+            capacityUnits: 15,
+            usageUnits: 8,
+            reservedUnits: 3,
+            reservedDimension: 'memoryGib',
+          },
+        })
+      ).status,
+    ).toBe(409);
+    for (const reservedUnits of [-1, 1.5, 1_000_000_001])
+      expect(
+        (
+          await report(agent, h4claw, ram, {
+            ...measured(t + 400_000),
+            outcome: {
+              kind: 'measured',
+              capacityUnits: 15,
+              usageUnits: 8,
+              reservedUnits,
+              reservedDimension: 'memoryGib',
+            },
+          })
+        ).status,
+      ).toBe(400);
+  });
+
+  it('refuses reserved units without their dimension, and either alone, invalid_body', async () => {
+    const t = Date.now() - 600_000;
+    for (const outcome of [
+      { kind: 'measured', capacityUnits: 15, usageUnits: 8, reservedUnits: 12 },
+      { kind: 'measured', capacityUnits: 15, usageUnits: 8, reservedDimension: 'memoryGib' },
+      {
+        kind: 'measured',
+        capacityUnits: 15,
+        usageUnits: 8,
+        reservedUnits: 12,
+        reservedDimension: 'Memory GiB',
+      },
+    ])
+      expect(
+        await report(agent, h4claw, ram, { observedAt: t, cadenceSeconds: 300, outcome }),
+      ).toEqual({ status: 400, body: { error: 'invalid_body' } });
+    expect(reportCount()).toBe(0);
+  });
+
   // Proof: with the superseded refusal turned into a store in
   // `decideCapacityReport`, the late report replaced the newer one; watched
   // 2026-10-22.
@@ -728,15 +824,12 @@ describe('a capacity report', () => {
     });
   });
 
-  // Removed by 7.1 (M9): Dash's `report-capacity` sends the key itself until
-  // task 7.2 makes it an MCP client, and be-01 stores that report until M9.
-  it('stores a report bearing the key itself on /api, removed by 7.1 (M9)', async () => {
-    const observedAt = Date.now() - 1000;
-    expect(await reportBearing(agent, h4claw, ram, measured(observedAt))).toMatchObject({
-      status: 200,
-      body: { providerId: h4claw, observedAt, reportedBy: 'dash-a' },
-    });
-    expect(reportCount()).toBe(1);
+  // Dash's `report-capacity` before task 7.2: the key itself on `/api` (M9).
+  it('refuses a report bearing the key itself on /api machine_bearer_not_accepted, storing nothing', async () => {
+    expect(await reportBearing(agent, h4claw, ram, measured(Date.now() - 1000))).toEqual(
+      MACHINE_BEARER_NOT_ACCEPTED,
+    );
+    expect(reportCount()).toBe(0);
   });
 
   it("refuses a key pinned to a human's person, storing nothing", async () => {
@@ -815,7 +908,23 @@ describe('a capacity report', () => {
     expect(setUpPlan.status).toBe(200);
     const before = await h.optimizationHash(projectA);
     const startableBefore = await h.call('dany', 'GET', `/api/projects/${projectA}/startable`);
-    expect((await report(agent, h4claw, ram, measured(Date.now() - 1000, 8, 8))).status).toBe(200);
+    expect((await report(agent, h4claw, ram, measured(Date.now() - 2000, 8, 8))).status).toBe(200);
+    expect(await h.optimizationHash(projectA)).toBe(before);
+    // Reserved units are no planning input either (`dash-host-jobs` 5.1): all 15 reserved.
+    expect(
+      (
+        await report(agent, h4claw, ram, {
+          ...measured(Date.now() - 1000, 15, 8),
+          outcome: {
+            kind: 'measured',
+            capacityUnits: 15,
+            usageUnits: 8,
+            reservedUnits: 15,
+            reservedDimension: 'memoryGib',
+          },
+        })
+      ).status,
+    ).toBe(200);
     expect(await h.optimizationHash(projectA)).toBe(before);
     expect(await h.call('dany', 'GET', `/api/projects/${projectA}/startable`)).toEqual(
       startableBefore,

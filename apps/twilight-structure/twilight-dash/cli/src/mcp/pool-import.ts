@@ -72,7 +72,7 @@ export const systemPoolFiles: PoolFiles = {
   },
 };
 
-const USAGE = 'usage: pool import <pool-keys.json> --store <directory>';
+export const USAGE = 'usage: pool import <pool-keys.json> --store <directory>';
 const DOCUMENT_FORMAT = 'wbs-agent-pool-keys';
 /**
  * be-01 caps a pool at 100 agents (`createAgentPool`). A document of 100 fits `readOwnerOnly`'s

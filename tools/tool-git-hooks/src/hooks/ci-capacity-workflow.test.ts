@@ -44,7 +44,8 @@ test('each whole-project runtime has a finite Nx phase and whole-job limit with 
   ]) {
     const runtime = job(`gate_${partition}`);
     expect(runtime.needs).toBe('gate_mode');
-    expect(runtime['timeout-minutes']).toBe(90);
+    // The workspace keeps main's 120-minute allowance (workspace-gate-time-budget).
+    expect(runtime['timeout-minutes']).toBe(partition === 'workspace' ? 120 : 90);
     expect(runtime.if).toBe(
       partition === 'workspace'
         ? "${{ needs.gate_mode.outputs.mode != 'docs' }}"

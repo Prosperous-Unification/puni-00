@@ -140,6 +140,7 @@ import type { FakeOidcProvider } from './fake-oidc-provider';
 import { testHistoryService } from './history-fixture';
 import { testLoginThrottle } from './login-throttle-fixture';
 import { TEST_MCP_AUTHORIZATION_SERVER } from './machine-grant-fixture';
+import { requestGrant } from './mcp-forwarded-call';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './organization-limits-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from './priority-band-fixture';
 import { testReplay } from './replay-fixture';
@@ -348,11 +349,23 @@ export class OrganizationHarness {
     return this.commandPrincipal(this.token(username), cookie);
   }
 
-  /** Verifies a machine key before a direct runner test queues its retained principal. */
-  authenticatedMachinePrincipal(key: string): Promise<AuthenticatedUser> {
+  /**
+   * Verifies a machine key before a direct runner test queues its retained
+   * principal. Since M9 (`wbs-mcp-agent-surface` task 7.1) a key reaches be-01
+   * only through mcp-01's grant, so the key is exchanged for one on the grant
+   * route first and the grant is admitted as `/api` admits it; the harness must
+   * be composed with `machineGrants` (`forwardingMachineGrants`).
+   */
+  async authenticatedMachinePrincipal(key: string): Promise<AuthenticatedUser> {
     if (this.commandPrincipal === undefined)
       throw new Error('composed command principal fixture is absent');
-    return this.commandPrincipal(key, '');
+    const issued = await requestGrant(this, { kind: 'api_key', key });
+    const text = await issued.text();
+    // be-01's own grant route answers JSON; the cast reads the one field mcp-01 reads.
+    const answer = text.startsWith('{') ? (JSON.parse(text) as { grant?: unknown }) : null;
+    if (issued.status !== 200 || typeof answer?.grant !== 'string')
+      throw new Error(`machine fixture grant refused: ${String(issued.status)} ${text}`);
+    return this.commandPrincipal(answer.grant, '');
   }
 
   /** The actual core runner installed beside the mounted HTTP runner. */
@@ -659,6 +672,9 @@ export class OrganizationHarness {
                 new SqliteDelegationUse(db, gate).consume(issuer, jti, expiresAt, now),
               Date.now,
               (userId) => new UserRepository(db, OPEN).findById(userId),
+              // An MCP consent delegation acting as an agent person, read live
+              // as boot.ts reads it (`wbs-machine-credentials` A20).
+              (credentialId) => new MachineCredentialRepository(db, gate).findById(credentialId),
             ),
           }),
       ...(directSigningKey === undefined
@@ -1025,6 +1041,10 @@ export class OrganizationHarness {
                   ),
                 () => services.clock.now(),
                 (userId) => new UserRepository(source.db, OPEN).findById(userId),
+                // An MCP consent delegation acting as an agent person, read live
+                // as boot.ts reads it (`wbs-machine-credentials` A20).
+                (credentialId) =>
+                  new MachineCredentialRepository(source.db, services.gate).findById(credentialId),
               ),
             }),
         ...(machineGrants === undefined
@@ -1042,7 +1062,8 @@ export class OrganizationHarness {
                 activationState: () => readOrganizationActivation(source.db),
                 keys: machineGrants.keys,
                 authorizationServer: machineGrants.authorizationServer,
-                admitProof: (presented) => services.auth.admitMachineProof(presented),
+                admitProof: (presented, audienceRoot) =>
+                  services.auth.admitMachineProof(presented, audienceRoot),
                 audit: new MachineTokenAuditRepository(source.db, services.gate),
                 now: () => services.clock.now(),
                 ...(machineGrants.newId === undefined ? {} : { newId: machineGrants.newId }),
@@ -1096,7 +1117,18 @@ export class OrganizationHarness {
       source,
       services.commands,
       async (token, cookie) => {
-        const principal = await services.auth.authenticate(token);
+        // A machine grant is admitted as `/api` admits it beside mcp-01's secret
+        // (`delegatedOrSession`); anything else is a session or delegation token.
+        const grantVerdict =
+          machineGrants?.keys === undefined || machineGrants.keys === null
+            ? null
+            : await machineGrantVerifier(machineGrants.keys, () => services.clock.now())(token);
+        const principal =
+          grantVerdict?.kind === 'verified'
+            ? await services.auth.admitMachineGrant(grantVerdict.claims)
+            : await services.auth.authenticate(token);
+        if (principal === 'unknown_identity')
+          throw new Error('command fixture machine grant names no live credential');
         if (principal === null) throw new Error('command fixture token did not authenticate');
         if (principal.authentication?.kind === 'machine') return principal;
         const credential = await organizationCredentialEvidence(services.auth, TEST_JWT_KEY)(

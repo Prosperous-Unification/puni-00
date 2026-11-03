@@ -1182,11 +1182,11 @@ test('[TEST-AXES-085] fixed Architecture policy itself must be a readable select
   }
 });
 
-test('[TEST-AXES-084] actual Burokrat Architecture policy binds all fourteen declared fixtures', async () => {
+test('[TEST-AXES-084] actual Burokrat Architecture policy binds all fifteen declared fixtures', async () => {
   const policy = JSON.parse(
     readFileSync(new URL('../architecture-fixtures.json', import.meta.url), 'utf8'),
   ) as { schemaVersion: number; fixtures: { ruleId: string; file: string }[] };
-  expect(policy.fixtures).toHaveLength(14);
+  expect(policy.fixtures).toHaveLength(15);
   const selected = committedArchitecture(policy);
   for (const mapping of policy.fixtures)
     file(
@@ -1204,5 +1204,6 @@ test('[TEST-AXES-084] actual Burokrat Architecture policy binds all fourteen dec
     expect(observation.sources.map((source) => source.path)).toContain(
       `${projectRoot}/${mapping.file}`,
     );
-  expect(observation.sources).toHaveLength(19);
+  // The fifteen mapped fixtures plus the five other sources the inspection reads.
+  expect(observation.sources).toHaveLength(20);
 });

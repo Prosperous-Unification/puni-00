@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
-import { runDash } from '../cli';
+import { runDashArguments } from '../cli';
 import type { EfficiencyBreakdown } from './efficiency-breakdown';
 import {
   claudeLine,
@@ -109,7 +109,7 @@ test('writes a reproducible breakdown with attribution, remainder and blended fi
   const set = setup();
   const output = join(set.parent, 'run-1');
   let printed = '';
-  await runDash(argv(set, output), {
+  await runDashArguments(argv(set, output), {
     ...deps,
     stdout: { write: (text: string) => (printed += text) },
   });
@@ -155,7 +155,7 @@ test('writes a reproducible breakdown with attribution, remainder and blended fi
   expect(markdown).toContain('| Accepted outcomes | 3 |');
   expect(markdown).toContain('codex-auto-review | unknown-model');
   const second = join(set.parent, 'run-2');
-  await runDash(argv(set, second), deps);
+  await runDashArguments(argv(set, second), deps);
   expect(readFileSync(join(second, 'efficiency-breakdown.json'), 'utf8')).toBe(
     readFileSync(join(output, 'efficiency-breakdown.json'), 'utf8'),
   );
@@ -165,26 +165,30 @@ test('the output already exists refuses and writes nothing', async () => {
   const set = setup();
   const output = join(set.parent, 'exists');
   mkdirSync(output);
-  expect(await refusal(runDash(argv(set, output), deps))).toMatch(/output directory must be new/);
+  expect(await refusal(runDashArguments(argv(set, output), deps))).toMatch(
+    /output directory must be new/,
+  );
   expect(readdirSync(output)).toEqual([]);
 });
 
 test('grammar refuses before reading: unknown, duplicate, valueless, missing, inverted period', async () => {
   const set = setup();
   const output = join(set.parent, 'never');
-  const unknown = await refusal(runDash(argv(set, output, ['--bogus', 'x']), deps));
+  const unknown = await refusal(runDashArguments(argv(set, output, ['--bogus', 'x']), deps));
   expect(unknown).toMatch(/^usage: dash account-outcomes/);
-  const duplicate = await refusal(runDash(argv(set, output, ['--since', period.since]), deps));
+  const duplicate = await refusal(
+    runDashArguments(argv(set, output, ['--since', period.since]), deps),
+  );
   expect(duplicate).toMatch(/^usage/);
-  const valueless = await refusal(runDash([...argv(set, output).slice(0, -1)], deps));
+  const valueless = await refusal(runDashArguments([...argv(set, output).slice(0, -1)], deps));
   expect(valueless).toMatch(/^usage/);
   const missing = await refusal(
-    runDash(['account-outcomes', '--repository', set.repository], deps),
+    runDashArguments(['account-outcomes', '--repository', set.repository], deps),
   );
   expect(missing).toMatch(/^usage/);
   const inverted = argv(set, output).map((value) =>
     value === period.until ? '2026-10-01T00:00:00Z' : value,
   );
-  expect(await refusal(runDash(inverted, deps))).toMatch(/--until must be after --since/);
+  expect(await refusal(runDashArguments(inverted, deps))).toMatch(/--until must be after --since/);
   expect(existsSync(output)).toBe(false);
 });

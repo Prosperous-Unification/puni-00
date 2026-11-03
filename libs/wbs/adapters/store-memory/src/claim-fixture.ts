@@ -4,6 +4,7 @@ import {
   type ClaimIdentity,
   type ClaimOccupancy,
   type ClaimStore,
+  type OrganizationOccupancyRow,
   type StampedClaim,
   unstampClaim,
   type WorkItemStore,
@@ -35,6 +36,13 @@ export interface MemoryPlanTables {
   readonly projects: Pick<MemoryProjectTables, 'projects' | 'steps'>;
   readonly workItems: Pick<MemoryWorkItemTables, 'byId'>;
   readonly people: ReadonlyMap<string, { readonly name: string }>;
+  /**
+   * The organization each project and each resource belongs to, as SQLite's
+   * `project_organization` and `resource_organization` hold them; a key with
+   * no entry belongs to none.
+   */
+  readonly projectOrganization: ReadonlyMap<string, string>;
+  readonly resourceOrganization: ReadonlyMap<string, string>;
 }
 
 /**
@@ -91,6 +99,55 @@ export function inMemoryClaims(
         compare(left.id, right.id),
     );
   };
+  // Async, so a corrupt row rejects as SQLite's read does rather than throwing
+  // before the caller holds a promise.
+  const organizationRowsOf = async (
+    resourceIds: readonly string[],
+  ): Promise<OrganizationOccupancyRow[]> => {
+    await Promise.resolve();
+    const asked = new Set(resourceIds);
+    const byId = new Map(table.rows.map((claim) => [claim.id, claim]));
+    const rows = table.occupancy.flatMap(({ claimId, resourceId, units }) => {
+      if (!asked.has(resourceId)) return [];
+      const claim = byId.get(claimId);
+      if (claim === undefined) throw new Error(`occupancy names absent claim ${claimId}`);
+      const workItem = plan.workItems.byId.get(claim.workItemId);
+      if (workItem === undefined)
+        throw new Error(`claim ${claimId} names absent work item ${claim.workItemId}`);
+      const owner = plan.resourceOrganization.get(resourceId);
+      if (owner === undefined) return [];
+      const organizationId = plan.projectOrganization.get(workItem.projectId);
+      // SQLite's twin: an owned resource held in a project of no organization
+      // is corrupt trusted state.
+      // Proof: with this throw removed, the memory twin of `throws on a holder
+      // in a project of no organization` (shared-occupancy.db.test.ts)
+      // answered without it; watched 2026-10-25.
+      if (organizationId === undefined)
+        throw new Error(
+          `resource ${resourceId} is held in a project of no organization: corrupt trusted state`,
+        );
+      if (owner !== organizationId) return [];
+      const { workItemId, personId, runId } = claim;
+      return [
+        {
+          claimId,
+          workItemId,
+          personId,
+          runId,
+          resourceId,
+          units,
+          projectId: workItem.projectId,
+          organizationId,
+        },
+      ];
+    });
+    return rows.sort(
+      (left, right) =>
+        compare(left.workItemId, right.workItemId) ||
+        compare(left.resourceId, right.resourceId) ||
+        compare(left.claimId, right.claimId),
+    );
+  };
   return {
     listByProject: async (projectId) => (await inProject(projectId)).map(unstampClaim),
     listStampedByProject: inProject,
@@ -144,6 +201,26 @@ export function inMemoryClaims(
             compare(left.resourceId, right.resourceId) ||
             compare(left.claimId, right.claimId),
         );
+    },
+    // SQLite's join, modelled: a row counts only when its project and its
+    // resource belong to one organization.
+    // Proof: with the organization comparison dropped, the memory
+    // certification's `claims.occupancy:organization-filter` case read the
+    // other organization's row; watched 2026-10-25.
+    organizationOccupancyOf: organizationRowsOf,
+    // Each leaf's largest copy, summed per resource, over the rows the read
+    // above answers, so both reads share its organization rules.
+    async organizationUnitsOf(resourceIds) {
+      const perLeaf = new Map<string, Map<string, number>>();
+      for (const row of await organizationRowsOf(resourceIds)) {
+        const leaves = perLeaf.get(row.resourceId) ?? new Map<string, number>();
+        leaves.set(row.workItemId, Math.max(leaves.get(row.workItemId) ?? 0, row.units));
+        perLeaf.set(row.resourceId, leaves);
+      }
+      return [...perLeaf].map(([resourceId, leaves]) => ({
+        resourceId,
+        units: [...leaves.values()].reduce((sum, units) => sum + units, 0),
+      }));
     },
     boundAccountOf: (personId) => identity.boundAccountOf(personId),
     pinnedPersonOf: (credential) => identity.pinnedPersonOf(credential),

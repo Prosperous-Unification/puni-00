@@ -105,7 +105,7 @@ describe('the production solver binding runtime', () => {
 
     expect(invocations.map(({ argv }) => argv[0])).toEqual([
       BUN,
-      `${SOURCE_REPOSITORY}/bin/with-heavy-lock.sh`,
+      `${SOURCE_REPOSITORY}/bin/solver-image-publish.sh`,
       'docker',
       'docker',
       BUN,
@@ -118,19 +118,12 @@ describe('the production solver binding runtime', () => {
       'git',
     ]);
     expect(invocations[0]?.argv).toEqual([BUN, 'install', '--frozen-lockfile']);
-    expect(invocations[1]?.argv).toEqual([
-      `${SOURCE_REPOSITORY}/bin/with-heavy-lock.sh`,
-      '--',
-      'env',
-      `WBS_SHA=${SHA}`,
-      BUN,
-      'run',
-      `${ROOT}/tools/tool-dagger/src/main.ts`,
-      'be',
-    ]);
+    expect(invocations[1]?.argv).toEqual([`${SOURCE_REPOSITORY}/bin/solver-image-publish.sh`, SHA]);
     expect(invocations[1]?.env).toEqual({
       REGISTRY_PASS: 'protected-value',
       HEAVY_LOCK_WAIT_SECONDS: '900',
+      SOLVER_PUBLISH_BUN: BUN,
+      SOLVER_PUBLISH_ROOT: ROOT,
       WBS_CLEAN_TREE_REPOSITORY: SOURCE_REPOSITORY,
     });
     expect(invocations.flatMap(({ argv }) => argv)).not.toContain('protected-value');
@@ -368,6 +361,8 @@ describe('the production solver binding runtime', () => {
     expect(invocations[1]?.env).toEqual({
       REGISTRY_PASS: 'protected-value',
       HEAVY_LOCK_WAIT_SECONDS: '900',
+      SOLVER_PUBLISH_BUN: BUN,
+      SOLVER_PUBLISH_ROOT: ROOT,
     });
   });
 

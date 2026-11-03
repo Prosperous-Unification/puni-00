@@ -118,3 +118,15 @@ Compare `headRefOid` with the holder's
 exact `HEAD`: PRs can move after a gate starts, and several refs or PRs can point
 to related commits. A branch or PR association alone cannot prove which commit
 the running gate is testing.
+
+## Launchers enter through `run_heavy_job`
+
+Every launcher (`bin/h2puni-gate.sh`, `bin/publish-release.sh`, `bun run test:queued`, the solver
+image publish) now calls `run_heavy_job` in `bin/heavy-lock-lib.sh`. On a host without
+`/home/puni1/.config/dash/host-pool.json` that is the same `flock` queue, so this runbook reads
+its holder exactly as before. The holder's process is the launcher's payload script, such as
+`bin/h2puni-gate-payload.sh <sha>`, under the launcher.
+
+No gate host is enrolled yet. Once one is, `twilight-dash ops job status` names its running
+host jobs, and this runbook applies only while the pool is in observe mode or holds the
+singleton guard. See [heavy job launchers](infra/heavy-job-launchers.md).

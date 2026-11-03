@@ -8,6 +8,7 @@ import { decodeJwt } from 'jose';
 
 import { openDatabase } from '../repository/db';
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 let harness: OrganizationHarness;
@@ -32,6 +33,8 @@ async function open() {
   observedPushes = 0;
   harness = OrganizationHarness.openComposedWith({
     sessionBinding: true,
+    // Agents reach be-01 through mcp-01's grant since M9 (`wbs-mcp-agent-surface` 7.1).
+    machineGrants: await forwardingMachineGrants(),
     now: () => instant,
     afterResolve: () => afterResolve?.(),
     onBorrowedUnitOfWork: () => {
@@ -611,7 +614,8 @@ for (const operation of [
         resolved,
       );
     };
-    const pending = harness.callWith(
+    const pending = callForwarded(
+      harness,
       credential.key,
       operation === 'prelude' || operation === 'ordinary'
         ? 'PATCH'

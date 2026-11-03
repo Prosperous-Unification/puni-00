@@ -120,3 +120,13 @@ test('a retired OIDC setting stops startup', () => {
   expect(() => readWebsiteApiConfig({ OIDC_AUDIENCE: 'x' })).toThrow('remove OIDC_AUDIENCE');
   expect(readWebsiteApiConfig({ AUTH_MODE: 'oidc' }).publicOrigin).toBe('http://localhost:4321');
 });
+
+for (const setting of [
+  'OPENROUTER_INPUT_CEILING_USD_PER_MILLION',
+  'OPENROUTER_OUTPUT_CEILING_USD_PER_MILLION',
+]) {
+  test(`cache-aware config rejects malformed ${setting}`, () => {
+    for (const value of ['-1', '0', 'Infinity', 'bad'])
+      expect(() => readWebsiteApiConfig({ [setting]: value })).toThrow(setting);
+  });
+}

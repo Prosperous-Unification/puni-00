@@ -236,6 +236,7 @@ function runSmoke(
     retain?: boolean;
     cleanupToken?: string;
     script?: string;
+    jobId?: string;
   } = {},
 ): SmokeRun {
   const commands = join(root, 'commands');
@@ -325,6 +326,7 @@ function runSmoke(
         ...(options.retain ? { WBS_SOLVER_SMOKE_INVENTORY: retained } : {}),
         WBS_RUN_SOLVER_ORPHAN_PROC: options.orphan || !options.supplied ? '1' : '0',
         ...(fault === undefined ? {} : { WBS_FAKE_FAULT: fault }),
+        DASH_JOB_ID: options.jobId ?? '',
       },
       stdout: 'pipe',
       stderr: 'pipe',
@@ -351,6 +353,58 @@ function runSmoke(
 }
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+
+describe('solver-image-smoke container bounds (dash-host-jobs J16)', () => {
+  const catalogue = JSON.parse(
+    readFileSync(join(import.meta.dir, '../../../../infra/jobs/catalogue.json'), 'utf8'),
+  ) as { jobs: { id: string; containers: 'none' | { memoryGib: number; cpuCores: number } }[] };
+  const declared = catalogue.jobs.find((job) => job.id === 'gate')?.containers;
+
+  it('runs every container it starts bounded and labelled inside a Dash job', () => {
+    if (declared === undefined || declared === 'none') throw new Error('gate declares no bound');
+    const bound = `--memory ${String(declared.memoryGib)}g --cpus ${String(declared.cpuCores)}`;
+    const smoke = runSmoke(undefined, { jobId: 'job-under-test' });
+    expect(smoke.exitCode).toBe(0);
+    const runs = smoke.dockerCalls.filter((call) => call.startsWith('run '));
+    // The baseline solver run, the registry and the five clients.
+    expect(runs).toHaveLength(7);
+    for (const call of runs) expect(call).toContain(`${bound} --label puni.job=job-under-test `);
+  });
+
+  it('leaves its containers unbounded outside a Dash job', () => {
+    const smoke = runSmoke();
+    expect(smoke.exitCode).toBe(0);
+    const runs = smoke.dockerCalls.filter((call) => call.startsWith('run '));
+    expect(runs).toHaveLength(7);
+    for (const call of runs) {
+      expect(call).not.toContain('--memory');
+      expect(call).not.toContain('--cpus');
+      expect(call).not.toContain('puni.job');
+    }
+    // Every argv exactly as the script produces it without the bound: main's four from before
+    // slice 6a (compared against the c01dae8d5 script under this harness, 2026-11-02, review G5),
+    // as cross-project dependencies renamed them by attempt UUID and added the baseline name, the
+    // two connected clients and the composed client.
+    const socket = '[^ ]+/socket:/run/wbs-solver';
+    const image = '127\\.0\\.0\\.1:5000/wbs-be-01@sha256:[0-9a-f]{64}';
+    const caller = `--name wbs-solver-smoke-caller-${UUID}`;
+    const client =
+      '/app/apps/wbs/be-01/scripts/solver-supervisor-image-client.ts /run/wbs-solver/supervisor.sock';
+    const expected = [
+      `^run --rm --interactive --name wbs-solver-smoke-baseline-${UUID} --entrypoint wbs-solver wbs-be-01:solver-smoke-${UUID}$`,
+      `^run --detach --rm --publish 127\\.0\\.0\\.1::5000 --name wbs-solver-smoke-registry-${UUID} registry:2$`,
+      `^run --rm ${caller} --volume ${socket}:ro --entrypoint bun ${image} ${client} /app/libs/wbs/domain/contracts/solver/fixtures/request/valid-quantised-baseline\\.json ${UUID}$`,
+      `^run --rm ${caller} --volume ${socket}:ro --entrypoint bun ${image} ${client} shared-person ${UUID}$`,
+      `^run --rm ${caller} --volume ${socket}:ro --entrypoint bun ${image} ${client} connected-feasible ${UUID}$`,
+      `^run --rm ${caller} --volume ${socket}:ro --entrypoint bun ${image} ${client} connected-fractional ${UUID}$`,
+      `^run --rm ${caller} --volume ${socket} --volume [^ ]+/files:/app/apps/wbs/be-01/src/testing:ro --entrypoint bun ${image} /app/apps/wbs/be-01/src/testing/solver-composed-image-client\\.ts /run/wbs-solver/supervisor\\.sock connected-composed /run/wbs-solver/composed-attempts$`,
+    ];
+    // Proof: applying the bound unconditionally failed the first line (2026-11-02, review F4).
+    runs.forEach((call, index) => {
+      expect(call).toMatch(new RegExp(expected[index] ?? '^$'));
+    });
+  });
+});
 
 describe('solver-image-smoke image lifecycle', () => {
   it('tags every image it builds uniquely per attempt and removes all of them after a pass', () => {

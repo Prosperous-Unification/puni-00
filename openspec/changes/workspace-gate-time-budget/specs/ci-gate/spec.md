@@ -1,8 +1,23 @@
 ## ADDED Requirements
 
+### Requirement: Bounded workspace gate budget
+
+The CI workspace gate SHALL have a finite 120-minute job timeout and SHALL retain its existing required check sequence and verdict propagation.
+
+#### Scenario: Workspace checks exceed the former allowance
+
+- **WHEN** the workspace checks take more than 90 minutes but finish within 120 minutes
+- **THEN** the job budget permits the remaining checks to execute
+- **AND** their actual outcomes determine the gate verdict
+
+#### Scenario: Workspace checks exceed the allowance
+
+- **WHEN** the workspace job reaches its 120-minute limit
+- **THEN** GitHub Actions cancels the job and the required gate cannot pass
+
 ### Requirement: Bounded whole-project workspace partitions
 
-CI SHALL assign `wbs-be-01`, `tool-remote-scripts` and `wbs-fe-01` to dedicated runtime jobs and every other non-Twilight project to the residual workspace job. Every runtime job SHALL have a finite 90-minute whole-job budget, a 75-minute runtime phase cutoff and Nx parallelism of two. The original runtime targets and Nx task dependencies SHALL remain required. The sole fixed physical execution exception is `ci-remote-capacity`: remote retains exactly one logical project owner and selection bit, with its entire exact model wrapper and exact canonical complement executing in two independently required jobs. This exception SHALL preserve full module coverage, static/dependency ownership, source validation and the unchanged canonical local/host target.
+CI SHALL assign `wbs-be-01`, `tool-remote-scripts` and `wbs-fe-01` to dedicated runtime jobs and every other non-Twilight project to the residual workspace job. Every dedicated runtime job SHALL have a finite 90-minute whole-job budget (the residual workspace job keeps the 120-minute budget of the requirement above), every runtime job a 75-minute runtime phase cutoff and Nx parallelism of two. The original runtime targets and Nx task dependencies SHALL remain required. The sole fixed physical execution exception is `ci-remote-capacity`: remote retains exactly one logical project owner and selection bit, with its entire exact model wrapper and exact canonical complement executing in two independently required jobs. This exception SHALL preserve full module coverage, static/dependency ownership, source validation and the unchanged canonical local/host target.
 
 #### Scenario: Full or shared-input scope
 

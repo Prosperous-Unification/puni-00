@@ -1,17 +1,17 @@
-# Workspace gate capacity
+# Workspace gate time budget
 
 ## Problem
 
-PR #535 run `38858776285` exhausted the former 60-minute workspace allowance after Nx passed. Raising the single job to 90 minutes did not establish a complete verdict: later run `40060433745` spent nearly the whole 90 minutes in workspace work and was cancelled with the frontend test and required post-Nx checks unfinished. Its incomplete artifact also contains independent test failures, tracked separately.
+PR 787 run 40959508633 exhausted its 90-minute workspace allowance twice. Attempt 1 completed test/typecheck/build in 76m28s, lint in 8m58s and source lint in 34.5s, then cancellation interrupted solver smoke. Attempt 2 completed test/typecheck/build in 80m32s and was cancelled during lint. Both required aggregates were nonpassing; retained logs show no failing-test markers, not a completed second lint verdict.
 
 ## Outcome
 
-Partition the cold workspace Nx gate by whole logical project: backend, remote scripts, frontend and the complement. The fixed remote execution exception in `ci-remote-capacity` runs its entire model wrapper and exact canonical complement in two independent jobs after validation, retaining one remote project owner. Give each runtime job a 90-minute whole-job ceiling and a 75-minute Nx phase ceiling. Run every former non-Nx workspace check in a separate required 30-minute job, concurrently. Keep one validated source plan and a strict `gate` reducer so a skipped, failed, cancelled or absent required job cannot pass.
+Give only gate_workspace a finite 120-minute job timeout, allowing the existing required checks to finish. Align its existing production-entrypoint assertion and observe exact-head hosted CI plus the canonical host gate before release acceptance. 120 is a chosen finite allowance, not an already measured completed duration.
 
 ## Non-goals
 
-Outside the explicit fixed remote execution exception, no target, test file, dependency, native provision, assertion, retry, cache policy or parallelism change. The exception retains complete test coverage and uses noncached CI-only leaves while canonical local/host targets remain unchanged. The Twilight, docs, browser and canonical host gates keep their contracts. A configured budget is not proof of hosted capacity or a complete green verdict.
+No check removal, command/scope/verdict change, parallelism change, other timeout change, Tool Wiki activation change, application/authentication implementation, R2 architecture merge or production deployment.
 
 ## Constraints
 
-The affected plan must retain exact immutable base/head and target-specific selection. Full mode must cover every configured non-Twilight project, including future projects. Each runner must retain the original Nx exit status, annotations and always-on logs. Hosted exact-head cold CI is required before calling the partition sufficient.
+Preserve the current 75-minute Twilight allowance and every other parsed workflow value. Use the existing policy test, not a new mirroring test. Retain all earlier 60/90-minute evidence and both new failed attempts. The higher cap can cost up to 30 additional hosted runner minutes per workspace job; expiry still cannot yield a passing gate.

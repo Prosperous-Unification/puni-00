@@ -1,16 +1,22 @@
+import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts/mcp-internal-auth';
 import { WriteCoordinator } from '@wbs/store-sqlite/gate';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 
 import { openDatabase } from '../repository/db';
 import { addAgentPerson, issueApiKey } from './machine-credential-fixture';
+import { TEST_MACHINE_GRANT_ENV } from './machine-grant-fixture';
+import { forwardingMachineGrants, requestGrant } from './mcp-forwarded-call';
 import { OrganizationHarness } from './organization-harness';
 
 function requireOk(reply: { status: number }): void {
   if (reply.status !== 200) throw new Error(`fixture request failed: ${String(reply.status)}`);
 }
 const pushes: string[] = [];
+const NOW = 1_792_368_000_000;
 const harness = OrganizationHarness.openComposedWith({
-  now: () => 1_792_368_000_000,
+  // The agent reaches be-01 through mcp-01's grant since M9 (`wbs-mcp-agent-surface` 7.1).
+  machineGrants: await forwardingMachineGrants(),
+  now: () => NOW,
   withOptimizer: process.env['MCP_PARITY_OPTIMIZER'] === 'installed',
   solverVersion: '0.4.0',
   spawn: () => {
@@ -90,8 +96,24 @@ const credential = await issueApiKey(harness.sqlite, {
   issuedBy: harness.userId('ada'),
 });
 
+// The grant mcp-01's token endpoint would hold for the key; every parity call bears it beside
+// mcp-01's dedicated secret, as mcp-01's machine path sends it.
+const issued = await requestGrant(harness, { kind: 'api_key', key: credential.key }, { now: NOW });
+// be-01's own grant route answers JSON; the cast reads the one field mcp-01 reads.
+const { grant } = (await issued.json()) as { grant?: unknown };
+if (issued.status !== 200 || typeof grant !== 'string')
+  throw new Error(`fixture grant refused: ${String(issued.status)}`);
+const secret = TEST_MACHINE_GRANT_ENV['MCP_BE_INTERNAL_SECRET'];
 requireOk(
-  await harness.callWith(credential.key, 'GET', `/api/projects/${successor.projectId}/work-items`),
+  await harness.callWith(
+    grant,
+    'GET',
+    `/api/projects/${successor.projectId}/work-items`,
+    undefined,
+    {
+      [MCP_INTERNAL_SECRET_HEADER]: secret,
+    },
+  ),
 );
 pushes.length = 0;
 const controlToken = crypto.randomUUID();
@@ -253,5 +275,5 @@ process.on('SIGTERM', () => {
   })();
 });
 console.log(
-  JSON.stringify({ port: backend.port, key: credential.key, controlToken, predecessor, successor }),
+  JSON.stringify({ port: backend.port, key: grant, secret, controlToken, predecessor, successor }),
 );

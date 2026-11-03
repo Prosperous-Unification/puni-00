@@ -10,6 +10,7 @@ import type { OidcIdentityStore, UserStore } from '../ports/user-store';
 export type {
   AdmittedMachineProof,
   AuthenticationRefusal,
+  BearerRefusal,
   LoginOutcome,
   PresentedMachineCredential,
   PresentedMachineGrant,

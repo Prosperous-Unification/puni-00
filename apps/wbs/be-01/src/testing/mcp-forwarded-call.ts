@@ -73,15 +73,21 @@ export function callForwardedAssertion(
   return callWithGrantOf(h, { kind: 'oidc', assertion }, method, path, body, options);
 }
 
-async function callWithGrantOf(
+/** A credential as mcp-01 presents it at be-01's grant route. */
+export type ForwardedCredential =
+  | { readonly kind: 'api_key'; readonly key: string }
+  | { readonly kind: 'oidc'; readonly assertion: string };
+
+/**
+ * mcp-01's grant request for `credential` alone, be-01's answer unread: for a
+ * test that judges the grant route itself rather than a forwarded call.
+ */
+export function requestGrant(
   h: OrganizationHarness,
-  credential: { kind: 'api_key'; key: string } | { kind: 'oidc'; assertion: string },
-  method: string,
-  path: string,
-  body: unknown,
-  options: ForwardedCallOptions,
-): Promise<Answer> {
-  const issued = await h.request('/internal/mcp/machine-grants', {
+  credential: ForwardedCredential,
+  options: ForwardedCallOptions = {},
+): Promise<Response> {
+  return h.request('/internal/mcp/machine-grants', {
     method: 'POST',
     headers: { 'content-type': 'application/json', [MCP_INTERNAL_SECRET_HEADER]: SECRET },
     body: JSON.stringify({
@@ -90,6 +96,17 @@ async function callWithGrantOf(
       expiresAt: Math.floor((options.now ?? Date.now()) / 1000) + GRANT_SECONDS,
     }),
   });
+}
+
+async function callWithGrantOf(
+  h: OrganizationHarness,
+  credential: ForwardedCredential,
+  method: string,
+  path: string,
+  body: unknown,
+  options: ForwardedCallOptions,
+): Promise<Answer> {
+  const issued = await requestGrant(h, credential, options);
   const text = await issued.text();
   // be-01's own grant route answers JSON; the cast reads the one field mcp-01 reads.
   const answer = text.startsWith('{') ? (JSON.parse(text) as { grant?: unknown }) : text;

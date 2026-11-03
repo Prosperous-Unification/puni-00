@@ -28,7 +28,9 @@ Context glossaries: [WBS](../CONTEXT.md), [Twilight](twilight-structure/CONTEXT.
 
 Four processes, one database writer. Routes are declared once as shapes in
 `libs/wbs/domain/contracts/src/http/*-shapes.ts`; the OpenAPI document, the MCP tools and the
-route-binding test all derive from them.
+route-binding test all derive from them. The OpenAPI document is an internal contract between be-01 and
+mcp-01, not an agent surface: machines call `/mcp`, and `/api` refuses their credentials
+(`openspec/changes/wbs-mcp-agent-surface` M9, M12).
 
 | Process  | Role                                                          | Port      | Ships as                        |
 | -------- | ------------------------------------------------------------- | --------- | ------------------------------- |
@@ -47,7 +49,7 @@ route-binding test all derive from them.
 | Derived numbers with freeze and unfreeze                                                                                                                  | `derive-numbers.ts`; commands `freeze*`/`unfreeze*`                                                        | built                                                            |
 | Scheduling: Fast engine (deterministic) and Optimized engine (solver result), PRI or Time objective, cache by input hash, generation and contract version | `schedule.ts`, `libs/wbs/adapters/solver-py` (lexicographic CP), supervisor protocol v1 over a unix socket | partial: `dual-optimized-scheduler` 111/131                      |
 | Capacity per team and project, shared capacity and person load across projects                                                                            | `module/capacity`, `service/person-load.feature.ts`; [capacity.md](capacity.md)                            | built                                                            |
-| Claims, delegated claims, startable work, fleet credentials pinned to one agent person                                                                    | `claim.ts`, `store-sqlite/src/{claim,credential-link}.ts`                                                  | partial: `wbs-team-claims` 16/21 (holder display, fleet rollout) |
+| Claims, delegated claims, startable work, machine credentials pinned to one agent person                                                                  | `claim.ts`, `store-sqlite/src/{claim,machine-credential}.ts`                                               | partial: `wbs-team-claims` 16/21 (holder display, fleet rollout) |
 | Resources: exclusive and divisible, demands, occupancy, levelled by both engines                                                                          | `resource.ts`, `occupancy.ts`, `store-sqlite/src/resource.ts`                                              | partial: `wbs-resources` 15/18, design R1–R8 awaiting Dany       |
 | Priority bands and ladder, project rank, typed SS/FF dependencies, step blockage, attempts, calendar markers                                              | domain files of the same names; commands in `contracts/src/commands/definitions.ts`                        | built                                                            |
 | Command batches: 53 kinds, one transaction, one journal entry                                                                                             | `runCommandBatch`; spec `openspec/specs/plan-command-registry`                                             | built                                                            |
@@ -60,15 +62,15 @@ route-binding test all derive from them.
 
 ### Accounts and organizations
 
-| Capability                                                                                                                           | State                                              |
-| ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
-| OIDC (Auth0, Okta) or local auth; browser sessions; social sign-in                                                                   | built; real Okta and Google wiring owed            |
-| Organizations: members, roles, invitations, join requests, verified domains with DNS proof, project rank, session policy             | partial: `organization-ownership-and-access` 34/56 |
-| Enterprise SSO connections, SCIM v2 users and groups, provisioning tokens                                                            | built (ADR 0049)                                   |
-| Onboarding: email challenges, invitation accept, organization creation                                                               | built; SMTP delivery configured per host           |
-| Shared people across projects with restore approvals                                                                                 | built                                              |
-| MCP delegation: single-use `wbs-be-01/via-mcp-01` delegations per tool call                                                          | built; refresh policy `mcp-refresh-policy` 5/12    |
-| Operator CLIs: migrate/down/status, backup and restore, organization activation and preflight, per-feature rollback, link-credential | built; runbooks `runbook-organization-*.md`        |
+| Capability                                                                                                               | State                                              |
+| ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| OIDC (Auth0, Okta) or local auth; browser sessions; social sign-in                                                       | built; real Okta and Google wiring owed            |
+| Organizations: members, roles, invitations, join requests, verified domains with DNS proof, project rank, session policy | partial: `organization-ownership-and-access` 34/56 |
+| Enterprise SSO connections, SCIM v2 users and groups, provisioning tokens                                                | built (ADR 0049)                                   |
+| Onboarding: email challenges, invitation accept, organization creation                                                   | built; SMTP delivery configured per host           |
+| Shared people across projects with restore approvals                                                                     | built                                              |
+| MCP delegation: single-use `wbs-be-01/via-mcp-01` delegations per tool call                                              | built; refresh policy `mcp-refresh-policy` 5/12    |
+| Operator CLIs: migrate/down/status, backup and restore, organization activation and preflight, per-feature rollback      | built; runbooks `runbook-organization-*.md`        |
 
 ### Frontend
 
@@ -100,13 +102,13 @@ no side effects, Burokrat; takes time or changes something, Dash; needs a person
 tools exchange records, not calls: plan reference, progress receipt, candidate, environment
 observation, report.
 
-| Tool                   | Capabilities                                                                                                                                                                                                                                                                                                                                                                                                                          | State                                                                                   |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| **Burokrat** (`twib`)  | Static judge, no clock or network. Rules: MOD-INDEX, MOD-DIRECT-ENTRIES, MOD-LAYOUT, REL-EXTRACT, K2–K6 kind directions, F1 plain TypeScript, F7 size ratchet, INV-CLASSIFY, SPEC-SCENARIOS, PERF-THRESHOLD. Candidate reading, classification, identity, content manifest, relationship extraction, index checks, activation preparation, exhaustive census, test-evidence diagnostics (`certifies:false`), admission judge for Dash | built; npm `twilight-burokrat@0.1.0`; all 14 rules in observe mode                      |
-| **Dash** (`twid`)      | Runtime lease authority (bootstrap, inspect, recover, submit-admission), observation store and systemd units, `run-activation-checks` CheckRun ledger, enrollment planning via the fleet tool, progress receipts v1 and v2, a GitHub-polling observation service and review invoker                                                                                                                                                   | built, from source; host gate and CI acceptance outstanding                             |
-| **Navigator** (`twin`) | `plan-reference` from a WBS export (v7–v10), `receipt-to-commands`, `admit-progress` against an accepted reference; sends nothing to WBS                                                                                                                                                                                                                                                                                              | built, from source                                                                      |
-| **Control plane**      | LangGraph and ACP workers, staging and branch devs, Backlog.md as the per-repository planning store, client repository template with `.twilight/repository.yaml`, the sixteen-stage SDLC (`openspec/schemas/twilight-v1`)                                                                                                                                                                                                             | proposed: `twilight-control-plane` 0/51; SDLC exercised only by the documentation trial |
-| **Harness prototype**  | `tools/harness-example`: one ACP session per task, two turns, `--fake` agent; worker bundle drilled on k3d via `tool-fleet:synthetic`                                                                                                                                                                                                                                                                                                 | built, local only                                                                       |
+| Tool                   | Capabilities                                                                                                                                                                                                                                                                                                                                                                                                                                         | State                                                                                   |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| **Burokrat** (`twib`)  | Static judge, no clock or network. Rules: MOD-INDEX, MOD-DIRECT-ENTRIES, MOD-LAYOUT, REL-EXTRACT, K2–K6 kind directions, F1 plain TypeScript, F7 size ratchet, INV-CLASSIFY, SPEC-SCENARIOS, PERF-THRESHOLD, JOB-CATALOGUE. Candidate reading, classification, identity, content manifest, relationship extraction, index checks, activation preparation, exhaustive census, test-evidence diagnostics (`certifies:false`), admission judge for Dash | built; npm `twilight-burokrat@0.1.0`; all 15 rules in observe mode                      |
+| **Dash** (`twid`)      | Runtime lease authority (bootstrap, inspect, recover, submit-admission), observation store and systemd units, `run-activation-checks` CheckRun ledger, enrollment planning via the fleet tool, progress receipts v1 and v2, a GitHub-polling observation service and review invoker; CLI on Optique (generated `--help`, `completion`)                                                                                                               | built, from source; host gate and CI acceptance outstanding                             |
+| **Navigator** (`twin`) | `plan-reference` from a WBS export (v7–v10), `receipt-to-commands`, `admit-progress` against an accepted reference; sends nothing to WBS                                                                                                                                                                                                                                                                                                             | built, from source                                                                      |
+| **Control plane**      | LangGraph and ACP workers, staging and branch devs, Backlog.md as the per-repository planning store, client repository template with `.twilight/repository.yaml`, the sixteen-stage SDLC (`openspec/schemas/twilight-v1`)                                                                                                                                                                                                                            | proposed: `twilight-control-plane` 0/51; SDLC exercised only by the documentation trial |
+| **Harness prototype**  | `tools/harness-example`: one ACP session per task, two turns, `--fake` agent; worker bundle drilled on k3d via `tool-fleet:synthetic`                                                                                                                                                                                                                                                                                                                | built, local only                                                                       |
 
 ## 5. Workflows: from idea to running software
 
@@ -192,7 +194,7 @@ captured before migrate, step-code backfill before exposure; recovery after expo
 
 ### 5.8 Govern
 
-- **Rule policy:** `docs/code-organization/rule-policy.json` (14 rules, observe mode) and
+- **Rule policy:** `docs/code-organization/rule-policy.json` (15 rules, observe mode) and
   `kinds.json` (33 temporary kind entries until files carry `.feature/.resource/.repository.ts`).
 - **Wiki policy:** `docs/wiki-policy/policy.json` (35 pilot boundaries with pinned baselines,
   binary declarations), `modules.json` (35 module identities with index headers in READMEs),
@@ -277,6 +279,8 @@ Observed while mapping; verify each before acting. Numbered so they can be addre
 4. **Two 2026-09-19 design headers say "nothing here is implemented"**
    (`twilight-burokrat-rules-design.md`, and the code-organization design's status) while the rule
    model, kind rules and inventory are built.
+   _dash-host-jobs:_ the rule model now also carries `JOB-CATALOGUE` (built, observe mode, slice
+   1); the two headers are still unreconciled.
 5. **`HUMAN_README.md` sends readers to `LLM_README.md` for open findings**; they live in
    `docs/findings`. The R5 incident count differs across `config.yaml`, `HUMAN_README.md` and
    `current.md`.
@@ -285,6 +289,8 @@ Observed while mapping; verify each before acting. Numbered so they can be addre
 7. **No branch protection on `main`**; merges rely on convention and the host gate.
 8. **Infra plan is "draft v2, nothing implemented"** while its k3s changes are a third to two
    thirds built; the hosts' sizes in it are stale.
+   _dash-host-jobs:_ dated host facts (h2puni 8 cores, 15.6 GiB, 2026-11-01) live in its design;
+   the job catalogue is built (slice 1), the host pool on h2puni and h4claw is proposed.
 9. **Compose-era tooling that targets the old `/srv/wbs` host** is still present and partly
    stale: `tool-smoke:smoke` mounts, `tool-secrets` placeholder CLIs, `tool-bootstrap`,
    `tool-compose:render`, `tool-observability-stack` beside h3mon's Victoria stack.
@@ -296,10 +302,14 @@ Observed while mapping; verify each before acting. Numbered so they can be addre
     system are missing from the wiki entry.
 14. **`docs/refactoring/tasks.md` was last reconciled 2026-09-13**; 17 items open, adjustable
     boundaries and the LLM wiki still queued.
+    _dash-host-jobs:_ its heavy-lock item is marked closed for enrolled hosts and open for
+    unenrolled ones; the enrolment that closes it is proposed (slices 2 to 6).
 15. **Main's `swarm-rehearsal.boot.db.test.ts` step 3 failed once on the host gate** and passed
     on rerun and locally: a race in that test.
 16. **Dash's host gate and CI acceptance**, Navigator and Dash npm release, and the
     Twilight control plane are the open ends of the factory; Backlog.md storage and client
     repositories have no code at all.
+    _dash-host-jobs:_ the job catalogue and `JOB-CATALOGUE` are built (slice 1); Dash's host
+    pool, `ops job …` and the gate hosts' move off the shell lock are proposed.
 17. **Operator-owed steps** cluster in the almost-done changes: real Okta and Google wiring,
     live DNS ownership, platform secrets, the Claude Design sync, `wbs-resources` design sign-off.
