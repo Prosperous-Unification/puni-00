@@ -19,7 +19,198 @@ import { basename, dirname, join } from 'node:path';
 
 import { sql } from 'drizzle-orm';
 
+import type { Connection } from './db';
 import { openExistingConnection, openReadOnlyConnection } from './db';
+import type { SqliteCleanupUnknown } from './sqlite-cleanup';
+import { isSqliteCleanupUnknown } from './sqlite-cleanup';
+
+declare const snapshotCleanupIdentity: unique symbol;
+
+/** Opaque identity view for an original snapshot cleanup whose outcome is unknown. */
+export interface SnapshotCleanupUnknown extends Error {
+  readonly [snapshotCleanupIdentity]: true;
+}
+
+type CleanupState = 'unattempted' | 'closing' | 'closed' | 'unknown';
+interface CleanupOutcome {
+  state: CleanupState;
+  cause: unknown;
+}
+type SnapshotAcquisition = CleanupOutcome &
+  (
+    | {
+        readonly kind:
+          'bounded-file' | 'bounded-parent' | 'publication-file' | 'publication-parent';
+        readonly original: number;
+        readonly close: typeof closeSync;
+        readonly receiver: undefined;
+        readonly args: [number];
+      }
+    | {
+        readonly kind: 'source' | 'semantic';
+        readonly original: Connection;
+        readonly close: Connection['close'];
+        readonly receiver: Connection;
+        readonly args: [];
+      }
+  );
+interface SnapshotOperation {
+  readonly acquisitions: SnapshotAcquisition[];
+  readonly inherited: SqliteCleanupUnknown[];
+  readonly observed: unknown[];
+  readonly attribution: Map<object, readonly unknown[]>;
+}
+
+const snapshotFailures = new WeakMap<
+  object,
+  {
+    readonly operation: SnapshotOperation;
+    readonly terminal: unknown;
+    readonly failures: readonly unknown[];
+  }
+>();
+
+class SnapshotCleanupFailure extends AggregateError implements SnapshotCleanupUnknown {
+  declare readonly [snapshotCleanupIdentity]: true;
+}
+
+/** Recognizes only terminal identities registered after an actual owned or inherited cleanup throw. */
+export function isSnapshotCleanupUnknown(cause: unknown): cause is SnapshotCleanupUnknown {
+  return typeof cause === 'object' && cause !== null && snapshotFailures.has(cause);
+}
+
+/** Captures authentic lower provenance before an internal aggregate can replace its top-level identity. */
+function observeFailure(operation: SnapshotOperation, cause: unknown): void {
+  operation.observed.push(cause);
+  if (isSqliteCleanupUnknown(cause)) operation.inherited.push(cause);
+}
+
+/** Records only this operation's own aggregate attribution; arbitrary diagnostic trees are never traversed. */
+function combineFailures(operation: SnapshotOperation, failures: readonly unknown[]): unknown {
+  if (failures.length === 1) return failures.at(0);
+  const failure = new AggregateError(failures, 'snapshot operation/cleanup failed');
+  // Proof: finite A omitted this attribution; bounded-file before-delegation
+  // failed direct errors equality on a nested aggregate. SAME exact-restored consumer
+  // passed (2026-11-03); grouped attribution/unpacking, later negative assertions unobserved.
+  operation.attribution.set(failure, [...failures]);
+  return failure;
+}
+
+function acquireDescriptor(
+  operation: SnapshotOperation,
+  original: number,
+  kind: 'bounded-file' | 'bounded-parent' | 'publication-file' | 'publication-parent',
+): SnapshotAcquisition {
+  const acquired: SnapshotAcquisition = {
+    kind,
+    original,
+    close: closeSync,
+    receiver: undefined,
+    args: [original],
+    state: 'unattempted',
+    cause: undefined,
+  };
+  operation.acquisitions.push(acquired);
+  return acquired;
+}
+
+function acquireConnection(
+  operation: SnapshotOperation,
+  original: Connection,
+  kind: 'source' | 'semantic',
+): SnapshotAcquisition {
+  const acquired: SnapshotAcquisition = {
+    kind,
+    original,
+    close: original.close,
+    receiver: original,
+    args: [],
+    state: 'unattempted',
+    cause: undefined,
+  };
+  operation.acquisitions.push(acquired);
+  return acquired;
+}
+
+/** Records one original close outcome; callers pass only unattempted acquisitions. */
+function closeAcquisition(acquired: SnapshotAcquisition): void {
+  acquired.state = 'closing';
+  try {
+    switch (acquired.kind) {
+      case 'source':
+      case 'semantic':
+        acquired.close.call(acquired.receiver, ...acquired.args);
+        break;
+      case 'bounded-file':
+      case 'bounded-parent':
+      case 'publication-file':
+      case 'publication-parent':
+        acquired.close.call(acquired.receiver, ...acquired.args);
+        break;
+    }
+    acquired.state = 'closed';
+  } catch (cause) {
+    // Proof: finite U marked this actual close throw closed; bounded-file before-delegation
+    // failed its classifier, then SAME exact-restored consumer passed (2026-11-03).
+    // Grouped throw-state/terminal-classification dependency only.
+    acquired.state = 'unknown';
+    acquired.cause = cause;
+    throw cause;
+  }
+}
+
+/**
+ * Finalizes one synchronous backup call after all directly owned cleanup. The private value
+ * retains exact acquisitions, originals and attribution independently of mutable diagnostics
+ * while its failure is held; it supplies no keeper or strong root after that failure is discarded.
+ */
+function finishSnapshot<T>(run: (operation: SnapshotOperation) => T): T {
+  const operation: SnapshotOperation = {
+    acquisitions: [],
+    inherited: [],
+    observed: [],
+    attribution: new Map(),
+  };
+  const failures: unknown[] = [];
+  let value: { readonly returned: T } | undefined;
+  try {
+    value = { returned: run(operation) };
+  } catch (cause) {
+    observeFailure(operation, cause);
+    failures.push(cause);
+  }
+  for (const acquired of [...operation.acquisitions].reverse()) {
+    if (acquired.state !== 'unattempted') continue;
+    try {
+      closeAcquisition(acquired);
+    } catch (cause) {
+      observeFailure(operation, cause);
+      failures.push(cause);
+    }
+  }
+  if (failures.length > 0) {
+    const terminal = combineFailures(operation, failures);
+    if (
+      operation.inherited.length > 0 ||
+      operation.acquisitions.some((acquired) => acquired.state === 'unknown')
+    ) {
+      const attribution =
+        typeof terminal === 'object' && terminal !== null
+          ? (operation.attribution.get(terminal) ?? [terminal])
+          : [terminal];
+      const retained = [...attribution];
+      const failure = new SnapshotCleanupFailure(retained, 'snapshot operation/cleanup failed');
+      // Proof: finite S omitted this registration; bounded-file before-delegation
+      // failed classification, then SAME exact-restored consumer passed (2026-11-03).
+      // Snapshot identity registration only.
+      snapshotFailures.set(failure, { operation, terminal, failures: retained });
+      throw failure;
+    }
+    throw terminal;
+  }
+  if (value === undefined) throw new Error('snapshot operation returned no outcome');
+  return value.returned;
+}
 
 /** A verified copy of the database and the migration ledger it carries. */
 export interface DatabaseSnapshot {
@@ -58,38 +249,46 @@ function admitLimits(limits: unknown): asserts limits is SnapshotLimits {
   checkDeadline({ maxBytes: limits.maxBytes, deadline: limits.deadline });
 }
 /** Runs every owned cleanup even if the operation or an earlier close fails. */
-function settle<T>(operation: () => T, cleanups: readonly (() => void)[]): T {
+function settle<T>(
+  context: SnapshotOperation,
+  operation: () => T,
+  cleanups: readonly (() => void)[],
+): T {
   const failures: unknown[] = [];
   let value: { readonly returned: T } | undefined;
   try {
     value = { returned: operation() };
   } catch (cause) {
+    observeFailure(context, cause);
     failures.push(cause);
   }
   for (const close of cleanups) {
     try {
       close();
     } catch (cause) {
+      observeFailure(context, cause);
       failures.push(cause);
     }
   }
-  if (failures.length === 1) throw failures[0];
-  if (failures.length > 1) throw new AggregateError(failures, 'snapshot operation/cleanup failed');
+  if (failures.length > 0) throw combineFailures(context, failures);
   if (value === undefined) throw new Error('snapshot operation returned no outcome');
   return value.returned;
 }
-function pinSnapshot(path: string, limits: SnapshotLimits) {
+function pinSnapshot(context: SnapshotOperation, path: string, limits: SnapshotLimits) {
   const parentPath = dirname(path);
   const parent = openSync(parentPath, constants.O_RDONLY | constants.O_DIRECTORY);
+  const parentAcquisition = acquireDescriptor(context, parent, 'bounded-parent');
   let file: number;
+  let fileAcquisition: SnapshotAcquisition;
   try {
     file = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    fileAcquisition = acquireDescriptor(context, file, 'bounded-file');
   } catch (cause) {
-    return settle<never>(() => {
+    return settle<never>(context, () => {
       throw cause;
     }, [
       () => {
-        closeSync(parent);
+        closeAcquisition(parentAcquisition);
       },
     ]);
   }
@@ -163,28 +362,25 @@ function pinSnapshot(path: string, limits: SnapshotLimits) {
         return { bytes, sha256: hash.digest('hex') };
       },
       close: () => {
-        settle(
-          () => undefined,
-          [
-            () => {
-              closeSync(file);
-            },
-            () => {
-              closeSync(parent);
-            },
-          ],
-        );
+        settle(context, () => undefined, [
+          () => {
+            closeAcquisition(fileAcquisition);
+          },
+          () => {
+            closeAcquisition(parentAcquisition);
+          },
+        ]);
       },
     };
   } catch (cause) {
-    return settle<never>(() => {
+    return settle<never>(context, () => {
       throw cause;
     }, [
       () => {
-        closeSync(file);
+        closeAcquisition(fileAcquisition);
       },
       () => {
-        closeSync(parent);
+        closeAcquisition(parentAcquisition);
       },
     ]);
   }
@@ -202,13 +398,18 @@ function sha256Of(path: string): string {
 }
 
 /** Forces a file's or directory's contents to stable storage; a failure throws. */
-function syncPath(path: string): void {
+function syncPath(
+  context: SnapshotOperation,
+  path: string,
+  kind: 'publication-file' | 'publication-parent',
+): void {
   const fd = openSync(path, 'r');
-  settle(() => {
+  const acquired = acquireDescriptor(context, fd, kind);
+  settle(context, () => {
     fsyncSync(fd);
   }, [
     () => {
-      closeSync(fd);
+      closeAcquisition(acquired);
     },
   ]);
 }
@@ -218,10 +419,10 @@ function syncPath(path: string): void {
  * before the rename can publish them, and the directory after it, so a power
  * loss cannot leave `finalPath` naming a file whose pages never reached disk.
  */
-function publishDurably(partialPath: string, finalPath: string): void {
-  syncPath(partialPath);
+function publishDurably(context: SnapshotOperation, partialPath: string, finalPath: string): void {
+  syncPath(context, partialPath, 'publication-file');
   renameSync(partialPath, finalPath);
-  syncPath(dirname(finalPath));
+  syncPath(context, dirname(finalPath), 'publication-parent');
 }
 
 /**
@@ -232,18 +433,22 @@ function publishDurably(partialPath: string, finalPath: string): void {
  * an empty one.
  */
 function verifySnapshotCore(
+  context: SnapshotOperation,
   path: string,
   limits?: SnapshotLimits,
   retained?: ReturnType<typeof pinSnapshot>,
 ): DatabaseSnapshot {
   checkDeadline(limits);
-  const pinned = retained ?? (limits === undefined ? undefined : pinSnapshot(path, limits));
+  const pinned =
+    retained ?? (limits === undefined ? undefined : pinSnapshot(context, path, limits));
   return settle(
+    context,
     () => {
       pinned?.inspect();
       if (!existsSync(path)) throw new Error(`${path} does not exist`);
       const connection = openReadOnlyConnection(path);
-      const migrations = settle(() => {
+      const semantic = acquireConnection(context, connection, 'semantic');
+      const migrations = settle(context, () => {
         checkDeadline(limits);
         const integrity = connection.db.all<{ integrity_check: string }>(
           sql.raw('PRAGMA integrity_check'),
@@ -270,7 +475,7 @@ function verifySnapshotCore(
           });
       }, [
         () => {
-          connection.close();
+          closeAcquisition(semantic);
         },
       ]);
       if (migrations.length === 0) throw new Error(`${path} has no applied migrations`);
@@ -287,21 +492,27 @@ function verifySnapshotCore(
     pinned === undefined || retained !== undefined ? [] : [pinned.close],
   );
 }
-/** Verifies integrity and a nonempty named ledger with the legacy unbounded API. */
+/**
+ * Verifies integrity and a nonempty named ledger with the legacy unbounded API.
+ * @throws An identity-classified {@link SnapshotCleanupUnknown} when an owned or inherited cleanup throws.
+ */
 export function verifySnapshot(path: string): DatabaseSnapshot {
-  return verifySnapshotCore(path);
+  return finishSnapshot((context) => verifySnapshotCore(context, path));
 }
 /**
  * Verifies real SQLite semantics while streaming at most 1MiB per read. Held-file,
  * pathname and parent stability bracket pathname-based SQLite verification; this
  * detects boundary drift, not universal ABA or same-descriptor SQLite semantics.
  * @throws On invalid limits, expiry, unreadability, excess size or changed evidence.
+ * Cleanup throws produce an identity-classified {@link SnapshotCleanupUnknown}.
  */
 export function verifySnapshotBounded(path: string, limits: SnapshotLimits): DatabaseSnapshot {
-  admitLimits(limits);
-  const snapshot = verifySnapshotCore(path, limits);
-  checkDeadline(limits);
-  return snapshot;
+  return finishSnapshot((context) => {
+    admitLimits(limits);
+    const snapshot = verifySnapshotCore(context, path, limits);
+    checkDeadline(limits);
+    return snapshot;
+  });
 }
 
 /**
@@ -316,6 +527,7 @@ export function verifySnapshotBounded(path: string, limits: SnapshotLimits): Dat
  * the copy fails {@link verifySnapshot}.
  */
 function snapshotDatabaseCore(
+  context: SnapshotOperation,
   sourcePath: string,
   snapshotPath: string,
   limits?: SnapshotLimits,
@@ -329,24 +541,26 @@ function snapshotDatabaseCore(
   // Proof: restoring creation-capable openConnection made `refuses a source removed
   // after preflight without recreating it` leave a replacement DB (2026-10-24).
   const source = openExistingConnection(sourcePath);
-  settle(() => {
+  const sourceAcquisition = acquireConnection(context, source, 'source');
+  settle(context, () => {
     checkDeadline(limits);
     source.db.run(sql`VACUUM INTO ${partialPath}`);
     checkDeadline(limits);
   }, [
     () => {
-      source.close();
+      closeAcquisition(sourceAcquisition);
     },
   ]);
   // Proof: replacing this with an unverified digest made `refuses to publish
   // a copy without a migration ledger` in backup.db.test.ts publish the copy
   // (4 pass, 2 fail, 2026-09-29).
-  const pinned = limits === undefined ? undefined : pinSnapshot(partialPath, limits);
+  const pinned = limits === undefined ? undefined : pinSnapshot(context, partialPath, limits);
   return settle(
+    context,
     () => {
-      const verified = verifySnapshotCore(partialPath, limits, pinned);
+      const verified = verifySnapshotCore(context, partialPath, limits, pinned);
       checkDeadline(limits);
-      if (pinned === undefined) publishDurably(partialPath, snapshotPath);
+      if (pinned === undefined) publishDurably(context, partialPath, snapshotPath);
       else {
         pinned.publish(snapshotPath);
         const published = pinned.hash();
@@ -359,24 +573,30 @@ function snapshotDatabaseCore(
     pinned === undefined ? [] : [pinned.close],
   );
 }
-/** Writes a verified application-consistent VACUUM copy using legacy defaults. */
+/**
+ * Writes a verified application-consistent VACUUM copy using legacy defaults.
+ * @throws An identity-classified {@link SnapshotCleanupUnknown} when an owned or inherited cleanup throws.
+ */
 export function snapshotDatabase(sourcePath: string, snapshotPath: string): DatabaseSnapshot {
-  return snapshotDatabaseCore(sourcePath, snapshotPath);
+  return finishSnapshot((context) => snapshotDatabaseCore(context, sourcePath, snapshotPath));
 }
 /**
  * Admits the actual produced partial copy before semantic open and publication.
  * Native SQLite calls are synchronous: deadline overrun refuses at the next
  * boundary and may already have created a partial file. No partial evidence is erased on refusal.
+ * @throws An identity-classified {@link SnapshotCleanupUnknown} when an owned or inherited cleanup throws.
  */
 export function snapshotDatabaseBounded(
   sourcePath: string,
   snapshotPath: string,
   limits: SnapshotLimits,
 ): DatabaseSnapshot {
-  admitLimits(limits);
-  const snapshot = snapshotDatabaseCore(sourcePath, snapshotPath, limits);
-  checkDeadline(limits);
-  return snapshot;
+  return finishSnapshot((context) => {
+    admitLimits(limits);
+    const snapshot = snapshotDatabaseCore(context, sourcePath, snapshotPath, limits);
+    checkDeadline(limits);
+    return snapshot;
+  });
 }
 
 /**
@@ -388,35 +608,38 @@ export function snapshotDatabaseBounded(
  *
  * @throws When the snapshot fails {@link verifySnapshot} or its copy differs
  * from it; in both cases `dbPath` is left untouched.
+ * Cleanup throws produce an identity-classified {@link SnapshotCleanupUnknown}.
  */
 export function restoreDatabase(
   snapshotPath: string,
   dbPath: string,
   stamp: string,
 ): DatabaseRestore {
-  // Proof: replacing this with an unverified digest made `refuses a corrupted
-  // snapshot and leaves the database untouched` fail: the corrupted copy
-  // replaced the database (5 pass, 1 fail, 2026-09-29).
-  const snapshot = verifySnapshot(snapshotPath);
-  const partialPath = `${dbPath}.restore.partial`;
-  rmSync(partialPath, { force: true });
-  copyFileSync(snapshotPath, partialPath);
-  if (sha256Of(partialPath) !== snapshot.sha256) {
+  return finishSnapshot((context) => {
+    // Proof: replacing this with an unverified digest made `refuses a corrupted
+    // snapshot and leaves the database untouched` fail: the corrupted copy
+    // replaced the database (5 pass, 1 fail, 2026-09-29).
+    const snapshot = verifySnapshotCore(context, snapshotPath);
+    const partialPath = `${dbPath}.restore.partial`;
     rmSync(partialPath, { force: true });
-    throw new Error(`copy of ${snapshotPath} does not match its digest; ${dbPath} untouched`);
-  }
-  const present = [dbPath, `${dbPath}-wal`, `${dbPath}-shm`].filter((path) => existsSync(path));
-  const taken = present.map((path) => `${path}.displaced-${stamp}`).filter((p) => existsSync(p));
-  if (taken.length > 0) {
-    rmSync(partialPath, { force: true });
-    throw new Error(`${taken.join(', ')} already exist; ${dbPath} untouched`);
-  }
-  const displaced: string[] = [];
-  for (const path of present) {
-    const aside = `${path}.displaced-${stamp}`;
-    renameSync(path, aside);
-    displaced.push(aside);
-  }
-  publishDurably(partialPath, dbPath);
-  return { snapshot, displaced };
+    copyFileSync(snapshotPath, partialPath);
+    if (sha256Of(partialPath) !== snapshot.sha256) {
+      rmSync(partialPath, { force: true });
+      throw new Error(`copy of ${snapshotPath} does not match its digest; ${dbPath} untouched`);
+    }
+    const present = [dbPath, `${dbPath}-wal`, `${dbPath}-shm`].filter((path) => existsSync(path));
+    const taken = present.map((path) => `${path}.displaced-${stamp}`).filter((p) => existsSync(p));
+    if (taken.length > 0) {
+      rmSync(partialPath, { force: true });
+      throw new Error(`${taken.join(', ')} already exist; ${dbPath} untouched`);
+    }
+    const displaced: string[] = [];
+    for (const path of present) {
+      const aside = `${path}.displaced-${stamp}`;
+      renameSync(path, aside);
+      displaced.push(aside);
+    }
+    publishDurably(context, partialPath, dbPath);
+    return { snapshot, displaced };
+  });
 }

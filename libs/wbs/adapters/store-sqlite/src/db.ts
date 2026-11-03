@@ -3,6 +3,8 @@ import type { Logger } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { drizzle, type SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { createSqliteCleanupFailure } from './sqlite-cleanup';
+
 export { SQLiteError };
 
 const BUSY_TIMEOUT_MS = 5000;
@@ -64,7 +66,8 @@ function openWritableDatabase(dbPath: string, isCreateAllowed: boolean): Databas
 /**
  * Owns a newly constructed native connection until initialization succeeds.
  * Failure finalizes its statements and closes synchronously before rethrowing the
- * original error. A failed close reports both errors with initialization as cause.
+ * original error. A failed close retains its acquired client in an identity-classified
+ * aggregate with both errors and initialization as cause.
  * Successful initialization transfers the still-open connection to the caller.
  */
 function initializeDatabase(db: Database, initialize: (client: Database) => void): Database {
@@ -72,20 +75,28 @@ function initializeDatabase(db: Database, initialize: (client: Database) => void
     initialize(db);
     return db;
   } catch (cause) {
-    const failures: unknown[] = [cause];
+    const attempt: Parameters<typeof createSqliteCleanupFailure>[1] = {
+      client: db,
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- retains the selected close; apply below uses its exact recorded native receiver and arguments
+      original: db.close,
+      receiver: db,
+      args: [true],
+      phase: 'initialization',
+      state: 'not-entered',
+      cause: undefined,
+    };
     try {
       // Proof: removing close retained 30 malformed activation descriptors with native
       // handles held against GC in database-initialization.db.test.ts (2026-10-23).
-      db.close(true);
+      attempt.state = 'entered';
+      attempt.original.apply(attempt.receiver, attempt.args);
+      attempt.state = 'returned';
     } catch (closeFailure) {
-      failures.push(closeFailure);
-    }
-    // Proof: removing aggregation replaced the primary refusal with the injected
-    // cleanup error in the initialization/cleanup failure negative (2026-10-23).
-    if (failures.length > 1) {
-      throw new AggregateError(failures, 'SQLite initialization and cleanup failed', {
-        cause,
-      });
+      attempt.state = 'threw';
+      attempt.cause = closeFailure;
+      // Proof: removing aggregation replaced the primary refusal with the injected
+      // cleanup error in the initialization/cleanup failure negative (2026-10-23).
+      throw createSqliteCleanupFailure(cause, attempt);
     }
     throw cause;
   }
@@ -222,8 +233,45 @@ export function openConnection(
 export function openExistingConnection(dbPath: string): Connection {
   // Proof: creation enabled here; missing-DB CLI negative observed a newly created file; watched 2026-10-13.
   const client = openWritableDatabase(dbPath, false);
+  return wrapConnection(client, () => drizzle({ client }));
+}
+
+/**
+ * Owns the two recovery/report clients through actual Drizzle construction. A wrapper
+ * refusal closes once and preserves its primary; a close throw retains the acquired
+ * original as cleanup UNKNOWN. A successful wrapper transfers the normal close to its caller.
+ */
+function wrapConnection(client: Database, wrap: () => Drizzle): Connection {
+  let db: Drizzle;
+  try {
+    db = wrap();
+  } catch (cause) {
+    const attempt: Parameters<typeof createSqliteCleanupFailure>[1] = {
+      client,
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- retains the selected close; apply below uses its exact acquired receiver and arguments
+      original: client.close,
+      receiver: client,
+      args: [true],
+      phase: 'connection-wrapper',
+      state: 'not-entered',
+      cause: undefined,
+    };
+    try {
+      attempt.state = 'entered';
+      // Proof: actual SC2 existing-wrapper known-close consumer required one production
+      // close but received zero after 18 provenance checks. After repair, the SAME consumer
+      // and eight controls passed 9/0 (2026-11-03); observed wrapper cleanup only.
+      attempt.original.apply(attempt.receiver, attempt.args);
+      attempt.state = 'returned';
+    } catch (closeFailure) {
+      attempt.state = 'threw';
+      attempt.cause = closeFailure;
+      throw createSqliteCleanupFailure(cause, attempt);
+    }
+    throw cause;
+  }
   return {
-    db: drizzle({ client }),
+    db,
     close: () => {
       client.close();
     },
@@ -363,12 +411,7 @@ export function drizzleReadTransaction(db: Drizzle): {
  */
 export function openReadOnlyConnection(dbPath: string, logger?: Logger): Connection {
   const client = openReadOnlyDatabase(dbPath);
-  return {
-    db: drizzle({ client, logger }),
-    close: () => {
-      client.close();
-    },
-  };
+  return wrapConnection(client, () => drizzle({ client, logger }));
 }
 
 /** Open an existing SQLite file without creating it or changing its journal mode. */

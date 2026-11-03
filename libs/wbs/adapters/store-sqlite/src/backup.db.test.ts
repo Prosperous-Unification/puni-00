@@ -11,10 +11,13 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- this fixture observes actual acquired native clients and their exact close delegation; it never constructs another client
+import { Database } from 'bun:sqlite';
 import { describe, expect, it, spyOn } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
 import {
+  isSnapshotCleanupUnknown,
   restoreDatabase,
   snapshotDatabase,
   snapshotDatabaseBounded,
@@ -22,7 +25,7 @@ import {
   verifySnapshotBounded,
 } from './backup';
 import * as connections from './db';
-import { openConnection } from './db';
+import { type Connection, openConnection } from './db';
 import { runMigrations } from './migrate';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
@@ -563,5 +566,1249 @@ it('bounded semantic primary survives the delegated actual SQLite connection clo
     expect(closed).toBe(true);
   } finally {
     semantic.mockRestore();
+  }
+});
+
+type BoundedCloseFault = 'none' | 'before' | 'after';
+interface BoundedOriginal {
+  readonly kind: 'parent' | 'file';
+  readonly descriptor: number;
+  readonly receiver: typeof filesystem;
+  readonly close: typeof filesystem.closeSync;
+  readonly args: [number];
+  attempts: number;
+  entries: number;
+  returns: number;
+  retirementEntries: number;
+  retirementReturns: number;
+}
+
+/** Captures actual acquisitions and delegation outcomes; fixture retirement never settles UNKNOWN. */
+function captureBoundedClose(
+  path: string,
+  parentPath: string,
+  fault: BoundedCloseFault,
+  target: BoundedOriginal['kind'] = 'file',
+) {
+  const originals: BoundedOriginal[] = [];
+  const primary = new Error('SC3 actual bounded read primary');
+  const cleanup =
+    target === 'parent' && fault === 'before'
+      ? 'SC3 original bounded parent close primitive fault'
+      : new Error(`SC3 original bounded ${target} close fault`);
+  const open = filesystem.openSync;
+  const close = filesystem.closeSync;
+  const read = filesystem.readSync;
+  let reads = 0;
+  const opened = spyOn(filesystem, 'openSync').mockImplementation(
+    (...args: Parameters<typeof open>) => {
+      const descriptor = open(...args);
+      if (args[0] === parentPath || args[0] === path)
+        originals.push({
+          kind: args[0] === parentPath ? 'parent' : 'file',
+          descriptor,
+          receiver: filesystem,
+          close,
+          args: [descriptor],
+          attempts: 0,
+          entries: 0,
+          returns: 0,
+          retirementEntries: 0,
+          retirementReturns: 0,
+        });
+      return descriptor;
+    },
+  );
+  const chunk = spyOn(filesystem, 'readSync').mockImplementation((...args: ReadArguments) => {
+    readOriginal(read, args);
+    reads += 1;
+    throw primary;
+  });
+  const closed: BoundedOriginal[] = [];
+  const closing = spyOn(filesystem, 'closeSync').mockImplementation((descriptor) => {
+    const original = originals.find((acquired) => acquired.descriptor === descriptor);
+    if (original === undefined) {
+      close(descriptor);
+      return;
+    }
+    original.attempts += 1;
+    closed.push(original);
+    if (original.attempts !== 1)
+      throw new Error('SC3 duplicate original close attempt refused', { cause: original });
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- this reviewed fixture preserves the exact Error or parent-before primitive cleanup outcome; wrapping would change its identity
+    if (original.kind === target && fault === 'before') throw cleanup;
+    original.entries += 1;
+    original.close.call(original.receiver, ...original.args);
+    original.returns += 1;
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- this reviewed fixture preserves the exact Error or parent-before primitive cleanup outcome; wrapping would change its identity
+    if (original.kind === target && fault === 'after') throw cleanup;
+  });
+  return {
+    originals,
+    closed,
+    primary,
+    cleanup,
+    close,
+    get reads() {
+      return reads;
+    },
+    /** Runs after production assertions, including assertion failure; never retries an entered close. */
+    retire: () => {
+      opened.mockRestore();
+      chunk.mockRestore();
+      closing.mockRestore();
+      if (
+        originals.length !== 2 ||
+        originals[0]?.kind !== 'parent' ||
+        originals[1]?.kind !== 'file' ||
+        originals[0].descriptor === originals[1].descriptor
+      )
+        throw new Error('SC3 STOP: bounded original roster is not two distinct live descriptors', {
+          cause: { originals, closed, primary, cleanup },
+        });
+      for (const original of originals) {
+        if (
+          original.entries !== original.returns ||
+          original.retirementEntries !== original.retirementReturns
+        )
+          throw new Error(
+            'SC3 STOP: original native close entered without return; retain evidence',
+            {
+              cause: { originals, closed, primary, cleanup },
+            },
+          );
+        if (
+          original.returns + original.retirementReturns !== 1 &&
+          !(
+            fault === 'before' &&
+            original.kind === target &&
+            original.attempts === 1 &&
+            original.entries === 0 &&
+            original.retirementEntries === 0
+          )
+        )
+          throw new Error('SC3 STOP: original has no authorized first-delegation retirement', {
+            cause: { originals, closed, primary, cleanup },
+          });
+      }
+      for (const original of originals) {
+        if (original.returns + original.retirementReturns === 1) continue;
+        original.retirementEntries += 1;
+        try {
+          original.close.call(original.receiver, ...original.args);
+        } catch (cause) {
+          throw new Error('SC3 STOP: fixture first native close did not return; retain evidence', {
+            // eslint-disable-next-line preserve-caught-error -- STOP retains the exact caught failure with its original native/ledger evidence in this cause object
+            cause: { original, originals, closed, primary, cleanup, failure: cause },
+          });
+        }
+        original.retirementReturns += 1;
+      }
+      const expectedRetirement =
+        target === 'parent' && fault === 'before'
+          ? [
+              [1, 1],
+              [0, 0],
+            ]
+          : fault === 'before'
+            ? [
+                [0, 0],
+                [1, 1],
+              ]
+            : [
+                [0, 0],
+                [0, 0],
+              ];
+      expect(
+        originals.map((original) => [original.retirementEntries, original.retirementReturns]),
+      ).toEqual(expectedRetirement);
+    },
+  };
+}
+
+it('SC3 bounded file cleanup preserves exact read primary when both original closes return', () => {
+  const dir = scratch();
+  const path = skeletonDatabase(dir);
+  const fixture = captureBoundedClose(path, dir, 'none');
+  try {
+    let observed: unknown;
+    try {
+      verifySnapshotBounded(path, { maxBytes: 1073741824, deadline: performance.now() + 10000 });
+    } catch (cause) {
+      observed = cause;
+    }
+    expect(observed).toBe(fixture.primary);
+    expect(isSnapshotCleanupUnknown(observed)).toBe(false);
+    expect(fixture.reads).toBe(1);
+    expect(fixture.originals.map((original) => original.kind)).toEqual(['parent', 'file']);
+    expect(fixture.closed).toEqual([...fixture.originals].reverse());
+    expect(
+      fixture.originals.map((original) => [original.attempts, original.entries, original.returns]),
+    ).toEqual([
+      [1, 1, 1],
+      [1, 1, 1],
+    ]);
+  } finally {
+    fixture.retire();
+  }
+});
+
+it('SC3 bounded file cleanup classifies original file close throwing before delegation', () => {
+  const dir = scratch();
+  const path = skeletonDatabase(dir);
+  const fixture = captureBoundedClose(path, dir, 'before');
+  try {
+    let observed: unknown;
+    try {
+      verifySnapshotBounded(path, { maxBytes: 1073741824, deadline: performance.now() + 10000 });
+    } catch (cause) {
+      observed = cause;
+    }
+    expect(observed).toBeInstanceOf(AggregateError);
+    if (!(observed instanceof AggregateError)) throw new Error('SC3 original attribution absent');
+    expect(observed.errors).toEqual([fixture.primary, fixture.cleanup]);
+    expect(observed.errors[0]).toBe(fixture.primary);
+    expect(observed.errors[1]).toBe(fixture.cleanup);
+    expect(fixture.reads).toBe(1);
+    expect(fixture.originals.map((original) => original.kind)).toEqual(['parent', 'file']);
+    expect(fixture.closed).toEqual([...fixture.originals].reverse());
+    expect(
+      fixture.originals.map((original) => [original.attempts, original.entries, original.returns]),
+    ).toEqual([
+      [1, 1, 1],
+      [1, 0, 0],
+    ]);
+    for (const original of fixture.originals) {
+      expect(original.close).toBe(fixture.close);
+      expect(original.receiver).toBe(filesystem);
+      expect(original.args).toEqual([original.descriptor]);
+    }
+    expect(isSnapshotCleanupUnknown(observed)).toBe(true);
+  } finally {
+    fixture.retire();
+  }
+});
+
+it('SC3 bounded file cleanup classifies spy throw after original file close returns', () => {
+  const dir = scratch();
+  const path = skeletonDatabase(dir);
+  const fixture = captureBoundedClose(path, dir, 'after');
+  try {
+    let observed: unknown;
+    try {
+      verifySnapshotBounded(path, { maxBytes: 1073741824, deadline: performance.now() + 10000 });
+    } catch (cause) {
+      observed = cause;
+    }
+    expect(observed).toBeInstanceOf(AggregateError);
+    if (!(observed instanceof AggregateError)) throw new Error('SC3 original attribution absent');
+    expect(observed.errors).toEqual([fixture.primary, fixture.cleanup]);
+    expect(observed.errors[0]).toBe(fixture.primary);
+    expect(observed.errors[1]).toBe(fixture.cleanup);
+    expect(fixture.reads).toBe(1);
+    expect(fixture.originals.map((original) => original.kind)).toEqual(['parent', 'file']);
+    expect(fixture.closed).toEqual([...fixture.originals].reverse());
+    expect(
+      fixture.originals.map((original) => [original.attempts, original.entries, original.returns]),
+    ).toEqual([
+      [1, 1, 1],
+      [1, 1, 1],
+    ]);
+    for (const original of fixture.originals) {
+      expect(original.close).toBe(fixture.close);
+      expect(original.receiver).toBe(filesystem);
+      expect(original.args).toEqual([original.descriptor]);
+    }
+    expect(isSnapshotCleanupUnknown(observed)).toBe(true);
+  } finally {
+    fixture.retire();
+  }
+});
+
+interface SourceNativeCall {
+  readonly original: Database['close'];
+  readonly receiver: Database;
+  readonly args: Parameters<Database['close']>;
+  readonly phase: 'production' | 'fixture-retirement';
+  entered: boolean;
+  returned: boolean;
+}
+interface SourceOriginal {
+  readonly connection: Connection;
+  readonly client: Database;
+  readonly opener: typeof connections.openExistingConnection;
+  readonly openReceiver: unknown;
+  readonly openArgs: Parameters<typeof connections.openExistingConnection>;
+  readonly close: Connection['close'];
+  readonly receiver: Connection;
+  readonly args: [];
+  readonly nativeCalls: SourceNativeCall[];
+  readonly vacuum: {
+    receiver: Connection['db'];
+    args: Parameters<Connection['db']['run']>;
+    returned: boolean;
+  }[];
+  readonly closeCalls: { receiver: Connection; args: [] }[];
+  attempts: number;
+  entries: number;
+  returns: number;
+  retirementEntries: number;
+  retirementReturns: number;
+}
+
+/** Observes the actual source Connection and native close; no opener or SQL is manufactured. */
+function captureSourceClose(fault: 'before' | 'after') {
+  const originals: SourceOriginal[] = [];
+  const acquiredConnections: Connection[] = [];
+  const cleanup = new Error('SC3 actual source connection close refusal');
+  const open = connections.openExistingConnection;
+  const openSemantic = connections.openReadOnlyConnection;
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- recorded native delegates always use their captured Database receiver and actual argument tuple
+  const nativeClose = Database.prototype.close;
+  const restorations: (() => void)[] = [];
+  let semanticEntries = 0;
+  let retiring = false;
+  const native = spyOn(Database.prototype, 'close').mockImplementation(function (
+    this: Database,
+    ...args: Parameters<Database['close']>
+  ) {
+    const original = originals.find((acquired) => acquired.client === this);
+    if (original === undefined) {
+      nativeClose.apply(this, args);
+      return;
+    }
+    const call: SourceNativeCall = {
+      original: nativeClose,
+      receiver: this,
+      args,
+      phase: retiring ? 'fixture-retirement' : 'production',
+      entered: false,
+      returned: false,
+    };
+    original.nativeCalls.push(call);
+    if (original.nativeCalls.some((previous) => previous !== call && previous.entered))
+      throw new Error('SC3 STOP: source native close would be delegated twice', {
+        cause: { original, call, acquiredConnections, originals },
+      });
+    call.entered = true;
+    call.original.apply(call.receiver, call.args);
+    call.returned = true;
+  });
+  const semantic = spyOn(connections, 'openReadOnlyConnection').mockImplementation(function (
+    this: unknown,
+    ...args: Parameters<typeof openSemantic>
+  ) {
+    semanticEntries += 1;
+    return openSemantic.apply(this, args);
+  });
+  const opened = spyOn(connections, 'openExistingConnection').mockImplementation(function (
+    this: unknown,
+    ...args: Parameters<typeof open>
+  ) {
+    const connection = open.apply(this, args);
+    acquiredConnections.push(connection);
+    if (!('$client' in connection.db) || !(connection.db.$client instanceof Database))
+      throw new Error('SC3 STOP: actual source native client absent', {
+        cause: { connection, acquiredConnections, originals },
+      });
+    const original: SourceOriginal = {
+      connection,
+      client: connection.db.$client,
+      opener: open,
+      openReceiver: this,
+      openArgs: args,
+
+      close: connection.close,
+      receiver: connection,
+      args: [],
+      nativeCalls: [],
+      vacuum: [],
+      closeCalls: [],
+      attempts: 0,
+      entries: 0,
+      returns: 0,
+      retirementEntries: 0,
+      retirementReturns: 0,
+    };
+    originals.push(original);
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- the real Drizzle method is forwarded with its observed receiver and unchanged SQL arguments
+    const run = connection.db.run;
+    const statement = spyOn(connection.db, 'run').mockImplementation(function (
+      this: Connection['db'],
+      ...sqlArgs: Parameters<Connection['db']['run']>
+    ) {
+      const call = { receiver: this, args: sqlArgs, returned: false };
+      original.vacuum.push(call);
+      const value = run.apply(this, sqlArgs);
+      call.returned = true;
+      return value;
+    });
+    const closing = spyOn(connection, 'close').mockImplementation(function (
+      this: Connection,
+      ...closeArgs: []
+    ) {
+      original.attempts += 1;
+      original.closeCalls.push({ receiver: this, args: closeArgs });
+      if (original.attempts !== 1)
+        throw new Error('SC3 source duplicate close intercepted before delegation', {
+          cause: original,
+        });
+      if (fault === 'before') throw cleanup;
+      original.entries += 1;
+      original.close.call(this, ...closeArgs);
+      original.returns += 1;
+      throw cleanup;
+    });
+    restorations.push(
+      () => {
+        statement.mockRestore();
+      },
+      () => {
+        closing.mockRestore();
+      },
+    );
+    return connection;
+  });
+  return {
+    originals,
+    acquiredConnections,
+    cleanup,
+    open,
+    nativeClose,
+    get semanticEntries() {
+      return semanticEntries;
+    },
+    /** First fixture delegation follows production assertions; unknown native outcomes remain STOP. */
+    retire: () => {
+      try {
+        const original = originals.at(0);
+        if (
+          acquiredConnections.length !== 1 ||
+          originals.length !== 1 ||
+          original === undefined ||
+          original.connection !== acquiredConnections.at(0) ||
+          original.attempts !== 1 ||
+          original.entries !== original.returns ||
+          original.retirementEntries !== 0 ||
+          original.nativeCalls.some((call) => call.entered && !call.returned) ||
+          (fault === 'before' && (original.entries !== 0 || original.nativeCalls.length !== 0)) ||
+          (fault === 'after' &&
+            (original.entries !== 1 ||
+              original.nativeCalls.length !== 1 ||
+              !original.nativeCalls.at(0)?.returned))
+        )
+          throw new Error('SC3 STOP: source original has no known one-shot retirement', {
+            cause: { acquiredConnections, originals, cleanup, fault },
+          });
+        if (fault === 'before') {
+          retiring = true;
+          original.retirementEntries += 1;
+          try {
+            original.close.call(original.receiver, ...original.args);
+          } catch (cause) {
+            throw new Error('SC3 STOP: first source fixture close did not return', {
+              // eslint-disable-next-line preserve-caught-error -- the exact caught failure remains with its original native and Connection evidence
+              cause: { failure: cause, acquiredConnections, originals, cleanup },
+            });
+          }
+          original.retirementReturns += 1;
+        }
+        expect(original.retirementEntries).toBe(fault === 'before' ? 1 : 0);
+        expect(original.retirementReturns).toBe(fault === 'before' ? 1 : 0);
+        expect(original.nativeCalls).toHaveLength(1);
+        expect(original.nativeCalls.at(0)?.original).toBe(nativeClose);
+        expect(original.nativeCalls.at(0)?.receiver).toBe(original.client);
+        expect(original.nativeCalls.at(0)?.args).toEqual([]);
+        expect(original.nativeCalls.at(0)?.entered).toBe(true);
+        expect(original.nativeCalls.at(0)?.returned).toBe(true);
+        expect(original.nativeCalls.at(0)?.phase).toBe(
+          fault === 'before' ? 'fixture-retirement' : 'production',
+        );
+      } finally {
+        opened.mockRestore();
+        semantic.mockRestore();
+        for (const restore of restorations) restore();
+        native.mockRestore();
+      }
+    },
+  };
+}
+
+it('SC3 source connection cleanup refuses before delegation', () => {
+  const dir = scratch();
+  const path = skeletonDatabase(dir);
+  const finalPath = join(dir, 'source-copy.db');
+  const partialPath = join(dir, '.source-copy.db.partial');
+  const fixture = captureSourceClose('before');
+  try {
+    let observed: unknown;
+    try {
+      snapshotDatabase(path, finalPath);
+    } catch (cause) {
+      observed = cause;
+    }
+    expect(fixture.originals).toHaveLength(1);
+    const original = fixture.originals.at(0);
+    if (original === undefined) throw new Error('SC3 captured source original absent');
+    expect(original.opener).toBe(fixture.open);
+    expect(original.openArgs).toEqual([path]);
+    expect('$client' in original.connection.db && original.connection.db.$client).toBe(
+      original.client,
+    );
+    expect(original.receiver).toBe(original.connection);
+    expect(original.args).toEqual([]);
+    expect(original.vacuum).toHaveLength(1);
+    expect(original.vacuum.at(0)?.receiver).toBe(original.connection.db);
+    expect(original.vacuum.at(0)?.returned).toBe(true);
+    expect(original.closeCalls).toHaveLength(1);
+    expect(original.closeCalls.at(0)?.receiver).toBe(original.connection);
+    expect(original.closeCalls.at(0)?.args).toEqual([]);
+    expect(original.attempts).toBe(1);
+    expect(original.entries).toBe(0);
+    expect(original.returns).toBe(0);
+    expect(original.nativeCalls).toHaveLength(0);
+    expect(original.retirementEntries).toBe(0);
+    expect(original.retirementReturns).toBe(0);
+    expect(fixture.semanticEntries).toBe(0);
+    expect(existsSync(partialPath)).toBe(true);
+    expect(existsSync(finalPath)).toBe(false);
+    expect(observed).toBeInstanceOf(AggregateError);
+    if (!(observed instanceof AggregateError)) throw new Error('SC3 source attribution absent');
+    expect(observed.errors).toEqual([fixture.cleanup]);
+    expect(observed.errors[0]).toBe(fixture.cleanup);
+    expect(isSnapshotCleanupUnknown(observed)).toBe(true);
+  } finally {
+    fixture.retire();
+  }
+});
+
+it('SC3 source connection cleanup refuses after native return', () => {
+  const dir = scratch();
+  const path = skeletonDatabase(dir);
+  const finalPath = join(dir, 'source-copy.db');
+  const partialPath = join(dir, '.source-copy.db.partial');
+  const fixture = captureSourceClose('after');
+  try {
+    let observed: unknown;
+    try {
+      snapshotDatabase(path, finalPath);
+    } catch (cause) {
+      observed = cause;
+    }
+    expect(fixture.originals).toHaveLength(1);
+    const original = fixture.originals.at(0);
+    if (original === undefined) throw new Error('SC3 captured source original absent');
+    expect(original.opener).toBe(fixture.open);
+    expect(original.openArgs).toEqual([path]);
+    expect('$client' in original.connection.db && original.connection.db.$client).toBe(
+      original.client,
+    );
+    expect(original.receiver).toBe(original.connection);
+    expect(original.args).toEqual([]);
+    expect(original.vacuum).toHaveLength(1);
+    expect(original.vacuum.at(0)?.receiver).toBe(original.connection.db);
+    expect(original.vacuum.at(0)?.returned).toBe(true);
+    expect(original.closeCalls).toHaveLength(1);
+    expect(original.closeCalls.at(0)?.receiver).toBe(original.connection);
+    expect(original.closeCalls.at(0)?.args).toEqual([]);
+    expect(original.attempts).toBe(1);
+    expect(original.entries).toBe(1);
+    expect(original.returns).toBe(1);
+    expect(original.nativeCalls).toHaveLength(1);
+    expect(original.nativeCalls.at(0)?.original).toBe(fixture.nativeClose);
+    expect(original.nativeCalls.at(0)?.receiver).toBe(original.client);
+    expect(original.nativeCalls.at(0)?.args).toEqual([]);
+    expect(original.nativeCalls.at(0)?.entered).toBe(true);
+    expect(original.nativeCalls.at(0)?.returned).toBe(true);
+    expect(original.nativeCalls.at(0)?.phase).toBe('production');
+    expect(original.retirementEntries).toBe(0);
+    expect(original.retirementReturns).toBe(0);
+    expect(fixture.semanticEntries).toBe(0);
+    expect(existsSync(partialPath)).toBe(true);
+    expect(existsSync(finalPath)).toBe(false);
+    expect(observed).toBeInstanceOf(AggregateError);
+    if (!(observed instanceof AggregateError)) throw new Error('SC3 source attribution absent');
+    expect(observed.errors).toEqual([fixture.cleanup]);
+    expect(observed.errors[0]).toBe(fixture.cleanup);
+    expect(isSnapshotCleanupUnknown(observed)).toBe(true);
+  } finally {
+    fixture.retire();
+  }
+});
+
+it('SC3 semantic connection cleanup refuses before delegation', () => {
+  const dir = scratch();
+  const path = skeletonDatabase(dir);
+  const bytes = readFileSync(path);
+  const cleanup = new Error('SC3 original semantic close refusal');
+  const open = connections.openReadOnlyConnection;
+  const openDescriptor = filesystem.openSync;
+  const closeDescriptor = filesystem.closeSync;
+  const descriptors: BoundedOriginal[] = [];
+  const descriptorOrder: BoundedOriginal[] = [];
+  const events: string[] = [];
+  const retainedConnections: connections.Connection[] = [];
+  const acquisitions: {
+    readonly returnedConnection: connections.Connection;
+    readonly original: connections.Connection['close'];
+    readonly receiver: connections.Connection;
+    readonly args: [];
+    readonly client: { close: (...args: unknown[]) => unknown };
+    readonly nativeClose: (...args: unknown[]) => unknown;
+    queryOutcomes: () => unknown[];
+    restoreConnection: () => void;
+    restoreNative: () => void;
+    phase: 'production' | 'fixture';
+    fixtureNativeAttempts: number;
+    fixtureNativeEntries: number;
+    fixtureNativeReturns: number;
+    fixtureNativeReceiver: unknown;
+    fixtureNativeArgs: unknown[];
+    attempts: number;
+    entries: number;
+    returns: number;
+    nativeAttempts: number;
+    nativeEntries: number;
+    nativeReturns: number;
+    retirementEntries: number;
+    retirementReturns: number;
+    attemptedReceiver: unknown;
+    attemptedArgs: unknown[];
+    nativeReceiver: unknown;
+    nativeArgs: unknown[];
+  }[] = [];
+  const opened = spyOn(filesystem, 'openSync').mockImplementation(
+    (...args: Parameters<typeof openDescriptor>) => {
+      const descriptor = openDescriptor(...args);
+      if (args[0] === dir || args[0] === path)
+        descriptors.push({
+          kind: args[0] === dir ? 'parent' : 'file',
+          descriptor,
+          receiver: filesystem,
+          close: closeDescriptor,
+          args: [descriptor],
+          attempts: 0,
+          entries: 0,
+          returns: 0,
+          retirementEntries: 0,
+          retirementReturns: 0,
+        });
+      return descriptor;
+    },
+  );
+  const closed = spyOn(filesystem, 'closeSync').mockImplementation((descriptor) => {
+    const acquired = descriptors.find((original) => original.descriptor === descriptor);
+    if (acquired === undefined) {
+      closeDescriptor(descriptor);
+      return;
+    }
+    acquired.attempts += 1;
+    descriptorOrder.push(acquired);
+    events.push(acquired.kind);
+    if (acquired.attempts !== 1) throw new Error('SC3 duplicate sibling close refused');
+    acquired.entries += 1;
+    acquired.close.call(acquired.receiver, ...acquired.args);
+    acquired.returns += 1;
+  });
+  const semantic = spyOn(connections, 'openReadOnlyConnection').mockImplementation((...args) => {
+    const returnedConnection = open(...args);
+    retainedConnections.push(returnedConnection);
+    // Tests inspect Drizzle's actual native boundary without replacing the returned Connection.
+    const client = (
+      returnedConnection.db as connections.Drizzle & {
+        $client: { close: (...args: unknown[]) => unknown };
+      }
+    ).$client;
+    const original = returnedConnection.close;
+    const nativeClose = client.close;
+    const acquired: (typeof acquisitions)[number] = {
+      returnedConnection,
+      original,
+      receiver: returnedConnection,
+      args: [],
+      client,
+      nativeClose,
+      queryOutcomes: () => {
+        throw new Error('SC3 query observer not installed');
+      },
+      restoreConnection: () => undefined,
+      restoreNative: () => undefined,
+      phase: 'production',
+      fixtureNativeAttempts: 0,
+      fixtureNativeEntries: 0,
+      fixtureNativeReturns: 0,
+      fixtureNativeReceiver: undefined,
+      fixtureNativeArgs: [],
+      attempts: 0,
+      entries: 0,
+      returns: 0,
+      nativeAttempts: 0,
+      nativeEntries: 0,
+      nativeReturns: 0,
+      retirementEntries: 0,
+      retirementReturns: 0,
+      attemptedReceiver: undefined,
+      attemptedArgs: [],
+      nativeReceiver: undefined,
+      nativeArgs: [],
+    };
+    acquisitions.push(acquired);
+    const queries = spyOn(returnedConnection.db, 'all');
+    acquired.queryOutcomes = () => queries.mock.results.map((outcome) => outcome.value);
+    acquired.restoreConnection = () => {
+      queries.mockRestore();
+    };
+    const native = spyOn(client, 'close').mockImplementation(function (
+      this: typeof client,
+      ...args
+    ) {
+      if (acquired.phase === 'fixture') {
+        acquired.fixtureNativeAttempts += 1;
+        if (acquired.nativeEntries !== 0 || acquired.fixtureNativeAttempts !== 1)
+          throw new Error('SC3 STOP: repeated native entry refused', {
+            cause: { retainedConnections, acquisitions, descriptors, events },
+          });
+        acquired.fixtureNativeReceiver = this;
+        acquired.fixtureNativeArgs = args;
+        acquired.fixtureNativeEntries += 1;
+        const returned = nativeClose.apply(this, args);
+        acquired.fixtureNativeReturns += 1;
+        return returned;
+      }
+      acquired.nativeAttempts += 1;
+      if (acquired.nativeAttempts !== 1)
+        throw new Error('SC3 STOP: repeated production native entry refused', {
+          cause: { retainedConnections, acquisitions, descriptors, events },
+        });
+      acquired.nativeEntries += 1;
+      acquired.nativeReceiver = this;
+      acquired.nativeArgs = args;
+      const returned = nativeClose.apply(this, args);
+      acquired.nativeReturns += 1;
+      return returned;
+    });
+    acquired.restoreNative = () => {
+      native.mockRestore();
+    };
+    const closing = spyOn(returnedConnection, 'close').mockImplementation(function (
+      this: connections.Connection,
+      ...args: []
+    ) {
+      acquired.attempts += 1;
+      acquired.attemptedReceiver = this;
+      acquired.attemptedArgs = args;
+      events.push('semantic');
+      if (acquired.attempts !== 1) throw new Error('SC3 duplicate semantic close refused');
+      throw cleanup;
+    });
+    acquired.restoreConnection = () => {
+      closing.mockRestore();
+      queries.mockRestore();
+    };
+    return returnedConnection;
+  });
+  try {
+    let observed: unknown;
+    try {
+      verifySnapshotBounded(path, { maxBytes: 1073741824, deadline: performance.now() + 10000 });
+    } catch (cause) {
+      observed = cause;
+    }
+    expect(semantic).toHaveBeenCalledTimes(1);
+    expect(semantic.mock.calls).toEqual([[path]]);
+    expect(retainedConnections).toHaveLength(1);
+    expect(acquisitions).toHaveLength(1);
+    expect(retainedConnections[0]).toBe(acquisitions[0]?.returnedConnection);
+    const acquired = acquisitions.at(0);
+    if (acquired === undefined) throw new Error('SC3 actual semantic acquisition absent');
+    expect(semantic.mock.results[0]?.value).toBe(acquired.returnedConnection);
+    expect(acquired.receiver).toBe(acquired.returnedConnection);
+    expect(acquired.original).not.toBe(acquired.returnedConnection.close);
+    expect(acquired.nativeClose).not.toBe(acquired.client.close);
+    expect(acquired.args).toEqual([]);
+    expect(acquired.attemptedReceiver).toBe(acquired.receiver);
+    expect(acquired.attemptedArgs).toEqual(acquired.args);
+    expect(acquired.queryOutcomes()).toEqual([
+      [{ integrity_check: 'ok' }],
+      [{ name: '__drizzle_migrations' }],
+      [{ name: SKELETON }],
+    ]);
+    expect([acquired.attempts, acquired.entries, acquired.returns]).toEqual([1, 0, 0]);
+    expect([acquired.nativeAttempts, acquired.nativeEntries, acquired.nativeReturns]).toEqual([
+      0, 0, 0,
+    ]);
+    expect(acquired.nativeReceiver).toBeUndefined();
+    expect(acquired.nativeArgs).toEqual([]);
+    expect(observed).toBeInstanceOf(AggregateError);
+    if (!(observed instanceof AggregateError)) throw new Error('SC3 semantic attribution absent');
+    expect(observed.errors).toEqual([cleanup]);
+    expect(observed.errors[0]).toBe(cleanup);
+    expect(isSnapshotCleanupUnknown(observed)).toBe(true);
+    expect(descriptors.map((original) => original.kind)).toEqual(['parent', 'file']);
+    expect(descriptorOrder).toEqual([...descriptors].reverse());
+    expect(events).toEqual(['semantic', 'file', 'parent']);
+    expect(
+      descriptors.map((original) => [original.attempts, original.entries, original.returns]),
+    ).toEqual([
+      [1, 1, 1],
+      [1, 1, 1],
+    ]);
+    for (const original of descriptors) {
+      expect(original.close).toBe(closeDescriptor);
+      expect(original.receiver).toBe(filesystem);
+      expect(original.args).toEqual([original.descriptor]);
+    }
+    expect(readFileSync(path).equals(bytes)).toBe(true);
+    expect(existsSync(join(dir, '.wbs.db.partial'))).toBe(false);
+  } finally {
+    semantic.mockRestore();
+    opened.mockRestore();
+    closed.mockRestore();
+    for (const acquired of acquisitions) acquired.restoreConnection();
+    // Validate every outcome before any fixture close; ambiguity preserves all evidence.
+    if (retainedConnections.length !== acquisitions.length)
+      // eslint-disable-next-line no-unsafe-finally -- ambiguous native outcome requires STOP with retained ledger evidence before any further fixture cleanup
+      throw new Error('SC3 STOP: acquired Connection lacks a complete native ledger', {
+        cause: { retainedConnections, acquisitions, descriptors, events },
+      });
+    for (const acquired of acquisitions) {
+      if (
+        acquired.entries !== acquired.returns ||
+        acquired.nativeEntries !== acquired.nativeReturns
+      )
+        // eslint-disable-next-line no-unsafe-finally -- ambiguous native outcome requires STOP with retained ledger evidence before any further fixture cleanup
+        throw new Error('SC3 STOP: semantic close entered without return; retain evidence', {
+          cause: { retainedConnections, acquisitions, descriptors, events },
+        });
+      if (acquired.returns !== 1 && !(acquired.entries === 0 && acquired.nativeEntries === 0))
+        // eslint-disable-next-line no-unsafe-finally -- ambiguous native outcome requires STOP with retained ledger evidence before any further fixture cleanup
+        throw new Error('SC3 STOP: semantic close lacks first-entry authority', {
+          cause: { retainedConnections, acquisitions, descriptors, events },
+        });
+    }
+    for (const original of descriptors)
+      if (original.entries !== original.returns || original.returns !== 1)
+        // eslint-disable-next-line no-unsafe-finally -- ambiguous native outcome requires STOP with retained ledger evidence before any further fixture cleanup
+        throw new Error('SC3 STOP: sibling outcome unsupported; retain evidence', {
+          cause: { retainedConnections, acquisitions, descriptors, events },
+        });
+    for (const acquired of acquisitions) {
+      if (acquired.returns === 1) continue;
+      acquired.phase = 'fixture';
+      acquired.retirementEntries += 1;
+      try {
+        acquired.original.call(acquired.receiver, ...acquired.args);
+      } catch (cause) {
+        // eslint-disable-next-line no-unsafe-finally -- ambiguous native outcome requires STOP with retained ledger evidence before any further fixture cleanup
+        throw new Error('SC3 STOP: first fixture semantic close did not return; retain evidence', {
+          // eslint-disable-next-line preserve-caught-error -- STOP retains the exact caught failure and acquired originals in its cause object
+          cause: { retainedConnections, acquisitions, descriptors, events, failure: cause },
+        });
+      }
+      acquired.retirementReturns += 1;
+    }
+    for (const acquired of acquisitions) {
+      if (
+        acquired.fixtureNativeEntries !== acquired.fixtureNativeReturns ||
+        acquired.nativeReturns + acquired.fixtureNativeReturns !== 1
+      )
+        // eslint-disable-next-line no-unsafe-finally -- ambiguous native outcome requires STOP with retained ledger evidence before any further fixture cleanup
+        throw new Error('SC3 STOP: native retirement lacks one known return; retain evidence', {
+          cause: { retainedConnections, acquisitions, descriptors, events },
+        });
+      acquired.restoreNative();
+    }
+    expect(
+      acquisitions.map((acquired) => [
+        acquired.fixtureNativeAttempts,
+        acquired.fixtureNativeEntries,
+        acquired.fixtureNativeReturns,
+      ]),
+    ).toEqual([[1, 1, 1]]);
+    for (const acquired of acquisitions) {
+      expect(acquired.fixtureNativeReceiver).toBe(acquired.client);
+      expect(acquired.fixtureNativeArgs).toEqual([]);
+    }
+    expect(
+      acquisitions.map((acquired) => [acquired.retirementEntries, acquired.retirementReturns]),
+    ).toEqual([[1, 1]]);
+  }
+});
+
+it('SC3 semantic connection cleanup refuses after native return', () => {
+  const dir = scratch();
+  const path = skeletonDatabase(dir);
+  const bytes = readFileSync(path);
+  const cleanup = new Error('SC3 original semantic close refusal');
+  const open = connections.openReadOnlyConnection;
+  const openDescriptor = filesystem.openSync;
+  const closeDescriptor = filesystem.closeSync;
+  const descriptors: BoundedOriginal[] = [];
+  const descriptorOrder: BoundedOriginal[] = [];
+  const events: string[] = [];
+  const retainedConnections: connections.Connection[] = [];
+  const acquisitions: {
+    readonly returnedConnection: connections.Connection;
+    readonly original: connections.Connection['close'];
+    readonly receiver: connections.Connection;
+    readonly args: [];
+    readonly client: { close: (...args: unknown[]) => unknown };
+    readonly nativeClose: (...args: unknown[]) => unknown;
+    queryOutcomes: () => unknown[];
+    restoreConnection: () => void;
+    restoreNative: () => void;
+    phase: 'production' | 'fixture';
+    fixtureNativeAttempts: number;
+    fixtureNativeEntries: number;
+    fixtureNativeReturns: number;
+    fixtureNativeReceiver: unknown;
+    fixtureNativeArgs: unknown[];
+    attempts: number;
+    entries: number;
+    returns: number;
+    nativeAttempts: number;
+    nativeEntries: number;
+    nativeReturns: number;
+    retirementEntries: number;
+    retirementReturns: number;
+    attemptedReceiver: unknown;
+    attemptedArgs: unknown[];
+    nativeReceiver: unknown;
+    nativeArgs: unknown[];
+  }[] = [];
+  const opened = spyOn(filesystem, 'openSync').mockImplementation(
+    (...args: Parameters<typeof openDescriptor>) => {
+      const descriptor = openDescriptor(...args);
+      if (args[0] === dir || args[0] === path)
+        descriptors.push({
+          kind: args[0] === dir ? 'parent' : 'file',
+          descriptor,
+          receiver: filesystem,
+          close: closeDescriptor,
+          args: [descriptor],
+          attempts: 0,
+          entries: 0,
+          returns: 0,
+          retirementEntries: 0,
+          retirementReturns: 0,
+        });
+      return descriptor;
+    },
+  );
+  const closed = spyOn(filesystem, 'closeSync').mockImplementation((descriptor) => {
+    const acquired = descriptors.find((original) => original.descriptor === descriptor);
+    if (acquired === undefined) {
+      closeDescriptor(descriptor);
+      return;
+    }
+    acquired.attempts += 1;
+    descriptorOrder.push(acquired);
+    events.push(acquired.kind);
+    if (acquired.attempts !== 1) throw new Error('SC3 duplicate sibling close refused');
+    acquired.entries += 1;
+    acquired.close.call(acquired.receiver, ...acquired.args);
+    acquired.returns += 1;
+  });
+  const semantic = spyOn(connections, 'openReadOnlyConnection').mockImplementation((...args) => {
+    const returnedConnection = open(...args);
+    retainedConnections.push(returnedConnection);
+    // Tests inspect Drizzle's actual native boundary without replacing the returned Connection.
+    const client = (
+      returnedConnection.db as connections.Drizzle & {
+        $client: { close: (...args: unknown[]) => unknown };
+      }
+    ).$client;
+    const original = returnedConnection.close;
+    const nativeClose = client.close;
+    const acquired: (typeof acquisitions)[number] = {
+      returnedConnection,
+      original,
+      receiver: returnedConnection,
+      args: [],
+      client,
+      nativeClose,
+      queryOutcomes: () => {
+        throw new Error('SC3 query observer not installed');
+      },
+      restoreConnection: () => undefined,
+      restoreNative: () => undefined,
+      phase: 'production',
+      fixtureNativeAttempts: 0,
+      fixtureNativeEntries: 0,
+      fixtureNativeReturns: 0,
+      fixtureNativeReceiver: undefined,
+      fixtureNativeArgs: [],
+      attempts: 0,
+      entries: 0,
+      returns: 0,
+      nativeAttempts: 0,
+      nativeEntries: 0,
+      nativeReturns: 0,
+      retirementEntries: 0,
+      retirementReturns: 0,
+      attemptedReceiver: undefined,
+      attemptedArgs: [],
+      nativeReceiver: undefined,
+      nativeArgs: [],
+    };
+    acquisitions.push(acquired);
+    const queries = spyOn(returnedConnection.db, 'all');
+    acquired.queryOutcomes = () => queries.mock.results.map((outcome) => outcome.value);
+    acquired.restoreConnection = () => {
+      queries.mockRestore();
+    };
+    const native = spyOn(client, 'close').mockImplementation(function (
+      this: typeof client,
+      ...args
+    ) {
+      if (acquired.phase === 'fixture') {
+        acquired.fixtureNativeAttempts += 1;
+        if (acquired.nativeEntries !== 0 || acquired.fixtureNativeAttempts !== 1)
+          throw new Error('SC3 STOP: repeated native entry refused', {
+            cause: { retainedConnections, acquisitions, descriptors, events },
+          });
+        acquired.fixtureNativeReceiver = this;
+        acquired.fixtureNativeArgs = args;
+        acquired.fixtureNativeEntries += 1;
+        const returned = nativeClose.apply(this, args);
+        acquired.fixtureNativeReturns += 1;
+        return returned;
+      }
+      acquired.nativeAttempts += 1;
+      if (acquired.nativeAttempts !== 1)
+        throw new Error('SC3 STOP: repeated production native entry refused', {
+          cause: { retainedConnections, acquisitions, descriptors, events },
+        });
+      acquired.nativeEntries += 1;
+      acquired.nativeReceiver = this;
+      acquired.nativeArgs = args;
+      const returned = nativeClose.apply(this, args);
+      acquired.nativeReturns += 1;
+      return returned;
+    });
+    acquired.restoreNative = () => {
+      native.mockRestore();
+    };
+    const closing = spyOn(returnedConnection, 'close').mockImplementation(function (
+      this: connections.Connection,
+      ...args: []
+    ) {
+      acquired.attempts += 1;
+      acquired.attemptedReceiver = this;
+      acquired.attemptedArgs = args;
+      events.push('semantic');
+      if (acquired.attempts !== 1) throw new Error('SC3 duplicate semantic close refused');
+
+      acquired.entries += 1;
+      acquired.original.call(acquired.receiver, ...acquired.args);
+      acquired.returns += 1;
+      throw cleanup;
+    });
+    acquired.restoreConnection = () => {
+      closing.mockRestore();
+      queries.mockRestore();
+    };
+    return returnedConnection;
+  });
+  try {
+    let observed: unknown;
+    try {
+      verifySnapshotBounded(path, { maxBytes: 1073741824, deadline: performance.now() + 10000 });
+    } catch (cause) {
+      observed = cause;
+    }
+    expect(semantic).toHaveBeenCalledTimes(1);
+    expect(semantic.mock.calls).toEqual([[path]]);
+    expect(retainedConnections).toHaveLength(1);
+    expect(acquisitions).toHaveLength(1);
+    expect(retainedConnections[0]).toBe(acquisitions[0]?.returnedConnection);
+    const acquired = acquisitions.at(0);
+    if (acquired === undefined) throw new Error('SC3 actual semantic acquisition absent');
+    expect(semantic.mock.results[0]?.value).toBe(acquired.returnedConnection);
+    expect(acquired.receiver).toBe(acquired.returnedConnection);
+    expect(acquired.original).not.toBe(acquired.returnedConnection.close);
+    expect(acquired.nativeClose).not.toBe(acquired.client.close);
+    expect(acquired.args).toEqual([]);
+    expect(acquired.attemptedReceiver).toBe(acquired.receiver);
+    expect(acquired.attemptedArgs).toEqual(acquired.args);
+    expect(acquired.queryOutcomes()).toEqual([
+      [{ integrity_check: 'ok' }],
+      [{ name: '__drizzle_migrations' }],
+      [{ name: SKELETON }],
+    ]);
+    expect([acquired.attempts, acquired.entries, acquired.returns]).toEqual([1, 1, 1]);
+    expect([acquired.nativeAttempts, acquired.nativeEntries, acquired.nativeReturns]).toEqual([
+      1, 1, 1,
+    ]);
+    expect(acquired.nativeReceiver).toBe(acquired.client);
+    expect(acquired.nativeArgs).toEqual([]);
+    expect(observed).toBeInstanceOf(AggregateError);
+    if (!(observed instanceof AggregateError)) throw new Error('SC3 semantic attribution absent');
+    expect(observed.errors).toEqual([cleanup]);
+    expect(observed.errors[0]).toBe(cleanup);
+    expect(isSnapshotCleanupUnknown(observed)).toBe(true);
+    expect(descriptors.map((original) => original.kind)).toEqual(['parent', 'file']);
+    expect(descriptorOrder).toEqual([...descriptors].reverse());
+    expect(events).toEqual(['semantic', 'file', 'parent']);
+    expect(
+      descriptors.map((original) => [original.attempts, original.entries, original.returns]),
+    ).toEqual([
+      [1, 1, 1],
+      [1, 1, 1],
+    ]);
+    for (const original of descriptors) {
+      expect(original.close).toBe(closeDescriptor);
+      expect(original.receiver).toBe(filesystem);
+      expect(original.args).toEqual([original.descriptor]);
+    }
+    expect(readFileSync(path).equals(bytes)).toBe(true);
+    expect(existsSync(join(dir, '.wbs.db.partial'))).toBe(false);
+  } finally {
+    semantic.mockRestore();
+    opened.mockRestore();
+    closed.mockRestore();
+    for (const acquired of acquisitions) acquired.restoreConnection();
+    // Validate every outcome before any fixture close; ambiguity preserves all evidence.
+    if (retainedConnections.length !== acquisitions.length)
+      // eslint-disable-next-line no-unsafe-finally -- ambiguous native outcome requires STOP with retained ledger evidence before any further fixture cleanup
+      throw new Error('SC3 STOP: acquired Connection lacks a complete native ledger', {
+        cause: { retainedConnections, acquisitions, descriptors, events },
+      });
+    for (const acquired of acquisitions) {
+      if (
+        acquired.entries !== acquired.returns ||
+        acquired.nativeEntries !== acquired.nativeReturns
+      )
+        // eslint-disable-next-line no-unsafe-finally -- ambiguous native outcome requires STOP with retained ledger evidence before any further fixture cleanup
+        throw new Error('SC3 STOP: semantic close entered without return; retain evidence', {
+          cause: { retainedConnections, acquisitions, descriptors, events },
+        });
+      if (acquired.returns !== 1 && !(acquired.entries === 0 && acquired.nativeEntries === 0))
+        // eslint-disable-next-line no-unsafe-finally -- ambiguous native outcome requires STOP with retained ledger evidence before any further fixture cleanup
+        throw new Error('SC3 STOP: semantic close lacks first-entry authority', {
+          cause: { retainedConnections, acquisitions, descriptors, events },
+        });
+    }
+    for (const original of descriptors)
+      if (original.entries !== original.returns || original.returns !== 1)
+        // eslint-disable-next-line no-unsafe-finally -- ambiguous native outcome requires STOP with retained ledger evidence before any further fixture cleanup
+        throw new Error('SC3 STOP: sibling outcome unsupported; retain evidence', {
+          cause: { retainedConnections, acquisitions, descriptors, events },
+        });
+    for (const acquired of acquisitions) {
+      if (acquired.returns === 1) continue;
+      acquired.phase = 'fixture';
+      acquired.retirementEntries += 1;
+      try {
+        acquired.original.call(acquired.receiver, ...acquired.args);
+      } catch (cause) {
+        // eslint-disable-next-line no-unsafe-finally -- ambiguous native outcome requires STOP with retained ledger evidence before any further fixture cleanup
+        throw new Error('SC3 STOP: first fixture semantic close did not return; retain evidence', {
+          // eslint-disable-next-line preserve-caught-error -- STOP retains the exact caught failure and acquired originals in its cause object
+          cause: { retainedConnections, acquisitions, descriptors, events, failure: cause },
+        });
+      }
+      acquired.retirementReturns += 1;
+    }
+    for (const acquired of acquisitions) {
+      if (
+        acquired.fixtureNativeEntries !== acquired.fixtureNativeReturns ||
+        acquired.nativeReturns + acquired.fixtureNativeReturns !== 1
+      )
+        // eslint-disable-next-line no-unsafe-finally -- ambiguous native outcome requires STOP with retained ledger evidence before any further fixture cleanup
+        throw new Error('SC3 STOP: native retirement lacks one known return; retain evidence', {
+          cause: { retainedConnections, acquisitions, descriptors, events },
+        });
+      acquired.restoreNative();
+    }
+    expect(
+      acquisitions.map((acquired) => [
+        acquired.fixtureNativeAttempts,
+        acquired.fixtureNativeEntries,
+        acquired.fixtureNativeReturns,
+      ]),
+    ).toEqual([[0, 0, 0]]);
+    for (const acquired of acquisitions) {
+      expect(acquired.fixtureNativeReceiver).toBeUndefined();
+      expect(acquired.fixtureNativeArgs).toEqual([]);
+    }
+    expect(
+      acquisitions.map((acquired) => [acquired.retirementEntries, acquired.retirementReturns]),
+    ).toEqual([[0, 0]]);
+  }
+});
+
+it('SC3 bounded parent cleanup refuses before delegation', () => {
+  const dir = scratch();
+  const path = skeletonDatabase(dir);
+  const fixture = captureBoundedClose(path, dir, 'before', 'parent');
+  try {
+    let observed: unknown;
+    try {
+      verifySnapshotBounded(path, { maxBytes: 1073741824, deadline: performance.now() + 10000 });
+    } catch (cause) {
+      observed = cause;
+    }
+    expect(observed).toBeInstanceOf(AggregateError);
+    if (!(observed instanceof AggregateError)) throw new Error('SC3 original attribution absent');
+    expect(observed.errors).toEqual([fixture.primary, fixture.cleanup]);
+    expect(observed.errors[0]).toBe(fixture.primary);
+    expect(observed.errors[1]).toBe(fixture.cleanup);
+    expect(fixture.cleanup).toBe('SC3 original bounded parent close primitive fault');
+    expect(fixture.reads).toBe(1);
+    expect(fixture.originals.map((original) => original.kind)).toEqual(['parent', 'file']);
+    expect(fixture.originals[0]?.descriptor).not.toBe(fixture.originals[1]?.descriptor);
+    expect(fixture.closed).toEqual([...fixture.originals].reverse());
+    expect(
+      fixture.originals.map((original) => [original.attempts, original.entries, original.returns]),
+    ).toEqual([
+      [1, 0, 0],
+      [1, 1, 1],
+    ]);
+    for (const original of fixture.originals) {
+      expect(original.close).toBe(fixture.close);
+      expect(original.receiver).toBe(filesystem);
+      expect(original.args).toEqual([original.descriptor]);
+    }
+    expect(isSnapshotCleanupUnknown(observed)).toBe(true);
+  } finally {
+    fixture.retire();
+  }
+});
+
+it('SC3 bounded parent cleanup refuses after native return', () => {
+  const dir = scratch();
+  const path = skeletonDatabase(dir);
+  const fixture = captureBoundedClose(path, dir, 'after', 'parent');
+  try {
+    let observed: unknown;
+    try {
+      verifySnapshotBounded(path, { maxBytes: 1073741824, deadline: performance.now() + 10000 });
+    } catch (cause) {
+      observed = cause;
+    }
+    expect(observed).toBeInstanceOf(AggregateError);
+    if (!(observed instanceof AggregateError)) throw new Error('SC3 original attribution absent');
+    expect(observed.errors).toEqual([fixture.primary, fixture.cleanup]);
+    expect(observed.errors[0]).toBe(fixture.primary);
+    expect(observed.errors[1]).toBe(fixture.cleanup);
+    expect(fixture.reads).toBe(1);
+    expect(fixture.originals.map((original) => original.kind)).toEqual(['parent', 'file']);
+    expect(fixture.originals[0]?.descriptor).not.toBe(fixture.originals[1]?.descriptor);
+    expect(fixture.closed).toEqual([...fixture.originals].reverse());
+    expect(
+      fixture.originals.map((original) => [original.attempts, original.entries, original.returns]),
+    ).toEqual([
+      [1, 1, 1],
+      [1, 1, 1],
+    ]);
+    for (const original of fixture.originals) {
+      expect(original.close).toBe(fixture.close);
+      expect(original.receiver).toBe(filesystem);
+      expect(original.args).toEqual([original.descriptor]);
+    }
+    expect(isSnapshotCleanupUnknown(observed)).toBe(true);
+  } finally {
+    fixture.retire();
   }
 });
