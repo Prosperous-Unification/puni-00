@@ -1171,3 +1171,21 @@ Disposable component evidence SHALL identify the actual provider, owner and meas
 - **WHEN** selected signed packages match their declared versions but the actual daemon reports a different API, operating-system/architecture or store capability than the selected supported provider contract
 - **THEN** compatibility remains refused without broadening the adapter or defaulting the missing capability
 - **AND** immutable source/component evidence and unsupported baseline observations remain distinct from full rehearsal acceptance
+
+### Requirement: Baseline components have scoped memory admission
+
+Raw-disk preparation and the private-Docker guest baseline SHALL use their own finite memory envelope instead of inheriting the whole-platform rehearsal's16GiB available-memory prerequisite. These components SHALL preserve2GiB host MemAvailable during execution and at final cleanup observation. Full-platform admission and acceptance remain separate.
+
+#### Scenario: Bounded preparation fits an existing smaller host
+
+- **WHEN** raw preparation has at least3623878656bytes available, or the guest baseline has at least4160749568bytes available, and every other required admission check succeeds
+- **THEN** memory admission permits that component using its unchanged enforced service/helper caps
+- **AND** the guest's1GiB allocation remains included within its1536MiB service limit
+- **AND** no full-platform or live-migration authority follows
+
+#### Scenario: Insufficient or unknown memory still refuses
+
+- **WHEN** available memory is one byte below the component's initial threshold, below2147483648bytes at a live/final boundary, or unavailable/malformed
+- **THEN** the corresponding production boundary refuses admission or acceptance
+- **AND** negative proofs expose removal of each changed memory guard while preserving positive controls
+- **AND** existing disk, staging, device, identity, resource caps and cleanup requirements still apply
