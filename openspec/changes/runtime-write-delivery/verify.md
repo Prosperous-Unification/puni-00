@@ -402,3 +402,85 @@ and failed canonical record are retained at their original scope; none certifies
 this merged source. The remaining adapters, second durable provider, business
 mapping, physical continuation and full S7a remain open. No operator-store
 migration or production action occurred.
+
+## Published-main CLI integration (2026-11-03)
+
+Published main advanced to `f7142af04c6156663313b02b8969a5779bb6008e`:
+13 commits and 24 paths since `aec80d31`. None overlaps the 187 feature paths.
+Independent intake found no Critical or Important integration defect. The normal
+union preserves all 24 incoming paths exactly as main and all other 12,817
+entries exactly as `df59c959d`; its tree is
+`0e3017f069827002c3dd5a8983ca93d1ce1cdeb1`. No incoming producer implementation
+was edited. One inherited Minor JSDoc-placement finding remains in the intake
+report.
+
+The normal merge checkpoint is
+`7b4fe9dc7c43d8dfbc1e28cff33d604eb786f3dd`, with parents `df59c959d` and
+`f7142af0`. Its hooks passed without bypass, including format, lint, secrets,
+document caps and private nesting. Migration hook subchecks explicitly skipped
+because this merge contains no matching migrations. The full source remained
+`ce5f296f`, 12,841 entries, across the checkpoint; this verification appendix is
+a subsequent documentation-only change.
+
+The focused commands below ran from
+`apps/twilight-structure/twilight-burokrat/cli`, with
+`TOOL_WIKI_TRUSTED_NODE_MODULES` naming this checkout's root `node_modules`:
+
+```sh
+bun test --preload ../../../../tools/test/scratch/preload.ts \
+  src/cli.test.ts src/invoke-cli.test.ts src/workflow-binding.test.ts \
+  src/no-ambient-clock.test.ts src/contracts/plan-tasks.test.ts \
+  src/contracts/progress-receipt.test.ts src/policy/gate-entrypoints.test.ts \
+  src/policy/pilot-policy.test.ts --timeout=60000
+bun test --preload ../../../../tools/test/scratch/preload.ts \
+  src/packaging/bundle.test.ts src/packaging/build.test.ts \
+  src/packaging/installed-dispatch.test.ts src/evidence/coverage-runtime.test.ts \
+  --timeout=60000
+```
+
+The committed-source CLI/policy run passed **288 tests, zero failures, 1,662
+assertions**, across eight files. The packaging run passed **22 tests, zero
+failures, 124 assertions**, across four files. Both were native executions. The
+CLI/policy child removed the capture helper's `NX_SKIP_NX_CACHE` override so the
+intentional cache-enabled fault control could use its warmed entry; production
+lint's no-cache policy was unchanged. Its missing-input mutation still reached
+the separate uncached refusal oracle.
+
+Initial failures remain evidence at their actual scope. Two incorrect Bun
+script-mode invocations ran no tests. Sandboxed child stream writes then failed
+with `EPERM`: the packaging run reported 19 pass/3 fail and the CLI run reported
+128 pass/55 fail. A minimal child-output probe reproduced the sandbox refusal
+and succeeded natively. The first native CLI/policy run reported 276 pass/12
+fail: eleven fixtures cloned old committed HEAD before overlaying the incoming
+README, so their committed candidates lacked the new linked `cli-parser.ts`;
+the twelfth was the forced-no-cache environment invalidating the deliberately
+cached control. Completing the reviewed merge checkpoint and correcting that
+test environment produced the full 288/0 run. No test assertion, timeout,
+production validation or fixture source was weakened or patched.
+
+On the same combined code, these root commands also passed:
+
+```sh
+bunx nx run-many -t typecheck -p twilight-burokrat,twilight-dash --parallel=2 --output-style=stream --skip-nx-cache
+bunx nx run twilight-burokrat:lint:source --skip-nx-cache --output-style=stream
+bunx nx run twilight-dash:lint --skip-nx-cache --output-style=stream
+./node_modules/.bin/openspec validate --all --json
+```
+
+Both typechecks and both source lints exited zero. OpenSpec validated all 322
+entries, with zero failures, 704 warnings and 25 informational findings. Original
+captures, the exact union audit, both independent reviews and the context-failure
+diagnosis are retained under
+`.superpowers/sdd/runtime-write-delivery-20261101/main-f714-*` and the linked
+task reports. These scoped controls do not substitute for final-source hosted
+CI or the canonical gate.
+
+Historical canonical `0a84c750d` has now settled with exit zero; its terminal and
+both original streams were hash-verified and archived separately. The retained
+hosted success for `df59c959d` and its newly admitted canonical run belong to
+that earlier source. Neither certifies this union or its final documentation
+commit. Publication, fresh exact-source hosted/canonical acceptance, guarded
+main integration and actual dev boot evidence remain pending. External Tool
+Wiki activation is still inactive and uncertified. The remaining adapters,
+second durable provider, business mapping, physical continuation and full S7a
+remain open; no operator-store migration or production action occurred.
