@@ -273,7 +273,7 @@ cluster, directories empty; Compose prod uses host env files. Private companions
 | `@shared/test-levels`        | the ten-row test-level table                                               | Burokrat, dev-sync                                        |
 | `@shared/portability-format` | a fixture proving a portable cross-product dependency                      | website fixture                                           |
 | `@ui/core-01`, `@ui/saas-01` | the design system                                                          | WBS fe-01                                                 |
-| `@wbs/validation`            | re-export shim of `@shared/validation` plus bun:sqlite fixtures            | WBS apps and libs (44 import sites)                       |
+| `@wbs/validation`            | re-export shim of `@shared/validation` plus bun:sqlite fixtures            | WBS apps and libs (43 import sites)                       |
 | `@wbs/realtime`              | reconnecting WebSocket scaffold                                            | nothing; fe-01 has its own client                         |
 
 ## 8. Where knowledge lives
@@ -331,7 +331,7 @@ Observed while mapping; verify each before acting. Numbered so they can be addre
    `tool-compose:render`, `tool-observability-stack` beside h3mon's Victoria stack.
 10. **Scaffolds nobody imports:** `@wbs/realtime`; the `@wbs/validation` shim; untracked leftover
     directories `apps/{be-01,fe-01,gw-01,mcp-01}` and `libs/{contracts,solver-py}` coverage output.
-    _2026-11-03:_ `@wbs/realtime` still has no importer, but `@wbs/validation` has 44 import sites
+    _2026-11-03:_ `@wbs/realtime` still has no importer, but `@wbs/validation` has 43 import sites
     in WBS apps and libs, so it is a live shim to migrate, not dead code; the leftover directories
     are untracked and absent from a fresh worktree.
 11. **Supervisor protocol** comment names three wire versions; the array allows four.
