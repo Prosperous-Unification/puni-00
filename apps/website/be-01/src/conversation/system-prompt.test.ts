@@ -54,8 +54,8 @@ test('the separately versioned scoping prompt equals its reviewed source', () =>
 });
 
 // Source policy assertions certify reviewed instructions only, never model compliance.
-test('future scoping uses v9 offer guidance with visitor-confirmed suggestions', () => {
-  expect(scopingPromptVersion).toBe('puni-scoping-v9');
+test('future scoping uses v10 offer guidance with visitor-confirmed suggestions', () => {
+  expect(scopingPromptVersion).toBe('puni-scoping-v10');
   for (const policy of [
     'The five available offers are Launch an app or website, Improve my app, Build something similar,',
     'Help me choose is an exploration entry, not a sixth offer.',
@@ -69,8 +69,18 @@ test('future scoping uses v9 offer guidance with visitor-confirmed suggestions',
   expect(composeScopingSystemText(true)).toContain('This is the final available reply.');
 });
 
-test('v9 exploration directs concrete examples plus an actionable next step without invention', () => {
+test('v10 exploration directs concrete examples plus an actionable next step without invention', () => {
   expect(scopingSystemPrompt).toContain('Give two concrete illustrative examples');
   expect(scopingSystemPrompt).toContain('an actionable next step');
   expect(scopingSystemPrompt).toContain('Do not ask for an email or invent work');
+});
+
+test('v10 references preserve preference, reuse and inspection boundaries in distinct wording', () => {
+  expect(scopingSystemPrompt).toContain('Treat references as preference signals.');
+  expect(scopingSystemPrompt).toContain('A reference grants no reuse rights.');
+  expect(scopingSystemPrompt).toContain('Propose original or licensed work.');
+  expect(scopingSystemPrompt).toContain('Do not fetch or claim to inspect a reference.');
+  expect(scopingSystemPrompt).toContain(
+    'References are optional. Respect later/no-reference choices',
+  );
 });
