@@ -32,7 +32,9 @@ only `wbs-dev-src` through h1claw's existing h2puni identity. It checks both kno
 current capacity, immutable release hashes and local candidate hashes, the seven preserved
 containers/configuration baseline, six dev containers and their images/resources/actual
 loopback mappings, six exact volume owner labels, query network identity and alias ownership,
-the retained observer binary/manifest/checkpoints, old tunnel hash/PID and linger.
+the retained observer binary/manifest/checkpoints, old tunnel hash/PID and linger. It also
+requires the protected Slack secret marker and a measured, policy-verified notification release
+from the actual Alertmanager config mount.
 Snapshots must finish within 60 seconds; re-run immediately before each write. An unreadable,
 missing, malformed or changed trusted file refuses. Shape validation's `pending` list remains
 visible: this command does not prove current endpoint reachability, retention or autonomous
@@ -257,3 +259,86 @@ stored observations and UI queries again. No checkpoint initialization on restor
 Actual rollout/drill evidence belongs in OpenSpec `verify.md`. This package alone proves no live
 installation, cgroup enforcement, autonomous recovery, UI rendering, history preservation drill
 or retention deletion. Retention deletion is asynchronous and cannot be proved by a short drill.
+
+## Slack recipient preservation
+
+Infrastructure alerts are separately authorized for punispace #puni-alerts. The
+normal renderer now selects slack-puni with firing and recovery notifications,
+referencing /alertmanager/secrets/slack-webhook inside the retained Alertmanager
+volume. The webhook value belongs only in that protected file. Rendering refuses
+local-only fallback, arbitrary receivers, inline URLs, nested route overrides and
+HTTP proxy overrides.
+
+The deployed Alertmanager0.34.0 amtool accepts check-config even when api_url_file
+is missing or unreadable. Its zero exit proves configuration syntax, not secret
+readiness. The authenticated runtime snapshot now inspects the unique running
+Alertmanager container and its owned persistent volume, then reads only the fixed
+secret from that exact container ID. It requires canonical file identity,
+UID:GID65534:65534, mode0600, one link, at most1024bytes and the exact authorized
+workspace URL shape. It returns only slackSecret:verified; missing, unreadable,
+linked, malformed or oversized material refuses before runtime preflight succeeds.
+The read is capped at1025bytes with an eight-second command deadline. Re-run fresh
+preflight immediately before an intended deployment; this observation expires with
+the existing sixty-second runtime snapshot.
+
+Historical read-only validation on 2026-10-29 succeeded without printing the webhook
+or sending a message. That source-review evidence did not establish live adoption of
+the versioned release. This source integration does not refresh deployment evidence. Retain
+the old release manifests and Slack setup receipts rather than editing expected
+hashes to hide a changed mounted file.
+
+## Versioned Slack configuration transition
+
+`renderNotificationRelease` in `tools/tool-observability-stack/src/dev/notification-release.ts` produces exactly
+`alertmanager.yaml`, `compose.slack.json` and `manifest.json` for a full forty-hex
+source commit under `/home/monitor/puni-dev-observability/releases/slack-<commit>`.
+Its overlay inherits the retained Compose base and changes only Alertmanager's
+read-only configuration mount, retaining `puni-dev-observability_alertmanager`.
+Use the exact reviewed and host-gated commit when rendering and staging. A manifest's
+source field records provenance; neither that field nor successful preflight proves
+Git review, a host gate or authority to apply.
+
+The runtime reader selects the same running, project/service/ID-validated container
+and persistent volume used for secret readiness. It requires one read-only bind
+mount at `/etc/puni/alertmanager.yaml`, with its source in the exact versioned path.
+It reads only the three fixed files. Each must be regular, canonical, singly linked,
+owned by the monitoring root's UID/GID, mode0644 and at most64KiB. Opens use
+NOFOLLOW/NONBLOCK; descriptors close on success and failure, and a read is capped
+at65537bytes to detect growth. Missing, unreadable, malformed or substituted files
+raise. The TypeScript boundary checks the exact manifest schema, source-directory
+relationship, and both measured and declared hashes against current trusted
+rendering. Matching host-supplied hashes alone cannot authorize another policy.
+
+The initial transition has a deliberately separate predecessor check: the new
+preflight refuses an old unowned config mount, and the old manifests must still
+be reconciled. Perform these steps in order, retaining receipts:
+
+1. Review and gate the exact source commit. Render its three files, exclusively
+   stage their new directory as the monitoring user, and verify hashes, permissions,
+   actual Compose merge and the pinned Alertmanager binary's syntax validation.
+   Existing destination collisions require inspection; never overwrite them.
+2. Recheck the captured container identity, current config hash and Slack setup
+   receipt; verify the saved original config matches the original release manifest.
+   Refuse any unaccounted drift. Preserve both old manifests unchanged.
+3. Recreate only `alertmanager`, using project `puni-dev-observability`, profile
+   `dev`, retained `releases/a1ffe27e7/compose.json`, the new release's
+   `compose.slack.json` as the second file, and `up --detach --no-deps alertmanager`.
+   Verify its actual config mount, retained volume, protected secret and loaded
+   receiver. A failed command or proof stops this transition and keeps its evidence.
+4. After proving the old config is unmounted, restore only that old file from its
+   hash-verified pre-Slack backup. Require its current hash to equal the captured
+   predecessor before replacing it; preserve its monitoring ownership and mode0644.
+   Verify both original manifests and their complete inventories again. Do not
+   replace expected hashes with the manually changed file's hashes.
+5. Run fresh full runtime preflight. Verify firing and resolved delivery, then
+   repeat the Alertmanager-only recreation with the same overlay and retained store
+   and verify delivery/persistence again. Capture effective limits, mounts, loaded
+   policy, notification counters and preservation of other services.
+
+Every later Alertmanager creation/recreation from the retained old base must include
+this versioned overlay. `start` on an already-created container retains its mounted
+configuration. Rolling back a failed transition restores the captured predecessor
+mount/config through the same named service and retained volume; it does not remove
+stores, reset old manifests or claim readiness without the corresponding checks.
+The caller's new `notificationRelease` fixture is modeled evidence for the new
+contract; it is not a historical live adoption receipt.

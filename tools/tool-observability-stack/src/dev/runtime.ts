@@ -6,6 +6,7 @@ import { type } from 'arktype';
 
 import { parseStorage } from './autonomous';
 import { preflightDevDeployment, renderDevCompose } from './deployment';
+import { validateNotificationRelease } from './notification-release';
 import { executeBounded, validateDevContainer } from './source';
 
 const Hash = /^[a-f0-9]{64}$/;
@@ -34,6 +35,9 @@ const Manifest = type({
   files: { '[string]': Hash },
 });
 const H3 = type({
+  // Proof: removing this field admits missing/false/empty/unreadable/malformed secret evidence in alert-secret.test.ts.
+  slackSecret: "'verified'",
+  'notificationRelease?': 'unknown',
   observedAt: 'number',
   hostname: 'string',
   memory: 'number',
@@ -105,11 +109,14 @@ const binaryHash = '281c51a2542784f8b46df5ad8f7a22ab4f29b738a90b15a7bd1c9937a743
 
 /** Authenticated snapshots are still external input. Validates only the already staged
  * releases, preserved baseline and named resources; never authorizes arbitrary host/service operations.
+ * Slack secret evidence is emitted only after the fixed host reader checks its protected file.
  * A stale checkpoint is retained evidence, not a launch success claim. The observer validates its full schema on start.
  */
 export function validateRuntimeSnapshot(monitor: unknown, observer: unknown, now: number) {
   const h3 = H3.assert(monitor),
     h1 = H1.assert(observer);
+  // Proof: skipping this call admits missing/invalid release evidence in notification-release.test.ts.
+  const notificationRelease = validateNotificationRelease(h3.notificationRelease);
   // Proof: wrong-host/observer-identity negatives are admitted with this predicate removed.
   if (
     h3.hostname !== 'ubuntu-8gb-hel1-1-8GB-FIN42' ||
@@ -323,6 +330,8 @@ export function validateRuntimeSnapshot(monitor: unknown, observer: unknown, now
 
   return {
     expiresAt: Math.min(h3.observedAt, h1.observedAt) + 60000,
+    slackSecret: h3.slackSecret,
+    notificationRelease,
     capacity: {
       observedAt: h3.observedAt,
       availableMemoryBytes: h3.memory,

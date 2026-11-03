@@ -1,3 +1,9 @@
+## Historical deployment evidence — 2026-10-25
+
+The deployment observations below describe their recorded dates. They are retained
+historical evidence, not a fresh runtime or delivery claim by the 2026-11-03 source
+integration. The latest local integration scope is recorded at the end of this file.
+
 ## Outcome and scope
 
 Verified on 2026-10-25 against the actual dev application and monitoring hosts. Six new bounded services run on h3mon: collector, Elastic gateway, Elasticsearch, Kibana, Prometheus and Alertmanager. The existing Grafana has one additional nondefault datasource and a 14-panel dashboard. A separate enabled observer and SSH tunnel run on h1claw using existing identities. Production, secrets, the shared Vector/Victoria route and application code were not changed.
@@ -868,3 +874,296 @@ The initial CI preview selected all 53 runtime modules because a standalone Open
 ```
 
 </details>
+
+## Historical authorized Slack receiver rendering — 2026-10-29
+
+The four receiver records below are imported historical evidence from reviewed
+commits `6a058008077aed53c9c3aaf6499932fd2df6879c` and
+`18a49644572da5e6f987a249c47c6cf9d927ce08`. Their pending-state statements describe
+2026-10-29; the 2026-11-03 integration does not refresh or repeat remote operations.
+
+This follow-up is part of bound-registry-storage Task5.1, on the owning
+observability source lineage5d27b7de430c61dc0317ed9ab530a4d8a59e8c78.
+The registry worktree lacks this deployed renderer, so a separate managed checkout
+at /home/df/.codex/worktrees/3005/puni-00 preserves that source ownership without
+merging unrelated changes or altering the registry maintenance worktree.
+
+Baseline configured project tests passed334/334. The new15-case receiver regression
+initially passed11and failed4: normal rendering reset to local-only, and local
+fallback, nested routes and proxy overrides could pass the old boundary. Normal
+rendering now pins slack-puni/#puni-alerts, recovery notifications and the existing
+persistent secret-file reference. It emits no webhook value. The exact policy also
+refuses missing/foreign/extra notifications, inline URLs and alternate transports.
+The existing unapproved-webhook test continues to pass.
+
+Removing the actual recipient policy guard made all14refusal cases falsely emit
+deployment files; the positive render case still passed. Original/mutated sources,
+final test source and raw logs are preserved under /tmp/task10-slack-persistence/.
+The adjacent Proof comment names the observed renderer scope. Final comment/JSDoc
+transfer emits identical runtime to the omission-tested source and detects an
+injected effect. No notification was sent by these tests.
+
+With an Nx project graph generated, uncached project lint, forced-build typechecking,
+package build, changed-file formatting and strict dev-observability validation all
+exited0. The first uncached Nx test run had341passes/8failures because an unrelated
+Bun process occupied127.0.0.1:3100 and127.0.0.2:3100. Read-only identity audit located
+PID2857476 in /home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts; it was
+not stopped or modified. After fresh socket inspection showed the ports free, a
+single new uncached run passed349tests, zero failures,640assertions across12files
+in9.12seconds, with33source/config pins unchanged. Nx's flaky-task warning refers
+to that retained earlier collision. The failed run is not certified as passing.
+
+Read-only validation used the running Alertmanager0.34.0 image pinned at
+sha256:690c7b525f4367aa91f73e2f91c632206d32e97c6384bdbf2fb7a861b420340d.
+amtool check-config accepted the candidate, but also accepted nonexistent and
+unreadable api_url_file paths. Therefore its zero exit does not prove secret
+availability. This is a concrete pending deployment dependency, not a successful
+missing-secret guard proof. Read-only status comparison confirmed the candidate's
+receiver/channel/secret reference/recovery flag match the currently loaded route;
+other differences were loaded defaults. No webhook value was printed, secret
+changed, message sent, configuration reloaded or service restarted.
+
+The renderer is implemented locally, but owned release/adoption and a separate
+actual protected-file readiness check remain unimplemented/unverified. Existing
+runtime snapshot checks pin immutable a1ffe27e7/c811f34bf manifests; do not change
+expected hashes merely to hide the prior manually configured receiver's drift.
+The two new authorization follow-up tasks remain unchecked pending complete review
+and live adoption. The broader registry Task5.1 still needs warning/cutoff/failure
+and independent five-minute missed-report delivery; this change does not satisfy
+those scenarios or activate registry safeguards. No exact-SHA host gate or final
+integration review has run for this follow-up.
+
+## Protected Slack secret readiness — 2026-10-29
+
+The authenticated h3runtime snapshot now requires the fixed protected Slack secret
+reader before emitting slackSecret:verified. It chooses exactly one inspected
+running Alertmanager container, checks project/service and64hex ID, and requires
+its single writable named Alertmanager volume. Docker execution uses that captured
+ID, not a name that could select a recreated container. The reader opens only the
+fixed secret, requires canonical descriptor path and UID:GID65534:65534/mode0600/
+single-link metadata, reads at most1025bytes, then requires at most1024bytes and
+one exact authorized-workspace URL plus newline. Its command has an eight-second
+deadline. Only a marker enters snapshot output; no webhook bytes do.
+
+The TypeScript snapshot boundary requires that exact marker and exposes it with
+the existing sixty-second observation expiry. Old/invalid/missing claimed evidence
+refuses. The test fixture's new marker models this updated contract; it is not a
+retroactive claim that the older captured snapshot checked a secret.
+
+Initial readiness regressions demonstrated five cases of absent/invalid evidence
+being accepted. The first strengthened18-case test run had1pass/17failures before
+the helper existed; negative tests require actual reader invocation, so missing
+functions cannot satisfy them. A later container-identity regression initially
+miscalled the old signature; its corrected harness executes that old real reader
+and reproduced11pre-effect failures. The final33new tests cover the actual Python
+helper/shell reader with ordinary files, container/mount refusals, exact snapshot
+field expression and TypeScript validator. Only Docker transport/path and UID:GID
+role are modeled in those filesystem tests; actual host identity is separate.
+
+Eleven exact omissions fail the actual tests: uniqueness, container identity,
+persistent mount, regular-file kind, canonical path, metadata, length, format,
+read cap, snapshot call and schema marker. Most permit false certification or an
+unapproved execution. Kind-check removal blocks on an actual owned FIFO; the test
+kills/reaps only its own new session/group after an independent one-second bound.
+Read-cap removal exceeds1025bytes before later refusal. Neither of those two is
+called successful false certification. The missing and unreadable file tests use
+separate real filesystem faults. Adjacent Proof comments name these scopes.
+Python AST equality after removing only proof-comment lines and complete emitted
+TypeScript equality establish final comment transfer, with injected-effect controls.
+
+Read-only execution of the final reader against the live existing container passed
+at2026-10-29T21:05:41Z, returning only verified and notificationSent:false. Its
+full source SHA256 was f042435f1b36ed7fd5ae73511b75cce7583637078c685979276b83e13708a76a.
+No secret, mounted configuration, service or notification destination was changed,
+and no message was sent. This proves current protected-file material/readability;
+it does not prove webhook delivery or new-release adoption.
+
+Uncached project lint, forced-build types, package build, formatting and strict
+OpenSpec validation exited0. A host listener again occupied3100 and was left alone.
+A private-network test attempt kept user-namespace capabilities and failed three
+unreadable-file checks; its379passes/3failures are retained and not certified.
+The corrected runner preserves UID1000, enables only its private loopback, drops
+all effective/permitted/inherited/bounding/ambient capabilities and sets no-new-privs
+before testing. Full uncached Nx tests then passed382, zero failures,758assertions
+across13files in9.87seconds. All49package input/config pins remained unchanged.
+A post-run lsns audit found no remaining process in its namespace4026533438. The
+host network and its unrelated listener were never modified. Nx's flaky warning
+retains the earlier failed test history.
+
+Artifacts are under /tmp/task10-slack-secret/: original sources, failed/final tests,
+11omission cases, transfer checks, live receipts, zero-capability receipt,
+namespace audit and uncached checks. New owned release/immutable-manifest
+reconciliation, final review/gate and actual redeployment persistence still remain.
+The older local-only mounted release's manual Slack change must not be hidden by
+rewriting expected manifest hashes. The broader registry warning/cutoff/failure and
+independent five-minute missed-report delivery scenarios also remain open.
+
+## Versioned Slack release ownership — 2026-10-29
+
+The new pure notification release renderer emits exactly the authorized Alertmanager
+config, a retained-volume Compose overlay and a strict manifest at
+releases/slack-<full40hexsource>. Source metadata is provenance, not proof of Git
+review, gating or apply authorization. Runtime validation now requires measured
+notificationRelease evidence: exact source-directory/mount relationship, strict
+schema and both declared/measured hashes equal to current trusted rendering. A
+host-consistent forged manifest alone refuses. Both original release inventories
+and all existing ownership/preservation checks remain required.
+
+The h3 producer derives that evidence from the actual inspected running owned
+Alertmanager and its read-only config bind mount. It shares the existing container
+and persistent-volume selector with the secret reader. It reads only the three
+fixed files, requiring regular/canonical/singly-linked identity, monitoring-root
+UID/GID and mode0644. NOFOLLOW/NONBLOCK opens, a64KiB size bound,65537byte read cap,
+post-read length refusal and finally-close bound its effects. Missing/unreadable
+files raise distinct real filesystem errors. Modeled UID/GID and concurrent-growth
+faults are explicitly distinguished from actual ordinary-file/link/FIFO tests.
+The runtime fixture's new release is modeled, not historical live adoption.
+
+Five actual preflight regressions reproduced the prior missing release validation:
+15existing module tests passed and5new tests failed before caller integration.
+The first filesystem test harness mistakenly used Bun.spawnSync input instead of
+stdin, so its27failures were harness failures, not a production-path RED. That
+attempt remains recorded. Corrected stdin execution, actual ordinary files and
+reader/snapshot-field tests pass. Two test type errors and import/stringification
+lint findings were corrected without weakening validation.
+
+Twenty-one exact omissions break actual tests: shared container uniqueness,
+identity and persistent volume; file kind, canonical path, metadata, size, length,
+NOFOLLOW, NONBLOCK, read cap and close; config mount and versioned path; snapshot
+reader call; renderer source format; observation schema, mounted path, trusted
+hash comparison and runtime caller. Most admit untrusted evidence. Size/read-cap
+omissions instead perform excess reads before later refusal; NOFOLLOW omission
+opens a symlink before canonical refusal; close omission leaves real descriptors
+open until test-process exit. NONBLOCK omission blocks on an actual owned FIFO;
+the supervisor kills/reaps only its own session/group. These effects are not
+misreported as successful complete-release certification. All11existing secret
+omission proofs also fail again after the selector refactor. Adjacent production
+Proof comments name these scopes; Python AST/complete emitted TypeScript equality
+and injected-effect controls transfer the proofs to the final comments.
+
+Fresh read-only inspection at2026-10-29T21:18:52Z found only the original a1ffe27e7
+alertmanager.yaml drifting:7534aa9ee55fec911dc18f1e72917659bfe3bc5dc12a1d8a7795252ccbbc70a4
+matches the Slack setup receipt. Its saved pre-Slack backup matches the original
+manifest expected hash ed705c05334fd3363b5f0a9c258444433c3134a70e2efa53ce13f1b8e09b0496.
+Both original manifests remain unchanged; c811f34bf has no file drift. The active
+config is still mounted from a1ffe27e7. Root/release ownership was1001:1001 and the
+config/manifest files were0644/single-link. The runbook preserves the old manifests,
+moves only Alertmanager before restoring its unmounted original config, and
+requires a second recreation/delivery proof for persistence.
+
+Actual h3 Compose5.5.0 read-only merge validation at21:37:15Z retained the exact
+persistent Alertmanager volume and all5other services; only its readonly config
+mount changed. This used a modeled40a candidate identity and did not stage or
+apply a release. Final live reader execution at21:43:22Z verified the protected
+secret through the same captured container ID, then refused the old unowned
+mount with the expected versioned-release error. Source SHA256 was
+63f6bfbbfeba5082a3c3229a93720cefe7509e4bf20d7e8fd0a53a0ea8107fe5.
+No webhook value was printed, notification sent, file replaced or service restarted.
+
+Full uncached Nx tests passed434, zero failures,886assertions across15files in
+13.22seconds with60named package/root-config/doc pins unchanged during the run.
+They used UID1000 in a temporary private network namespace, all five capability
+sets zero and no-new-privs enabled. Fresh post-run lsns audit found no process in
+its exact net:[4026533446] namespace. Final lint initially rejected one test type
+alias spelling; changing it to interface produced identical complete emitted test
+runtime with an injected-effect control. The434-test claim is bound through that
+transfer rather than a repeated test run. Final uncached lint, forced-build types,
+package build, format and strict OpenSpec validation all passed on stable inputs.
+
+All raw attempts, final sources,32omission cases, transfer checks, live/Compose
+receipts and uncached checks are retained under /tmp/task10-slack-release/.
+Covering manifest /tmp/task10-slack-release-covering.json has284pins and SHA256
+006b40b712a50a92284b527782acceb0374811984afc6ea52e06ed13f8dd98ec.
+Its scope excludes this append-only verification record. Existing prior capsules
+remain historical after intentional owning-source edits. Local implementation is
+validated; exact-SHA host gate, final integration review, staged ownership adoption
+and actual firing/recovery delivery across recreation are still pending. Follow-up
+tasks4.1/4.2 and registry Task5.1 remain unchecked. No registry safeguard activation,
+Victoria retirement, provider physical-budget resolution or product migration is
+claimed.
+
+## Host-gate refusal and fixture layout repair — 2026-10-29
+
+The canonical h4 gate ran exact source
+`6a058008077aed53c9c3aaf6499932fd2df6879c` as `puni1` in its clean gate tree.
+Its durable terminal receipt ended at23:35:24Z with exit1; the unit was failed,
+MainPID0 and its control group empty. This is a failed gate, not an active or
+successful one. `twilight-burokrat:test` reported2503pass/11fail. The production
+pilot rejected `tools/tool-observability-stack/test/fixtures/runtime.json` because
+both test and fixture selectors matched; ten later negatives stopped at that same
+classification error before their intended boundaries. No monitoring transition
+was applied.
+
+The production `classify-candidate committed` command reproduced this exact
+failure with the extracted full-policy classification section. Initial attempts
+passed the outer policy instead of its classification section, then encountered
+sandbox object-store permissions using working selection; those are diagnostic
+command failures, not additional safety witnesses. Bootstrap/code-policy whole-tree
+runs are also outside their intended scopes and remain failed observations.
+Moving the unchanged fixture to the package's `fixtures/runtime.json` and updating
+its three imports made production full-policy working classification exit0.
+No policy, classifier or safety guard was relaxed. Fixture SHA256 remained
+`9b518d4d79ec11e00501880df258a5eda917545239ee0a119207906b5aa69943`.
+
+Fresh uncached monitoring tests passed434, zero failures,886assertions across15files
+in12.46seconds. All60 named package/config/doc pins stayed unchanged during each
+scoped check. Lint, forced-build types, formatting and strict OpenSpec validation
+passed. The tests ran asUID1000 with private loopback, zero capabilities and
+no-new-privs; post-run lsns inspection found no remaining visible process in that exact namespace.
+A direct all-process audit hit protected PID1 and failed; it is not evidence.
+Only three test imports and the fixture location changed from the prior validated
+implementation; production code is unchanged. The affected production pilot,
+new exact-SHA host gate, integration review and live ownership/persistence remain
+pending. Evidence: `/tmp/task10-slack-fixture-layout/`; failed gate log SHA256
+`48c223d8bac33dc492f4f19c271894a7d7c0d8167899833dc9865afd16c91f76`.
+
+## Maintained-source receiver integration — 2026-11-03
+
+This is a local source integration for the registry monitoring prerequisite, based
+on clean maintained-main `f6b2fec3326caa7cd23a71d76b3a36ce2ad613d3`. Applied reviewed
+commits `6a058008077aed53c9c3aaf6499932fd2df6879c` and
+`18a49644572da5e6f987a249c47c6cf9d927ce08` in that order without importing their
+ancestors. No dependency, architecture or provider change was needed. The receiver,
+protected-secret reader, immutable notification-release reader/validator and their
+tests/fixture match the reviewed source exactly. Current-main's ephemeral-loopback
+source-test transport and package-level fixture location are preserved.
+
+Frozen `bun install --frozen-lockfile` succeeded with Bun 1.4.4. The inspected owning
+project baseline passed 337 tests, zero failures, 651 assertions across 11 files.
+Before integration, a focused `bun -e` assertion parsed the actual
+`renderDevConfiguration()['alertmanager.yaml']` output and failed with actual
+`local-only`, expected `slack-puni`. The identical command passed after integration,
+including the sole receiver/notification, #puni-alerts, recovery flag, persistent
+secret-file reference and absence of an inline webhook. No real secret was read.
+
+Fresh scoped verification:
+
+```sh
+NX_DAEMON=false bunx nx run tool-observability-stack:test --skip-nx-cache
+NX_DAEMON=false bunx nx run tool-observability-stack:lint --skip-nx-cache
+NX_DAEMON=false bunx nx run tool-observability-stack:typecheck --skip-nx-cache
+NX_DAEMON=false bunx nx run tool-observability-stack:build --skip-nx-cache
+bunx openspec validate dev-observability --strict --json
+git diff --check HEAD
+```
+
+The project tests passed 437, zero failures, 918 assertions across 15 files in
+20.64 seconds. Lint, forced-build typechecking, package build, scoped changed-file
+Prettier checks and strict owning-change validation passed. Lint emitted only the
+Node warning that FORCE_COLOR overrides NO_COLOR. Test collection is restricted
+to this package: HTTP uses owned loopback listeners, SSH/Docker transports are
+fixtures, and Python/shell readers use owned ordinary files. No root/remote test,
+provider request, live secret-file read or notification occurred.
+
+The reviewed production guards/callers and adjacent Proof comments are unchanged;
+the dated omission evidence above remains historical rather than a newly repeated
+mutation suite. Fresh tests include real missing/unreadable file negatives and
+actual runtime preflight validation. Integration-only documentation changes fix
+the notification renderer's full repository path and label dated deployment
+observations as historical. Raw local logs and the exact focused assertion are in
+`/tmp/registry-monitoring-source-integration-20261103/` and the local SDD task report.
+
+Full host gates, whole-repository/remote/root/native-registry tests, live adoption,
+notification delivery and recreation/persistence drills were not run in this
+source-only slice. They are not established by these local results. Neither the
+broader registry Task 5.1 nor the live receiver tasks are closed here.
