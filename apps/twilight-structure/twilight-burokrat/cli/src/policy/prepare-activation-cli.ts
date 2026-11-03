@@ -40,6 +40,11 @@ const flags = [
 ] as const;
 type Flag = (typeof flags)[number];
 
+/** The usage line of `prepare-activation`; `cli-parser.ts`'s help shows the same grammar (cli.test.ts). */
+export const prepareActivationUsage = `usage: twilight-burokrat prepare-activation ${flags
+  .map((flag) => `--${flag} <value>`)
+  .join(' ')}`;
+
 /**
  * A package executable may supply only its own installed toolkit directory. A consumer's layout is
  * its own: the policy and mapping paths, review record and audit strata remain operator input, and
@@ -52,9 +57,7 @@ function readArguments(argv: readonly string[], defaultToolkit?: string): Record
     const name = argv[index];
     const value = argv[index + 1];
     if (!name.startsWith('--') || index + 1 >= argv.length) {
-      throw new Error(
-        `usage: prepare-activation ${flags.map((flag) => `--${flag} <value>`).join(' ')}`,
-      );
+      throw new Error(prepareActivationUsage);
     }
     const flag = name.slice(2);
     if (!(flags as readonly string[]).includes(flag)) throw new Error(`unknown flag: ${name}`);

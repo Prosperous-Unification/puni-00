@@ -3,6 +3,14 @@ import './style.css';
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
+import { createAppAnalytics } from './analytics';
+import {
+  createMilestones,
+  MilestonesContext,
+  readStartingChoice,
+  useMilestone,
+  useMilestones,
+} from './analytics-flow';
 import { ApiFailure, requestJson } from './api';
 import { describeFailure, describeOperatorFailure, offersAi } from './app-flow';
 import { type Draft, parseDraft } from './build-contract';
@@ -18,6 +26,8 @@ import {
 } from './chrome';
 import { FunnelPanel } from './funnel-panel';
 import { GuardrailsPanel } from './guardrails-panel';
+import { ArrivalChoice, PrivacyChoices } from './privacy-choices';
+import { clearRequestEditor, RequestEditor } from './request-editor';
 
 interface Submission {
   id: string;
@@ -28,6 +38,7 @@ interface Submission {
   createdAt: string;
 }
 interface PendingProposal {
+  version?: 1;
   email: string;
   brief: string;
   idempotencyKey: string;
@@ -55,17 +66,40 @@ function readPendingProposal(): PendingProposal | null {
     typeof parsed.createdAt !== 'number'
   )
     throw new Error('Stored pending proposal is malformed');
+  if ('version' in parsed && parsed.version !== 1)
+    throw new Error('Stored pending proposal version is malformed');
   if (Date.now() - parsed.createdAt > 24 * 60 * 60 * 1000) {
     sessionStorage.removeItem(pendingKey);
     return null;
   }
   return {
+    ...('version' in parsed && parsed.version === 1 ? { version: 1 as const } : {}),
     email: parsed.email,
     brief: parsed.brief,
     idempotencyKey: parsed.idempotencyKey,
     csrfToken: parsed.csrfToken,
     createdAt: parsed.createdAt,
   };
+}
+
+/** Browser persistence is optional; a denied storage API must leave manual review available. */
+function readManualRecovery():
+  | { kind: 'available'; pending: PendingProposal | null; requestKey: string }
+  | { kind: 'unavailable'; pending: null; requestKey: string } {
+  const created = crypto.randomUUID();
+  try {
+    const pending = readPendingProposal();
+    const requestKey = sessionStorage.getItem('puni_proposal_key') ?? created;
+    sessionStorage.setItem('puni_proposal_key', requestKey);
+    return { kind: 'available', pending, requestKey };
+  } catch (error) {
+    if (
+      error instanceof DOMException &&
+      ['SecurityError', 'QuotaExceededError'].includes(error.name)
+    )
+      return { kind: 'unavailable', pending: null, requestKey: created };
+    throw error;
+  }
 }
 
 type LoadState =
@@ -75,31 +109,39 @@ type LoadState =
   | { kind: 'error'; message: string };
 
 /**
- * Manual brief length. The API accepts 8,000 characters; the form stops at the 4,000 the retired
- * concept preview read, so briefs keep their shape. Home's 2,000 limit applies to the shorter
- * description that this brief expands.
+ * Manual brief length, matching the API boundary. Versioned references share this submission limit.
  */
-const briefLimit = 4000;
+const briefLimit = 8000;
 
 function ManualPage() {
+  const milestones = useMilestones();
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' });
   const [brief, setBrief] = useState('');
   const [email, setEmail] = useState('');
   const [receipt, setReceipt] = useState<string | null>(null);
   const [previousReceipt, setPreviousReceipt] = useState<string | null>(null);
-  const [pendingProposal, setPendingProposal] = useState<PendingProposal | null>(() =>
-    readPendingProposal(),
-  );
+  const [recovery] = useState(readManualRecovery);
+  const [pendingProposal, setPendingProposal] = useState<PendingProposal | null>(recovery.pending);
   const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(
+    recovery.kind === 'unavailable'
+      ? 'Browser recovery is unavailable. Keep this page open until your request is confirmed.'
+      : '',
+  );
   const feedback = useRef<HTMLParagraphElement>(null);
-  const [requestKey, setRequestKey] = useState(() => {
-    const saved = sessionStorage.getItem('puni_proposal_key');
-    if (saved) return saved;
-    const created = crypto.randomUUID();
-    sessionStorage.setItem('puni_proposal_key', created);
-    return created;
-  });
+  const [requestKey, setRequestKey] = useState(recovery.requestKey);
+  useMilestone(
+    load.kind === 'ready' && load.draft.scoping?.version !== 1
+      ? `brief:${load.draft.csrfToken}`
+      : null,
+    { name: 'brief_view', route: 'manual', starting_choice: 'typed' },
+  );
+  useMilestone(
+    load.kind === 'ready' && load.draft.scoping?.version !== 1
+      ? `email:${load.draft.csrfToken}`
+      : null,
+    { name: 'email_request_view', route: 'manual', starting_choice: 'typed' },
+  );
 
   useEffect(() => {
     requestJson<unknown>('/draft')
@@ -144,13 +186,21 @@ function ManualPage() {
       method: 'POST',
       headers: { 'X-Puni-CSRF': pending.csrfToken },
       body: JSON.stringify({
+        ...(pending.version === 1 ? { version: 1 } : {}),
         email: pending.email,
         brief: pending.brief,
         idempotencyKey: pending.idempotencyKey,
       }),
     });
+    milestones?.confirm(answer.receipt, {
+      name: 'generate_lead',
+      route: 'manual',
+      funnel_version: pending.version === 1 ? '1' : 'legacy',
+    });
     sessionStorage.removeItem(pendingKey);
     sessionStorage.removeItem('puni_proposal_key');
+    clearRequestEditor(pending.csrfToken);
+    setEmail(pending.email);
     setPendingProposal(null);
     return answer.receipt;
   }
@@ -215,8 +265,15 @@ function ManualPage() {
       sessionStorage.removeItem(pendingKey);
       sessionStorage.removeItem('puni_proposal_key');
       setPendingProposal(null);
+      milestones?.confirm(answer.receipt, {
+        name: 'generate_lead',
+        route: 'manual',
+        funnel_version: 'legacy',
+        starting_choice: readStartingChoice(load.draft.scoping),
+      });
       setReceipt(answer.receipt);
     } catch (error) {
+      milestones?.failure(error);
       setMessage(describeFailure(error));
     } finally {
       setPending(false);
@@ -240,7 +297,8 @@ function ManualPage() {
   return (
     <div className="page-shell night-band">
       <HeroMedia />
-      <SiteHeader buildCurrent="true" tone="night" />
+      <SiteHeader buildCurrent="true" tone="night" placement="flow" />
+      <ArrivalChoice />
       <main className="manual-layout" id="main">
         <aside className="context-panel" aria-label="About this step">
           <p className="eyebrow">01 / Request</p>
@@ -373,63 +431,79 @@ function ManualPage() {
                     </a>
                   </div>
                 )}
-                <div className="field">
-                  <label htmlFor="brief">What should we understand?</label>
-                  <textarea
-                    id="brief"
-                    rows={8}
-                    maxLength={briefLimit}
-                    aria-describedby="brief-help"
-                    value={brief}
-                    onChange={(event) => {
-                      setBrief(event.target.value);
-                    }}
-                    required
+                {load.draft.scoping?.version === 1 ? (
+                  <RequestEditor
+                    draft={load.draft}
+                    route="manual"
+                    contact
+                    open
+                    onOpen={() => undefined}
+                    onClose={() => undefined}
+                    onSubmitted={() => undefined}
                   />
-                  <div className="form-meta" id="brief-help">
-                    <span>Your draft stays in this browser for 24 hours.</span>
-                    <span>
-                      {brief.length.toLocaleString('en')} / {briefLimit.toLocaleString('en')}
-                    </span>
-                  </div>
-                  {brief !== load.draft.description && (
-                    <details className="original">
-                      <summary>Original</summary>
-                      <p>{load.draft.description}</p>
-                    </details>
-                  )}
-                  <button
-                    className="button secondary compact"
-                    type="button"
-                    disabled={pending}
-                    onClick={() => void saveBrief()}
-                  >
-                    Save draft
-                  </button>
-                </div>
-                <form className="field" onSubmit={(event) => void submitProposal(event)}>
-                  <label htmlFor="email">Where can we reply?</label>
-                  <input
-                    id="email"
-                    type="email"
-                    autoComplete="email"
-                    placeholder="you@company.com"
-                    aria-describedby="email-help"
-                    value={email}
-                    onChange={(event) => {
-                      setEmail(event.target.value);
-                    }}
-                    required
-                  />
-                  <p className="small" id="email-help">
-                    We’ll use this address to discuss your request. Submitting sends your brief to
-                    our private operator inbox.
-                  </p>
-                  <button className="button full" disabled={pending || !brief.trim()}>
-                    {pending ? 'Working…' : 'Request a human proposal'}{' '}
-                    <span aria-hidden="true">↗</span>
-                  </button>
-                </form>
+                ) : (
+                  <>
+                    <div className="field">
+                      <label htmlFor="brief">What should we understand?</label>
+                      <textarea
+                        id="brief"
+                        rows={8}
+                        maxLength={briefLimit}
+                        aria-describedby="brief-help"
+                        value={brief}
+                        onChange={(event) => {
+                          setBrief(event.target.value);
+                        }}
+                        required
+                      />
+                      <div className="form-meta" id="brief-help">
+                        <span>
+                          Anonymous access lasts 24 hours. This is not a deletion promise.
+                        </span>
+                        <span>
+                          {brief.length.toLocaleString('en')} / {briefLimit.toLocaleString('en')}
+                        </span>
+                      </div>
+                      {brief !== load.draft.description && (
+                        <details className="original">
+                          <summary>Original</summary>
+                          <p>{load.draft.description}</p>
+                        </details>
+                      )}
+                      <button
+                        className="button secondary compact"
+                        type="button"
+                        disabled={pending}
+                        onClick={() => void saveBrief()}
+                      >
+                        Save draft
+                      </button>
+                    </div>
+                    <form className="field" onSubmit={(event) => void submitProposal(event)}>
+                      <label htmlFor="email">Where can we reply?</label>
+                      <input
+                        id="email"
+                        type="email"
+                        autoComplete="email"
+                        placeholder="you@company.com"
+                        aria-describedby="email-help"
+                        value={email}
+                        onChange={(event) => {
+                          setEmail(event.target.value);
+                        }}
+                        required
+                      />
+                      <p className="small" id="email-help">
+                        We’ll use this address to discuss your request. Submitting sends your brief
+                        to our private operator inbox.
+                      </p>
+                      <button className="button full" disabled={pending || !brief.trim()}>
+                        {pending ? 'Working…' : 'Request a human proposal'}{' '}
+                        <span aria-hidden="true">↗</span>
+                      </button>
+                    </form>
+                  </>
+                )}
                 {message && (
                   <p className="feedback" role="status" ref={feedback}>
                     {message}
@@ -447,6 +521,7 @@ function ManualPage() {
                   Your reference is <strong className="reference">{receipt}</strong>
                   Keep it for your records. It does not unlock your submitted details.
                 </p>
+                <p className="small">Reply address: {email}</p>
                 <div className="actions">
                   <a className="button" href={`${siteOrigin}/`}>
                     Back to PUNI <span aria-hidden="true">→</span>
@@ -457,6 +532,7 @@ function ManualPage() {
           </div>
         </section>
       </main>
+      <PrivacyChoices />
       <SiteFooter />
     </div>
   );
@@ -532,7 +608,7 @@ function OperatorPage() {
 
   return (
     <div className="page-shell operator-page">
-      <SiteHeader tone="light" />
+      <SiteHeader tone="light" placement="flow" />
       <main className="operator-layout" id="main">
         <p className="eyebrow">Private workspace</p>
         <h1 ref={heading} tabIndex={-1}>
@@ -611,16 +687,19 @@ function OperatorPage() {
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing app root');
+const milestones = createMilestones(createAppAnalytics(window));
 createRoot(root).render(
-  window.location.pathname.startsWith('/operator') ? (
-    <OperatorPage />
-  ) : window.location.pathname.startsWith('/manual') ? (
-    <AppErrorBoundary>
-      <ManualPage />
-    </AppErrorBoundary>
-  ) : (
-    <AppErrorBoundary>
-      <BuildPage />
-    </AppErrorBoundary>
-  ),
+  <MilestonesContext.Provider value={milestones}>
+    {window.location.pathname.startsWith('/operator') ? (
+      <OperatorPage />
+    ) : window.location.pathname.startsWith('/manual') ? (
+      <AppErrorBoundary>
+        <ManualPage />
+      </AppErrorBoundary>
+    ) : (
+      <AppErrorBoundary>
+        <BuildPage />
+      </AppErrorBoundary>
+    )}
+  </MilestonesContext.Provider>,
 );

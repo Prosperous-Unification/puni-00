@@ -13,7 +13,11 @@ exception catalogue.
 
 - **`report-failure.ts`** — the report limits, sensitive property names,
   caller-owned secret policy and never-throw reporting wrapper.
-- **`index.ts`** — the complete public surface.
+- **`index.ts`** — the complete production surface.
+- **`testing.ts`** — `@shared/failures/testing`, test-only: makes the report
+  library throw so a test reaches the reporting-loss branch. Never imported by
+  production code; it imports `bun:test`, so Vitest suites mock
+  `application-exception` instead.
 
 ## Refusals
 

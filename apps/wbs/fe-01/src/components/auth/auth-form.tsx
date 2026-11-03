@@ -9,13 +9,16 @@ import {
   Label,
 } from '@ui/saas-01';
 import { authMethod } from '@wbs/contracts';
-import { type SubmitEvent, useEffect, useState } from 'react';
+import { type SubmitEvent, useEffect, useRef, useState } from 'react';
 
-import { login, type Session } from '@/lib/api';
+import { login, resetSession, type Session } from '@/lib/api';
 import { failureMessage, unreachable } from '@/lib/http';
 import { cn } from '@/lib/utils';
 
 import { type AuthMethodsState, useAuthMethods } from './auth-methods';
+
+const BROWSER_RECOVERY_MESSAGE =
+  'The previous browser session could not be verified. Reset this browser session, then sign in again.';
 
 /** Every declared login refusal has user-facing words; transport failures are separate. */
 function refusalMessage(
@@ -25,7 +28,7 @@ function refusalMessage(
     case 'invalid_credentials':
       return 'Username or password is incorrect.';
     case 'unauthenticated':
-      return 'The previous browser session could not be verified. Reload and try again.';
+      return BROWSER_RECOVERY_MESSAGE;
     case 'not_found':
       return 'Password sign-in is not available on this server. Continue with SSO.';
     case 'invalid_origin':
@@ -70,6 +73,7 @@ const AUTH_ERROR_PARAM = 'auth_error';
  * can finish in one click.
  */
 const SSO_ERROR_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
+  browser_session_unverified: BROWSER_RECOVERY_MESSAGE,
   access_denied:
     'SSO sign-in was refused. If you did not cancel it, your account may not have access to this app.',
   account_selection_required:
@@ -132,11 +136,30 @@ const methodButton = buttonVariants({
 });
 
 /**
+ * Pending cookie changes replace navigation with a disabled kit control.
+ * Proof: bypassing this branch exposed a live href to the pending navigation negative.
+ */
+function SignInLink({ label, href, disabled }: { label: string; href: string; disabled: boolean }) {
+  if (disabled) {
+    return (
+      <Button type="button" variant="outline" className="h-11 w-full" disabled aria-disabled="true">
+        {label}
+      </Button>
+    );
+  }
+  return (
+    <a className={methodButton} href={href}>
+      {label}
+    </a>
+  );
+}
+
+/**
  * One full-width outline link per enabled method, in catalogue order. Loading
  * holds one button row so the card does not jump; a failed read says so
  * quietly and leaves the chooser link below as the way in.
  */
-function MethodButtons({ methods }: { methods: AuthMethodsState }) {
+function MethodButtons({ methods, disabled }: { methods: AuthMethodsState; disabled: boolean }) {
   switch (methods.kind) {
     case 'loading':
       return (
@@ -154,9 +177,12 @@ function MethodButtons({ methods }: { methods: AuthMethodsState }) {
       );
     case 'ready':
       return methods.methods.map((id) => (
-        <a key={id} className={methodButton} href={`/api/auth/login?method=${id}`}>
-          {authMethod(id).label}
-        </a>
+        <SignInLink
+          key={id}
+          label={authMethod(id).label}
+          disabled={disabled}
+          href={`/api/auth/login?method=${id}`}
+        />
       ));
     default:
       return unreachable(methods);
@@ -182,7 +208,47 @@ export function AuthForm({ methods, onSignedIn }: AuthFormProps) {
    * what keeps StrictMode's second invocation a no-op instead of a message that
    * erases itself.
    */
-  const [ssoError] = useState(ssoErrorMessage);
+  const [ssoError, setSsoError] = useState(ssoErrorMessage);
+  const [canReset, setCanReset] = useState(() => ssoErrorMessage() === BROWSER_RECOVERY_MESSAGE);
+  const [reset, setReset] = useState<
+    { kind: 'idle' | 'pending' | 'success' } | { kind: 'failed'; message: string }
+  >({ kind: 'idle' });
+  // A ref also fences two events in one render, before disabled controls commit.
+  // Proof: removing the reset guard made `reset prevents duplicate requests and
+  // sign-in while pending` send two requests for two batched clicks (task-3 proof).
+  const requestPending = useRef(false);
+
+  const resetBrowser = async () => {
+    if (requestPending.current) return;
+    requestPending.current = true;
+    setReset({ kind: 'pending' });
+    try {
+      const reply = await resetSession();
+      // Proof: forcing success after refused/malformed/network replies made all
+      // three `reset failure remains visible and retryable` cases lose their error.
+      switch (reply.kind) {
+        case 'success':
+          setReset({ kind: 'success' });
+          setCanReset(false);
+          setError('');
+          if (ssoError === BROWSER_RECOVERY_MESSAGE) setSsoError('');
+          break;
+        case 'refusal':
+          setReset({
+            kind: 'failed',
+            message: 'Browser session reset was refused. Reload this page and try again.',
+          });
+          break;
+        case 'failure':
+          setReset({ kind: 'failed', message: failureMessage(reply.failure) });
+          break;
+        default:
+          unreachable(reply);
+      }
+    } finally {
+      requestPending.current = false;
+    }
+  };
 
   useEffect(() => {
     clearAuthError();
@@ -190,6 +256,11 @@ export function AuthForm({ methods, onSignedIn }: AuthFormProps) {
 
   const submit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
+    // Proof: removing this fence made the pending reset test send a second
+    // request when its password form was submitted directly.
+    if (requestPending.current) return;
+    requestPending.current = true;
+    setReset({ kind: 'idle' });
     const values = new FormData(event.currentTarget);
     const username = values.get('username');
     const password = values.get('password');
@@ -209,6 +280,7 @@ export function AuthForm({ methods, onSignedIn }: AuthFormProps) {
           break;
         case 'refusal':
           setError(refusalMessage(reply.body));
+          if (reply.body.error === 'unauthenticated') setCanReset(true);
           setReplies((count) => count + 1);
           break;
         case 'failure':
@@ -223,6 +295,7 @@ export function AuthForm({ methods, onSignedIn }: AuthFormProps) {
       setReplies((count) => count + 1);
     } finally {
       setBusy(false);
+      requestPending.current = false;
     }
   };
 
@@ -321,11 +394,49 @@ export function AuthForm({ methods, onSignedIn }: AuthFormProps) {
                 {error !== '' && <span key={replies}>{error}</span>}
               </p>
             </div>
-            <Button className="h-11 w-full" type="submit" disabled={busy}>
+            <Button
+              className="h-11 w-full"
+              type="submit"
+              // Proof: removing pending from disabled failed the password-button negative.
+              disabled={busy || reset.kind === 'pending'}
+            >
               Sign in with password
             </Button>
           </div>
         </form>
+        {canReset && (
+          <div className="grid gap-3">
+            {ssoError === BROWSER_RECOVERY_MESSAGE && (
+              <p className="text-destructive text-sm" role="status" aria-live="polite">
+                {ssoError}
+              </p>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-full"
+              disabled={busy || reset.kind === 'pending'}
+              onClick={() => void resetBrowser()}
+            >
+              Reset browser session
+            </Button>
+            {reset.kind === 'pending' && (
+              <p role="status" className="text-muted-foreground text-sm">
+                Resetting browser session…
+              </p>
+            )}
+            {reset.kind === 'failed' && (
+              <p role="status" className="text-destructive text-sm">
+                {reset.message}
+              </p>
+            )}
+          </div>
+        )}
+        {reset.kind === 'success' && (
+          <p role="status" className="text-muted-foreground text-sm">
+            Browser session reset. Sign in again to continue.
+          </p>
+        )}
         <div className="grid gap-3">
           <div className="text-muted-foreground text-center text-sm">or</div>
           {/*
@@ -335,15 +446,17 @@ export function AuthForm({ methods, onSignedIn }: AuthFormProps) {
            * for it would leave a permanently empty message slot under the SSO
            * button on every ordinary visit.
            */}
-          {ssoError === '' ? null : (
+          {ssoError === '' || ssoError === BROWSER_RECOVERY_MESSAGE ? null : (
             <p className="text-destructive text-sm" role="status" aria-live="polite">
               {ssoError}
             </p>
           )}
-          <MethodButtons methods={methods} />
-          <a className={methodButton} href="/api/auth/login">
-            Continue with SSO
-          </a>
+          <MethodButtons methods={methods} disabled={busy || reset.kind === 'pending'} />
+          <SignInLink
+            label="Continue with SSO"
+            disabled={busy || reset.kind === 'pending'}
+            href="/api/auth/login"
+          />
         </div>
       </CardContent>
     </Card>

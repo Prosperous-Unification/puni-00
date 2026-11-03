@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
 
+import type { DashRequest } from '../../cli-parser';
 import { renderObservationUnits } from './render';
 
 /** The file names an administrator installs; the timer template's `Unit=` names the service. */
@@ -49,26 +50,15 @@ export function renderObservationBundle(inputPath: string, outputDirectory: stri
 }
 
 /**
- * `render-observation-units <layout.json> <new-dir>`: parses its whole grammar before reading the
- * layout or creating the directory, then prints the three written paths. A refusal's message names
- * no input bytes, because a malformed layout's parse error would quote them; the cause keeps the
- * detail, and the entrypoint prints only its error codes.
+ * `render-observation-units <layout.json> <new-dir>`: renders the bundle, then prints the three
+ * written paths. A refusal's message names no input bytes, because a malformed layout's parse
+ * error would quote them; the cause keeps the detail, and the entrypoint prints only its error
+ * codes.
  */
 export function renderObservationUnitsCommand(
-  argv: readonly string[],
+  { layout: layoutPath, outputDirectory }: DashRequest<'render-observation-units'>,
   write: (text: string) => unknown,
 ): void {
-  const [layoutPath, outputDirectory] = argv;
-  // Proof: removing the `argv.length !== 2` half failed `render-observation-units refuses a
-  // malformed grammar before any effect` at `[]`, which reached the layout read and refused as
-  // "observation unit rendering refused" instead of the usage line (2026-10-12); removing the
-  // empty-or-flag half failed it the same way at `['--layout', <dir>]`.
-  if (
-    argv.length !== 2 ||
-    argv.some((argument) => argument.length === 0 || argument.startsWith('--'))
-  ) {
-    throw new Error('Usage: render-observation-units <layout.json> <new-dir>');
-  }
   try {
     renderObservationBundle(layoutPath, outputDirectory);
   } catch (cause) {

@@ -1,0 +1,4 @@
+DROP TRIGGER conversation_draft_immutable;
+DROP TRIGGER conversation_request_owner_immutable;
+DROP TRIGGER retention_fence_conversation_request_update;
+ALTER TABLE conversation_operation DROP COLUMN request_json;

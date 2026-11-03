@@ -7,7 +7,7 @@ test('invokeCli captures a refusal as the process entry reports it and restores 
   const refused = await invokeCli(['not-a-command']);
   expect(refused.exitCode).toBe(1);
   expect(refused.stdout).toBe('');
-  expect(refused.stderr).toContain('unknown command: not-a-command');
+  expect(refused.stderr).toBe('error: Unsupported Burokrat command: not-a-command\n');
   // Proof: restoring `process.exitCode` to the `undefined` Bun reported before the call left it at
   // 1, so this assertion failed and the whole test run would have exited 1 (2026-10-12).
   expect(process.exitCode).toBe(0);

@@ -257,7 +257,7 @@ for (const operands of [
     const invocation = await invokeCli(['validate-plan-tasks', ...operands]);
     expect(invocation.exitCode).toBe(1);
     expect(invocation.stdout).toBe('');
-    expect(invocation.stderr).toContain('usage: twib validate-plan-tasks');
+    expect(invocation.stderr).toContain('usage: twilight-burokrat validate-plan-tasks');
   });
 }
 
@@ -297,7 +297,7 @@ test('the process entrypoint refuses extra operands without reading files', () =
   });
   expect(child.exitCode).toBe(1);
   expect(child.stdout.toString()).toBe('');
-  expect(child.stderr.toString()).toContain('usage: twib validate-plan-tasks');
+  expect(child.stderr.toString()).toContain('usage: twilight-burokrat validate-plan-tasks');
 });
 
 test('refuses plan document v12', async () => {

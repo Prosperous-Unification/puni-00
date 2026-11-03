@@ -15,6 +15,10 @@
       "mode": "observe"
     },
     {
+      "ruleId": "JOB-CATALOGUE",
+      "mode": "observe"
+    },
+    {
       "ruleId": "K2",
       "mode": "observe"
     },

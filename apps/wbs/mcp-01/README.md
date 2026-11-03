@@ -21,7 +21,7 @@ created by its ref. The directory has no project, so its edits alone have
 `postApiDirectoryCommands`. Step edits may address a node with `stepNodeId` from
 a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 
-76 tools in all:
+77 tools in all:
 
 - the reads (the timezone list among them), the work-item page and single work-item reads;
 - the saved-reference delivery read, which observes public GitHub delivery without changing planning progress;
@@ -40,8 +40,12 @@ a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 - the agent heartbeat (`postApiClaimsRenew`: renews every claim lease of the calling agent; a
   claim an agent takes for itself is released 15 minutes after its last write unless renewed; a
   raw HTTP caller sends no body and no query string, either is refused `400` and renews nothing);
-- the project resource read (`getApiProjectsByIdResources`: the directory's resources, the
-  project's capacities and demands);
+- the project resource read (`getApiProjectsByIdResources`: the directory's resources, each
+  with its directory capacity, the project's capacities and demands);
+- the directory capacity preview
+  (`postApiOrganizationResourcesByResourceIdDirectory-capacityPreview`: what stating, lowering or
+  clearing a resource's directory capacity would leave, writing nothing; an organization admin or
+  super-admin only, set with the `setDirectoryCapacity` directory command);
 - the four conditional runtime tools for coherent state, authority acquisition, exact claim/write
   and accepted-receipt lookup;
 - the measure definition read (`getApiMeasures`: the organization's measure definitions, the five

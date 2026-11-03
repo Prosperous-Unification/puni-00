@@ -760,7 +760,10 @@ describe('the Ansible host and k3s contract', () => {
     // Linux path stayed /home/puni1/...); it takes no override, so the home is the only route.
     expect(linuxLock).toBe(`${defaults['puni_gate_home']}/.cache/wbs-heavy-work.lock`);
     expect(defaults['puni_gate_user']).toBe('puni1');
-    expect(Object.keys(inventory.all.children['gate_hosts']?.hosts ?? {})).toEqual(['h4claw']);
+    expect(Object.keys(inventory.all.children['gate_hosts']?.hosts ?? {})).toEqual([
+      'h4claw',
+      'h2puni',
+    ]);
     expect(Object.keys(inventory.all.children['k3s_bootstrap_servers']?.hosts ?? {})).toEqual([
       'h4claw',
     ]);

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { parseOrThrow, type } from '@shared/validation';
 import { Database } from 'bun:sqlite';
 
+import type { DashRequest } from '../cli-parser';
 import type { WallClock } from '../clock';
 import { readObservationStateConfig } from './observation-service';
 import {
@@ -41,24 +42,11 @@ export interface ObservationCommandDependencies {
   readonly write: (text: string) => void;
 }
 
-const bootstrapUsage = 'usage: twilight-dash bootstrap-observation <service.json>';
-const migrateUsage = 'usage: twilight-dash migrate-observation <service.json>';
-
 /** Each step moves the store from `from` to `from + 1` under the observation lock. */
 const migrationSteps = [
   { from: 8, run: migrateObservationState },
   { from: 9, run: migrateObservationRecoveryState },
 ] as const;
-
-function serviceArgument(argv: readonly string[], usage: string): string {
-  const [configurationPath] = argv;
-  // Proof: loosening this to `argv.length === 0` made `store commands refuse grammar faults before
-  // any state` observe Dash accept `bootstrap-observation <service.json> extra` and print
-  // `"status":"bootstrapped"`; dropping the `--` test made `bootstrap-observation --force` reach
-  // the configuration read (`observation service configuration unavailable`) (2026-10-12).
-  if (argv.length !== 1 || configurationPath.startsWith('--')) throw new Error(usage);
-  return configurationPath;
-}
 
 function errorCode(error: unknown): string {
   return error instanceof Error && 'code' in error ? String(error.code) : 'unknown';
@@ -148,14 +136,13 @@ function requireOwned(outcome: 'initialized' | 'migrated' | 'busy', databasePath
  * (v10 under the lock); a crash between them leaves a v9 store that `migrate-observation`
  * finishes.
  *
- * @throws Error with the usage line before any read when the grammar is wrong;
- * ObservationStoreError `exists` or `unreadable` before the lock is taken.
+ * @throws ObservationStoreError `exists` or `unreadable` before the lock is taken.
  */
 export async function bootstrapObservationCommand(
-  argv: readonly string[],
+  { service }: DashRequest<'bootstrap-observation'>,
   { clock, write }: ObservationCommandDependencies,
 ): Promise<void> {
-  const config = readObservationStateConfig(serviceArgument(argv, bootstrapUsage), clock);
+  const config = readObservationStateConfig(service, clock);
   const databasePath = storePath(config);
   // Proof: deleting this check made `bootstrap-observation creates a v10 store once and refuses
   // the second time` receive the untyped `observation state already exists` (2026-10-12).
@@ -173,15 +160,14 @@ export async function bootstrapObservationCommand(
  * Steps the observation store from version 8 or 9 to 10 with the existing migrations, each under
  * the lock, and prints `migrated` with both versions.
  *
- * @throws Error with the usage line before any read when the grammar is wrong;
- * ObservationStoreError `absent`, `unreadable`, `current` or `unsupported-version` before the lock
- * is taken.
+ * @throws ObservationStoreError `absent`, `unreadable`, `current` or `unsupported-version` before
+ * the lock is taken.
  */
 export async function migrateObservationCommand(
-  argv: readonly string[],
+  { service }: DashRequest<'migrate-observation'>,
   { clock, write }: ObservationCommandDependencies,
 ): Promise<void> {
-  const config = readObservationStateConfig(serviceArgument(argv, migrateUsage), clock);
+  const config = readObservationStateConfig(service, clock);
   const databasePath = storePath(config);
   // Proof: deleting this presence check made `refused store commands create nothing` receive
   // `unreadable` instead of `absent`; deleting it and the read-only flag below together left

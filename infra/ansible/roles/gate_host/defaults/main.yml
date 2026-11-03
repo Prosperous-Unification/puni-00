@@ -27,3 +27,54 @@ puni_gate_node_version: '{{ puni_gate_node_lock.version }}'
 puni_gate_gh_lock: "{{ (lookup('ansible.builtin.file', puni_gate_repository_root + '/infra/versions/toolchain.json') | from_json).binaries.gateGh }}"
 puni_gate_gh_version: '{{ puni_gate_gh_lock.version }}'
 puni_gate_solver_requirements: '{{ puni_gate_repository_root }}/libs/wbs/adapters/solver-py/requirements.lock'
+
+# The second gate tree (J15) and the launcher-only checkout (docs/infra/heavy-job-launchers.md):
+# an enrolled payload refuses 64 when its admitted tree is the launcher's own checkout, and a
+# process working in a unit holds it, so gates, `watch` and the audit run Dash from a checkout
+# that is no pool unit. All three are full clones with one frozen install, like the first.
+puni_gate_second_checkout: '{{ puni_gate_home }}/puni-00-gate-tbf2'
+puni_gate_launcher_checkout: '{{ puni_gate_home }}/puni-00-gate-launcher'
+puni_gate_checkouts:
+  - '{{ puni_gate_checkout }}'
+  - '{{ puni_gate_second_checkout }}'
+  - '{{ puni_gate_launcher_checkout }}'
+# Free space the role requires before it clones (S6C-A4): 5 GiB per missing checkout (a clone
+# plus its frozen install measured about 4.4 GB on h2puni, 2026-11-02) and 10 GiB left over,
+# the `gate` type's 8 GiB tmp envelope plus margin, so a clone never leaves a host unable to gate
+# (h2puni's ENOSPC gate failure of 2026-10-20).
+puni_gate_clone_bytes: 5368709120
+puni_gate_clone_floor_bytes: 10737418240
+
+# The host pool (`dash-host-jobs` J4, J12). The configuration and root paths are the ones
+# `resolve_host_pool_config_path` and `resolve_host_pool_root` in bin/heavy-lock-lib.sh hard-code
+# (S6-A1); the configuration existing is what enrolls a host, so the role writes it only where
+# `puni_gate_host_pool_enroll` is true (S6C-A2).
+puni_gate_pool_config: '{{ puni_gate_home }}/.config/dash/host-pool.json'
+puni_gate_pool_root: '{{ puni_gate_home }}/.local/share/dash/host-pool'
+puni_gate_pool_ledger: '{{ puni_gate_pool_root }}/.dash/resources.sqlite'
+# Units must be Git work trees outside the managed root (S6-A7), so the Dagger engine is a token
+# tree: one empty commit, never changed, which settlement finds clean at its resting commit.
+puni_gate_pool_units_root: '{{ puni_gate_home }}/.local/share/dash/units'
+puni_gate_pool_dagger_unit: '{{ puni_gate_pool_units_root }}/dagger_engine'
+puni_gate_pool_exclusive_units:
+  gate_tree: ['{{ puni_gate_checkout }}', '{{ puni_gate_second_checkout }}']
+  dagger_engine: ['{{ puni_gate_pool_dagger_unit }}']
+# Kept back from the host's `nproc` and MemTotal for everything outside host jobs (S6C-A5). The
+# ledger pins it at `ops pool init`: choose it per host before then (h4claw's k3s may want more),
+# because changing it afterwards stops the role (S6C-A15) and needs re-enrollment.
+puni_gate_pool_headroom: { cpuCores: 1, memoryGib: 2 }
+puni_gate_pool_disk_unit_bytes: 1073741824
+puni_gate_pool_headroom_bytes: 10737418240
+puni_gate_pool_workspace_slots: 4
+# Pinned in the ledger at `ops pool init`; changing it later makes every open refuse.
+puni_gate_pool_enrollment_id: '{{ inventory_hostname }}-host-pool'
+# What `ops pool switch-mode concurrent` verifies; a host adds its other launcher checkouts
+# (h2puni's ~/wbs-dev/src for solver-image-publish) by overriding the list.
+puni_gate_pool_launcher_checkouts: ['{{ puni_gate_launcher_checkout }}']
+# Task 6.5 lists types here per host; a role run never adds one.
+puni_gate_pool_concurrency_eligible: []
+
+puni_gate_bun_path: '{{ puni_gate_home }}/.bun-{{ puni_gate_bun_version }}/bin/bun'
+puni_gate_dash_entrypoint: '{{ puni_gate_launcher_checkout }}/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts'
+puni_gate_user_unit_directory: '{{ puni_gate_home }}/.config/systemd/user'
+puni_gate_service_path: '{{ puni_gate_home }}/.bun-{{ puni_gate_bun_version }}/bin:{{ puni_gate_home }}/.node-{{ puni_gate_node_version }}/bin:/usr/local/bin:/usr/bin:/bin'

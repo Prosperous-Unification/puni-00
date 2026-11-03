@@ -357,6 +357,8 @@ export interface ClaimRefusalHolder {
 
 /** One holder `resources_exhausted` names: a claimant and run on one leaf. */
 export interface OccupancyRefusalHolder {
+  /** A holder in another project of the organization names it (`wbs-shared-occupancy` S5). */
+  projectId?: string;
   personId: string;
   name: string;
   runId: string | null;
@@ -373,6 +375,11 @@ export interface ResourceShortageDetail {
   asked: number;
   free: number;
   holders: OccupancyRefusalHolder[];
+  /**
+   * The check that bound it (`wbs-shared-occupancy` S3): present only for a
+   * resource with a stated directory capacity; absent, the project's.
+   */
+  scope?: 'project' | 'organization';
 }
 
 /**
@@ -409,6 +416,12 @@ export interface ResourceUsageCounts {
    * Optional on the wire: an outgoing be-01 mid-swap names none.
    */
   providerId?: string | null;
+  /**
+   * The resource's stated directory capacity, which a confirmed removal drops
+   * with it (`wbs-shared-occupancy` S8), or null. Optional on the wire: an
+   * outgoing be-01 mid-swap names none.
+   */
+  directoryCapacity?: number | null;
 }
 
 /** Both affected-project and directory-member lists are present, including when empty. */
