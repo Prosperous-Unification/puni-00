@@ -2,11 +2,9 @@ import { readFileSync } from 'node:fs';
 
 import { decodeAdmissionPacket } from '@twilight-burokrat/judge';
 
+import type { DashRequest } from '../cli-parser';
 import { type AuthorityClock, openAuthority } from './authority-store';
 import { submitPacket } from './submit';
-
-export const usage =
-  'usage: twilight-dash submit-admission <repository> <packet-json> <staged|committed> <revision-or-base>';
 
 /** Reads the packet file, refusing unreadable, non-UTF-8 and malformed JSON with its path. */
 function readPacketJson(path: string): unknown {
@@ -36,17 +34,11 @@ function readPacketJson(path: string): unknown {
  * Freezes the selected candidate for a bound packet and prints the submission report as one JSON
  * line. Relocated unchanged from Burokrat's `submit-admission`; every failure is rethrown with the
  * detection-scope sentence so an operator never reads a refusal as an editing-time guard.
- *
- * @throws Error with the usage line when the argument count or selection kind is wrong.
  */
 export function submitAdmission(
-  argv: readonly string[],
+  { repository, packet: packetPath, selection: kind, revision }: DashRequest<'submit-admission'>,
   { clock, write }: { readonly clock: AuthorityClock; readonly write: (text: string) => void },
 ): void {
-  const [repository, packetPath, kind, revision] = argv;
-  if (argv.length !== 4 || (kind !== 'staged' && kind !== 'committed')) {
-    throw new Error(usage);
-  }
   try {
     // Decode before any store open, so a malformed packet never touches the authority. Proof:
     // swapping these two lines made `submit-admission refuses before opening the store on a

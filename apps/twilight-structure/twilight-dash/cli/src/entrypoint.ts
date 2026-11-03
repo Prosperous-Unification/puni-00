@@ -29,7 +29,7 @@ try {
     // Proof: not dispatching `mcp` made `the entrypoint prints only the header map…` see exit 1
     // where 0 was expected (2026-10-27).
     const { runMcpCommand } = await import('./mcp/token-command');
-    await runMcpCommand([command.subcommand, ...command.argv], {
+    await runMcpCommand(command, {
       send: (input, init) => fetch(input, init),
       monotonic: monotonicClock(),
       sleep: (milliseconds) => Bun.sleep(milliseconds),
@@ -38,7 +38,7 @@ try {
     });
   } else if (command?.command === 'pool') {
     const { runPoolCommand, systemPoolFiles } = await import('./mcp/pool-import');
-    await runPoolCommand([command.subcommand, ...command.argv], {
+    await runPoolCommand(command, {
       send: (input, init) => fetch(input, init),
       write: (text) => process.stdout.write(text),
       helper: [process.execPath, import.meta.path],

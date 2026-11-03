@@ -11,42 +11,10 @@ import {
   ProgressReceiptRecord,
 } from '@twilight-burokrat/contracts';
 
-const flags = ['--entries', '--plan-reference', '--tasks', '--output'] as const;
-type Flag = (typeof flags)[number];
+import type { DashRequest } from '../cli-parser';
 
-/** The one line a progress command refuses with when its grammar is wrong. */
-export function progressUsage(version: 1 | 2): string {
-  const command = version === 1 ? 'record-progress' : 'record-progress-v2';
-  return `usage: dash ${command} ${flags.map((flag) => `${flag} <path>`).join(' ')}`;
-}
-
-/** Strict grammar is resolved before any file is opened; diagnostics never echo operands. */
-function parseFlags(argv: readonly string[], version: 1 | 2): (flag: Flag) => string {
-  const usage = progressUsage(version);
-  const allowed = new Set<string>(flags);
-  const values = new Map<string, string>();
-  for (let position = 0; position < argv.length; position += 2) {
-    const flag = argv.at(position);
-    // Proof: removing the allowlist reached an absent entries file instead of the invocation
-    // refusal in `invocation unknown refuses before reading` (2026-10-15).
-    if (flag === undefined || !allowed.has(flag)) throw new Error(usage);
-    // Proof: removing duplicate rejection made the repeated-flag production test read inputs.
-    if (values.has(flag)) throw new Error(usage);
-    const value = argv.at(position + 1);
-    // Proof: removing value rejection lost the usage refusal in the empty-value CLI test.
-    if (value === undefined || value.trim().length === 0 || value.startsWith('--')) {
-      throw new Error(usage);
-    }
-    values.set(flag, value);
-  }
-  // Proof: removing required-flag rejection lost the usage refusal in the missing-flags test.
-  for (const flag of flags) if (!values.has(flag)) throw new Error(usage);
-  return (flag) => {
-    const value = values.get(flag);
-    if (value === undefined) throw new Error('parsed progress flag is absent');
-    return value;
-  };
-}
+/** The four paths a progress command names; its grammar is `cli-parser.ts`'s. */
+type ProgressRequest = DashRequest<'record-progress' | 'record-progress-v2'>;
 
 /** Reads once and refuses malformed bytes without quoting parser messages or file contents. */
 function readJson(path: string, role: string): unknown {
@@ -133,34 +101,36 @@ function publishReceipt(path: string, bytes: string): void {
  * authenticated. No clock, CheckRun, authority store or current WBS state contributes meaning.
  * The existing person/MCP workflow owns application of Navigator's proposed commands.
  *
- * @throws on invalid invocation, missing/unreadable/malformed inputs, inconsistent planning
- * documents or failed exclusive publication. Nothing is acknowledged before write and close.
+ * @throws on missing/unreadable/malformed inputs, inconsistent planning documents or failed
+ * exclusive publication. Nothing is acknowledged before write and close.
  */
-export function recordProgress(argv: readonly string[], write: (text: string) => unknown): void {
-  produceProgress(argv, write, 1);
+export function recordProgress(
+  request: DashRequest<'record-progress'>,
+  write: (text: string) => unknown,
+): void {
+  produceProgress(request, write, 1);
 }
 
 /** Explicit schema 2 producer; seals the complete reference digest into the receipt. */
 export function recordBoundProgress(
-  argv: readonly string[],
+  request: DashRequest<'record-progress-v2'>,
   write: (text: string) => unknown,
 ): void {
-  produceProgress(argv, write, 2);
+  produceProgress(request, write, 2);
 }
 
 function produceProgress(
-  argv: readonly string[],
+  request: ProgressRequest,
   write: (text: string) => unknown,
   version: 1 | 2,
 ): void {
-  const value = parseFlags(argv, version);
-  const entries = readJson(value('--entries'), 'entries');
+  const entries = readJson(request.entries, 'entries');
   const reference = decodeRecord(
     PlanReferenceRecord,
-    readJson(value('--plan-reference'), 'plan reference'),
+    readJson(request.planReference, 'plan reference'),
     'plan reference',
   );
-  const tasks = decodeRecord(PlanTasks, readJson(value('--tasks'), 'task export'), 'task export');
+  const tasks = decodeRecord(PlanTasks, readJson(request.tasks, 'task export'), 'task export');
   // Proof: dispatching record-progress-v2 through schema 1 failed the production v2 receipt
   // version/digest assertions in record-progress.test.ts (2026-10-16).
   const body = {
@@ -185,6 +155,6 @@ function produceProgress(
     throw new Error('progress inputs are inconsistent', { cause });
   }
   // Proof: acknowledging before publication leaked stdout in the injected write-failure test.
-  publishReceipt(value('--output'), `${canonicalJson(receipt)}\n`);
+  publishReceipt(request.output, `${canonicalJson(receipt)}\n`);
   write(`${receipt.receiptDigest}\n`);
 }
