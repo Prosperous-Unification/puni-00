@@ -108,6 +108,28 @@ export const PROTECTED_LINES: readonly ProtectedLine[] = [
   { pattern: /\bnx (?:run|show|graph|affected)\b/, sense: 'other', reason: 'Nx command lines' },
   { pattern: /\bNx projects?\b/, sense: 'other', reason: 'prose naming Nx projects' },
   { pattern: /\bcollaborative font projects\b/, sense: 'other', reason: 'SIL Open Font License' },
+  {
+    pattern: /'work_package'/,
+    sense: 'new',
+    reason:
+      "wbs-permissions object and scope kind literal: the package level named in the new sense ahead of the rename; a 'project' beside it is the project entity",
+  },
+  {
+    pattern: /\bwork_package: \d+,/,
+    sense: 'new',
+    reason: 'the BREADTH rank of the package level in @wbs/domain access-role',
+  },
+  {
+    pattern: /\breadonly workPackageId: string;/,
+    sense: 'new',
+    reason:
+      'the package level id of ScopeChain in @wbs/domain access-role, named ahead of the rename so apply never makes a second workPackageId',
+  },
+  {
+    pattern: /`wbs-work-packages`/,
+    sense: 'new',
+    reason: 'the OpenSpec change name as JSDoc cites it',
+  },
 ];
 
 /** The first protected line pattern `line` matches, if any. */
