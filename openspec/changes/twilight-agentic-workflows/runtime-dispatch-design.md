@@ -206,7 +206,14 @@ saved proof archives.
 Held whole-integration cases allow preparation separately from their intentional inner
 deadline and disposal hold; the supervisor documents the complete bounded cleanup envelope.
 A delayed real integration and a missing-marker case exercise both sufficient preparation
-and finite refusal. Normal and controlled delayed ready preparation allow 22000 ms; other
+and finite refusal. Undelayed held whole-integration cases retain a 22000 ms marker window,
+40000 ms child and 45000 ms parent. The `integration-disposal-delayed` fixture adds its
+intentional 23000 ms pre-integration delay to each enclosing allowance: 45000 ms marker,
+63000 ms child and 68000 ms parent. Its configured worst parent path is 62400 ms, preserving
+the undelayed case's 5600 ms cleanup margin. The control exceeds the undelayed marker
+window so omitting its allowance has a deterministic deadline witness; the real preparation
+observation must exceed 22000 ms before its ownership assertions can be credited.
+Normal and controlled delayed ready preparation allow 22000 ms; other
 worker phases remain 8000 ms. Complete integration permits 35000 ms observation,
 45000 ms child and 50000 ms parent, leaving room for bounded join/drain. Simple
 real held receiver preparation permits 22000 ms, with 30000 ms child and 35000 ms
