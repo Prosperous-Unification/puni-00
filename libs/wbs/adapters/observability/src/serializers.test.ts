@@ -1,16 +1,10 @@
 import { createFailureRedaction, reportFailure } from '@shared/failures';
+import { runWhileReportingThrows } from '@shared/failures/testing';
 import { describe, expect, it } from 'bun:test';
 
 import { createFailureSerializer, registerReportedFailure } from './serializers';
 
 const serialize = createFailureSerializer(createFailureRedaction(['hunter2']));
-
-/** A caught value the report library cannot inspect, so `reportFailure` returns a real loss. */
-function unreportableFailure(): unknown {
-  const revocable = Proxy.revocable({}, {});
-  revocable.revoke();
-  return new Error('boom', { cause: revocable.proxy });
-}
 
 describe('createFailureSerializer', () => {
   it('writes the diagnostic report of a raw caught value', () => {
@@ -83,7 +77,12 @@ describe('createFailureSerializer', () => {
   });
 
   it('keeps a genuine reporting loss from the shared module', () => {
-    const reporting = reportFailure(unreportableFailure(), { redact: createFailureRedaction([]) });
+    const redact = createFailureRedaction([]);
+    // Proof: on 2026-11-02, making `reportFailure`'s catch rethrow failed this test and "writes a
+    // visible loss rather than throwing when no report can be built" on the injected throw and
+    // `Expected to contain: "UNREPORTED_"`; leaving `makeReportPair` unfaulted failed both and
+    // "gives two reporting losses two different handles" on `reported: true`.
+    const reporting = runWhileReportingThrows(() => reportFailure(new Error('boom'), { redact }));
     expect(reporting.reported).toBe(false);
     if (reporting.reported) return;
     const record = serialize(registerReportedFailure(reporting)) as Record<string, unknown>;
@@ -120,15 +119,22 @@ describe('createFailureSerializer', () => {
   });
 
   it('writes a visible loss rather than throwing when no report can be built', () => {
-    const record = serialize(unreportableFailure()) as Record<string, unknown>;
+    const record = runWhileReportingThrows(() => serialize(new Error('boom'))) as Record<
+      string,
+      unknown
+    >;
     expect(record['reported']).toBe(false);
     expect(String(record['occurrence_id'])).toContain('UNREPORTED_');
     expect(typeof record['reason']).toBe('string');
   });
 
   it('gives two reporting losses two different handles', () => {
-    const first = serialize(unreportableFailure()) as Record<string, unknown>;
-    const second = serialize(unreportableFailure()) as Record<string, unknown>;
+    const [first, second] = runWhileReportingThrows(() => [
+      serialize(new Error('a')) as Record<string, unknown>,
+      serialize(new Error('b')) as Record<string, unknown>,
+    ]);
+    expect(first['reported']).toBe(false);
+    expect(second['reported']).toBe(false);
     expect(first['occurrence_id']).not.toBe(second['occurrence_id']);
   });
 

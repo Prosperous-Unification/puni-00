@@ -54,7 +54,8 @@ future scan of the bundle is not a surprise).
 
 **C6. Order and merge targets.** Dash first (`feat/twilight-cli-optique-dash`, into
 `plan/dash-host-jobs`, before `dash-host-jobs` slice 3, which writes `ops job …` on the new
-parser); Navigator (`feat/twilight-cli-optique-navigator`, into main); Burokrat
+parser); Navigator (`feat/twilight-cli-optique-navigator`, into `plan/twilight-cli-optique`,
+which carries this change's artifacts to main as PR #805; amended 2026-11-02, N-A1); Burokrat
 (`feat/twilight-cli-optique-burokrat`, into main, dispatched after the `JOB-CATALOGUE` slice is
 open so its registry and documentation edits are known). The WBS operator CLIs and the `tools/*`
 CLIs stay on `util.parseArgs`; a later change may follow.

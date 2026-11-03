@@ -6,20 +6,9 @@ import {
   ProgressReceiptRecord,
 } from '@twilight-burokrat/contracts';
 
-import type { FlagValues } from './cli';
+import type { NavigatorRequest } from './cli-parser';
 import { commandsForReceipt, readDecoded } from './receipt-to-commands';
 import { createExclusiveFiles } from './required-file';
-
-/** Every input is explicit, including the independently selected accepted reference. */
-export const ADMIT_PROGRESS_FLAGS = [
-  '--receipt',
-  '--plan-reference',
-  '--tasks',
-  '--accepted-reference',
-  '--output',
-] as const;
-
-type AdmitProgressFlag = (typeof ADMIT_PROGRESS_FLAGS)[number];
 
 /**
  * Proposes a batch only for bound progress consistent with a caller-selected accepted
@@ -29,23 +18,23 @@ type AdmitProgressFlag = (typeof ADMIT_PROGRESS_FLAGS)[number];
  * @throws on unbound receipts, mismatched digests, inconsistent documents, invalid required
  * files or failed exclusive output creation. All validation precedes publication.
  */
-export async function runAdmitProgress(request: FlagValues<AdmitProgressFlag>): Promise<string> {
-  const receipt = await readDecoded(request('--receipt'), 'progress receipt', (input) =>
+export async function runAdmitProgress(
+  request: NavigatorRequest<'admit-progress'>,
+): Promise<string> {
+  const receipt = await readDecoded(request.receipt, 'progress receipt', (input) =>
     parseOrThrow(ProgressReceiptRecord, input),
   );
-  const producer = await readDecoded(request('--plan-reference'), 'producer reference', (input) =>
+  const producer = await readDecoded(request.planReference, 'producer reference', (input) =>
     parseOrThrow(PlanReferenceRecord, input),
   );
-  const tasks = await readDecoded(request('--tasks'), 'task export', (input) =>
+  const tasks = await readDecoded(request.tasks, 'task export', (input) =>
     parseOrThrow(PlanTasks, input),
   );
   // Proof: substituting the producer for this decoder admitted a redigested unknown-key
   // accepted reference in admit-progress.test.ts (2026-10-16). Missing, mode-000 unreadable
   // and malformed accepted files are independently refused through this production path.
-  const accepted = await readDecoded(
-    request('--accepted-reference'),
-    'accepted reference',
-    (input) => parseOrThrow(PlanReferenceRecord, input),
+  const accepted = await readDecoded(request.acceptedReference, 'accepted reference', (input) =>
+    parseOrThrow(PlanReferenceRecord, input),
   );
   if (receipt.schemaVersion === 2) {
     // Proof: replacing this equality guard with false admitted the redigested substituted
@@ -65,7 +54,7 @@ export async function runAdmitProgress(request: FlagValues<AdmitProgressFlag>): 
   }
   const batch = commandsForReceipt(receipt, producer, tasks);
   await createExclusiveFiles([
-    { path: request('--output'), text: `${JSON.stringify(batch, null, 2)}\n` },
+    { path: request.output, text: `${JSON.stringify(batch, null, 2)}\n` },
   ]);
   return digestOf(batch);
 }

@@ -108,15 +108,36 @@ fleet_ansible --limit h4claw --extra-vars @"$OPS/gate.json" playbooks/gate-host.
 
 Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in this order:
 
-0. **Onboard h2puni to the role (h2puni only, once).** h2puni has never been role-managed and is
-   not in `gate_hosts`; only h4claw is. Its first apply is a larger change than enrollment, and it
-   is owed by task 6.3's operator half, which Dany sees before it runs:
-   - Add h2puni to `gate_hosts` in its inventory, with `"puni_gate_host_pool_enroll": false` first.
-   - Take the base backup the role's touched state needs (accounts, package selections, and
-     `puni1`'s current `~/.bashrc`), as in [Add a gate host](#add-a-gate-host).
-   - Expect the first apply to replace `~/.bashrc` with the role's, install the pinned Bun, Node
-     and gh, the apt packages and `~/.venv-solver`, and change any of those that differ from the
-     pins.
+0. **Onboard h2puni to the role (h2puni only, once).** h2puni has never been role-managed. It is
+   now listed in `gate_hosts` (`ansible_host: 10.1.0.3`) and in no k3s group. The k3s plays that
+   target `all` stop at their input asserts on it (read from the plays, not run; `discover.yml`
+   only reads `/etc/machine-id`), and `tool-fleet:check` renders the k3s sysctl only for k3s
+   hosts. The role has not been applied to it. Its first apply is a larger change than
+   enrollment, and it is owed by task 6.3's operator half, which Dany sees before it runs:
+   - Pass `--extra-vars '{"puni_gate_host_pool_enroll": false}'`, as h4claw's apply did; the flag
+     is never in the inventory. `$OPS/known_hosts` needs h2puni's key for `10.1.0.3`.
+   - Take the base backup the role's touched state needs (accounts, `~/.ssh/authorized_keys`,
+     package selections, and `puni1`'s current `~/.bashrc`), as in
+     [Add a gate host](#add-a-gate-host).
+   - h2puni passes the role's input asserts: Ubuntu 26.04 on x86_64, account `puni1`, home
+     `/home/puni1`.
+   - Expect the first apply to change these, read from the role and not yet observed on h2puni:
+     - `~/.ssh/authorized_keys` becomes exactly `puni_gate_authorized_keys`. On h2puni `puni1`
+       is also the operator and dev account, so `gate.json` must list every key it authorizes
+       today, or the apply locks those callers out.
+     - `~/.bashrc` becomes the role's template. Its PATH puts `~/.venv-solver`, `~/.bun-1.4.4`
+       and `~/.node-24.18.1` first, and everything below the interactivity guard is dropped,
+       including Volta's setup, so Volta's Node leaves interactive shells.
+     - The pinned Node goes to `~/.node-24.18.1`, beside Volta. Bun 1.4.4 already sits at
+       `~/.bun-1.4.4`; its directory mode becomes 0755, as on h4claw (H4-A4).
+     - The pinned gh `.deb` replaces the apt gh if they differ. The apt list installs `busybox`,
+       which removes `busybox-static` if present (h4claw, H4-A3).
+     - `~/.venv-solver` is created or brought to the lock. Linger turns on for `puni1`.
+     - The role creates `~/.config/systemd/user`, the Dash directories and the token unit, and
+       installs the Dash units but does not enable them. It clones `~/puni-00-gate-tbf2` and
+       `~/puni-00-gate-launcher`, which is why step 1's disk comes first.
+   - Not in step 0: before step 8, h2puni's `puni_gate_pool_launcher_checkouts` also needs
+     `~/wbs-dev/src`, for `solver-image-publish`.
    - Before applying, check that the live shared `~/puni-00-gate-tbf` reports
      `git remote get-url origin` = `https://github.com/Prosperous-Unification/puni-00.git`, is not
      shallow or blobless, and has an empty `git status --porcelain`. `validate` refuses anything

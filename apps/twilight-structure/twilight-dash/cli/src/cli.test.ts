@@ -5,20 +5,8 @@ import { join } from 'node:path';
 import type { Usage, UsageTerm } from '@optique/core';
 import { afterAll, describe, expect, test } from 'bun:test';
 
-import {
-  bootstrapUsage as bootstrapObservationUsage,
-  migrateUsage as migrateObservationUsage,
-} from './activation/observation-commands';
-import { usage as renderObservationUnitsUsage } from './activation/units/bundle';
-import {
-  bootstrapUsage as bootstrapAuthorityUsage,
-  inspectUsage as inspectAuthorityUsage,
-  recoverUsage as recoverPublicationUsage,
-} from './authority/authority-commands';
 import { openAuthority } from './authority/authority-store';
 import { acquireClaims } from './authority/claims';
-import { usage as submitAdmissionUsage } from './authority/submit-admission';
-import { usage as runActivationChecksUsage } from './check-runs/run-activation-checks';
 import {
   type DashDependencies,
   dashHandlers,
@@ -26,15 +14,15 @@ import {
   runDash,
   runDashArguments,
 } from './cli';
-import { dashParser, delegatedGrammars, readDashInvocation, UsageRefusal } from './cli-parser';
-import { usage as reportCapacityUsage } from './compute/report-capacity';
-import { usage as accountOutcomesUsage } from './ledger/account-outcomes';
-import { USAGE as poolImportUsage } from './mcp/pool-import';
-import { USAGE as mcpTokenUsage } from './mcp/token-command';
+import {
+  dashParser,
+  parseDashCommand,
+  parseDashRequest,
+  readDashInvocation,
+  UsageRefusal,
+} from './cli-parser';
 import { type OpsCommand, opsHandlers, runOps } from './ops/commands';
 import { linuxScopeTelemetry } from './ops/scope';
-import { progressUsage } from './progress/record-progress';
-import { runResources } from './resources/command';
 
 const scratchRoots: string[] = [];
 
@@ -391,7 +379,7 @@ test('runDash refuses a command no handler takes', async () => {
 });
 
 /** The namespaced commands `entrypoint.ts` dispatches before it loads `cli.ts`, as two words. */
-const entrypointWords = Object.keys(delegatedGrammars).filter((words) => words.includes(' '));
+const entrypointWords = ['mcp token', 'pool import'];
 const entrypointCommands = entrypointWords.map((words) => words.split(' ')[0]);
 
 function printedBy(args: readonly string[]): string {
@@ -454,7 +442,9 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
   test('every ops command the parser declares has a handler, and every handler a command', () => {
     // Proof: adding `ops job audit` to the parser and not to `opsHandlers` failed this
     // assertion with `+ "job audit"` (2026-11-01, Slice 3).
-    expect(opsParserWords()).toEqual(Object.keys(opsHandlers).sort());
+    expect(opsParserWords()).toEqual(
+      [...Object.keys(opsHandlers), 'release plan', 'release run'].sort(),
+    );
     expect(opsParserWords()).toEqual([
       'job audit',
       'job calibrate',
@@ -465,6 +455,8 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
       'pool init',
       'pool inspect',
       'pool switch-mode',
+      'release plan',
+      'release run',
     ]);
   });
 
@@ -530,10 +522,11 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
       expect(stderr.split('\n').length, args.join(' ')).toBe(2);
       expect(stderr, args.join(' ')).toStartWith('error: ');
     }
-    // `inspect-authority` refuses in its own module after `cli.ts` loads every command module
-    // (about 5 s on a loaded host, mostly the resource runtime and the activation store): the
-    // three runs need more than the target's 60 s only under extreme load, so 90 s.
-  }, 90000);
+    // All three are grammar refusals: none loads `cli.ts`'s command graph (about 7 s, measured
+    // 2026-11-03 with `inspect-authority <absent repository>`). Each run took 104–117 ms idle on
+    // the laptop (2026-11-03); three runs at 3 x idle (docs/test-budgets.md) need under 2 s, and
+    // 30 s leaves room for a cold Bun start on a loaded gate host.
+  }, 30000);
 });
 
 describe('Dash help and completion', () => {
@@ -568,12 +561,13 @@ describe('Dash help and completion', () => {
     ).toEqual(['import']);
   });
 
-  test('help parity holds under COLUMNS=30', () => {
+  test('help parity holds under COLUMNS=30 and FORCE_COLOR=1', () => {
     const inProcess = printedBy(['--help']);
-    for (const columns of ['30', '400']) {
+    for (const env of [{ COLUMNS: '30' }, { COLUMNS: '400' }, { FORCE_COLOR: '1' }]) {
+      const columns = JSON.stringify(env);
       const execution = Bun.spawnSync({
         cmd: [process.execPath, join(import.meta.dir, 'entrypoint.ts'), '--help'],
-        env: { ...process.env, COLUMNS: columns },
+        env: { ...process.env, ...env },
         stderr: 'pipe',
         stdout: 'pipe',
       });
@@ -582,6 +576,17 @@ describe('Dash help and completion', () => {
       expect(helpCommands(help), columns).toEqual(dispatched);
       expect(help, columns).toBe(inProcess);
     }
+    // A refusal's usage line stays plain under a colour request too (`usageLine`).
+    const refused = Bun.spawnSync({
+      cmd: [process.execPath, join(import.meta.dir, 'entrypoint.ts'), 'resources', 'init'],
+      env: { ...process.env, FORCE_COLOR: '1' },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
+    expect(refused.exitCode).toBe(1);
+    expect(refused.stderr.toString('utf8')).toBe(
+      'error: usage: twilight-dash resources init --config PATH (Missing option `--config`.)\n',
+    );
   });
 
   test('help <command> prints that command on stdout', () => {
@@ -613,47 +618,487 @@ describe('Dash help and completion', () => {
   });
 });
 
-/** Each delegated module's usage line, which its own refusals print. */
-const moduleUsages: Readonly<Record<Exclude<keyof typeof delegatedGrammars, 'resources'>, string>> =
-  {
-    'bootstrap-authority': bootstrapAuthorityUsage,
-    'inspect-authority': inspectAuthorityUsage,
-    'recover-publication': recoverPublicationUsage,
-    'submit-admission': submitAdmissionUsage,
-    'render-observation-units': renderObservationUnitsUsage,
-    'run-activation-checks': runActivationChecksUsage,
-    'bootstrap-observation': bootstrapObservationUsage,
-    'migrate-observation': migrateObservationUsage,
-    'record-progress': progressUsage(1),
-    'record-progress-v2': progressUsage(2),
-    'account-outcomes': accountOutcomesUsage,
-    'report-capacity': reportCapacityUsage,
-    'mcp token': mcpTokenUsage,
-    'pool import': poolImportUsage,
-  };
+/**
+ * Every command path the parser declares, as its words (`resources cleanup`, `ops job run`),
+ * through nested `or`s and `command`s.
+ */
+function commandPaths(
+  terms: readonly UsageTerm[] = dashParser.usage,
+  prefix: readonly string[] = [],
+) {
+  const first = terms.at(0);
+  if (
+    first?.type === 'exclusive' &&
+    first.terms.every((branch) => ['command', 'exclusive'].includes(branch.at(0)?.type ?? ''))
+  ) {
+    return first.terms.flatMap((branch): string[] => commandPaths(branch, prefix));
+  }
+  if (first?.type === 'command') return commandPaths(terms.slice(1), [...prefix, first.name]);
+  return prefix.length === 0 ? [] : [prefix.join(' ')];
+}
 
-describe('help shows each delegated module grammar', () => {
-  test.each(Object.entries(moduleUsages))('%s', (words, usage) => {
-    // Proof: changing `report-capacity`'s module usage to `--config <file>` failed this test
-    // for `report-capacity` (2026-11-01).
-    expect(usage).toEndWith(` ${words} ${delegatedGrammars[words as keyof typeof moduleUsages]}`);
+/** The one refusal line `args` produces in-process, or a failure when it is accepted. */
+function refusalLineOf(args: readonly string[]): string {
+  try {
+    readDashInvocation(args, () => undefined);
+  } catch (cause) {
+    if (cause instanceof UsageRefusal) return cause.message;
+    throw cause;
+  }
+  throw new Error(`Dash accepted ${args.join(' ')}`);
+}
+
+describe('typed command grammars (tasks 1.5–1.9)', () => {
+  const paths = commandPaths().sort();
+
+  test('the parser declares every command path, each typed', () => {
+    expect(paths).toEqual([
+      'account-outcomes',
+      'bootstrap-authority',
+      'bootstrap-observation',
+      'inspect-authority',
+      'mcp token',
+      'migrate-observation',
+      'ops job audit',
+      'ops job calibrate',
+      'ops job propose',
+      'ops job render-audit-units',
+      'ops job run',
+      'ops job status',
+      'ops pool init',
+      'ops pool inspect',
+      'ops pool switch-mode',
+      'ops release plan',
+      'ops release run',
+      'plan-enrollment',
+      'pool import',
+      'record-progress',
+      'record-progress-v2',
+      'recover-publication',
+      'render-observation-units',
+      'report-capacity',
+      'resources cleanup',
+      'resources create',
+      'resources exec',
+      'resources init',
+      'resources inspect',
+      'resources run',
+      'resources sweep',
+      'resources sync',
+      'resources watch',
+      'run-activation-checks',
+      'submit-admission',
+    ]);
   });
 
-  test('resources: the actions its module accepts', async () => {
-    const refusal = await runResources(
-      [],
-      FIXED_CLOCK,
-      () => undefined,
-      () => {
-        throw new Error('resources connected before refusing');
-      },
-      () => {
-        throw new Error('resources read the shell lock before refusing');
-      },
-    ).catch((cause: unknown) => (cause instanceof Error ? cause.message : String(cause)));
-    const actions = String(refusal)
-      .replace(/^resources requires /u, '')
-      .split(/, (?:or )?/u);
-    expect(delegatedGrammars.resources.split(' ')[0].split('|')).toEqual(actions);
+  test.each(commandPaths())('%s --help prints that command on stdout', (words) => {
+    expect(printedBy([...words.split(' '), '--help'])).toContain(`Usage: twilight-dash ${words} `);
   });
+
+  test.each(commandPaths())('%s refuses an unknown flag in its own usage line', (words) => {
+    const line = refusalLineOf([...words.split(' '), '--no-such-flag']);
+    expect(line).toStartWith(`usage: twilight-dash ${words} `);
+    expect(line).not.toContain('\n');
+  });
+
+  test('the installed entrypoint refuses a typed command in one line before loading it', () => {
+    const execution = Bun.spawnSync({
+      cmd: [
+        process.execPath,
+        join(import.meta.dir, 'entrypoint.ts'),
+        'record-progress',
+        '--entries',
+      ],
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
+    expect(execution.exitCode).toBe(1);
+    expect(execution.stdout.toString('utf8')).toBe('');
+    expect(execution.stderr.toString('utf8')).toMatch(
+      /^error: usage: twilight-dash record-progress --entries PATH .*\(`--entries` requires `PATH`\.\)\n$/,
+    );
+  });
+
+  test('--flag=value is accepted and parses as the spaced spelling', () => {
+    const sha = 'a'.repeat(40);
+    for (const [spaced, joined] of [
+      [
+        ['inspect-authority', 'r', '--session', 's'],
+        ['inspect-authority', 'r', '--session=s'],
+      ],
+      [
+        [
+          'record-progress-v2',
+          '--entries',
+          'e',
+          '--plan-reference',
+          'p',
+          '--tasks',
+          't',
+          '--output',
+          'o',
+        ],
+        ['record-progress-v2', '--entries=e', '--plan-reference=p', '--tasks=t', '--output=o'],
+      ],
+      [
+        [
+          'run-activation-checks',
+          '--candidate-repository',
+          'c',
+          '--candidate-sha',
+          sha,
+          '--candidate-policy',
+          'p',
+          '--check-runs',
+          'r',
+        ],
+        [
+          'run-activation-checks',
+          '--candidate-repository=c',
+          `--candidate-sha=${sha}`,
+          '--candidate-policy=p',
+          '--check-runs=r',
+        ],
+      ],
+      [
+        [
+          'account-outcomes',
+          '--repository',
+          'r',
+          '--since',
+          '2026-10-01T00:00:00Z',
+          '--until',
+          '2026-10-02T00:00:00Z',
+          '--rate-card',
+          'c',
+          '--output',
+          'o',
+          '--claude-projects',
+          'a',
+          '--claude-projects',
+          'b',
+        ],
+        [
+          'account-outcomes',
+          '--repository=r',
+          '--since=2026-10-01T00:00:00Z',
+          '--until=2026-10-02T00:00:00Z',
+          '--rate-card=c',
+          '--output=o',
+          '--claude-projects=a',
+          '--claude-projects=b',
+        ],
+      ],
+      [
+        ['report-capacity', '--config', 'c'],
+        ['report-capacity', '--config=c'],
+      ],
+      [
+        [
+          'resources',
+          'cleanup',
+          '--config',
+          'c',
+          '--use',
+          'u',
+          '--revision',
+          '3',
+          '--incarnation',
+          'i',
+          '--reason',
+          'done',
+        ],
+        [
+          'resources',
+          'cleanup',
+          '--config=c',
+          '--use=u',
+          '--revision=3',
+          '--incarnation=i',
+          '--reason=done',
+        ],
+      ],
+      [
+        ['mcp', 'token', '--resource', 'https://w/mcp', '--key-file', 'k', '--run', 'r'],
+        ['mcp', 'token', '--resource=https://w/mcp', '--key-file=k', '--run=r'],
+      ],
+      [
+        ['pool', 'import', 'f', '--store', 's'],
+        ['pool', 'import', 'f', '--store=s'],
+      ],
+    ] as const) {
+      expect(parseDashCommand(joined), joined.join(' ')).toEqual(parseDashCommand(spaced));
+    }
+    expect(
+      parseDashRequest('resources', [
+        'resources',
+        'cleanup',
+        '--config=c',
+        '--use=u',
+        '--revision=3',
+        '--incarnation=i',
+        '--reason=r',
+      ]),
+    ).toMatchObject({ action: 'cleanup', revision: 3 });
+  });
+
+  test('repeatable log directories keep their order; a payload after -- reaches the command whole', () => {
+    expect(
+      parseDashRequest('account-outcomes', [
+        'account-outcomes',
+        '--codex-sessions',
+        'x',
+        '--repository',
+        'r',
+        '--since',
+        '2026-10-01T00:00:00Z',
+        '--until',
+        '2026-10-02T00:00:00Z',
+        '--rate-card',
+        'c',
+        '--output',
+        'o',
+        '--claude-projects',
+        'b',
+        '--claude-projects',
+        'a',
+      ]),
+    ).toMatchObject({ claudeProjects: ['b', 'a'], codexSessions: ['x'] });
+    expect(
+      parseDashRequest('resources', [
+        'resources',
+        'exec',
+        '--config',
+        'c',
+        '--request',
+        'q',
+        '--',
+        '/bin/sh',
+        '-c',
+        'exit 7',
+        '--config',
+      ]),
+    ).toMatchObject({ action: 'exec', argv: ['/bin/sh', '-c', 'exit 7', '--config'] });
+  });
+
+  test('refuses what no single option can: no log directory, an inverted period', () => {
+    const period = ['--repository', 'r', '--rate-card', 'c', '--output', 'o'];
+    // Proof: dropping the log-directory check in `incoherenceOf` made this accept the line
+    // (2026-11-02).
+    expect(
+      refusalLineOf([
+        'account-outcomes',
+        ...period,
+        '--since',
+        '2026-10-01T00:00:00Z',
+        '--until',
+        '2026-10-02T00:00:00Z',
+      ]),
+    ).toMatch(
+      /^usage: twilight-dash account-outcomes .*\(at least one --claude-projects or --codex-sessions is required\.\)$/,
+    );
+    expect(
+      refusalLineOf([
+        'account-outcomes',
+        ...period,
+        '--since',
+        '2026-10-02T00:00:00Z',
+        '--until',
+        '2026-10-01T00:00:00Z',
+        '--codex-sessions',
+        'x',
+      ]),
+    ).toMatch(/^usage: twilight-dash account-outcomes .*\(--until must be after --since\.\)$/);
+  });
+
+  test('refuses two credentials, none, a malformed revision and a blank operand', () => {
+    const credential = ['mcp', 'token', '--resource', 'https://w/mcp'];
+    expect(
+      refusalLineOf([...credential, '--key-file', 'k', '--github-actions-audience', 'a']),
+    ).toContain('cannot be used together');
+    expect(refusalLineOf(credential)).toContain(
+      '(one of --key-file, --assertion-file or --github-actions-audience is required.)',
+    );
+    for (const revision of ['0', '01', '1.5', '-1']) {
+      expect(
+        refusalLineOf([
+          'resources',
+          'cleanup',
+          '--config',
+          'c',
+          '--use',
+          'u',
+          `--revision=${revision}`,
+          '--incarnation',
+          'i',
+          '--reason',
+          'r',
+        ]),
+        revision,
+      ).toContain('(`--revision`: must be a positive integer.)');
+    }
+  });
+
+  test('refuses a blank operand for every command', () => {
+    // Proof: see `operand` in cli-parser.ts.
+    for (const args of [
+      ['bootstrap-authority', ' '],
+      [
+        'record-progress',
+        '--entries',
+        ' ',
+        '--plan-reference',
+        'p',
+        '--tasks',
+        't',
+        '--output',
+        'o',
+      ],
+      ['report-capacity', '--config', ''],
+      ['pool', 'import', 'f', '--store', '\t'],
+      ['resources', 'init', '--config', ' '],
+      ['mcp', 'token', '--resource', ' ', '--key-file', 'k'],
+    ]) {
+      expect(refusalLineOf(args), JSON.stringify(args)).toContain(
+        'must be a non-blank value that does not begin with --.',
+      );
+    }
+  });
+
+  test('a refusal never quotes an operand', () => {
+    const canary = 'wbs_mk_00000000-canary';
+    for (const args of [
+      [
+        'mcp',
+        'token',
+        '--resource',
+        'https://w/mcp',
+        '--key-file',
+        canary,
+        '--assertion-file',
+        canary,
+      ],
+      ['mcp', 'token', '--resource', 'https://w/mcp', '--key-file', 'k', canary],
+      ['mcp', 'token', '--resource', 'https://w/mcp', '--key-file', 'k', `--key=${canary}`],
+      [
+        'record-progress',
+        '--entries',
+        'e',
+        '--plan-reference',
+        'p',
+        '--tasks',
+        't',
+        '--output',
+        'o',
+        canary,
+      ],
+      ['submit-admission', 'r', 'p', canary, 'x'],
+      ['bootstrap-authority', 'r', canary],
+      ['pool', 'import', canary, canary],
+    ]) {
+      const line = refusalLineOf(args);
+      expect(line, args.join(' ')).toStartWith('usage: twilight-dash ');
+      expect(line, args.join(' ')).not.toContain('canary');
+    }
+    // An unknown subcommand is named, not redacted.
+    expect(refusalLineOf(['resources', 'teleport'])).toContain('`teleport`');
+  });
+
+  test('a stray word and a mid-line valueless flag name their position', () => {
+    const sha = 'a'.repeat(40);
+    // `--candidate-sha` takes `--candidate-policy` as its value, so `p` is the stranded word.
+    expect(
+      refusalLineOf([
+        'run-activation-checks',
+        '--candidate-repository',
+        'c',
+        '--candidate-sha',
+        '--candidate-policy',
+        'p',
+        '--check-runs',
+        'r',
+      ]),
+    ).toEndWith('(Unexpected option or subcommand: `<word 5 after --candidate-policy>`.)');
+    expect(refusalLineOf(['report-capacity', '/c'])).toEndWith(
+      '(Unexpected option or subcommand: `<word 1>`.)',
+    );
+    expect(refusalLineOf(['pool', 'import', 'f', '--store', 's', 'extra'])).toEndWith(
+      '(Unexpected option or subcommand: `<word 4>`.)',
+    );
+    expect(
+      refusalLineOf([
+        'run-activation-checks',
+        '--candidate-repository',
+        'c',
+        `--candidate-sha=${sha}`,
+        '--candidate-policy',
+        'p',
+        '--check-runs',
+        'r',
+        'extra',
+      ]),
+    ).toEndWith('(Unexpected option or subcommand: `<word 8>`.)');
+  });
+
+  test('refuses an empty payload, an invalid instant and an unknown selection', () => {
+    // Proof: dropping `payload()`'s `min: 1` made this accept `resources run … --` (2026-11-03).
+    expect(refusalLineOf(['resources', 'run', '--config', 'c', '--use', 'u', '--'])).toEndWith(
+      '(a command after -- is required.)',
+    );
+    expect(
+      refusalLineOf([
+        'account-outcomes',
+        '--repository',
+        'r',
+        '--since',
+        '2026-10-01',
+        '--until',
+        '2026-10-02T00:00:00Z',
+        '--rate-card',
+        'c',
+        '--output',
+        'o',
+        '--codex-sessions',
+        'x',
+      ]),
+    ).toEndWith('(`--since`: period bounds must be UTC instants like 2026-10-15T00:00:00Z.)');
+    expect(refusalLineOf(['submit-admission', 'r', 'p', 'frozen', 'x'])).toEndWith(
+      '(`SELECTION`: Expected one of "staged" and "committed", but got "<word 3>".)',
+    );
+  });
+
+  test('parseDashRequest refuses a line naming another command', () => {
+    expect(() => parseDashRequest('report-capacity', ['bootstrap-authority', 'r'])).toThrow(
+      new UsageRefusal('bootstrap-authority r names bootstrap-authority, not report-capacity'),
+    );
+  });
+});
+
+test('runDashArguments refuses lightweight release requests before a heavy handler', async () => {
+  const planner = observePlanner();
+  let refusal: unknown;
+  try {
+    await runDashArguments(
+      [
+        'ops',
+        'release',
+        'plan',
+        'website',
+        '--config',
+        '/unused/release.json',
+        '--environment',
+        'development',
+        '--profile',
+        'full',
+      ],
+      dependencies(planner.run),
+    );
+  } catch (cause) {
+    refusal = cause;
+  }
+  expect(refusal).toBeInstanceOf(UsageRefusal);
+  expect(refusal instanceof Error && refusal.message).toBe(
+    'ops release is dispatched by entrypoint.ts',
+  );
+  expect(planner.calls).toEqual([]);
 });

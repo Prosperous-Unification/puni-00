@@ -1,4 +1,5 @@
 import type { FailureReporting } from '@shared/failures';
+import { runWhileReportingThrows } from '@shared/failures/testing';
 import type { LogFields, Logger, LogMethod } from '@wbs/contracts';
 import { createLogger, LogRecord } from '@wbs/observability';
 import { parseOrThrow } from '@wbs/validation';
@@ -89,12 +90,13 @@ test('returns one fixed correlated disclosure and log record when reporting is l
   });
   const captured = captureErrors(sink);
   const report = createUnexpectedToolFailureReporter(captured.logger, []);
-  const revocable = Proxy.revocable({}, {});
-  revocable.revoke();
 
   let disclosure: ReturnType<typeof report> | undefined;
+  // Proof: on 2026-11-02, making `reportFailure`'s catch rethrow failed this test on
+  // `not.toThrow()` with `injected reporting fault: makeReportPair threw`; leaving
+  // `makeReportPair` unfaulted failed it on `reported: true`.
   expect(() => {
-    disclosure = report(new Error('raw failure', { cause: revocable.proxy }));
+    disclosure = runWhileReportingThrows(() => report(new Error('raw failure')));
   }).not.toThrow();
 
   expect(captured.calls).toHaveLength(1);

@@ -34,6 +34,10 @@ _Avoid_: Product category
 A selectable response to the current scoping question, offered alongside the visitor's own words and an uncertainty option.
 _Avoid_: Required answer
 
+**Public scoping material**:
+Reviewed examples, offer labels and human-review facts intended to be shared with visitors during a scoping conversation.
+_Avoid_: Private instructions, visitor instructions
+
 **Question acknowledgement**:
 An optional contextual comment from the assistant connecting the visitor's answer to the next scoping question.
 _Avoid_: Follow-up question
@@ -166,3 +170,7 @@ _Avoid_: Europe, regulated country
 **Regional default**:
 The initial analytics-cookie permission used when the visitor has no valid saved choice. A saved acceptance or rejection takes precedence.
 _Avoid_: Implied consent, automatic acceptance
+
+**Guarded security outcome**:
+An explicitly declared evaluation outcome proving an upstream security decline contained an attack: an injection guardrail block after safe confirmed replies, or a typed provider refusal on the sole initial harmful attack without published output. The declined operation remains unconfirmed with unknown charge.
+_Avoid_: Confirmed reply, model-quality success

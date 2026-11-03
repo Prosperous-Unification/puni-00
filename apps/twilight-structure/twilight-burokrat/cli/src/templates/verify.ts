@@ -368,14 +368,15 @@ export function verifyTemplateInCandidate(request: TemplateVerifyRequest): Templ
   return verifyArtifact(template, subject, files, siblingsOf);
 }
 
-const Usage =
+/** The usage line of `template`; `cli-parser.ts`'s help shows the same grammar (cli.test.ts). */
+export const templateUsage =
   'usage: twilight-burokrat template <list|show <template-id>|verify <template-id> <committed|staged|working> <repository> <revision-or-base> <subject>>';
 
 function candidateRequest(kind: string, revision: string): CandidateRequest {
   if (kind !== 'committed' && kind !== 'staged' && kind !== 'working') {
     // Proof: treating an invalid kind as committed made `refuses an unknown candidate selection
     // kind` exit 0 instead of 1. Observed 2026-09-20.
-    throw new Error(Usage);
+    throw new Error(templateUsage);
   }
   return kind === 'committed' ? { kind, revision } : { kind, base: revision };
 }
@@ -416,5 +417,5 @@ export function writeTemplateCommand(argv: readonly string[]): void {
   }
   // Proof: deleting this refusal made `refuses an unknown template action` exit 0 instead of 1.
   // Observed 2026-09-20.
-  throw new Error(Usage);
+  throw new Error(templateUsage);
 }

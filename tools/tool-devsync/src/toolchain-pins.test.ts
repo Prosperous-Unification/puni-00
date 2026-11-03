@@ -544,8 +544,8 @@ describe('the CI gate scope', () => {
 // with expected 0.5.1 and received 0.5.0; changing this expectation to 0.5.0 made it pass.
 const OWNER_PACKAGES = {
   'di-bag': '0.5.2',
-  'application-exception': '0.8.1',
-  'caught-object-report-json': '13.0.0',
+  'application-exception': '0.9.0',
+  'caught-object-report-json': '15.0.0',
   'configurable-tree-traversal': '0.12.0',
 } as const;
 
@@ -586,7 +586,7 @@ describe('the owner-maintained libraries', () => {
         );
       return entry === null ? [] : [`${entry[1]}@${entry[2]}`];
     });
-    expect(copies).toEqual(['caught-object-report-json@13.0.0']);
+    expect(copies).toEqual(['caught-object-report-json@15.0.0']);
   });
 
   it('resolves to one copy of the coordination library, at the pinned version', async () => {

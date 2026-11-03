@@ -261,7 +261,7 @@ describe('shared-failures isolated Unit level', () => {
     });
   });
 
-  it('writes all twenty real Unit outcomes to a fresh report', async () => {
+  it('writes all twenty-one real Unit outcomes to a fresh report', async () => {
     const target = levelTargetNamed(QUALIFIED);
     const command = await declaredCommand();
     const report = new URL(target.report, WORKSPACE).pathname;
@@ -279,8 +279,9 @@ describe('shared-failures isolated Unit level', () => {
         'treats a secret as literal text, not as a pattern',
         'an empty secret list leaves the key rules in force',
         'correlates a primitive failure without publishing its contents',
-        'a cause that cannot be inspected is reported as reporting loss, not as a throw',
+        'a library throw is reported as reporting loss, not as a throw',
         'two losses in one process do not share a handle',
+        'the injected reporting fault ends with the work it wrapped',
         'redacts a secret the disclosure policy selected into the public report',
         'reports a cause chain by path and redacts a key nested inside it',
         'keeps the order of an aggregate failure and reports a circular value',
