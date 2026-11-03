@@ -3470,9 +3470,12 @@ Bun/SQLite/HTTP integration:
 
 - Removing only the preparation-delay allowance failed the named disposal-held
   deadline at 22055.35 ms; child and parent ceilings remained repaired.
-- Removing only the intentional delay failed the measured-preparation assertion,
-  `real marker appeared within the undelayed preparation allowance`, at 18758.36 ms.
-  The actual integration and owned child cleanup still executed.
+- Setting the shared delay constant from 23000 to zero also reduced the marker,
+  child and parent budgets to 22000/40000/45000 ms. The actual integration and
+  owned child cleanup still executed; the case failed at the measured-preparation
+  assertion, `real marker appeared within the undelayed preparation allowance`,
+  at 18758.36 ms, rather than at a shortened deadline. This is not an isolated
+  sleep-only omission.
 
 Both controls restored the exact healthy source hash above in `finally`; their
 archived fault inputs and restoration receipts identify the single edit. These
@@ -3515,3 +3518,16 @@ host gate remain pending. The complete backend target has not been rerun locally
 the fourteen-case file and owning static checks are the recorded local scope. This
 focused repair does not complete host lifecycle, business mapping, S0/S7a or the
 separate bound-registry-storage activation.
+
+## Preparation repair independent review — 2026-11-03
+
+Independent review of `dedc8ca82dc31a1498953d81ab87b91f7ff85153` approved the
+source with no Critical or Important findings. One Minor correction now describes
+the zero-delay constant mutation and its derived budget reductions precisely; the
+adjacent Proof comment agrees. This changes evidence wording only. The original
+executed inputs and receipts remain unchanged. Report:
+`/tmp/runtime-dispatch-preparation-review-20261103.md`.
+
+The original commit completed normal hooks and left a clean checkout. Fresh CI,
+publication and the exact committed-candidate host gate remain pending. Strict
+owning validation still fails on the thirteen unchanged baseline warnings above.

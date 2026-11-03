@@ -971,8 +971,8 @@ if (childConfigPath === undefined) {
     'retains delayed real integration disposal beyond the undelayed preparation budget',
     async () => {
       const observed = await runContainedReceiver('integration-disposal-delayed');
-      // Proof: removing the intentional delay makes this real integration case fail
-      // "real marker appeared within the undelayed preparation allowance".
+      // Proof: setting the shared delay constant to zero also shortens derived budgets;
+      // this real case instead fails the measured-preparation assertion below.
       assert(
         (observed.preparationMilliseconds ?? 0) > 22000,
         'real marker appeared within the undelayed preparation allowance',
