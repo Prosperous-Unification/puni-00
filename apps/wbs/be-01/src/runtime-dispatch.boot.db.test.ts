@@ -502,6 +502,10 @@ type ContainedRole =
   | 'disposal-start-delayed'
   | 'forced-disposal'
   | 'dual-failure';
+
+/** Exceeds the undelayed preparation allowance to expose an omitted delay offset. */
+const integrationPreparationDelayMilliseconds = 23000;
+
 interface ContainedConfig {
   role: ContainedRole;
   tracePath: string;
@@ -641,8 +645,11 @@ interface ContainedObservation {
 
 /**
  * Complete integration: 35000 ms child completion plus at most 8250 ms join/drain fits its
- * 50000 ms parent; child ceiling is 45000 ms. Held integration retains its 22000 ms marker,
- * 8500 ms observation, 40000 ms child and 45000 ms parent (worst parent path 39400 ms).
+ * 50000 ms parent; child ceiling is 45000 ms. Undelayed held integration retains its
+ * 22000 ms marker, 8500 ms observation, 40000 ms child and 45000 ms parent (worst parent
+ * path 39400 ms). The deliberately delayed integration adds its 23000 ms preparation
+ * delay to each enclosing allowance: 45000 ms marker, 63000 ms child and 68000 ms parent,
+ * with a worst parent path of 62400 ms and the same cleanup margin.
  * Simple held receivers allow 22000 ms before the real marker; health and held-exit checks
  * trigger termination by 22650 ms, before the 30000 ms child ceiling. Their full parent
  * path is at most 22000 + 8900 = 30900 ms, below its 35000 ms ceiling. The intentionally
@@ -665,7 +672,12 @@ async function runContainedReceiver(
     role === 'forced-disposal';
   // Proof: T2 delayed actual booted-receiver stop entry; the old 8000 ms simple marker
   // allowance emitted "contained receiver phase expired: disposal-held" after owned join.
-  const preparationMilliseconds = heldIntegration || simpleHeldReceiver ? 22000 : 8000;
+  const preparationDelayMilliseconds =
+    role === 'integration-disposal-delayed' ? integrationPreparationDelayMilliseconds : 0;
+  // Proof: dropping the offset fails "retains delayed real integration disposal beyond the
+  // undelayed preparation budget" at its real disposal-held deadline.
+  const preparationMilliseconds =
+    (heldIntegration || simpleHeldReceiver ? 22000 : 8000) + preparationDelayMilliseconds;
   const fixtureRoot = mkdtempSync(join(tmpdir(), 'runtime-dispatch-owned-'));
   const root = join(fixtureRoot, 'runtime');
   const markerDirectory = join(fixtureRoot, 'markers');
@@ -685,7 +697,14 @@ async function runContainedReceiver(
         import.meta.path,
         '-t',
         'contained ' + role,
-        '--timeout=' + String(heldIntegration ? 40000 : completeIntegration ? 45000 : 30000),
+        '--timeout=' +
+          String(
+            heldIntegration
+              ? 40000 + preparationDelayMilliseconds
+              : completeIntegration
+                ? 45000
+                : 30000,
+          ),
       ],
       {
         cwd: resolve(import.meta.dir, '../../../..'),
@@ -948,21 +967,27 @@ if (childConfigPath === undefined) {
       45000,
     );
   }
-  test('retains delayed real integration disposal after more than eight seconds of preparation', async () => {
-    const observed = await runContainedReceiver('integration-disposal-delayed');
-    assert(
-      (observed.preparationMilliseconds ?? 0) > 8000,
-      'real marker appeared within old preparation allowance',
-    );
-    assert.equal(observed.held?.stage, 'disposal-held');
-    assert.equal(observed.signaled?.stage, 'signal');
-    assert.equal(
-      observed.signaled.dbPresent,
-      true,
-      'integration removed DB before actual acquisition/disposal',
-    );
-    assert.equal(observed.rootRemoved, true);
-  }, 45000);
+  test(
+    'retains delayed real integration disposal beyond the undelayed preparation budget',
+    async () => {
+      const observed = await runContainedReceiver('integration-disposal-delayed');
+      // Proof: removing the intentional delay makes this real integration case fail
+      // "real marker appeared within the undelayed preparation allowance".
+      assert(
+        (observed.preparationMilliseconds ?? 0) > 22000,
+        'real marker appeared within the undelayed preparation allowance',
+      );
+      assert.equal(observed.held?.stage, 'disposal-held');
+      assert.equal(observed.signaled?.stage, 'signal');
+      assert.equal(
+        observed.signaled.dbPresent,
+        true,
+        'integration removed DB before actual acquisition/disposal',
+      );
+      assert.equal(observed.rootRemoved, true);
+    },
+    45000 + integrationPreparationDelayMilliseconds,
+  );
   test('missing real readiness marker has a named finite deadline and joins its owned child', async () => {
     // Proof: the child writes its actual readiness marker to the sibling unreported path;
     // the parent observes the named 8000 ms deadline and no owned directory survives.
@@ -1053,10 +1078,14 @@ if (childConfigPath === undefined) {
       40000,
     );
   } else if (role === 'integration-disposal-delayed') {
-    test('contained integration-disposal-delayed', async () => {
-      await Bun.sleep(8100);
-      await runIntegration('held-disposal', configured.tracePath);
-    }, 40000);
+    test(
+      'contained integration-disposal-delayed',
+      async () => {
+        await Bun.sleep(integrationPreparationDelayMilliseconds);
+        await runIntegration('held-disposal', configured.tracePath);
+      },
+      40000 + integrationPreparationDelayMilliseconds,
+    );
   } else if (role === 'readiness-unreported') {
     test(
       'contained readiness-unreported',
