@@ -2688,3 +2688,33 @@ Given proven terminal setup and an independently supported terminal reporting re
 #### Scenario: Unknown originals cannot retire parent custody
 
 Given an unsettled/missing/unjoined original or observer, unsupported synchronous delegate outcome, non-Promise return, or spawn entry with zero registered child, the fixture refuses terminal disposition and retains original references and parent timers. Expiry stops new work without authorizing release. Finite injected-source tests may settle their own model Promises and timer tokens; they establish no genuine native cleanup. Original75398 remains held and is not retrospectively classified by these future rules.
+
+## ADDED Requirements
+
+### Requirement: SQLite cleanup provenance retains acquired originals
+
+The private adapter component SHALL distinguish genuine cleanup UNKNOWN from an ordinary operation refusal by exact private identity. SQLite initialization and the two backup-used existing/readonly Drizzle wrappers SHALL preserve original acquired native clients when cleanup throws. Backup SHALL retain its directly owned originals and any genuine lower SQLite failure before returning a terminal failure. Private custody SHALL remain independent of mutable diagnostic fields. This requirement covers the five adapter paths only; storage/owner handoff and strong retention after a failure is discarded remain separate, unimplemented composition obligations.
+
+#### Scenario: Known cleanup preserves the ordinary primary
+
+Given an actual initialization, semantic, missing/invalid/oversized/expired or read refusal and every directly owned cleanup returns successfully, the caller receives the SAME primary object and neither cleanup identity guard recognizes it. Existing successful legacy and bounded snapshot/verify/restore behavior and signatures remain unchanged.
+
+#### Scenario: Initialization and wrapper cleanup have authentic identity
+
+Given a real returned native Database and an initialization or actual post-initialization Drizzle construction refusal, an original close throwing before delegation or after real delegation produces a genuine SqliteCleanupUnknown. The exact primary, original close failure and established aggregate primary cause/order remain available at the existing low-level boundary. No Connection return, manufactured aggregate, unreturned constructor experiment or public raw-resource API substitutes for original acquisition.
+
+#### Scenario: Backup retains original partial acquisitions and remaining cleanup
+
+Given an actual source/semantic Connection, bounded file/parent descriptor or legacy publication descriptor whose close throws, backup returns a genuine SnapshotCleanupUnknown, retains that original acquisition/attempt privately and still attempts every remaining directly owned unattempted cleanup once. Partial file-open/metadata failures and expiry do not skip acquired sibling cleanup. No UNKNOWN attempt is retried or upgraded from fixture knowledge. Returned success is unavailable.
+
+#### Scenario: Authentic lower failures propagate without structural inference
+
+Given a genuine SQLite cleanup marker from a backup-used opener, backup preserves that exact lower failure privately and produces its genuine snapshot cleanup identity before another boundary can replace it. Ordinary same-message/name/fields/prototype/spread or aggregate-tree lookalikes do not classify. Mutating diagnostic errors/cause cannot erase retained originals or change membership. Snapshot failures expose no new raw cause or resource/retry/close capability.
+
+#### Scenario: Finite leaf witnesses retire only known originals
+
+Given explicitly frozen native fault cases, the fixture captures actual originals and native delegation entry/return. An original whose real close returned is never reclosed. A deliberate pre-delegation fault may receive its first actual native close only in labelled fixture retirement after production assertions. Unknown/unreturned native outcomes preserve evidence and stop without retry, signaling, inferred closure or fixture-success credit. The initial readonly three-case packet and later cases each require their own exact source/selector/bounds grant.
+
+#### Scenario: Adapter completion does not imply owner safety
+
+Given a caller discards or sanitizes a genuine adapter failure, this component alone does not supply strong owner retention, keeper, sticky work revocation or runtime/outer lock HOLD. The two storage paths and owner sequence must later enroll the exact original before sanitization and unwind. No main adoption, parked-producer success, native custody, full feature delivery or pending constructor exception is inferred from adapter-only results.
