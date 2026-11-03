@@ -55,11 +55,27 @@
 
 ## 3. Burokrat (into main, after the `JOB-CATALOGUE` slice is open)
 
-- [ ] 3.1 `src/cli-parser.ts` for every `runCli` command, `--now` as a required option where
+- [x] 3.1 `src/cli-parser.ts` for every `runCli` command, `--now` as a required option where
       the command is dated (C5); `runCli` takes the parsed object; `process.exitCode = 1` for
       findings unchanged — test: existing `cli.test.ts` and `invoke-cli.test.ts`; the
       "Burokrat without --now" scenario; `no-ambient-clock.test.ts` unchanged and passing with
       `cli-parser.ts` among the scanned sources; negative as 1.2.
-- [ ] 3.2 `--version` from the manifest, help, completion; `bundle.test.ts` and the pack test
+- [x] 3.2 `--version` from the manifest, help, completion; `bundle.test.ts` and the pack test
       record the new bundle size; README and the npm README.
-- [ ] 3.3 `verify.md`: commands, output, the fault table for the three CLIs.
+- [x] 3.3 `verify.md`: commands, output, the fault table for the three CLIs.
+- [ ] 3.4 Type the seven delegated Burokrat commands (`check`, `explain`, `scenario`,
+      `template`, `validate workflow-binding`, `prepare-activation`,
+      `prepare-relocation-activation`) in `cli-parser.ts`; their handlers take the typed object;
+      the module usage constants and loops are deleted; `check --now` keeps its optional,
+      dated-rule-only semantics (`rules/job-catalogue.test.ts`); negatives re-watched. Handler
+      signatures change here. Tests pinning the old wording: `rules/rules.test.ts`,
+      `rules/scenarios.test.ts`, `templates/templates.test.ts`, `workflow-binding.test.ts`,
+      `policy/relocation-activation.test.ts`, `cli.test.ts`.
+
+Notes on 3.x (`feat/twilight-cli-optique-burokrat`, 2026-11-02): this copy of the change came
+from `plan/dash-host-jobs` with 1.1–1.4 ticked; Navigator's 2.1–2.2 are ticked, and its
+verify.md section lives, in the copy on `plan/twilight-cli-optique` (PRs #805, #813). The two
+copies reconcile when #805 reaches main (B-A1). The Burokrat assumptions B-A1 to B-A23 are in
+verify.md's Burokrat section. Seven commands stay delegated to the modules that parse them
+(`check`, `explain`, `scenario`, `template`, `validate workflow-binding`, and the installed
+`prepare-activation` and `prepare-relocation-activation`); task 3.4 types them.
