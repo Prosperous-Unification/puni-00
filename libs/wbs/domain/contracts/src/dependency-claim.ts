@@ -18,6 +18,8 @@ const EXEMPT_OPERATIONS = new Set([
   'getApiAuthLinkAuth0Callback',
   'postApiAuthRefresh',
   'postApiAuthLogout',
+  // Browser cookie recovery must stay reachable from an incompatible client.
+  'postApiAuthReset',
   'postApiSmokeEcho',
   'getApiTimezones',
   'postInternalMcpCredentials',
