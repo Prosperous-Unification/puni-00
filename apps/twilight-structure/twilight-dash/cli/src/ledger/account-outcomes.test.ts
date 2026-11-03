@@ -175,7 +175,7 @@ test('grammar refuses before reading: unknown, duplicate, valueless, missing, in
   const set = setup();
   const output = join(set.parent, 'never');
   const unknown = await refusal(runDashArguments(argv(set, output, ['--bogus', 'x']), deps));
-  expect(unknown).toMatch(/^usage: dash account-outcomes/);
+  expect(unknown).toMatch(/^usage: twilight-dash account-outcomes /);
   const duplicate = await refusal(
     runDashArguments(argv(set, output, ['--since', period.since]), deps),
   );

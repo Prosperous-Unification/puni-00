@@ -71,10 +71,9 @@ function commandDependencies(deps: DashDependencies) {
 }
 
 /**
- * One handler per dispatched command. Every delegated handler parses its whole grammar from
- * `argv` before any effect: the authority commands before they open or create a store, the
- * observation store commands before they read state, the check runner before it reads the
- * candidate, the reporter before any connection, and the ledger before it reads a log.
+ * One handler per dispatched command, each taking the object `cli-parser.ts` parsed: the whole
+ * grammar is refused there before any handler runs, so no store is opened or created, no state,
+ * candidate or log read, and no connection made for a refused command line.
  */
 export const dashHandlers: Handlers = {
   'plan-enrollment': (command, deps) =>
@@ -98,47 +97,47 @@ export const dashHandlers: Handlers = {
       '--known-hosts-sha256',
       command.knownHostsSha256,
     ]),
-  'bootstrap-authority': ({ argv }, deps) => {
-    bootstrapAuthorityCommand(argv, commandDependencies(deps));
+  'bootstrap-authority': (command, deps) => {
+    bootstrapAuthorityCommand(command, commandDependencies(deps));
   },
-  'inspect-authority': ({ argv }, deps) => {
-    inspectAuthorityCommand(argv, commandDependencies(deps));
+  'inspect-authority': (command, deps) => {
+    inspectAuthorityCommand(command, commandDependencies(deps));
   },
-  'recover-publication': ({ argv }, deps) => {
-    recoverPublicationCommand(argv, commandDependencies(deps));
+  'recover-publication': (command, deps) => {
+    recoverPublicationCommand(command, commandDependencies(deps));
   },
-  'submit-admission': ({ argv }, deps) => {
-    submitAdmission(argv, commandDependencies(deps));
+  'submit-admission': (command, deps) => {
+    submitAdmission(command, commandDependencies(deps));
   },
-  'render-observation-units': ({ argv }, deps) => {
-    renderObservationUnitsCommand(argv, (text) => deps.stdout.write(text));
+  'render-observation-units': (command, deps) => {
+    renderObservationUnitsCommand(command, (text) => deps.stdout.write(text));
   },
-  'run-activation-checks': ({ argv }, deps) => {
-    runActivationChecksCommand(argv, {
+  'run-activation-checks': (command, deps) => {
+    runActivationChecksCommand(command, {
       clock: deps.clock,
       execute: spawnCheck,
       write: (text) => deps.stdout.write(text),
     });
   },
-  'bootstrap-observation': ({ argv }, deps) =>
-    bootstrapObservationCommand(argv, commandDependencies(deps)),
-  'migrate-observation': ({ argv }, deps) =>
-    migrateObservationCommand(argv, commandDependencies(deps)),
-  'record-progress': ({ argv }, deps) => {
-    recordProgress(argv, (text) => deps.stdout.write(text));
+  'bootstrap-observation': (command, deps) =>
+    bootstrapObservationCommand(command, commandDependencies(deps)),
+  'migrate-observation': (command, deps) =>
+    migrateObservationCommand(command, commandDependencies(deps)),
+  'record-progress': (command, deps) => {
+    recordProgress(command, (text) => deps.stdout.write(text));
   },
-  'record-progress-v2': ({ argv }, deps) => {
-    recordBoundProgress(argv, (text) => deps.stdout.write(text));
+  'record-progress-v2': (command, deps) => {
+    recordBoundProgress(command, (text) => deps.stdout.write(text));
   },
-  'account-outcomes': ({ argv }, deps) => {
-    accountOutcomes(argv, (text) => deps.stdout.write(text));
+  'account-outcomes': (command, deps) => {
+    accountOutcomes(command, (text) => deps.stdout.write(text));
   },
-  'report-capacity': async ({ argv }, deps) => {
+  'report-capacity': async (command, deps) => {
     const PATH = process.env['PATH'] ?? '';
     const sshExecutable = Bun.which('ssh', { PATH });
     if (sshExecutable === null) throw new Error('report-capacity needs ssh on PATH');
     await reportCapacityCommand(
-      argv,
+      command,
       {
         ssh_host: sshHostAdapter({ sshExecutable, environment: process.env }),
         // `docker` is required only once a docker instance opens.
@@ -164,9 +163,9 @@ export const dashHandlers: Handlers = {
       },
     );
   },
-  resources: async ({ argv }, deps) => {
+  resources: async (command, deps) => {
     process.exitCode = await runResources(
-      argv,
+      command,
       deps.clock,
       (text) => deps.stdout.write(text),
       (endpoint, key) =>

@@ -23,6 +23,164 @@ Version-1 record IDs, module IDs, role filenames, and `TOOL_WIKI_*`
 environment variables retain their legacy spelling so existing evidence and
 immutable activations keep their identity.
 
+## Command line
+
+The installed `twilight-burokrat` (short `twib`) and the source validator (`bun src/cli.ts`)
+parse their command lines with Optique ([`src/cli-parser.ts`](src/cli-parser.ts),
+[ADR 0064](../../../../docs/adr/0064-use-optique-for-clis.md)). A refused command line prints
+one `error: ` line and exits 1 before any input is read: `Unsupported Burokrat command: <name>`,
+or `usage: twilight-burokrat <command> …` followed by the reason. The dated commands require
+`--now <UTC instant>`, because Burokrat reads no clock. `twib help <command>` (or
+`<command> --help`) prints one command, `twib --version` the package version, and
+`twib completion bash|zsh|fish` a completion script that registers both `twilight-burokrat` and
+`twib`. `check`, `explain`, `scenario`, `template`, `validate workflow-binding` and the two
+`prepare-*` commands parse their own arguments: their help and the footer below show the grammar
+their modules document, and `--help` is honoured only as their sole word; any other words,
+`--help` among them, reach the module.
+
+`twib --help` prints (a test compares this block with the generated help):
+
+```text
+Usage: twilight-burokrat validate-progress-receipt RECEIPT-JSON PLAN-REFERENCE-JSON TASKS-JSON
+       twilight-burokrat validate-plan-tasks PLAN-REFERENCE-JSON TASKS-JSON
+       twilight-burokrat validate-record KIND JSON
+       twilight-burokrat validate workflow-binding [...]
+       twilight-burokrat validate KIND JSON
+       twilight-burokrat read-candidate SELECTION REPOSITORY REVISION-OR-BASE
+       twilight-burokrat classify-candidate SELECTION REPOSITORY REVISION-OR-BASE POLICY-JSON
+       twilight-burokrat content-manifest SELECTION REPOSITORY REVISION-OR-BASE POLICY-JSON REQUEST-JSON [
+       REVIEWED-IDENTITY]
+       twilight-burokrat validate-artifacts SELECTION REPOSITORY REVISION-OR-BASE POLICY-JSON GRAPH-JSON
+       twilight-burokrat extract-relationships SELECTION REPOSITORY REVISION-OR-BASE REQUEST-JSON
+       twilight-burokrat check-indexes SELECTION REPOSITORY REVISION-OR-BASE
+       twilight-burokrat check-root-migration SELECTION REPOSITORY REVISION-OR-BASE MAP-JSON
+       twilight-burokrat validate-review-provenance JOURNAL EVIDENCE-JSON REQUIREMENT
+       twilight-burokrat freeze-exhaustive REPOSITORY REVISION AUDIT-SEED INVENTORY INVENTORY-PROTOCOL
+       CLASSIFICATION-POLICY CONTENT-MANIFEST-REQUEST EXHAUSTIVE-POLICY REVIEW-PROTOCOL MODULE-MAPPING
+       GRANULARITY-POLICY MODEL-CONTEXT RELATIONSHIP-REQUEST ARTIFACT-GRAPH
+       twilight-burokrat verify-exhaustive REPOSITORY PLAN-JSON EXPECTED-IDENTITY AUDIT-SEED INVENTORY
+       INVENTORY-PROTOCOL CLASSIFICATION-POLICY CONTENT-MANIFEST-REQUEST EXHAUSTIVE-POLICY REVIEW-PROTOCOL
+       MODULE-MAPPING GRANULARITY-POLICY MODEL-CONTEXT RELATIONSHIP-REQUEST ARTIFACT-GRAPH
+       twilight-burokrat evaluate-exhaustive-coverage REPOSITORY PLAN-JSON EXPECTED-IDENTITY AUDIT-SEED AUDIT-JSON
+       INVENTORY INVENTORY-PROTOCOL CLASSIFICATION-POLICY CONTENT-MANIFEST-REQUEST EXHAUSTIVE-POLICY REVIEW-PROTOCOL
+       MODULE-MAPPING GRANULARITY-POLICY MODEL-CONTEXT RELATIONSHIP-REQUEST ARTIFACT-GRAPH
+       twilight-burokrat lint-local MODE SELECTION REPOSITORY REVISION-OR-BASE BINDING EVIDENCE
+       twilight-burokrat lint-ci SELECTION REPOSITORY REVISION-OR-BASE EVIDENCE
+       twilight-burokrat validate-policy-activation REPOSITORY PREVIOUS-BINDING NEXT-BINDING
+       twilight-burokrat check [...]
+       twilight-burokrat explain [...]
+       twilight-burokrat scenario [...]
+       twilight-burokrat template [...]
+       twilight-burokrat inspect-evaluation-coverage REPOSITORY FULL-SHA RULE-POLICY COVERAGE-REVIEW
+       twilight-burokrat inspect-performance REPOSITORY COMMITTED-SHA RULE-POLICY
+       twilight-burokrat inspect-performance-sources REPOSITORY COMMITTED-SHA RULE-POLICY
+       twilight-burokrat inspect-performance-levels REPOSITORY COMMITTED-SHA FACTS-AUTHORITY RULE-POLICY
+       twilight-burokrat inspect-performance-scenarios REPOSITORY COMMITTED-SHA RULE-POLICY LEVEL-AUTHORITY CAPABILITY
+       twilight-burokrat inspect-scenario-ledger --now INSTANT REPOSITORY COMMITTED-SHA RULE-POLICY LEVEL-AUTHORITY
+       CAPABILITY LEDGER-AUTHORITY
+       twilight-burokrat inspect-level-facts REPOSITORY COMMITTED-SHA AUTHORITY
+       twilight-burokrat inspect-bun-test-reports REPOSITORY FULL-SHA REPORT-AUTHORITY
+       twilight-burokrat inspect-test-reports REPOSITORY COMMITTED-SHA RULE-POLICY MODE
+       twilight-burokrat inspect-test-sources REPOSITORY COMMITTED-SHA RULE-POLICY MODE
+       twilight-burokrat inspect-spec-sources REPOSITORY COMMITTED-SHA
+       twilight-burokrat inspect-manual --now INSTANT REPOSITORY COMMITTED-SHA RULE-POLICY REPORT-PATH
+       twilight-burokrat inspect-manual-observation --now INSTANT REPOSITORY COMMITTED-SHA RULE-POLICY REPORT-PATH
+       twilight-burokrat inspect-browser-performance REPOSITORY COMMITTED-SHA RULE-POLICY MODE AUTHORITY
+       twilight-burokrat inspect-browser-architecture REPOSITORY COMMITTED-SHA RULE-POLICY MODE AUTHORITY
+       twilight-burokrat inspect-browser-conformance REPOSITORY COMMITTED-SHA RULE-POLICY MODE AUTHORITY
+       twilight-burokrat inspect-browser-memberships REPOSITORY COMMITTED-SHA RULE-POLICY MODE AUTHORITY
+       twilight-burokrat inspect-browser-scenarios REPOSITORY COMMITTED-SHA RULE-POLICY MODE REVIEW-AUTHORITY
+       CONFORMANCE-AUTHORITY ARCHITECTURE-AUTHORITY PERFORMANCE-AUTHORITY CAPABILITY
+       twilight-burokrat inspect-browser-source-levels REPOSITORY COMMITTED-SHA RULE-POLICY MODE REVIEW-AUTHORITY
+       CONFORMANCE-AUTHORITY ARCHITECTURE-AUTHORITY PERFORMANCE-AUTHORITY
+       twilight-burokrat inspect-browser-levels REPOSITORY COMMITTED-SHA RULE-POLICY MODE REVIEW-AUTHORITY
+       CONFORMANCE-AUTHORITY ARCHITECTURE-AUTHORITY PERFORMANCE-AUTHORITY
+       twilight-burokrat inspect-browser-t2 --now INSTANT REPOSITORY FULL-COMMITTED-SHA RULE-POLICY CAPABILITY
+       LEDGER-AUTHORITY
+       twilight-burokrat inspect-browser-t2-policy --now INSTANT REPOSITORY FULL-COMMITTED-SHA RULE-POLICY CAPABILITY
+       LEDGER-AUTHORITY PROPOSED-POLICY
+       twilight-burokrat inspect-browser-scenario-ledger --now INSTANT REPOSITORY FULL-COMMITTED-SHA RULE-POLICY
+       CAPABILITY LEDGER-AUTHORITY
+       twilight-burokrat lint SELECTION REPOSITORY REVISION-OR-BASE
+       twilight-burokrat prepare-activation [...]
+       twilight-burokrat prepare-relocation-activation [...]
+       twilight-burokrat help [COMMAND...]
+       twilight-burokrat completion [SHELL] [ARG...]
+       twilight-burokrat --help
+       twilight-burokrat --version
+
+  validate-progress-receipt   Validate a progress receipt against its plan reference and tasks.
+  validate-plan-tasks         Validate tasks.json against its plan reference.
+  validate-record             Validate one contract record of a named kind.
+  validate                    Validate one contract record (as validate-record), or a workflow binding.
+  read-candidate              Print the selected candidate snapshot.
+  classify-candidate          Classify the candidate's entries under a classification policy.
+  content-manifest            Print the candidate's content manifest and its currency.
+  validate-artifacts          Validate the candidate's artifacts against an artifact graph.
+  extract-relationships       Extract the candidate's module relationships.
+  check-indexes               Check the candidate's module indexes.
+  check-root-migration        Check the candidate's root migration against a map.
+  validate-review-provenance  Validate review evidence against the invocation journal.
+  freeze-exhaustive           Freeze the exhaustive review plan of a committed candidate.
+  verify-exhaustive           Verify a frozen exhaustive review plan.
+  evaluate-exhaustive-coverage  Evaluate an audit against a verified exhaustive plan.
+  lint-local                  Lint a candidate under a trusted binding, as a local operator.
+  lint-ci                     Lint a candidate under the binding CI preselected.
+  validate-policy-activation  Validate that a next trusted binding may follow a previous one.
+  check                       Evaluate the registered rules over one candidate and print a verdict.
+  explain                     Print a rule's registry record and, with a rule policy, its mode.
+  scenario                    Import, allocate or validate OpenSpec scenario identities.
+  template                    List, show or verify module templates.
+  inspect-evaluation-coverage  Print the rule evaluation coverage matrix; exit 1 on an unevaluated row.
+  inspect-performance         Inspect the Performance evidence bundle.
+  inspect-performance-sources  Inspect the Performance test sources.
+  inspect-performance-levels  Inspect Performance level isolation; exit 1 on a wrong level.
+  inspect-performance-scenarios  Inspect Performance scenario citations; exit 1 on a citation finding.
+  inspect-scenario-ledger     Inspect the Performance scenario ledger at an instant; exit 1 on debt.
+  inspect-level-facts         Inspect the reviewed level facts.
+  inspect-bun-test-reports    Inspect the Bun test reports.
+  inspect-test-reports        Inspect the test reports of one level mode.
+  inspect-test-sources        Inspect the test sources of one level mode.
+  inspect-spec-sources        Inspect the specification sources.
+  inspect-manual              Inspect the Manual report at an instant; exit 1 unless current.
+  inspect-manual-observation  Print the Manual observation at an instant; exit 1 unless current.
+  inspect-browser-performance  Inspect Browser Performance evidence.
+  inspect-browser-architecture  Inspect Browser architecture evidence.
+  inspect-browser-conformance  Inspect Browser conformance evidence.
+  inspect-browser-memberships  Inspect Browser memberships.
+  inspect-browser-scenarios   Inspect Browser scenario citations; exit 1 on a citation finding.
+  inspect-browser-source-levels  Inspect Browser source level isolation; exit 1 on a wrong level.
+  inspect-browser-levels      Inspect Browser level isolation; exit 1 on a wrong level.
+  inspect-browser-t2          Inspect the Browser T2 diagnostic at an instant.
+  inspect-browser-t2-policy   Preview a proposed Browser T2 citation policy at an instant; exit 1 on refusals.
+  inspect-browser-scenario-ledger  Inspect the Browser scenario ledger at an instant; exit 1 on debt.
+  lint                        Run the trusted whole-tree lint through the installed launcher.
+  prepare-activation          Prepare a toolkit activation from the installed toolkit.
+  prepare-relocation-activation  Prepare a relocation activation.
+  help                        Show help information.
+  completion                  Generate shell completion script or provide completions.
+  --help                      Show help information.
+  --version                   Show version information.
+
+Commands that parse their own arguments:
+  twilight-burokrat check <committed|staged|working> <repository> <revision-or-base>
+      <rule-policy-json> [--rule <rule-id>] [--performance-evidence <json>] [--now <UTC instant>]
+  twilight-burokrat explain <rule-id> [<repository> <rule-policy-json>]
+  twilight-burokrat scenario <import|allocate|validate> <repository> <openspec-spec-path>
+      [--predecessor <id>]
+  twilight-burokrat template <list|show <template-id>|verify <template-id>
+      <committed|staged|working> <repository> <revision-or-base> <subject>>
+  twilight-burokrat validate workflow-binding <file> --steps <comma-list>
+  twilight-burokrat prepare-activation --candidate-repository <value> --candidate-sha <value>
+      --toolkit <value> --candidate-policy <value> --candidate-mapping <value> --review-record
+      <value> --audit-strata <value> --destination <value> --work <value> --resource-lane <value>
+      --cwd-identity <value> --check-runs <value>
+  twilight-burokrat prepare-relocation-activation --candidate-repository <value> --candidate-sha
+      <value> --base-activation <value> --review-record <value> --destination <value> --work <value>
+      [--candidate-policy <value>] [--candidate-launcher <value>] [--validator-entry <value>]
+      --resource-lane <value> --cwd-identity <value> --check-runs <value>
+```
+
 ## Checks
 
 The bootstrap obligation requires the uncached `twilight-burokrat:test`,
@@ -296,3 +454,7 @@ The Browser-only ledger joins the real isolated Browser scenario observation to 
 `twilight-burokrat inspect-browser-t2 <repository> <full-committed-sha> <external-rule-policy> <capability> <external-ledger-authority> --now <UTC-instant>` consumes the real Browser-only ledger as a noncertifying T2 citation diagnostic. It retains the complete ledger and its debt, exact selection/instant/publication scope, policy identity, complete original citation findings and full canonical digest. Every source-bound Browser report case appears exactly once in canonical case-ID order as `{case, citation}`; citation is `{kind:'cited',scenarioId}` or `{kind:'missing'|'malformed'|'inactive'}`. Active citations in other capabilities remain cited. Missing, duplicate, conflicting, foreign or altered partition cases and invalid ledger joins refuse with stderr and no JSON. Valid diagnostics exit zero even with citation findings, failed/skipped outcomes or ledger debt. The command grants no admission or coverage authority and does not register T2 in RulePolicy. Required external authorities and explicit UTC instant retain the Browser-only ledger's strict boundaries.
 
 `twilight-burokrat inspect-browser-t2-policy <repository> <full-committed-sha> <external-rule-policy> <capability> <external-ledger-authority> <external-proposed-policy> --now <UTC-instant>` previews citation effects over the real complete Browser T2 observation. The closed schema-one `proposed-browser-citation-policy` binds revision, candidate, capability, canonical evaluatedAt, rulePolicyDigest and browserT2ObservationDigest. Its disposition is observe/enforce, or ratchet with explicit unique canonical relative adoptedPrefixes (empty and overlapping distinct prefixes are valid). The regular external proposal must have a canonical absolute path outside the candidate, with no symlink components. Raw captured bytes and the decoded proposal are retained; neither location nor digest authenticates it. Missing/malformed/inactive citations become debt under observe, refusal under enforce, and refusal exactly at or beneath an adopted prefix under ratchet. Every original case and all ledger debt remain visible. Complete diagnostic JSON exits one only for proposed citation refusals, otherwise zero even with failed/skipped outcomes and debt. Invalid input or inconsistent upstream state refuses with stderr and no JSON. Authentication remains absent and certification false. This command registers no rule and grants no admission, execution, coverage or tested-module authority.
+
+---
+
+Built by [PUNI](https://puni.dev). Twilight Burokrat is part of the Twilight Structure suite; the source lives in [puni-00](https://github.com/Prosperous-Unification/puni-00).
