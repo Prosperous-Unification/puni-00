@@ -310,5 +310,110 @@ export default [
   // override; the blocks that precede it here declare rules no generic block re-declares.
   ...productPolicies,
 
+  // Proof: missing anchors, broad importer globs, barrel/migrate additions, weakened options and missing needed aliases each failed real lint boundary oracles.
+  // These exact source-bundled activation leaves are deliberate product/buildable exceptions.
+  // Every other edge keeps the complete Nx options and constraints. There is no forward SQL in production storage.
+  ...[
+    [
+      'lib/dependency-activation-storage.ts',
+      [
+        '@wbs/contracts/dependency-runtime',
+        '@wbs/store-sqlite/db',
+        '@wbs/store-sqlite/backup',
+        '@wbs/store-sqlite/migration-set',
+        '@wbs/store-sqlite/cross-project-dependency-activation',
+      ],
+    ],
+    ['lib/complete-dependency-exclusion.ts', ['@wbs/contracts/dependency-runtime']],
+    ['lib/dependency-activation-failure.ts', ['@wbs/contracts/dependency-runtime']],
+    ['lib/dependency-activation-records.ts', ['@wbs/contracts/dependency-runtime']],
+    [
+      'lib/complete-dependency-exclusion.test.ts',
+      ['@wbs/store-sqlite/db', '@wbs/store-sqlite/cross-project-dependency-activation'],
+    ],
+    ['fixtures/dependency-complete-activation.ts', ['@wbs/store-sqlite/migrate']],
+  ].map(([file, aliases]) => ({
+    files: [`tools/tool-remote-scripts/src/${file}`],
+    rules: {
+      '@nx/enforce-module-boundaries': [
+        'error',
+        {
+          ...nxBoundaryOptions,
+          allow: [
+            '^@wbs/contracts/solver/supervisor-protocol$',
+            '^@wbs/domain$',
+            ...aliases.map((alias) => `^${alias}$`),
+          ],
+        },
+      ],
+    },
+  })),
+  // The fixed rehearsal worker needs the real migration implementation and applied-ledger reader.
+  // Proof: removing either alias refused its runtime import; widening the importer or anchors,
+  // adding the barrel, or removing the infra fence plus buildable enforcement admitted a forbidden
+  // edge and failed the real worker-boundary tests (2026-10-26).
+  {
+    files: ['tools/tool-remote-scripts/rehearsals/source-stageb-migration-worker.ts'],
+    rules: {
+      '@nx/enforce-module-boundaries': [
+        'error',
+        {
+          ...nxBoundaryOptions,
+          allow: [
+            '^@wbs/contracts/solver/supervisor-protocol$',
+            '^@wbs/domain$',
+            '^@wbs/store-sqlite/migrate$',
+            '^@wbs/store-sqlite/migration-set$',
+          ],
+        },
+      ],
+    },
+  },
+  // Independent parent readback uses capture only; forward SQL remains worker-only.
+  // Proof: parent alias omission, importer widening, either missing anchor and a migrate
+  // addition each failed the corresponding real parent lint consumer (2026-10-26).
+  {
+    files: ['tools/tool-remote-scripts/rehearsals/source-stageb-fixture.ts'],
+    rules: {
+      '@nx/enforce-module-boundaries': [
+        'error',
+        {
+          ...nxBoundaryOptions,
+          allow: [
+            '^@wbs/contracts/solver/supervisor-protocol$',
+            '^@wbs/domain$',
+            '^@wbs/store-sqlite/migration-set$',
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // Proof: removing this exact type-only alias restriction admitted a runtime receipt parser import; type-only boundary negative failed.
+    files: ['tools/tool-remote-scripts/src/lib/dependency-activation-records.ts'],
+    rules: {
+      // Proof: removing this exact AST restriction admitted a runtime dynamic receipt import; real type-only boundary negative failed.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "ImportExpression[source.value='@wbs/contracts/dependency-runtime']",
+          message: 'Activation records import receipt types only.',
+        },
+      ],
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@wbs/contracts/dependency-runtime',
+              allowTypeImports: true,
+              message: 'Activation records import receipt types only.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   prettier,
 ];

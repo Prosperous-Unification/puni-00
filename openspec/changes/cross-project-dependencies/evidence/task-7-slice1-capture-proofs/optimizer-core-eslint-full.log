@@ -1,0 +1,6 @@
+
+/tmp/puni-optimizer-capture/libs/wbs/application/core/src/index.ts
+  78:1  error  Run autofix to sort these exports!  simple-import-sort/exports
+
+✖ 1 problem (1 error, 0 warnings)
+  1 error and 0 warnings potentially fixable with the `--fix` option.

@@ -1,0 +1,30 @@
+[
+  {
+    "surface": "desktop",
+    "command": [
+      "bunx",
+      "playwright",
+      "test",
+      "--config",
+      "apps/wbs/fe-01/playwright.cross-project.config.ts",
+      "--grep",
+      "desktop .*predecessor scope survives"
+    ],
+    "exit": 1,
+    "fault": "force old persisted predecessor serialization"
+  },
+  {
+    "surface": "phone",
+    "command": [
+      "bunx",
+      "playwright",
+      "test",
+      "--config",
+      "apps/wbs/fe-01/playwright.cross-project.config.ts",
+      "--grep",
+      "phone .*predecessor scope survives"
+    ],
+    "exit": 1,
+    "fault": "force old persisted predecessor serialization"
+  }
+]

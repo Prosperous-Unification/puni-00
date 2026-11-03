@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/fixture-failure.test.ts:
+158 |   const failure = new Error('PRIVATE_DEEP_PROTOTYPE');
+159 |   let prototype: object = Error.prototype;
+160 |   for (let depth = 0; depth < 10; depth++) prototype = Object.create(prototype);
+161 |   Object.setPrototypeOf(failure, prototype);
+162 |   const report = summarizeFixtureFailure(failure);
+163 |   expect(report.chain[0]?.category).toBe('unreadable-error');
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: "unreadable-error"
+Received: "unclassified"
+
+      at <anonymous> (/tmp/puni-source-native-init-descriptors/tools/tool-remote-scripts/test/fixture-failure.test.ts:163:37)
+(fail) error prototype traversal has a fixed depth bound [0.67ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [41.00ms]

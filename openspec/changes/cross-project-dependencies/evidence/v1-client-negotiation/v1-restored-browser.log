@@ -1,0 +1,16 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-v1-clients/apps/wbs/fe-01
+
+
+ Test Files  2 passed (2)
+      Tests  47 passed (47)
+   Start at  19:12:36
+   Duration  22.82s (import 69%, transform 18%, environment 10%, setup 2%)
+
+     Import  146 modules were evaluated 225 times · 15.60s total, 69% of tracked time
+             ~5.48s faster with isolate: false — shared modules are evaluated once per worker instead of once per file
+             learn more: https://vitest.dev/guide/improving-performance#test-isolation
+

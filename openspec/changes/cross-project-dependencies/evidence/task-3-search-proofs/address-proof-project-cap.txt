@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+19 |   await create('ada', 'Alpha one', 'AX'); await create('ada', 'Alpha two', 'AY');
+20 |   await create('grace', 'Alpha foreign', 'AA');
+21 |   const answer = await h.call('ada', 'GET', '/api/project-addresses/projects?q=a&limit=1');
+22 |   expect(answer.status).toBe(200);
+23 |   const page = answer.body as { projects: { abbreviation: string }[]; nextCursor: string };
+24 |   expect(page.projects.map(project => project.abbreviation)).toEqual(['AX']);
+                                                                  ^
+error: expect(received).toEqual(expected)
+
+  [
+    "AX",
++   "AY",
+  ]
+
+- Expected  - 0
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:24:62)
+(fail) alphabetic prefix is bounded and organization scoped [182.79ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [2.59s]

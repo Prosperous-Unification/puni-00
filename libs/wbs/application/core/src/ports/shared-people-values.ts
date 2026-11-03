@@ -9,6 +9,9 @@ import type {
 } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
+import type { ConnectedPlanProjection } from '../service/connected-plan-projection';
+import type { ConnectedReadiness } from '../service/connected-readiness';
+import type { StoredAttempt } from './attempt-values';
 import type { CalendarMarker } from './calendar-marker-store';
 import type { DirectoryCatalogRows } from './directory-values';
 import type { MembershipRefusal } from './organization-access';
@@ -16,9 +19,8 @@ import type { Project } from './project-values';
 import type { PlanInputReads } from './saved-plan-capture-values';
 import type { EngineUnavailable, ScheduleRead } from './scheduler';
 import type { StoredStepBlockage } from './step-blockage-store';
-import type { StoredAttempt } from './step-node-attempt-store';
 import type { StoredStepParallel } from './step-parallel-store';
-import type { Step } from './step-store';
+import type { Step } from './step-values';
 import type { LabelledWorkItem } from './work-item-values';
 
 /** The entire protected read is refused; this outcome carries no project projection or cache value. */
@@ -35,7 +37,7 @@ export interface InfluencerRead {
 }
 
 /**
- * A work item in another project that holds a booking a target slice waited for, named as that
+ * A work item in another project that holds the person a target slice waited for, named as that
  * project's own plan names it (CONTEXT "Elsewhere"), so a reader is told whom a bar waits for
  * without reading the holding project.
  */
@@ -83,6 +85,22 @@ export type LivePlanRead =
   | { readonly kind: 'isolated' }
   | { readonly kind: 'not_found' }
   | {
+      readonly kind: 'connected';
+      readonly projection: ConnectedPlanProjection;
+      readonly readiness: ConnectedReadiness;
+      readonly metadataByProject: ReadonlyMap<
+        string,
+        {
+          readonly project: Project;
+          readonly steps: readonly Step[];
+          readonly workItems: readonly LabelledWorkItem[];
+          readonly attempts: readonly StoredAttempt[];
+          readonly blockages: readonly StoredStepBlockage[];
+          readonly seq: number;
+        }
+      >;
+    }
+  | {
       readonly kind: 'shared';
       readonly organizationId: string;
       readonly chain: Exclude<SharedPeopleRead, { readonly kind: 'not_found' }>;
@@ -97,6 +115,11 @@ export type LivePlanRead =
       readonly blockages: readonly StoredStepBlockage[];
       readonly seq: number;
     };
+
+/** Detached singleton scheduling in isolated mode, without shared people capacity. */
+export type CapturedLocalPlan = Omit<Extract<LivePlanRead, { kind: 'shared' }>, 'kind'> & {
+  readonly kind: 'local';
+};
 
 /** Private structured-export evidence: directory closure, markers and unsupported sparse facts. */
 export interface PlanDocumentReads {
@@ -139,18 +162,36 @@ export interface MeasureReads {
 
 /** Export-purpose evidence is private to core callers, never part of the public tree payload. */
 export type LivePlanExportRead =
-  | Exclude<LivePlanRead, { kind: 'shared' }>
-  | (Extract<LivePlanRead, { kind: 'shared' }> & { readonly document: PlanDocumentReads });
+  | Exclude<LivePlanRead, { kind: 'shared' | 'connected' }>
+  | (Extract<LivePlanRead, { kind: 'shared' }> & { readonly document: PlanDocumentReads })
+  | (Extract<LivePlanRead, { kind: 'connected' }> & {
+      readonly projectId: string;
+      readonly document: PlanDocumentReads;
+    });
 
-/** One detached aggregate observation; entries share authority, rank and schedule evidence. */
+/**
+ * One detached aggregate observation. Component members share one captured read
+ * but select their own explicit projectId. Connected entries bypass persistent
+ * consumer caches with a null basis; reuse lasts only for this observation.
+ */
 export type LivePlanAggregate =
   | AccessRefused
   | { readonly kind: 'isolated' }
   | {
+      readonly kind: 'isolated-connected';
+      readonly entries: readonly {
+        readonly projectId: string;
+        readonly rank: number;
+        readonly basis: null;
+        readonly plan: Extract<LivePlanRead, { kind: 'connected' }> | CapturedLocalPlan;
+      }[];
+    }
+  | {
       readonly kind: 'shared';
       readonly entries: readonly {
+        readonly projectId: string;
         readonly rank: number;
         readonly basis: string | null;
-        readonly plan: Extract<LivePlanRead, { kind: 'shared' }>;
+        readonly plan: Extract<LivePlanRead, { kind: 'shared' | 'connected' }>;
       }[];
     };

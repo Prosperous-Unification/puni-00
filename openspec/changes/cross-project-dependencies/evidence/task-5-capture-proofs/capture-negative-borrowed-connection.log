@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts:
+140 |   try {
+141 |     await source.uow.run(async (scope) => {
+142 |       sqlite.db.run(sql`UPDATE project SET name = 'staged' WHERE id = 'a1'`);
+143 |       const observed = await plansOf(scope).readProject('a1');
+144 |       if (observed.kind !== 'shared') throw new Error('missing shared observation');
+145 |       expect(observed.project.name).toBe('staged');
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: "staged"
+Received: "a1"
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts:145:37)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) source borrowed shared reads include staged edits without closing their owner [156.41ms]
+
+ 0 pass
+ 10 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.15s]

@@ -1,0 +1,25 @@
+
+ NX   Running targets test, typecheck, lint for 2 projects:
+
+- wbs-contracts
+- wbs-domain
+
+
+✔  nx run wbs-domain:typecheck
+✔  nx run wbs-contracts:typecheck
+✔  nx run wbs-domain:test
+✔  nx run wbs-contracts:test
+✔  nx run wbs-domain:lint
+✔  nx run wbs-contracts:lint
+
+
+
+ NX   Successfully ran targets test, typecheck, lint for 2 projects
+
+
+Output of 6 successful tasks were not shown. Run with --verbose or --output-style=static to see it.
+
+  Run duration:      29.0s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     29.0s (1 task)
+  Recoverable time:  15ms (0% of the run)

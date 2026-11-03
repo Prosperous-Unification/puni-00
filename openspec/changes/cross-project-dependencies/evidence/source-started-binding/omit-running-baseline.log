@@ -1,0 +1,88 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/source-exclusion-native.test.ts:
+235 |       Reflect.set(
+236 |         f.source.HostConfig,
+237 |         'OomKillDisable',
+238 |         change === 'undefined' ? undefined : change === 'true',
+239 |       );
+240 |     await rejects(
+                ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: /source physical coordinates changed/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-started-binding/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:240:11
+(fail) running binding refuses later OomKillDisable false before effects [7.62ms]
+235 |       Reflect.set(
+236 |         f.source.HostConfig,
+237 |         'OomKillDisable',
+238 |         change === 'undefined' ? undefined : change === 'true',
+239 |       );
+240 |     await rejects(
+                ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: /source physical coordinates changed/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-started-binding/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:240:11
+(fail) running binding refuses later OomKillDisable true before effects [0.74ms]
+235 |       Reflect.set(
+236 |         f.source.HostConfig,
+237 |         'OomKillDisable',
+238 |         change === 'undefined' ? undefined : change === 'true',
+239 |       );
+240 |     await rejects(
+                ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: /source physical coordinates changed/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-started-binding/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:240:11
+(fail) running binding refuses later OomKillDisable absent before effects [0.41ms]
+235 |       Reflect.set(
+236 |         f.source.HostConfig,
+237 |         'OomKillDisable',
+238 |         change === 'undefined' ? undefined : change === 'true',
+239 |       );
+240 |     await rejects(
+                ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: /source physical coordinates changed/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-started-binding/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:240:11
+(fail) running binding refuses later OomKillDisable undefined before effects [0.35ms]
+
+ 0 pass
+ 40 filtered out
+ 4 fail
+Ran 4 tests across 1 file. [53.00ms]

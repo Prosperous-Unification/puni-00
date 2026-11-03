@@ -108,3 +108,24 @@ restoring the production workflow to 50 made that test fail with
 `Expected: 75 · Received: 50`; restoring 75 passed. The raw focused outcomes and
 unchanged guard are retained in the
 [allowance evidence](../../openspec/changes/burokrat-serial-legacy-compiler/evidence/ci-allowance/README.md).
+
+## Workspace capacity after the 90-minute cancellation, 2026-10-24
+
+Run [40060433745](https://github.com/Prosperous-Unification/puni-00/actions/runs/40060433745)
+at `05fd381f5664945478a1da07d9e58919742916d2` started its workspace job at
+03:58:16 UTC and was cancelled near 05:28:24 UTC. Nx began at 04:02:13 UTC, leaving about
+86m11s before cancellation and no final Nx task summary. The backend suite finished in
+42m57s, remote scripts in 31m18s with five failures, devsync in 16m39s, SQLite store in
+15m11s, and frontend node unit in 2m48s. The separate frontend test and final typecheck
+were still running. The five remote failures and a protected-operation matrix failure are
+independent incidents, not evidence that more time would make the gate green.
+
+The configured capacity partition assigns whole projects `wbs-be-01`,
+`tool-remote-scripts` and `wbs-fe-01` to separate 90-minute runners with 75-minute Nx
+phases. The residual runner owns every other non-Twilight project and retains independent
+affected lint; `gate_checks` runs the former non-Nx checks in parallel with a 30-minute
+ceiling. Every runner keeps Nx parallelism two, frozen install, native provisioning, exact
+scope and a required result. This is a capacity hypothesis until a cold exact-head hosted
+run completes all jobs and the stable `gate` reducer. The approximately four minutes of
+setup observed in this cancelled run and the prior approximately six minutes of non-Nx
+overhead support the finite allowances but do not establish a required duration.

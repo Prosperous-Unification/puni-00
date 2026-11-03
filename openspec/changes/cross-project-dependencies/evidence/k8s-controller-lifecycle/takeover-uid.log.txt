@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-lease.test.ts:
+205 |     const replacement = cluster.read();
+206 |     replacement.metadata.uid = 'replacement';
+207 |     writeFileSync(cluster.store, JSON.stringify(replacement));
+208 |     await expect(
+209 |       resumed.takeoverLease('resumed#run', observed.version, cluster.journal.path, observed.uid),
+210 |     ).rejects.toThrow('changed before takeover');
+                    ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-lease.test.ts:210:15)
+(fail) real Lease takeover refuses UID ABA between observation and CAS [98.72ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [140.00ms]

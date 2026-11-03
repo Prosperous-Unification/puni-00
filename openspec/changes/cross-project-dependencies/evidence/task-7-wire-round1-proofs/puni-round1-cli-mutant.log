@@ -1,0 +1,41 @@
+
+> nx run wbs-solver-py:test
+
+> python3 -m unittest discover -s tests -t tests
+
+.............................wbs-solver: unexpected arguments ['--search-workers', '0']; usage: wbs-solver [--version | --search-workers COUNT [--child-deadline-epoch-ms EPOCH_MS]]
+...wbs-solver: empty request: expected one JSON object on stdin
+................F...................................................................................................................................................................................................................................
+======================================================================
+FAIL: test_cli_rejects_bad_declared_feasible_witness_without_traceback (test_connected.ConnectedStage.test_cli_rejects_bad_declared_feasible_witness_without_traceback)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/puni-cross-solver-wire/libs/wbs/adapters/solver-py/tests/test_connected.py", line 252, in test_cli_rejects_bad_declared_feasible_witness_without_traceback
+    self.assertEqual(child.returncode, 64, child.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 64 : b'Traceback (most recent call last):\n  File "<frozen runpy>", line 203, in _run_module_as_main\n  File "<frozen runpy>", line 88, in _run_code\n  File "/tmp/puni-cross-solver-wire/libs/wbs/adapters/solver-py/src/wbs_solver/__main__.py", line 8, in <module>\n    raise SystemExit(main())\n                     ~~~~^^\n  File "/tmp/puni-cross-solver-wire/libs/wbs/adapters/solver-py/src/wbs_solver/cli.py", line 151, in main\n    response = solve_request(request, config)\n  File "/tmp/puni-cross-solver-wire/libs/wbs/adapters/solver-py/src/wbs_solver/solve.py", line 426, in solve_request\n    bound = baseline_bound(request)\n  File "/tmp/puni-cross-solver-wire/libs/wbs/adapters/solver-py/src/wbs_solver/solve.py", line 329, in baseline_bound\n    raise RequestRejected("declared feasibleBaselineOffsets violate the full model")\nwbs_solver.validate.RequestRejected: declared feasibleBaselineOffsets violate the full model\n'
+
+----------------------------------------------------------------------
+Ran 276 tests in 40.737s
+
+FAILED (failures=1)
+Warning: command "python3 -m unittest discover -s tests -t tests" exited with non-zero status code
+
+
+ NX   Running target test for project wbs-solver-py failed
+
+Failed tasks:
+
+- wbs-solver-py:test
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      41.2s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     41.2s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-solver-py:test    41.2s

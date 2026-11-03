@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+780 |           fixture.journal,
+781 |           fixture.fake,
+782 |           () => undefined,
+783 |           fixture.options,
+784 |         ),
+785 |       ).rejects.toThrow();
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:785:17)
+(fail) mounted missing journal refuses before controller mutation on restart [4568.86ms]
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [4.61s]

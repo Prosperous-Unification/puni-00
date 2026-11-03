@@ -1,0 +1,18 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts:
+60 | });
+61 | it('rejects malformed trusted step evidence at capture before returning detached facts', async () => {
+62 |   const writer=openDatabase(path);
+63 |   try {writer.run("INSERT INTO step(id,project_id,name,position,code) VALUES('broken','a1','broken','broken',NULL)");} finally {writer.close();}
+64 |   await repository().withSnapshot({id:'ada'},reader=>reader.capture('a1')).then(
+65 |     ()=>{throw new Error('capture admitted malformed step evidence');},
+                        ^
+error: capture admitted malformed step evidence
+      at <anonymous> (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts:65:20)
+(fail) rejects malformed trusted step evidence at capture before returning detached facts [184.63ms]
+
+ 0 pass
+ 3 filtered out
+ 1 fail
+Ran 1 test across 1 file. [2.48s]

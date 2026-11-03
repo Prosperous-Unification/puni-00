@@ -1,0 +1,40 @@
+from pathlib import Path
+import subprocess,json
+root=Path('/tmp/puni-cross-address')
+service='libs/wbs/application/core/src/service/project-address-search.ts'
+adapter='libs/wbs/adapters/store-sqlite/src/project-address-search.ts'
+mounted='apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts'
+snapshot='libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts'
+# Each fault restores before the next run. A nonzero test result is required and preserved.
+faults=[
+('organization-scope',adapter,'and(this.scope(),predicate)','predicate',mounted,'alphabetic prefix'),
+('placement-scope',adapter,'.where(eq(workItem.projectId,projectId))','',mounted,'selected project scopes'),
+('step-scope',adapter,'.where(eq(step.projectId,projectId))','',mounted,'viewer can discover'),
+('project-cap',service,'projects.slice(0, query.limit)','projects',mounted,'alphabetic prefix'),
+('candidate-cap',service,'candidates.slice(0,query.limit)','candidates',mounted,'selected project scopes'),
+('alphabetic-gate',service,"if (!/^[A-Za-z]/.test(query.search))",'if (false)',mounted,'numeric input'),
+('grammar',service,"if (parsed.kind === 'invalid')",'if (false)',mounted,'manual punctuation'),
+('stale',service,'if (revision !== addressRevision)','if (false)',mounted,'manual punctuation'),
+('ambiguous',service,'if (holders.length > 1)','if (false)',mounted,'duplicate numbers'),
+('project-binding',service,"cursor['binding'] !== binding",'false',mounted,'cursor reuse'),
+('snapshot-transaction',adapter,'transaction.begin();','',snapshot,'holds authorization'),
+('snapshot-close-guard',adapter,"if (!active) throw new Error('project address snapshot is closed');",'',snapshot,'closes success'),
+('metadata-anomaly',adapter,'if (anomaly !== undefined) decodeProjectAbbreviation(anomaly);','',mounted,'fails missing abbreviation'),
+('placement-validation',adapter,"throw new Error('malformed project address placement');",';',mounted,'fails corrupt placement'),
+('step-validation',adapter,"throw new Error('malformed project address step');",';',snapshot,'rejects malformed trusted step'),
+]
+evidence=[]
+for name,filename,before,after,test,pattern in faults:
+ path=root/filename;original=path.read_text()
+ if before not in original: raise Exception('fault anchor missing '+name)
+ try:
+  mutated=original.replace(before,after,1)
+  if name=='snapshot-transaction': mutated=mutated.replace('transaction.commit();','').replace('transaction.rollback();','')
+  path.write_text(mutated)
+  run=subprocess.run(['bun','test',test,'-t',pattern],cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+  Path('/tmp/address-proof-'+name+'.txt').write_text(run.stdout)
+  evidence.append({'fault':name,'exit':run.returncode,'test':pattern,'log':'/tmp/address-proof-'+name+'.txt'})
+  print(name,run.returncode,flush=True)
+  if run.returncode==0: raise Exception('fault survived '+name)
+ finally: path.write_text(original)
+Path('/tmp/address-proof-evidence.json').write_text(json.dumps(evidence,indent=2))

@@ -1,0 +1,273 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:
+255 |         expect(readProgress()).toEqual([]);
+256 |         await readPermission(false, type === 'FF', type !== 'FF');
+257 |         expect((await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).status).toBe(
+258 |           200,
+259 |         );
+260 |         expect(readProgress()).toEqual([{ step_id: targetStep, state: 'done' }]);
+                                     ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "state": "done",
++     "state": "in_progress",
+      "step_id": "6ff2c0d3-4d22-41d7-8de7-ad8735d5556c",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:260:32)
+(fail) isolated local FS manual completion and actual correction preserve historical observations [469.52ms]
+255 |         expect(readProgress()).toEqual([]);
+256 |         await readPermission(false, type === 'FF', type !== 'FF');
+257 |         expect((await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).status).toBe(
+258 |           200,
+259 |         );
+260 |         expect(readProgress()).toEqual([{ step_id: targetStep, state: 'done' }]);
+                                     ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "state": "done",
++     "state": "in_progress",
+      "step_id": "91aac255-36ad-4cb4-9a8c-d19e936ac0c6",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:260:32)
+(fail) isolated local SS manual completion and actual correction preserve historical observations [333.19ms]
+255 |         expect(readProgress()).toEqual([]);
+256 |         await readPermission(false, type === 'FF', type !== 'FF');
+257 |         expect((await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).status).toBe(
+258 |           200,
+259 |         );
+260 |         expect(readProgress()).toEqual([{ step_id: targetStep, state: 'done' }]);
+                                     ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "state": "done",
++     "state": "in_progress",
+      "step_id": "fd7ca481-7991-4c5a-aa4f-26b77a2c5849",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:260:32)
+(fail) isolated local FF manual completion and actual correction preserve historical observations [369.41ms]
+255 |         expect(readProgress()).toEqual([]);
+256 |         await readPermission(false, type === 'FF', type !== 'FF');
+257 |         expect((await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).status).toBe(
+258 |           200,
+259 |         );
+260 |         expect(readProgress()).toEqual([{ step_id: targetStep, state: 'done' }]);
+                                     ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "state": "done",
++     "state": "in_progress",
+      "step_id": "d341f29e-6712-4d6a-80d5-a04a09c97a50",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:260:32)
+(fail) isolated remote FS manual completion and actual correction preserve historical observations [458.38ms]
+255 |         expect(readProgress()).toEqual([]);
+256 |         await readPermission(false, type === 'FF', type !== 'FF');
+257 |         expect((await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).status).toBe(
+258 |           200,
+259 |         );
+260 |         expect(readProgress()).toEqual([{ step_id: targetStep, state: 'done' }]);
+                                     ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "state": "done",
++     "state": "in_progress",
+      "step_id": "95f64afe-ac97-466d-b840-9f968c19627b",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:260:32)
+(fail) isolated remote SS manual completion and actual correction preserve historical observations [380.93ms]
+255 |         expect(readProgress()).toEqual([]);
+256 |         await readPermission(false, type === 'FF', type !== 'FF');
+257 |         expect((await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).status).toBe(
+258 |           200,
+259 |         );
+260 |         expect(readProgress()).toEqual([{ step_id: targetStep, state: 'done' }]);
+                                     ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "state": "done",
++     "state": "in_progress",
+      "step_id": "a3305c22-cbe8-4d18-b014-8005b3aecdbb",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:260:32)
+(fail) isolated remote FF manual completion and actual correction preserve historical observations [384.02ms]
+255 |         expect(readProgress()).toEqual([]);
+256 |         await readPermission(false, type === 'FF', type !== 'FF');
+257 |         expect((await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).status).toBe(
+258 |           200,
+259 |         );
+260 |         expect(readProgress()).toEqual([{ step_id: targetStep, state: 'done' }]);
+                                     ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "state": "done",
++     "state": "in_progress",
+      "step_id": "b20638bc-9fd3-4f75-8c77-3d4c396133f0",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:260:32)
+(fail) shared local FS manual completion and actual correction preserve historical observations [359.44ms]
+255 |         expect(readProgress()).toEqual([]);
+256 |         await readPermission(false, type === 'FF', type !== 'FF');
+257 |         expect((await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).status).toBe(
+258 |           200,
+259 |         );
+260 |         expect(readProgress()).toEqual([{ step_id: targetStep, state: 'done' }]);
+                                     ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "state": "done",
++     "state": "in_progress",
+      "step_id": "d68a3e8a-79c3-4dff-9b28-0c34a293c047",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:260:32)
+(fail) shared local SS manual completion and actual correction preserve historical observations [341.71ms]
+255 |         expect(readProgress()).toEqual([]);
+256 |         await readPermission(false, type === 'FF', type !== 'FF');
+257 |         expect((await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).status).toBe(
+258 |           200,
+259 |         );
+260 |         expect(readProgress()).toEqual([{ step_id: targetStep, state: 'done' }]);
+                                     ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "state": "done",
++     "state": "in_progress",
+      "step_id": "1a0c76c2-d165-4569-bd9f-f6f4329a292c",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:260:32)
+(fail) shared local FF manual completion and actual correction preserve historical observations [330.36ms]
+255 |         expect(readProgress()).toEqual([]);
+256 |         await readPermission(false, type === 'FF', type !== 'FF');
+257 |         expect((await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).status).toBe(
+258 |           200,
+259 |         );
+260 |         expect(readProgress()).toEqual([{ step_id: targetStep, state: 'done' }]);
+                                     ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "state": "done",
++     "state": "in_progress",
+      "step_id": "85364735-a8ee-4ee9-ae53-d166076a21e6",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:260:32)
+(fail) shared remote FS manual completion and actual correction preserve historical observations [361.09ms]
+255 |         expect(readProgress()).toEqual([]);
+256 |         await readPermission(false, type === 'FF', type !== 'FF');
+257 |         expect((await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).status).toBe(
+258 |           200,
+259 |         );
+260 |         expect(readProgress()).toEqual([{ step_id: targetStep, state: 'done' }]);
+                                     ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "state": "done",
++     "state": "in_progress",
+      "step_id": "959712df-03db-4062-ab60-e0f9cc5863d6",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:260:32)
+(fail) shared remote SS manual completion and actual correction preserve historical observations [376.63ms]
+255 |         expect(readProgress()).toEqual([]);
+256 |         await readPermission(false, type === 'FF', type !== 'FF');
+257 |         expect((await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).status).toBe(
+258 |           200,
+259 |         );
+260 |         expect(readProgress()).toEqual([{ step_id: targetStep, state: 'done' }]);
+                                     ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "state": "done",
++     "state": "in_progress",
+      "step_id": "0ab9339a-0254-4e41-ac03-c40c5e654155",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:260:32)
+(fail) shared remote FF manual completion and actual correction preserve historical observations [370.23ms]
+
+ 0 pass
+ 12 filtered out
+ 12 fail
+ 168 expect() calls
+Ran 12 tests across 1 file. [7.52s]

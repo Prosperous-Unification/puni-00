@@ -1,0 +1,65 @@
+{
+  "scope": "Real observer executes; independently delivered dev BE opener reaches production unbound classifier; no fixture gate",
+  "fault": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+        "--test-name-pattern=^isolated source restoration retains original gateway authority through ready$",
+        "--timeout=320000"
+      ],
+      "pid": 3080754,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 74.84475542895962,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "f5c0f6c6611cc565bfba1a24db1330e47d161ae68977b65f5017b565d8bd318a"
+    },
+    "wrapper": {
+      "pid": 3080753,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "2819743cb6bd795dff35ec75c9c41fe11bfafd033c8508a76a2327dcc3862bc4",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderrSHA256": "f5c0f6c6611cc565bfba1a24db1330e47d161ae68977b65f5017b565d8bd318a"
+  },
+  "restored": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+        "--test-name-pattern=^isolated source restoration retains original gateway authority through ready$",
+        "--timeout=320000"
+      ],
+      "pid": 3083388,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 111.69312218402047,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "e1c70b2d0f668b92017780f8c4e9c8ae9d1a64b8b168f61944be086d8e1fac60"
+    },
+    "wrapper": {
+      "pid": 3083387,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "b491895f82ad8772c5e15991937320b10aea90f3c0223e08d6c7ba2ed4c70ea7",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderrSHA256": "e1c70b2d0f668b92017780f8c4e9c8ae9d1a64b8b168f61944be086d8e1fac60"
+  }
+}

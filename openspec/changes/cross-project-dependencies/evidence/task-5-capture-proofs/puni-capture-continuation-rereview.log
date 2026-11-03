@@ -1,0 +1,14 @@
+bun test v1.4.2 (744846f84)
+
+../puni-capture-continuation-review.test.ts:
+POST-EXPIRY SQL: []
+(pass) expired live project continuation performs no SQL when resumed in the next UoW [135.27ms]
+POST-EXPIRY FANOUT SQL: []
+(pass) expired fanout authorizeProjectUpdate continuation performs no SQL [97.37ms]
+POST-EXPIRY FANOUT SQL: []
+(pass) expired fanout authorizeStepRemoval continuation performs no SQL [78.36ms]
+
+ 3 pass
+ 0 fail
+ 6 expect() calls
+Ran 3 tests across 1 file. [2.29s]

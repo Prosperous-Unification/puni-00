@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+47 |   );
+48 | });
+49 | afterEach(() => {
+50 |   const path = harness.databasePath();
+51 |   harness.close();
+52 |   if (process.platform === 'linux') expect(readDatabaseDescriptors(path)).toEqual([]);
+                                                                               ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "/tmp/wbs-organization-LLxf15/test.db (deleted)",
++   "/tmp/wbs-organization-LLxf15/test.db-wal (deleted)",
++   "/tmp/wbs-organization-LLxf15/test.db-shm (deleted)",
++   "/tmp/wbs-organization-LLxf15/test.db (deleted)",
++   "/tmp/wbs-organization-LLxf15/test.db (deleted)",
++   "/tmp/wbs-organization-LLxf15/test.db (deleted)",
++ ]
+
+- Expected  - 1
++ Received  + 8
+
+      at <anonymous> (/tmp/puni-63-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:52:75)
+(fail) remote unfinished FS is excluded from startable and refused by claim until completion [420.67ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 9 expect() calls
+Ran 1 test across 1 file. [3.50s]

@@ -13,6 +13,31 @@ const BACKEND = join(import.meta.dir, '../../../apps/wbs/be-01');
 const SERVER = 'https://wbs.example/mcp/oauth';
 const IMAGE = `registry/wbs-be-01@sha256:${'b'.repeat(64)}`;
 const OUTGOING = 'a'.repeat(64);
+const DEPENDENCY_COMMAND = [
+  'run',
+  '--rm',
+  '--pull',
+  'never',
+  '--network',
+  'none',
+  '--entrypoint',
+  'bun',
+  IMAGE,
+  'run',
+  'src/dependency-capabilities-cli.ts',
+] as const;
+
+function isDependencyCommand(args: readonly string[]): boolean {
+  // Proof: matching every Docker run fed capability JSON to both real MCP audience owners; they failed.
+  return (
+    args.length === DEPENDENCY_COMMAND.length &&
+    args.every((argument, index) => argument === DEPENDENCY_COMMAND[index])
+  );
+}
+
+function isMcpCommand(args: readonly string[]): boolean {
+  return args[0] === 'run' && args[args.indexOf('--entrypoint') + 1] === 'sh';
+}
 const SECRETS = [
   'INTERNAL_AUTH_SECRET=internal-auth-secret-for-the-swap-0123456789',
   'JWT_SIGNING_KEY_CURRENT=jwt-signing-key-for-the-swap-0123456789abc',
@@ -120,6 +145,7 @@ function attempt(
   beEnv: string,
   secrets: readonly string[] = SECRETS,
   source: string = BACKEND,
+  dependencyFailure: 'candidate' | 'rollback' | null = null,
 ) {
   const appEnv = tierEnvFiles('be')[0];
   const secretsFile = tierSecretsFile('be');
@@ -134,6 +160,7 @@ function attempt(
     ]),
   );
   const commands: string[][] = [];
+  let dependencyCalls = 0;
   const io: SwapExecutionIo = {
     namespaceProof: () => Promise.resolve(),
     barrierStateDir: root,
@@ -157,6 +184,26 @@ function attempt(
       }),
     sh: (args) => {
       commands.push(args);
+      if (isDependencyCommand(args)) {
+        dependencyCalls++;
+        if (
+          (dependencyFailure === 'candidate' && dependencyCalls === 1) ||
+          (dependencyFailure === 'rollback' && dependencyCalls === 2)
+        )
+          return Promise.reject(new Error(`${dependencyFailure} dependency executable missing`));
+        // This fixture models a dependency-capable image independently of its MCP CLI packaging.
+        const child = Bun.spawnSync(
+          [process.execPath, 'run', 'src/dependency-capabilities-cli.ts'],
+          {
+            cwd: BACKEND,
+            env: { PATH: dirname(process.execPath) + ':/usr/bin:/bin' },
+            stdout: 'pipe',
+            stderr: 'pipe',
+          },
+        );
+        if (child.exitCode !== 0) throw new Error(child.stderr.toString());
+        return Promise.resolve(child.stdout.toString());
+      }
       if (args[0] === 'run') return Promise.resolve(runCandidate(args, root, envFiles, source));
       if (args[0] === 'stop') return Promise.reject(new Error('reached the outgoing stop'));
       if (args[0] === 'image' && args[3] === '{{json .}}')
@@ -206,6 +253,7 @@ describe('the be swap MCP preflight', () => {
       'stored audience(s) break WBS_MCP_AUTHORIZATION_SERVER and are not accepted: registration ti-legacy',
     );
     expect(swap.commands.some((args) => args[0] === 'stop')).toBe(false);
+    expect(swap.commands.filter(isDependencyCommand)).toHaveLength(2);
     expect(existsSync(join(root, 'be-writer-stop.json'))).toBe(false);
     // Secrets travel in env files, never in the echoed command.
     for (const secret of SECRETS) expect(refusal).not.toContain(secret.split('=')[1]);
@@ -219,7 +267,8 @@ describe('the be swap MCP preflight', () => {
       execute(swap.plan, IMAGE, 'deadbeef', swap.io, false, ['ti-legacy']),
     );
     expect(reached).toContain('reached the outgoing stop');
-    expect(swap.commands.filter((args) => args[0] === 'run')).toHaveLength(2);
+    expect(swap.commands.filter(isDependencyCommand)).toHaveLength(2);
+    expect(swap.commands.filter(isMcpCommand)).toHaveLength(2);
   });
 
   it('refuses an activated store whose candidate env lacks a grant setting, before migration', async () => {
@@ -246,7 +295,8 @@ describe('the be swap MCP preflight', () => {
     );
     const reached = await failure(execute(swap.plan, IMAGE, 'deadbeef', swap.io));
     expect(reached).toContain('reached the outgoing stop');
-    expect(swap.commands.filter((args) => args[0] === 'run')).toHaveLength(1);
+    expect(swap.commands.filter(isDependencyCommand)).toHaveLength(2);
+    expect(swap.commands.filter(isMcpCommand)).toHaveLength(1);
   });
 });
 
@@ -262,6 +312,30 @@ describe('a candidate without the preflight CLIs', () => {
     expect(swap.commands.some((args) => args[0] === 'stop')).toBe(false);
     expect(existsSync(join(root, 'be-writer-stop.json'))).toBe(false);
   });
+});
+
+// Proof: omitting private binary preflight let both accepted-audience cases reach durable writer stop.
+describe('MCP audience acceptance preserves independent dependency preflight', () => {
+  for (const image of ['candidate', 'rollback'] as const)
+    it(`accepted audiences cannot hide a missing ${image} dependency executable`, async () => {
+      const { root, dbPath } = store();
+      write(dbPath, LEGACY_REGISTRATION);
+      const swap = attempt(
+        root,
+        `WBS_MCP_AUTHORIZATION_SERVER=${SERVER}\n`,
+        SECRETS,
+        BACKEND,
+        image,
+      );
+      const refusal = await failure(
+        execute(swap.plan, IMAGE, 'deadbeef', swap.io, false, ['ti-legacy']),
+      );
+      expect(refusal).toContain(`${image} dependency executable missing`);
+      expect(swap.commands.filter(isDependencyCommand)).toHaveLength(image === 'candidate' ? 1 : 2);
+      expect(swap.commands.filter(isMcpCommand)).toHaveLength(0);
+      expect(swap.commands.some((args) => args[0] === 'stop')).toBe(false);
+      expect(existsSync(join(root, 'be-writer-stop.json'))).toBe(false);
+    });
 });
 
 describe('the swap CLI accept list', () => {

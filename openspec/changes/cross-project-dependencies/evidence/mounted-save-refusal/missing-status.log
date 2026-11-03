@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts:
+293 |       );
+294 |       try {
+295 |         const saved = await mounted.call('ada', 'POST', `/api/projects/${beta}/saved-plans`, {
+296 |           name: `Refuse ${fault}`,
+297 |         });
+298 |         expect(saved.status).toBe(500);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 201
+
+      at <anonymous> (/tmp/puni-mounted-save-proof/apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts:298:30)
+(fail) mounted isolated connected save refuses absent foreign capture evidence atomically [363.97ms]
+293 |       );
+294 |       try {
+295 |         const saved = await mounted.call('ada', 'POST', `/api/projects/${beta}/saved-plans`, {
+296 |           name: `Refuse ${fault}`,
+297 |         });
+298 |         expect(saved.status).toBe(500);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 201
+
+      at <anonymous> (/tmp/puni-mounted-save-proof/apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts:298:30)
+(fail) mounted shared connected save refuses absent foreign capture evidence atomically [281.01ms]
+
+ 0 pass
+ 9 filtered out
+ 2 fail
+ 22 expect() calls
+Ran 2 tests across 1 file. [3.94s]

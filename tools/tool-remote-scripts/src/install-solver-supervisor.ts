@@ -1,16 +1,20 @@
-import { verifyInstalled } from './install';
 import type { BundleFile } from './lib/deploy-contract';
+import { requireInheritedEdgeLock } from './lib/edge-admission';
 import {
   assertSolverSupervisorBunVersion,
   SOLVER_SUPERVISOR_BUN,
   SOLVER_SUPERVISOR_BUN_SOURCE,
   SOLVER_SUPERVISOR_BUNDLE,
   SOLVER_SUPERVISOR_CONFIG,
-  SOLVER_SUPERVISOR_SERVICE,
   SOLVER_SUPERVISOR_SOCKET,
   SOLVER_SUPERVISOR_UNIT,
   SOLVER_SUPERVISOR_UNIT_SOURCE,
 } from './lib/solver-supervisor-install-contract';
+import {
+  buildSolverSupervisorInstallOperation,
+  describeSolverSupervisorInstallEvidence,
+  quoteInstallShell,
+} from './lib/solver-supervisor-install-operation';
 import {
   decodeSolverSupervisorConfigBytes,
   SUPERVISOR_CONFIG_MAX_BYTES,
@@ -22,12 +26,14 @@ export interface SolverSupervisorInstallArgs {
   host: string;
   execute: boolean;
   config: string;
+  local?: boolean;
 }
 
 export interface SolverSupervisorInstallStep {
   phase: 'preflight' | 'files' | 'service';
   description: string;
   argv: string[];
+  failureContext: string;
 }
 
 interface CommandOutput {
@@ -39,8 +45,8 @@ interface CommandOutput {
 export interface SolverSupervisorInstallerDependencies {
   read(path: string): Promise<Uint8Array>;
   exists(path: string): Promise<boolean>;
-  command(argv: readonly string[]): Promise<CommandOutput>;
-  verify(host: string, files: readonly BundleFile[]): Promise<void>;
+  command(argv: readonly string[], inherit?: boolean): Promise<CommandOutput>;
+  hash(path: string): Promise<string>;
 }
 
 export function parseSolverSupervisorInstallArgs(
@@ -49,22 +55,29 @@ export function parseSolverSupervisorInstallArgs(
   let host = 'h2puni';
   let execute = false;
   let config = '';
+  let local = false;
+  let explicitHost = false;
 
   for (const raw of argv) {
     const match = /^--([^=]+)(?:=(.*))?$/.exec(raw);
     if (match === null) throw new Error(`unexpected argument ${raw}`);
     const key = match[1];
     const value = (match[2] as string | undefined) ?? '';
-    if (key === 'host') host = value;
+    if (key === 'host') {
+      host = value;
+      explicitHost = true;
+    } else if (key === 'local' && value === '') local = true;
     else if (key === 'execute' && value === '') execute = true;
     else if (key === 'dry-run' && value === '') execute = false;
     else if (key === 'config' && value !== '') config = value;
     else throw new Error(`unexpected argument ${raw}`);
   }
 
+  // Proof: omitting mutual exclusion failed the explicit local/host argument negative.
+  if (local && explicitHost) throw new Error('--local cannot combine with --host');
   if (!HOST.test(host)) throw new Error(`invalid SSH host ${host || '(missing)'}`);
   if (config === '') throw new Error('--config=<local validated supervisor config> is required');
-  return { host, execute, config };
+  return { host, execute, config, ...(local ? { local } : {}) };
 }
 
 export function solverSupervisorInstallFiles(config: string): readonly BundleFile[] {
@@ -76,34 +89,20 @@ export function solverSupervisorInstallFiles(config: string): readonly BundleFil
   ];
 }
 
+/** Captures unique private staging and one admitted publication operation. */
 export function buildSolverSupervisorInstallPlan(
   host: string,
   config: string,
   socketPath: string,
+  hashes: readonly string[],
+  local = false,
 ): readonly SolverSupervisorInstallStep[] {
   const files = solverSupervisorInstallFiles(config);
-  const temp = files.map((file) => ({ ...file, remote: `${file.remote}.tmp` }));
-  const moves = files.map((file, index) => `mv ${temp[index]?.remote} ${file.remote}`).join(' && ');
-  const permissions = temp
-    .map((file) => {
-      const mode =
-        file.remote === `${SOLVER_SUPERVISOR_CONFIG}.tmp`
-          ? '0600'
-          : file.remote === `${SOLVER_SUPERVISOR_UNIT}.tmp`
-            ? '0644'
-            : '0755';
-      return `chmod ${mode} ${file.remote}`;
-    })
-    .join(' && ');
-  const readiness =
-    `set -eu; systemctl --user is-active --quiet ${SOLVER_SUPERVISOR_SERVICE}; ` +
-    'solver_probe=0; ' +
-    `until test -S ${socketPath}; do ` +
-    'solver_probe=$((solver_probe + 1)); ' +
-    'if test "$solver_probe" -ge 40; then echo "solver supervisor socket did not become ready" >&2; exit 1; fi; ' +
-    'sleep 0.25; done';
-
-  return [
+  // Proof: fixed attempt IDs reuse paths in the repeated real remote CLI transport test.
+  const staging = `/home/puni1/.cache/wbs-solver/install-${crypto.randomUUID()}`;
+  const shell = (script: string): string[] =>
+    local ? ['sh', '-c', script] : ['ssh', host, `sh -c ${quoteInstallShell(script)}`];
+  const steps: Omit<SolverSupervisorInstallStep, 'failureContext'>[] = [
     {
       phase: 'preflight',
       description: 'require the installer Bun to have accepted-socket fd support',
@@ -111,53 +110,48 @@ export function buildSolverSupervisorInstallPlan(
     },
     {
       phase: 'files',
-      description: 'create the host-wide supervisor directories',
-      argv: [
-        'ssh',
-        host,
-        'install -d -m 0755 /home/puni1/.local/lib/wbs-solver /home/puni1/.config/systemd/user && install -d -m 0700 /home/puni1/.config/wbs-solver',
-      ],
+      // Proof: changing mkdir to 0755 failed real SCP privacy validation before the first upload.
+      description: 'create unique private supervisor staging',
+      argv: shell(
+        `set -eu; install -d -m 0700 /home/puni1/.cache/wbs-solver; mkdir -m 0700 -- ${quoteInstallShell(staging)}`,
+      ),
     },
-    ...temp.map((file, index) => ({
+    ...files.map((file, index) => ({
       phase: 'files' as const,
-      description: `stage ${files[index]?.local} at ${file.remote}`,
-      argv: ['scp', file.local, `${host}:${file.remote}`],
+      description: `stage ${file.local}`,
+      argv: local
+        ? ['cp', '--', file.local, `${staging}/${String(index)}`]
+        : ['scp', file.local, `${host}:${staging}/${String(index)}`],
     })),
     {
-      phase: 'files',
-      description: 'verify the staged Bun runtime before publication',
-      argv: ['ssh', host, `${SOLVER_SUPERVISOR_BUN}.tmp --version`],
-    },
-    {
-      phase: 'files',
-      description: 'atomically publish the supervisor bundle, config, and unit',
-      argv: ['ssh', host, `${permissions} && ${moves}`],
-    },
-    {
       phase: 'service',
-      description: 'reload the user service manager',
-      argv: ['ssh', host, 'systemctl --user daemon-reload'],
-    },
-    {
-      phase: 'service',
-      description: `enable ${SOLVER_SUPERVISOR_SERVICE}`,
-      argv: ['ssh', host, `systemctl --user enable ${SOLVER_SUPERVISOR_SERVICE}`],
-    },
-    {
-      phase: 'service',
-      description: `restart ${SOLVER_SUPERVISOR_SERVICE}`,
-      argv: ['ssh', host, `systemctl --user restart ${SOLVER_SUPERVISOR_SERVICE}`],
-    },
-    {
-      phase: 'service',
-      description: `require active service and socket ${socketPath}`,
-      argv: ['ssh', host, readiness],
+      description: 'admit, publish, read back and ready supervisor under canonical edge.lock',
+      argv: shell(buildSolverSupervisorInstallOperation(files, hashes, staging, socketPath, local)),
     },
   ];
+  const failureContext = describeSolverSupervisorInstallEvidence(files, hashes, staging);
+  return steps.map((step) => ({ ...step, failureContext }));
 }
 
-async function command(argv: readonly string[]): Promise<CommandOutput> {
-  const child = Bun.spawn([...argv], { stdout: 'pipe', stderr: 'pipe' });
+/** Preserves the admitted open description across the second Bun-to-shell hop. */
+export async function runSolverSupervisorInstallCommand(
+  argv: readonly string[],
+  inherit = false,
+): Promise<CommandOutput> {
+  // Proof: omitting admission or FD3 mapping independently failed the real two-hop Bun/shell control.
+  const admission = inherit ? await requireInheritedEdgeLock() : undefined;
+  const child = Bun.spawn([...argv], {
+    env: {
+      ...process.env,
+      ...(admission === undefined
+        ? {}
+        : { WBS_EDGE_LOCK_FD: '3', WBS_EDGE_STATE: admission.stateDirectory }),
+    },
+    stdio:
+      admission === undefined
+        ? ['ignore', 'pipe', 'pipe']
+        : ['ignore', 'pipe', 'pipe', admission.descriptor],
+  });
   const [stdout, stderr, code] = await Promise.all([
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
@@ -174,25 +168,37 @@ const DEFAULT_DEPENDENCIES: SolverSupervisorInstallerDependencies = {
         .arrayBuffer(),
     ),
   exists: (path) => Bun.file(path).exists(),
-  command,
-  verify: verifyInstalled,
+  command: runSolverSupervisorInstallCommand,
+  hash: async (path) =>
+    new Bun.CryptoHasher('sha256').update(await Bun.file(path).arrayBuffer()).digest('hex'),
 };
 
 async function requireCommand(
   step: SolverSupervisorInstallStep,
   dependencies: SolverSupervisorInstallerDependencies,
+  inherit = false,
 ): Promise<CommandOutput> {
-  const output = await dependencies.command(step.argv);
+  // Proof: omitting context independently failed real upload refusal and unspawnable-transport negatives.
+  let output: CommandOutput;
+  try {
+    output = await dependencies.command(step.argv, inherit);
+  } catch (error) {
+    throw new Error(
+      `${step.description} could not run: ${error instanceof Error ? error.message : String(error)}; installation may be partial or uncertain; ${step.failureContext}; inspect installed bytes and service readiness under edge.lock before retry`,
+      { cause: error },
+    );
+  }
   if (output.code !== 0) {
     throw new Error(
-      `${step.description} failed (exit ${String(output.code)}): ${output.stderr.trim()}`,
+      `${step.description} failed (exit ${String(output.code)}): ${output.stderr.trim()}; installation may be partial or uncertain; ${step.failureContext}; inspect installed hashes, invocation staging and service readiness under edge.lock before retry`,
     );
   }
   return output;
 }
 
 /**
- * Validates every local input and the remote runtime before the first remote mutation.
+ * Validates local inputs before staging and rejects unsupported staged bytes
+ * before final publication. Local execution requires inherited admission at each child.
  *
  * Proof: install-solver-supervisor.test.ts supplies an incomplete config and
  * requires the command ledger to remain empty.
@@ -213,7 +219,21 @@ export async function installSolverSupervisor(
     }
   }
 
-  const plan = buildSolverSupervisorInstallPlan(args.host, args.config, options.connection.unix);
+  // Proof: changing source config during SCP is refused against the validated bytes captured here.
+  const hashes = await Promise.all(
+    files.map((file) =>
+      file.local === args.config
+        ? Promise.resolve(new Bun.CryptoHasher('sha256').update(bytes).digest('hex'))
+        : dependencies.hash(file.local),
+    ),
+  );
+  const plan = buildSolverSupervisorInstallPlan(
+    args.host,
+    args.config,
+    options.connection.unix,
+    hashes,
+    args.local,
+  );
   if (!args.execute) return plan;
 
   const preflight = plan.find((step) => step.phase === 'preflight');
@@ -222,17 +242,8 @@ export async function installSolverSupervisor(
   // the preflight is the only command reached.
   assertSolverSupervisorBunVersion((await requireCommand(preflight, dependencies)).stdout);
 
-  for (const step of plan.filter((candidate) => candidate.phase === 'files')) {
-    const output = await requireCommand(step, dependencies);
-    if (step.description === 'verify the staged Bun runtime before publication') {
-      assertSolverSupervisorBunVersion(output.stdout);
-    }
-  }
-  // Proof: install-solver-supervisor.test.ts requires this marker to precede
-  // daemon-reload, so mismatched bytes cannot be activated.
-  await dependencies.verify(args.host, files);
-  for (const step of plan.filter((candidate) => candidate.phase === 'service')) {
-    await requireCommand(step, dependencies);
+  for (const step of plan.filter((candidate) => candidate.phase !== 'preflight')) {
+    await requireCommand(step, dependencies, args.local === true);
   }
   return plan;
 }
@@ -241,7 +252,7 @@ async function main(): Promise<void> {
   const args = parseSolverSupervisorInstallArgs(process.argv.slice(2));
   const plan = await installSolverSupervisor(args);
   console.log(
-    `[tool-remote-scripts] solver supervisor host=${args.host} execute=${String(args.execute)}`,
+    `[tool-remote-scripts] solver supervisor host=${args.local === true ? 'local' : args.host} execute=${String(args.execute)}`,
   );
   for (const step of plan) console.log(`  ${step.description}`);
   if (!args.execute) {

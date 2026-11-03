@@ -1,0 +1,2261 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts:
+(pass) source borrowed readers expire after success and never revive in the next run [234.35ms]
+(pass) source borrowed readers expire after refusal and never revive in the next run [213.45ms]
+(pass) source borrowed readers expire after throw and never revive in the next run [154.12ms]
+(pass) source borrowed shared reads include staged edits without closing their owner [411.73ms]
+(pass) suspended first-plan-read refuses before further reads during a later transaction [325.58ms]
+(pass) transaction snapshot and raw cache capability never revive after settlement [153.20ms]
+(pass) source fanout capability and authority callbacks expire permanently [158.09ms]
+(pass) refused command repair discard uses surviving journal state and expired old captures [209.13ms]
+(pass) refused command repair throw uses surviving journal state and expired old captures [171.52ms]
+(pass) legacy early reads expire while the reusable public owner keeps opening observations [109.57ms]
+(pass) scope construction failure expires acquired readers and rolls back its BEGIN [116.53ms]
+
+libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:
+193 |         await run([
+194 |           { kind: 'setResourceCapacity', resourceId: RAM, units: 32 },
+195 |           { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
+196 |         ]);
+197 |         const claimed = await run([claim(0, 'a0', { runId: 'run-0' })]);
+198 |         expect(claimed).toMatchObject({
+                              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
+-   "results": [
+-     {
+-       "acquired": [
+-         {
+-           "resourceId": "resource-ram",
+-           "units": 4,
+-         },
+-       ],
+-       "kind": "claimWorkItem",
+-     },
+-   ],
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "a181dfa8-f695-4d1d-8579-abf1a483f2a3",
++         "type": "FS",
++         "workItemId": "1b5d3bd3-3b57-459f-bb7b-4a0fb24a4af0",
++       },
++     ],
++     "stepIds": [
++       "c074f913-299d-478e-a740-0ff42ebb2f1c",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 12
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:198:25)
+(fail) claim occupancy on the memory store > acquires the declared demand and reads it per project and per resource [85.14ms]
+227 |             resourceId: RAM,
+228 |             units: 4,
+229 |           })),
+230 |         ]);
+231 |         for (let index = 0; index < 8; index += 1)
+232 |           expect(await run([claim(index, `a${String(index)}`)])).toMatchObject({ ok: true });
+                                                                       ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "726a8104-d4d0-4dbd-a782-1101baa59ead",
++         "type": "FS",
++         "workItemId": "a1cb5859-979b-4377-9675-8cfc24b4fdb2",
++       },
++     ],
++     "stepIds": [
++       "503e9f77-d2fa-448b-8402-e96963510062",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:232:66)
+(fail) claim occupancy on the memory store > refuses the ninth claim on 32 GB naming the eight holders [22.66ms]
+261 |         await run([
+262 |           { kind: 'setResourceCapacity', resourceId: WORKTREE, units: 1 },
+263 |           { kind: 'setDemand', workItemId: leaf(0), resourceId: WORKTREE, units: 1 },
+264 |         ]);
+265 |         expect(await run([claim(0, 'a0', { steps: [dev] })])).toMatchObject({ ok: true });
+266 |         expect(await run([claim(0, 'a1', { steps: [review] })])).toMatchObject({
+                                                                       ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
+-   "results": [
+-     {
+-       "acquired": [],
+-     },
+-   ],
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "36eb17e7-4a05-4801-ad45-50f1287f36ee",
++         "type": "FS",
++         "workItemId": "5d4c347b-53f9-4371-a90d-f63f1199de28",
++       },
++     ],
++     "stepIds": [
++       "13826e21-4b43-46bc-a024-e75c4a949d9c",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 6
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:266:66)
+(fail) claim occupancy on the memory store > shares one occupancy between two steps and frees it on the last release only [26.86ms]
+296 |           expect(await run([claim(0, 'a0', { steps: [dev] })])).toMatchObject({ ok: true });
+297 |           const expanded = await run([
+298 |             claim(0, 'a1', { steps: [review], resources: [{ resourceId: RAM, units: 8 }] }),
+299 |           ]);
+300 |           if (expected === 'acquired') {
+301 |             expect(expanded).toMatchObject({
+                                   ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
+-   "results": [
+-     {
+-       "acquired": [
+-         {
+-           "resourceId": "resource-ram",
+-           "units": 4,
+-         },
+-       ],
+-     },
+-   ],
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "eda3b098-135c-42bd-85f3-e67c6d0e5bf9",
++         "type": "FS",
++         "workItemId": "67888098-93de-4103-bc5e-837510b53590",
++       },
++     ],
++     "stepIds": [
++       "3cbd61a2-337c-48e3-8039-b111a573f507",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 11
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:301:30)
+(fail) claim occupancy on the memory store > expands a held leaf's units on a later claim's ask, or refuses it (capacity 8) [26.64ms]
+302 |               ok: true,
+303 |               results: [{ acquired: [{ resourceId: RAM, units: 4 }] }],
+304 |             });
+305 |             expect(await occupied(RAM)).toBe(8);
+306 |           } else {
+307 |             expect(expanded).toMatchObject({
+                                   ^
+error: expect(received).toMatchObject(expected)
+
+  {
++   "at": 0,
+    "detail": {
+-     "asked": 8,
+-     "free": 6,
+-     "resourceId": "resource-ram",
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "626e47d8-95e5-4b28-9531-4a6e6b492975",
++         "type": "FS",
++         "workItemId": "884aa066-b0b4-47be-9ecb-41c74d29ef7e",
++       },
++     ],
++     "stepIds": [
++       "32c9f0f5-3d86-458d-854c-515c9e7b1283",
++     ],
+    },
++   "kind": "claimWorkItem",
+    "ok": false,
+-   "reason": "resources_exhausted",
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 4
++ Received  + 15
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:307:30)
+(fail) claim occupancy on the memory store > expands a held leaf's units on a later claim's ask, or refuses it (capacity 6) [30.74ms]
+323 |         await run([claim(0, 'a0', { steps: [dev], resources: [{ resourceId: RAM, units: 6 }] })]);
+324 |         expect(
+325 |           await run([
+326 |             claim(0, 'a1', { steps: [review], resources: [{ resourceId: RAM, units: 5 }] }),
+327 |           ]),
+328 |         ).toEqual({
+                ^
+error: expect(received).toEqual(expected)
+
+  {
+    "at": 0,
+    "detail": {
+-     "asked": 5,
+-     "held": 6,
+-     "resourceId": "resource-ram",
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "562dd759-c8e8-4102-b356-1a8820c5f2c2",
++         "type": "FS",
++         "workItemId": "bf2f6fc4-7f18-4475-bb71-7ded1076e6fc",
++       },
++     ],
++     "stepIds": [
++       "a5e984c8-f35b-4492-83a8-ff0f64928945",
++     ],
+    },
+    "kind": "claimWorkItem",
+    "ok": false,
+-   "reason": "below_held_occupancy",
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 4
++ Received  + 13
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:328:11)
+(fail) claim occupancy on the memory store > refuses a later claim asking for less than its leaf holds [23.82ms]
+345 |         await run([
+346 |           { kind: 'setResourceCapacity', resourceId: RAM, units: 8 },
+347 |           { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 2 },
+348 |           { kind: 'setDemand', workItemId: leaf(1), resourceId: RAM, units: 2 },
+349 |         ]);
+350 |         expect(await run([claim(0, 'a0', { resources: [{ resourceId: RAM, units: 1 }] })])).toEqual(
+                                                                                                  ^
+error: expect(received).toEqual(expected)
+
+  {
+    "at": 0,
+    "detail": {
+-     "asked": 1,
+-     "declared": 2,
+-     "resourceId": "resource-ram",
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "0d830821-f1d0-490b-832b-8587b15d40c4",
++         "type": "FS",
++         "workItemId": "a4a68fd3-7de8-4d15-8625-850ef82728d3",
++       },
++     ],
++     "stepIds": [
++       "fb3b22b8-1f48-4b23-a3a8-c106c3b0d7db",
++     ],
+    },
+    "kind": "claimWorkItem",
+    "ok": false,
+-   "reason": "below_declared_demand",
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 4
++ Received  + 13
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:350:93)
+(fail) claim occupancy on the memory store > holds what resources asks above the declared demand, and refuses asking less [17.51ms]
+(pass) claim occupancy on the memory store > assigns the claimant and holds the asked units when a claim names both assign and resources [26.48ms]
+(pass) claim occupancy on the memory store > refuses resources naming an absent resource, or more than one unit of an exclusive one [13.20ms]
+425 |       try {
+426 |         await run([
+427 |           { kind: 'setDemand', workItemId: leaf(0), resourceId: DISK, units: 900 },
+428 |           { kind: 'setDemand', workItemId: leaf(1), resourceId: DISK, units: 900 },
+429 |         ]);
+430 |         expect(await run([claim(0, 'a0')])).toMatchObject({ ok: true });
+                                                  ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "aae872b7-16dc-462a-9d38-0839c7bef72a",
++         "type": "FS",
++         "workItemId": "b743196d-4f45-4a31-98a1-ba41e05ed99f",
++       },
++     ],
++     "stepIds": [
++       "94d303d4-29c7-44dd-a261-4beedeedf114",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:430:45)
+(fail) claim occupancy on the memory store > applies a claim on a resource whose capacity the project never stated [21.23ms]
+445 |         ]);
+446 |         await run([claim(0, 'a0')]);
+447 |         expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+448 |         expect(await occupied(RAM)).toBe(0);
+449 |         expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+450 |         expect(await occupied(RAM)).toBe(4);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 4
+Received: 0
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:450:37)
+(fail) claim occupancy on the memory store > undo of a claim takes its occupancy; redo re-acquires it [40.99ms]
+461 |           { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
+462 |           { kind: 'setDemand', workItemId: leaf(1), resourceId: RAM, units: 4 },
+463 |         ]);
+464 |         await run([claim(0, 'a0')]);
+465 |         expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+466 |         expect(await run([claim(1, 'g0')], G)).toMatchObject({ ok: true });
+                                                     ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "325455cc-c782-4354-b03a-1c7be67687b7",
++         "type": "FS",
++         "workItemId": "4aaa1860-da39-45c2-85c9-de431adf6355",
++       },
++     ],
++     "stepIds": [
++       "12ca589d-c751-46bc-80c4-fc3af3ca489c",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:466:48)
+(fail) claim occupancy on the memory store > redo of a claim is refused resources_exhausted once another leaf took the units [27.42ms]
+484 |         ]);
+485 |         await run([claim(0, 'a0')]);
+486 |         await run([release(0, 'a0')]);
+487 |         expect(await occupied(RAM)).toBe(0);
+488 |         expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+489 |         expect(await occupied(RAM)).toBe(4);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 4
+Received: 0
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:489:37)
+(fail) claim occupancy on the memory store > undo of a release re-acquires the units [22.11ms]
+530 |           [x, 'a1'],
+531 |           [y, 'a2'],
+532 |         ] as const)
+533 |           expect(
+534 |             await run([{ kind: 'claimWorkItem', workItemId, personId, parentClaim }]),
+535 |           ).toMatchObject({ ok: true });
+                  ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "7fd6986c-c4b2-45cf-8b59-3f99a9b4adfd",
++         "type": "FS",
++         "workItemId": "9ab03c3b-59c2-4816-83f4-b6db26719980",
++       },
++     ],
++     "stepIds": [
++       "638f0387-112d-432d-a5bd-fd980ea675f0",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:535:13)
+(fail) claim occupancy on the memory store > undo of a cascading release re-acquires leaf by leaf, refused once the second leaf no longer fits [30.81ms]
+563 |         const split = await run([
+564 |           { kind: 'createWorkItem', ref: 'c', name: 'Child', parentId: leaf(0), afterId: null },
+565 |         ]);
+566 |         expect(split).toMatchObject({ ok: true });
+567 |         expect(await demands()).toEqual(['child:4']);
+568 |         expect(await occupied(RAM)).toBe(4);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 4
+Received: 0
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:568:37)
+(fail) claim occupancy on the memory store > hands a leaf’s demand down to its first child, keeping the occupancy, and back on undo [24.00ms]
+603 |         expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+604 |         expect(await demands()).toEqual([{ owner: 'C', resourceId: RAM, units: 4 }]);
+605 |         expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+606 |         expect(await demands()).toEqual([{ owner: 'L', resourceId: RAM, units: 4 }]);
+607 |         expect(await source.stores.demands.listByProject(projectId)).toHaveLength(1);
+608 |         expect(await run([claim(0, 'a0')])).toMatchObject({
+                                                  ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
+-   "results": [
+-     {
+-       "acquired": [
+-         {
+-           "resourceId": "resource-ram",
+-           "units": 4,
+-         },
+-       ],
+-       "kind": "claimWorkItem",
+-     },
+-   ],
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "e23e6e8c-7aea-46d7-8079-09e37bfb0db3",
++         "type": "FS",
++         "workItemId": "2fb4604b-e571-49fd-9964-163fec3af4d0",
++       },
++     ],
++     "stepIds": [
++       "ab74f54a-7e0b-48e7-94ba-af5bff33192a",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 12
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:608:45)
+(fail) claim occupancy on the memory store > hands the last child’s demand back up when its delete promotes the parent, and back on undo [48.60ms]
+620 |       try {
+621 |         await run([
+622 |           { kind: 'setResourceCapacity', resourceId: RAM, units: 8 },
+623 |           { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
+624 |         ]);
+625 |         expect(await run([claim(0, 'a0', { runId: 'run-0' })])).toMatchObject({ ok: true });
+                                                                      ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "fcf8824b-b5cc-40ab-bbb2-9799453cea2b",
++         "type": "FS",
++         "workItemId": "d8de57ac-1938-4319-bd7a-2c5b57d22165",
++       },
++     ],
++     "stepIds": [
++       "b28e84a4-9ec7-450f-81e9-092f3be78434",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:625:65)
+(fail) claim occupancy on the memory store > hands the only child’s claims and occupancy back up when its delete promotes the parent, and back on undo [13.80ms]
+(pass) claim occupancy on the memory store > hands up the largest units any former leaf of a deleted last branch demanded [29.32ms]
+(pass) claim occupancy on the memory store > clears the demand of an unclaimed leaf another row moves under, the moved row keeping its own, and back on undo [28.52ms]
+777 |       const { broadcast, projectId, runner, run, claim, occupied, close } = await seeded(store);
+778 |       try {
+779 |         await run([claim(0, 'a0', { resources: [{ resourceId: WORKTREE, units: 1 }] })]);
+780 |         expect(
+781 |           await runner.runDirectory(F, [{ kind: 'deleteResource', resourceId: WORKTREE }]),
+782 |         ).toMatchObject({
+                ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "detail": {
+-     "counts": {
+-       "capacities": 0,
+-       "demands": 0,
+-       "occupancies": 1,
++   "ok": true,
++   "redoable": false,
++   "results": [
++     {
++       "index": 0,
++       "kind": "deleteResource",
+      },
+-   },
+-   "ok": false,
+-   "reason": "in_use",
++   ],
++   "undoable": false,
+  }
+
+- Expected  - 8
++ Received  + 8
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:782:11)
+(fail) claim occupancy on the memory store > refuses deleting a resource a claim holds, counting it, and cascades on confirmation [14.89ms]
+(pass) claim occupancy on the memory store > leaves the canonical schedule input unchanged by a claim that occupies units [20.54ms]
+(pass) demands and claims through delete, undo and duplicate on the memory store > undo of a delete puts the demands back exactly; redo takes them again [33.05ms]
+(pass) demands and claims through delete, undo and duplicate on the memory store > undo of a cascading delete puts every row’s demands back [34.81ms]
+(pass) demands and claims through delete, undo and duplicate on the memory store > refuses an undo of a delete whose demanded resource was deleted since [18.73ms]
+(pass) demands and claims through delete, undo and duplicate on the memory store > duplicate copies the demands with the subtree; undo takes the copies, redo brings them back [35.77ms]
+975 |       try {
+976 |         await run([
+977 |           { kind: 'setResourceCapacity', resourceId: RAM, units: 8 },
+978 |           { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
+979 |         ]);
+980 |         expect(await run([claim(0, 'a0', { runId: 'run-0' })])).toMatchObject({ ok: true });
+                                                                      ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "7586e0f3-7442-41c4-a034-b19848afc926",
++         "type": "FS",
++         "workItemId": "43c8a1b4-09a9-4d7d-bbab-a5e7adae81d6",
++       },
++     ],
++     "stepIds": [
++       "29fce1a2-96b0-437d-b9fa-882cae401c2f",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:980:65)
+(fail) demands and claims through delete, undo and duplicate on the memory store > undo of a delete puts the claims and their occupancy back; redo takes them again [13.04ms]
+1006 |           { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
+1007 |           { kind: 'setDemand', workItemId: leaf(1), resourceId: RAM, units: 4 },
+1008 |         ]);
+1009 |         await run([claim(0, 'a0')]);
+1010 |         await run([{ kind: 'deleteWorkItem', workItemId: leaf(0) }]);
+1011 |         expect(await run([claim(1, 'g0')], G)).toMatchObject({ ok: true });
+                                                      ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "6cbb3983-1d9d-4449-ab84-2c4a8dde72e3",
++         "type": "FS",
++         "workItemId": "04dc8262-a626-4364-a22d-6247f02e6947",
++       },
++     ],
++     "stepIds": [
++       "b7ee0520-4098-44f0-ae9b-e513579728eb",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:1011:48)
+(fail) demands and claims through delete, undo and duplicate on the memory store > refuses an undo of a delete resources_exhausted once another leaf took the units [20.30ms]
+1032 |         const applied = subtree.results[0];
+1033 |         const parentClaim = applied.kind === 'claimWorkItem' ? applied.claimIds[0] : undefined;
+1034 |         if (parentClaim === undefined) throw new Error('the subtree claim wrote no claim');
+1035 |         expect(
+1036 |           await run([{ kind: 'claimWorkItem', workItemId: x, personId: 'a1', parentClaim }]),
+1037 |         ).toMatchObject({ ok: true });
+                 ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "1b43f11b-da36-409b-99c6-56085a75bf12",
++         "type": "FS",
++         "workItemId": "656301d6-5bed-4dd7-af42-5c513c206c3e",
++       },
++     ],
++     "stepIds": [
++       "a53aecee-fdd1-4388-a93e-27946cdfada4",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:1037:11)
+(fail) demands and claims through delete, undo and duplicate on the memory store > undo of a promoting delete puts back the subtree claim and the claims delegated under it [22.51ms]
+1062 |         const applied = subtree.ok ? subtree.results[0] : undefined;
+1063 |         const parentClaim = applied?.kind === 'claimWorkItem' ? applied.claimIds[0] : undefined;
+1064 |         if (parentClaim === undefined) throw new Error('the subtree claim wrote no claim');
+1065 |         expect(
+1066 |           await run([{ kind: 'claimWorkItem', workItemId: z, personId: 'a1', parentClaim }]),
+1067 |         ).toMatchObject({ ok: true });
+                 ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "dba1afea-f932-425d-b261-0fed4e31c853",
++         "type": "FS",
++         "workItemId": "0bacf9a1-f923-4428-af8c-ed2303437b24",
++       },
++     ],
++     "stepIds": [
++       "973b02e4-f044-4e10-9f3b-003c5c5c43e6",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:1067:11)
+(fail) demands and claims through delete, undo and duplicate on the memory store > hands a delegated claim up with its parent claim id when its leaf’s delete promotes the parent [25.37ms]
+1127 |         expect(
+1128 |           await run([
+1129 |             { kind: 'claimWorkItem', workItemId: y1, personId: 'a0' },
+1130 |             { kind: 'claimWorkItem', workItemId: y2, personId: 'a1' },
+1131 |           ]),
+1132 |         ).toMatchObject({ ok: true });
+                 ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "6eaea70a-9b39-4b40-9fcf-eae81c0c186a",
++         "type": "FS",
++         "workItemId": "5a71c0e1-2e87-4026-84b3-1bc08659992b",
++       },
++     ],
++     "stepIds": [
++       "3dfb5eb9-045e-41cc-b545-b2671dbdacd0",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:1132:11)
+(fail) demands and claims through delete, undo and duplicate on the memory store > refuses a promoting delete whose claims sit on two former leaves, naming every holder [31.57ms]
+1174 |         const applied = subtree.ok ? subtree.results[0] : undefined;
+1175 |         const parentClaim = applied?.kind === 'claimWorkItem' ? applied.claimIds[0] : undefined;
+1176 |         if (parentClaim === undefined) throw new Error('the subtree claim wrote no claim');
+1177 |         expect(
+1178 |           await run([{ kind: 'claimWorkItem', workItemId: x, personId: 'a1', parentClaim }]),
+1179 |         ).toMatchObject({ ok: true });
+                 ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "b4f0190f-bad5-48ad-8f91-35d47ce2ec7d",
++         "type": "FS",
++         "workItemId": "235a6d48-0e79-44c5-b7ef-9bf44ed244c8",
++       },
++     ],
++     "stepIds": [
++       "0333b264-8a03-4169-bba9-ce42a60a1fd1",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:1179:11)
+(fail) demands and claims through delete, undo and duplicate on the memory store > refuses a promoting delete handing claims up to a parent that holds its own subtree claim [22.96ms]
+1215 |         const applied = subtree.results[0];
+1216 |         const parentClaim = applied.kind === 'claimWorkItem' ? applied.claimIds[0] : undefined;
+1217 |         if (parentClaim === undefined) throw new Error('the subtree claim wrote no claim');
+1218 |         expect(
+1219 |           await run([{ kind: 'claimWorkItem', workItemId: z, personId: 'a1', parentClaim }]),
+1220 |         ).toMatchObject({ ok: true });
+                 ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "8f66fea1-6537-403b-8802-0f5610edaacc",
++         "type": "FS",
++         "workItemId": "53c68b1e-686e-4eae-86dd-fabf38b16220",
++       },
++     ],
++     "stepIds": [
++       "dba041d0-8c85-475a-b8f3-296849446eb3",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:1220:11)
+(fail) demands and claims through delete, undo and duplicate on the memory store > refuses an undo of a delete once the claim it was delegated under was released [30.50ms]
+1241 |       try {
+1242 |         await run([claim(0, 'a0')]);
+1243 |         await run([{ kind: 'deleteWorkItem', workItemId: leaf(0) }]);
+1244 |         expect(await graph.steps.remove(projectId, review, F, true)).toMatchObject({ ok: true });
+1245 |         const undone = await runner.undo(projectId, F);
+1246 |         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
+                              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": false,
+-   "reason": "stale_undo",
++   "ok": true,
++   "value": {
++     "detail": null,
++     "done": "delete “Leaf 0”",
++   },
+  }
+
+- Expected  - 2
++ Received  + 5
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:1246:24)
+(fail) demands and claims through delete, undo and duplicate on the memory store > refuses an undo of a delete once a step its claims and progress name was removed [24.86ms]
+1261 |         await run([claim(0, 'a0')]);
+1262 |         await run([{ kind: 'deleteWorkItem', workItemId: leaf(0) }]);
+1263 |         const removed = await source.stores.directory.removePerson('a0', false, { at: 9, by: F });
+1264 |         expect(removed).toMatchObject({ ok: true });
+1265 |         const undone = await runner.undo(projectId, F);
+1266 |         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
+                              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": false,
+-   "reason": "stale_undo",
++   "ok": true,
++   "value": {
++     "detail": null,
++     "done": "delete “Leaf 0”",
++   },
+  }
+
+- Expected  - 2
++ Received  + 5
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:1266:24)
+(fail) demands and claims through delete, undo and duplicate on the memory store > refuses an undo of a delete once the claimant was removed from the directory [22.14ms]
+193 |         await run([
+194 |           { kind: 'setResourceCapacity', resourceId: RAM, units: 32 },
+195 |           { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
+196 |         ]);
+197 |         const claimed = await run([claim(0, 'a0', { runId: 'run-0' })]);
+198 |         expect(claimed).toMatchObject({
+                              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
+-   "results": [
+-     {
+-       "acquired": [
+-         {
+-           "resourceId": "resource-ram",
+-           "units": 4,
+-         },
+-       ],
+-       "kind": "claimWorkItem",
+-     },
+-   ],
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "2ffe0ba2-3418-4784-aa1f-4150da5d953d",
++         "type": "FS",
++         "workItemId": "655c6db9-1d3c-4840-9d25-cb3b8eb05082",
++       },
++     ],
++     "stepIds": [
++       "ce004f6a-beaa-4487-b7dd-e670ef3fa425",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 12
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:198:25)
+(fail) claim occupancy on the sqlite store > acquires the declared demand and reads it per project and per resource [250.93ms]
+227 |             resourceId: RAM,
+228 |             units: 4,
+229 |           })),
+230 |         ]);
+231 |         for (let index = 0; index < 8; index += 1)
+232 |           expect(await run([claim(index, `a${String(index)}`)])).toMatchObject({ ok: true });
+                                                                       ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "eaed4a97-5c8a-4072-b678-b91b11c4613f",
++         "type": "FS",
++         "workItemId": "588c7a1c-1f10-4359-8d10-e89b8172fb99",
++       },
++     ],
++     "stepIds": [
++       "4760d435-b1dd-4962-a9f9-29527bf2fbd9",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:232:66)
+(fail) claim occupancy on the sqlite store > refuses the ninth claim on 32 GB naming the eight holders [165.14ms]
+261 |         await run([
+262 |           { kind: 'setResourceCapacity', resourceId: WORKTREE, units: 1 },
+263 |           { kind: 'setDemand', workItemId: leaf(0), resourceId: WORKTREE, units: 1 },
+264 |         ]);
+265 |         expect(await run([claim(0, 'a0', { steps: [dev] })])).toMatchObject({ ok: true });
+266 |         expect(await run([claim(0, 'a1', { steps: [review] })])).toMatchObject({
+                                                                       ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
+-   "results": [
+-     {
+-       "acquired": [],
+-     },
+-   ],
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "8a82afd0-da9b-460e-8527-d9f7d5b6c7e6",
++         "type": "FS",
++         "workItemId": "972a95c6-a9f6-4ad1-b5a1-924141a94157",
++       },
++     ],
++     "stepIds": [
++       "0f2b8352-152a-4a5b-bd58-601b07081e38",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 6
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:266:66)
+(fail) claim occupancy on the sqlite store > shares one occupancy between two steps and frees it on the last release only [472.42ms]
+296 |           expect(await run([claim(0, 'a0', { steps: [dev] })])).toMatchObject({ ok: true });
+297 |           const expanded = await run([
+298 |             claim(0, 'a1', { steps: [review], resources: [{ resourceId: RAM, units: 8 }] }),
+299 |           ]);
+300 |           if (expected === 'acquired') {
+301 |             expect(expanded).toMatchObject({
+                                   ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
+-   "results": [
+-     {
+-       "acquired": [
+-         {
+-           "resourceId": "resource-ram",
+-           "units": 4,
+-         },
+-       ],
+-     },
+-   ],
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "b2eb894b-c1ce-447f-81ed-9dae27d3f5a6",
++         "type": "FS",
++         "workItemId": "5eb7016c-8f0c-4257-8ce4-624453aa610f",
++       },
++     ],
++     "stepIds": [
++       "f8d49dc6-7b08-47b1-9759-527a1b2334a5",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 11
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:301:30)
+(fail) claim occupancy on the sqlite store > expands a held leaf's units on a later claim's ask, or refuses it (capacity 8) [151.61ms]
+302 |               ok: true,
+303 |               results: [{ acquired: [{ resourceId: RAM, units: 4 }] }],
+304 |             });
+305 |             expect(await occupied(RAM)).toBe(8);
+306 |           } else {
+307 |             expect(expanded).toMatchObject({
+                                   ^
+error: expect(received).toMatchObject(expected)
+
+  {
++   "at": 0,
+    "detail": {
+-     "asked": 8,
+-     "free": 6,
+-     "resourceId": "resource-ram",
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "7a4efe05-f594-4c17-858d-f50c8d0cc9fb",
++         "type": "FS",
++         "workItemId": "184c5b83-56d8-4ac0-8800-7993a3aebd5e",
++       },
++     ],
++     "stepIds": [
++       "cc3644b2-88f1-421f-b7c6-5f4f442058f6",
++     ],
+    },
++   "kind": "claimWorkItem",
+    "ok": false,
+-   "reason": "resources_exhausted",
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 4
++ Received  + 15
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:307:30)
+(fail) claim occupancy on the sqlite store > expands a held leaf's units on a later claim's ask, or refuses it (capacity 6) [180.00ms]
+323 |         await run([claim(0, 'a0', { steps: [dev], resources: [{ resourceId: RAM, units: 6 }] })]);
+324 |         expect(
+325 |           await run([
+326 |             claim(0, 'a1', { steps: [review], resources: [{ resourceId: RAM, units: 5 }] }),
+327 |           ]),
+328 |         ).toEqual({
+                ^
+error: expect(received).toEqual(expected)
+
+  {
+    "at": 0,
+    "detail": {
+-     "asked": 5,
+-     "held": 6,
+-     "resourceId": "resource-ram",
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "2acbf7e5-f92c-439f-9bef-4f8356cf1279",
++         "type": "FS",
++         "workItemId": "29a2ac19-eed7-4614-a077-7212f5662e94",
++       },
++     ],
++     "stepIds": [
++       "86ed01c1-1184-43c2-892c-f84db0c16965",
++     ],
+    },
+    "kind": "claimWorkItem",
+    "ok": false,
+-   "reason": "below_held_occupancy",
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 4
++ Received  + 13
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:328:11)
+(fail) claim occupancy on the sqlite store > refuses a later claim asking for less than its leaf holds [195.66ms]
+345 |         await run([
+346 |           { kind: 'setResourceCapacity', resourceId: RAM, units: 8 },
+347 |           { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 2 },
+348 |           { kind: 'setDemand', workItemId: leaf(1), resourceId: RAM, units: 2 },
+349 |         ]);
+350 |         expect(await run([claim(0, 'a0', { resources: [{ resourceId: RAM, units: 1 }] })])).toEqual(
+                                                                                                  ^
+error: expect(received).toEqual(expected)
+
+  {
+    "at": 0,
+    "detail": {
+-     "asked": 1,
+-     "declared": 2,
+-     "resourceId": "resource-ram",
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "5b8bf762-1721-4a56-ae54-7f7f897a78c8",
++         "type": "FS",
++         "workItemId": "84c40d57-2832-4060-8689-dbb5a6dfe89e",
++       },
++     ],
++     "stepIds": [
++       "c91ea82c-b944-4ba3-bce3-b2dd9882af02",
++     ],
+    },
+    "kind": "claimWorkItem",
+    "ok": false,
+-   "reason": "below_declared_demand",
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 4
++ Received  + 13
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:350:93)
+(fail) claim occupancy on the sqlite store > holds what resources asks above the declared demand, and refuses asking less [147.32ms]
+(pass) claim occupancy on the sqlite store > assigns the claimant and holds the asked units when a claim names both assign and resources [149.10ms]
+(pass) claim occupancy on the sqlite store > refuses resources naming an absent resource, or more than one unit of an exclusive one [134.48ms]
+425 |       try {
+426 |         await run([
+427 |           { kind: 'setDemand', workItemId: leaf(0), resourceId: DISK, units: 900 },
+428 |           { kind: 'setDemand', workItemId: leaf(1), resourceId: DISK, units: 900 },
+429 |         ]);
+430 |         expect(await run([claim(0, 'a0')])).toMatchObject({ ok: true });
+                                                  ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "d1398893-26cc-4dd5-bf18-11b1d011730f",
++         "type": "FS",
++         "workItemId": "e02681ad-2bd1-4825-8063-138f3602fcb4",
++       },
++     ],
++     "stepIds": [
++       "918d4dd6-d528-47f1-9d47-87a1de357a13",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:430:45)
+(fail) claim occupancy on the sqlite store > applies a claim on a resource whose capacity the project never stated [150.12ms]
+445 |         ]);
+446 |         await run([claim(0, 'a0')]);
+447 |         expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+448 |         expect(await occupied(RAM)).toBe(0);
+449 |         expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+450 |         expect(await occupied(RAM)).toBe(4);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 4
+Received: 0
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:450:37)
+(fail) claim occupancy on the sqlite store > undo of a claim takes its occupancy; redo re-acquires it [152.38ms]
+461 |           { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
+462 |           { kind: 'setDemand', workItemId: leaf(1), resourceId: RAM, units: 4 },
+463 |         ]);
+464 |         await run([claim(0, 'a0')]);
+465 |         expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+466 |         expect(await run([claim(1, 'g0')], G)).toMatchObject({ ok: true });
+                                                     ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "0d3ab9b9-7c35-4984-9b08-9cc40eda216e",
++         "type": "FS",
++         "workItemId": "13689652-fc13-4f27-86fe-05c56ccdb800",
++       },
++     ],
++     "stepIds": [
++       "c4b5cd84-76c1-4adf-9d0c-18799844d87c",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:466:48)
+(fail) claim occupancy on the sqlite store > redo of a claim is refused resources_exhausted once another leaf took the units [133.78ms]
+484 |         ]);
+485 |         await run([claim(0, 'a0')]);
+486 |         await run([release(0, 'a0')]);
+487 |         expect(await occupied(RAM)).toBe(0);
+488 |         expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+489 |         expect(await occupied(RAM)).toBe(4);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 4
+Received: 0
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:489:37)
+(fail) claim occupancy on the sqlite store > undo of a release re-acquires the units [149.50ms]
+530 |           [x, 'a1'],
+531 |           [y, 'a2'],
+532 |         ] as const)
+533 |           expect(
+534 |             await run([{ kind: 'claimWorkItem', workItemId, personId, parentClaim }]),
+535 |           ).toMatchObject({ ok: true });
+                  ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "3af18517-6348-4190-9fba-99788898e808",
++         "type": "FS",
++         "workItemId": "de38e43c-c894-41fe-8e81-9c6d5ffd601e",
++       },
++     ],
++     "stepIds": [
++       "d99ff70c-e1a0-451b-8197-8418689e718a",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:535:13)
+(fail) claim occupancy on the sqlite store > undo of a cascading release re-acquires leaf by leaf, refused once the second leaf no longer fits [166.95ms]
+563 |         const split = await run([
+564 |           { kind: 'createWorkItem', ref: 'c', name: 'Child', parentId: leaf(0), afterId: null },
+565 |         ]);
+566 |         expect(split).toMatchObject({ ok: true });
+567 |         expect(await demands()).toEqual(['child:4']);
+568 |         expect(await occupied(RAM)).toBe(4);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 4
+Received: 0
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:568:37)
+(fail) claim occupancy on the sqlite store > hands a leaf’s demand down to its first child, keeping the occupancy, and back on undo [158.74ms]
+603 |         expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+604 |         expect(await demands()).toEqual([{ owner: 'C', resourceId: RAM, units: 4 }]);
+605 |         expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+606 |         expect(await demands()).toEqual([{ owner: 'L', resourceId: RAM, units: 4 }]);
+607 |         expect(await source.stores.demands.listByProject(projectId)).toHaveLength(1);
+608 |         expect(await run([claim(0, 'a0')])).toMatchObject({
+                                                  ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
+-   "results": [
+-     {
+-       "acquired": [
+-         {
+-           "resourceId": "resource-ram",
+-           "units": 4,
+-         },
+-       ],
+-       "kind": "claimWorkItem",
+-     },
+-   ],
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "a4cdad09-be32-42d7-a121-bb6509214211",
++         "type": "FS",
++         "workItemId": "6760266e-9a0d-463a-80c1-46b880587982",
++       },
++     ],
++     "stepIds": [
++       "c5a29459-1d12-408f-81d0-f42de644d765",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 12
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:608:45)
+(fail) claim occupancy on the sqlite store > hands the last child’s demand back up when its delete promotes the parent, and back on undo [180.84ms]
+620 |       try {
+621 |         await run([
+622 |           { kind: 'setResourceCapacity', resourceId: RAM, units: 8 },
+623 |           { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
+624 |         ]);
+625 |         expect(await run([claim(0, 'a0', { runId: 'run-0' })])).toMatchObject({ ok: true });
+                                                                      ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "cf70557a-4085-48a4-8af3-7e7dee678feb",
++         "type": "FS",
++         "workItemId": "97f9b110-1b45-460f-b5b8-dcafea4d49b9",
++       },
++     ],
++     "stepIds": [
++       "66e988c5-bf99-43cc-8cab-0a4d0e7a1ab7",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:625:65)
+(fail) claim occupancy on the sqlite store > hands the only child’s claims and occupancy back up when its delete promotes the parent, and back on undo [131.03ms]
+(pass) claim occupancy on the sqlite store > hands up the largest units any former leaf of a deleted last branch demanded [169.70ms]
+(pass) claim occupancy on the sqlite store > clears the demand of an unclaimed leaf another row moves under, the moved row keeping its own, and back on undo [166.90ms]
+777 |       const { broadcast, projectId, runner, run, claim, occupied, close } = await seeded(store);
+778 |       try {
+779 |         await run([claim(0, 'a0', { resources: [{ resourceId: WORKTREE, units: 1 }] })]);
+780 |         expect(
+781 |           await runner.runDirectory(F, [{ kind: 'deleteResource', resourceId: WORKTREE }]),
+782 |         ).toMatchObject({
+                ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "detail": {
+-     "counts": {
+-       "capacities": 0,
+-       "demands": 0,
+-       "occupancies": 1,
++   "ok": true,
++   "redoable": false,
++   "results": [
++     {
++       "index": 0,
++       "kind": "deleteResource",
+      },
+-   },
+-   "ok": false,
+-   "reason": "in_use",
++   ],
++   "undoable": false,
+  }
+
+- Expected  - 8
++ Received  + 8
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:782:11)
+(fail) claim occupancy on the sqlite store > refuses deleting a resource a claim holds, counting it, and cascades on confirmation [121.27ms]
+(pass) claim occupancy on the sqlite store > leaves the canonical schedule input unchanged by a claim that occupies units [132.49ms]
+(pass) demands and claims through delete, undo and duplicate on the sqlite store > undo of a delete puts the demands back exactly; redo takes them again [154.83ms]
+(pass) demands and claims through delete, undo and duplicate on the sqlite store > undo of a cascading delete puts every row’s demands back [164.61ms]
+(pass) demands and claims through delete, undo and duplicate on the sqlite store > refuses an undo of a delete whose demanded resource was deleted since [153.04ms]
+(pass) demands and claims through delete, undo and duplicate on the sqlite store > duplicate copies the demands with the subtree; undo takes the copies, redo brings them back [172.91ms]
+975 |       try {
+976 |         await run([
+977 |           { kind: 'setResourceCapacity', resourceId: RAM, units: 8 },
+978 |           { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
+979 |         ]);
+980 |         expect(await run([claim(0, 'a0', { runId: 'run-0' })])).toMatchObject({ ok: true });
+                                                                      ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "106c5ff9-d90d-41f4-bef5-35dc016aa893",
++         "type": "FS",
++         "workItemId": "04360455-ec87-4b62-a8c5-e7d6d3dcaf04",
++       },
++     ],
++     "stepIds": [
++       "af2cd30e-db95-4e03-8867-aff27062c080",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:980:65)
+(fail) demands and claims through delete, undo and duplicate on the sqlite store > undo of a delete puts the claims and their occupancy back; redo takes them again [134.16ms]
+1006 |           { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
+1007 |           { kind: 'setDemand', workItemId: leaf(1), resourceId: RAM, units: 4 },
+1008 |         ]);
+1009 |         await run([claim(0, 'a0')]);
+1010 |         await run([{ kind: 'deleteWorkItem', workItemId: leaf(0) }]);
+1011 |         expect(await run([claim(1, 'g0')], G)).toMatchObject({ ok: true });
+                                                      ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "d829e5ce-04c7-4683-9132-63b05b6e78c5",
++         "type": "FS",
++         "workItemId": "af39549b-b0b5-42ef-92c7-223c2131e95d",
++       },
++     ],
++     "stepIds": [
++       "20c91ab9-78bc-48f1-ad39-5cf66cb2e191",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:1011:48)
+(fail) demands and claims through delete, undo and duplicate on the sqlite store > refuses an undo of a delete resources_exhausted once another leaf took the units [139.46ms]
+1032 |         const applied = subtree.results[0];
+1033 |         const parentClaim = applied.kind === 'claimWorkItem' ? applied.claimIds[0] : undefined;
+1034 |         if (parentClaim === undefined) throw new Error('the subtree claim wrote no claim');
+1035 |         expect(
+1036 |           await run([{ kind: 'claimWorkItem', workItemId: x, personId: 'a1', parentClaim }]),
+1037 |         ).toMatchObject({ ok: true });
+                 ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "ceda8363-a0da-41bf-9cb7-783f797490a3",
++         "type": "FS",
++         "workItemId": "51ce2793-3a54-4ff1-b698-983fd9ce4e1b",
++       },
++     ],
++     "stepIds": [
++       "45fc9728-d320-464d-a175-7cf241954a58",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:1037:11)
+(fail) demands and claims through delete, undo and duplicate on the sqlite store > undo of a promoting delete puts back the subtree claim and the claims delegated under it [155.69ms]
+1062 |         const applied = subtree.ok ? subtree.results[0] : undefined;
+1063 |         const parentClaim = applied?.kind === 'claimWorkItem' ? applied.claimIds[0] : undefined;
+1064 |         if (parentClaim === undefined) throw new Error('the subtree claim wrote no claim');
+1065 |         expect(
+1066 |           await run([{ kind: 'claimWorkItem', workItemId: z, personId: 'a1', parentClaim }]),
+1067 |         ).toMatchObject({ ok: true });
+                 ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "15968d6e-815b-4175-b6fa-af5718b2db57",
++         "type": "FS",
++         "workItemId": "86856045-32cf-4c7f-88ba-7d88f4f67852",
++       },
++     ],
++     "stepIds": [
++       "247a03b6-0f5c-4590-b115-6f46f74ead06",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:1067:11)
+(fail) demands and claims through delete, undo and duplicate on the sqlite store > hands a delegated claim up with its parent claim id when its leaf’s delete promotes the parent [182.93ms]
+1127 |         expect(
+1128 |           await run([
+1129 |             { kind: 'claimWorkItem', workItemId: y1, personId: 'a0' },
+1130 |             { kind: 'claimWorkItem', workItemId: y2, personId: 'a1' },
+1131 |           ]),
+1132 |         ).toMatchObject({ ok: true });
+                 ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "e9c67676-aee5-4dea-a067-ef4578095dab",
++         "type": "FS",
++         "workItemId": "e5ac9e03-02e2-4399-bc17-475c84659f34",
++       },
++     ],
++     "stepIds": [
++       "a3a41288-2d54-4805-98f6-8a5507a1113d",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:1132:11)
+(fail) demands and claims through delete, undo and duplicate on the sqlite store > refuses a promoting delete whose claims sit on two former leaves, naming every holder [163.00ms]
+1174 |         const applied = subtree.ok ? subtree.results[0] : undefined;
+1175 |         const parentClaim = applied?.kind === 'claimWorkItem' ? applied.claimIds[0] : undefined;
+1176 |         if (parentClaim === undefined) throw new Error('the subtree claim wrote no claim');
+1177 |         expect(
+1178 |           await run([{ kind: 'claimWorkItem', workItemId: x, personId: 'a1', parentClaim }]),
+1179 |         ).toMatchObject({ ok: true });
+                 ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "39c3003f-2f57-44d3-8e8b-a521d835159b",
++         "type": "FS",
++         "workItemId": "31e2dd42-0091-4a7e-b994-2a64bac6f975",
++       },
++     ],
++     "stepIds": [
++       "53f91936-7bd1-435b-b315-710f83f62fa2",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:1179:11)
+(fail) demands and claims through delete, undo and duplicate on the sqlite store > refuses a promoting delete handing claims up to a parent that holds its own subtree claim [139.56ms]
+1215 |         const applied = subtree.results[0];
+1216 |         const parentClaim = applied.kind === 'claimWorkItem' ? applied.claimIds[0] : undefined;
+1217 |         if (parentClaim === undefined) throw new Error('the subtree claim wrote no claim');
+1218 |         expect(
+1219 |           await run([{ kind: 'claimWorkItem', workItemId: z, personId: 'a1', parentClaim }]),
+1220 |         ).toMatchObject({ ok: true });
+                 ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "e146219d-c496-4164-9def-4f7079191172",
++         "type": "FS",
++         "workItemId": "c5df9480-eb65-4c29-845a-ae8dba140415",
++       },
++     ],
++     "stepIds": [
++       "864bddb6-3c54-4e8e-a8bf-5fd9f7298e17",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:1220:11)
+(fail) demands and claims through delete, undo and duplicate on the sqlite store > refuses an undo of a delete once the claim it was delegated under was released [179.08ms]
+1241 |       try {
+1242 |         await run([claim(0, 'a0')]);
+1243 |         await run([{ kind: 'deleteWorkItem', workItemId: leaf(0) }]);
+1244 |         expect(await graph.steps.remove(projectId, review, F, true)).toMatchObject({ ok: true });
+1245 |         const undone = await runner.undo(projectId, F);
+1246 |         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
+                              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": false,
+-   "reason": "stale_undo",
++   "ok": true,
++   "value": {
++     "detail": null,
++     "done": "delete “Leaf 0”",
++   },
+  }
+
+- Expected  - 2
++ Received  + 5
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:1246:24)
+(fail) demands and claims through delete, undo and duplicate on the sqlite store > refuses an undo of a delete once a step its claims and progress name was removed [162.11ms]
+1261 |         await run([claim(0, 'a0')]);
+1262 |         await run([{ kind: 'deleteWorkItem', workItemId: leaf(0) }]);
+1263 |         const removed = await source.stores.directory.removePerson('a0', false, { at: 9, by: F });
+1264 |         expect(removed).toMatchObject({ ok: true });
+1265 |         const undone = await runner.undo(projectId, F);
+1266 |         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
+                              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": false,
+-   "reason": "stale_undo",
++   "ok": true,
++   "value": {
++     "detail": null,
++     "done": "delete “Leaf 0”",
++   },
+  }
+
+- Expected  - 2
++ Received  + 5
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:1266:24)
+(fail) demands and claims through delete, undo and duplicate on the sqlite store > refuses an undo of a delete once the claimant was removed from the directory [136.45ms]
+
+libs/wbs/adapters/store-sqlite/src/claim-race.db.test.ts:
+(pass) two fleets claim the same step > admits exactly one, the other refused naming the winner (account-f first) [116.64ms]
+(pass) two fleets claim the same step > admits exactly one, the other refused naming the winner (account-g first) [105.49ms]
+211 |     ).id;
+212 |     expect(
+213 |       await as(F, [
+214 |         { kind: 'claimWorkItem', workItemId: childId, personId: 'worker', parentClaim },
+215 |       ])(),
+216 |     ).toMatchObject({ ok: true });
+            ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "3be06089-fd6f-48c6-91d0-70bd6e449090",
++         "type": "FS",
++         "workItemId": "4ec7faa6-99f1-40ba-9440-9031ce37df9c",
++       },
++     ],
++     "stepIds": [
++       "6ff4b14f-b9de-4fb0-a90a-8040441f1af6",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/claim-race.db.test.ts:216:7)
+(fail) a claim on SQLite > refuses an undo of a subtree claim that would take a delegated claim it never wrote [103.70ms]
+(pass) a claim on SQLite > moves the revision by one and records one entry for a claim that states progress [95.07ms]
+(pass) a claim on SQLite > refuses an undo of a claim after the holder’s leaf moved on [92.21ms]
+(pass) a claim on SQLite > refuses a redo of a claim after the leaf moved on [99.50ms]
+(pass) a claim on SQLite > hands a claimed leaf’s claim to its first child, fencing and releasable there, and back on undo [123.38ms]
+(pass) a claim on SQLite > undoes a release and redoes a claim journalled before claim occupancy [114.12ms]
+(pass) a claim on SQLite > refuses a redo of a claim once another holder took the step [106.82ms]
+
+libs/wbs/application/core/src/service/connected-readiness.test.ts:
+(pass) connected live readiness > requires remote FS completion even without calendars [1.48ms]
+(pass) connected live readiness > retains remote holds in row and node proxy readings [0.29ms]
+(pass) connected live readiness > SS accepts an ended unsuccessful actual attempt, while FF exposes finish only [0.38ms]
+(pass) connected live readiness > refuses absent attempts and own-project foreign step evidence [1.48ms]
+
+libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts:
+(pass) claimWorkItem in a batch > claims every step that is not done, states the unstated one, one journal entry [7.33ms]
+191 |         runId: 'r',
+192 |       };
+193 |       await runner.run(projectId, F, [claim]);
+194 |       const held = await claims();
+195 |       const before = await entries(F);
+196 |       expect(await runner.run(projectId, F, [claim])).toMatchObject({
+                                                            ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
+-   "results": [
+-     {
+-       "alreadyHeld": true,
+-       "claimIds": [],
+-     },
+-   ],
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "f6286fbc-fc16-4a83-a9c4-5c936c52edb0",
++         "type": "FS",
++         "workItemId": "090",
++       },
++     ],
++     "stepIds": [
++       "5c1ae5f5-5588-4df6-ba09-9aabd8a53440",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 7
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts:196:55)
+(fail) claimWorkItem in a batch > answers alreadyHeld to the holder repeating it and adds no entry [3.28ms]
+214 |       const statedBefore = await progress();
+215 |       await runner.run(projectId, F, [
+216 |         { kind: 'claimWorkItem', workItemId: '090', personId: 'claire' },
+217 |       ]);
+218 |       const held = await claims();
+219 |       expect(held).toHaveLength(2);
+                         ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 2
+Received length: 0
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts:219:20)
+(fail) claimWorkItem in a batch > undo removes exactly the claims and the progress it stated; redo puts them back [3.59ms]
+241 |       ]);
+242 |       const before = await entries(F);
+243 |       const answer = await runner.run(projectId, F, [
+244 |         { kind: 'claimWorkItem', workItemId: '090', personId: 'claire', assign: true },
+245 |       ]);
+246 |       expect(answer).toMatchObject({
+                           ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
+-   "results": [
+-     {
+-       "alreadyHeld": false,
+-       "assignedStepIds": [
+-         "6905b87d-08ae-4b53-b198-252ee6578d10",
+-         "52b12a53-a181-4289-b08e-6d0f017eecc0",
+-       ],
+-     },
+-   ],
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "6905b87d-08ae-4b53-b198-252ee6578d10",
++         "type": "FS",
++         "workItemId": "090",
++       },
++     ],
++     "stepIds": [
++       "52b12a53-a181-4289-b08e-6d0f017eecc0",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 10
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts:246:22)
+(fail) claimWorkItem in a batch > claims and assigns in one entry; undo clears both the claim and the assignment [4.57ms]
+299 |             personId: 'claire',
+300 |             steps: [review],
+301 |             runId: 'r',
+302 |           },
+303 |         ]),
+304 |       ).toMatchObject({ ok: true });
+              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 1,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "11703839-c19b-4dd8-a66c-00983adb4ada",
++         "type": "FS",
++         "workItemId": "090",
++       },
++     ],
++     "stepIds": [
++       "bc452c17-4786-4a60-b61a-58008ce7855e",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts:304:9)
+(fail) claimWorkItem in a batch > leaves assignments untouched when assign is false or absent [4.50ms]
+(pass) claimWorkItem in a batch > assigns nothing with a subtree claim, which claims no step [3.04ms]
+(pass) claimWorkItem in a batch > refuses a claim on a leaf whose only worked step is done: it reads done [3.12ms]
+(pass) claimWorkItem in a batch > refuses a redo of a claim once another holder took the step [7.19ms]
+368 |       expect(
+369 |         await runner.run(projectId, F, [
+370 |           { kind: 'claimWorkItem', workItemId: '090', personId: 'claire' },
+371 |           { kind: 'setStatus', workItemId: '090', status: 'ready' },
+372 |         ]),
+373 |       ).toMatchObject({ ok: false, at: 1, reason: 'readiness_after_progress' });
+              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "at": 1,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "193416c2-a34a-475c-9405-a070d4a24af1",
++         "type": "FS",
++         "workItemId": "090",
++       },
++     ],
++     "stepIds": [
++       "29bb6dae-7100-46a3-987c-f2db0326c98e",
++     ],
++   },
++   "kind": "claimWorkItem",
+    "ok": false,
+-   "reason": "readiness_after_progress",
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 2
++ Received  + 17
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts:373:9)
+(fail) claimWorkItem in a batch > shows the batch the progress its claim stated [1.99ms]
+390 |             workItemId: '090',
+391 |             personId: 'claire-worker-2',
+392 |             steps: [review],
+393 |           },
+394 |         ]),
+395 |       ).toMatchObject({ ok: true });
+              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "96538e9c-8c29-48ce-b091-b22fd1c1735d",
++         "type": "FS",
++         "workItemId": "090",
++       },
++     ],
++     "stepIds": [
++       "61ad6579-017b-419c-8611-b5e6976fdf01",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts:395:9)
+(fail) claimWorkItem in a batch > lets two agents hold two steps of one leaf [4.03ms]
+(pass) claimWorkItem in a batch > refuses a step another holder has, naming the holder, and writes nothing [7.08ms]
+(pass) claimWorkItem in a batch > refuses a leaf reading blocked_by_proxy with that status [10.52ms]
+(pass) claimWorkItem in a batch > refuses a person nobody bound to a non-admin caller [1.90ms]
+498 |       expect(await claimAs('codex-fleet', FLEET)).toMatchObject({
+499 |         ok: false,
+500 |         reason: 'credential_not_for_person',
+501 |       });
+502 |       // The account's own session carries no pair, so nothing pins it.
+503 |       expect(await claimAs('codex-fleet', null)).toMatchObject({ ok: true });
+                                                       ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "6d12090a-36f0-4fcd-b34d-ab99377d2808",
++         "type": "FS",
++         "workItemId": "090",
++       },
++     ],
++     "stepIds": [
++       "c162c41d-107d-478e-bdf1-b0d556074358",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts:503:50)
+(fail) claimWorkItem in a batch > refuses a pinned credential claiming as another agent [10.77ms]
+529 |       ).toBe(true);
+530 |       expect(
+531 |         await runner.run(projectId, F, [
+532 |           { kind: 'claimWorkItem', workItemId: '090', personId: 'owned' },
+533 |         ]),
+534 |       ).toMatchObject({ ok: true });
+              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "dd6b146b-c78c-46e3-bc6d-4c228ed4278d",
++         "type": "FS",
++         "workItemId": "090",
++       },
++     ],
++     "stepIds": [
++       "f105a7ac-f27f-40dd-81b4-f7563f671c16",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts:534:9)
+(fail) claimWorkItem in a batch > claims as an owned person bound to a member of its organization [3.77ms]
+553 |             personId: 'claire-worker',
+554 |             runId: 'agent:main:subagent:7f',
+555 |             parentClaim,
+556 |           },
+557 |         ]),
+558 |       ).toMatchObject({ ok: true });
+              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "detail": {
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "70aa7118-287a-4daa-b78a-6e6b02d6b978",
++         "type": "FS",
++         "workItemId": "080.25",
++       },
++     ],
++     "stepIds": [
++       "f051a459-7ee2-43a7-b592-ef8c453bbed5",
++     ],
++   },
++   "kind": "claimWorkItem",
++   "ok": false,
++   "reason": "prerequisites_unmet",
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts:558:9)
+(fail) claimWorkItem in a batch > chains a subagent’s leaf claim to the superagent’s subtree, and refuses a stranger [4.82ms]
+(pass) a claimed leaf that gains its first child > hands a claimed leaf's claims to its first child and back on undo [17.24ms]
+(pass) a claimed leaf that gains its first child > releases the handed-down claim on the child [7.71ms]
+(pass) a claimed leaf that gains its first child > refuses a move under a claimed leaf, naming its holders, until they are released [11.25ms]
+(pass) a claimed leaf that gains its first child > refuses an undo of a claim once another actor split the leaf [6.95ms]
+727 |       );
+728 |       await runner.run(projectId, G, [
+729 |         { kind: 'claimWorkItem', workItemId: child, personId: 'stranger', steps: [review] },
+730 |       ]);
+731 |       const held = await claims();
+732 |       expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
+                                                    ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": false,
++   "ok": true,
++   "value": {
++     "detail": null,
++     "done": "add “Half”",
++   },
+  }
+
+- Expected  - 1
++ Received  + 5
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts:732:47)
+(fail) a claimed leaf that gains its first child > refuses an undo of a split once the child's claims changed [9.45ms]
+749 |       const stated = await progress();
+750 |       expect(
+751 |         await runner.run(projectId, F, [
+752 |           { kind: 'releaseWorkItem', workItemId: '090', personId: 'claire' },
+753 |         ]),
+754 |       ).toMatchObject({ ok: true });
+              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "at": 0,
++   "kind": "releaseWorkItem",
++   "ok": false,
++   "reason": "not_claimed_by",
+  }
+
+- Expected  - 1
++ Received  + 4
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts:754:9)
+(fail) releaseWorkItem in a batch > releases a half-done leaf and leaves its progress as it was [2.88ms]
+770 |       await runner.run(projectId, F, [
+771 |         { kind: 'claimWorkItem', workItemId: '080.25', personId: 'claire-worker', parentClaim },
+772 |         { kind: 'claimWorkItem', workItemId: '080.26', personId: 'claire-worker-2', parentClaim },
+773 |       ]);
+774 |       const held = await claims();
+775 |       expect(new Set(held.map(({ workItemId }) => workItemId))).toEqual(
+                                                                      ^
+error: expect(received).toEqual(expected)
+
+  Set {
+    "080",
+-   "080.25",
+-   "080.26",
+  }
+
+- Expected  - 2
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts:775:65)
+(fail) releaseWorkItem in a batch > cascades a subtree release in one entry, and undo restores all three [4.15ms]
+(pass) releaseWorkItem in a batch > refuses releasing what the person does not hold [1.59ms]
+
+63 tests failed:
+(fail) claim occupancy on the memory store > acquires the declared demand and reads it per project and per resource [85.14ms]
+(fail) claim occupancy on the memory store > refuses the ninth claim on 32 GB naming the eight holders [22.66ms]
+(fail) claim occupancy on the memory store > shares one occupancy between two steps and frees it on the last release only [26.86ms]
+(fail) claim occupancy on the memory store > expands a held leaf's units on a later claim's ask, or refuses it (capacity 8) [26.64ms]
+(fail) claim occupancy on the memory store > expands a held leaf's units on a later claim's ask, or refuses it (capacity 6) [30.74ms]
+(fail) claim occupancy on the memory store > refuses a later claim asking for less than its leaf holds [23.82ms]
+(fail) claim occupancy on the memory store > holds what resources asks above the declared demand, and refuses asking less [17.51ms]
+(fail) claim occupancy on the memory store > applies a claim on a resource whose capacity the project never stated [21.23ms]
+(fail) claim occupancy on the memory store > undo of a claim takes its occupancy; redo re-acquires it [40.99ms]
+(fail) claim occupancy on the memory store > redo of a claim is refused resources_exhausted once another leaf took the units [27.42ms]
+(fail) claim occupancy on the memory store > undo of a release re-acquires the units [22.11ms]
+(fail) claim occupancy on the memory store > undo of a cascading release re-acquires leaf by leaf, refused once the second leaf no longer fits [30.81ms]
+(fail) claim occupancy on the memory store > hands a leaf’s demand down to its first child, keeping the occupancy, and back on undo [24.00ms]
+(fail) claim occupancy on the memory store > hands the last child’s demand back up when its delete promotes the parent, and back on undo [48.60ms]
+(fail) claim occupancy on the memory store > hands the only child’s claims and occupancy back up when its delete promotes the parent, and back on undo [13.80ms]
+(fail) claim occupancy on the memory store > refuses deleting a resource a claim holds, counting it, and cascades on confirmation [14.89ms]
+(fail) demands and claims through delete, undo and duplicate on the memory store > undo of a delete puts the claims and their occupancy back; redo takes them again [13.04ms]
+(fail) demands and claims through delete, undo and duplicate on the memory store > refuses an undo of a delete resources_exhausted once another leaf took the units [20.30ms]
+(fail) demands and claims through delete, undo and duplicate on the memory store > undo of a promoting delete puts back the subtree claim and the claims delegated under it [22.51ms]
+(fail) demands and claims through delete, undo and duplicate on the memory store > hands a delegated claim up with its parent claim id when its leaf’s delete promotes the parent [25.37ms]
+(fail) demands and claims through delete, undo and duplicate on the memory store > refuses a promoting delete whose claims sit on two former leaves, naming every holder [31.57ms]
+(fail) demands and claims through delete, undo and duplicate on the memory store > refuses a promoting delete handing claims up to a parent that holds its own subtree claim [22.96ms]
+(fail) demands and claims through delete, undo and duplicate on the memory store > refuses an undo of a delete once the claim it was delegated under was released [30.50ms]
+(fail) demands and claims through delete, undo and duplicate on the memory store > refuses an undo of a delete once a step its claims and progress name was removed [24.86ms]
+(fail) demands and claims through delete, undo and duplicate on the memory store > refuses an undo of a delete once the claimant was removed from the directory [22.14ms]
+(fail) claim occupancy on the sqlite store > acquires the declared demand and reads it per project and per resource [250.93ms]
+(fail) claim occupancy on the sqlite store > refuses the ninth claim on 32 GB naming the eight holders [165.14ms]
+(fail) claim occupancy on the sqlite store > shares one occupancy between two steps and frees it on the last release only [472.42ms]
+(fail) claim occupancy on the sqlite store > expands a held leaf's units on a later claim's ask, or refuses it (capacity 8) [151.61ms]
+(fail) claim occupancy on the sqlite store > expands a held leaf's units on a later claim's ask, or refuses it (capacity 6) [180.00ms]
+(fail) claim occupancy on the sqlite store > refuses a later claim asking for less than its leaf holds [195.66ms]
+(fail) claim occupancy on the sqlite store > holds what resources asks above the declared demand, and refuses asking less [147.32ms]
+(fail) claim occupancy on the sqlite store > applies a claim on a resource whose capacity the project never stated [150.12ms]
+(fail) claim occupancy on the sqlite store > undo of a claim takes its occupancy; redo re-acquires it [152.38ms]
+(fail) claim occupancy on the sqlite store > redo of a claim is refused resources_exhausted once another leaf took the units [133.78ms]
+(fail) claim occupancy on the sqlite store > undo of a release re-acquires the units [149.50ms]
+(fail) claim occupancy on the sqlite store > undo of a cascading release re-acquires leaf by leaf, refused once the second leaf no longer fits [166.95ms]
+(fail) claim occupancy on the sqlite store > hands a leaf’s demand down to its first child, keeping the occupancy, and back on undo [158.74ms]
+(fail) claim occupancy on the sqlite store > hands the last child’s demand back up when its delete promotes the parent, and back on undo [180.84ms]
+(fail) claim occupancy on the sqlite store > hands the only child’s claims and occupancy back up when its delete promotes the parent, and back on undo [131.03ms]
+(fail) claim occupancy on the sqlite store > refuses deleting a resource a claim holds, counting it, and cascades on confirmation [121.27ms]
+(fail) demands and claims through delete, undo and duplicate on the sqlite store > undo of a delete puts the claims and their occupancy back; redo takes them again [134.16ms]
+(fail) demands and claims through delete, undo and duplicate on the sqlite store > refuses an undo of a delete resources_exhausted once another leaf took the units [139.46ms]
+(fail) demands and claims through delete, undo and duplicate on the sqlite store > undo of a promoting delete puts back the subtree claim and the claims delegated under it [155.69ms]
+(fail) demands and claims through delete, undo and duplicate on the sqlite store > hands a delegated claim up with its parent claim id when its leaf’s delete promotes the parent [182.93ms]
+(fail) demands and claims through delete, undo and duplicate on the sqlite store > refuses a promoting delete whose claims sit on two former leaves, naming every holder [163.00ms]
+(fail) demands and claims through delete, undo and duplicate on the sqlite store > refuses a promoting delete handing claims up to a parent that holds its own subtree claim [139.56ms]
+(fail) demands and claims through delete, undo and duplicate on the sqlite store > refuses an undo of a delete once the claim it was delegated under was released [179.08ms]
+(fail) demands and claims through delete, undo and duplicate on the sqlite store > refuses an undo of a delete once a step its claims and progress name was removed [162.11ms]
+(fail) demands and claims through delete, undo and duplicate on the sqlite store > refuses an undo of a delete once the claimant was removed from the directory [136.45ms]
+(fail) a claim on SQLite > refuses an undo of a subtree claim that would take a delegated claim it never wrote [103.70ms]
+(fail) claimWorkItem in a batch > answers alreadyHeld to the holder repeating it and adds no entry [3.28ms]
+(fail) claimWorkItem in a batch > undo removes exactly the claims and the progress it stated; redo puts them back [3.59ms]
+(fail) claimWorkItem in a batch > claims and assigns in one entry; undo clears both the claim and the assignment [4.57ms]
+(fail) claimWorkItem in a batch > leaves assignments untouched when assign is false or absent [4.50ms]
+(fail) claimWorkItem in a batch > shows the batch the progress its claim stated [1.99ms]
+(fail) claimWorkItem in a batch > lets two agents hold two steps of one leaf [4.03ms]
+(fail) claimWorkItem in a batch > refuses a pinned credential claiming as another agent [10.77ms]
+(fail) claimWorkItem in a batch > claims as an owned person bound to a member of its organization [3.77ms]
+(fail) claimWorkItem in a batch > chains a subagent’s leaf claim to the superagent’s subtree, and refuses a stranger [4.82ms]
+(fail) a claimed leaf that gains its first child > refuses an undo of a split once the child's claims changed [9.45ms]
+(fail) releaseWorkItem in a batch > releases a half-done leaf and leaves its progress as it was [2.88ms]
+(fail) releaseWorkItem in a batch > cascades a subtree release in one entry, and undo restores all three [4.15ms]
+
+ 53 pass
+ 63 fail
+ 382 expect() calls
+Ran 116 tests across 5 files. [14.15s]

@@ -1,0 +1,65 @@
+{
+  "scope": "Original prod BE remains accepted; source BE falsely attributed to prod",
+  "fault": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+        "--test-name-pattern=^isolated source restoration refuses source backend as prod opener$",
+        "--timeout=320000"
+      ],
+      "pid": 3100803,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 161.4137143449625,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "f7963982db6df65c992495da79a162c3dcc087038c814e829e4d2ed4ca53a3e4"
+    },
+    "wrapper": {
+      "pid": 3100802,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "682b4f2fbc33293494b729fdfd9d6cf612914da625d34376ac82650af2b18883",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderrSHA256": "f7963982db6df65c992495da79a162c3dcc087038c814e829e4d2ed4ca53a3e4"
+  },
+  "restored": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+        "--test-name-pattern=^isolated source restoration refuses source backend as prod opener$",
+        "--timeout=320000"
+      ],
+      "pid": 3103961,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 115.91407608496957,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "11427959c8f015bbe2d389be24f726a8915683794271e440c8f173d4b0e28a58"
+    },
+    "wrapper": {
+      "pid": 3103960,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "9e33997861376e1574efea826b396fedba68ef9b0867423f598ff68be9878eb4",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderrSHA256": "11427959c8f015bbe2d389be24f726a8915683794271e440c8f173d4b0e28a58"
+  }
+}

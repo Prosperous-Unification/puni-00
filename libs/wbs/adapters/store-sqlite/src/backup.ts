@@ -14,7 +14,7 @@ import { basename, dirname, join } from 'node:path';
 
 import { sql } from 'drizzle-orm';
 
-import { openConnection, openReadOnlyConnection } from './db';
+import { openExistingConnection, openReadOnlyConnection } from './db';
 
 /** A verified copy of the database and the migration ledger it carries. */
 export interface DatabaseSnapshot {
@@ -102,7 +102,7 @@ export function verifySnapshot(path: string): DatabaseSnapshot {
  * verified before it is renamed into place, so `snapshotPath` never names an
  * unverified file.
  *
- * @throws When the source is absent (a copy of nothing is not a backup), when
+ * @throws When the source is absent, including after preflight (never recreated), when
  * `snapshotPath` already exists (a backup never overwrites another), or when
  * the copy fails {@link verifySnapshot}.
  */
@@ -112,7 +112,9 @@ export function snapshotDatabase(sourcePath: string, snapshotPath: string): Data
   mkdirSync(dirname(snapshotPath), { recursive: true });
   const partialPath = join(dirname(snapshotPath), `.${basename(snapshotPath)}.partial`);
   rmSync(partialPath, { force: true });
-  const source = openConnection(sourcePath);
+  // Proof: restoring creation-capable openConnection made `refuses a source removed
+  // after preflight without recreating it` leave a replacement DB (2026-10-24).
+  const source = openExistingConnection(sourcePath);
   try {
     source.db.run(sql`VACUUM INTO ${partialPath}`);
   } finally {

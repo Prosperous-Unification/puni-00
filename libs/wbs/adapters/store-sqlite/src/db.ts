@@ -44,20 +44,51 @@ export function openDatabase(dbPath: string): Database {
 
 function openWritableDatabase(dbPath: string, isCreateAllowed: boolean): Database {
   const db = new Database(dbPath, { create: isCreateAllowed, readwrite: true });
-  // `run` rather than the deprecated `exec`; behavior is identical for these
-  // single-statement PRAGMAs.
-  db.run(`PRAGMA busy_timeout = ${String(BUSY_TIMEOUT_MS)};`);
-  switchToWal(db);
-  db.run('PRAGMA foreign_keys = ON;');
-  // Asserted here, not left to the caller. Setting a PRAGMA is a request, not
-  // a guarantee — SQLite reports the mode it actually adopted and does not
-  // error when it declines, which is why `:memory:` quietly stays on
-  // journal_mode=memory. Verifying at the point of opening also means the
-  // check cannot be skipped by forgetting to call it: until now `assertPragmas`
-  // had exactly one caller (repository/migrate.ts), so every other connection
-  // would have been unverified.
-  assertPragmas(db);
-  return db;
+  return initializeDatabase(db, (client) => {
+    // `run` rather than the deprecated `exec`; behavior is identical for these
+    // single-statement PRAGMAs.
+    client.run(`PRAGMA busy_timeout = ${String(BUSY_TIMEOUT_MS)};`);
+    switchToWal(client);
+    client.run('PRAGMA foreign_keys = ON;');
+    // Asserted here, not left to the caller. Setting a PRAGMA is a request, not
+    // a guarantee — SQLite reports the mode it actually adopted and does not
+    // error when it declines, which is why `:memory:` quietly stays on
+    // journal_mode=memory. Verifying at the point of opening also means the
+    // check cannot be skipped by forgetting to call it: until now `assertPragmas`
+    // had exactly one caller (repository/migrate.ts), so every other connection
+    // would have been unverified.
+    assertPragmas(client);
+  });
+}
+
+/**
+ * Owns a newly constructed native connection until initialization succeeds.
+ * Failure finalizes its statements and closes synchronously before rethrowing the
+ * original error. A failed close reports both errors with initialization as cause.
+ * Successful initialization transfers the still-open connection to the caller.
+ */
+function initializeDatabase(db: Database, initialize: (client: Database) => void): Database {
+  try {
+    initialize(db);
+    return db;
+  } catch (cause) {
+    const failures: unknown[] = [cause];
+    try {
+      // Proof: removing close retained 30 malformed activation descriptors with native
+      // handles held against GC in database-initialization.db.test.ts (2026-10-23).
+      db.close(true);
+    } catch (closeFailure) {
+      failures.push(closeFailure);
+    }
+    // Proof: removing aggregation replaced the primary refusal with the injected
+    // cleanup error in the initialization/cleanup failure negative (2026-10-23).
+    if (failures.length > 1) {
+      throw new AggregateError(failures, 'SQLite initialization and cleanup failed', {
+        cause,
+      });
+    }
+    throw cause;
+  }
 }
 
 const WAL_SWITCH_ATTEMPTS = 100;
@@ -330,10 +361,10 @@ export function drizzleReadTransaction(db: Drizzle): {
  * journal mode is set, and SQLite refuses any write. Opening a missing file
  * throws.
  */
-export function openReadOnlyConnection(dbPath: string): Connection {
+export function openReadOnlyConnection(dbPath: string, logger?: Logger): Connection {
   const client = openReadOnlyDatabase(dbPath);
   return {
-    db: drizzle({ client }),
+    db: drizzle({ client, logger }),
     close: () => {
       client.close();
     },
@@ -346,8 +377,9 @@ export function openReadOnlyDatabase(dbPath: string): Database {
   // read-only connection` in `organization-selection-preview.db.test.ts`
   // delete the memberships; watched 2026-09-28.
   const client = new Database(dbPath, { readonly: true, create: false });
-  client.run(`PRAGMA busy_timeout = ${String(BUSY_TIMEOUT_MS)};`);
-  return client;
+  return initializeDatabase(client, (database) => {
+    database.run(`PRAGMA busy_timeout = ${String(BUSY_TIMEOUT_MS)};`);
+  });
 }
 
 /**
@@ -371,15 +403,15 @@ export async function observeCommitted<T>(
   const connection = openConnection();
   try {
     const transaction = drizzleReadTransaction(connection.db);
-    // Proof: omitting the transaction failed mounted metadata/cache cases by observing newer writes in the first response.
+    // Proof: omitting BEGIN failed the claim-observation path with no active transaction at settlement.
     transaction.begin();
     try {
       const captured = await read(connection.db);
-      // Proof: omitting commit failed owned success/refusal close-time BEGIN assertions (transaction still active).
+      // Proof: omitting commit failed the successful owned claim observation: its close saw an active transaction.
       transaction.commit();
       return captured;
     } catch (failure) {
-      // Proof: omitting rollback failed owned dependency-failure close-time BEGIN assertion.
+      // Proof: omitting rollback failed the owned claim trusted-state read failure: its close saw an active transaction.
       try {
         transaction.rollback();
       } catch (rollbackFailure) {
@@ -394,8 +426,8 @@ export async function observeCommitted<T>(
       throw failure;
     }
   } finally {
-    // Proof: omitting close failed all four owned lifecycle cases and the
-    // mounted admission check saw one open snapshot at both launch handoffs.
+    // Proof: omitting close failed the owned claim success case (zero closes); the
+    // claim lifecycle tests also require a closed native handle on refusal, throw, and BEGIN failure.
     connection.close();
   }
 }
@@ -423,8 +455,8 @@ export interface ReadConnectionPool {
  * `BEGIN DEFERRED` reads the state committed by then.
  *
  * A lent handle's `db` throws on any use after its release, so a handle a read kept cannot read
- * inside the next borrower's snapshot. The pool belongs to one source, whose `close` closes it,
- * so no connection outlives the process connection it was opened beside. Like that connection,
+ * inside the next borrower's snapshot. The pool belongs to one source, whose `close` drains
+ * idle connections; outstanding loans close physically when released afterwards. Like the process connection,
  * a pooled one keeps the file it opened: a database replaced by rename while be-01 runs stays
  * unseen by both, which is why a restore stops be-01 first.
  *

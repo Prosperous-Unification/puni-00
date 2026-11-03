@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:
+58 |     .query<{ preconditions: string }, [string]>(
+59 |       'SELECT preconditions FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+60 |     )
+61 |     .get(fixture.owner.projectId);
+62 |   if (flipped === null) throw new Error('fixture flipped journal missing');
+63 |   expect(Object.keys(readPreconditions(JSON.parse(flipped.preconditions) as unknown).expected)).toEqual([
+                                                                                                     ^
+error: expect(received).toEqual(expected)
+
+- [
+-   "3907f147-033d-4e3a-9f40-31df986bfd86",
+- ]
++ []
+
+- Expected  - 3
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:63:97)
+(fail) actual first child hands an outgoing node to its child and undo redo preserves the remote row [442.33ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+ 16 expect() calls
+Ran 1 test across 1 file. [2.62s]

@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "sourceSha": "6f6f424e2d5ebf7c52f55e49131c492b535f22ac",
+  "target": "tool-remote-scripts:test:source-exclusion",
+  "result": "passed",
+  "exitCode": 0,
+  "duration": "3m 50s",
+  "canonicalHeavyLock": true,
+  "freshDependencyInstall": false,
+  "proofs": {
+    "nativeTagSubstitutionRefused": true,
+    "sourceAndDescendantWritesObserved": true,
+    "protectedCallbackFinished": true,
+    "namespaceScannersDoneAndReaped": 44,
+    "unrelatedMountedChildRefused": true,
+    "sourceTokenExpired": true,
+    "activation": "blocked"
+  },
+  "independentCleanup": {
+    "format": "independent-owned-source-cleanup",
+    "version": 1,
+    "containerLabels": {
+      "puni.source-exclusion": 0,
+      "wbs-solver-drain-owner": 0
+    },
+    "recordedContainerIdsAbsent": 8,
+    "networksAbsent": 2,
+    "temporaryTagAbsent": true,
+    "unitLinkAbsent": true,
+    "mutations": false
+  },
+  "privateReceiptSha256": "de452589263ce5b9f1f8c6c1565c0a9de92690e3a760842571907a57314b512c",
+  "privateLogSha256": "f81d68518a705560a598d5fe9a1018f5fbb31386324d88be6e88909abe2cf9f5",
+  "privateCleanupSha256": "839e4619d95004e19c2401c05410e9b535fea8cf27485473d491a132a777b391",
+  "limits": [
+    "owned disposable fixture only",
+    "no production adoption installation activation or exposure",
+    "no physical source-input or migration-artifact probe acceptance",
+    "no final integrated host gate or CI claim"
+  ]
+}

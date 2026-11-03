@@ -1,0 +1,51 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-persisted-remote-display/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (23 tests | 2 failed | 21 skipped) 536ms
+   × keeps captured node step name beside non-null address on desktop 421ms
+   × keeps captured node step name beside non-null address on phone 111ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > keeps captured node step name beside non-null address on desktop
+Error: expect(element).toHaveAccessibleName()
+
+Expected element to have accessible name:
+  /REMOTE\.080\.s2-dev.*Remote development/
+Received:
+  Edit dependency: REMOTE.080.s2-dev Captured remote build to 010 Local successor, Finish-to-start. Enter to edit. Delete to remove. Escape to return to dependency search.
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:307:18
+    305|       name: phone ? /^Edit REMOTE/ : /^Edit dependency: REMOTE/,
+    306|     });
+    307|     expect(edit).toHaveAccessibleName(/REMOTE\.080\.s2-dev.*Remote dev…
+       |                  ^
+    308|     expect(edit).toHaveAccessibleName(/Captured remote build/);
+    309|     if (!phone) expect(edit).toHaveTextContent(/REMOTE\.080\.s2-dev.*R…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > keeps captured node step name beside non-null address on phone
+Error: expect(element).toHaveAccessibleName()
+
+Expected element to have accessible name:
+  /REMOTE\.080\.s2-dev.*Remote development/
+Received:
+  Edit REMOTE.080.s2-dev Captured remote build to 010 Local successor, Finish-to-start
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:307:18
+    305|       name: phone ? /^Edit REMOTE/ : /^Edit dependency: REMOTE/,
+    306|     });
+    307|     expect(edit).toHaveAccessibleName(/REMOTE\.080\.s2-dev.*Remote dev…
+       |                  ^
+    308|     expect(edit).toHaveAccessibleName(/Captured remote build/);
+    309|     if (!phone) expect(edit).toHaveTextContent(/REMOTE\.080\.s2-dev.*R…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 21 skipped (23)
+   Start at  12:19:00
+   Duration  6.75s (import 58%, transform 26%, tests 8%, environment 8%, setup 1%)

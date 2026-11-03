@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-mounted-copy.controller.db.test.ts:
+144 |     }
+145 |     return read.call(this, projectIds, changes);
+146 |   });
+147 |   try {
+148 |     const response = await copyBatch(fixture);
+149 |     expect(response.status).toBe(500);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 200
+
+      at <anonymous> (/home/df/.codex/worktrees/cb74/puni-00/apps/wbs/be-01/src/controller/cross-project-mounted-copy.controller.db.test.ts:149:29)
+(fail) active mounted copy graph read failure rolls back earlier batch writes and publishes nothing [552.11ms]
+
+ 0 pass
+ 2 filtered out
+ 1 fail
+ 11 expect() calls
+Ran 1 test across 1 file. [3.35s]

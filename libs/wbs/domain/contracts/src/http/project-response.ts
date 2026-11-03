@@ -4,7 +4,7 @@ import { responseSchema } from './schema-shape';
 import { stepShape } from './step-shapes';
 
 /** Complete stored project settings, shared by project reads, lists, writes and exports. */
-export const project = type({
+const storedProject = type({
   id: 'string',
   name: 'string',
   ownerId: 'string',
@@ -32,6 +32,16 @@ export const project = type({
    * read an older be-01 mid-swap; every be-01 that knows it sends it.
    */
   'timezone?': 'string',
+});
+
+/** Live replies require a persisted normalized project address. */
+export const project = storedProject.and({
+  abbreviation: type('string').matching(/^[A-Z][A-Z0-9_-]{0,19}$/),
+});
+
+/** Historical documents retain captured metadata without consulting live projects. */
+export const documentProject = storedProject.and({
+  'abbreviation?': type('string').matching(/^[A-Z][A-Z0-9_-]{0,19}$/),
 });
 
 /**

@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-command-access.controller.db.test.ts:
+(pass) active mounted queued external add revalidates successor edit access [694.69ms]
+(pass) active mounted queued external update revalidates successor edit access [560.89ms]
+(pass) active mounted queued external remove revalidates successor edit access [586.15ms]
+
+ 3 pass
+ 0 fail
+ 100 expect() calls
+Ran 3 tests across 1 file. [4.88s]

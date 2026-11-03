@@ -1,0 +1,360 @@
+[
+  {
+    "fault": "ledger",
+    "test": "DELETE FROM __drizzle_migrations",
+    "exit": 1,
+    "summary": "e/src/cross-project-dependency-activation.db.test.ts:149:62)\n(fail) refuses corrupt trusted authority: DELETE FROM __drizzle_migrations WHERE name='20261022212000_add_cross_project_dependency_activation' [94.17ms]\n\n 0 pass\n 44 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [2.38s]\n"
+  },
+  {
+    "fault": "schemas",
+    "test": "CREATE TABLE cross_project_dependency_activation",
+    "exit": 1,
+    "summary": "_receipt(id,receipt); INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{\"protocol\":\"wbs-dependency-activation\",\"version\":1}'),(1,'{\"protocol\":\"wbs-dependency-activation\",\"version\":1}') [96.49ms]\n\n 2 pass\n 41 filtered out\n 2 fail\n 6 expect() calls\nRan 4 tests across 1 file. [3.34s]\n"
+  },
+  {
+    "fault": "marker",
+    "test": "UPDATE cross_project_dependency_activation SET id=2",
+    "exit": 1,
+    "summary": "oject_dependency_activation SET id=2 [95.05ms]\n(pass) rollback refuses corrupt authority without changing ledger: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation SET id=2 [120.79ms]\n\n 2 pass\n 42 filtered out\n 1 fail\n 5 expect() calls\nRan 3 tests across 1 file. [3.98s]\n"
+  },
+  {
+    "fault": "triggers",
+    "test": "trigger",
+    "exit": 1,
+    "summary": "\",\n  receipt: null,\n}\n\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:160:64)\n(fail) refuses altered delete trigger [139.32ms]\n\n 0 pass\n 39 filtered out\n 6 fail\n 6 expect() calls\nRan 6 tests across 1 file. [3.51s]\n"
+  },
+  {
+    "fault": "disabled-receipt",
+    "test": "INSERT INTO cross_project_dependency_activation_receipt",
+    "exit": 1,
+    "summary": "rotocol\":\"wbs-dependency-activation\",\"version\":1}') [143.76ms]\n(pass) rollback refuses corrupt authority without changing ledger: INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{}') [106.40ms]\n\n 2 pass\n 42 filtered out\n 1 fail\n 5 expect() calls\nRan 3 tests across 1 file. [3.99s]\n"
+  },
+  {
+    "fault": "receipt-identity",
+    "test": "wrong receipt identity",
+    "exit": 1,
+    "summary": "t <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:298:60)\n(fail) refuses wrong receipt identity even with a valid receipt body [163.09ms]\n\n 0 pass\n 44 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [3.31s]\n"
+  },
+  {
+    "fault": "live-getter",
+    "test": "rereads on every",
+    "exit": 1,
+    "summary": "(/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:95:33)\n(fail) migrates to durable disabled authority and rereads on every authoring access [161.25ms]\n\n 0 pass\n 44 filtered out\n 1 fail\n 3 expect() calls\nRan 1 test across 1 file. [3.37s]\n"
+  },
+  {
+    "fault": "trigger-insert",
+    "test": "dormant repository insert",
+    "exit": 1,
+    "summary": "tivation.db.test.ts:228:13)\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:132:12)\n(fail) refuses dormant repository insert atomically [200.74ms]\n\n 0 pass\n 44 filtered out\n 1 fail\nRan 1 test across 1 file. [4.95s]\n"
+  },
+  {
+    "fault": "trigger-update",
+    "test": "dormant repository update",
+    "exit": 1,
+    "summary": "tivation.db.test.ts:228:13)\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:132:12)\n(fail) refuses dormant repository update atomically [391.02ms]\n\n 0 pass\n 44 filtered out\n 1 fail\nRan 1 test across 1 file. [9.00s]\n"
+  },
+  {
+    "fault": "trigger-delete",
+    "test": "dormant repository delete",
+    "exit": 1,
+    "summary": "tivation.db.test.ts:228:13)\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:132:12)\n(fail) refuses dormant repository delete atomically [127.23ms]\n\n 0 pass\n 44 filtered out\n 1 fail\nRan 1 test across 1 file. [4.80s]\n"
+  },
+  {
+    "fault": "predicate-marker-count",
+    "test": "independent writer refuses invalid authority: .*INSERT\\ INTO\\ cross_project_dependency_activation\\ VALUES",
+    "exit": 1,
+    "summary": "er refuses invalid authority: DROP TABLE cross_project_dependency_activation; CREATE TABLE cross_project_dependency_activation(id,state); INSERT INTO cross_project_dependency_activation VALUES (1,'ENABLED'),(1,'ENABLED') [164.53ms]\n\n 0 pass\n 44 filtered out\n 1 fail\nRan 1 test across 1 file. [4.21s]\n"
+  },
+  {
+    "fault": "predicate-marker-state",
+    "test": "independent writer refuses invalid authority: .*state='DISABLED'",
+    "exit": 1,
+    "summary": "dency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:256:12)\n(fail) independent writer refuses invalid authority: UPDATE cross_project_dependency_activation SET state='DISABLED' [137.44ms]\n\n 0 pass\n 44 filtered out\n 1 fail\nRan 1 test across 1 file. [4.92s]\n"
+  },
+  {
+    "fault": "predicate-receipt-count",
+    "test": "independent writer refuses invalid authority: .*CREATE\\ TABLE\\ cross_project_dependency_activation_receipt",
+    "exit": 1,
+    "summary": "endency_activation_receipt(id,receipt); INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{\"protocol\":\"wbs-dependency-activation\",\"version\":1}'),(1,'{\"protocol\":\"wbs-dependency-activation\",\"version\":1}') [191.61ms]\n\n 0 pass\n 44 filtered out\n 1 fail\nRan 1 test across 1 file. [6.39s]\n"
+  },
+  {
+    "fault": "predicate-receipt-id",
+    "test": "independent writer refuses invalid authority: .*cross_project_dependency_activation_receipt\\ SET\\ id=2",
+    "exit": 1,
+    "summary": "store-sqlite/src/cross-project-dependency-activation.db.test.ts:256:12)\n(fail) independent writer refuses invalid authority: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation_receipt SET id=2 [241.33ms]\n\n 0 pass\n 44 filtered out\n 1 fail\nRan 1 test across 1 file. [5.54s]\n"
+  },
+  {
+    "fault": "predicate-receipt-protocol",
+    "test": "independent writer refuses invalid authority: .*protocol",
+    "exit": 1,
+    "summary": "oject-dependency-activation.db.test.ts:256:12)\n(fail) independent writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.protocol','wrong') [197.50ms]\n\n 1 pass\n 43 filtered out\n 1 fail\n 2 expect() calls\nRan 2 tests across 1 file. [4.38s]\n"
+  },
+  {
+    "fault": "predicate-receipt-version",
+    "test": "independent writer refuses invalid authority: .*version",
+    "exit": 1,
+    "summary": "cross-project-dependency-activation.db.test.ts:257:12)\n(fail) independent writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',2) [96.09ms]\n\n 1 pass\n 46 filtered out\n 1 fail\n 2 expect() calls\nRan 2 tests across 1 file. [3.89s]\n"
+  },
+  {
+    "fault": "forward-existing",
+    "test": "preexisting external rows atomically",
+    "exit": 1,
+    "summary": "     at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:216:10)\n(fail) refuses preexisting external rows atomically in the real migration runner [131.77ms]\n\n 0 pass\n 47 filtered out\n 1 fail\nRan 1 test across 1 file. [3.98s]\n"
+  },
+  {
+    "fault": "down-enabled",
+    "test": "enabled-empty rollback",
+    "exit": 1,
+    "summary": "nonymous> (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:186:86)\n(fail) refuses enabled-empty rollback without losing authority or ledger [139.40ms]\n\n 0 pass\n 47 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [3.67s]\n"
+  },
+  {
+    "fault": "down-schema-cross_project_dependency_activation",
+    "test": "rollback refuses replaced cross_project_dependency_activation schema",
+    "exit": 1,
+    "summary": "ymous> (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:290:88)\n(fail) rollback refuses replaced cross_project_dependency_activation schema [107.69ms]\n\n 0 pass\n 47 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [2.84s]\n"
+  },
+  {
+    "fault": "down-schema-cross_project_dependency_activation_receipt",
+    "test": "rollback refuses replaced cross_project_dependency_activation_receipt schema",
+    "exit": 1,
+    "summary": "/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:290:88)\n(fail) rollback refuses replaced cross_project_dependency_activation_receipt schema [104.86ms]\n\n 0 pass\n 47 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [2.45s]\n"
+  },
+  {
+    "fault": "parse-protocol",
+    "test": "refuses receipt protocol",
+    "exit": 1,
+    "summary": "dddddddddddddddddddddddddd\",\n  activatedAt: 1,\n}\n\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/domain/contracts/src/dependency-runtime.test.ts:34:74)\n(fail) refuses receipt protocol=wrong [0.43ms]\n\n 0 pass\n 27 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [28.00ms]\n"
+  },
+  {
+    "fault": "parse-version",
+    "test": "refuses receipt version",
+    "exit": 1,
+    "summary": "ddddddddddddddddddddddddddddddd\",\n  activatedAt: 1,\n}\n\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/domain/contracts/src/dependency-runtime.test.ts:34:74)\n(fail) refuses receipt version=2 [0.43ms]\n\n 0 pass\n 27 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [33.00ms]\n"
+  },
+  {
+    "fault": "parse-activationId",
+    "test": "refuses receipt activationId",
+    "exit": 1,
+    "summary": "dddddddddddddddddddddddddd\",\n  activatedAt: 1,\n}\n\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/domain/contracts/src/dependency-runtime.test.ts:34:74)\n(fail) refuses receipt activationId=  [0.44ms]\n\n 0 pass\n 27 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [29.00ms]\n"
+  },
+  {
+    "fault": "parse-databaseIdentity",
+    "test": "refuses receipt databaseIdentity",
+    "exit": 1,
+    "summary": "ddddddddddddddddddddddd\",\n  activatedAt: 1,\n}\n\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/domain/contracts/src/dependency-runtime.test.ts:34:74)\n(fail) refuses receipt databaseIdentity= [0.37ms]\n\n 0 pass\n 27 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [21.00ms]\n"
+  },
+  {
+    "fault": "parse-candidateImage",
+    "test": "refuses receipt candidateImage",
+    "exit": 1,
+    "summary": "ddddddddddddddd\",\n  activatedAt: 1,\n}\n\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/domain/contracts/src/dependency-runtime.test.ts:34:74)\n(fail) refuses receipt candidateImage=wbs:latest [0.37ms]\n\n 0 pass\n 27 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [24.00ms]\n"
+  },
+  {
+    "fault": "parse-rollbackImage",
+    "test": "refuses receipt rollbackImage",
+    "exit": 1,
+    "summary": "dddddddddddddddd\",\n  activatedAt: 1,\n}\n\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/domain/contracts/src/dependency-runtime.test.ts:34:74)\n(fail) refuses receipt rollbackImage=wbs:latest [0.46ms]\n\n 0 pass\n 27 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [28.00ms]\n"
+  },
+  {
+    "fault": "parse-participantProofSha256",
+    "test": "refuses receipt participantProofSha256",
+    "exit": 1,
+    "summary": "dddddddddddddd\",\n  activatedAt: 1,\n}\n\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/domain/contracts/src/dependency-runtime.test.ts:34:74)\n(fail) refuses receipt participantProofSha256=xyz [0.57ms]\n\n 0 pass\n 27 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [27.00ms]\n"
+  },
+  {
+    "fault": "parse-migrationCaptureSha256",
+    "test": "refuses receipt migrationCaptureSha256",
+    "exit": 1,
+    "summary": "reSha256: \"xyz\",\n  activatedAt: 1,\n}\n\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/domain/contracts/src/dependency-runtime.test.ts:34:74)\n(fail) refuses receipt migrationCaptureSha256=xyz [0.43ms]\n\n 0 pass\n 27 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [23.00ms]\n"
+  },
+  {
+    "fault": "parse-activatedAt",
+    "test": "refuses receipt activatedAt",
+    "exit": 1,
+    "summary": " activatedAt: 9007199254740992,\n}\n\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/domain/contracts/src/dependency-runtime.test.ts:34:74)\n(fail) refuses receipt activatedAt=9007199254740992 [0.03ms]\n\n 0 pass\n 25 filtered out\n 3 fail\n 3 expect() calls\nRan 3 tests across 1 file. [31.00ms]\n"
+  },
+  {
+    "fault": "parse-keys",
+    "test": "extra=1",
+    "exit": 1,
+    "summary": "ddddddddddddddddddddddddddddddddd\",\n  activatedAt: 1,\n}\n\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/domain/contracts/src/dependency-runtime.test.ts:34:74)\n(fail) refuses receipt extra=1 [0.55ms]\n\n 0 pass\n 27 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [30.00ms]\n"
+  },
+  {
+    "fault": "down-retained",
+    "test": "dormant rollback with retained external rows",
+    "exit": 1,
+    "summary": "uni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:321:84)\n(fail) refuses dormant rollback with retained external rows and preserves the full ledger [170.74ms]\n\n 0 pass\n 47 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [3.20s]\n"
+  },
+  {
+    "fault": "insert-marker-count",
+    "test": "independent insert writer refuses invalid authority: .*INSERT\\ INTO\\ cross_project_dependency_activation\\ VALUES",
+    "exit": 1,
+    "summary": "er refuses invalid authority: DROP TABLE cross_project_dependency_activation; CREATE TABLE cross_project_dependency_activation(id,state); INSERT INTO cross_project_dependency_activation VALUES (1,'ENABLED'),(1,'ENABLED') [361.22ms]\n\n 0 pass\n 69 filtered out\n 1 fail\nRan 1 test across 1 file. [6.22s]\n"
+  },
+  {
+    "fault": "insert-marker-state",
+    "test": "independent insert writer refuses invalid authority: .*state='DISABLED'",
+    "exit": 1,
+    "summary": "ormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:261:12)\n(fail) independent insert writer refuses invalid authority: UPDATE cross_project_dependency_activation SET state='DISABLED' [396.66ms]\n\n 0 pass\n 69 filtered out\n 1 fail\nRan 1 test across 1 file. [8.54s]\n"
+  },
+  {
+    "fault": "insert-receipt-count",
+    "test": "independent insert writer refuses invalid authority: .*CREATE\\ TABLE\\ cross_project_dependency_activation_receipt",
+    "exit": 1,
+    "summary": "endency_activation_receipt(id,receipt); INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{\"protocol\":\"wbs-dependency-activation\",\"version\":1}'),(1,'{\"protocol\":\"wbs-dependency-activation\",\"version\":1}') [279.54ms]\n\n 0 pass\n 69 filtered out\n 1 fail\nRan 1 test across 1 file. [9.16s]\n"
+  },
+  {
+    "fault": "insert-receipt-id",
+    "test": "independent insert writer refuses invalid authority: .*cross_project_dependency_activation_receipt\\ SET\\ id=2",
+    "exit": 1,
+    "summary": "qlite/src/cross-project-dependency-activation.db.test.ts:261:12)\n(fail) independent insert writer refuses invalid authority: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation_receipt SET id=2 [222.67ms]\n\n 0 pass\n 69 filtered out\n 1 fail\nRan 1 test across 1 file. [7.82s]\n"
+  },
+  {
+    "fault": "insert-receipt-protocol",
+    "test": "independent insert writer refuses invalid authority: .*protocol",
+    "exit": 1,
+    "summary": "ependency-activation.db.test.ts:261:12)\n(fail) independent insert writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.protocol','wrong') [183.66ms]\n\n 1 pass\n 68 filtered out\n 1 fail\n 2 expect() calls\nRan 2 tests across 1 file. [5.52s]\n"
+  },
+  {
+    "fault": "insert-receipt-version",
+    "test": "independent insert writer refuses invalid authority: .*version",
+    "exit": 1,
+    "summary": "oject-dependency-activation.db.test.ts:261:12)\n(fail) independent insert writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',2) [233.35ms]\n\n 1 pass\n 68 filtered out\n 1 fail\n 2 expect() calls\nRan 2 tests across 1 file. [4.64s]\n"
+  },
+  {
+    "fault": "update-marker-count",
+    "test": "independent update writer refuses invalid authority: .*INSERT\\ INTO\\ cross_project_dependency_activation\\ VALUES",
+    "exit": 1,
+    "summary": "er refuses invalid authority: DROP TABLE cross_project_dependency_activation; CREATE TABLE cross_project_dependency_activation(id,state); INSERT INTO cross_project_dependency_activation VALUES (1,'ENABLED'),(1,'ENABLED') [255.57ms]\n\n 0 pass\n 69 filtered out\n 1 fail\nRan 1 test across 1 file. [4.64s]\n"
+  },
+  {
+    "fault": "update-marker-state",
+    "test": "independent update writer refuses invalid authority: .*state='DISABLED'",
+    "exit": 1,
+    "summary": "ormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:261:12)\n(fail) independent update writer refuses invalid authority: UPDATE cross_project_dependency_activation SET state='DISABLED' [307.93ms]\n\n 0 pass\n 69 filtered out\n 1 fail\nRan 1 test across 1 file. [5.15s]\n"
+  },
+  {
+    "fault": "update-receipt-count",
+    "test": "independent update writer refuses invalid authority: .*CREATE\\ TABLE\\ cross_project_dependency_activation_receipt",
+    "exit": 1,
+    "summary": "endency_activation_receipt(id,receipt); INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{\"protocol\":\"wbs-dependency-activation\",\"version\":1}'),(1,'{\"protocol\":\"wbs-dependency-activation\",\"version\":1}') [307.26ms]\n\n 0 pass\n 69 filtered out\n 1 fail\nRan 1 test across 1 file. [6.34s]\n"
+  },
+  {
+    "fault": "update-receipt-id",
+    "test": "independent update writer refuses invalid authority: .*cross_project_dependency_activation_receipt\\ SET\\ id=2",
+    "exit": 1,
+    "summary": "qlite/src/cross-project-dependency-activation.db.test.ts:261:12)\n(fail) independent update writer refuses invalid authority: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation_receipt SET id=2 [384.78ms]\n\n 0 pass\n 69 filtered out\n 1 fail\nRan 1 test across 1 file. [6.38s]\n"
+  },
+  {
+    "fault": "update-receipt-protocol",
+    "test": "independent update writer refuses invalid authority: .*protocol",
+    "exit": 1,
+    "summary": "ependency-activation.db.test.ts:261:12)\n(fail) independent update writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.protocol','wrong') [146.60ms]\n\n 1 pass\n 68 filtered out\n 1 fail\n 2 expect() calls\nRan 2 tests across 1 file. [5.64s]\n"
+  },
+  {
+    "fault": "update-receipt-version",
+    "test": "independent update writer refuses invalid authority: .*version",
+    "exit": 1,
+    "summary": "oject-dependency-activation.db.test.ts:261:12)\n(fail) independent update writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',2) [181.61ms]\n\n 1 pass\n 68 filtered out\n 1 fail\n 2 expect() calls\nRan 2 tests across 1 file. [4.82s]\n"
+  },
+  {
+    "fault": "delete-marker-count",
+    "test": "independent delete writer refuses invalid authority: .*INSERT\\ INTO\\ cross_project_dependency_activation\\ VALUES",
+    "exit": 1,
+    "summary": "er refuses invalid authority: DROP TABLE cross_project_dependency_activation; CREATE TABLE cross_project_dependency_activation(id,state); INSERT INTO cross_project_dependency_activation VALUES (1,'ENABLED'),(1,'ENABLED') [137.47ms]\n\n 0 pass\n 69 filtered out\n 1 fail\nRan 1 test across 1 file. [3.87s]\n"
+  },
+  {
+    "fault": "delete-marker-state",
+    "test": "independent delete writer refuses invalid authority: .*state='DISABLED'",
+    "exit": 1,
+    "summary": "ormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:261:12)\n(fail) independent delete writer refuses invalid authority: UPDATE cross_project_dependency_activation SET state='DISABLED' [174.20ms]\n\n 0 pass\n 69 filtered out\n 1 fail\nRan 1 test across 1 file. [3.69s]\n"
+  },
+  {
+    "fault": "delete-receipt-count",
+    "test": "independent delete writer refuses invalid authority: .*CREATE\\ TABLE\\ cross_project_dependency_activation_receipt",
+    "exit": 1,
+    "summary": "endency_activation_receipt(id,receipt); INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{\"protocol\":\"wbs-dependency-activation\",\"version\":1}'),(1,'{\"protocol\":\"wbs-dependency-activation\",\"version\":1}') [215.55ms]\n\n 0 pass\n 69 filtered out\n 1 fail\nRan 1 test across 1 file. [3.88s]\n"
+  },
+  {
+    "fault": "delete-receipt-id",
+    "test": "independent delete writer refuses invalid authority: .*cross_project_dependency_activation_receipt\\ SET\\ id=2",
+    "exit": 1,
+    "summary": "qlite/src/cross-project-dependency-activation.db.test.ts:261:12)\n(fail) independent delete writer refuses invalid authority: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation_receipt SET id=2 [193.23ms]\n\n 0 pass\n 69 filtered out\n 1 fail\nRan 1 test across 1 file. [3.85s]\n"
+  },
+  {
+    "fault": "delete-receipt-protocol",
+    "test": "independent delete writer refuses invalid authority: .*protocol",
+    "exit": 1,
+    "summary": "ependency-activation.db.test.ts:261:12)\n(fail) independent delete writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.protocol','wrong') [119.59ms]\n\n 1 pass\n 68 filtered out\n 1 fail\n 2 expect() calls\nRan 2 tests across 1 file. [4.53s]\n"
+  },
+  {
+    "fault": "delete-receipt-version",
+    "test": "independent delete writer refuses invalid authority: .*version",
+    "exit": 1,
+    "summary": "oject-dependency-activation.db.test.ts:261:12)\n(fail) independent delete writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',2) [148.02ms]\n\n 1 pass\n 68 filtered out\n 1 fail\n 2 expect() calls\nRan 2 tests across 1 file. [3.92s]\n"
+  },
+  {
+    "fault": "marker-id-constraint",
+    "test": "constrained authority refuses independent corruption: .*activation SET id=2",
+    "exit": 1,
+    "summary": "libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:371:48)\n(fail) constrained authority refuses independent corruption: UPDATE cross_project_dependency_activation SET id=2 [184.45ms]\n\n 0 pass\n 77 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [4.32s]\n"
+  },
+  {
+    "fault": "marker-state-constraint",
+    "test": "constrained authority refuses independent corruption: .*activation SET state='UNKNOWN'",
+    "exit": 1,
+    "summary": "apters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:371:48)\n(fail) constrained authority refuses independent corruption: UPDATE cross_project_dependency_activation SET state='UNKNOWN' [211.15ms]\n\n 0 pass\n 77 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [4.43s]\n"
+  },
+  {
+    "fault": "marker-state-null",
+    "test": "constrained authority refuses independent corruption: .*activation SET state=NULL",
+    "exit": 1,
+    "summary": "bs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:371:48)\n(fail) constrained authority refuses independent corruption: UPDATE cross_project_dependency_activation SET state=NULL [220.56ms]\n\n 0 pass\n 77 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [4.15s]\n"
+  },
+  {
+    "fault": "receipt-id-constraint",
+    "test": "constrained authority refuses independent corruption: .*receipt VALUES \\(2",
+    "exit": 1,
+    "summary": "ore-sqlite/src/cross-project-dependency-activation.db.test.ts:371:48)\n(fail) constrained authority refuses independent corruption: INSERT INTO cross_project_dependency_activation_receipt VALUES (2,'{}') [146.33ms]\n\n 0 pass\n 77 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [3.79s]\n"
+  },
+  {
+    "fault": "receipt-json-constraint",
+    "test": "constrained authority refuses independent corruption: .*malformed",
+    "exit": 1,
+    "summary": "ite/src/cross-project-dependency-activation.db.test.ts:371:48)\n(fail) constrained authority refuses independent corruption: INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'malformed') [172.61ms]\n\n 0 pass\n 77 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [3.62s]\n"
+  },
+  {
+    "fault": "receipt-json-and-null-constraints",
+    "test": "constrained authority refuses independent corruption: .*receipt VALUES \\(1,NULL",
+    "exit": 1,
+    "summary": "ore-sqlite/src/cross-project-dependency-activation.db.test.ts:371:48)\n(fail) constrained authority refuses independent corruption: INSERT INTO cross_project_dependency_activation_receipt VALUES (1,NULL) [235.52ms]\n\n 0 pass\n 77 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [4.59s]\n",
+    "note": "Both JSON validation and NOT NULL were omitted: SQLite json_valid(NULL)=0 also rejects NULL, so NOT NULL is redundant with the intact JSON constraint."
+  },
+  {
+    "fault": "marker-state-inspection",
+    "test": "unknown marker state even",
+    "exit": 1,
+    "summary": "     at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:383:60)\n(fail) refuses unknown marker state even with an exact receipt [121.98ms]\n\n 0 pass\n 78 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [2.51s]\n"
+  },
+  {
+    "fault": "insert-json-version-type",
+    "test": "independent insert writer.*version.*true",
+    "exit": 1,
+    "summary": "e);\n231 |   throw new Error('expected native SQLite failure');\n                  ^\nerror: expected native SQLite failure\n      at nativeMessage (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:231:13)\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:266:14)\n(fail) independent insert writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',json('true')) [163.05ms]\n\n 0 pass\n 83 filtered out\n 1 fail\nRan 1 test across 1 file. [2.65s]\n",
+    "note": "Removed only this action's json_type numeric predicate; receipt version true then made the production repository write resolve instead of producing the native refusal."
+  },
+  {
+    "fault": "update-json-version-type",
+    "test": "independent update writer.*version.*true",
+    "exit": 1,
+    "summary": "e);\n231 |   throw new Error('expected native SQLite failure');\n                  ^\nerror: expected native SQLite failure\n      at nativeMessage (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:231:13)\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:266:14)\n(fail) independent update writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',json('true')) [177.71ms]\n\n 0 pass\n 83 filtered out\n 1 fail\nRan 1 test across 1 file. [2.78s]\n",
+    "note": "Removed only this action's json_type numeric predicate; receipt version true then made the production repository write resolve instead of producing the native refusal."
+  },
+  {
+    "fault": "delete-json-version-type",
+    "test": "independent delete writer.*version.*true",
+    "exit": 1,
+    "summary": "e);\n231 |   throw new Error('expected native SQLite failure');\n                  ^\nerror: expected native SQLite failure\n      at nativeMessage (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:231:13)\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:266:14)\n(fail) independent delete writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',json('true')) [199.77ms]\n\n 0 pass\n 83 filtered out\n 1 fail\nRan 1 test across 1 file. [2.86s]\n",
+    "note": "Removed only this action's json_type numeric predicate; receipt version true then made the production repository write resolve instead of producing the native refusal."
+  }
+]

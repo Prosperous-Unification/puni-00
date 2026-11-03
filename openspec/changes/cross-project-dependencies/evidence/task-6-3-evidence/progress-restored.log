@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+(pass) missing remote calendar preserves mounted readiness and governed execution [539.18ms]
+
+ 1 pass
+ 36 filtered out
+ 0 fail
+ 13 expect() calls
+Ran 1 test across 1 file. [3.67s]

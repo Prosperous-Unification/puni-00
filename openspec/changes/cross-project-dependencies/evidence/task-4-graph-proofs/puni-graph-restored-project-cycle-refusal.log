@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/connected-step-node.test.ts:
+(pass) accepts A.design B.build A.test and retains ownership and relationship provenance [0.58ms]
+
+ 1 pass
+ 11 filtered out
+ 0 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [36.00ms]

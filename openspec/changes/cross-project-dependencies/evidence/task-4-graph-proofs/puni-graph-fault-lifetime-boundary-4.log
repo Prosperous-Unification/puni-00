@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+311 |   expect(incident.calls).not.toContain('project:a');
+312 |
+313 |   const project = observation();
+314 |   project.reads.projects.findById = () => { project.expire(); return Promise.resolve({ id: 'a', depReach: 'anchor-slice' }); };
+315 |   await expectRejection(project.reader.read(['a']), /expired/);
+316 |   expect(project.calls).not.toContain('rows:a');
+                                  ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "rows:a"
+Received: [ "admit:a", "incident:a", "rows:a", "steps:a", "estimates:a", "legacy:a" ]
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:316:29)
+(fail) checks lifetime for an empty observation and immediately after every awaited boundary [1.94ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 11 expect() calls
+Ran 1 test across 1 file. [134.00ms]

@@ -6,12 +6,16 @@ import type { PlanCommand, Scope } from '@wbs/core';
 import { clockOf, CREATOR_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
+import { expectCreated } from '@wbs/core/testing/expect-created';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { sql } from 'drizzle-orm';
 
 import { runMigrations } from '../migrate';
 import { openSqliteSource } from '../source';
+import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './dependency-capability';
 
 /**
  * `wbs-shared-occupancy` task 3.5: a claim batch's p99 latency with a
@@ -37,6 +41,7 @@ async function measure(): Promise<void> {
   runMigrations(dbPath, MIGRATIONS);
   // Caps far above the fixture: the bound-claim cap is counted, never reached.
   const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,
     organizationDefaultLimits: {
       maxAgentPersons: 100_000,
@@ -58,14 +63,20 @@ async function measure(): Promise<void> {
       clock,
       broadcast: recordingBroadcaster(),
       scheduler: fastScheduler,
+      dependencyContext: createLocalDependencyContext(source.stores),
     };
     const graph = servicesOver(source.stores, options);
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       uow: source.uow,
       announcements: options.broadcast,
       publicServices: graph,
       batchServices: (scope: Scope, announcements) =>
-        servicesOver(scope.stores, { ...options, broadcast: announcements }),
+        servicesOver(scope.stores, {
+          ...options,
+          broadcast: announcements,
+          dependencyContext: createLocalDependencyContext(scope.stores),
+        }),
     });
     await source.stores.users.create(
       { id: F, username: F, passwordHash: 'x', createdAt: 1 },
@@ -124,7 +135,7 @@ async function measure(): Promise<void> {
     };
     const projects: string[] = [];
     for (let index = 0; index < PROJECTS; index += 1) {
-      const { project } = await graph.projects.create(`P${String(index)}`, F);
+      const { project } = expectCreated(await graph.projects.create(`P${String(index)}`, F));
       projects.push(project.id);
       source.db.run(
         sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${project.id}, ${ORG})`,
@@ -170,11 +181,9 @@ async function measure(): Promise<void> {
       const started = performance.now();
       const claimed = await runner.runWithin(
         target,
-        F,
+        { id: F, username: F, scopes: ['write'] },
         [{ kind: 'claimWorkItem', workItemId, personId }],
         admin,
-        null,
-        null,
       );
       const elapsed = performance.now() - started;
       if (!claimed.ok) throw new Error(`a measured claim was refused: ${JSON.stringify(claimed)}`);

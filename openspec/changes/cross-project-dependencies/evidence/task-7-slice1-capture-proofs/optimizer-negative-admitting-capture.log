@@ -1,0 +1,47 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/captured-scheduler.db.test.ts:
+93 |       const captured = { ...stage(), mode };
+94 |       const view = capturedSchedulerIn(owner.db, { schedulerOf }, lifetime, installed);
+95 |       if (view.connected === undefined) throw Error('connected capture capability absent');
+96 |       const ask = { stage: captured, enabled: true, objective: 'time' as const };
+97 |       expect(view.connected.readConnectedCaptured(ask).variants.time.state).toBe('idle');
+98 |       expect(owner.sqlite.query('SELECT total_changes() AS count').get()).toEqual(before);
+                                                                               ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "count": 0,
++   "count": 1,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-optimizer-capture/libs/wbs/adapters/store-sqlite/src/captured-scheduler.db.test.ts:98:75)
+(fail) keeps isolated connected selections in one borrowed observation without writes [117.48ms]
+93 |       const captured = { ...stage(), mode };
+94 |       const view = capturedSchedulerIn(owner.db, { schedulerOf }, lifetime, installed);
+95 |       if (view.connected === undefined) throw Error('connected capture capability absent');
+96 |       const ask = { stage: captured, enabled: true, objective: 'time' as const };
+97 |       expect(view.connected.readConnectedCaptured(ask).variants.time.state).toBe('idle');
+98 |       expect(owner.sqlite.query('SELECT total_changes() AS count').get()).toEqual(before);
+                                                                               ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "count": 0,
++   "count": 1,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-optimizer-capture/libs/wbs/adapters/store-sqlite/src/captured-scheduler.db.test.ts:98:75)
+(fail) keeps shared connected selections in one borrowed observation without writes [88.24ms]
+
+ 0 pass
+ 8 filtered out
+ 2 fail
+ 4 expect() calls
+Ran 2 tests across 1 file. [2.81s]

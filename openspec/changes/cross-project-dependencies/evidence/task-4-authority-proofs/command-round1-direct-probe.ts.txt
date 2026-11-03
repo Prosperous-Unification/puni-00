@@ -1,0 +1,36 @@
+import { OrganizationHarness } from '/tmp/puni-cross-command-authority/apps/wbs/be-01/src/testing/organization-harness';
+
+const harness = OrganizationHarness.openComposedWith({ sessionBinding: true });
+try {
+  await harness.register('ada');
+  harness.organization('org-a');
+  harness.member('org-a', 'ada', 'super_admin');
+  harness.activate();
+  const selected = await harness.request('/api/organization/active', {
+    method: 'POST',
+    headers: { origin: 'http://localhost', authorization: `Bearer ${harness.token('ada')}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ organizationId: 'org-a' }),
+  });
+  if (selected.status !== 200) throw new Error(`selection failed ${selected.status}`);
+  const cookie = selected.headers.get('set-cookie')?.split(';')[0];
+  if (!cookie) throw new Error('no cookie');
+  const created = await harness.request('/api/projects', {
+    method: 'POST',
+    headers: { origin: 'http://localhost', authorization: `Bearer ${harness.token('ada')}`, cookie, 'X-WBS-Expected-Organization': 'org-a', 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'Probe' }),
+  });
+  if (created.status !== 200) throw new Error(`create failed ${created.status}`);
+  const project = harness.sqlite.query<{ id: string }, []>('SELECT id FROM project').get();
+  const step = harness.sqlite.query<{ id: string }, []>('SELECT id FROM step ORDER BY position LIMIT 1').get();
+  if (!project || !step) throw new Error('missing project or step');
+  const principal = await harness.authenticatedCommandPrincipal('ada', decodeURIComponent(cookie.slice(cookie.indexOf('=') + 1)));
+  const access = { kind: 'scoped' as const, scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' as const } };
+  const readOnly = { ...principal, scopes: ['read'] as const };
+  const run = await harness.publicCommands().runWithin(project.id, readOnly, [], access);
+  const remove = await harness.removeBareStep(project.id, step.id, readOnly, true, access);
+  const remaining = harness.sqlite.query('SELECT id FROM step WHERE id = ?').get(step.id);
+  console.log(JSON.stringify({ run, remove, stepPersisted: remaining !== null }));
+  if (run.ok || remove.ok || !('error' in remove) || remove.error !== 'insufficient_scope' || remaining === null) throw new Error('read-only admitted deletion was not refused');
+} finally {
+  await harness.closeComposed();
+}

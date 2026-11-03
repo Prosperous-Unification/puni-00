@@ -1,0 +1,473 @@
+[
+  {
+    "name": "scoped-alias-admission",
+    "path": "libs/wbs/application/core/src/service/command-fields.ts",
+    "before": "  if (projectId !== undefined && (projectId.trim().length === 0 || workItemRef !== undefined))\n    throw new CommandNormalizationError('invalid_typed_endpoint');",
+    "after": "",
+    "test": "./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts",
+    "selected": "mounted scoped-alias",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-proof-scoped-alias-admission.log"
+  },
+  {
+    "name": "preserve-explicit-project",
+    "path": "libs/wbs/application/core/src/module/plan-commands/command-bindings.ts",
+    "before": "const projectId = endpoint.projectId ?? context.requireProjectId();",
+    "after": "const projectId = context.requireProjectId();",
+    "test": "./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts",
+    "selected": "mounted external authoring stays dormant",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-proof-preserve-explicit-project.log"
+  },
+  {
+    "name": "scoped-project-evidence",
+    "path": "libs/wbs/application/core/src/service/dependency-endpoint-evidence.ts",
+    "before": "findProjectWithin(reads.projects, address.projectId, authority.access)",
+    "after": "reads.projects.findById(address.projectId)",
+    "test": "./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts",
+    "selected": "mounted foreign-organization",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-proof-scoped-project-evidence.log"
+  },
+  {
+    "name": "exact-row-project-evidence",
+    "path": "libs/wbs/application/core/src/service/dependency-endpoint-evidence.ts",
+    "before": "row === null || row.projectId !== address.projectId",
+    "after": "row === null",
+    "test": "./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts",
+    "selected": "mounted wrong-row-project",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-proof-exact-row-project-evidence.log"
+  },
+  {
+    "name": "external-owner-step-concealment",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "external && read.reason === 'unknown_step'",
+    "after": "false",
+    "test": "./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts",
+    "selected": "mounted owner-step",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-proof-external-owner-step-concealment.log"
+  },
+  {
+    "name": "dormant-authoring",
+    "path": "libs/wbs/application/core/src/ports/external-dependency-authoring.ts",
+    "before": "= { state: 'inactive' };",
+    "after": "= { state: 'active' };",
+    "test": "./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts",
+    "selected": "mounted external authoring stays dormant",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-proof-dormant-authoring.log"
+  },
+  {
+    "name": "typed-complete-connected-cycle",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "const cycle = await context.graph.findCycle(projectId, { typed: [...existing.filter((row) => row.id !== proposed.id), proposed] });",
+    "after": "const cycle = null;",
+    "test": "./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts",
+    "selected": "connected guard accepts step interleaving",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-proof-typed-complete-connected-cycle.log"
+  },
+  {
+    "name": "owner-refresh-partition",
+    "path": "libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts",
+    "before": ".filter((endpoint) => endpoint.projectId === projectId)",
+    "after": ".filter(() => true)",
+    "test": "./libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts",
+    "selected": "refreshes only retained owner rows",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-proof-owner-refresh-partition.log"
+  },
+  {
+    "name": "missing-external-history-metadata",
+    "path": "libs/wbs/application/core/src/service/compensating.ts",
+    "before": "    if (required.size > 0) throw new Error('journal external revision coverage is missing');",
+    "after": "",
+    "test": "./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts",
+    "selected": "history refuses missing external revision metadata",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-proof-missing-external-history-metadata.log"
+  },
+  {
+    "name": "remote-revision-conflict",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "if (external.expected.some((revision) => revisions.get(scopedRevisionKey(revision)) !== revision.revision))",
+    "after": "if (false)",
+    "test": "./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts",
+    "selected": "external undo redo checks remote revisions",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-proof-remote-revision-conflict.log"
+  },
+  {
+    "name": "conditional-remote-neighbor",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "current === undefined || revision.revision !== before.get(key)",
+    "after": "current === undefined",
+    "test": "./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts",
+    "selected": "external neighbor restamping preserves a genuine intervening edit",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-proof-conditional-remote-neighbor.log"
+  },
+  {
+    "name": "earliest-batch-external-before",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "if (!earliest.has(key)) earliest.set(key, revision);",
+    "after": "earliest.set(key, revision);",
+    "test": "./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts",
+    "selected": "collected history keeps an external endpoint first seen",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-proof-earliest-batch-external-before.log"
+  },
+  {
+    "name": "command-observation-close",
+    "path": "libs/wbs/application/core/src/module/plan-commands/composition.ts",
+    "before": "observing = false;",
+    "after": "observing = true;",
+    "test": "./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts",
+    "selected": "command observation closes escaped capabilities on success",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-proof-command-observation-close.log"
+  },
+  {
+    "name": "post-await-evidence-lifetime",
+    "path": "libs/wbs/application/core/src/service/dependency-endpoint-evidence.ts",
+    "before": "const value = await read();\n    authority.assertActive();",
+    "after": "const value = await read();",
+    "test": "./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts",
+    "selected": "refusal suspended across command observation close",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-proof-post-await-evidence-lifetime.log"
+  },
+  {
+    "name": "create",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "selected": "connected create refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-consumer-proof-create.log"
+  },
+  {
+    "name": "move",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "selected": "connected move refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-consumer-proof-move.log"
+  },
+  {
+    "name": "duplicate",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "selected": "connected duplicate refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-consumer-proof-duplicate.log"
+  },
+  {
+    "name": "cascade",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "selected": "connected cascade refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-consumer-proof-cascade.log"
+  },
+  {
+    "name": "promote",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "selected": "connected promote refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-consumer-proof-promote.log"
+  },
+  {
+    "name": "set-estimate",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "selected": "connected set-estimate refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-consumer-proof-set-estimate.log"
+  },
+  {
+    "name": "clear-estimate",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "selected": "connected clear-estimate refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-consumer-proof-clear-estimate.log"
+  },
+  {
+    "name": "add-legacy",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "selected": "connected add-legacy refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-consumer-proof-add-legacy.log"
+  },
+  {
+    "name": "remove-legacy",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "selected": "connected remove-legacy refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-consumer-proof-remove-legacy.log"
+  },
+  {
+    "name": "project-reach",
+    "path": "libs/wbs/application/core/src/module/project/project.resource.ts",
+    "selected": "connected project-reach refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-consumer-proof-project-reach.log"
+  },
+  {
+    "name": "step-add",
+    "path": "libs/wbs/application/core/src/module/step/step.resource.ts",
+    "selected": "connected step-add refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-consumer-proof-step-add.log"
+  },
+  {
+    "name": "step-remove",
+    "path": "libs/wbs/application/core/src/module/step/step.resource.ts",
+    "selected": "connected step-remove refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-consumer-proof-step-remove.log"
+  },
+  {
+    "name": "step-references",
+    "path": "libs/wbs/application/core/src/module/step/step.resource.ts",
+    "selected": "connected step-references refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-consumer-proof-step-references.log"
+  },
+  {
+    "name": "old-update-evidence",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "this.typedEvidence(context, projectId, [from, to])",
+    "selected": "update refuses an injected denial",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-final-proof-old-update-evidence.log"
+  },
+  {
+    "name": "old-remove-evidence",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "this.typedEvidence(context, projectId, [dependency])",
+    "selected": "remove refuses an injected denial",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-final-proof-old-remove-evidence.log"
+  },
+  {
+    "name": "restored-local-typed-evidence",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "checked.reason !== 'not_found' || !restoredTyped.has(scopedRevisionKey(endpoint))",
+    "selected": "mounted local batch aliases survive",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-final-proof-restored-local-typed-evidence.log"
+  },
+  {
+    "name": "ordinary-reference-partition",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "if (row !== null && row.projectId !== projectId) return true;",
+    "selected": "mixed nested replay",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-final-proof-ordinary-reference-partition.log"
+  },
+  {
+    "name": "metadata-object-shape",
+    "path": "libs/wbs/application/core/src/service/compensating.ts",
+    "before": "if (typeof value !== 'object' || value === null || !('expected' in value) || !('from' in value)) throw new Error('journal external revisions are malformed');",
+    "selected": "replay refuses missing-from trusted",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-final-proof-metadata-object-shape.log"
+  },
+  {
+    "name": "metadata-list-shape",
+    "path": "libs/wbs/application/core/src/service/compensating.ts",
+    "before": "if (!Array.isArray(entries)) throw new Error('journal external revisions are not a list');",
+    "selected": "replay refuses non-list trusted",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-final-proof-metadata-list-shape.log"
+  },
+  {
+    "name": "metadata-revision-value",
+    "path": "libs/wbs/application/core/src/service/compensating.ts",
+    "before": "|| entry.revision < 0",
+    "selected": "replay refuses invalid-revision trusted",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-final-proof-metadata-revision-value.log"
+  },
+  {
+    "name": "metadata-duplicate",
+    "path": "libs/wbs/application/core/src/service/compensating.ts",
+    "before": "if (seen.has(key)) throw new Error('journal external revisions contain a duplicate');",
+    "selected": "replay refuses duplicate trusted",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-final-proof-metadata-duplicate.log"
+  },
+  {
+    "name": "metadata-exact-coverage",
+    "path": "libs/wbs/application/core/src/service/compensating.ts",
+    "before": "if (entries.some((entry) => entry.projectId === ownerId) || keys.size !== entries.length || keys.size !== required.size || [...keys].some((key) => !required.has(key))) throw new Error('journal external revision coverage is not exact');",
+    "selected": "replay refuses omitted trusted",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-final-proof-metadata-exact-coverage.log"
+  },
+  {
+    "name": "context-owner-actor",
+    "path": "libs/wbs/application/core/src/service/dependency-context.ts",
+    "before": "if (owner !== projectId || actor !== actorId) throw new Error('dependency context owner or actor mismatch');",
+    "selected": "actual service cannot borrow",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-final-proof-context-owner-actor.log"
+  },
+  {
+    "name": "local-incident-failclosed",
+    "path": "libs/wbs/application/core/src/service/dependency-context.ts",
+    "before": "if (dependency.predecessor.projectId !== projectId || dependency.successor.projectId !== projectId)\n        throw new Error('local dependency context cannot inspect external incidents');",
+    "selected": "local service owner admission precedes",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-final-proof-local-incident-failclosed.log"
+  },
+  {
+    "name": "required-authoring-construction",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "this.externalDependenciesActive = permitsExternalDependencies(opts.externalDependencyAuthoring);",
+    "selected": "actual typed service rejects an unknown",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-final-proof-required-authoring-construction.log"
+  },
+  {
+    "name": "graph-helper-owner-admission",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "if (project === null || !this.opts.admission.admits(project, actorId)) throw new Error('dependency graph owner is not admitted');",
+    "selected": "runner-facing graph inspection requires",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-final-proof-graph-helper-owner-admission.log"
+  },
+  {
+    "path": "libs/wbs/application/core/src/service/dependency-graph.ts",
+    "before": "      const reason = endpoint.scope === 'node' && parents.has(endpoint.workItemId) ? 'node_on_parent' : endpoint.scope === 'descendant-step' && !parents.has(endpoint.workItemId) ? 'descendant_step_on_leaf' : null;",
+    "selected": "structural first-child creation",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-shape-proof-structural.log"
+  },
+  {
+    "path": "libs/wbs/application/core/src/service/dependency-graph.ts",
+    "before": "      const reason = endpoint.scope === 'node' && parents.has(endpoint.workItemId) ? 'node_on_parent' : endpoint.scope === 'descendant-step' && !parents.has(endpoint.workItemId) ? 'descendant_step_on_leaf' : null;",
+    "selected": "last-child deletion refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-shape-proof-last-child.log"
+  },
+  {
+    "name": "apply-move",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "const structural = await this.structuralRefusal(projectId, stamp.by, {\n        rows: rows.map((row) => (row.id === id ? { ...row, parentId } : row)),\n      });\n",
+    "selected": "connected replay-move refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-replay-consumer-proof-apply-move.log"
+  },
+  {
+    "name": "apply-delete",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "const structural = await this.structuralRefusal(projectId, stamp.by, {\n      rows: projected,\n      typed: authored,\n      estimates: [\n        ...estimates.filter((estimate) => !removed.has(estimate.workItemId)),\n        ...command.setEstimates,\n      ],\n      legacy: legacy.filter(\n        (edge) => !removed.has(edge.predecessorId) && !removed.has(edge.successorId),\n      ),\n    });\n",
+    "selected": "connected replay-delete refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-replay-consumer-proof-apply-delete.log"
+  },
+  {
+    "name": "apply-restore",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "const structural = await this.structuralRefusal(projectId, stamp.by, {\n      rows: projectedTree,\n      estimates: [\n        ...estimates.filter(\n          (estimate) =>\n            !removedEstimateKeys.has(JSON.stringify([estimate.workItemId, estimate.stepId])),\n        ),\n        ...command.estimates,\n      ],\n      legacy: [...legacy, ...command.internalDependencies, ...command.externalDependencies],\n    });\n",
+    "selected": "connected replay-restore refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-replay-consumer-proof-apply-restore.log"
+  },
+  {
+    "name": "omitted-final-remote-revision",
+    "path": "libs/wbs/application/core/src/service/compensating.ts",
+    "before": "    if (\n      entries.some((entry) => entry.projectId === ownerId) ||\n      keys.size !== entries.length ||\n      keys.size !== required.size ||\n      [...keys].some((key) => !required.has(key))\n    )\n      throw new Error('journal external revision coverage is not exact');",
+    "selected": "omitted final remote revision",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-replay-consumer-proof-omitted-final-remote-revision.log"
+  },
+  {
+    "name": "typed-add",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "const cycle = await context.graph.findCycle(projectId, {\n          typed: [...existing.filter((row) => row.id !== proposed.id), proposed],\n        });",
+    "selected": "connected typed-add refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-typed-consumer-proof-typed-add.log"
+  },
+  {
+    "name": "typed-update",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "const cycle = await context.graph.findCycle(projectId, {\n          typed: [...existing.filter((row) => row.id !== proposed.id), proposed],\n        });",
+    "selected": "connected typed-update refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-typed-consumer-proof-typed-update.log"
+  },
+  {
+    "name": "typed-remove",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "const cycle = await context.graph.findCycle(projectId, {\n          typed: existing.filter((row) => row.id !== dependencyId),\n        });",
+    "selected": "connected typed-remove refuses",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-typed-consumer-proof-typed-remove.log"
+  },
+  {
+    "name": "scoped-history-equality",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "formatScopedDependencyKey(left) === formatScopedDependencyKey(right)",
+    "selected": "corrupt scoped stored-row delivery",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-typed-consumer-proof-scoped-history-equality.log"
+  },
+  {
+    "path": "libs/wbs/application/core/src/service/dependency-endpoint-evidence.ts",
+    "before": "if (row === null) return { ok: false, reason: 'not_found' } as const;",
+    "selected": "mounted absent-row",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-absent-row-proof.log"
+  }
+]

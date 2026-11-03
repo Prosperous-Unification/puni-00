@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { AuthenticatedUser } from '@wbs/contracts';
 import type {
   AuditedAct,
   CredentialPin,
@@ -14,7 +15,10 @@ import { clockOf, CREATOR_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { ClaimLeaseSweep } from '@wbs/core/module/plan-commands/claim-lease-sweep';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
+import { expectCreated } from '@wbs/core/testing/expect-created';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { CLAIM_LEASE_MS } from '@wbs/domain';
 import { openMemorySourceFixture } from '@wbs/store-memory/source';
@@ -23,6 +27,7 @@ import { describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 /**
@@ -52,6 +57,76 @@ interface Opened {
   readonly dispose: () => void;
 }
 
+/**
+ * A migrated SQLite store; `live` binds it to live plans as be-01 boots it, so
+ * the startable read is the live execution read (`readExecutionIn`) rather than
+ * the service's own fallback.
+ */
+function openSqliteStore(live: boolean): Opened {
+  const folder = mkdtempSync(join(tmpdir(), 'shared-occupancy-'));
+  const dbPath = join(folder, 'plan.db');
+  runMigrations(dbPath, MIGRATIONS);
+  activateTestStepBlockages(dbPath);
+  // Caps far above the fixture: a scoped claim counts them, never reaches them.
+  const opened = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath,
+    organizationDefaultLimits: {
+      maxAgentPersons: 1_000,
+      maxConcurrentClaims: 1_000,
+      maxCapacityUnitsPerResource: 1_000,
+    },
+  });
+  return {
+    // Proof: with the live execution read's directory capacities and organization
+    // units answered empty, `agrees with the claim across projects` listed B's
+    // leaf as startable on the live-plan store (merge of main into cross-project
+    // dependencies, 2026-11-03).
+    source: live ? opened.bindLivePlans({ schedulerOf: () => fastScheduler }) : opened,
+    isMemory: false,
+    activate: (accountId, personIds) => {
+      const sqlite = openDatabase(dbPath);
+      try {
+        sqlite.run(
+          "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (?, ?, 'admin', 1)",
+          [ORG, accountId],
+        );
+        for (const id of personIds)
+          sqlite.run(
+            'INSERT INTO person_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
+            [id, ORG, id],
+          );
+        sqlite.run(
+          "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+        );
+      } finally {
+        sqlite.close();
+      }
+    },
+    own: (projectIds, resourceIds) => {
+      const sqlite = openDatabase(dbPath);
+      try {
+        sqlite.run('INSERT INTO organization (id, name, created_at) VALUES (?, ?, 1)', [ORG, ORG]);
+        for (const id of projectIds)
+          sqlite.run(
+            'INSERT INTO project_organization (resource_id, organization_id) VALUES (?, ?)',
+            [id, ORG],
+          );
+        for (const id of resourceIds)
+          sqlite.run(
+            'INSERT INTO resource_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
+            [id, ORG, id],
+          );
+      } finally {
+        sqlite.close();
+      }
+    },
+    dispose: () => {
+      rmSync(folder, { recursive: true, force: true });
+    },
+  };
+}
+
 const STORES: readonly { readonly name: string; readonly open: () => Opened }[] = [
   {
     name: 'memory',
@@ -69,71 +144,29 @@ const STORES: readonly { readonly name: string; readonly open: () => Opened }[] 
       };
     },
   },
-  {
-    name: 'sqlite',
-    open: () => {
-      const folder = mkdtempSync(join(tmpdir(), 'shared-occupancy-'));
-      const dbPath = join(folder, 'plan.db');
-      runMigrations(dbPath, MIGRATIONS);
-      activateTestStepBlockages(dbPath);
-      return {
-        // Caps far above the fixture: a scoped claim counts them, never reaches them.
-        source: openSqliteSource({
-          dbPath,
-          organizationDefaultLimits: {
-            maxAgentPersons: 1_000,
-            maxConcurrentClaims: 1_000,
-            maxCapacityUnitsPerResource: 1_000,
+  { name: 'sqlite', open: () => openSqliteStore(false) },
+  // Scoped batches on a live-plan source need committed fan-out delivery, which
+  // only be-01 wires; its `sqlite`-gated cases run on the plain store alone.
+  { name: 'sqlite with live plans', open: () => openSqliteStore(true) },
+];
+
+/** The account `F` as its verified principal, its machine credential's pin when given. */
+function principalOf(pin: CredentialPin | null): AuthenticatedUser {
+  return {
+    id: F,
+    username: F,
+    scopes: ['write'],
+    ...(pin === null
+      ? {}
+      : {
+          authentication: {
+            kind: 'machine' as const,
+            credentialId: 'fixture-credential',
+            ...pin,
           },
         }),
-        isMemory: false,
-        activate: (accountId, personIds) => {
-          const sqlite = openDatabase(dbPath);
-          try {
-            sqlite.run(
-              "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (?, ?, 'admin', 1)",
-              [ORG, accountId],
-            );
-            for (const id of personIds)
-              sqlite.run(
-                'INSERT INTO person_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
-                [id, ORG, id],
-              );
-            sqlite.run(
-              "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
-            );
-          } finally {
-            sqlite.close();
-          }
-        },
-        own: (projectIds, resourceIds) => {
-          const sqlite = openDatabase(dbPath);
-          try {
-            sqlite.run('INSERT INTO organization (id, name, created_at) VALUES (?, ?, 1)', [
-              ORG,
-              ORG,
-            ]);
-            for (const id of projectIds)
-              sqlite.run(
-                'INSERT INTO project_organization (resource_id, organization_id) VALUES (?, ?)',
-                [id, ORG],
-              );
-            for (const id of resourceIds)
-              sqlite.run(
-                'INSERT INTO resource_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
-                [id, ORG, id],
-              );
-          } finally {
-            sqlite.close();
-          }
-        },
-        dispose: () => {
-          rmSync(folder, { recursive: true, force: true });
-        },
-      };
-    },
-  },
-];
+  };
+}
 
 /**
  * Projects A and B, each with leaves `L0`…`L3`, agents `a0`…`a3` and `b0`…`b3`
@@ -158,6 +191,7 @@ async function seeded(store: (typeof STORES)[number]) {
     clock,
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
+    dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
   await source.stores.users.create(
@@ -165,9 +199,16 @@ async function seeded(store: (typeof STORES)[number]) {
     { at: 1, by: F },
   );
   const projects: string[] = [];
+  // Each claim acquires its project's first workflow step (Dev): a later
+  // unstarted step waits on Dev's completion (cross-project dependencies'
+  // workflow admission), and occupancy, not execution order, is under test.
+  const firstSteps: string[] = [];
   for (const name of ['A', 'B']) {
-    const created = await graph.projects.create(name, F);
+    const created = expectCreated(await graph.projects.create(name, F));
     projects.push(created.project.id);
+    const first = created.steps.at(0);
+    if (first === undefined) throw new Error(`project ${name} has no workflow step`);
+    firstSteps.push(first.id);
     if (isMemory)
       for (const step of created.steps)
         await source.stores.steps.add(
@@ -201,11 +242,16 @@ async function seeded(store: (typeof STORES)[number]) {
   }
   opened.own(projects, [RAM, STAGING]);
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: options.broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
-      servicesOver(scope.stores, { ...options, broadcast: announcements }),
+      servicesOver(scope.stores, {
+        ...options,
+        broadcast: announcements,
+        dependencyContext: createLocalDependencyContext(scope.stores),
+      }),
   });
   const leaves: string[][] = [];
   for (const projectId of projects) {
@@ -230,11 +276,17 @@ async function seeded(store: (typeof STORES)[number]) {
     return id;
   };
   const run = (project: 0 | 1, commands: PlanCommand[], credential: CredentialPin | null = null) =>
-    runner.runWithin(project === 0 ? a : b, F, commands, { kind: 'legacy' }, credential, null);
+    runner.runWithin(project === 0 ? a : b, principalOf(credential), commands, { kind: 'legacy' });
+  const firstStep = (project: 0 | 1): string => {
+    const id = firstSteps.at(project);
+    if (id === undefined) throw new Error(`no first step in project ${String(project)}`);
+    return id;
+  };
   const claim = (project: 0 | 1, index: number, personId: string): PlanCommand => ({
     kind: 'claimWorkItem',
     workItemId: leaf(project, index),
     personId,
+    steps: [firstStep(project)],
   });
   const release = (project: 0 | 1, index: number, personId: string): PlanCommand => ({
     kind: 'releaseWorkItem',
@@ -268,6 +320,7 @@ async function seeded(store: (typeof STORES)[number]) {
     runner,
     projects: { a, b },
     leaf,
+    firstStep,
     run,
     claim,
     release,
@@ -349,7 +402,7 @@ for (const store of STORES) {
     // failed beside its legacy twin (26 pass, 3 fail); watched 2026-10-25.
     if (store.name === 'sqlite')
       it('agrees with the claim across projects under scoped access', async () => {
-        const { opened, graph, runner, people, projects, run, leaf, state, close } =
+        const { opened, graph, runner, people, projects, run, leaf, firstStep, state, close } =
           await seeded(store);
         try {
           if (opened.activate === undefined) throw new Error('only SQLite activates');
@@ -363,22 +416,20 @@ for (const store of STORES) {
             kind: 'scoped',
             scope: { organizationId: ORG, userId: F, role: 'admin' },
           } as const;
-          const claimIn = (projectId: string, workItemId: string, personId: string) =>
+          const claimIn = (project: 0 | 1, workItemId: string, personId: string) =>
             runner.runWithin(
-              projectId,
-              F,
-              [{ kind: 'claimWorkItem', workItemId, personId }],
+              project === 0 ? projects.a : projects.b,
+              principalOf(null),
+              [{ kind: 'claimWorkItem', workItemId, personId, steps: [firstStep(project)] }],
               admin,
-              null,
-              null,
             );
-          expect(await claimIn(projects.a, leaf(0, 0), 'a0')).toMatchObject({ ok: true });
+          expect(await claimIn(0, leaf(0, 0), 'a0')).toMatchObject({ ok: true });
           const startable = await graph.workItems.startableWithin(projects.b, admin, null);
           if (startable === null || 'kind' in startable) throw new Error('the read was refused');
           expect(startable.leaves.map(({ workItemId }) => workItemId)).not.toContain(leaf(1, 0));
           const unfit = startable.doesNotFit.find((each) => each.workItemId === leaf(1, 0));
           expect(unfit?.exhausted).toMatchObject({ free: 0, scope: 'organization' });
-          expect(await claimIn(projects.b, leaf(1, 0), 'b0')).toMatchObject({
+          expect(await claimIn(1, leaf(1, 0), 'b0')).toMatchObject({
             ok: false,
             reason: 'resources_exhausted',
           });
@@ -393,7 +444,7 @@ for (const store of STORES) {
       const { source, graph, runner, state, close } = await seeded(store);
       try {
         await state(RAM, 16);
-        const { project, steps } = await graph.projects.create('Orphan', F);
+        const { project, steps } = expectCreated(await graph.projects.create('Orphan', F));
         const step = steps.at(0);
         if (step === undefined) throw new Error('the orphan project has no step');
         if (store.name === 'memory')
@@ -568,7 +619,7 @@ for (const store of STORES) {
         expect(await run(1, [claim(1, 0, 'b0')])).toMatchObject({ ok: true });
         const undone = await runner.undo(projects.a, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
-        expect(undone.ok ? null : undone.detail).toBe(
+        expect('detail' in undone ? undone.detail : null).toBe(
           'resources_exhausted: that needs 16 GB of “host ram” and 0 are free now across the organization.',
         );
         expect(await held(RAM)).toBe(16);
@@ -590,7 +641,7 @@ for (const store of STORES) {
         expect(await run(1, [claim(1, 0, 'b0')])).toMatchObject({ ok: true });
         const redone = await runner.redo(projects.a, F);
         expect(redone).toMatchObject({ ok: false, reason: 'stale_undo' });
-        expect(redone.ok ? null : redone.detail).toStartWith('resources_exhausted:');
+        expect('detail' in redone ? redone.detail : null).toStartWith('resources_exhausted:');
         expect(await held(RAM)).toBe(12);
       } finally {
         await close();
@@ -619,7 +670,7 @@ for (const store of STORES) {
           const undone = await runner.undo(projects.a, F);
           if (expected === 'refused') {
             expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
-            expect(undone.ok ? null : undone.detail).toStartWith('resources_exhausted:');
+            expect('detail' in undone ? undone.detail : null).toStartWith('resources_exhausted:');
             expect(await source.stores.claims.listByProject(projects.a)).toEqual([]);
             expect(await held(RAM)).toBe(taken);
           } else {
@@ -633,7 +684,7 @@ for (const store of STORES) {
       });
 
     it('refuses an undo of a cascading release leaf by leaf across projects', async () => {
-      const { source, runner, projects, run, claim, leaf, held, state, close } =
+      const { source, runner, projects, run, claim, leaf, firstStep, held, state, close } =
         await seeded(store);
       try {
         await state(RAM, 16);
@@ -674,7 +725,9 @@ for (const store of STORES) {
           [y, 'a2'],
         ] as const)
           expect(
-            await run(0, [{ kind: 'claimWorkItem', workItemId, personId, parentClaim }]),
+            await run(0, [
+              { kind: 'claimWorkItem', workItemId, personId, parentClaim, steps: [firstStep(0)] },
+            ]),
           ).toMatchObject({ ok: true });
         expect(await held(RAM)).toBe(8);
         expect(
@@ -684,7 +737,7 @@ for (const store of STORES) {
         expect(await run(1, [claim(1, 0, 'b0')])).toMatchObject({ ok: true });
         const undone = await runner.undo(projects.a, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
-        expect(undone.ok ? null : undone.detail).toStartWith('resources_exhausted:');
+        expect('detail' in undone ? undone.detail : null).toStartWith('resources_exhausted:');
         expect(await source.stores.claims.listByProject(projects.a)).toEqual([]);
         expect(await held(RAM)).toBe(10);
       } finally {

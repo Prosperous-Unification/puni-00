@@ -18,5 +18,8 @@
     "wi-2\u0000": 10
   },
   "status": "feasible",
-  "wireVersion": 4
+  "wireVersion": 5,
+  "scope": {
+    "kind": "local"
+  }
 }

@@ -1,0 +1,12 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (../../../../puni-autocomplete-round1-review-probes/review.vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-autocomplete-round1-review-probes
+
+
+ Test Files  1 passed (1)
+      Tests  11 passed | 7 skipped (18)
+   Start at  07:49:00
+   Duration  17.59s (tests 67%, import 19%, transform 11%, environment 2%)

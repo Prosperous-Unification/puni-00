@@ -1,0 +1,228 @@
+1. scoped-alias-admission | ./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts | mounted scoped-alias
+error: expect(received).toMatchObject(expected)
+(fail) mounted scoped-alias refuses before writes and conceals endpoint facts [409.76ms]
+
+2. preserve-explicit-project | ./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts | mounted external authoring stays dormant
+error: expect(received).toBe(expected)
+Expected: 409
+Received: 404
+(fail) mounted external authoring stays dormant and rolls back an earlier successful command [385.73ms]
+
+3. scoped-project-evidence | ./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts | mounted foreign-organization
+error: expect(received).toBe(expected)
+Expected: 404
+Received: 409
+(fail) mounted foreign-organization refuses before writes and conceals endpoint facts [544.80ms]
+
+4. exact-row-project-evidence | ./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts | mounted wrong-row-project
+error: expect(received).toBe(expected)
+Expected: 404
+Received: 500
+(fail) mounted wrong-row-project refuses before writes and conceals endpoint facts [353.62ms]
+
+5. external-owner-step-concealment | ./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts | mounted owner-step
+error: expect(received).toMatchObject(expected)
+(fail) mounted owner-step refuses before writes and conceals endpoint facts [366.68ms]
+
+6. dormant-authoring | ./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts | mounted external authoring stays dormant
+error: expect(received).toBe(expected)
+Expected: 409
+Received: 500
+(fail) mounted external authoring stays dormant and rolls back an earlier successful command [400.82ms]
+
+7. typed-complete-connected-cycle | ./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts | connected guard accepts step interleaving
+error: expect(received).toMatchObject(expected)
+(fail) real SQLite connected guard accepts step interleaving and refuses the reverse node cycle [410.97ms]
+
+8. owner-refresh-partition | ./libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts | refreshes only retained owner rows
+error: expect(received).toBeNull()
+Received: 1561 |     await source.stores.workItems.insert(row, [], { at: 1, by: OWNER });
+(fail) refreshes only retained owner rows after external typed writes and representation changes [8.77ms]
+
+9. missing-external-history-metadata | ./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts | history refuses missing external revision metadata
+error: expect(received).toBeInstanceOf(expected)
+(fail) real SQLite history refuses missing external revision metadata without partial effects [422.08ms]
+
+10. remote-revision-conflict | ./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts | external undo redo checks remote revisions
+error: expect(received).toMatchObject(expected)
+(fail) real SQLite external undo redo checks remote revisions and flips exact metadata [390.19ms]
+
+11. conditional-remote-neighbor | ./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts | external neighbor restamping preserves a genuine intervening edit
+error: expect(received).toMatchObject(expected)
+(fail) external neighbor restamping preserves a genuine intervening edit [432.73ms]
+
+12. earliest-batch-external-before | ./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts | collected history keeps an external endpoint first seen
+error: expect(received).toMatchObject(expected)
+(fail) collected history keeps an external endpoint first seen after the first owner snapshot [386.97ms]
+
+13. command-observation-close | ./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts | command observation closes escaped capabilities on success
+error: expect(received).toBeInstanceOf(expected)
+(fail) real SQLite command observation closes escaped capabilities on success and a later run cannot revive them [463.39ms]
+
+14. post-await-evidence-lifetime | ./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts | refusal suspended across command observation close
+error: expect(received).toBeInstanceOf(expected)
+(fail) real SQLite refusal suspended across command observation close cannot escape after await [461.71ms]
+
+15. create | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | connected create refuses
+error: expect(received).toBeInstanceOf(expected)
+(fail) connected create refuses an injected failed graph read without partial effects [401.08ms]
+
+16. move | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | connected move refuses
+error: expect(received).toBeInstanceOf(expected)
+(fail) connected move refuses an injected failed graph read without partial effects [408.32ms]
+
+17. duplicate | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | connected duplicate refuses
+error: expect(received).toBeInstanceOf(expected)
+(fail) connected duplicate refuses an injected failed graph read without partial effects [382.23ms]
+
+18. cascade | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | connected cascade refuses
+error: expect(received).toBeInstanceOf(expected)
+(fail) connected cascade refuses an injected failed graph read without partial effects [434.54ms]
+
+19. promote | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | connected promote refuses
+error: expect(received).toBeInstanceOf(expected)
+(fail) connected promote refuses an injected failed graph read without partial effects [465.45ms]
+
+20. set-estimate | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | connected set-estimate refuses
+error: expect(received).toBeInstanceOf(expected)
+(fail) connected set-estimate refuses an injected failed graph read without partial effects [426.44ms]
+
+21. clear-estimate | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | connected clear-estimate refuses
+error: expect(received).toBeInstanceOf(expected)
+(fail) connected clear-estimate refuses an injected failed graph read without partial effects [438.52ms]
+
+22. add-legacy | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | connected add-legacy refuses
+error: expect(received).toBeInstanceOf(expected)
+(fail) connected add-legacy refuses an injected failed graph read without partial effects [613.27ms]
+
+23. remove-legacy | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | connected remove-legacy refuses
+error: expect(received).toBeInstanceOf(expected)
+(fail) connected remove-legacy refuses an injected failed graph read without partial effects [399.94ms]
+
+24. project-reach | libs/wbs/application/core/src/module/project/project.resource.ts | connected project-reach refuses
+error: expect(received).toBeInstanceOf(expected)
+(fail) connected project-reach refuses an injected failed graph read without partial effects [434.03ms]
+
+25. step-add | libs/wbs/application/core/src/module/step/step.resource.ts | connected step-add refuses
+error: expect(received).toBeInstanceOf(expected)
+(fail) connected step-add refuses an injected failed graph read without partial effects [446.80ms]
+
+26. step-remove | libs/wbs/application/core/src/module/step/step.resource.ts | connected step-remove refuses
+error: expect(received).toBeInstanceOf(expected)
+(fail) connected step-remove refuses an injected failed graph read without partial effects [477.84ms]
+
+27. step-references | libs/wbs/application/core/src/module/step/step.resource.ts | connected step-references refuses
+error: expect(received).toBeInstanceOf(expected)
+(fail) connected step-references refuses an injected failed graph read without partial effects [465.51ms]
+
+28. old-update-evidence | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | update refuses an injected denial
+error: expect(received).toMatchObject(expected)
+(fail) update refuses an injected denial of the old predecessor scoped project read [385.19ms]
+
+29. old-remove-evidence | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | remove refuses an injected denial
+error: expect(received).toMatchObject(expected)
+(fail) remove refuses an injected denial of the old predecessor scoped project read [399.61ms]
+
+30. restored-local-typed-evidence | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | mounted local batch aliases survive
+error: expect(received).toBe(expected)
+Expected: 200
+Received: 409
+(fail) mounted local batch aliases survive create link undo redo under current admission [416.53ms]
+
+31. ordinary-reference-partition | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | mixed nested replay
+error: expect(received).toMatchObject(expected)
+(fail) mixed nested replay keeps an unrelated foreign patch outside typed endpoint authority [383.70ms]
+
+32. metadata-object-shape | libs/wbs/application/core/src/service/compensating.ts | replay refuses missing-from trusted
+error: expect(received).toBe(expected)
+Expected: "journal external revisions are malformed"
+Received: "journal external revisions are not a list"
+(fail) real SQLite replay refuses missing-from trusted external metadata without partial effects [419.51ms]
+
+33. metadata-list-shape | libs/wbs/application/core/src/service/compensating.ts | replay refuses non-list trusted
+error: expect(received).toBe(expected)
+Expected: "journal external revisions are not a list"
+Received: "null is not an object (evaluating 'entry of entries')"
+(fail) real SQLite replay refuses non-list trusted external metadata without partial effects [358.90ms]
+
+34. metadata-revision-value | libs/wbs/application/core/src/service/compensating.ts | replay refuses invalid-revision trusted
+error: expect(received).toBeInstanceOf(expected)
+(fail) real SQLite replay refuses invalid-revision trusted external metadata without partial effects [375.34ms]
+
+35. metadata-duplicate | libs/wbs/application/core/src/service/compensating.ts | replay refuses duplicate trusted
+error: expect(received).toBe(expected)
+Expected: "journal external revisions contain a duplicate"
+Received: "journal external revision coverage is not exact"
+(fail) real SQLite replay refuses duplicate trusted external metadata without partial effects [404.06ms]
+
+36. metadata-exact-coverage | libs/wbs/application/core/src/service/compensating.ts | replay refuses omitted trusted
+error: expect(received).toBeInstanceOf(expected)
+(fail) real SQLite replay refuses omitted trusted external metadata without partial effects [371.36ms]
+
+37. context-owner-actor | libs/wbs/application/core/src/service/dependency-context.ts | actual service cannot borrow
+error: expect(received).toBeInstanceOf(expected)
+(fail) actual service cannot borrow a bound context for another owner or actor [24.29ms]
+
+38. local-incident-failclosed | libs/wbs/application/core/src/service/dependency-context.ts | local service owner admission precedes
+error: expect(received).toContain(expected)
+Received: "local dependency context cannot inspect another project"
+(fail) local service owner admission precedes factory access, and outgoing foreign incidents fail closed [30.17ms]
+
+39. required-authoring-construction | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | actual typed service rejects an unknown
+error: expect(received).toThrow(expected)
+(fail) actual typed service rejects an unknown or missing required authoring capability [8.70ms]
+
+40. graph-helper-owner-admission | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | runner-facing graph inspection requires
+error: expect(received).toContain(expected)
+Received: "unadmitted graph reached dependency evidence"
+(fail) runner-facing graph inspection requires owner admission before opening local dependency evidence [26.98ms]
+
+41. structural first-child creation | libs/wbs/application/core/src/service/dependency-graph.ts | structural first-child creation
+error: expect(received).toMatchObject(expected)
+(fail) structural first-child creation refuses a remote-owned pinned node before mutation [341.68ms]
+
+42. last-child deletion refuses | libs/wbs/application/core/src/service/dependency-graph.ts | last-child deletion refuses
+error: expect(received).toMatchObject(expected)
+(fail) last-child deletion refuses making a remote-owned descendant-step endpoint a leaf [384.85ms]
+
+43. apply-move | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | connected replay-move refuses
+error: expect(received).toBe(expected)
+Expected: "injected connected proposedCycle read failure"
+Received: "step_blockage_inactive"
+(fail) connected replay-move refuses an injected failed graph read without partial effects [404.92ms]
+
+44. apply-delete | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | connected replay-delete refuses
+error: expect(received).toBeInstanceOf(expected)
+(fail) connected replay-delete refuses an injected failed graph read without partial effects [412.81ms]
+
+45. apply-restore | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | connected replay-restore refuses
+error: expect(received).toBe(expected)
+Expected: "injected connected proposedCycle read failure"
+Received: "step_blockage_inactive"
+(fail) connected replay-restore refuses an injected failed graph read without partial effects [464.50ms]
+
+46. omitted-final-remote-revision | libs/wbs/application/core/src/service/compensating.ts | omitted final remote revision
+error: expect(received).toBeInstanceOf(expected)
+(fail) recordCollected rejects an omitted final remote revision and rolls back the actual SQLite typed write [372.79ms]
+
+47. typed-add | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | connected typed-add refuses
+error: expect(received).toBeInstanceOf(expected)
+(fail) connected typed-add refuses an injected failed graph read without partial effects [582.76ms]
+
+48. typed-update | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | connected typed-update refuses
+error: expect(received).toBeInstanceOf(expected)
+(fail) connected typed-update refuses an injected failed graph read without partial effects [500.50ms]
+
+49. typed-remove | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | connected typed-remove refuses
+error: expect(received).toBeInstanceOf(expected)
+(fail) connected typed-remove refuses an injected failed graph read without partial effects [561.63ms]
+
+50. scoped-history-equality | libs/wbs/application/core/src/module/work-item/work-item.resource.ts | corrupt scoped stored-row delivery
+error: expect(received).toMatchObject(expected)
+(fail) replay refuses a corrupt scoped stored-row delivery even when its unqualified endpoint IDs match [452.33ms]
+
+51. mounted absent-row | libs/wbs/application/core/src/service/dependency-endpoint-evidence.ts | mounted absent-row
+error: expect(received).toBe(expected)
+Expected: 404
+Received: 500
+(fail) mounted absent-row refuses before writes and conceals endpoint facts [357.18ms]

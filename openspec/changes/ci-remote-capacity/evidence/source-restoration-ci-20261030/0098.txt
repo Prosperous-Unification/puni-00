@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "bun",
+    "test",
+    "--preload",
+    "./tools/test/scratch/preload.ts",
+    "tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts",
+    "--test-name-pattern=exactly four independent|both source matrix"
+  ],
+  "pid": 3292097,
+  "exit": 1,
+  "signal": null,
+  "stdoutEOF": true,
+  "stderrEOF": true,
+  "elapsedSeconds": 0.07613949000369757,
+  "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+  "stderrSHA256": "ae8e108ece6b25b854ef7745a9591422ece14ff572b3e8180b1dd9ea15cac02c"
+}

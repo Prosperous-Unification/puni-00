@@ -1,0 +1,13 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts:
+(pass) closes success modeled refusal and throws and rejects retained reader capabilities [146.46ms]
+(pass) holds authorization metadata and selected placements in one snapshot across rival writes [86.60ms]
+(pass) uses bounded metadata SQL without work item trees and captures only selected project facts [80.86ms]
+(pass) rejects malformed trusted step evidence at capture before returning detached facts [79.40ms]
+(pass) rejects malformed trusted placement evidence at capture before returning detached facts [78.29ms]
+
+ 5 pass
+ 0 fail
+ 20 expect() calls
+Ran 5 tests across 1 file. [2.51s]

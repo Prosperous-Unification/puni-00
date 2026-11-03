@@ -1,0 +1,46 @@
+import { readFileSync } from 'node:fs';
+import { canonicalConnectedStageInput as canonicalize } from '/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input';
+import { sliceKey } from '/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/schedule';
+const source = readFileSync('/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts', 'utf8');
+const fixture = source.slice(source.indexOf('function stage()'), source.indexOf("test('retains exact"));
+const transpiler = new Bun.Transpiler({loader:'ts'});
+const makeStage = new Function('sliceKey', transpiler.transformSync(fixture) + '\nreturn stage;')(sliceKey);
+function check(label: string, probe: () => boolean) {
+  if (!probe()) throw new Error(label);
+  console.log('PASS '+label);
+}
+const base = makeStage();
+const bytes = canonicalize(base);
+check('JSON preserves each finite placement exactly', () => {
+  const encoded = JSON.parse(bytes);
+  return [...base.starts].every(([key, start]) => encoded.starts.find(([candidate]) => candidate === key)[1] === start) && [...base.finishes].every(([key, finish]) => encoded.finishes.find(([candidate]) => candidate === key)[1] === finish);
+});
+check('next representable local finish changes identity', () => {
+  const changed = makeStage();
+  changed.finishes.set(sliceKey('a','design'), 0.30000000000000004);
+  return canonicalize(changed) !== bytes;
+});
+check('original removed selector retains identity', () => {
+  const changed = makeStage();
+  changed.relationships[0].predecessor.workItemId = 'held-original';
+  return canonicalize(changed) !== bytes;
+});
+check('empty project remains identity with null anchor', () => {
+  const changed = makeStage();
+  changed.projects.push({projectId:'empty',rank:2,anchorOrdinal:null});
+  changed.input.order.rankByProject.set('empty',2);
+  return canonicalize(changed) !== bytes;
+});
+for (const [label, edit] of [
+ ['cross-project workflow with existing endpoint', (s) => {s.input.graph.edges[0].successor={leafId:'b',at:0};}],
+ ['missing original selector', (s) => {s.relationships[0].predecessor.workItemId='never-existed';}],
+ ['invalid graph node kind', (s) => {s.input.graph.nodes[2].kind='invalid';}],
+ ['NaN person identity', (s) => {s.input.slices[1].personId=NaN;}],
+ ['null optional demands', (s) => {s.input.slices[1].demands=null;}],
+] as const) {
+ const changed = makeStage(); edit(changed);
+ try { const encoded=canonicalize(changed); console.log(JSON.stringify({label,accepted:true,sameBytes:encoded===bytes})); }
+ catch (error) { console.log(JSON.stringify({label,accepted:false,message:String(error)})); }
+}
+const matrix=readFileSync('/tmp/puni-stage-proofs.tsv','utf8').trim().split('\n');
+console.log(JSON.stringify({mutationRows:matrix.length,failed:matrix.filter(row=>row.split('\t')[1]==='1').length,survived:matrix.filter(row=>row.split('\t')[1]==='0').length}));

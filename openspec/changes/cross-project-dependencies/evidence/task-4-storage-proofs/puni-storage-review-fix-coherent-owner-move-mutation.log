@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/typed-dependency.db.test.ts:
+279 |     const revisions = endpointIds.map(revision);
+280 |     const sqlite = openDatabase(path);
+281 |     try {
+282 |       const physicalBefore = sqlite.query('SELECT * FROM typed_dependency ORDER BY id').all();
+283 |       const endpointsBefore = sqlite.query('SELECT id,revision,updated_at FROM work_item ORDER BY id').all();
+284 |       expect(await rejection(repo.update(proposed, { ...wrote(), at: 2 }))).toContain('cannot move');
+                                                                                  ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "cannot move"
+Received: "(resolved without throwing)"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/typed-dependency.db.test.ts:284:77)
+(fail) TypedDependencyRepository > refuses moving a typed dependency to another project without changing rows or revisions [117.92ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.17s]

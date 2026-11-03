@@ -1,0 +1,32 @@
+
+ NX   Running target lint for 2 projects:
+
+- wbs-mcp-01
+- wbs-be-01
+
+
+
+> nx run wbs-mcp-01:lint
+
+> bunx eslint apps/wbs/mcp-01/src
+
+
+> nx run wbs-be-01:lint
+
+> bunx eslint apps/wbs/be-01/src
+
+
+
+
+ NX   Successfully ran target lint for 2 projects
+
+
+  Run duration:      1m 30s
+  Cache:             0/2 hit (0%)
+  Critical path:     1m 30s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Drastically reduce your run duration by sharing a cache across your team and CI → https://cloud.nx.app/get-started?utm_source=nx-cli&utm_medium=cli&utm_campaign=performance-report&utm_content=remote-cache.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-be-01:lint    1m 30s

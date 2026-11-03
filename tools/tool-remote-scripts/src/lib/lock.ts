@@ -1,4 +1,15 @@
-import { closeSync, constants, ftruncateSync, openSync, readFileSync, writeSync } from 'node:fs';
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  ftruncateSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  writeSync,
+} from 'node:fs';
 import { hostname } from 'node:os';
 
 import { dlopen, FFIType } from 'bun:ffi';
@@ -101,28 +112,106 @@ function readHolder(lockPath: string): string {
   }
 }
 
-export async function withLock<T>(lockPath: string, fn: () => Promise<T>): Promise<T> {
+/**
+ * Rejects aliases and compares the opened regular inode before any owner record write.
+ * Proof: removing these validations admitted a replacement between real open and validation;
+ * canonical-lock.test.ts observed callback success instead of refusal (exit 1).
+ */
+function assertCanonicalLock(lockPath: string, descriptor: number): void {
+  const opened = fstatSync(descriptor);
+  const named = lstatSync(lockPath);
+  if (
+    !opened.isFile() ||
+    !named.isFile() ||
+    realpathSync(lockPath) !== lockPath ||
+    opened.dev !== named.dev ||
+    opened.ino !== named.ino
+  )
+    throw new Error(`invalid canonical lock: ${lockPath}`);
+}
+
+/** Owner-only strict acquisition; legacy {@link withLock} semantics remain unchanged. */
+export async function withCanonicalLock<T>(
+  lockPath: string,
+  fn: (descriptor: number) => Promise<T>,
+): Promise<T> {
+  return acquireLock(lockPath, fn, true);
+}
+
+/** Holds a durable inode lock; the callback may inherit but must not close its descriptor. */
+export async function withLock<T>(
+  lockPath: string,
+  fn: (descriptor: number) => Promise<T>,
+): Promise<T> {
+  return acquireLock(lockPath, fn, false);
+}
+
+async function acquireLock<T>(
+  lockPath: string,
+  fn: (descriptor: number) => Promise<T>,
+  requiresCanonicalLock: boolean,
+): Promise<T> {
   // O_RDWR|O_CREAT rather than 'w': truncating on open would erase a live
   // holder's record before we know whether we can even take the lock.
-  const fd = openSync(lockPath, constants.O_RDWR | constants.O_CREAT, 0o644);
+  let fd: number;
+  try {
+    // Proof: omitting O_NOFOLLOW loses the real kernel ELOOP refusal; canonical-lock.test.ts exits 1.
+    fd = openSync(
+      lockPath,
+      constants.O_RDWR | constants.O_CREAT | (requiresCanonicalLock ? constants.O_NOFOLLOW : 0),
+      0o644,
+    );
+  } catch (cause) {
+    if (requiresCanonicalLock)
+      throw new Error(`cannot open canonical lock: ${lockPath}`, { cause });
+    throw cause;
+  }
+  if (requiresCanonicalLock) {
+    try {
+      assertCanonicalLock(lockPath, fd);
+    } catch (cause) {
+      closeSync(fd);
+      throw cause;
+    }
+  }
   if (symbols.flock(fd, LOCK_EX | LOCK_NB) !== 0) {
     const holder = readHolder(lockPath);
     closeSync(fd);
     throw new Error(`deploy lock held: ${lockPath} — another deploy is running (${holder})`);
   }
+  let ownsRecord = false;
   try {
+    if (requiresCanonicalLock) assertCanonicalLock(lockPath, fd);
+    ownsRecord = true;
     ftruncateSync(fd, 0);
     writeSync(fd, `${JSON.stringify(holderRecord(), null, 2)}\n`, 0, 'utf8');
-    return await fn();
+    return await fn(fd);
   } finally {
     // Truncate before closing, not after: closing is what releases the lock,
     // so anything done after it races the next holder. An empty file left
     // behind is the "released cleanly" signal; a populated one is a corpse.
     try {
-      ftruncateSync(fd, 0);
+      // Proof: unconditional final truncation erased retained opened-inode evidence after locked-boundary replacement (exit 1).
+      if (ownsRecord) ftruncateSync(fd, 0);
     } catch {
       // Best effort — the close below is what actually matters.
     }
     closeSync(fd);
+  }
+}
+
+/**
+ * Validates an inherited open description and obtains its existing advisory lock.
+ * Proof: skipping this call failed two forged-descriptor and one independent-open
+ * production CLI negative; inheriting the actual locked description stayed admitted.
+ */
+export function assertInheritedLock(lockPath: string, descriptor: number): void {
+  const inherited = fstatSync(descriptor);
+  const expected = statSync(lockPath);
+  if (inherited.dev !== expected.dev || inherited.ino !== expected.ino) {
+    throw new Error(`inherited shared edge lock does not name ${lockPath}`);
+  }
+  if (symbols.flock(descriptor, LOCK_EX | LOCK_NB) !== 0) {
+    throw new Error(`shared edge lock held: ${lockPath}`);
   }
 }

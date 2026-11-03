@@ -1,0 +1,51 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:
+214 | ): void {
+215 |   if (supported.includes(version)) return;
+216 |   throw new UnknownSavedPlanBodyVersionError(savedPlanId, body, version, supported);
+217 | }
+218 |
+219 | export function verifySavedPlanBodies(..._args: unknown[]): SavedPlanIntegrityRefusal | null { throw new Error('versioned integrity not implemented'); }
+                                                                                                                                                          ^
+error: versioned integrity not implemented
+      at verifySavedPlanBodies (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.ts:219:149)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:16:12)
+(fail) new saved body integrity > accepts detached complete connected bodies and retains the supplied bytes [0.27ms]
+214 | ): void {
+215 |   if (supported.includes(version)) return;
+216 |   throw new UnknownSavedPlanBodyVersionError(savedPlanId, body, version, supported);
+217 | }
+218 |
+219 | export function verifySavedPlanBodies(..._args: unknown[]): SavedPlanIntegrityRefusal | null { throw new Error('versioned integrity not implemented'); }
+                                                                                                                                                          ^
+error: versioned integrity not implemented
+      at verifySavedPlanBodies (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.ts:219:149)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:20:14)
+(fail) new saved body integrity > reports correctly hashed malformed new JSON as typed body_invalid [0.15ms]
+214 | ): void {
+215 |   if (supported.includes(version)) return;
+216 |   throw new UnknownSavedPlanBodyVersionError(savedPlanId, body, version, supported);
+217 | }
+218 |
+219 | export function verifySavedPlanBodies(..._args: unknown[]): SavedPlanIntegrityRefusal | null { throw new Error('versioned integrity not implemented'); }
+                                                                                                                                                          ^
+error: versioned integrity not implemented
+      at verifySavedPlanBodies (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.ts:219:149)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:24:12)
+(fail) new saved body integrity > refuses mismatched targets, missing connection and local input with connected schedule [0.13ms]
+214 | ): void {
+215 |   if (supported.includes(version)) return;
+216 |   throw new UnknownSavedPlanBodyVersionError(savedPlanId, body, version, supported);
+217 | }
+218 |
+219 | export function verifySavedPlanBodies(..._args: unknown[]): SavedPlanIntegrityRefusal | null { throw new Error('versioned integrity not implemented'); }
+                                                                                                                                                          ^
+error: versioned integrity not implemented
+      at verifySavedPlanBodies (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.ts:219:149)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:30:12)
+(fail) new saved body integrity > refuses missing selected evidence and malformed timings without replaying schedules [0.07ms]
+
+ 0 pass
+ 4 fail
+Ran 4 tests across 1 file. [214.00ms]

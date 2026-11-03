@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { CREATOR_ADMISSION } from '@wbs/core';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import {
   captureAndSchedulePlan,
   scheduleInputOfCaptured,
@@ -199,6 +201,14 @@ describe('a captured plan and its deadlines', () => {
     opened.push(live);
     const { db } = live;
     return new WorkItemService({
+      dependencyContext: createLocalDependencyContext({
+        projects: new ProjectRepository(db, OPEN),
+        workItems: new WorkItemRepository(db, OPEN),
+        estimates: new EstimateRepository(db, OPEN),
+        dependencies: new DependencyRepository(db, OPEN),
+        typedDependencies: new TypedDependencyRepository(db, OPEN),
+      }),
+      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
       admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,

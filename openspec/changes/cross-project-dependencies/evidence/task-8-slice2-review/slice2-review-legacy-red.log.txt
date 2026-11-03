@@ -1,0 +1,588 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:
+(pass) versioned saved input readers > reads frozen input v1 as local without rewriting bytes [3.16ms]
+(pass) versioned saved input readers > reads frozen input v2 as local without rewriting bytes [0.51ms]
+(pass) versioned saved input readers > reads frozen input v3 as local without rewriting bytes [0.72ms]
+(pass) versioned saved input readers > reads frozen input v4 as local without rewriting bytes [0.37ms]
+(pass) versioned saved input readers > reads frozen input v5 as local without rewriting bytes [0.37ms]
+(pass) versioned saved input readers > reads frozen input v6 as local without rewriting bytes [0.36ms]
+(pass) versioned saved input readers > reads frozen input v7 as local without rewriting bytes [0.38ms]
+(pass) versioned saved input readers > reads frozen input v8 as local without rewriting bytes [0.37ms]
+(pass) versioned saved input readers > keeps the dormant v8 writer byte-identical to the frozen v8 builder [0.10ms]
+(pass) versioned saved input readers > preserves the frozen legacy schedule1 byte contract and retired algorithm identity [1.68ms]
+(pass) versioned saved input readers > requires explicit dependency history on input9 [0.65ms]
+(pass) versioned saved input readers > refuses header/body version mismatch and malformed new fields [3.57ms]
+(pass) versioned saved input readers > refuses external claims before a legacy local upgrade can erase them [0.16ms]
+102 |         { ...original, typedDependencies: [{ ...claim, projectId: 'remote' }] },
+103 |         { ...original, dependencyHistory: { kind: 'connected' } },
+104 |         { ...original, externalDependencies: [] },
+105 |       ]) {
+106 |         const bytes = JSON.stringify(contaminated);
+107 |         expect(() => readSavedPlanInput(contaminated, version)).toThrow('legacy_external');
+                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "legacy_external"
+
+Received function did not throw
+Received value: {
+  schemaVersion: 9,
+  project: {
+    id: "p1",
+    name: "Rewire the shed",
+    restricted: false,
+    ownerId: "u1",
+    solutionSlug: "shed",
+    solutionUrl: null,
+    estimateMethod: "pert",
+    depReach: "whole-item",
+    estimateRounding: "ceil",
+    startDate: "2026-09-07",
+    pertWeightOptimistic: 1,
+    pertWeightRealistic: 4,
+    pertWeightPessimistic: 1,
+    timezone: "UTC",
+  },
+  workItems: [
+    {
+      id: "w1",
+      parentId: null,
+      position: 10,
+      name: "Electrics",
+      notes: "consented",
+      typeIds: [],
+      tagIds: [ "tag-a" ],
+      externalRefs: [],
+      priority: 10,
+      maxParallel: 2,
+      frozenNumber: "1",
+      serviceTeamId: null,
+      serviceId: "svc-1",
+      startNoEarlierThan: "2026-09-14",
+      startNoEarlierThanReason: "inspection booked",
+      readiness: null,
+      hold: null,
+    }, {
+      id: "w2",
+      parentId: "w1",
+      position: 20,
+      name: "Pull cable",
+      notes: "",
+      typeIds: [ "t-spike", "t-task" ],
+      tagIds: [ "tag-a", "tag-b" ],
+      externalRefs: [
+        {
+          externalSystemId: "gh",
+          url: "https://gh/17",
+          position: 10,
+        }, {
+          externalSystemId: "jira",
+          url: "https://jira/SHED-2",
+          position: 20,
+        }
+      ],
+      priority: 30,
+      maxParallel: 1,
+      frozenNumber: null,
+      serviceTeamId: "team-1",
+      serviceId: null,
+      startNoEarlierThan: null,
+      startNoEarlierThanReason: null,
+      readiness: null,
+      hold: null,
+    }
+  ],
+  steps: [
+    {
+      id: "s1",
+      name: "Build",
+      position: 10,
+      allowancePercent: 0,
+      code: null,
+      estimateUnit: "workdays",
+    }, {
+      id: "s2",
+      name: "Test",
+      position: 20,
+      allowancePercent: 0,
+      code: null,
+      estimateUnit: "workdays",
+    }
+  ],
+  stepValues: [
+    {
+      workItemId: "w1",
+      stepId: "s2",
+      optimistic: null,
+      realistic: null,
+      pessimistic: null,
+      derived: null,
+      actual: 3,
+      progress: "done",
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 5,
+      derived: 2.5,
+      actual: null,
+      progress: "in_progress",
+    }
+  ],
+  measures: [
+    {
+      workItemId: "w2",
+      stepId: "s1",
+      metric: "hours",
+      value: 8,
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      metric: "tokens",
+      value: 1200,
+    }, {
+      workItemId: "w2",
+      stepId: "s2",
+      metric: "tokens",
+      value: 300,
+    }
+  ],
+  dependencies: [
+    {
+      predecessorId: "w1",
+      successorId: "w2",
+    }, {
+      predecessorId: "w2",
+      successorId: "w1",
+    }
+  ],
+  assignments: [
+    {
+      workItemId: "w1",
+      stepId: "s1",
+      personId: "per-1",
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      personId: "per-2",
+    }, {
+      workItemId: "w2",
+      stepId: "s2",
+      personId: "per-1",
+    }
+  ],
+  people: [
+    {
+      id: "per-1",
+      name: "Ada",
+    }, {
+      id: "per-2",
+      name: "Bo",
+    }
+  ],
+  teams: [
+    {
+      id: "team-1",
+      name: "First fix",
+    }, {
+      id: "team-2",
+      name: "Second fix",
+    }
+  ],
+  services: [
+    {
+      id: "svc-1",
+      name: "Wiring",
+    }, {
+      id: "svc-2",
+      name: "Testing",
+    }
+  ],
+  personTeams: [
+    {
+      personId: "per-1",
+      teamId: "team-1",
+    }, {
+      personId: "per-2",
+      teamId: "team-2",
+    }
+  ],
+  teamServices: [
+    {
+      teamId: "team-1",
+      serviceId: "svc-1",
+    }, {
+      teamId: "team-2",
+      serviceId: "svc-2",
+    }
+  ],
+  workItemTeams: [
+    {
+      workItemId: "w1",
+      teamId: "team-1",
+    }, {
+      workItemId: "w2",
+      teamId: "team-2",
+    }
+  ],
+  workItemServices: [
+    {
+      workItemId: "w1",
+      serviceId: "svc-1",
+    }, {
+      workItemId: "w2",
+      serviceId: "svc-2",
+    }
+  ],
+  priorityBands: [
+    {
+      startsAt: 1,
+      label: "Critical",
+      defaultValue: 10,
+    }, {
+      startsAt: 21,
+      label: "High",
+      defaultValue: 30,
+    }
+  ],
+  capacity: [
+    {
+      teamId: "team-1",
+      people: 3,
+    }, {
+      teamId: "team-2",
+      people: 1,
+    }
+  ],
+  tags: [
+    {
+      id: "tag-a",
+      name: "agreed",
+    }, {
+      id: "tag-b",
+      name: "risky",
+    }
+  ],
+  workItemTypes: [
+    {
+      id: "t-epic",
+      name: "Epic",
+    }, {
+      id: "t-spike",
+      name: "Spike",
+    }, {
+      id: "t-task",
+      name: "Task",
+    }
+  ],
+  externalSystems: [
+    {
+      id: "gh",
+      name: "GitHub",
+    }, {
+      id: "jira",
+      name: "Jira",
+    }
+  ],
+  typedDependencies: [],
+  stepBlockages: [],
+  stepParallels: [],
+  dependencyHistory: {
+    kind: "local",
+  },
+}
+
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:107:65)
+(fail) versioned saved input readers > refuses original v1 scoped claims before an upgrade can erase them [1.14ms]
+102 |         { ...original, typedDependencies: [{ ...claim, projectId: 'remote' }] },
+103 |         { ...original, dependencyHistory: { kind: 'connected' } },
+104 |         { ...original, externalDependencies: [] },
+105 |       ]) {
+106 |         const bytes = JSON.stringify(contaminated);
+107 |         expect(() => readSavedPlanInput(contaminated, version)).toThrow('legacy_external');
+                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "legacy_external"
+
+Received function did not throw
+Received value: {
+  schemaVersion: 9,
+  project: {
+    id: "p1",
+    name: "Rewire the shed",
+    restricted: false,
+    ownerId: "u1",
+    solutionSlug: "shed",
+    solutionUrl: null,
+    estimateMethod: "pert",
+    depReach: "whole-item",
+    estimateRounding: "ceil",
+    startDate: "2026-09-07",
+    pertWeightOptimistic: 1,
+    pertWeightRealistic: 4,
+    pertWeightPessimistic: 1,
+    timezone: "UTC",
+  },
+  workItems: [
+    {
+      id: "w1",
+      parentId: null,
+      position: 10,
+      name: "Electrics",
+      notes: "consented",
+      typeIds: [],
+      tagIds: [ "tag-a" ],
+      externalRefs: [],
+      priority: 10,
+      maxParallel: 2,
+      frozenNumber: "1",
+      serviceTeamId: null,
+      serviceId: "svc-1",
+      startNoEarlierThan: "2026-09-14",
+      startNoEarlierThanReason: "inspection booked",
+      readiness: null,
+      hold: null,
+    }, {
+      id: "w2",
+      parentId: "w1",
+      position: 20,
+      name: "Pull cable",
+      notes: "",
+      typeIds: [ "t-spike", "t-task" ],
+      tagIds: [ "tag-a", "tag-b" ],
+      externalRefs: [
+        {
+          externalSystemId: "gh",
+          url: "https://gh/17",
+          position: 10,
+        }, {
+          externalSystemId: "jira",
+          url: "https://jira/SHED-2",
+          position: 20,
+        }
+      ],
+      priority: 30,
+      maxParallel: 1,
+      frozenNumber: null,
+      serviceTeamId: "team-1",
+      serviceId: null,
+      startNoEarlierThan: null,
+      startNoEarlierThanReason: null,
+      readiness: null,
+      hold: null,
+    }
+  ],
+  steps: [
+    {
+      id: "s1",
+      name: "Build",
+      position: 10,
+      allowancePercent: 0,
+      code: null,
+      estimateUnit: "workdays",
+    }, {
+      id: "s2",
+      name: "Test",
+      position: 20,
+      allowancePercent: 0,
+      code: null,
+      estimateUnit: "workdays",
+    }
+  ],
+  stepValues: [
+    {
+      workItemId: "w1",
+      stepId: "s2",
+      optimistic: null,
+      realistic: null,
+      pessimistic: null,
+      derived: null,
+      actual: 3,
+      progress: "done",
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 5,
+      derived: 2.5,
+      actual: null,
+      progress: "in_progress",
+    }
+  ],
+  measures: [
+    {
+      workItemId: "w2",
+      stepId: "s1",
+      metric: "hours",
+      value: 8,
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      metric: "tokens",
+      value: 1200,
+    }, {
+      workItemId: "w2",
+      stepId: "s2",
+      metric: "tokens",
+      value: 300,
+    }
+  ],
+  dependencies: [
+    {
+      predecessorId: "w1",
+      successorId: "w2",
+    }, {
+      predecessorId: "w2",
+      successorId: "w1",
+    }
+  ],
+  assignments: [
+    {
+      workItemId: "w1",
+      stepId: "s1",
+      personId: "per-1",
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      personId: "per-2",
+    }, {
+      workItemId: "w2",
+      stepId: "s2",
+      personId: "per-1",
+    }
+  ],
+  people: [
+    {
+      id: "per-1",
+      name: "Ada",
+    }, {
+      id: "per-2",
+      name: "Bo",
+    }
+  ],
+  teams: [
+    {
+      id: "team-1",
+      name: "First fix",
+    }, {
+      id: "team-2",
+      name: "Second fix",
+    }
+  ],
+  services: [
+    {
+      id: "svc-1",
+      name: "Wiring",
+    }, {
+      id: "svc-2",
+      name: "Testing",
+    }
+  ],
+  personTeams: [
+    {
+      personId: "per-1",
+      teamId: "team-1",
+    }, {
+      personId: "per-2",
+      teamId: "team-2",
+    }
+  ],
+  teamServices: [
+    {
+      teamId: "team-1",
+      serviceId: "svc-1",
+    }, {
+      teamId: "team-2",
+      serviceId: "svc-2",
+    }
+  ],
+  workItemTeams: [
+    {
+      workItemId: "w1",
+      teamId: "team-1",
+    }, {
+      workItemId: "w2",
+      teamId: "team-2",
+    }
+  ],
+  workItemServices: [
+    {
+      workItemId: "w1",
+      serviceId: "svc-1",
+    }, {
+      workItemId: "w2",
+      serviceId: "svc-2",
+    }
+  ],
+  priorityBands: [
+    {
+      startsAt: 1,
+      label: "Critical",
+      defaultValue: 10,
+    }, {
+      startsAt: 21,
+      label: "High",
+      defaultValue: 30,
+    }
+  ],
+  capacity: [
+    {
+      teamId: "team-1",
+      people: 3,
+    }, {
+      teamId: "team-2",
+      people: 1,
+    }
+  ],
+  tags: [
+    {
+      id: "tag-a",
+      name: "agreed",
+    }, {
+      id: "tag-b",
+      name: "risky",
+    }
+  ],
+  workItemTypes: [
+    {
+      id: "t-epic",
+      name: "Epic",
+    }, {
+      id: "t-spike",
+      name: "Spike",
+    }, {
+      id: "t-task",
+      name: "Task",
+    }
+  ],
+  externalSystems: [
+    {
+      id: "gh",
+      name: "GitHub",
+    }, {
+      id: "jira",
+      name: "Jira",
+    }
+  ],
+  typedDependencies: [],
+  stepBlockages: [],
+  stepParallels: [],
+  dependencyHistory: {
+    kind: "local",
+  },
+}
+
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:107:65)
+(fail) versioned saved input readers > refuses original v2 scoped claims before an upgrade can erase them [1.71ms]
+(pass) versioned saved input readers > canonicalizes unordered captured history before future writer activation [5.73ms]
+(pass) versioned saved input readers > retains direct-fact ownership and duplicate refusal in new bodies [0.81ms]
+(pass) versioned saved input readers > folds converted connected context without live capabilities [3.81ms]
+
+ 16 pass
+ 2 fail
+ 76 expect() calls
+Ran 18 tests across 1 file. [231.00ms]

@@ -1,0 +1,29 @@
+from pathlib import Path
+import subprocess
+base = Path.cwd()
+evidence = base / 'openspec/changes/cross-project-dependencies/evidence/connected-live-admission'
+resource = Path('libs/wbs/application/core/src/module/work-item/work-item.resource.ts')
+compose = Path('libs/wbs/application/core/src/compose.ts')
+module = Path('libs/wbs/application/core/src/module/work-item/module.ts')
+proofs = [
+ ('borrowed-live', resource, "if (this.opts.schedulerMode !== 'capture') {", 'if (true) {', 'missing admission'),
+ ('missing-installation', resource, "throw new Error('connected optimizer admission is not installed');", 'return tree;', 'missing admission'),
+ ('disabled-admission', resource, "observation.kind === 'scheduled' && observation.enabled", "observation.kind === 'scheduled'", 'live disabled'),
+ ('unscheduled-admission', resource, "observation.kind === 'scheduled' && observation.enabled", 'true', 'live calendar'),
+ ('omitted-live-port', compose, '{ admitConnectedOptimization: runtime.admitConnectedOptimization }', '{}', 'cold mounted isolated'),
+ ('omitted-module-port', module, '...(admitConnectedOptimization === undefined ? {} : { admitConnectedOptimization }),', '', 'cold mounted isolated'),
+]
+for name, relative, original, fault, pattern in proofs:
+ path = base / relative
+ contents = path.read_text()
+ count = contents.count(original)
+ if count != 1: raise RuntimeError(f'{name}: expected exactly one source target, found {count}')
+ try:
+  path.write_text(contents.replace(original, fault))
+  run = subprocess.run(['bun', 'test', 'apps/wbs/be-01/src/services-connected.db.test.ts', '-t', pattern, '--timeout=15000'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60)
+  receipt = run.stdout.decode()
+  (evidence / (name + '.log.txt')).write_text(receipt + f'\nWatched exit: {run.returncode}\n')
+  print(f'{name}: exit {run.returncode}', flush=True)
+  if run.returncode == 0: raise RuntimeError(f'{name}: mutation survived')
+ finally:
+  path.write_text(contents)

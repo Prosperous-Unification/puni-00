@@ -1,0 +1,26 @@
+apps/wbs/be-01/src/controller/cross-project-dependency-fixture.ts 232ms
+apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts 96ms
+apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts 57ms
+libs/wbs/adapters/store-memory/src/incident-dependency-fixture.ts 7ms (unchanged)
+libs/wbs/application/core/src/ports/incident-node-transition.ts 6ms
+libs/wbs/application/core/src/service/incident-node-transition.ts 57ms (unchanged)
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts 361ms (unchanged)
+libs/wbs/adapters/store-memory/src/memory-source.test.ts 217ms
+libs/wbs/adapters/store-memory/src/memory-stores.ts 75ms (unchanged)
+libs/wbs/adapters/store-memory/src/source.ts 45ms (unchanged)
+libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts 30ms
+libs/wbs/adapters/store-memory/src/typed-dependency-fixture.ts 14ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts 57ms
+libs/wbs/adapters/store-sqlite/src/typed-dependency.ts 83ms (unchanged)
+libs/wbs/application/core/src/http/recovery-write.ts 16ms (unchanged)
+libs/wbs/application/core/src/module/plan-commands/composition.ts 25ms (unchanged)
+libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts 118ms (unchanged)
+libs/wbs/application/core/src/module/work-item/work-item.resource.ts 2515ms (unchanged)
+libs/wbs/application/core/src/ports/dependency-context.ts 8ms (unchanged)
+libs/wbs/application/core/src/ports/typed-dependency-store.ts 3ms (unchanged)
+libs/wbs/application/core/src/service/compensating-command.ts 9ms (unchanged)
+libs/wbs/application/core/src/service/compensating.ts 61ms (unchanged)
+libs/wbs/application/core/src/service/dependency-context.test.ts 16ms (unchanged)
+libs/wbs/application/core/src/service/dependency-context.ts 8ms (unchanged)
+openspec/changes/cross-project-dependencies/design.md 90ms (unchanged)
+openspec/changes/cross-project-dependencies/specs/cross-project-dependencies/spec.md 38ms (unchanged)

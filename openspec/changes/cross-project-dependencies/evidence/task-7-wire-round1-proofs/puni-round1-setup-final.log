@@ -1,0 +1,23 @@
+
+> nx run wbs-solver-py:setup-local-solver
+
+> bun run tools/dev/solver-setup-cli.ts
+
+solver environment ready at /tmp/puni-cross-solver-wire/.venv-solver
+  python           3.14.7 (linux)
+  wbs-solver       0.4.0
+  golden request   feasible
+
+  This profile has NO cgroup memory ceiling: the launcher applies only its
+  address-space backstop (4x SOLVER_MEMORY_LIMIT_MB). The parent-death
+  signal is armed, so a be-01 crash kills the child.
+
+
+
+ NX   Successfully ran target setup-local-solver for project wbs-solver-py
+
+
+  Run duration:      3.3s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     3.3s (1 task)
+  Recoverable time:  <1ms

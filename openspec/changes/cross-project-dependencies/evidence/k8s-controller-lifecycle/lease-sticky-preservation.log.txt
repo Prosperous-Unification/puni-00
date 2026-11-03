@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-lease.test.ts:
+127 |     const lease = await resumed.readLease();
+128 |     if (lease === null) throw new Error('missing fixture lease');
+129 |     await resumed.takeoverLease('resumed#run', lease.version, cluster.journal.path, lease.uid);
+130 |     await resumed.renewLease('resumed#run');
+131 |     await resumed.parkLease('resumed#run', 'rollback-failed');
+132 |     expect(cluster.read().metadata.annotations['puni.dev/journal-required']).toBe('true');
+                                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: "true"
+Received: "false"
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-lease.test.ts:132:78)
+(fail) real Lease adapter preserves a sticky journal marker across renewal takeover and parking [268.35ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [319.00ms]

@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/solver-drain-transport.test.ts:
+(pass) discovery retains original census and adds only owner filter [0.14ms]
+(pass) execution mapping preserves real serialization bookkeeping and rejects alien argv [0.11ms]
+(pass) execution rejects unknown native serialization and extra execution records [0.04ms]
+83 |       ],
+84 |       2000,
+85 |     ),
+86 |     'encoded',
+87 |   );
+88 |   expect(performance.now() - decodingStarted).toBeLessThan(1000);
+                                                   ^
+error: expect(received).toBeLessThan(expected)
+
+Expected: < 1000
+Received: 2003.312632
+
+      at <anonymous> (/tmp/puni-solver-drain-acceptance/tools/tool-remote-scripts/test/solver-drain-transport.test.ts:88:47)
+(fail) bounded command kills and reaps exact child on timeout and malformed UTF8 [2066.38ms]
+(pass) bounded command refuses excessive output and nonzero status [2022.99ms]
+(pass) ownership rejects foreign label, unknown name and changed ID before exact effect [0.51ms]
+(pass) cleanup refuses a no-op kill and changed terminal identity before remove [0.36ms]
+(pass) cleanup removes created-inert without kill/wait and verifies terminal kill agreement [0.12ms]
+(pass) effective unit refuses prefix drop-ins and extra commands before initial start [0.68ms]
+(pass) effective preflight blocks actual guarded unit start and cleanup stop effects [0.57ms]
+
+ 9 pass
+ 1 fail
+ 37 expect() calls
+Ran 10 tests across 1 file. [4.13s]

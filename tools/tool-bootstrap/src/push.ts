@@ -8,8 +8,8 @@
 // Five steps, strictly ordered:
 //   1. scp bootstrap.sh to the host, run it as root — installs docker/bun,
 //      creates the /srv/wbs tree (tools/tool-bootstrap/src/bootstrap.sh).
-//   2. scp deploy/compose/base.yml to $WBS_ROOT/base.yml — root, so it lands
-//      before configure.sh's `chown -R` picks it up too.
+//   2. scp deploy/compose/base.yml to a unique staging path; configure.sh
+//      commits it under shared-edge admission before its `chown -R`.
 //   3. Run configure.sh as root, piped over stdin (not written to a temp
 //      file, not passed on the command line) together with WBS_USER,
 //      REGISTRY_USER, and REGISTRY_PASS: writes Caddy/registry/per-tier
@@ -31,6 +31,8 @@
 // any argv this process spawns — argv is visible to any local user via `ps`,
 // stdin content is not. Never printed in full by this file; --dry-run and
 // the printed plan show its EXISTENCE (an env var name), never its value.
+import { randomUUID } from 'node:crypto';
+
 import { REGISTRY_PASS_ENV_VAR, requireRegistryPassword } from './lib/secrets';
 
 export const WBS_ROOT = '/home/puni1/wbs';
@@ -109,6 +111,8 @@ export type PushStep =
       scriptPath: string;
       /** Env var NAMES exported ahead of the script on stdin — never values (see module doc comment). */
       envKeys: string[];
+      /** Non-secret per-invocation settings delivered with the script. */
+      env: Record<string, string>;
     };
 
 /**
@@ -116,7 +120,8 @@ export type PushStep =
  * `REGISTRY_PASS`'s value, only the fact that step 3 will need it (by name,
  * in `envKeys`). Testable without a real secret for exactly that reason.
  */
-export function buildPlan(args: PushArgs): PushStep[] {
+export function buildPlan(args: PushArgs, stageId: string): PushStep[] {
+  const stagedBase = `/tmp/wbs-base-${stageId}.yml`;
   const target = `${args.user}@${args.host}`;
   // A truly fresh minimal cloud image may not have `sudo` installed yet
   // (bootstrap.sh's own install_packages() is what installs it) — prefixing
@@ -138,8 +143,8 @@ export function buildPlan(args: PushArgs): PushStep[] {
     },
     {
       kind: 'run',
-      description: `scp ${args.baseComposePath} -> ${target}:${WBS_ROOT}/base.yml (before configure.sh's chown -R)`,
-      argv: ['scp', args.baseComposePath, `${target}:${WBS_ROOT}/base.yml`],
+      description: `scp ${args.baseComposePath} -> ${target}:${stagedBase} (staged until configure admission)`,
+      argv: ['scp', args.baseComposePath, `${target}:${stagedBase}`],
     },
     {
       kind: 'script-over-stdin',
@@ -150,7 +155,8 @@ export function buildPlan(args: PushArgs): PushStep[] {
       target,
       remoteCommand: `${sudo}sh -s`,
       scriptPath: args.configurePath,
-      envKeys: ['WBS_USER', 'REGISTRY_USER', REGISTRY_PASS_ENV_VAR],
+      envKeys: ['WBS_USER', 'REGISTRY_USER', REGISTRY_PASS_ENV_VAR, 'WBS_BASE_COMPOSE_STAGE'],
+      env: { WBS_BASE_COMPOSE_STAGE: stagedBase },
     },
   ];
 
@@ -189,7 +195,8 @@ export function buildStdinPayload(env: Record<string, string>, scriptText: strin
   return `${exports}\n${scriptText}`;
 }
 
-async function runStep(step: PushStep, secretEnv: Record<string, string>): Promise<void> {
+/** Executes one provisioning transport step, preserving ordered failure. */
+export async function runStep(step: PushStep, secretEnv: Record<string, string>): Promise<void> {
   if (step.kind === 'run') {
     const p = Bun.spawn(step.argv, { stdout: 'inherit', stderr: 'inherit' });
     const code = await p.exited;
@@ -204,14 +211,12 @@ async function runStep(step: PushStep, secretEnv: Record<string, string>): Promi
   // for why this, rather than a temp file or command-line env vars, is how
   // the secret travels.
   const scriptText = await Bun.file(step.scriptPath).text();
-  const payload = buildStdinPayload(secretEnv, scriptText);
+  const payload = buildStdinPayload({ ...secretEnv, ...step.env }, scriptText);
   const p = Bun.spawn(['ssh', step.target, step.remoteCommand], {
-    stdin: 'pipe',
+    stdin: new Blob([payload]),
     stdout: 'inherit',
     stderr: 'inherit',
   });
-  await p.stdin.write(payload);
-  await p.stdin.end();
   const code = await p.exited;
   if (code !== 0) {
     throw new Error(`step failed (exit ${String(code)}): ${step.description}`);
@@ -220,7 +225,7 @@ async function runStep(step: PushStep, secretEnv: Record<string, string>): Promi
 
 async function main(): Promise<void> {
   const args = parsePushArgs(process.argv.slice(2));
-  const plan = buildPlan(args);
+  const plan = buildPlan(args, randomUUID());
 
   console.log(
     `[tool-bootstrap] host=${args.host} user=${args.user} wbs-host=${args.wbsHost ?? '(not given — install step skipped)'} dry-run=${String(args.dryRun)}`,

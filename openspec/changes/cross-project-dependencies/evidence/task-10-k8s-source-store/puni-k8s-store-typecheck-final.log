@@ -1,0 +1,15 @@
+
+> nx run tool-deploy:typecheck
+
+> bunx tsc --build --force tools/tool-deploy/tsconfig.json
+
+
+
+
+ NX   Successfully ran target typecheck for project tool-deploy
+
+
+  Run duration:      586ms
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     310ms (1 task)
+  Recoverable time:  <1ms

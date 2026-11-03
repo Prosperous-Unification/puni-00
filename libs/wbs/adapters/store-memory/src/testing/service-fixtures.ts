@@ -29,7 +29,7 @@ import {
   StepService,
 } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
-import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { inMemoryServices } from '@wbs/core/testing/harness';
@@ -55,7 +55,7 @@ export function testProjectService(projects: ProjectStore = inMemoryProjects()):
     clock: testClock,
     projects,
     broadcast: recordingBroadcaster(),
-    dependencyGraph: new DependencyGraphGuard(stores),
+    dependencyContext: createLocalDependencyContext(stores),
   });
 }
 
@@ -69,7 +69,7 @@ export function testStepService(
     projects,
     steps,
     broadcast: recordingBroadcaster(),
-    dependencyGraph: new DependencyGraphGuard(stores),
+    dependencyContext: createLocalDependencyContext(stores),
   });
 }
 

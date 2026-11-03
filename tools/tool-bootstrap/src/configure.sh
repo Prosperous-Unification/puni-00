@@ -31,6 +31,28 @@
 # Idempotent: safe to re-run.
 set -eu
 
+# Lock order: shared edge.lock, then poll/deploy/devsync locks. Keep descriptor 8
+# inherited through the candidate loader and its deploy child. A retained owner
+# marker (including an interrupted publication) closes ordinary deployment.
+# Proof: edge-admission.test.ts removed this block: all 12 writer refusals failed.
+WBS_EDGE_STATE="${WBS_EDGE_STATE:-/home/puni1/wbs/state}"
+mkdir -p "$WBS_EDGE_STATE"
+# Linux Debian/Ubuntu shells support -ef; edge-admission.test.ts runs these with sh.
+# shellcheck disable=SC3013
+if [ ! "$WBS_EDGE_STATE/edge.lock" -ef /proc/self/fd/8 ]; then
+  touch "$WBS_EDGE_STATE/edge.lock"
+  exec 8<"$WBS_EDGE_STATE/edge.lock"
+fi
+flock -n 8 || { echo "shared edge lock held: $WBS_EDGE_STATE/edge.lock" >&2; exit 75; }
+WBS_EDGE_LOCK_FD=8
+export WBS_EDGE_LOCK_FD
+for edge_owner in "$WBS_EDGE_STATE/edge-owner.json" "$WBS_EDGE_STATE/edge-owner.pending"; do
+  if [ -e "$edge_owner" ] || [ -L "$edge_owner" ]; then
+    echo "shared edge owner admission closed: $edge_owner; retained marker; no activation" >&2
+    exit 1
+  fi
+done
+
 WBS_USER="${WBS_USER:-puni1}"
 WBS_ROOT="${WBS_ROOT:-/home/puni1/wbs}"
 REGISTRY_HOST="${REGISTRY_HOST:-registry.infra.bulletpoints.club}"
@@ -59,6 +81,17 @@ die() { printf '[configure] %s\n' "$*" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || die "must run as root"
 id "$WBS_USER" >/dev/null 2>&1 || die "user '$WBS_USER' does not exist"
 [ -n "${REGISTRY_PASS:-}" ] || die "REGISTRY_PASS must be set"
+
+# The transport stages outside live configuration. Move to a sibling first so
+# the final rename stays atomic even when /tmp is on another filesystem.
+# Proof: direct live scp made both marker and concurrent-writer transport tests
+# replace base.yml before configure admission; the staged sequence preserves it.
+if [ "${WBS_BASE_COMPOSE_STAGE+x}" = x ]; then
+  mkdir -p "$WBS_ROOT"
+  base_next="$WBS_ROOT/base.yml.next.$$"
+  mv -- "$WBS_BASE_COMPOSE_STAGE" "$base_next"
+  mv -- "$base_next" "$WBS_ROOT/base.yml"
+fi
 
 log "installing docker + htpasswd"
 apt-get update -y
@@ -410,9 +443,9 @@ esac
 ## already running behind Caddy. On a genuinely fresh host with nothing
 ## running yet, that same line would just fail: no such host to log in to.
 ##
-## `$WBS_ROOT/base.yml` is not written by this script — see
+## `$WBS_ROOT/base.yml` is committed from the transport's staged file — see
 ## deploy/compose/base.yml's own comment on why it is copied verbatim
-## (tool-bootstrap's push.ts scp's it here) rather than inlined the way
+## (tool-bootstrap's push.ts stages it) rather than inlined the way
 ## Caddyfile/site.caddy are: this file is real Compose YAML, not a few lines
 ## of shell heredoc, and duplicating it inline would just be a second copy to
 ## keep in sync.

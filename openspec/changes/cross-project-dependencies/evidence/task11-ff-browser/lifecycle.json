@@ -1,0 +1,2133 @@
+{
+  "creationCommand": {
+    "commands": [
+      {
+        "kind": "addTypedDependency",
+        "predecessor": {
+          "scope": "whole",
+          "workItemId": "6803390d-ee38-4377-930c-581e79bf66e5",
+          "projectId": "cc0b1606-b44e-41d3-8de6-0421f02b60a7"
+        },
+        "successor": {
+          "scope": "whole",
+          "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4"
+        },
+        "type": "FS"
+      }
+    ]
+  },
+  "accepted": {
+    "results": [
+      {
+        "index": 0,
+        "id": "9ae48513-b9ed-4a31-ad0d-c9ce647392dc"
+      }
+    ],
+    "undoable": true,
+    "redoable": false
+  },
+  "updateCommand": {
+    "commands": [
+      {
+        "kind": "updateTypedDependency",
+        "dependencyId": "9ae48513-b9ed-4a31-ad0d-c9ce647392dc",
+        "predecessor": {
+          "projectId": "cc0b1606-b44e-41d3-8de6-0421f02b60a7",
+          "scope": "whole",
+          "workItemId": "6803390d-ee38-4377-930c-581e79bf66e5"
+        },
+        "successor": {
+          "scope": "whole",
+          "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4"
+        },
+        "type": "FF"
+      }
+    ]
+  },
+  "updateAccepted": {
+    "results": [
+      {
+        "index": 0
+      }
+    ],
+    "undoable": true,
+    "redoable": false
+  },
+  "stable": [
+    {
+      "id": "9ae48513-b9ed-4a31-ad0d-c9ce647392dc",
+      "organization_id": "org-a",
+      "predecessor_project_id": "cc0b1606-b44e-41d3-8de6-0421f02b60a7",
+      "predecessor_work_item_id": "6803390d-ee38-4377-930c-581e79bf66e5",
+      "predecessor_scope": "whole",
+      "predecessor_step_id": null,
+      "successor_project_id": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+      "successor_work_item_id": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+      "successor_scope": "whole",
+      "successor_step_id": null,
+      "type": "FF"
+    }
+  ],
+  "beforeStartable": {
+    "prerequisites": [
+      {
+        "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+        "stepId": "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+        "started": false,
+        "canStart": true,
+        "canFinish": false,
+        "startBlockers": [],
+        "finishBlockers": [
+          {
+            "workItemId": "6803390d-ee38-4377-930c-581e79bf66e5",
+            "stepId": "6c3cb37d-406e-4f3d-83e4-97356a40ae91",
+            "type": "FF",
+            "provenance": "authored",
+            "relationshipId": "9ae48513-b9ed-4a31-ad0d-c9ce647392dc"
+          }
+        ]
+      }
+    ],
+    "leaves": [
+      {
+        "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+        "number": "010",
+        "numberIsFrozen": false,
+        "name": "AuthorFF row",
+        "stepIds": ["3d72b62c-80ec-44d7-bd12-9eb5f17f8d87"],
+        "assignees": [],
+        "teams": [],
+        "unfinishedPredecessorIds": ["6803390d-ee38-4377-930c-581e79bf66e5"],
+        "subtreeClaim": null,
+        "fits": true
+      }
+    ],
+    "doesNotFit": [],
+    "claimed": [],
+    "subtreeClaims": [],
+    "resources": [],
+    "occupancyScope": "project"
+  },
+  "afterStartable": {
+    "prerequisites": [
+      {
+        "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+        "stepId": "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+        "started": false,
+        "canStart": true,
+        "canFinish": true,
+        "startBlockers": [],
+        "finishBlockers": []
+      }
+    ],
+    "leaves": [
+      {
+        "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+        "number": "010",
+        "numberIsFrozen": false,
+        "name": "AuthorFF row",
+        "stepIds": ["3d72b62c-80ec-44d7-bd12-9eb5f17f8d87"],
+        "assignees": [],
+        "teams": [],
+        "unfinishedPredecessorIds": [],
+        "subtreeClaim": null,
+        "fits": true
+      }
+    ],
+    "doesNotFit": [],
+    "claimed": [],
+    "subtreeClaims": [],
+    "resources": [],
+    "occupancyScope": "project"
+  },
+  "reads": [
+    {
+      "workItems": [
+        {
+          "id": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "parentId": null,
+          "position": 10,
+          "name": "AuthorFF row",
+          "notes": "",
+          "frozenNumber": null,
+          "startNoEarlierThan": null,
+          "startNoEarlierThanReason": null,
+          "deadline": null,
+          "factStart": null,
+          "factEnd": null,
+          "readiness": "ready",
+          "hold": null,
+          "priority": null,
+          "serviceTeamId": null,
+          "serviceId": null,
+          "maxParallel": 1,
+          "revision": 0,
+          "teamIds": [],
+          "tagIds": [],
+          "serviceIds": [],
+          "typeIds": [],
+          "externalRefs": [],
+          "number": "010",
+          "estimates": {},
+          "actuals": {},
+          "measures": {},
+          "progress": {},
+          "status": "ready",
+          "charged": {},
+          "finalDays": {},
+          "finalTotal": 0,
+          "rolledUp": false,
+          "dependsOn": [],
+          "assignees": {},
+          "doesEveryStep": null,
+          "nodeReadings": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": "unknown"
+          },
+          "nodeResources": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": {
+              "nodeId": "sn1.0ba4c4f4-1813-4999-b37f-fc6a8482b1f4.3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+              "assignment": {
+                "kind": "unassigned"
+              },
+              "teams": {
+                "kind": "unstated"
+              },
+              "maxParallel": 1,
+              "width": 1
+            }
+          },
+          "blockages": {},
+          "blockageCauses": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": []
+          },
+          "schedule": {
+            "duration": 0,
+            "estimated": false,
+            "earliestStart": 0,
+            "earliestFinish": 0,
+            "latestStart": 0,
+            "latestFinish": 0,
+            "float": 0,
+            "critical": true
+          },
+          "dates": null
+        }
+      ],
+      "typedDependencies": [],
+      "seq": -1,
+      "scheduleError": null,
+      "waitingForPerson": 0,
+      "waitingForCapacity": 0,
+      "slices": [
+        {
+          "id": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4\u00003d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+          "stepId": "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "duration": 0,
+          "effort": 0,
+          "width": 1,
+          "estimated": false,
+          "earliestStart": 0,
+          "earliestFinish": 0,
+          "latestStart": 0,
+          "latestFinish": 0,
+          "float": 0,
+          "critical": true,
+          "personId": null,
+          "boundBy": "projectStart",
+          "resourcePredecessorId": null,
+          "capacityPredecessorIds": [],
+          "capacityTeamId": null,
+          "lateBy": null
+        }
+      ],
+      "steps": [
+        {
+          "id": "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "name": "Dev",
+          "position": 10,
+          "code": "dev",
+          "allowancePercent": 0,
+          "estimateUnit": "workdays"
+        }
+      ],
+      "assignedPeople": [],
+      "teamCapacities": [],
+      "priorityBands": [
+        {
+          "startsAt": 1,
+          "label": "Critical",
+          "defaultValue": 10
+        },
+        {
+          "startsAt": 21,
+          "label": "High",
+          "defaultValue": 30
+        },
+        {
+          "startsAt": 41,
+          "label": "Medium",
+          "defaultValue": 50
+        },
+        {
+          "startsAt": 61,
+          "label": "Low",
+          "defaultValue": 70
+        },
+        {
+          "startsAt": 81,
+          "label": "Lowest",
+          "defaultValue": 90
+        }
+      ],
+      "estimateMethod": "pert",
+      "pertWeights": {
+        "optimistic": 1,
+        "realistic": 4,
+        "pessimistic": 1
+      },
+      "estimateRounding": "ceil",
+      "depReach": "whole-item",
+      "startDate": null,
+      "projectRevision": 0,
+      "undoable": false,
+      "redoable": false,
+      "addressRevision": "ar1:1f186b40c97102c77ccd1666c773468b3d1dd7b0a81623163f9e8a527a30034e",
+      "stepNodes": [
+        {
+          "id": "sn1.0ba4c4f4-1813-4999-b37f-fc6a8482b1f4.3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+          "stepId": "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "reference": "010.s1-dev"
+        }
+      ],
+      "timezone": "UTC"
+    },
+    {
+      "workItems": [
+        {
+          "id": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "parentId": null,
+          "position": 10,
+          "name": "AuthorFF row",
+          "notes": "",
+          "frozenNumber": null,
+          "startNoEarlierThan": null,
+          "startNoEarlierThanReason": null,
+          "deadline": null,
+          "factStart": null,
+          "factEnd": null,
+          "readiness": "ready",
+          "hold": null,
+          "priority": null,
+          "serviceTeamId": null,
+          "serviceId": null,
+          "maxParallel": 1,
+          "revision": 1,
+          "teamIds": [],
+          "tagIds": [],
+          "serviceIds": [],
+          "typeIds": [],
+          "externalRefs": [],
+          "number": "010",
+          "estimates": {},
+          "actuals": {},
+          "measures": {},
+          "progress": {},
+          "status": "ready",
+          "charged": {},
+          "finalDays": {},
+          "finalTotal": 0,
+          "rolledUp": false,
+          "dependsOn": [],
+          "assignees": {},
+          "doesEveryStep": null,
+          "nodeReadings": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": "unknown"
+          },
+          "nodeResources": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": {
+              "nodeId": "sn1.0ba4c4f4-1813-4999-b37f-fc6a8482b1f4.3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+              "assignment": {
+                "kind": "unassigned"
+              },
+              "teams": {
+                "kind": "unstated"
+              },
+              "maxParallel": 1,
+              "width": 1
+            }
+          },
+          "blockages": {},
+          "blockageCauses": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": []
+          },
+          "schedule": null,
+          "dates": null
+        }
+      ],
+      "typedDependencies": [],
+      "seq": 1,
+      "scheduleError": {
+        "kind": "dependency_calendar_missing",
+        "projects": [
+          {
+            "projectId": "cc0b1606-b44e-41d3-8de6-0421f02b60a7",
+            "abbreviation": "AXX",
+            "name": "A"
+          },
+          {
+            "projectId": "6c2c556c-352a-4dd1-9039-7883fcc9b366",
+            "abbreviation": "BXX",
+            "name": "B"
+          },
+          {
+            "projectId": "9f045f28-8e6e-44a9-9476-0aa0873dd59f",
+            "abbreviation": "CXX",
+            "name": "C"
+          },
+          {
+            "projectId": "0d0b5b8e-0977-4f22-bc04-272a3d6d9a0e",
+            "abbreviation": "DES",
+            "name": "Desktop"
+          },
+          {
+            "projectId": "e035617b-7d1c-417e-91fe-0dfc045d399c",
+            "abbreviation": "PHO",
+            "name": "Phone"
+          },
+          {
+            "projectId": "830477bd-fe67-4fcc-baac-98ff9ecfe857",
+            "abbreviation": "SUC",
+            "name": "SuccessorDesktop"
+          },
+          {
+            "projectId": "3958e568-0a4a-4c84-8989-5f52cd7c1b29",
+            "abbreviation": "SUCC",
+            "name": "SuccessorPhone"
+          },
+          {
+            "projectId": "f1d49cac-ef79-4902-976a-875227321813",
+            "abbreviation": "AUT",
+            "name": "Author"
+          },
+          {
+            "projectId": "81a4f267-7c12-4ec0-9d31-2ae43fcd7006",
+            "abbreviation": "AUTH",
+            "name": "AuthorPhone"
+          },
+          {
+            "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+            "abbreviation": "AUTHO",
+            "name": "AuthorFF"
+          }
+        ]
+      },
+      "waitingForPerson": 0,
+      "waitingForCapacity": 0,
+      "slices": [],
+      "steps": [
+        {
+          "id": "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "name": "Dev",
+          "position": 10,
+          "code": "dev",
+          "allowancePercent": 0,
+          "estimateUnit": "workdays"
+        }
+      ],
+      "assignedPeople": [],
+      "teamCapacities": [],
+      "priorityBands": [
+        {
+          "startsAt": 1,
+          "label": "Critical",
+          "defaultValue": 10
+        },
+        {
+          "startsAt": 21,
+          "label": "High",
+          "defaultValue": 30
+        },
+        {
+          "startsAt": 41,
+          "label": "Medium",
+          "defaultValue": 50
+        },
+        {
+          "startsAt": 61,
+          "label": "Low",
+          "defaultValue": 70
+        },
+        {
+          "startsAt": 81,
+          "label": "Lowest",
+          "defaultValue": 90
+        }
+      ],
+      "estimateMethod": "pert",
+      "pertWeights": {
+        "optimistic": 1,
+        "realistic": 4,
+        "pessimistic": 1
+      },
+      "estimateRounding": "ceil",
+      "depReach": "whole-item",
+      "startDate": null,
+      "projectRevision": 0,
+      "connectedDependencies": [
+        {
+          "id": "9ae48513-b9ed-4a31-ad0d-c9ce647392dc",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "type": "FS",
+          "predecessor": {
+            "endpoint": {
+              "scope": "whole",
+              "workItemId": "6803390d-ee38-4377-930c-581e79bf66e5",
+              "projectId": "cc0b1606-b44e-41d3-8de6-0421f02b60a7"
+            },
+            "isLeaf": true,
+            "revision": 15,
+            "name": "A row",
+            "projectAbbreviation": "AXX",
+            "workItemNumber": "010",
+            "step": null,
+            "stepReference": null,
+            "qualifiedReference": "AXX.010",
+            "stepNodeId": null
+          },
+          "successor": {
+            "endpoint": {
+              "scope": "whole",
+              "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+              "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567"
+            },
+            "isLeaf": true,
+            "revision": 1,
+            "name": "AuthorFF row",
+            "projectAbbreviation": "AUTHO",
+            "workItemNumber": "010",
+            "step": null,
+            "stepReference": null,
+            "qualifiedReference": "AUTHO.010",
+            "stepNodeId": null
+          }
+        }
+      ],
+      "remoteBlockageLabels": [],
+      "undoable": true,
+      "redoable": false,
+      "addressRevision": "ar1:1f186b40c97102c77ccd1666c773468b3d1dd7b0a81623163f9e8a527a30034e",
+      "stepNodes": [
+        {
+          "id": "sn1.0ba4c4f4-1813-4999-b37f-fc6a8482b1f4.3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+          "stepId": "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "reference": "010.s1-dev"
+        }
+      ],
+      "timezone": "UTC"
+    },
+    {
+      "workItems": [
+        {
+          "id": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "parentId": null,
+          "position": 10,
+          "name": "AuthorFF row",
+          "notes": "",
+          "frozenNumber": null,
+          "startNoEarlierThan": null,
+          "startNoEarlierThanReason": null,
+          "deadline": null,
+          "factStart": null,
+          "factEnd": null,
+          "readiness": "ready",
+          "hold": null,
+          "priority": null,
+          "serviceTeamId": null,
+          "serviceId": null,
+          "maxParallel": 1,
+          "revision": 1,
+          "teamIds": [],
+          "tagIds": [],
+          "serviceIds": [],
+          "typeIds": [],
+          "externalRefs": [],
+          "number": "010",
+          "estimates": {},
+          "actuals": {},
+          "measures": {},
+          "progress": {},
+          "status": "ready",
+          "charged": {},
+          "finalDays": {},
+          "finalTotal": 0,
+          "rolledUp": false,
+          "dependsOn": [],
+          "assignees": {},
+          "doesEveryStep": null,
+          "nodeReadings": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": "unknown"
+          },
+          "nodeResources": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": {
+              "nodeId": "sn1.0ba4c4f4-1813-4999-b37f-fc6a8482b1f4.3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+              "assignment": {
+                "kind": "unassigned"
+              },
+              "teams": {
+                "kind": "unstated"
+              },
+              "maxParallel": 1,
+              "width": 1
+            }
+          },
+          "blockages": {},
+          "blockageCauses": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": []
+          },
+          "schedule": null,
+          "dates": null
+        }
+      ],
+      "typedDependencies": [],
+      "seq": 1,
+      "scheduleError": {
+        "kind": "dependency_calendar_missing",
+        "projects": [
+          {
+            "projectId": "cc0b1606-b44e-41d3-8de6-0421f02b60a7",
+            "abbreviation": "AXX",
+            "name": "A"
+          },
+          {
+            "projectId": "6c2c556c-352a-4dd1-9039-7883fcc9b366",
+            "abbreviation": "BXX",
+            "name": "B"
+          },
+          {
+            "projectId": "9f045f28-8e6e-44a9-9476-0aa0873dd59f",
+            "abbreviation": "CXX",
+            "name": "C"
+          },
+          {
+            "projectId": "0d0b5b8e-0977-4f22-bc04-272a3d6d9a0e",
+            "abbreviation": "DES",
+            "name": "Desktop"
+          },
+          {
+            "projectId": "e035617b-7d1c-417e-91fe-0dfc045d399c",
+            "abbreviation": "PHO",
+            "name": "Phone"
+          },
+          {
+            "projectId": "830477bd-fe67-4fcc-baac-98ff9ecfe857",
+            "abbreviation": "SUC",
+            "name": "SuccessorDesktop"
+          },
+          {
+            "projectId": "3958e568-0a4a-4c84-8989-5f52cd7c1b29",
+            "abbreviation": "SUCC",
+            "name": "SuccessorPhone"
+          },
+          {
+            "projectId": "f1d49cac-ef79-4902-976a-875227321813",
+            "abbreviation": "AUT",
+            "name": "Author"
+          },
+          {
+            "projectId": "81a4f267-7c12-4ec0-9d31-2ae43fcd7006",
+            "abbreviation": "AUTH",
+            "name": "AuthorPhone"
+          },
+          {
+            "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+            "abbreviation": "AUTHO",
+            "name": "AuthorFF"
+          }
+        ]
+      },
+      "waitingForPerson": 0,
+      "waitingForCapacity": 0,
+      "slices": [],
+      "steps": [
+        {
+          "id": "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "name": "Dev",
+          "position": 10,
+          "code": "dev",
+          "allowancePercent": 0,
+          "estimateUnit": "workdays"
+        }
+      ],
+      "assignedPeople": [],
+      "teamCapacities": [],
+      "priorityBands": [
+        {
+          "startsAt": 1,
+          "label": "Critical",
+          "defaultValue": 10
+        },
+        {
+          "startsAt": 21,
+          "label": "High",
+          "defaultValue": 30
+        },
+        {
+          "startsAt": 41,
+          "label": "Medium",
+          "defaultValue": 50
+        },
+        {
+          "startsAt": 61,
+          "label": "Low",
+          "defaultValue": 70
+        },
+        {
+          "startsAt": 81,
+          "label": "Lowest",
+          "defaultValue": 90
+        }
+      ],
+      "estimateMethod": "pert",
+      "pertWeights": {
+        "optimistic": 1,
+        "realistic": 4,
+        "pessimistic": 1
+      },
+      "estimateRounding": "ceil",
+      "depReach": "whole-item",
+      "startDate": null,
+      "projectRevision": 0,
+      "connectedDependencies": [
+        {
+          "id": "9ae48513-b9ed-4a31-ad0d-c9ce647392dc",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "type": "FS",
+          "predecessor": {
+            "endpoint": {
+              "scope": "whole",
+              "workItemId": "6803390d-ee38-4377-930c-581e79bf66e5",
+              "projectId": "cc0b1606-b44e-41d3-8de6-0421f02b60a7"
+            },
+            "isLeaf": true,
+            "revision": 15,
+            "name": "A row",
+            "projectAbbreviation": "AXX",
+            "workItemNumber": "010",
+            "step": null,
+            "stepReference": null,
+            "qualifiedReference": "AXX.010",
+            "stepNodeId": null
+          },
+          "successor": {
+            "endpoint": {
+              "scope": "whole",
+              "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+              "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567"
+            },
+            "isLeaf": true,
+            "revision": 1,
+            "name": "AuthorFF row",
+            "projectAbbreviation": "AUTHO",
+            "workItemNumber": "010",
+            "step": null,
+            "stepReference": null,
+            "qualifiedReference": "AUTHO.010",
+            "stepNodeId": null
+          }
+        }
+      ],
+      "remoteBlockageLabels": [],
+      "undoable": true,
+      "redoable": false,
+      "addressRevision": "ar1:1f186b40c97102c77ccd1666c773468b3d1dd7b0a81623163f9e8a527a30034e",
+      "stepNodes": [
+        {
+          "id": "sn1.0ba4c4f4-1813-4999-b37f-fc6a8482b1f4.3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+          "stepId": "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "reference": "010.s1-dev"
+        }
+      ],
+      "timezone": "UTC"
+    },
+    {
+      "workItems": [
+        {
+          "id": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "parentId": null,
+          "position": 10,
+          "name": "AuthorFF row",
+          "notes": "",
+          "frozenNumber": null,
+          "startNoEarlierThan": null,
+          "startNoEarlierThanReason": null,
+          "deadline": null,
+          "factStart": null,
+          "factEnd": null,
+          "readiness": "ready",
+          "hold": null,
+          "priority": null,
+          "serviceTeamId": null,
+          "serviceId": null,
+          "maxParallel": 1,
+          "revision": 1,
+          "teamIds": [],
+          "tagIds": [],
+          "serviceIds": [],
+          "typeIds": [],
+          "externalRefs": [],
+          "number": "010",
+          "estimates": {},
+          "actuals": {},
+          "measures": {},
+          "progress": {},
+          "status": "ready",
+          "charged": {},
+          "finalDays": {},
+          "finalTotal": 0,
+          "rolledUp": false,
+          "dependsOn": [],
+          "assignees": {},
+          "doesEveryStep": null,
+          "nodeReadings": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": "unknown"
+          },
+          "nodeResources": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": {
+              "nodeId": "sn1.0ba4c4f4-1813-4999-b37f-fc6a8482b1f4.3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+              "assignment": {
+                "kind": "unassigned"
+              },
+              "teams": {
+                "kind": "unstated"
+              },
+              "maxParallel": 1,
+              "width": 1
+            }
+          },
+          "blockages": {},
+          "blockageCauses": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": []
+          },
+          "schedule": null,
+          "dates": null
+        }
+      ],
+      "typedDependencies": [],
+      "seq": 1,
+      "scheduleError": {
+        "kind": "dependency_calendar_missing",
+        "projects": [
+          {
+            "projectId": "cc0b1606-b44e-41d3-8de6-0421f02b60a7",
+            "abbreviation": "AXX",
+            "name": "A"
+          },
+          {
+            "projectId": "6c2c556c-352a-4dd1-9039-7883fcc9b366",
+            "abbreviation": "BXX",
+            "name": "B"
+          },
+          {
+            "projectId": "9f045f28-8e6e-44a9-9476-0aa0873dd59f",
+            "abbreviation": "CXX",
+            "name": "C"
+          },
+          {
+            "projectId": "0d0b5b8e-0977-4f22-bc04-272a3d6d9a0e",
+            "abbreviation": "DES",
+            "name": "Desktop"
+          },
+          {
+            "projectId": "e035617b-7d1c-417e-91fe-0dfc045d399c",
+            "abbreviation": "PHO",
+            "name": "Phone"
+          },
+          {
+            "projectId": "830477bd-fe67-4fcc-baac-98ff9ecfe857",
+            "abbreviation": "SUC",
+            "name": "SuccessorDesktop"
+          },
+          {
+            "projectId": "3958e568-0a4a-4c84-8989-5f52cd7c1b29",
+            "abbreviation": "SUCC",
+            "name": "SuccessorPhone"
+          },
+          {
+            "projectId": "f1d49cac-ef79-4902-976a-875227321813",
+            "abbreviation": "AUT",
+            "name": "Author"
+          },
+          {
+            "projectId": "81a4f267-7c12-4ec0-9d31-2ae43fcd7006",
+            "abbreviation": "AUTH",
+            "name": "AuthorPhone"
+          },
+          {
+            "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+            "abbreviation": "AUTHO",
+            "name": "AuthorFF"
+          }
+        ]
+      },
+      "waitingForPerson": 0,
+      "waitingForCapacity": 0,
+      "slices": [],
+      "steps": [
+        {
+          "id": "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "name": "Dev",
+          "position": 10,
+          "code": "dev",
+          "allowancePercent": 0,
+          "estimateUnit": "workdays"
+        }
+      ],
+      "assignedPeople": [],
+      "teamCapacities": [],
+      "priorityBands": [
+        {
+          "startsAt": 1,
+          "label": "Critical",
+          "defaultValue": 10
+        },
+        {
+          "startsAt": 21,
+          "label": "High",
+          "defaultValue": 30
+        },
+        {
+          "startsAt": 41,
+          "label": "Medium",
+          "defaultValue": 50
+        },
+        {
+          "startsAt": 61,
+          "label": "Low",
+          "defaultValue": 70
+        },
+        {
+          "startsAt": 81,
+          "label": "Lowest",
+          "defaultValue": 90
+        }
+      ],
+      "estimateMethod": "pert",
+      "pertWeights": {
+        "optimistic": 1,
+        "realistic": 4,
+        "pessimistic": 1
+      },
+      "estimateRounding": "ceil",
+      "depReach": "whole-item",
+      "startDate": null,
+      "projectRevision": 0,
+      "connectedDependencies": [
+        {
+          "id": "9ae48513-b9ed-4a31-ad0d-c9ce647392dc",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "type": "FS",
+          "predecessor": {
+            "endpoint": {
+              "scope": "whole",
+              "workItemId": "6803390d-ee38-4377-930c-581e79bf66e5",
+              "projectId": "cc0b1606-b44e-41d3-8de6-0421f02b60a7"
+            },
+            "isLeaf": true,
+            "revision": 15,
+            "name": "A row",
+            "projectAbbreviation": "AXX",
+            "workItemNumber": "010",
+            "step": null,
+            "stepReference": null,
+            "qualifiedReference": "AXX.010",
+            "stepNodeId": null
+          },
+          "successor": {
+            "endpoint": {
+              "scope": "whole",
+              "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+              "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567"
+            },
+            "isLeaf": true,
+            "revision": 1,
+            "name": "AuthorFF row",
+            "projectAbbreviation": "AUTHO",
+            "workItemNumber": "010",
+            "step": null,
+            "stepReference": null,
+            "qualifiedReference": "AUTHO.010",
+            "stepNodeId": null
+          }
+        }
+      ],
+      "remoteBlockageLabels": [],
+      "undoable": true,
+      "redoable": false,
+      "addressRevision": "ar1:1f186b40c97102c77ccd1666c773468b3d1dd7b0a81623163f9e8a527a30034e",
+      "stepNodes": [
+        {
+          "id": "sn1.0ba4c4f4-1813-4999-b37f-fc6a8482b1f4.3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+          "stepId": "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "reference": "010.s1-dev"
+        }
+      ],
+      "timezone": "UTC"
+    },
+    {
+      "workItems": [
+        {
+          "id": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "parentId": null,
+          "position": 10,
+          "name": "AuthorFF row",
+          "notes": "",
+          "frozenNumber": null,
+          "startNoEarlierThan": null,
+          "startNoEarlierThanReason": null,
+          "deadline": null,
+          "factStart": null,
+          "factEnd": null,
+          "readiness": "ready",
+          "hold": null,
+          "priority": null,
+          "serviceTeamId": null,
+          "serviceId": null,
+          "maxParallel": 1,
+          "revision": 2,
+          "teamIds": [],
+          "tagIds": [],
+          "serviceIds": [],
+          "typeIds": [],
+          "externalRefs": [],
+          "number": "010",
+          "estimates": {},
+          "actuals": {},
+          "measures": {},
+          "progress": {},
+          "status": "ready",
+          "charged": {},
+          "finalDays": {},
+          "finalTotal": 0,
+          "rolledUp": false,
+          "dependsOn": [],
+          "assignees": {},
+          "doesEveryStep": null,
+          "nodeReadings": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": "unknown"
+          },
+          "nodeResources": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": {
+              "nodeId": "sn1.0ba4c4f4-1813-4999-b37f-fc6a8482b1f4.3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+              "assignment": {
+                "kind": "unassigned"
+              },
+              "teams": {
+                "kind": "unstated"
+              },
+              "maxParallel": 1,
+              "width": 1
+            }
+          },
+          "blockages": {},
+          "blockageCauses": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": []
+          },
+          "schedule": null,
+          "dates": null
+        }
+      ],
+      "typedDependencies": [],
+      "seq": 3,
+      "scheduleError": {
+        "kind": "dependency_calendar_missing",
+        "projects": [
+          {
+            "projectId": "cc0b1606-b44e-41d3-8de6-0421f02b60a7",
+            "abbreviation": "AXX",
+            "name": "A"
+          },
+          {
+            "projectId": "6c2c556c-352a-4dd1-9039-7883fcc9b366",
+            "abbreviation": "BXX",
+            "name": "B"
+          },
+          {
+            "projectId": "9f045f28-8e6e-44a9-9476-0aa0873dd59f",
+            "abbreviation": "CXX",
+            "name": "C"
+          },
+          {
+            "projectId": "0d0b5b8e-0977-4f22-bc04-272a3d6d9a0e",
+            "abbreviation": "DES",
+            "name": "Desktop"
+          },
+          {
+            "projectId": "e035617b-7d1c-417e-91fe-0dfc045d399c",
+            "abbreviation": "PHO",
+            "name": "Phone"
+          },
+          {
+            "projectId": "830477bd-fe67-4fcc-baac-98ff9ecfe857",
+            "abbreviation": "SUC",
+            "name": "SuccessorDesktop"
+          },
+          {
+            "projectId": "3958e568-0a4a-4c84-8989-5f52cd7c1b29",
+            "abbreviation": "SUCC",
+            "name": "SuccessorPhone"
+          },
+          {
+            "projectId": "f1d49cac-ef79-4902-976a-875227321813",
+            "abbreviation": "AUT",
+            "name": "Author"
+          },
+          {
+            "projectId": "81a4f267-7c12-4ec0-9d31-2ae43fcd7006",
+            "abbreviation": "AUTH",
+            "name": "AuthorPhone"
+          },
+          {
+            "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+            "abbreviation": "AUTHO",
+            "name": "AuthorFF"
+          }
+        ]
+      },
+      "waitingForPerson": 0,
+      "waitingForCapacity": 0,
+      "slices": [],
+      "steps": [
+        {
+          "id": "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "name": "Dev",
+          "position": 10,
+          "code": "dev",
+          "allowancePercent": 0,
+          "estimateUnit": "workdays"
+        }
+      ],
+      "assignedPeople": [],
+      "teamCapacities": [],
+      "priorityBands": [
+        {
+          "startsAt": 1,
+          "label": "Critical",
+          "defaultValue": 10
+        },
+        {
+          "startsAt": 21,
+          "label": "High",
+          "defaultValue": 30
+        },
+        {
+          "startsAt": 41,
+          "label": "Medium",
+          "defaultValue": 50
+        },
+        {
+          "startsAt": 61,
+          "label": "Low",
+          "defaultValue": 70
+        },
+        {
+          "startsAt": 81,
+          "label": "Lowest",
+          "defaultValue": 90
+        }
+      ],
+      "estimateMethod": "pert",
+      "pertWeights": {
+        "optimistic": 1,
+        "realistic": 4,
+        "pessimistic": 1
+      },
+      "estimateRounding": "ceil",
+      "depReach": "whole-item",
+      "startDate": null,
+      "projectRevision": 0,
+      "connectedDependencies": [
+        {
+          "id": "9ae48513-b9ed-4a31-ad0d-c9ce647392dc",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "type": "FF",
+          "predecessor": {
+            "endpoint": {
+              "scope": "whole",
+              "workItemId": "6803390d-ee38-4377-930c-581e79bf66e5",
+              "projectId": "cc0b1606-b44e-41d3-8de6-0421f02b60a7"
+            },
+            "isLeaf": true,
+            "revision": 16,
+            "name": "A row",
+            "projectAbbreviation": "AXX",
+            "workItemNumber": "010",
+            "step": null,
+            "stepReference": null,
+            "qualifiedReference": "AXX.010",
+            "stepNodeId": null
+          },
+          "successor": {
+            "endpoint": {
+              "scope": "whole",
+              "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+              "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567"
+            },
+            "isLeaf": true,
+            "revision": 2,
+            "name": "AuthorFF row",
+            "projectAbbreviation": "AUTHO",
+            "workItemNumber": "010",
+            "step": null,
+            "stepReference": null,
+            "qualifiedReference": "AUTHO.010",
+            "stepNodeId": null
+          }
+        }
+      ],
+      "remoteBlockageLabels": [],
+      "undoable": true,
+      "redoable": false,
+      "addressRevision": "ar1:1f186b40c97102c77ccd1666c773468b3d1dd7b0a81623163f9e8a527a30034e",
+      "stepNodes": [
+        {
+          "id": "sn1.0ba4c4f4-1813-4999-b37f-fc6a8482b1f4.3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+          "stepId": "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "reference": "010.s1-dev"
+        }
+      ],
+      "timezone": "UTC"
+    },
+    {
+      "workItems": [
+        {
+          "id": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "parentId": null,
+          "position": 10,
+          "name": "AuthorFF row",
+          "notes": "",
+          "frozenNumber": null,
+          "startNoEarlierThan": null,
+          "startNoEarlierThanReason": null,
+          "deadline": null,
+          "factStart": null,
+          "factEnd": null,
+          "readiness": "ready",
+          "hold": null,
+          "priority": null,
+          "serviceTeamId": null,
+          "serviceId": null,
+          "maxParallel": 1,
+          "revision": 2,
+          "teamIds": [],
+          "tagIds": [],
+          "serviceIds": [],
+          "typeIds": [],
+          "externalRefs": [],
+          "number": "010",
+          "estimates": {},
+          "actuals": {},
+          "measures": {},
+          "progress": {},
+          "status": "ready",
+          "charged": {},
+          "finalDays": {},
+          "finalTotal": 0,
+          "rolledUp": false,
+          "dependsOn": [],
+          "assignees": {},
+          "doesEveryStep": null,
+          "nodeReadings": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": "unknown"
+          },
+          "nodeResources": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": {
+              "nodeId": "sn1.0ba4c4f4-1813-4999-b37f-fc6a8482b1f4.3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+              "assignment": {
+                "kind": "unassigned"
+              },
+              "teams": {
+                "kind": "unstated"
+              },
+              "maxParallel": 1,
+              "width": 1
+            }
+          },
+          "blockages": {},
+          "blockageCauses": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": []
+          },
+          "schedule": null,
+          "dates": null
+        }
+      ],
+      "typedDependencies": [],
+      "seq": 3,
+      "scheduleError": {
+        "kind": "dependency_calendar_missing",
+        "projects": [
+          {
+            "projectId": "cc0b1606-b44e-41d3-8de6-0421f02b60a7",
+            "abbreviation": "AXX",
+            "name": "A"
+          },
+          {
+            "projectId": "6c2c556c-352a-4dd1-9039-7883fcc9b366",
+            "abbreviation": "BXX",
+            "name": "B"
+          },
+          {
+            "projectId": "9f045f28-8e6e-44a9-9476-0aa0873dd59f",
+            "abbreviation": "CXX",
+            "name": "C"
+          },
+          {
+            "projectId": "0d0b5b8e-0977-4f22-bc04-272a3d6d9a0e",
+            "abbreviation": "DES",
+            "name": "Desktop"
+          },
+          {
+            "projectId": "e035617b-7d1c-417e-91fe-0dfc045d399c",
+            "abbreviation": "PHO",
+            "name": "Phone"
+          },
+          {
+            "projectId": "830477bd-fe67-4fcc-baac-98ff9ecfe857",
+            "abbreviation": "SUC",
+            "name": "SuccessorDesktop"
+          },
+          {
+            "projectId": "3958e568-0a4a-4c84-8989-5f52cd7c1b29",
+            "abbreviation": "SUCC",
+            "name": "SuccessorPhone"
+          },
+          {
+            "projectId": "f1d49cac-ef79-4902-976a-875227321813",
+            "abbreviation": "AUT",
+            "name": "Author"
+          },
+          {
+            "projectId": "81a4f267-7c12-4ec0-9d31-2ae43fcd7006",
+            "abbreviation": "AUTH",
+            "name": "AuthorPhone"
+          },
+          {
+            "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+            "abbreviation": "AUTHO",
+            "name": "AuthorFF"
+          }
+        ]
+      },
+      "waitingForPerson": 0,
+      "waitingForCapacity": 0,
+      "slices": [],
+      "steps": [
+        {
+          "id": "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "name": "Dev",
+          "position": 10,
+          "code": "dev",
+          "allowancePercent": 0,
+          "estimateUnit": "workdays"
+        }
+      ],
+      "assignedPeople": [],
+      "teamCapacities": [],
+      "priorityBands": [
+        {
+          "startsAt": 1,
+          "label": "Critical",
+          "defaultValue": 10
+        },
+        {
+          "startsAt": 21,
+          "label": "High",
+          "defaultValue": 30
+        },
+        {
+          "startsAt": 41,
+          "label": "Medium",
+          "defaultValue": 50
+        },
+        {
+          "startsAt": 61,
+          "label": "Low",
+          "defaultValue": 70
+        },
+        {
+          "startsAt": 81,
+          "label": "Lowest",
+          "defaultValue": 90
+        }
+      ],
+      "estimateMethod": "pert",
+      "pertWeights": {
+        "optimistic": 1,
+        "realistic": 4,
+        "pessimistic": 1
+      },
+      "estimateRounding": "ceil",
+      "depReach": "whole-item",
+      "startDate": null,
+      "projectRevision": 0,
+      "connectedDependencies": [
+        {
+          "id": "9ae48513-b9ed-4a31-ad0d-c9ce647392dc",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "type": "FF",
+          "predecessor": {
+            "endpoint": {
+              "scope": "whole",
+              "workItemId": "6803390d-ee38-4377-930c-581e79bf66e5",
+              "projectId": "cc0b1606-b44e-41d3-8de6-0421f02b60a7"
+            },
+            "isLeaf": true,
+            "revision": 16,
+            "name": "A row",
+            "projectAbbreviation": "AXX",
+            "workItemNumber": "010",
+            "step": null,
+            "stepReference": null,
+            "qualifiedReference": "AXX.010",
+            "stepNodeId": null
+          },
+          "successor": {
+            "endpoint": {
+              "scope": "whole",
+              "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+              "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567"
+            },
+            "isLeaf": true,
+            "revision": 2,
+            "name": "AuthorFF row",
+            "projectAbbreviation": "AUTHO",
+            "workItemNumber": "010",
+            "step": null,
+            "stepReference": null,
+            "qualifiedReference": "AUTHO.010",
+            "stepNodeId": null
+          }
+        }
+      ],
+      "remoteBlockageLabels": [],
+      "undoable": true,
+      "redoable": false,
+      "addressRevision": "ar1:1f186b40c97102c77ccd1666c773468b3d1dd7b0a81623163f9e8a527a30034e",
+      "stepNodes": [
+        {
+          "id": "sn1.0ba4c4f4-1813-4999-b37f-fc6a8482b1f4.3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+          "stepId": "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "reference": "010.s1-dev"
+        }
+      ],
+      "timezone": "UTC"
+    },
+    {
+      "workItems": [
+        {
+          "id": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "parentId": null,
+          "position": 10,
+          "name": "AuthorFF row",
+          "notes": "",
+          "frozenNumber": null,
+          "startNoEarlierThan": null,
+          "startNoEarlierThanReason": null,
+          "deadline": null,
+          "factStart": null,
+          "factEnd": null,
+          "readiness": "ready",
+          "hold": null,
+          "priority": null,
+          "serviceTeamId": null,
+          "serviceId": null,
+          "maxParallel": 1,
+          "revision": 2,
+          "teamIds": [],
+          "tagIds": [],
+          "serviceIds": [],
+          "typeIds": [],
+          "externalRefs": [],
+          "number": "010",
+          "estimates": {},
+          "actuals": {},
+          "measures": {},
+          "progress": {},
+          "status": "ready",
+          "charged": {},
+          "finalDays": {},
+          "finalTotal": 0,
+          "rolledUp": false,
+          "dependsOn": [],
+          "assignees": {},
+          "doesEveryStep": null,
+          "nodeReadings": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": "unknown"
+          },
+          "nodeResources": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": {
+              "nodeId": "sn1.0ba4c4f4-1813-4999-b37f-fc6a8482b1f4.3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+              "assignment": {
+                "kind": "unassigned"
+              },
+              "teams": {
+                "kind": "unstated"
+              },
+              "maxParallel": 1,
+              "width": 1
+            }
+          },
+          "blockages": {},
+          "blockageCauses": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": []
+          },
+          "schedule": null,
+          "dates": null
+        }
+      ],
+      "typedDependencies": [],
+      "seq": 3,
+      "scheduleError": {
+        "kind": "dependency_calendar_missing",
+        "projects": [
+          {
+            "projectId": "cc0b1606-b44e-41d3-8de6-0421f02b60a7",
+            "abbreviation": "AXX",
+            "name": "A"
+          },
+          {
+            "projectId": "6c2c556c-352a-4dd1-9039-7883fcc9b366",
+            "abbreviation": "BXX",
+            "name": "B"
+          },
+          {
+            "projectId": "9f045f28-8e6e-44a9-9476-0aa0873dd59f",
+            "abbreviation": "CXX",
+            "name": "C"
+          },
+          {
+            "projectId": "0d0b5b8e-0977-4f22-bc04-272a3d6d9a0e",
+            "abbreviation": "DES",
+            "name": "Desktop"
+          },
+          {
+            "projectId": "e035617b-7d1c-417e-91fe-0dfc045d399c",
+            "abbreviation": "PHO",
+            "name": "Phone"
+          },
+          {
+            "projectId": "830477bd-fe67-4fcc-baac-98ff9ecfe857",
+            "abbreviation": "SUC",
+            "name": "SuccessorDesktop"
+          },
+          {
+            "projectId": "3958e568-0a4a-4c84-8989-5f52cd7c1b29",
+            "abbreviation": "SUCC",
+            "name": "SuccessorPhone"
+          },
+          {
+            "projectId": "f1d49cac-ef79-4902-976a-875227321813",
+            "abbreviation": "AUT",
+            "name": "Author"
+          },
+          {
+            "projectId": "81a4f267-7c12-4ec0-9d31-2ae43fcd7006",
+            "abbreviation": "AUTH",
+            "name": "AuthorPhone"
+          },
+          {
+            "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+            "abbreviation": "AUTHO",
+            "name": "AuthorFF"
+          }
+        ]
+      },
+      "waitingForPerson": 0,
+      "waitingForCapacity": 0,
+      "slices": [],
+      "steps": [
+        {
+          "id": "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "name": "Dev",
+          "position": 10,
+          "code": "dev",
+          "allowancePercent": 0,
+          "estimateUnit": "workdays"
+        }
+      ],
+      "assignedPeople": [],
+      "teamCapacities": [],
+      "priorityBands": [
+        {
+          "startsAt": 1,
+          "label": "Critical",
+          "defaultValue": 10
+        },
+        {
+          "startsAt": 21,
+          "label": "High",
+          "defaultValue": 30
+        },
+        {
+          "startsAt": 41,
+          "label": "Medium",
+          "defaultValue": 50
+        },
+        {
+          "startsAt": 61,
+          "label": "Low",
+          "defaultValue": 70
+        },
+        {
+          "startsAt": 81,
+          "label": "Lowest",
+          "defaultValue": 90
+        }
+      ],
+      "estimateMethod": "pert",
+      "pertWeights": {
+        "optimistic": 1,
+        "realistic": 4,
+        "pessimistic": 1
+      },
+      "estimateRounding": "ceil",
+      "depReach": "whole-item",
+      "startDate": null,
+      "projectRevision": 0,
+      "connectedDependencies": [
+        {
+          "id": "9ae48513-b9ed-4a31-ad0d-c9ce647392dc",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "type": "FF",
+          "predecessor": {
+            "endpoint": {
+              "scope": "whole",
+              "workItemId": "6803390d-ee38-4377-930c-581e79bf66e5",
+              "projectId": "cc0b1606-b44e-41d3-8de6-0421f02b60a7"
+            },
+            "isLeaf": true,
+            "revision": 16,
+            "name": "A row",
+            "projectAbbreviation": "AXX",
+            "workItemNumber": "010",
+            "step": null,
+            "stepReference": null,
+            "qualifiedReference": "AXX.010",
+            "stepNodeId": null
+          },
+          "successor": {
+            "endpoint": {
+              "scope": "whole",
+              "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+              "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567"
+            },
+            "isLeaf": true,
+            "revision": 2,
+            "name": "AuthorFF row",
+            "projectAbbreviation": "AUTHO",
+            "workItemNumber": "010",
+            "step": null,
+            "stepReference": null,
+            "qualifiedReference": "AUTHO.010",
+            "stepNodeId": null
+          }
+        }
+      ],
+      "remoteBlockageLabels": [],
+      "undoable": true,
+      "redoable": false,
+      "addressRevision": "ar1:1f186b40c97102c77ccd1666c773468b3d1dd7b0a81623163f9e8a527a30034e",
+      "stepNodes": [
+        {
+          "id": "sn1.0ba4c4f4-1813-4999-b37f-fc6a8482b1f4.3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+          "stepId": "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "reference": "010.s1-dev"
+        }
+      ],
+      "timezone": "UTC"
+    },
+    {
+      "workItems": [
+        {
+          "id": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "parentId": null,
+          "position": 10,
+          "name": "AuthorFF row",
+          "notes": "",
+          "frozenNumber": null,
+          "startNoEarlierThan": null,
+          "startNoEarlierThanReason": null,
+          "deadline": null,
+          "factStart": null,
+          "factEnd": null,
+          "readiness": "ready",
+          "hold": null,
+          "priority": null,
+          "serviceTeamId": null,
+          "serviceId": null,
+          "maxParallel": 1,
+          "revision": 2,
+          "teamIds": [],
+          "tagIds": [],
+          "serviceIds": [],
+          "typeIds": [],
+          "externalRefs": [],
+          "number": "010",
+          "estimates": {},
+          "actuals": {},
+          "measures": {},
+          "progress": {},
+          "status": "ready",
+          "charged": {},
+          "finalDays": {},
+          "finalTotal": 0,
+          "rolledUp": false,
+          "dependsOn": [],
+          "assignees": {},
+          "doesEveryStep": null,
+          "nodeReadings": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": "waiting"
+          },
+          "nodeResources": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": {
+              "nodeId": "sn1.0ba4c4f4-1813-4999-b37f-fc6a8482b1f4.3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+              "assignment": {
+                "kind": "unassigned"
+              },
+              "teams": {
+                "kind": "unstated"
+              },
+              "maxParallel": 1,
+              "width": 1
+            }
+          },
+          "blockages": {},
+          "blockageCauses": {
+            "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": []
+          },
+          "schedule": null,
+          "dates": null
+        }
+      ],
+      "typedDependencies": [],
+      "seq": 4,
+      "scheduleError": {
+        "kind": "dependency_calendar_missing",
+        "projects": [
+          {
+            "projectId": "cc0b1606-b44e-41d3-8de6-0421f02b60a7",
+            "abbreviation": "AXX",
+            "name": "A"
+          },
+          {
+            "projectId": "6c2c556c-352a-4dd1-9039-7883fcc9b366",
+            "abbreviation": "BXX",
+            "name": "B"
+          },
+          {
+            "projectId": "9f045f28-8e6e-44a9-9476-0aa0873dd59f",
+            "abbreviation": "CXX",
+            "name": "C"
+          },
+          {
+            "projectId": "0d0b5b8e-0977-4f22-bc04-272a3d6d9a0e",
+            "abbreviation": "DES",
+            "name": "Desktop"
+          },
+          {
+            "projectId": "e035617b-7d1c-417e-91fe-0dfc045d399c",
+            "abbreviation": "PHO",
+            "name": "Phone"
+          },
+          {
+            "projectId": "830477bd-fe67-4fcc-baac-98ff9ecfe857",
+            "abbreviation": "SUC",
+            "name": "SuccessorDesktop"
+          },
+          {
+            "projectId": "3958e568-0a4a-4c84-8989-5f52cd7c1b29",
+            "abbreviation": "SUCC",
+            "name": "SuccessorPhone"
+          },
+          {
+            "projectId": "f1d49cac-ef79-4902-976a-875227321813",
+            "abbreviation": "AUT",
+            "name": "Author"
+          },
+          {
+            "projectId": "81a4f267-7c12-4ec0-9d31-2ae43fcd7006",
+            "abbreviation": "AUTH",
+            "name": "AuthorPhone"
+          },
+          {
+            "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+            "abbreviation": "AUTHO",
+            "name": "AuthorFF"
+          }
+        ]
+      },
+      "waitingForPerson": 0,
+      "waitingForCapacity": 0,
+      "slices": [],
+      "steps": [
+        {
+          "id": "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "name": "Dev",
+          "position": 10,
+          "code": "dev",
+          "allowancePercent": 0,
+          "estimateUnit": "workdays"
+        }
+      ],
+      "assignedPeople": [],
+      "teamCapacities": [],
+      "priorityBands": [
+        {
+          "startsAt": 1,
+          "label": "Critical",
+          "defaultValue": 10
+        },
+        {
+          "startsAt": 21,
+          "label": "High",
+          "defaultValue": 30
+        },
+        {
+          "startsAt": 41,
+          "label": "Medium",
+          "defaultValue": 50
+        },
+        {
+          "startsAt": 61,
+          "label": "Low",
+          "defaultValue": 70
+        },
+        {
+          "startsAt": 81,
+          "label": "Lowest",
+          "defaultValue": 90
+        }
+      ],
+      "estimateMethod": "pert",
+      "pertWeights": {
+        "optimistic": 1,
+        "realistic": 4,
+        "pessimistic": 1
+      },
+      "estimateRounding": "ceil",
+      "depReach": "whole-item",
+      "startDate": null,
+      "projectRevision": 0,
+      "connectedDependencies": [
+        {
+          "id": "9ae48513-b9ed-4a31-ad0d-c9ce647392dc",
+          "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+          "type": "FF",
+          "predecessor": {
+            "endpoint": {
+              "scope": "whole",
+              "workItemId": "6803390d-ee38-4377-930c-581e79bf66e5",
+              "projectId": "cc0b1606-b44e-41d3-8de6-0421f02b60a7"
+            },
+            "isLeaf": true,
+            "revision": 17,
+            "name": "A row",
+            "projectAbbreviation": "AXX",
+            "workItemNumber": "010",
+            "step": null,
+            "stepReference": null,
+            "qualifiedReference": "AXX.010",
+            "stepNodeId": null
+          },
+          "successor": {
+            "endpoint": {
+              "scope": "whole",
+              "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+              "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567"
+            },
+            "isLeaf": true,
+            "revision": 2,
+            "name": "AuthorFF row",
+            "projectAbbreviation": "AUTHO",
+            "workItemNumber": "010",
+            "step": null,
+            "stepReference": null,
+            "qualifiedReference": "AUTHO.010",
+            "stepNodeId": null
+          }
+        }
+      ],
+      "remoteBlockageLabels": [],
+      "undoable": true,
+      "redoable": false,
+      "addressRevision": "ar1:1f186b40c97102c77ccd1666c773468b3d1dd7b0a81623163f9e8a527a30034e",
+      "stepNodes": [
+        {
+          "id": "sn1.0ba4c4f4-1813-4999-b37f-fc6a8482b1f4.3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "workItemId": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+          "stepId": "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+          "reference": "010.s1-dev"
+        }
+      ],
+      "timezone": "UTC"
+    }
+  ],
+  "frames": [
+    {
+      "type": "connected"
+    },
+    {
+      "type": "presence",
+      "users": []
+    },
+    {
+      "type": "presence",
+      "users": []
+    },
+    {
+      "type": "presence",
+      "users": ["ada"]
+    },
+    {
+      "type": "resume_ack",
+      "replayed": {
+        "project:bae23776-7cb2-41f8-9b85-ad65b44eb567": 0
+      }
+    },
+    {
+      "subscription": "project:bae23776-7cb2-41f8-9b85-ad65b44eb567",
+      "seq": 0,
+      "message": {
+        "type": "elsewhere_changed",
+        "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+        "causeProjectId": "cc0b1606-b44e-41d3-8de6-0421f02b60a7"
+      }
+    },
+    {
+      "subscription": "project:bae23776-7cb2-41f8-9b85-ad65b44eb567",
+      "seq": 1,
+      "message": {
+        "type": "tree_replaced",
+        "workItems": [
+          {
+            "id": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+            "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+            "parentId": null,
+            "position": 10,
+            "name": "AuthorFF row",
+            "notes": "",
+            "frozenNumber": null,
+            "startNoEarlierThan": null,
+            "startNoEarlierThanReason": null,
+            "deadline": null,
+            "factStart": null,
+            "factEnd": null,
+            "readiness": "ready",
+            "hold": null,
+            "priority": null,
+            "serviceTeamId": null,
+            "serviceId": null,
+            "maxParallel": 1,
+            "revision": 1,
+            "teamIds": [],
+            "tagIds": [],
+            "serviceIds": [],
+            "typeIds": [],
+            "externalRefs": [],
+            "number": "010",
+            "estimates": {},
+            "actuals": {},
+            "measures": {},
+            "progress": {},
+            "status": "ready",
+            "charged": {},
+            "finalDays": {},
+            "finalTotal": 0,
+            "rolledUp": false,
+            "dependsOn": [],
+            "assignees": {},
+            "doesEveryStep": null,
+            "nodeReadings": {
+              "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": "unknown"
+            },
+            "nodeResources": {
+              "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": {
+                "nodeId": "sn1.0ba4c4f4-1813-4999-b37f-fc6a8482b1f4.3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+                "assignment": {
+                  "kind": "unassigned"
+                },
+                "teams": {
+                  "kind": "unstated"
+                },
+                "maxParallel": 1,
+                "width": 1
+              }
+            },
+            "blockages": {},
+            "blockageCauses": {
+              "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": []
+            },
+            "schedule": null,
+            "dates": null
+          }
+        ]
+      }
+    },
+    {
+      "type": "connected"
+    },
+    {
+      "type": "presence",
+      "users": []
+    },
+    {
+      "type": "presence",
+      "users": []
+    },
+    {
+      "type": "presence",
+      "users": ["ada"]
+    },
+    {
+      "type": "resume_ack",
+      "replayed": {
+        "project:bae23776-7cb2-41f8-9b85-ad65b44eb567": 0
+      }
+    },
+    {
+      "subscription": "project:bae23776-7cb2-41f8-9b85-ad65b44eb567",
+      "seq": 2,
+      "message": {
+        "type": "elsewhere_changed",
+        "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+        "causeProjectId": "cc0b1606-b44e-41d3-8de6-0421f02b60a7"
+      }
+    },
+    {
+      "subscription": "project:bae23776-7cb2-41f8-9b85-ad65b44eb567",
+      "seq": 3,
+      "message": {
+        "type": "tree_replaced",
+        "workItems": [
+          {
+            "id": "0ba4c4f4-1813-4999-b37f-fc6a8482b1f4",
+            "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+            "parentId": null,
+            "position": 10,
+            "name": "AuthorFF row",
+            "notes": "",
+            "frozenNumber": null,
+            "startNoEarlierThan": null,
+            "startNoEarlierThanReason": null,
+            "deadline": null,
+            "factStart": null,
+            "factEnd": null,
+            "readiness": "ready",
+            "hold": null,
+            "priority": null,
+            "serviceTeamId": null,
+            "serviceId": null,
+            "maxParallel": 1,
+            "revision": 2,
+            "teamIds": [],
+            "tagIds": [],
+            "serviceIds": [],
+            "typeIds": [],
+            "externalRefs": [],
+            "number": "010",
+            "estimates": {},
+            "actuals": {},
+            "measures": {},
+            "progress": {},
+            "status": "ready",
+            "charged": {},
+            "finalDays": {},
+            "finalTotal": 0,
+            "rolledUp": false,
+            "dependsOn": [],
+            "assignees": {},
+            "doesEveryStep": null,
+            "nodeReadings": {
+              "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": "unknown"
+            },
+            "nodeResources": {
+              "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": {
+                "nodeId": "sn1.0ba4c4f4-1813-4999-b37f-fc6a8482b1f4.3d72b62c-80ec-44d7-bd12-9eb5f17f8d87",
+                "assignment": {
+                  "kind": "unassigned"
+                },
+                "teams": {
+                  "kind": "unstated"
+                },
+                "maxParallel": 1,
+                "width": 1
+              }
+            },
+            "blockages": {},
+            "blockageCauses": {
+              "3d72b62c-80ec-44d7-bd12-9eb5f17f8d87": []
+            },
+            "schedule": null,
+            "dates": null
+          }
+        ]
+      }
+    },
+    {
+      "type": "connected"
+    },
+    {
+      "type": "presence",
+      "users": []
+    },
+    {
+      "type": "presence",
+      "users": []
+    },
+    {
+      "type": "presence",
+      "users": ["ada"]
+    },
+    {
+      "type": "resume_ack",
+      "replayed": {
+        "project:bae23776-7cb2-41f8-9b85-ad65b44eb567": 0
+      }
+    },
+    {
+      "type": "pong"
+    },
+    {
+      "subscription": "project:bae23776-7cb2-41f8-9b85-ad65b44eb567",
+      "seq": 4,
+      "message": {
+        "type": "elsewhere_changed",
+        "projectId": "bae23776-7cb2-41f8-9b85-ad65b44eb567",
+        "causeProjectId": "cc0b1606-b44e-41d3-8de6-0421f02b60a7"
+      }
+    }
+  ]
+}

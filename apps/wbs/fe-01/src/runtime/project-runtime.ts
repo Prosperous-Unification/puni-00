@@ -3,6 +3,7 @@ import { DiBag } from 'di-bag';
 import type { RefreshResource } from '@/lib/plan-refresh';
 import type { CalendarMarkers } from '@/modules/calendar-markers/contract';
 import { type Channel, createChannel } from '@/modules/channel';
+import type { OpenedDependencyLookup } from '@/modules/dependency-lookup/contract';
 import type { PlanCommands } from '@/modules/plan-commands/contract';
 import type { PlanFeedForReader } from '@/modules/plan-feed/composition';
 import type { PlanFeed } from '@/modules/plan-feed/contract';
@@ -52,13 +53,13 @@ export interface ProjectRuntimeDependencies extends ProjectSource {
  * hold. The feed starts reading as soon as it is resolved, exactly as the
  * table's effect used to start it.
  *
- * **The feed and the saved plans are the graph's two owned disposables**, each
+ * **The feed, saved plans and dependency lookup are the graph's owned disposables**, each
  * given back through `DiBag.providerWithDisposal` when the runtime's close runs:
  * the feed's refresh owner is disposed and its stream unsubscribed then, once,
- * and so is the saved-plan shelf's watch. The stores and channels hold nothing
+ * and so is the saved-plan shelf's watch. Lookup close aborts pending address reads. The stores and channels hold nothing
  * that needs giving back.
  *
- * Five guards read the owner's `isCurrent`, and the first three are the
+ * Six guards read the owner's `isCurrent`, and the first three are the
  * table's old reader guards moved to where the reader now is:
  *
  * - the feed hands nothing on — no publication, no refusal, no connection —
@@ -73,7 +74,8 @@ export interface ProjectRuntimeDependencies extends ProjectSource {
  * - its stream tells its presence nothing more, so the roster of a project
  *   that has been left is never changed after it was left;
  * - its saved-plan shelf never changes again, and a saved-plan request sends
- *   nothing and rejects.
+ *   nothing and rejects;
+ * - its dependency lookup sends nothing after withdrawal and aborts pending requests on close.
  *
  * @throws `PartialAcquisitionError` when a service cannot be resolved, carrying
  * the bounded close for whatever was acquired first — the feed above all,
@@ -242,6 +244,16 @@ export function installProjectRuntime({
       commands: DiBag.createProvider((): PlanCommands => services.planCommandsFor(projectId), {
         factoryReturnKind: 'sync-value',
       }),
+      dependencyLookup: DiBag.providerWithDisposal({
+        provider: DiBag.createProvider(
+          (): OpenedDependencyLookup => services.dependencyLookupFor({ projectId, isCurrent }),
+          { factoryReturnKind: 'sync-value' },
+        ),
+        // Proof: dropping close left the owned-lookup runtime test at zero disposals (2026-10-22).
+        disposeService: (opened) => {
+          opened.close();
+        },
+      }),
       savedPlans: DiBag.providerWithDisposal({
         provider: DiBag.createProvider(
           (): OpenedSavedPlans => services.savedPlansFor({ projectId, isCurrent }),
@@ -276,6 +288,7 @@ export function installProjectRuntime({
     writer: bag.resolve('writer'),
     commands: bag.resolve('commands'),
     savedPlans: bag.resolve('savedPlans').savedPlans,
+    dependencyLookup: bag.resolve('dependencyLookup').lookup,
   }));
 }
 

@@ -1,0 +1,46 @@
+
+ NX   Running target build for project tool-remote-scripts and 3 tasks it depends on:
+
+
+✔  nx run tool-test-scratch:build
+✔  nx run wbs-solver-supervisor-protocol:build
+✔  nx run tool-compose:build
+
+> nx run tool-remote-scripts:build
+
+> bun build tools/tool-remote-scripts/src/swap.ts --target=bun --outfile dist/tool-remote-scripts/swap.js
+
+[32mBundled 152 modules in 26ms[0m
+
+  [34mswap.js[33m  0.40 MB  [2m(entry point)[0m
+
+> bun build tools/tool-remote-scripts/src/solver-supervisor.ts --target=bun --outfile dist/tool-remote-scripts/solver-supervisor.js
+
+[32mBundled 20 modules in 14ms[0m
+
+  [34msolver-supervisor.js[0m  60.89 KB  [2m(entry point)[0m
+
+> bun build tools/tool-remote-scripts/src/check-installed-solver.ts --target=bun --outfile dist/tool-remote-scripts/check-installed-solver.js
+
+[32mBundled 5 modules in 14ms[0m
+
+  [34mcheck-installed-solver.js[0m  21.10 KB  [2m(entry point)[0m
+
+> bun build tools/tool-remote-scripts/src/activate-dependencies.ts --target=bun --outfile dist/tool-remote-scripts/activate-dependencies.js
+
+[32mBundled 41 modules in 16ms[0m
+
+  [34mactivate-dependencies.js[0m  123.27 KB  [2m(entry point)[0m
+
+
+
+
+ NX   Successfully ran target build for project tool-remote-scripts and 3 tasks it depends on
+
+
+Output of 3 successful tasks were not shown. Run with --verbose or --output-style=static to see it.
+
+  Run duration:      284ms
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     265ms (3 tasks)
+  Recoverable time:  <1ms

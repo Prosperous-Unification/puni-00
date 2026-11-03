@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/compensating.test.ts:
+606 |   const update: CompensatingCommand = { do: 'update_typed_dependency', from: { ...dependency, predecessor: { ...local, workItemId: 'before' } }, to: dependency };
+607 |   const nested = (...steps: CompensatingCommand[]): CompensatingCommand => ({ do: 'batch', steps });
+608 |   const restored = restoreForTypedReplay('owner', 'restored');
+609 |   const key = scopedRevisionKey(local);
+610 |   for (const typed of [add, update]) {
+611 |     expect([...restoredTypedAddressesOf(nested(nested(restored), nested(nested(typed))), 'owner')]).toEqual([key]);
+                                                                                                          ^
+error: expect(received).toEqual(expected)
+
+- [
+-   "["owner","restored"]",
+- ]
++ []
+
+- Expected  - 3
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/service/compensating.test.ts:611:101)
+(fail) predicts only earlier owner-local restores before nested typed adds and updates in application order [0.52ms]
+
+ 0 pass
+ 39 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [130.00ms]

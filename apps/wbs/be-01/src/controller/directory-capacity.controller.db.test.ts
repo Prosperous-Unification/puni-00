@@ -85,6 +85,21 @@ async function create(harness: OrganizationHarness, username: string, name: stri
   return (answer.body as { project: { id: string } }).project.id;
 }
 
+/**
+ * The project's first workflow step (Dev): a claim acquires it, since a later
+ * unstarted step waits on Dev's completion under cross-project dependencies'
+ * workflow admission, and occupancy, not execution order, is under test.
+ */
+function firstStepOf(harness: OrganizationHarness, projectId: string): string {
+  const step = harness.sqlite
+    .query<{ id: string }, [string]>(
+      'SELECT id FROM step WHERE project_id = ? ORDER BY position LIMIT 1',
+    )
+    .get(projectId);
+  if (step === null) throw new Error(`project ${projectId} has no workflow step`);
+  return step.id;
+}
+
 async function declare(harness: OrganizationHarness, username: string, name: string) {
   const answer = await harness.call(username, 'POST', DIRECTORY, {
     commands: [{ kind: 'createResource', name, resourceKind: 'divisible', unitLabel: 'GB' }],
@@ -301,6 +316,7 @@ describe('previewing and lowering a directory capacity', () => {
             kind: 'claimWorkItem',
             workItemId,
             personId: index === 0 ? 'agent-a' : 'agent-b',
+            steps: [firstStepOf(h, projectId)],
           },
         ],
       });
@@ -380,6 +396,7 @@ describe('previewing and lowering a directory capacity', () => {
           kind: 'claimWorkItem',
           workItemId: 'w-held',
           personId: 'agent-a',
+          steps: [firstStepOf(h, projectC)],
           resources: [{ resourceId: ram, units: 6 }],
         },
       ],
@@ -420,7 +437,12 @@ describe('previewing and lowering a directory capacity', () => {
     const refused = await h.call('ada', 'POST', `/api/projects/${projectA}/commands`, {
       commands: [
         { kind: 'setDemand', workItemId: 'w-c', resourceId: ram, units: 1 },
-        { kind: 'claimWorkItem', workItemId: 'w-c', personId: 'agent-a' },
+        {
+          kind: 'claimWorkItem',
+          workItemId: 'w-c',
+          personId: 'agent-a',
+          steps: [firstStepOf(h, projectA)],
+        },
       ],
     });
     expect(refused).toMatchObject({

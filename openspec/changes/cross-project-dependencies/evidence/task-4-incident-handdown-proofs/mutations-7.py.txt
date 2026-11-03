@@ -1,0 +1,11 @@
+from pathlib import Path
+import subprocess,json
+root=Path('/tmp/puni-incident-handdown');target=root/'libs/wbs/application/core/src/service/incident-node-transition.ts';original=target.read_text();folder=root/'openspec/changes/cross-project-dependencies/evidence/task-4-incident-handdown-proofs';summary=[]
+for name,old,new,pattern in [('final-endpoint-conflict-result','if (conflict !== null) return { ok: false, reason: conflict.reason };','if (false && conflict !== null) return { ok: false, reason: conflict.reason };','incident final graph result refuses node_on_parent'),('final-cycle-result','if (cycle !== null)\n          return','if (false && cycle !== null)\n          return','incident final graph result refuses cycle')]:
+ try:
+  if old not in original:raise ValueError('missing mutation anchor')
+  target.write_text(original.replace(old,new,1));run=subprocess.run(['bun','test','./apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts','-t',pattern],cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=40)
+  (folder/(name+'.log')).write_text(run.stdout.rstrip()+'\n');summary.append({'name':name,'exit':run.returncode,'status':'CAUGHT' if run.returncode else 'SURVIVED','pattern':pattern});print(name,run.returncode,flush=True)
+ finally:target.write_text(original)
+(folder/'mutation-summary-7.json').write_text(json.dumps(summary,indent=2)+'\n')
+if any(entry['exit']==0 for entry in summary):raise SystemExit('surviving mutation')

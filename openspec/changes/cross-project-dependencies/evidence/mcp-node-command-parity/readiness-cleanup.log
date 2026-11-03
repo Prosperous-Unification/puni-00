@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+443 |     await fixture.close();
+444 |   }
+445 | });
+446 |
+447 | function expectReaped(backend: ParityBackend): void {
+448 |   expect(backend.exitCode !== null || backend.signalCode !== null).toBe(true);
+                                                                         ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at expectReaped (/tmp/puni-mcp-node-parity/apps/wbs/mcp-01/src/connected-command-parity.test.ts:448:68)
+      at <anonymous> (/tmp/puni-mcp-node-parity/apps/wbs/mcp-01/src/connected-command-parity.test.ts:777:5)
+(fail) readiness deadline failure reaps the child before returning [8.96ms]
+
+ 0 pass
+ 25 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.71s]

@@ -1,0 +1,15 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+(pass) mounted post-observation pvc drift refuses source replay [2730.63ms]
+(pass) mounted post-observation controller drift refuses source replay [5502.21ms]
+(pass) mounted post-observation lease drift refuses source replay [2742.57ms]
+(pass) mounted rollback source boundaries use fresh candidate scanner and retained history [23344.82ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 4 pass
+ 46 filtered out
+ 0 fail
+ 59 expect() calls
+Ran 4 tests across 1 file. [34.40s]

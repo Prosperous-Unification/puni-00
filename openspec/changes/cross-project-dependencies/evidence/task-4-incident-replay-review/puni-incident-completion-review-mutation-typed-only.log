@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+2804 |     });
+2805 |     expect(patched).toMatchObject({ ok: true });
+2806 |     if (!patched.ok) return patched;
+2807 |     return service.undoWithin(b.projectId, fixture.principal.id, fixture.expectedAccess);
+2808 |   });
+2809 |   expect(undone).toMatchObject({
+                        ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "detail": "that relationship would now be refused: cycle.",
++   "detail": "that would now close a dependency cycle between steps.",
++   "entryId": "bfb36114-bcda-45cd-b8c5-c1b895a29349",
+    "ok": false,
+    "reason": "stale_undo",
+  }
+
+- Expected  - 1
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-incident-completion-review-copy/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:2809:18)
+(fail) undo reaches the actual remote cycle guard after only unguarded remote endpoints change [467.69ms]
+
+ 0 pass
+ 103 filtered out
+ 1 fail
+ 26 expect() calls
+Ran 1 test across 1 file. [2.57s]

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:
+868 |         },
+869 |       });
+870 |       expect(refused.refusal.code.length).toBeGreaterThan(0);
+871 |       expect(refused.refusal.path.startsWith('$')).toBe(true);
+872 |       if (_fault === 'target input legacy relationship owner')
+873 |         expect(refused.refusal.path).toBe('$.dependencies');
+                                           ^
+error: expect(received).toBe(expected)
+
+Expected: "$.dependencies"
+Received: "$.typedDependencies"
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:873:38)
+(fail) the saved-plan routes > refuses correctly hashed malformed target input legacy relationship owner on read and either comparison side [699.52ms]
+
+ 0 pass
+ 74 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [4.08s]

@@ -1,0 +1,37 @@
+diff --git a/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts b/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts
+index d543d6cc3..b15e81da7 100644
+--- a/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts
++++ b/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts
+@@ -609,15 +609,30 @@ async function readConnectedLivePlanIn(
+   lifetime.assertOpen();
+   // Proof: omitting this binding failed both `private connected capture` modes (unavailable instead of scheduled).
+   const { scheduler, connected } = capturedSchedulerIn(db, options, lifetime, options.connected);
+-  const projection = deriveConnectedPlan(
++  let capturedAsk: Parameters<NonNullable<typeof connected>['readConnectedCaptured']>[0] | undefined;
++  const capturedAdapter = connected === undefined ? null : {
++    readConnectedCaptured: (ask: Parameters<typeof connected.readConnectedCaptured>[0]) => {
++      capturedAsk = ask;
++      return connected.readConnectedCaptured(ask);
++    },
++  };
++  const eagerProjection = deriveConnectedPlan(
+     capture,
+     scheduler,
+     (input) => {
+       lifetime.assertOpen();
+       return scheduler.readResolvedFast(input);
+     },
+-    connected ?? null,
++    capturedAdapter,
+   );
++  const projection = {
++    ...eagerProjection,
++    get placement() {
++      if (connected !== undefined && capturedAsk !== undefined)
++        connected.readConnectedCaptured(capturedAsk);
++      return eagerProjection.placement;
++    },
++  };
+   const metadataByProject = new Map<
+     string,
+     Awaited<ReturnType<typeof readLiveMetadataIn>> & { project: Project }

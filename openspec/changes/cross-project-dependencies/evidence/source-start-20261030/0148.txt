@@ -1,0 +1,65 @@
+{
+  "scope": "Cold-to-running actual source tree monitor dependency",
+  "fault": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+        "--test-name-pattern=^isolated source restoration retains original gateway authority through ready$",
+        "--timeout=320000"
+      ],
+      "pid": 3074044,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 124.80794807197526,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "6d4d20186634083aa5f2f8bed81ec2b5a43b4cbfd35fa2b74adbd02035d4cfb2"
+    },
+    "wrapper": {
+      "pid": 3074030,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "0f0cc354b374149bb40910e72dd63ff8ee2ac3021def5d7e3a178ee0b87f7e9d",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderrSHA256": "6d4d20186634083aa5f2f8bed81ec2b5a43b4cbfd35fa2b74adbd02035d4cfb2"
+  },
+  "restored": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+        "--test-name-pattern=^isolated source restoration retains original gateway authority through ready$",
+        "--timeout=320000"
+      ],
+      "pid": 3077405,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 158.5822408599779,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "f827ad2513c83cd7e744eda837c27e302866e5affa86ff916b4b85f600a2826d"
+    },
+    "wrapper": {
+      "pid": 3077404,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "1e64485058a2a8eac42612c92f750bcef22b88026404b3696fcf68f74737987a",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderrSHA256": "f827ad2513c83cd7e744eda837c27e302866e5affa86ff916b4b85f600a2826d"
+  }
+}

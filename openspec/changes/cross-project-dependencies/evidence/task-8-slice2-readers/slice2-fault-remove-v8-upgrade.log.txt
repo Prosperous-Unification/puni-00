@@ -1,0 +1,132 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:
+15 |   }
+16 | }
+17 |
+18 | /** Require a captured invariant without scheduling or replacing missing facts. */
+19 | export function requireHistory(condition: boolean, code: string, path: string): asserts condition {
+20 |   if (!condition) throw new SavedHistoryError(code, path);
+                                                             ^
+SavedHistoryError: saved history shape at $.dependencyHistory
+      at requireHistory (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/history-json.ts:20:57)
+      at readSavedPlanInput (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:193:3)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:32:21)
+(fail) versioned saved input readers > reads frozen input v1 as local without rewriting bytes [3.15ms]
+15 |   }
+16 | }
+17 |
+18 | /** Require a captured invariant without scheduling or replacing missing facts. */
+19 | export function requireHistory(condition: boolean, code: string, path: string): asserts condition {
+20 |   if (!condition) throw new SavedHistoryError(code, path);
+                                                             ^
+SavedHistoryError: saved history shape at $.dependencyHistory
+      at requireHistory (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/history-json.ts:20:57)
+      at readSavedPlanInput (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:193:3)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:32:21)
+(fail) versioned saved input readers > reads frozen input v2 as local without rewriting bytes [0.12ms]
+15 |   }
+16 | }
+17 |
+18 | /** Require a captured invariant without scheduling or replacing missing facts. */
+19 | export function requireHistory(condition: boolean, code: string, path: string): asserts condition {
+20 |   if (!condition) throw new SavedHistoryError(code, path);
+                                                             ^
+SavedHistoryError: saved history shape at $.dependencyHistory
+      at requireHistory (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/history-json.ts:20:57)
+      at readSavedPlanInput (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:193:3)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:32:21)
+(fail) versioned saved input readers > reads frozen input v3 as local without rewriting bytes [0.12ms]
+15 |   }
+16 | }
+17 |
+18 | /** Require a captured invariant without scheduling or replacing missing facts. */
+19 | export function requireHistory(condition: boolean, code: string, path: string): asserts condition {
+20 |   if (!condition) throw new SavedHistoryError(code, path);
+                                                             ^
+SavedHistoryError: saved history shape at $.dependencyHistory
+      at requireHistory (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/history-json.ts:20:57)
+      at readSavedPlanInput (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:193:3)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:32:21)
+(fail) versioned saved input readers > reads frozen input v4 as local without rewriting bytes [0.07ms]
+15 |   }
+16 | }
+17 |
+18 | /** Require a captured invariant without scheduling or replacing missing facts. */
+19 | export function requireHistory(condition: boolean, code: string, path: string): asserts condition {
+20 |   if (!condition) throw new SavedHistoryError(code, path);
+                                                             ^
+SavedHistoryError: saved history shape at $.dependencyHistory
+      at requireHistory (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/history-json.ts:20:57)
+      at readSavedPlanInput (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:193:3)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:32:21)
+(fail) versioned saved input readers > reads frozen input v5 as local without rewriting bytes [0.09ms]
+15 |   }
+16 | }
+17 |
+18 | /** Require a captured invariant without scheduling or replacing missing facts. */
+19 | export function requireHistory(condition: boolean, code: string, path: string): asserts condition {
+20 |   if (!condition) throw new SavedHistoryError(code, path);
+                                                             ^
+SavedHistoryError: saved history shape at $.dependencyHistory
+      at requireHistory (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/history-json.ts:20:57)
+      at readSavedPlanInput (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:193:3)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:32:21)
+(fail) versioned saved input readers > reads frozen input v6 as local without rewriting bytes [0.09ms]
+15 |   }
+16 | }
+17 |
+18 | /** Require a captured invariant without scheduling or replacing missing facts. */
+19 | export function requireHistory(condition: boolean, code: string, path: string): asserts condition {
+20 |   if (!condition) throw new SavedHistoryError(code, path);
+                                                             ^
+SavedHistoryError: saved history shape at $.dependencyHistory
+      at requireHistory (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/history-json.ts:20:57)
+      at readSavedPlanInput (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:193:3)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:32:21)
+(fail) versioned saved input readers > reads frozen input v7 as local without rewriting bytes [0.08ms]
+15 |   }
+16 | }
+17 |
+18 | /** Require a captured invariant without scheduling or replacing missing facts. */
+19 | export function requireHistory(condition: boolean, code: string, path: string): asserts condition {
+20 |   if (!condition) throw new SavedHistoryError(code, path);
+                                                             ^
+SavedHistoryError: saved history shape at $.dependencyHistory
+      at requireHistory (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/history-json.ts:20:57)
+      at readSavedPlanInput (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:193:3)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:32:21)
+(fail) versioned saved input readers > reads frozen input v8 as local without rewriting bytes [0.08ms]
+(pass) versioned saved input readers > keeps the dormant v8 writer byte-identical to the frozen v8 builder [0.93ms]
+(pass) versioned saved input readers > preserves the frozen legacy schedule1 byte contract and retired algorithm identity [2.50ms]
+(pass) versioned saved input readers > requires explicit dependency history on input9 [23.55ms]
+(pass) versioned saved input readers > refuses header/body version mismatch and malformed new fields [29.97ms]
+(pass) versioned saved input readers > refuses external claims before a legacy local upgrade can erase them [0.60ms]
+(pass) versioned saved input readers > folds converted connected context without live capabilities [13.54ms]
+
+libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+15 |   }
+16 | }
+17 |
+18 | /** Require a captured invariant without scheduling or replacing missing facts. */
+19 | export function requireHistory(condition: boolean, code: string, path: string): asserts condition {
+20 |   if (!condition) throw new SavedHistoryError(code, path);
+                             ^
+SavedHistoryError: saved history shape at $.dependencyHistory
+ path: "$.dependencyHistory",
+ code: "shape"
+
+      at requireHistory (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/history-json.ts:20:25)
+      at readSavedPlanInput (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:193:3)
+      at /tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:9:25
+-------------------------------
+
+
+ 6 pass
+ 9 fail
+ 1 error
+ 22 expect() calls
+Ran 15 tests across 2 files. [686.00ms]

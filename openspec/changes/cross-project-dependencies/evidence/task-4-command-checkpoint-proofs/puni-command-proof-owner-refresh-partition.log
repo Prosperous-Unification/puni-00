@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts:
+1581 |       expect(await plan.stores.workItems.listByProject('b')).toEqual(await scope.stores.workItems.listByProject('b'));
+1582 |       expect(await refusesCall(() => plan.stores.workItems.listByIds('a', ['A']))).toBe(true);
+1583 |       return { commit: true, value: undefined };
+1584 |     } finally { plan.close(); }
+1585 |   }).then(() => null, (cause: unknown) => cause);
+1586 |   expect(changed).toBeNull();
+                         ^
+error: expect(received).toBeNull()
+
+Received: 1561 |     await source.stores.workItems.insert(row, [], { at: 1, by: OWNER });
+1562 |   const changed = await source.uow.run(async (scope) => {
+1563 |     const workItems = new Proxy(scope.stores.workItems, {
+1564 |       get(target, key) {
+1565 |         if (key === 'listByIds') return async (owner: string, ids: readonly string[]) => {
+1566 |           if (ids.includes('A')) throw new Error('retained owner refresh requested a remote identity');
+                                                  ^
+error: retained owner refresh requested a remote identity
+      at <anonymous> (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts:1566:44)
+      at replaceAndPlace (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts:721:32)
+      at <anonymous> (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts:86:21)
+      at <anonymous> (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts:317:13)
+      at async <anonymous> (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts:1577:43)
+      at async <anonymous> (/tmp/puni-cross-command-integration/libs/wbs/adapters/store-memory/src/source.ts:481:36)
+      at async run (/tmp/puni-cross-command-integration/libs/wbs/adapters/store-memory/src/source.ts:35:20)
+
+
+      at <anonymous> (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts:1586:19)
+(fail) refreshes only retained owner rows after external typed writes and representation changes [8.77ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1.92s]

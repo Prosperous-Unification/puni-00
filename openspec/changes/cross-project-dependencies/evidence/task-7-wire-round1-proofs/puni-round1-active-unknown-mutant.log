@@ -1,0 +1,44 @@
+
+> nx run wbs-solver-py:test
+
+> python3 -m unittest discover -s tests -t tests
+
+.............................wbs-solver: unexpected arguments ['--search-workers', '0']; usage: wbs-solver [--version | --search-workers COUNT [--child-deadline-epoch-ms EPOCH_MS]]
+...wbs-solver: empty request: expected one JSON object on stdin
+..............................F.....................................................................................................................................................................................................................
+======================================================================
+FAIL: test_unknown_search_is_not_relabelled_boundary_infeasible (test_connected.ConnectedStage.test_unknown_search_is_not_relabelled_boundary_infeasible)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/puni-cross-solver-wire/libs/wbs/adapters/solver-py/tests/test_connected.py", line 183, in test_unknown_search_is_not_relabelled_boundary_infeasible
+    self.assertEqual(answer["status"], "unknown")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'boundary-infeasible' != 'unknown'
+- boundary-infeasible
++ unknown
+
+
+----------------------------------------------------------------------
+Ran 276 tests in 38.975s
+
+FAILED (failures=1)
+Warning: command "python3 -m unittest discover -s tests -t tests" exited with non-zero status code
+
+
+ NX   Running target test for project wbs-solver-py failed
+
+Failed tasks:
+
+- wbs-solver-py:test
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      39.4s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     39.4s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-solver-py:test    39.4s

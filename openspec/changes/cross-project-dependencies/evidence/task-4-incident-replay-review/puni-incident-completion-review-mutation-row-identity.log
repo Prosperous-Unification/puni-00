@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+2841 |         undefined,
+2842 |         defect === 'project-read' ? undefined : defect,
+2843 |       ),
+2844 |     );
+2845 |     if (defect === 'wrong-identity') {
+2846 |       expect(redone).toBeInstanceOf(Error);
+                            ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: {
+  ok: true,
+  value: {
+    done: "2 changes",
+    detail: null,
+  },
+}
+
+      at <anonymous> (/tmp/puni-incident-completion-review-copy/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:2846:22)
+(fail) external redo revalidates wrong-identity delivery and rolls back an earlier successful action [424.65ms]
+
+ 0 pass
+ 103 filtered out
+ 1 fail
+ 15 expect() calls
+Ran 1 test across 1 file. [2.54s]

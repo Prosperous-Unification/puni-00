@@ -1,0 +1,41 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:
+(pass) live project first response refuses before SQL after success [147.27ms]
+(pass) fanout authorizeProjectUpdate refuses before membership SQL after success [97.92ms]
+(pass) fanout authorizeStepRemoval refuses before membership SQL after success [89.82ms]
+(pass) live project first response refuses before SQL after refusal [83.32ms]
+(pass) fanout authorizeProjectUpdate refuses before membership SQL after refusal [92.46ms]
+(pass) fanout authorizeStepRemoval refuses before membership SQL after refusal [84.65ms]
+(pass) live project first response refuses before SQL after throw [105.77ms]
+(pass) fanout authorizeProjectUpdate refuses before membership SQL after throw [81.17ms]
+(pass) fanout authorizeStepRemoval refuses before membership SQL after throw [86.65ms]
+(pass) project owned continuation performs zero expired SQL [81.42ms]
+(pass) project rank continuation performs zero expired SQL [83.23ms]
+(pass) project chain continuation performs zero expired SQL [99.22ms]
+(pass) project steps continuation performs zero expired SQL [83.98ms]
+(pass) project work-items continuation performs zero expired SQL [98.97ms]
+(pass) project attempts continuation performs zero expired SQL [88.84ms]
+(pass) project blockages continuation performs zero expired SQL [84.35ms]
+(pass) project sequence continuation performs zero expired SQL [92.68ms]
+(pass) aggregate owned continuation performs zero expired SQL [86.52ms]
+(pass) aggregate rank continuation performs zero expired SQL [80.72ms]
+(pass) aggregate chain continuation performs zero expired SQL [81.15ms]
+(pass) aggregate steps continuation performs zero expired SQL [82.15ms]
+(pass) aggregate work-items continuation performs zero expired SQL [101.95ms]
+(pass) aggregate attempts continuation performs zero expired SQL [87.02ms]
+(pass) aggregate blockages continuation performs zero expired SQL [82.79ms]
+(pass) aggregate sequence continuation performs zero expired SQL [80.83ms]
+(pass) export owned continuation performs zero expired SQL [83.08ms]
+(pass) export rank continuation performs zero expired SQL [77.86ms]
+(pass) export chain continuation performs zero expired SQL [80.55ms]
+(pass) export steps continuation performs zero expired SQL [89.50ms]
+(pass) export work-items continuation performs zero expired SQL [81.25ms]
+(pass) export attempts continuation performs zero expired SQL [83.54ms]
+(pass) export blockages continuation performs zero expired SQL [81.30ms]
+(pass) export sequence continuation performs zero expired SQL [95.57ms]
+
+ 33 pass
+ 0 fail
+ 69 expect() calls
+Ran 33 tests across 1 file. [5.13s]

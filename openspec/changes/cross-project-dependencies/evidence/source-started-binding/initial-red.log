@@ -1,0 +1,34 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/source-exclusion-native.test.ts:
+24 |   caddyName: string;
+25 |   plans: readonly FixtureContainerPlan[];
+26 |   run: RunDocker;
+27 | }
+28 | function assertProof(condition: boolean, message: string): asserts condition {
+29 |   if (!condition) throw new Error(message);
+                                 ^
+error: source startup host changed
+      at assertProof (/tmp/puni-source-started-binding/tools/tool-remote-scripts/test/source-exclusion-transport.ts:29:29)
+      at bindStartedSource (/tmp/puni-source-started-binding/tools/tool-remote-scripts/test/source-exclusion-transport.ts:66:3)
+      at fixture (/tmp/puni-source-started-binding/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:55:36)
+      at async <anonymous> (/tmp/puni-source-started-binding/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:100:19)
+(fail) native omitted Init and inherited entrypoint survive full transport and owner exclusion [1.43ms]
+24 |   caddyName: string;
+25 |   plans: readonly FixtureContainerPlan[];
+26 |   run: RunDocker;
+27 | }
+28 | function assertProof(condition: boolean, message: string): asserts condition {
+29 |   if (!condition) throw new Error(message);
+                                 ^
+error: source startup host changed
+      at assertProof (/tmp/puni-source-started-binding/tools/tool-remote-scripts/test/source-exclusion-transport.ts:29:29)
+      at bindStartedSource (/tmp/puni-source-started-binding/tools/tool-remote-scripts/test/source-exclusion-transport.ts:66:3)
+      at fixture (/tmp/puni-source-started-binding/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:55:36)
+      at async <anonymous> (/tmp/puni-source-started-binding/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:127:19)
+(fail) native omitted Init reaches independent mutable-tag substitution refusal before effects [0.47ms]
+
+ 0 pass
+ 33 filtered out
+ 2 fail
+Ran 2 tests across 1 file. [54.00ms]

@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import type { PlanOptimizationView } from '@/lib/wbs-api';
+import type {
+  ConnectedPlanOptimizationView,
+  LocalPlanOptimizationView as PlanOptimizationView,
+  PlanRead,
+} from '@/lib/wbs-api';
 
 import { cueReading } from './optimization-cue-reading';
+import { chartReadOf } from './use-plan-read';
 
 /**
  * The suggestion rule and the words, asserted where they are decided.
@@ -296,5 +301,166 @@ describe('what the cue reads out', () => {
   ])('offers a retry for %s and for nothing else', (_what, state, expected) => {
     const view = reading({ variants: { pri: state, time: { state: 'ready', proof: 'proven' } } });
     expect(view.retryable).toEqual(expected);
+  });
+});
+
+const CONNECTED: ConnectedPlanOptimizationView = {
+  ...BASE,
+  scope: {
+    kind: 'connected-stage',
+    projectId: 'target',
+    originOrdinal: 0,
+    mode: 'isolated',
+    quantum: 48,
+    wireVersion: 1,
+    boundary: { format: 'wbs-connected-stage', version: 1, canonical: 'captured' },
+    fixed: [
+      {
+        projectId: 'foreign',
+        projectName: 'Foreign',
+        projectAbbreviation: 'FOR',
+        workItemId: 'work',
+        workItemName: 'Fixed work',
+        stepId: 'step',
+        stepName: 'Build',
+        start: 0.2,
+        finish: 1.2,
+      },
+    ],
+  },
+};
+const terminal = (evidence: 'contradictory-bounds' | 'initial-model-infeasible') => ({
+  state: 'boundary-infeasible' as const,
+  certificate: {
+    kind: 'boundary-infeasible' as const,
+    evidence,
+    question: {
+      projectId: 'target',
+      inputHash: 'hash-a',
+      questionHash: 'question',
+      objective: 'pri' as const,
+      contractVersion: '1.5+test',
+      budgetMs: 60000,
+      quantum: 48,
+      wireVersion: 1,
+      stageBytes: 'captured',
+    },
+  },
+});
+
+describe('connected captured cue reading', () => {
+  it.each(['contradictory-bounds', 'initial-model-infeasible'] as const)(
+    'reads %s without terminal actions or figures',
+    (evidence) => {
+      const view = cueReading({
+        ...CONNECTED,
+        variants: { pri: terminal(evidence), time: { state: 'pending' } },
+        finishDays: { fast: 10 },
+        sameOrderAsFast: {},
+      });
+      expect(view.rows[1]).toMatchObject({
+        finishDays: null,
+        comparedWithFast: null,
+        retryable: false,
+      });
+      expect(view.rows[1]?.refusedBecause).toBeTruthy();
+      expect(view.retryable).toEqual([]);
+      expect(view.rows[1]?.details.join(' ')).toContain(
+        evidence === 'contradictory-bounds' ? 'rounded bounds' : 'initial fixed-boundary model',
+      );
+      expect(view.rows[1]?.details.join(' ')).toContain('question');
+      expect(view.scopeWords).toContain('target');
+      expect(view.sentence).toContain('Fast is retained');
+      expect(view.sentence).not.toContain('Plan infeasible');
+      expect(view.rows[1]?.details.join(' ')).toContain(
+        'start 0.2, finish 1.2 workdays from the captured component origin',
+      );
+    },
+  );
+  it('preserves the entire captured optimization through chartReadOf', () => {
+    const chart = chartReadOf(
+      {
+        slices: [],
+        steps: [],
+        assignedPeople: [],
+        depReach: 'whole-item',
+        pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+        estimateRounding: 'ceil',
+        optimization: CONNECTED,
+      } as unknown as PlanRead,
+      1,
+    );
+    expect(chart.optimization).toEqual(CONNECTED);
+  });
+  it('retains the selected ready sibling name', () => {
+    const view = cueReading({
+      ...CONNECTED,
+      displayed: 'time',
+      variants: {
+        pri: terminal('contradictory-bounds'),
+        time: { state: 'ready', proof: 'proven' },
+      },
+      finishDays: { fast: 10, time: 8 },
+      sameOrderAsFast: { time: false },
+    });
+    expect(view.sentence).toContain('The selected Finish-first schedule remains displayed');
+    expect(view.sentence).not.toContain('Fast is retained');
+    expect(view.rows[2]?.comparedWithFast).toContain('captured fixed positions');
+  });
+  it('distinguishes published floor from incomplete search', () => {
+    const view = cueReading({
+      ...CONNECTED,
+      displayed: 'pri',
+      variants: {
+        pri: { state: 'ready', proof: 'quantisation-floor' },
+        time: { state: 'ready', proof: 'incomplete' },
+      },
+    });
+    expect(view.rows[1]?.stateWords).toContain('retains the captured baseline');
+    expect(view.rows[2]?.stateWords).toContain('captured question');
+    expect(view.sentence).toContain('captured fixed positions');
+  });
+  it('does not manufacture admission for null generation', () => {
+    expect(
+      cueReading({
+        ...CONNECTED,
+        generation: null,
+        variants: { pri: { state: 'idle' }, time: { state: 'idle' } },
+        finishDays: { fast: 10 },
+        sameOrderAsFast: {},
+      }).sentence,
+    ).not.toContain('Optimizing');
+  });
+  it('suppresses stale arithmetic and qualifies captured evidence', () => {
+    const view = cueReading({ ...CONNECTED, finishDays: { fast: 10, pri: 7, time: 8 } }, true);
+    expect(view.rows.every((row) => row.finishDays === null && row.comparedWithFast === null)).toBe(
+      true,
+    );
+    expect(view.suggestion).toBeNull();
+    expect(view.variantContrast).toBeNull();
+    expect(view.scopeWords).toContain('may be stale');
+    expect(view.sentence).toContain('displayed dates are from the last plan read');
+  });
+  it.each(['state', 'proof', 'evidence', 'scope'] as const)(
+    'throws for unknown internal %s',
+    (fault) => {
+      const invalid = structuredClone(CONNECTED);
+      if (fault === 'state') Object.assign(invalid.variants.pri, { state: 'alien' });
+      if (fault === 'proof') Object.assign(invalid.variants.pri, { proof: 'alien' });
+      if (fault === 'evidence')
+        Object.assign(invalid.variants, {
+          pri: {
+            ...terminal('contradictory-bounds'),
+            certificate: { ...terminal('contradictory-bounds').certificate, evidence: 'alien' },
+          },
+        });
+      if (fault === 'scope') Object.assign(invalid.scope, { kind: 'alien' });
+      expect(() => cueReading(invalid)).toThrow();
+    },
+  );
+  it('throws when displayed connected objective has no finish', () => {
+    expect(() =>
+      cueReading({ ...CONNECTED, displayed: 'pri', finishDays: { fast: 10 } }),
+    ).toThrow();
   });
 });

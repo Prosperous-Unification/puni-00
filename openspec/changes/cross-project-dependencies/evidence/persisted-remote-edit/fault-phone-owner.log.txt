@@ -1,0 +1,57 @@
+
+ RUN  v5.0.0 /home/df/.codex/worktrees/685b/puni-00/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (69 tests | 1 failed | 68 skipped) 328ms
+   × keeps a foreign-owned relationship details-only even when work-item ids collide on phone 326ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 68 skipped (69)
+   Start at  00:48:20
+   Duration  6.90s (import 62%, transform 26%, environment 7%, tests 5%, setup 1%)
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > keeps a foreign-owned relationship details-only even when work-item ids collide on phone
+AssertionError: expected <select>…(3)</select> to be null
+
+- Expected:
+null
+
++ Received:
+<select>
+  <option
+    value="FS"
+  >
+    FS
+     ·
+    Finish-to-start
+  </option>
+  <option
+    value="SS"
+  >
+    SS
+     ·
+    Start-to-start
+  </option>
+  <option
+    value="FF"
+  >
+    FF
+     ·
+    Finish-to-finish
+  </option>
+</select>
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:644:53
+    642|     );
+    643|     const dialog = within(screen.getByRole('dialog', { name: 'Captured…
+    644|     expect(dialog.queryByLabelText('Relationship')).toBeNull();
+       |                                                     ^
+    645|     expect(dialog.queryByRole('button', { name: 'Save' })).toBeNull();
+    646|     expect(update).not.toHaveBeenCalled();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

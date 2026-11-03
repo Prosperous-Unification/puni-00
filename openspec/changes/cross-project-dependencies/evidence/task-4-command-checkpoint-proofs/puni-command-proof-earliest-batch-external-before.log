@@ -1,0 +1,50 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+241 |     if (!renamed.ok) return renamed;
+242 |     const added = await service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input);
+243 |     if (!added.ok) return added;
+244 |     return service.updateTypedDependency(fixture.owner.projectId, fixture.principal.id, added.value, { ...fixture.input, type: 'SS' });
+245 |   })).toMatchObject({ ok: true });
+246 |   expect(lastPreconditions(fixture.owner.projectId)).toMatchObject({ externalRevisions: { from: [{ ...fixture.predecessor, revision: 0 }], expected: [{ ...fixture.predecessor, revision: 2 }] } });
+                                                           ^
+error: expect(received).toMatchObject(expected)
+
+  {
++   "estimateUnits": {},
++   "expected": {
++     "3cf11fe2-50d3-4a43-8897-93ee6b23d5ab": 3,
++   },
+    "externalRevisions": {
+      "expected": [
+        {
+          "projectId": "13799c0d-3bf4-4923-aa4d-64dd8afb6cb9",
+          "revision": 2,
+          "workItemId": "ce92157a-68f7-42d5-a4f6-dfb2ae08682e",
+        },
+      ],
+      "from": [
+        {
+          "projectId": "13799c0d-3bf4-4923-aa4d-64dd8afb6cb9",
+-         "revision": 0,
++         "revision": 1,
+          "workItemId": "ce92157a-68f7-42d5-a4f6-dfb2ae08682e",
+        },
+      ],
++   },
++   "from": {
++     "3cf11fe2-50d3-4a43-8897-93ee6b23d5ab": 0,
+    },
+  }
+
+- Expected  - 1
++ Received  + 8
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:246:54)
+(fail) collected history keeps an external endpoint first seen after the first owner snapshot [386.97ms]
+
+ 0 pass
+ 29 filtered out
+ 1 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [2.57s]

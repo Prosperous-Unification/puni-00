@@ -1,0 +1,19 @@
+{
+  "proposalSHA256": "2ffbde1281e5defeb7269d8c73be67e3f22b65bb99b915d5f0be3ef8a7c1c412",
+  "source": [
+    {
+      "path": "tools/tool-remote-scripts/src/lib/dependency-participant-restoration.ts",
+      "beforeSHA256": "7134748cc738d9404c786de2f038f8247992514355a5c4be8328437e7c0a0cf0",
+      "proposedSHA256": "a197dc99bedcdf390af3f15c7fdfb8178f7b374f95ee5b04ca20498740f67b63",
+      "mode": 436
+    },
+    {
+      "path": "tools/tool-remote-scripts/src/lib/dependency-source-restoration.model.ts",
+      "beforeSHA256": "8aeda7ce9e5b20c2f6a8ea61851d806ba2bf59095622c7b83f720c7a66871471",
+      "proposedSHA256": "fac32efa61dcb9a788a0bb87a04f69e63283afda3cf709ba5d0e07255fdd37eb",
+      "mode": 436
+    }
+  ],
+  "fixtureInverse": "/tmp/puni-source-start-20261029/lint-correction-proposal/fixture.before.txt",
+  "scope": "Equivalent optional first PID test; nine typed awaited Node rejection assertions; two void callback block bodies"
+}

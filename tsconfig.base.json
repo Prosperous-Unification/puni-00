@@ -34,12 +34,27 @@
       ],
       "@wbs/auth": ["./libs/wbs/adapters/auth/src/index.ts"],
       "@wbs/config": ["./libs/wbs/adapters/config/src/index.ts"],
+      "@wbs/contracts/logger": ["./libs/wbs/domain/contracts/src/logger.ts"],
+      "@wbs/contracts/dependency-claim": ["./libs/wbs/domain/contracts/src/dependency-claim.ts"],
+      "@wbs/contracts/mcp-authorization-server": [
+        "./libs/wbs/domain/contracts/src/mcp-authorization-server.ts"
+      ],
+      "@wbs/contracts/mcp-internal-auth": ["./libs/wbs/domain/contracts/src/mcp-internal-auth.ts"],
       "@wbs/contracts": ["./libs/wbs/domain/contracts/src/index.ts"],
+      "@wbs/contracts/dependency-runtime": [
+        "./libs/wbs/domain/contracts/src/dependency-runtime.ts"
+      ],
       "@wbs/core": ["./libs/wbs/application/core/src/index.ts"],
       "@wbs/core/*": ["./libs/wbs/application/core/src/*"],
       "@wbs/conformance": ["./libs/wbs/application/conformance/src/index.ts"],
       "@wbs/conformance/*": ["./libs/wbs/application/conformance/src/*"],
       "@wbs/domain": ["./libs/wbs/domain/domain/src/index.ts"],
+      "@wbs/domain/connected-history-fixture": [
+        "./libs/wbs/domain/domain/src/saved-plan/connected-history.fixture.ts"
+      ],
+      "@wbs/domain/connected-benchmark-fixture": [
+        "./libs/wbs/domain/domain/src/connected-benchmark-fixture.ts"
+      ],
       "@wbs/domain/step-node": ["./libs/wbs/domain/domain/src/step-node.ts"],
       "@wbs/domain/step-reference": ["./libs/wbs/domain/domain/src/step-reference.ts"],
       "@wbs/domain/stored-vocabularies": ["./libs/wbs/domain/domain/src/stored-vocabularies.ts"],
@@ -70,6 +85,13 @@
       "@wbs/runtime-portable/testing": ["./libs/wbs/adapters/runtime-portable/src/testing.ts"],
       "@wbs/runtime-portable": ["./libs/wbs/adapters/runtime-portable/src/index.ts"],
       "@wbs/store-sqlite": ["./libs/wbs/adapters/store-sqlite/src/index.ts"],
+      "@wbs/store-sqlite/db": ["./libs/wbs/adapters/store-sqlite/src/db.ts"],
+      "@wbs/store-sqlite/backup": ["./libs/wbs/adapters/store-sqlite/src/backup.ts"],
+      "@wbs/store-sqlite/migration-set": ["./libs/wbs/adapters/store-sqlite/src/migration-set.ts"],
+      "@wbs/store-sqlite/cross-project-dependency-activation": [
+        "./libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.ts"
+      ],
+      "@wbs/store-sqlite/migrate": ["./libs/wbs/adapters/store-sqlite/src/migrate.ts"],
       "@wbs/store-sqlite/*": ["./libs/wbs/adapters/store-sqlite/src/*"],
       "@wbs/store-memory": ["./libs/wbs/adapters/store-memory/src/index.ts"],
       "@wbs/store-memory/*": ["./libs/wbs/adapters/store-memory/src/*"],
@@ -98,6 +120,15 @@
       ],
       "@wbs/contracts/solver/revalidate-solver-result": [
         "./libs/wbs/domain/contracts/solver/src/revalidate-solver-result.ts"
+      ],
+      "@wbs/contracts/solver/build-connected-request": [
+        "./libs/wbs/domain/contracts/solver/src/build-connected-solver-request.ts"
+      ],
+      "@wbs/contracts/solver/connected-durable": [
+        "./libs/wbs/domain/contracts/solver/src/connected-durable.ts"
+      ],
+      "@wbs/contracts/solver/connected-solver-outcome": [
+        "./libs/wbs/domain/contracts/solver/src/connected-solver-outcome.ts"
       ],
       "@wbs/contracts/solver/solver-exit-outcome": [
         "./libs/wbs/domain/contracts/solver/src/solver-exit-outcome.ts"

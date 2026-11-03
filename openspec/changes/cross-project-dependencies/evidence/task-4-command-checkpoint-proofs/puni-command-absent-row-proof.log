@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+{"level":"error","time":1792633616611,"service":"be-01","err":{"occurrence_id":"AE_9EXQNTEX0WM2MDGZE4K0S12D3T","fingerprint":"fp1_2ebf688ea2f22942362b89d5a4df8c53","stack":["TypeError: null is not an object (evaluating 'row.id')","    at <anonymous> (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/service/dependency-endpoint-evidence.ts:81:9)","    at async <anonymous> (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/service/dependency-endpoint-evidence.ts:89:27)","    at async typedEvidence (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6307:46)","    at async <anonymous> (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6428:37)","    at async withDependencyContext (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/ports/dependency-context.ts:84:27)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+488 |           patch: { name: 'Must roll back' },
+489 |         },
+490 |         { kind: 'addTypedDependency', predecessor: endpoint, successor, type: 'FS' },
+491 |       ],
+492 |     });
+493 |     expect(response.status).toBe(malformed ? 400 : 404);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 404
+Received: 500
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:493:29)
+(fail) mounted absent-row refuses before writes and conceals endpoint facts [357.18ms]
+
+ 0 pass
+ 63 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [2.45s]

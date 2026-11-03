@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:
+77 |   expect(stored("SELECT id,revision FROM work_item WHERE id IN ('a','b','b2') ORDER BY id")).toEqual([{id:'a',revision:2},{id:'b',revision:3},{id:'b2',revision:3}]);
+78 | });
+79 |
+80 | it('rejects cross-project mismatched endpoints and foreign organizations', async () => {
+81 |   const repo = repository();
+82 |   expect(await rejection(repo.add({ ...link(), projectId:'a' },stamp))).toContain('successor');
+                                                                             ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "successor"
+Received: "(resolved)"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:82:73)
+(fail) rejects cross-project mismatched endpoints and foreign organizations [119.31ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.98s]

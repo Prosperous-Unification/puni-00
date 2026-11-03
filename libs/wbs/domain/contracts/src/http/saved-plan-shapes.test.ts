@@ -86,6 +86,16 @@ test('creation requires creator identity while reads retain additional fields an
 
 test('comparison validates known metadata while preserving opaque historical differences', async () => {
   const reply = {
+    left: {
+      source: { kind: 'current' as const },
+      schedule: { present: false as const, absentReason: 'pending' },
+      provenance: { kind: 'legacy-unknown' as const },
+    },
+    right: {
+      source: { kind: 'saved' as const, savedPlanId: 's' },
+      schedule: { present: true as const, algorithmId: 'retired' },
+      provenance: { kind: 'local' as const },
+    },
     diff: {
       input: [
         { category: 'other' as const, path: 'old.field', left: { legacy: ['x'] }, right: null },
@@ -107,4 +117,44 @@ test('comparison validates known metadata while preserving opaque historical dif
     (await validateSchema(compareSavedPlans.query, { left: 'current', right: 's', other: 'x' }))
       .issues,
   ).toBeDefined();
+});
+
+test('comparison requires both historical summaries even for an empty diff', async () => {
+  const side = {
+    source: { kind: 'saved' as const, savedPlanId: 's' },
+    schedule: { present: false as const, absentReason: 'infeasible' },
+    provenance: { kind: 'legacy-unknown' as const },
+  };
+  const reply = { diff: { input: [], schedule: [] }, left: side, right: side };
+  expect(
+    (await validateSchema(compareSavedPlans.responses[0].schema, reply)).issues,
+  ).toBeUndefined();
+  for (const key of ['left', 'right']) {
+    const incomplete = { ...reply };
+    Reflect.deleteProperty(incomplete, key);
+    expect(
+      (await validateSchema(compareSavedPlans.responses[0].schema, incomplete)).issues,
+    ).toBeDefined();
+  }
+  for (const key of ['source', 'schedule', 'provenance']) {
+    const incomplete = structuredClone(side);
+    Reflect.deleteProperty(incomplete, key);
+    expect(
+      (await validateSchema(compareSavedPlans.responses[0].schema, { ...reply, left: incomplete }))
+        .issues,
+    ).toBeDefined();
+  }
+});
+
+test('generated comparison document requires the side summaries for clients', () => {
+  const document = documentFromShapes([compareSavedPlans]);
+  expect(
+    document.paths['/api/projects/{id}/saved-plans/compare']?.['get']?.responses['200'],
+  ).toMatchObject({
+    content: {
+      'application/json': {
+        schema: { required: ['diff', 'left', 'right'] },
+      },
+    },
+  });
 });

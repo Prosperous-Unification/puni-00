@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:
+810 |   }).toThrow(/elsewhere person set/);
+811 |   const wrongBooking = structuredClone(pair.pri.request);
+812 |   Object.assign(wrongBooking, { elsewhere: { ana: [[0, 9]] } });
+813 |   expect(() => {
+814 |     validateConnectedSolverRequest(wrongBooking);
+815 |   }).toThrow(/elsewhere intervals/);
+           ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /elsewhere intervals/
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:815:6)
+(fail) connected request names the exact foreign person holder and booking [5.89ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [185.00ms]

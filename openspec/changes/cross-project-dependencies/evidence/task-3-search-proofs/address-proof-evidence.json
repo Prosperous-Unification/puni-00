@@ -1,0 +1,92 @@
+[
+  {
+    "fault": "organization-scope",
+    "exit": 1,
+    "test": "alphabetic prefix",
+    "log": "/tmp/address-proof-organization-scope.txt"
+  },
+  {
+    "fault": "placement-scope",
+    "exit": 1,
+    "test": "selected project scopes",
+    "log": "/tmp/address-proof-placement-scope.txt"
+  },
+  {
+    "fault": "step-scope",
+    "exit": 1,
+    "test": "viewer can discover",
+    "log": "/tmp/address-proof-step-scope.txt"
+  },
+  {
+    "fault": "project-cap",
+    "exit": 1,
+    "test": "alphabetic prefix",
+    "log": "/tmp/address-proof-project-cap.txt"
+  },
+  {
+    "fault": "candidate-cap",
+    "exit": 1,
+    "test": "selected project scopes",
+    "log": "/tmp/address-proof-candidate-cap.txt"
+  },
+  {
+    "fault": "alphabetic-gate",
+    "exit": 1,
+    "test": "numeric input",
+    "log": "/tmp/address-proof-alphabetic-gate.txt"
+  },
+  {
+    "fault": "grammar",
+    "exit": 1,
+    "test": "manual punctuation",
+    "log": "/tmp/address-proof-grammar.txt"
+  },
+  {
+    "fault": "stale",
+    "exit": 1,
+    "test": "manual punctuation",
+    "log": "/tmp/address-proof-stale.txt"
+  },
+  {
+    "fault": "ambiguous",
+    "exit": 1,
+    "test": "duplicate numbers",
+    "log": "/tmp/address-proof-ambiguous.txt"
+  },
+  {
+    "fault": "project-binding",
+    "exit": 1,
+    "test": "cursor reuse",
+    "log": "/tmp/address-proof-project-binding.txt"
+  },
+  {
+    "fault": "snapshot-transaction",
+    "exit": 1,
+    "test": "holds authorization",
+    "log": "/tmp/address-proof-snapshot-transaction.txt"
+  },
+  {
+    "fault": "snapshot-close-guard",
+    "exit": 1,
+    "test": "closes success",
+    "log": "/tmp/address-proof-snapshot-close-guard.txt"
+  },
+  {
+    "fault": "metadata-anomaly",
+    "exit": 1,
+    "test": "fails missing abbreviation",
+    "log": "/tmp/address-proof-metadata-anomaly.txt"
+  },
+  {
+    "fault": "placement-validation",
+    "exit": 1,
+    "test": "fails corrupt placement",
+    "log": "/tmp/address-proof-placement-validation.txt"
+  },
+  {
+    "fault": "step-validation",
+    "exit": 1,
+    "test": "rejects malformed trusted step",
+    "log": "/tmp/address-proof-step-validation.txt"
+  }
+]

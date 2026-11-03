@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/module/optimization/connected-publication.test.ts:
+435 |   const current = readGeneration(f.source.db, 'B', question.contractVersion);
+436 |   if (current === null) throw new Error('missing connected generation');
+437 |   enqueueSolverRequest(f.source.db, { projectId: 'B', contractVersion: question.contractVersion, generation: current.generation, objective: 'pri', budgetMs: installed.budgetMs, enqueuedAt: 11 });
+438 |   f.respond('boundary-infeasible');
+439 |   f.coordinator.start(); await f.coordinator.stop();
+440 |   expect(f.errors).toEqual([]); expect(f.launched).toHaveLength(3);
+                                                         ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 3
+Received length: 2
+
+      at <anonymous> (/tmp/puni-optimizer-lifecycle/apps/wbs/be-01/src/module/optimization/connected-publication.test.ts:440:52)
+(fail) restart launches an explicitly queued connected Retry after its older diagnostic [185.68ms]
+
+ 0 pass
+ 13 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [3.55s]

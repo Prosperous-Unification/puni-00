@@ -1,0 +1,52 @@
+Injected command-status-grammar; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/fixture-failure.test.ts:
+224 |     /expected refusal category invalid/,
+225 |   );
+226 | });
+227 | for (const status of [-1, 256, NaN])
+228 |   test(`command status ${String(status)} is outside the receipt grammar`, () => {
+229 |     expect(() => new FixtureCommandFailure(['docker', 'inspect'], status)).toThrow(
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "fixture command exit status invalid"
+Received message: "fixture command exit -1"
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:229:76)
+(fail) command status -1 is outside the receipt grammar [0.41ms]
+224 |     /expected refusal category invalid/,
+225 |   );
+226 | });
+227 | for (const status of [-1, 256, NaN])
+228 |   test(`command status ${String(status)} is outside the receipt grammar`, () => {
+229 |     expect(() => new FixtureCommandFailure(['docker', 'inspect'], status)).toThrow(
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "fixture command exit status invalid"
+Received message: "fixture command exit 256"
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:229:76)
+(fail) command status 256 is outside the receipt grammar [0.11ms]
+224 |     /expected refusal category invalid/,
+225 |   );
+226 | });
+227 | for (const status of [-1, 256, NaN])
+228 |   test(`command status ${String(status)} is outside the receipt grammar`, () => {
+229 |     expect(() => new FixtureCommandFailure(['docker', 'inspect'], status)).toThrow(
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "fixture command exit status invalid"
+Received message: "fixture command exit NaN"
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:229:76)
+(fail) command status NaN is outside the receipt grammar [0.10ms]
+
+ 0 pass
+ 11 filtered out
+ 3 fail
+ 3 expect() calls
+Ran 3 tests across 1 file. [41.00ms]

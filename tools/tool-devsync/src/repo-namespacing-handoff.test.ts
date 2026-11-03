@@ -664,7 +664,9 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // `97371753…`: four historical source-selector lines changed their trimmed context;
     // 324 occurrences, categories, coverage and no unclassified entries stayed unchanged.
     // Restoring the observed digest passed (2026-10-16).
-    digest: '97371753d3da30f386d3be73c405a3c952773b67c736d7a27fd6f738def191e4',
+    // The copied exhaustive-coverage fixture added lib: ['ES5'] on its existing
+    // apps/**/*.ts selector line; only that trimmed context changed (2026-10-29).
+    digest: '49b513893d7514e7556162f8c8eefadaad34bc760996e8ed044e78584cd4af2a',
     occurrences: 324,
     unclassified: [],
   });

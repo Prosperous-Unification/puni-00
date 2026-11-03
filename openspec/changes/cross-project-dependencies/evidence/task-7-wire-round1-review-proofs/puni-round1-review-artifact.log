@@ -1,0 +1,42 @@
+bun test v1.4.2 (744846f84)
+
+../puni-wire-round1-review-probes/artifact.test.ts:
+(pass) existing local solver revalidator loads directly from source [198.65ms]
+15662 | // libs/wbs/domain/contracts/solver/src/stage-budget.ts
+15663 | var SUM_TOLERANCE = 2 ** -40;
+15664 |
+15665 | // libs/wbs/domain/contracts/solver/src/validate-connected-solver-request.ts
+15666 | var import__2020 = __toESM(require__2020(), 1);
+15667 | var schema2 = JSON.parse(readFileSync(new URL("../solver-wire.v5.json", import.meta.url), "utf8"));
+                                             ^
+ENOENT: no such file or directory, open '/tmp/puni-wire-round1-review-probes/solver-wire.v5.json'
+    path: "/tmp/puni-wire-round1-review-probes/solver-wire.v5.json",
+ syscall: "open",
+   errno: -2,
+    code: "ENOENT"
+
+      at /tmp/puni-wire-round1-review-probes/bundled/local-entry.js:15667:38
+note: missing sourcemaps for /tmp/puni-wire-round1-review-probes/bundled/local-entry.js
+note: consider bundling with '--sourcemap' to get unminified traces
+
+Bun v1.4.2 (Linux x64)
+
+10 | test('existing local solver revalidator loads from Bun release-style bundle',()=>{
+11 |  const build=Bun.spawnSync(['bun','build',source,'--target=bun','--outfile='+bundle],{cwd:root});
+12 |  expect(build.exitCode).toBe(0);
+13 |  const child=Bun.spawnSync(['bun',bundle],{cwd:'/tmp/puni-wire-round1-review-probes'});
+14 |  console.log(child.stderr.toString());
+15 |  expect(child.exitCode).toBe(0);
+                             ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-wire-round1-review-probes/artifact.test.ts:15:25)
+(fail) existing local solver revalidator loads from Bun release-style bundle [130.16ms]
+
+ 1 pass
+ 1 fail
+ 4 expect() calls
+Ran 2 tests across 1 file. [333.00ms]

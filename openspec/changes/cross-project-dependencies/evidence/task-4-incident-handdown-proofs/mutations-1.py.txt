@@ -1,0 +1,41 @@
+from pathlib import Path
+import subprocess,json
+root=Path('/tmp/puni-incident-handdown'); evidence=Path('/tmp/puni-incident-handdown-evidence');evidence.mkdir(exist_ok=True)
+cap='libs/wbs/application/core/src/service/incident-node-transition.ts'; command='libs/wbs/application/core/src/service/compensating.ts'; repo='libs/wbs/adapters/store-sqlite/src/typed-dependency.ts'; context='libs/wbs/application/core/src/service/dependency-context.ts'; memory='libs/wbs/adapters/store-memory/src/incident-dependency-fixture.ts'
+lifecycle='./apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts'; history='./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts'; memtest='./libs/wbs/adapters/store-memory/src/memory-source.test.ts'; repotest='./libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts'; contexttest='./libs/wbs/application/core/src/service/dependency-context.test.ts'
+mutations=[
+('owned-only',cap,'await stores.typedDependencies.listIncident([projectId])','await stores.typedDependencies.listByProject(projectId)',history,'actual first child'),
+('omit-incoming',cap,'successor: map(relationship.successor)','successor: relationship.successor',history,'mixed incident handdown'),
+('omit-outgoing',cap,'predecessor: map(relationship.predecessor)','predecessor: relationship.predecessor',history,'actual first child'),
+('rewrite-node-scope',cap,'{ ...endpoint, workItemId: to }',"{ ...endpoint, workItemId: to, scope: 'whole' }",history,'mixed incident handdown'),
+('reset-creation-audit',repo,'createdAt: receipt.createdAt,\n            createdBy: receipt.createdBy,','createdAt: stamp.at,\n            createdBy: stamp.by,',repotest,'incident detach and restore'),
+('detach-stale-receipt',repo,'if (JSON.stringify(current) !== JSON.stringify(receipt))','if (false)',repotest,'incident detach refuses'),
+('restore-identity',repo,'row.id !== previous.id || row.projectId !== previous.projectId','row.projectId !== previous.projectId',repotest,'incident restore refuses changing identity'),
+('restore-owner',repo,'row.id !== previous.id || row.projectId !== previous.projectId','row.id !== previous.id',repotest,'incident restore refuses changing owner'),
+('missing-replay-receipts',command,"!('receipts' in value) ||\n      !Array.isArray(value.receipts) ||\n      value.receipts.length === 0",'false',history,'compound undo refuses missing-receipt'),
+('receipt-mapping-check',command,'incidentIdentity(mapped) !== incidentIdentity(to.dependency)','false',history,'compound undo refuses changed-step'),
+('receipt-audit-check',command,'from.createdAt !== to.createdAt ||\n        from.createdBy !== to.createdBy','false',history,'compound undo refuses changed-audit'),
+('stored-relationship-snapshot',cap,'incidentIdentity(recorded.from.dependency) !== incidentIdentity(from.dependency) ||\n            incidentIdentity(recorded.to.dependency) !== incidentIdentity(to.dependency) ||','',history,'compound undo refuses relationship-type'),
+('stored-creation-snapshot',cap,'recorded.from.createdAt !== from.createdAt ||\n            recorded.from.createdBy !== from.createdBy ||\n            recorded.to.createdAt !== from.createdAt ||\n            recorded.to.createdBy !== from.createdBy','false',history,'compound undo refuses both-receipt-audits'),
+('receipt-set-count',cap,"request.kind === 'replay' && request.receipts.length !== receipts.length",'false',history,'compound undo refuses missing-relationship'),
+('touched-project-partition',command,'.filter((endpoint) => endpoint.projectId === command.projectId)', '.filter((endpoint) => endpoint.projectId === to.dependency.projectId)',history,'actual first child'),
+('final-graph-consumer',cap,'const cycle = await graph.findCycle(projectId);','const cycle = null;',lifecycle,'rolls back every table and held announcement on final-graph-delivery'),
+('required-retention',context,"    throw new Error('incident retention is malformed');",'    void boundary;',contexttest,'required incident retention'),
+('source-node-shape',memory,"if (endpoint.scope === 'node' && parent)","if (false)",memtest,'incident source restore preserves'),
+('source-descendant-shape',memory,"if (endpoint.scope === 'descendant-step' && !parent)",'if (false)',memtest,'incident source restoration refuses descendant-on-leaf'),
+('source-endpoint-union',memory,'revision: row.revision + 1','revision: row.revision',memtest,'incident source restore preserves'),
+]
+summary=[]
+for name,path,old,new,test,pattern in mutations:
+    target=root/path; original=target.read_text()
+    if old not in original:
+        summary.append({'name':name,'status':'MISSING_ANCHOR'});print(name,'MISSING_ANCHOR',flush=True);continue
+    try:
+        target.write_text(original.replace(old,new,1))
+        run=subprocess.run(['bun','test',test,'-t',pattern],cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=35)
+        (evidence/(name+'.log')).write_text(run.stdout)
+        status='CAUGHT' if run.returncode else 'SURVIVED'
+        summary.append({'name':name,'exit':run.returncode,'status':status,'test':test,'pattern':pattern})
+        print(name,status,run.returncode,flush=True)
+    finally:target.write_text(original)
+(evidence/'mutation-summary.json').write_text(json.dumps(summary,indent=2)+'\n')

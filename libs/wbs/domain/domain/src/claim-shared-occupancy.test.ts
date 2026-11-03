@@ -60,6 +60,8 @@ function leafClaim(workItemId: string, over: Partial<ClaimRequest>): ClaimReques
     occupancy: [],
     directoryCapacities: [],
     organizationOccupied: [],
+    // Its one step may start: occupancy, not execution order, is under test here.
+    admission: new Map([['impl', { started: false, canStart: true, blockers: [] }]]),
     ...over,
   };
 }

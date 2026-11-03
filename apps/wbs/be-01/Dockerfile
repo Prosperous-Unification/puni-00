@@ -10,6 +10,7 @@
 FROM oven/bun:1.4.4 AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
+COPY patches ./patches
 # --production: be-01 runs its TypeScript source directly under Bun (no
 # separate build step), and every runtime import it and its @wbs/* libs pull
 # in (elysia, drizzle-orm, pino, @opentelemetry/*, arktype, jose, ...) is a
