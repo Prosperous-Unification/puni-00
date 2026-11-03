@@ -16,6 +16,10 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops release run 
   --public-ref feature/app
 ```
 
+Generated help and completion include both release actions. Options accept `--flag=value` or
+`--flag value`, in any order around the target. The central grammar refuses invalid arguments
+before a handler runs; release usage errors retain exit 1, and host-job/pool usage errors retain 64.
+
 Every invocation requires an explicit environment and profile. `dev-fast` refuses outside
 `development`; selecting `full` is a separate operator action. Dash prints `DEV-FAST` or `FULL`
 before launching the adapter. Neither that line nor the adapter's exit status alone proves which

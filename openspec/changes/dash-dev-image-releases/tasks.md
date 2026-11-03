@@ -3,6 +3,8 @@
 - [x] 1.1 Implement explicit plan/run grammar, target selection and adapter execution in `src/ops/release.ts`, with lightweight entrypoint dispatch — test: a real fixture adapter receives main/branch arguments unchanged and plan never runs execution; negative: production `dev-fast`, duplicate/missing/unknown flags and unknown targets never invoke the adapter.
 - [x] 1.2 Validate protected dispatch configuration and preserve child outcomes — test: full profile and exit-23 fixture; negative: missing, unreadable, malformed, symlink and group/world-readable configuration refuse before the adapter; watch guard mutations fail these production-path tests and document adjacent Proof comments.
 
+- [x] 1.3 Integrate the merged central typed grammar: generated release help, standard equals/options ordering, typed lightweight dispatch and unchanged exit policies; negative: malformed target, duplicate/unknown flags and production-fast refuse before adapter effects, with watched grammar/policy mutations.
+
 ## 2. Website release adapter
 
 - [x] 2.1 Complete the companion `website-fast-image-releases` change: exact configurable refs, focused/full checks, cache closure and selective compilation/image reuse, provenance, pin/push/reconciliation/verification, with original API writer identity preserved — test: companion local-remote and controlled-command integration scenarios; negative: source, identity, cache, environment and failure injections documented in companion verify.md.

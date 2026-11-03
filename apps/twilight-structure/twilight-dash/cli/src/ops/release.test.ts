@@ -39,9 +39,9 @@ function fixture() {
   return { directory, receipt, adapter, configuration, dispatch };
 }
 
-function invoke(arguments_: string[], exit = '0') {
+function invokeDash(arguments_: string[], exit = '0') {
   const execution = Bun.spawnSync({
-    cmd: [process.execPath, entrypoint, 'ops', 'release', ...arguments_],
+    cmd: [process.execPath, entrypoint, ...arguments_],
     env: { ...process.env, RELEASE_TEST_EXIT: exit },
     stdout: 'pipe',
     stderr: 'pipe',
@@ -51,6 +51,10 @@ function invoke(arguments_: string[], exit = '0') {
     stdout: execution.stdout.toString(),
     stderr: execution.stderr.toString(),
   };
+}
+
+function invoke(arguments_: string[], exit = '0') {
+  return invokeDash(['ops', 'release', ...arguments_], exit);
 }
 
 function argumentsFor(dispatch: string) {
@@ -147,7 +151,7 @@ for (const [name, mutate] of [
   ['invalid target', (words: string[]) => ['plan', '../website', ...words.slice(2)]],
   [
     'invalid environment',
-    (words: string[]) => [...words.slice(0, 5), 'unknown', ...words.slice(6)],
+    (words: string[]) => [...words.slice(0, 5), 'unknown', ...words.slice(6, -1), 'full'],
   ],
   ['invalid profile', (words: string[]) => [...words.slice(0, -1), 'unsafe']],
 ] as const) {
@@ -249,4 +253,72 @@ test('release help describes the profiles without reading configuration', () => 
   const execution = invoke(['--help']);
   expect(execution.exitCode).toBe(0);
   expect(execution.stdout).toContain('--profile dev-fast|full');
+});
+
+test('standard equals flags and options before the target reach the adapter unchanged', () => {
+  const files = fixture();
+  const execution = invoke([
+    'plan',
+    `--config=${files.dispatch}`,
+    '--environment=development',
+    '--profile=dev-fast',
+    'website',
+    '--ref=feature/home',
+    '--public-ref=feature/app',
+  ]);
+  expect(execution.exitCode).toBe(0);
+  expect(JSON.parse(readFileSync(files.receipt, 'utf8'))).toEqual([
+    'plan',
+    '--config',
+    files.configuration,
+    '--environment',
+    'development',
+    '--profile',
+    'dev-fast',
+    '--ref',
+    'feature/home',
+    '--public-ref',
+    'feature/app',
+  ]);
+});
+
+test('generated namespace help includes both release actions without reading configuration', () => {
+  const direct = invoke(['--help']);
+  const generated = invokeDash(['help', 'ops', 'release']);
+  expect(generated.exitCode).toBe(0);
+  expect(generated.stdout).toBe(direct.stdout);
+  expect(generated.stdout).toContain('plan');
+  expect(generated.stdout).toContain('run');
+});
+
+test('a configured malformed target is refused by the grammar before adapter effects', () => {
+  const files = fixture();
+  writeFileSync(
+    files.dispatch,
+    JSON.stringify({
+      schemaVersion: 1,
+      targets: { '../website': { adapter: files.adapter, configuration: files.configuration } },
+    }),
+  );
+  const words = argumentsFor(files.dispatch);
+  words[1] = '../website';
+  const execution = invoke(words);
+  expect(execution.exitCode).toBe(1);
+  expect(existsSync(files.receipt)).toBe(false);
+});
+
+test('host status never follows release dispatch', () => {
+  const files = fixture();
+  const execution = invokeDash(['ops', 'job', 'status', '--config', files.dispatch]);
+  expect(execution.exitCode).toBe(70);
+  expect(execution.stderr).toContain('host pool');
+  expect(existsSync(files.receipt)).toBe(false);
+});
+
+test('an adapter terminated by a signal cannot report release success', () => {
+  const files = fixture();
+  writeFileSync(files.adapter, "process.kill(process.pid, 'SIGTERM');\n");
+  const execution = invoke(argumentsFor(files.dispatch));
+  expect(execution.exitCode).not.toBe(0);
+  expect(execution.stdout).not.toContain('deployed');
 });

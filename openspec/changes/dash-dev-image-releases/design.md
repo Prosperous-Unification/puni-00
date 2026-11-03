@@ -1,6 +1,6 @@
 ## Context
 
-The public CLI must coordinate private website release tooling without importing licensed code or encoding host credentials. Current main lacks the independent host-job CLI work; this change must merge independently and preserve canonical heavy-work exclusion.
+The public CLI must coordinate private website release tooling without importing licensed code or encoding host credentials. Main now provides the host-job CLI and a central typed command grammar. Release dispatch must use that grammar while preserving canonical heavy-work exclusion.
 
 ## Goals / Non-Goals
 
@@ -8,7 +8,7 @@ Expose explicit development-fast and full image releases with configurable sourc
 
 ## Decisions
 
-Dash adds a lightweight `ops` entrypoint branch and release command module, independent of its heavier authority graph. The CLI owns grammar, environment/profile boundaries, protected target selection and child exit reporting. A regular mode-0600 JSON configuration has `schemaVersion: 1` and `targets` keyed by target name, each with absolute `adapter` and `configuration` paths. The current Bun interpreter executes the configured TypeScript adapter with plan/run and explicit options; no shell is used. The owner-only file is the authority to execute that adapter, not an untrusted discovery response.
+Dash declares `ops release plan|run` in the central typed grammar and dispatches its parsed request before loading the heavier authority graph. Generated help and completion include releases; options accept both spaced and equals forms. The grammar owns argument and environment/profile validation before any handler runs. The release module owns protected target selection and child exit reporting, with no second argv parser. Release usage errors retain exit 1; host-job/pool usage errors retain exit 64. A regular mode-0600 JSON configuration has `schemaVersion: 1` and `targets` keyed by target name, each with absolute `adapter` and `configuration` paths. The current Bun interpreter executes the configured TypeScript adapter with plan/run and explicit options; no shell is used. The owner-only file is the authority to execute that adapter, not an untrusted discovery response.
 
 The private adapter owns source refs/defaults/policies, exact source preparation, checks, cache closure, immutable artifact reuse, full-path gates, protected builds, registry publication, Fleet pin/push, reconciliation and observed acceptance. Both sources resolve once to immutable commits. Reused API artifacts retain original writer identity. Site release metadata identifies the current composite selection. Cached frontend inputs include all build-time origin and analytics settings. Every service's artifact origin remains distinguishable from the composite source request.
 

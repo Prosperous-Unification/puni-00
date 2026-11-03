@@ -2,7 +2,7 @@
 
 ### Requirement: Explicit release profile and configured target
 
-Dash SHALL accept `ops release plan|run TARGET --config PATH --environment development|production --profile dev-fast|full`, with optional `--ref REF` and `--public-ref REF`. It SHALL reject duplicate, absent, unknown or malformed arguments before reading configuration or invoking an adapter. `dev-fast` SHALL be refused outside development without an implicit fallback.
+Dash SHALL accept `ops release plan|run TARGET --config PATH --environment development|production --profile dev-fast|full`, with optional `--ref REF` and `--public-ref REF`. `dev-fast` SHALL be refused outside development without an implicit fallback.
 
 #### Scenario: Branch development plan
 
@@ -13,6 +13,20 @@ Dash SHALL accept `ops release plan|run TARGET --config PATH --environment devel
 
 - **WHEN** the operator requests `dev-fast` for production
 - **THEN** Dash refuses before opening the configuration or launching any adapter
+
+### Requirement: Central typed release grammar
+
+The central typed grammar SHALL reject duplicate, absent, unknown or malformed arguments before any handler runs. Generated help and completion SHALL include both release actions. Options SHALL accept spaced and equals forms in any order around the target. Release usage errors SHALL exit 1; host-job/pool usage errors SHALL retain exit 64.
+
+#### Scenario: Refused release arguments
+
+- **WHEN** a release request contains missing, unknown, repeated or malformed arguments
+- **THEN** Dash exits 1 before reading dispatch configuration or invoking any adapter
+
+#### Scenario: Generated release help and standard options
+
+- **WHEN** an operator asks for `help ops release` or uses `--profile=dev-fast` with options before the target
+- **THEN** generated help names both actions and the typed release request reaches the lightweight handler with unchanged option values
 
 ### Requirement: Owner-controlled adapter configuration
 

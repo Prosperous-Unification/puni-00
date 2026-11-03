@@ -6,10 +6,15 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
 
+import { parseDashRequest } from '../cli-parser';
 import { mcpEndpointOf, urlOf } from './machine-token';
 import { runPoolCommand, systemPoolFiles } from './pool-import';
 import { startWbsMcpStack, type WbsMcpStack } from './testing/wbs-mcp-stack';
 import { runMcpCommand } from './token-command';
+
+/** `mcp <argv>` and `pool <argv>` as the parser hands them to their commands. */
+const tokenCommand = (argv: readonly string[]) => parseDashRequest('mcp', ['mcp', ...argv]);
+const poolCommand = (argv: readonly string[]) => parseDashRequest('pool', ['pool', ...argv]);
 import { WorkloadJwtBearerProvider } from './workload-provider';
 
 /**
@@ -66,7 +71,7 @@ async function keyFile(): Promise<{ path: string; id: string; key: string }> {
 /** One in-process helper run: the bearer it printed. */
 async function helper(flags: readonly string[]): Promise<string> {
   const printed: string[] = [];
-  await runMcpCommand(['token', '--resource', stack.resource, ...flags], {
+  await runMcpCommand(tokenCommand(['token', '--resource', stack.resource, ...flags]), {
     send,
     monotonic: { now: () => 0 },
     sleep: () => Promise.reject(new Error('no 429 is expected on this path')),
@@ -328,7 +333,7 @@ describe('twilight-dash pool import (task 6.4)', () => {
   }
 
   const importPool = (file: string, store: string): Promise<void> =>
-    runPoolCommand(['import', file, '--store', store], {
+    runPoolCommand(poolCommand(['import', file, '--store', store]), {
       send,
       write: () => undefined,
       helper: [process.execPath, ENTRYPOINT],
