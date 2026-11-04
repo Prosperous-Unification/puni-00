@@ -1,0 +1,237 @@
+import { identifyInventory, orderMounts } from './docker-inventory';
+import { type EnvLayout, sourceDevContract } from './env';
+import {
+  assertSame,
+  readBoolean,
+  readClosed,
+  readDigest,
+  readFields,
+  readIdentity,
+  readInteger,
+  readNonempty,
+  readString,
+} from './managed-cohort';
+
+/** Bound source participant, including exact effective configuration and namespace membership. */
+export interface SourceDevMember {
+  id: string;
+  image: string;
+  path: string;
+  args: readonly string[];
+  config: Record<string, unknown>;
+  host: Record<string, unknown>;
+  mounts: unknown[];
+  networks: Record<string, unknown>;
+  restartCount: number;
+  state: Record<string, unknown>;
+}
+
+/** Validates the fixed source target set using the shared full-native mount ordering. */
+export function orderSourceMounts(raw: unknown): unknown[] {
+  const mounts = orderMounts(raw);
+  assertSame(
+    ['/data', '/run/wbs-solver', '/src'],
+    mounts.map((mount) => readString(mount['Destination'])),
+    'source dev mount targets',
+  );
+  return mounts;
+}
+
+/**
+ * Fixed source contract admits native omitted/null/boolean Init because whole private PID
+ * namespace extinction supplies exclusion. Omission remains absent in the captured host;
+ * changing its presence or value is identity drift. Managed namespace scanners still require init:true.
+ */
+export function decodeSourceDev(raw: unknown, layout: EnvLayout): SourceDevMember {
+  const container = readFields(raw);
+  const contract = sourceDevContract(layout);
+  if (container['Name'] !== `/${contract.name}`) throw new Error('source dev name differs');
+  const config = readFields(container['Config']);
+  const labels = readFields(config['Labels']);
+  if (
+    config['Image'] !== contract.image ||
+    config['WorkingDir'] !== '/src' ||
+    config['User'] !== '1000:1000' ||
+    labels['com.docker.compose.service'] !== contract.service
+  )
+    throw new Error('source dev fixed config differs');
+  readNonempty(labels['com.docker.compose.project']);
+  assertSame(['bun', 'run', 'dev'], config['Cmd'], 'source dev command');
+  const entrypoint = config['Entrypoint'];
+  if (!(
+    entrypoint === null ||
+    (Array.isArray(entrypoint) &&
+      entrypoint.length > 0 &&
+      entrypoint.every((argument: unknown) => typeof argument === 'string' && argument.length > 0))
+  ))
+    throw new Error('source dev entrypoint malformed');
+  const argv = [
+    ...(Array.isArray(entrypoint)
+      ? entrypoint.map((argument: unknown) => readString(argument))
+      : []),
+    'bun',
+    'run',
+    'dev',
+  ];
+  const path = readNonempty(container['Path']);
+  assertSame(argv[0], path, 'source dev effective executable');
+  assertSame(argv.slice(1), container['Args'], 'source dev effective arguments');
+  const host = readFields(container['HostConfig']);
+  const caps = host['CapAdd'];
+  // Proof: absent-init and own-undefined-init faults failed native owner/decoder negatives;
+  // manufactured-init failed exact omitted-shape preservation. PID sharing negatives remain mandatory.
+  if (
+    !(
+      !Object.hasOwn(host, 'Init') ||
+      host['Init'] === null ||
+      host['Init'] === false ||
+      host['Init'] === true
+    ) ||
+    host['PidMode'] !== '' ||
+    host['Privileged'] !== false ||
+    !(caps === null || (Array.isArray(caps) && caps.length === 0))
+  )
+    throw new Error('source dev requires typed init, private PID, unprivileged and no added caps');
+  const networks = readFields(readFields(container['NetworkSettings'])['Networks']);
+  // Proof: network-guard omission admitted host mode; unsupported network negative failed (exit 1).
+  if (host['NetworkMode'] !== layout.network || Object.keys(networks).length !== 1)
+    throw new Error('source dev network differs');
+  readIdentity(readFields(networks[layout.network])['NetworkID']);
+  const mounts = orderSourceMounts(container['Mounts']);
+  // Proof: replacing expected mounts with observed mounts admitted a foreign source; unsupported mount negative failed.
+  assertSame(
+    [...contract.mounts].sort((left, right) => left.target.localeCompare(right.target)),
+    mounts
+      .map((raw: unknown) => {
+        const mount = readFields(raw);
+        if (mount['Type'] !== 'bind') throw new Error('source dev requires bind mounts');
+        return {
+          source: readString(mount['Source']),
+          target: readString(mount['Destination']),
+          writable: readBoolean(mount['RW']),
+        };
+      })
+      .sort((left, right) => left.target.localeCompare(right.target)),
+    'source dev mounts',
+  );
+  const policy = readClosed(host['RestartPolicy'], ['Name', 'MaximumRetryCount']);
+  if (
+    !['no', 'unless-stopped'].includes(readString(policy['Name'])) ||
+    readInteger(policy['MaximumRetryCount']) !== 0
+  )
+    throw new Error('source dev restart policy unsupported');
+  const state = readFields(container['State']);
+  for (const name of ['Running', 'Paused', 'Restarting', 'Dead', 'OOMKilled'])
+    readBoolean(state[name]);
+  const pid = readInteger(state['Pid']);
+  readInteger(state['ExitCode']);
+  for (const name of ['StartedAt', 'FinishedAt']) {
+    const stamp = readNonempty(state[name]);
+    if (
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(stamp) ||
+      !Number.isFinite(Date.parse(stamp))
+    )
+      throw new Error('source dev lifecycle timestamp malformed');
+  }
+  if (
+    state['Paused'] ||
+    state['Restarting'] ||
+    state['Dead'] ||
+    state['OOMKilled'] ||
+    state['Error'] !== '' ||
+    (state['Running']
+      ? state['Status'] !== 'running' || pid === 0
+      : !['exited', 'created'].includes(readString(state['Status'])) || pid !== 0)
+  )
+    throw new Error('source dev lifecycle incoherent');
+  // Proof: removing timestamp coherence admitted unfinished exit, unstarted running and early finish; all three lifecycle negatives failed.
+  const zero = '0001-01-01T00:00:00Z';
+  // Docker preserves a prior FinishedAt across restart; only a future finish conflicts with a current running start.
+  // Proof: omitting running timestamp ordering admitted a future finish; historical-finish boundary test failed.
+  const started = readString(state['StartedAt']);
+  const finished = readString(state['FinishedAt']);
+  if (
+    state['Running']
+      ? started === zero || (finished !== zero && Date.parse(finished) > Date.parse(started))
+      : state['Status'] === 'created'
+        ? started !== zero || finished !== zero || state['ExitCode'] !== 0
+        : started === zero || finished === zero || Date.parse(finished) < Date.parse(started)
+  )
+    throw new Error('source dev timestamp lifecycle incoherent');
+  return {
+    id: readIdentity(container['Id']),
+    path,
+    args: argv.slice(1),
+    image: readDigest(container['Image']),
+    config,
+    host,
+    mounts,
+    networks,
+    restartCount: readInteger(container['RestartCount']),
+    state,
+  };
+}
+
+/** Stable process-start/configuration identity excludes only intended restart-policy and terminal transitions. */
+export function sourceDevIdentity(member: SourceDevMember): unknown {
+  const { RestartPolicy: _policy, ...host } = member.host;
+  return {
+    id: member.id,
+    image: member.image,
+    path: member.path,
+    args: member.args,
+    config: member.config,
+    host,
+    mounts: member.mounts,
+    networks: Object.fromEntries(
+      Object.entries(member.networks).map(([name, network]) => [
+        name,
+        readFields(network)['NetworkID'],
+      ]),
+    ),
+    restartCount: member.restartCount,
+    startedAt: member.state['StartedAt'],
+  };
+}
+
+/** Coherent terminal PID-zero plus restart inhibition are both required; retained stopped state grants no authority. */
+export function assertSourceDevExcluded(member: SourceDevMember): void {
+  // Proof: terminal-guard omission admitted the omitted stop; source refuses omitted stop before callback failed.
+  if (
+    member.state['Running'] !== false ||
+    member.state['Pid'] !== 0 ||
+    !['exited', 'created'].includes(readString(member.state['Status']))
+  )
+    throw new Error('source dev is not terminal with PID zero');
+  assertSame(
+    { Name: 'no', MaximumRetryCount: 0 },
+    member.host['RestartPolicy'],
+    'source dev restart inhibition',
+  );
+}
+
+/** Asserts exact raw source membership before shared inventory identity; grants no audit recognition. */
+export function identifySourceInventory(inventory: readonly unknown[], source: unknown): unknown {
+  assertSame(
+    1,
+    inventory.filter((raw) => raw === source).length,
+    'source raw inventory membership',
+  );
+  return identifyInventory(inventory);
+}
+
+/** Read-only identity of a still-terminal captured source; creates no token or namespace exemption. */
+export function identifyParkedSourceInventory(
+  inventory: readonly unknown[],
+  layout: EnvLayout,
+  expected: SourceDevMember,
+): unknown {
+  const matching = inventory.filter((raw) => readFields(raw)['Id'] === expected.id);
+  assertSame(1, matching.length, 'parked source inventory membership');
+  const raw = matching[0];
+  const observed = decodeSourceDev(raw, layout);
+  // Proof: parked-member-binding omission admitted native source field drift; parked identity negative failed.
+  assertSame(expected, observed, 'parked source inventory member');
+  assertSourceDevExcluded(observed);
+  return identifySourceInventory(inventory, raw);
+}

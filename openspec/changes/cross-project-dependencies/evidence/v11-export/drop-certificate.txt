@@ -1,0 +1,45 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-document/connected-document.test.ts:
+368 |   const stage = evidence.placement.stages[0];
+369 |   expect(stage.optimization?.variants.pri).toEqual({
+370 |     state: 'plan-infeasible',
+371 |     items: [{ ownerWorkItemId: 'a', boundWorkItemId: 'a', effectiveDeadlineOffset: 0 }],
+372 |   });
+373 |   expect(stage.optimization?.variants.time).toEqual({
+                                                  ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "certificate": {
+-     "evidence": "contradictory-bounds",
+-     "kind": "boundary-infeasible",
+-     "question": {
+-       "budgetMs": 100,
+-       "contractVersion": "test",
+-       "inputHash": "A",
+-       "objective": "time",
+-       "projectId": "A",
+-       "quantum": 48,
+-       "questionHash": "question-A",
+-       "stageBytes": "{"kind":"connected-stage","projectId":"A","mode":"isolated","originOrdinal":14810,"projects":[{"projectId":"A","rank":0,"anchorOrdinal":14810},{"projectId":"B","rank":1,"anchorOrdinal":14810}],"rows":[{"id":"a","parentId":null,"position":0,"priority":null},{"id":"b","parentId":null,"position":0,"priority":null}],"ownership":[["a","A"],["b","B"]],"ranks":[["A",0],["B",1]],"slices":[{"workItemId":"a","steps":[{"stepId":"build","days":1,"width":1,"personId":null,"poolIds":[],"demands":[]}]},{"workItemId":"b","steps":[{"stepId":"build","days":1,"width":1,"personId":null,"poolIds":[],"demands":[]}]}],"nodes":[{"kind":"step","workItemId":"a","stepId":"build","at":0},{"kind":"step","workItemId":"b","stepId":"build","at":0}],"edges":[{"predecessor":{"leafId":"a","at":0},"successor":{"leafId":"b","at":0},"type":"FS","provenance":"authored","relationshipId":"ab"}],"relationships":[{"id":"ab","type":"FS","predecessor":["A","whole","a"],"successor":["B","whole","b"]}],"notBefore":[["a",0],["b",0]],"deadlines":[],"poolSizes":[],"resourceCapacities":[],"elsewhere":[],"starts":[["a\u0000build",0],["b\u0000build",1]],"finishes":[["a\u0000build",1],["b\u0000build",2]]}",
+-       "wireVersion": 5,
+-     },
+-   },
+-   "state": "boundary-infeasible",
++   "state": "idle",
+  }
+
+- Expected  - 16
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/plan-document/connected-document.test.ts:373:45)
+(fail) terminal boundary certificate stays distinct from authored plan infeasibility [17.40ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.51s]
+
+exit=1

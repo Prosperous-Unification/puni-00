@@ -1,0 +1,9 @@
+discovery: exit 1
+execution: exit 1
+ownership: exit 1
+effect: exit 1
+output-bound: exit 1
+reader-reap: exit 1
+terminal: exit 1
+unit-authority: exit 1
+serialization: exit 1

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+629 |         fixture.journal,
+630 |         fixture.fake,
+631 |         () => undefined,
+632 |         fixture.options,
+633 |       ),
+634 |     ).rejects.toThrow('foreign source consumer');
+                    ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:634:15)
+(fail) mounted drain never deletes a Pod with the same Job name and a foreign Job UID [4562.60ms]
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [4.62s]

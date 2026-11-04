@@ -1,0 +1,18 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/service/saved-plan-current.db.test.ts:
+(pass) projecting the live plan as a comparison side > returns null for a project that is not there [153.51ms]
+(pass) projecting the live plan as a comparison side > writes no row and consumes no quota [130.30ms]
+(pass) projecting the live plan as a comparison side > produces the same input bytes the save path stores [127.35ms]
+(pass) projecting the live plan as a comparison side > carries a schedule under the algorithm identity currently in force [88.09ms]
+(pass) projecting the live plan as a comparison side > holds no capture connection open while the live plan is scheduled [95.47ms]
+(pass) projecting the live plan as a comparison side > counts a live handle as live, so the zero above is a release [88.04ms]
+(pass) projecting the live plan as a comparison side > maps a dependency cycle to infeasible and still carries the input [96.72ms]
+(pass) projecting the live plan as a comparison side > maps a calendar-range plan to infeasible and still carries the input [89.17ms]
+(pass) projecting the live plan as a comparison side > compares clean against a plan saved from the same rows [111.66ms]
+(pass) projecting the live plan as a comparison side > reports a live edit against a side captured before it [119.79ms]
+
+ 10 pass
+ 0 fail
+ 19 expect() calls
+Ran 10 tests across 1 file. [4.00s]

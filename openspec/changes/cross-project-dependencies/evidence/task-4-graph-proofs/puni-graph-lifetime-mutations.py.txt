@@ -1,0 +1,20 @@
+from pathlib import Path
+import subprocess
+root=Path('/tmp/puni-cross-graph'); path=root/'libs/wbs/application/core/src/service/connected-dependency-graph.ts'
+original=path.read_text(); target='this.authority.assertActive();'; positions=[]; start=0
+while True:
+    position=original.find(target,start)
+    if position<0: break
+    positions.append(position);start=position+len(target)
+for index,position in enumerate(positions):
+    name=f'lifetime-boundary-{index+1}'
+    try:
+        path.write_text(original[:position]+original[position:].replace(target,'',1))
+        run=subprocess.run(['bun','test','libs/wbs/application/core/src/service/connected-dependency-graph.test.ts','-t','checks lifetime for an empty observation'],cwd=root,capture_output=True,text=True)
+        Path(f'/tmp/puni-graph-fault-{name}.log').write_text(run.stdout+run.stderr)
+        if run.returncode==0 or '(fail)' not in run.stdout+run.stderr: raise Exception(name+' did not fail')
+    finally: path.write_text(original)
+    restored=subprocess.run(['bun','test','libs/wbs/application/core/src/service/connected-dependency-graph.test.ts','-t','checks lifetime for an empty observation'],cwd=root,capture_output=True,text=True)
+    Path(f'/tmp/puni-graph-restored-{name}.log').write_text(restored.stdout+restored.stderr)
+    if restored.returncode: raise Exception(name+' restore failed')
+    print(name, 'fault',run.returncode,'restored',restored.returncode)

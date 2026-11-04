@@ -1,0 +1,52 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-live.controller.db.test.ts:
+993 |     expect(identity()).toEqual(fixed);
+994 |     if (startsOn === null) {
+995 |       expect(load.body).toMatchObject({ projects: [], unavailable: expect.arrayContaining([{projectId:target.projectId,name:'Target',reason:'dependency_calendar_missing'}]) as unknown });
+996 |       expect(rolled.body).toMatchObject({rollUps:{[target.projectId]:{dates:null,displayed:null}}});
+997 |     } else {
+998 |       expect(load.body).toMatchObject({ projects: expect.arrayContaining([{projectId:target.projectId,name:'Target',engine:'fast',rank:1,bookings:[{workItemId:target.workItemId,number:'010',name:'Target row',width:1,stepId:target.stepId,startsOn,endsOn}]}]) as unknown, unavailable:[] });
+                                      ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "people": [
+      {
+        "id": "ana",
++       "name": "Local Ana",
+        "weeks": [
+          {
+-           "booked": 5,
++           "booked": 2.5,
++           "overlapping": 2.5,
++           "weekOf": "2026-10-19",
+          },
+          {
+            "booked": 0,
++           "overlapping": 0,
++           "weekOf": "2026-10-26",
+          },
+          {
+            "booked": 0,
++           "overlapping": 0,
++           "weekOf": "2026-11-02",
+          },
+        ],
+      },
+    ],
++   "unavailable": [],
++   "undated": [],
+  }
+
+- Expected  - 1
++ Received  + 10
+
+      at <anonymous> (/tmp/puni-shared-connected-impl/apps/wbs/be-01/src/controller/cross-project-live.controller.db.test.ts:998:33)
+(fail) shared aggregate load and selected Space refresh foreign-only facts with target caches warm [742.97ms]
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 15 expect() calls
+Ran 1 test across 1 file. [4.93s]

@@ -1,0 +1,74 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:
+100 |       const before = effects();
+101 |       release();
+102 |       await held;
+103 |       const response = await pending;
+104 |       if (response instanceof Response) {
+105 |         expect(response.status).toBe(error === 'organization_context_changed' ? 409 : error === 'not_found' ? 404 : 403);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 403
+Received: 200
+
+      at <anonymous> (/tmp/puni-cross-command-authority/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:105:33)
+(fail) current command authority on the process writer > batch refuses queued revocation before any command effects [321.49ms]
+100 |       const before = effects();
+101 |       release();
+102 |       await held;
+103 |       const response = await pending;
+104 |       if (response instanceof Response) {
+105 |         expect(response.status).toBe(error === 'organization_context_changed' ? 409 : error === 'not_found' ? 404 : 403);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 403
+Received: 200
+
+      at <anonymous> (/tmp/puni-cross-command-authority/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:105:33)
+(fail) current command authority on the process writer > directory refuses queued revocation before any command effects [239.21ms]
+100 |       const before = effects();
+101 |       release();
+102 |       await held;
+103 |       const response = await pending;
+104 |       if (response instanceof Response) {
+105 |         expect(response.status).toBe(error === 'organization_context_changed' ? 409 : error === 'not_found' ? 404 : 403);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 403
+Received: 200
+
+      at <anonymous> (/tmp/puni-cross-command-authority/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:105:33)
+(fail) current command authority on the process writer > prelude refuses queued revocation before any command effects [269.82ms]
+102 |       await held;
+103 |       const response = await pending;
+104 |       if (response instanceof Response) {
+105 |         expect(response.status).toBe(error === 'organization_context_changed' ? 409 : error === 'not_found' ? 404 : 403);
+106 |         expect(await response.json()).toMatchObject(fault === 'credential' ? { error, organizationId: 'org-a', reason: 'max_session', login: '/api/auth/login?reauthenticate=org-a' } : { error });
+107 |       } else expect(response).toMatchObject(fault === 'credential' ? { ok: false, refusal: error, organizationId: 'org-a', reason: 'max_session', login: '/api/auth/login?reauthenticate=org-a' } : { ok: false, refusal: error });
+                                    ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": false,
+-   "refusal": "no_active_organization",
++   "ok": true,
++   "redoable": false,
++   "results": [],
++   "undoable": true,
+  }
+
+- Expected  - 2
++ Received  + 4
+
+      at <anonymous> (/tmp/puni-cross-command-authority/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:107:31)
+(fail) current command authority on the process writer > direct refuses queued revocation before any command effects [234.52ms]
+
+ 0 pass
+ 41 filtered out
+ 4 fail
+ 16 expect() calls
+Ran 4 tests across 1 file. [3.16s]

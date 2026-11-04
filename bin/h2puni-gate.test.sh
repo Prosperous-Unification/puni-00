@@ -81,6 +81,8 @@ run_modules_resolution() {
 prepare_gate_steps_path() {
   local fixture_root=$1 include_jq=$2 include_tee=${3:-yes} include_bun=${4:-yes}
   mkdir -p "$fixture_root/bin" "$fixture_root/reports" "$fixture_root/node_modules/.bin"
+  printf '#!/bin/bash\nexit 0\n' >"$fixture_root/bin/bwrap"
+  chmod +x "$fixture_root/bin/bwrap"
   ln -s "$(type -P mktemp)" "$fixture_root/bin/mktemp"
   ln -s "$(type -P rm)" "$fixture_root/bin/rm"
   if [[ $include_jq == yes ]]; then
@@ -611,6 +613,26 @@ if compgen -G "$passed_spec_fixture/reports/*" >/dev/null; then
 else
   pass 'the passing OpenSpec report cleans its temporary file'
 fi
+
+for fault in missing unusable; do
+  native_fixture="$scratch/native-$fault"
+  prepare_gate_steps_path "$native_fixture" yes
+  if [[ $fault == missing ]]; then
+    rm "$native_fixture/bin/bwrap"
+    expected_native_status=127
+  else
+    printf '#!/bin/bash\nexit 74\n' >"$native_fixture/bin/bwrap"
+    expected_native_status=74
+  fi
+  status=0
+  run_gate_steps_fixture "$native_fixture" passed || status=$?
+  expect_status "$expected_native_status" "$status" "a $fault bubblewrap refuses the gate steps"
+  if [[ -e $native_fixture/later ]]; then
+    fail "the $fault bubblewrap allowed later Nx work"
+  else
+    pass "the $fault bubblewrap stops before later Nx work"
+  fi
+done
 
 # 31. The gate reports what it QUEUED FOR, before it reports what it runs on.
 #

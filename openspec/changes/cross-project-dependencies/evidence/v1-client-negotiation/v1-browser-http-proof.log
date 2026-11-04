@@ -1,0 +1,39 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-v1-clients/apps/wbs/fe-01
+
+ ❯ src/runtime/organization-context.model.test.ts (10 tests | 1 failed) 32ms
+   × browser HTTP claims V1 on protected operations while auth stays exempt 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/runtime/organization-context.model.test.ts > browser HTTP claims V1 on protected operations while auth stays exempt
+AssertionError: expected [ null, null ] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+  [
+-   "cross-project-dependencies-v1",
++   null,
+    null,
+  ]
+
+ ❯ src/runtime/organization-context.model.test.ts:180:18
+    178|   });
+    179|   await client.getApiAuthMe({});
+    180|   expect(claims).toEqual(['cross-project-dependencies-v1', null]);
+       |                  ^
+    181| });
+    182|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed (10)
+   Start at  19:10:45
+   Duration  5.73s (import 75%, transform 16%, environment 7%, setup 1%, tests 1%)
+

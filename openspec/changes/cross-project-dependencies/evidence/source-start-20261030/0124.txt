@@ -1,0 +1,14 @@
+{
+  "originalSHA256": "1f96475065f6b79228c6ea0e7bd80b60f93cf0be5d3d9bb5a46db2f93a05720d",
+  "mutantSHA256": "84d2f55a958c9c3d10c36512307c5ef848a31591d85355011b6b7f474c3c87c9",
+  "before": "          assertSame(\n            context.participants.selected.source.id,\n            originalSource.id,\n            'source original selected participant',\n          );",
+  "after": "          // Injected: selected original source equality omitted.",
+  "sourceStat": {
+    "device": 66307,
+    "inode": 22631290,
+    "mode": 436,
+    "size": 33957,
+    "mtimeNs": 1793311260448013890,
+    "ctimeNs": 1793311260448013890
+  }
+}

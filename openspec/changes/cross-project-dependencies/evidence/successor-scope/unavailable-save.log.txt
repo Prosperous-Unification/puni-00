@@ -1,0 +1,302 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-successor-92/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (80 tests | 4 failed | 76 skipped) 4957ms
+   × refuses stale draft node after hierarchy refresh on desktop 1487ms
+   × refuses stale persisted node after hierarchy refresh on desktop 1203ms
+   × refuses stale draft node after hierarchy refresh on phone 1140ms
+   × refuses stale persisted node after hierarchy refresh on phone 1124ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > refuses stale draft node after hierarchy refresh on desktop
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > refuses stale persisted node after hierarchy refresh on desktop
+Error: expect(element).toBeDisabled()
+
+Received element is not disabled:
+  <button
+  type="button"
+/>
+
+Ignored nodes: comments, script, style
+[36m<html>[39m
+  [36m<head />[39m
+  [36m<body>[39m
+    [36m<div>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"flex min-h-0 flex-1 flex-col"[39m
+        [33mdata-project-id[39m=[32m"p1"[39m
+        [33mdata-slice-count[39m=[32m"1"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33maria-busy[39m=[32m"false"[39m
+          [33maria-label[39m=[32m"Plan"[39m
+          [33mclass[39m=[32m"mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1"[39m
+          [33mdata-toolbar[39m=[32m"true"[39m
+          [33mrole[39m=[32m"toolbar"[39m
+        [36m>[39m
+          [36m<span[39m
+            [33mstyle[39m=[32m"position: relative; display: inline-block;"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33maria-expanded[39m=[32m"false"[39m
+              [33maria-haspopup[39m=[32m"menu"[39m
+              [33maria-label[39m=[32m"Freeze #"[39m
+              [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"[39m
+              [33mdata-hint[39m=[32m"Freeze the numbering as it stands, or release every frozen row"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [0mFreeze #[0m
+            [36m</button>[39m
+          [36m</span>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 border-0 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 h-8 rounded-md px-3 text-xs"[39m
+            [33mdata-takes-the-focus[39m=[32m""[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mAdd work item[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-label[39m=[32m"Collapse all"[39m
+            [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"[39m
+            [33mdata-hint[39m=[32m"Close every branch"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mfocusable[39m=[32m"false"[39m
+              [33mheight[39m=[32m"1em"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-linejoin[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [33mwidth[39m=[32m"1em"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M7 4l5 5 5-5"[39m
+              [36m/>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M7 20l5-5 5 5"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-label[39m=[32m"Expand all"[39m
+            [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"[39m
+            [33mdata-hint[39m=[32m"Open every branch"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mfocusable[39m=[32m"false"[39m
+              [33mheight[39m=[32m"1em"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-linejoin[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [33mwidth[39m=[32m"1em"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M7 9l5-5 5 5"[39m
+              [36m/>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M7 15l5 5 5-5"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-label[39m=[32m"Arrange by schedule"[39m
+            [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"[39m
+            [33mdata-hint[39m=[32m"Put every sibling in the order its bar starts"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mfill...
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:840:80
+    838|       }
+    839|       await act(fixture.grow);
+    840|       await waitFor(() => expect(dialog.getByRole('button', { name: 'S…
+       |                                                                                ^
+    841|       expect(dialog.getByRole('alert')).toHaveTextContent(/scope unava…
+    842|       expect(fixture.update).not.toHaveBeenCalled();
+ ❯ runWithExpensiveErrorDiagnosticsDisabled ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > refuses stale draft node after hierarchy refresh on phone
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > refuses stale persisted node after hierarchy refresh on phone
+Error: expect(element).toBeDisabled()
+
+Received element is not disabled:
+  <button
+  type="button"
+/>
+
+Ignored nodes: comments, script, style
+[36m<html>[39m
+  [36m<head />[39m
+  [36m<body[39m
+    [33mdata-scroll-locked[39m=[32m"1"[39m
+    [33mstyle[39m=[32m"pointer-events: none;"[39m
+  [36m>[39m
+    [36m<span[39m
+      [33maria-hidden[39m=[32m"true"[39m
+      [33mdata-aria-hidden[39m=[32m"true"[39m
+      [33mdata-radix-focus-guard[39m=[32m""[39m
+      [33mstyle[39m=[32m"outline: none; opacity: 0; position: fixed; pointer-events: none;"[39m
+      [33mtabindex[39m=[32m"0"[39m
+    [36m/>[39m
+    [36m<div[39m
+      [33maria-hidden[39m=[32m"true"[39m
+      [33mdata-aria-hidden[39m=[32m"true"[39m
+    [36m>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"flex min-h-0 flex-1 flex-col"[39m
+        [33mdata-project-id[39m=[32m"p1"[39m
+        [33mdata-slice-count[39m=[32m"1"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"mb-1.5 flex shrink-0 items-center gap-2"[39m
+          [33mdata-toolbar-sheet[39m=[32m"true"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33maria-expanded[39m=[32m"false"[39m
+            [33maria-haspopup[39m=[32m"dialog"[39m
+            [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 px-4 py-2 min-h-11"[39m
+            [33mdata-state[39m=[32m"closed"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mPlan actions[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-2"[39m
+          [33mdata-grid[39m=[32m"true"[39m
+          [33mdata-plan-cards[39m=[32m"true"[39m
+        [36m>[39m
+          [36m<article[39m
+            [33maria-label[39m=[32m"Work item 010"[39m
+            [33mclass[39m=[32m"border-border bg-card flex min-w-0 flex-col gap-2 rounded-lg border p-3"[39m
+            [33mdata-card[39m=[32m"w1"[39m
+            [33mdata-frozen[39m=[32m"false"[39m
+            [33mstyle[39m=[32m"margin-left: 0px;"[39m
+          [36m>[39m
+            [36m<header[39m
+              [33mclass[39m=[32m"flex items-center gap-2"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33maria-label[39m=[32m"Collapse 010"[39m
+                [33mclass[39m=[32m"min-h-11 min-w-11 shrink-0 rounded-md border"[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [0m▾[0m
+              [36m</button>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"font-semibold"[39m
+                [33mdata-number[39m=[32m"true"[39m
+              [36m>[39m
+                [0m010[0m
+              [36m</span>[39m
+              [36m<button[39m
+                [33maria-expanded[39m=[32m"false"[39m
+                [33maria-haspopup[39m=[32m"dialog"[39m
+                [33maria-label[39m=[32m"Priority for 010"[39m
+                [33mclass[39m=[32m"min-h-11 inline-flex shrink-0 items-center"[39m
+                [33mdata-card-priority-field[39m=[32m"true"[39m
+                [33mdata-hint[39m=[32m"How important this work is: 1 upward, smaller first. Nobody has said yet."[39m
+                [33mdata-state[39m=[32m"closed"[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"text-muted-foreground rounded-full px-2 py-0.5 text-xs opacity-70"[39m
+                [36m>[39m
+                  [0mpriority…[0m
+                [36m</span>[39m
+              [36m</button>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"text-muted-foreground ml-auto text-sm"[39m
+                [33mdata-final-total[39m=[32m"true"[39m
+              [36m>[39m
+                [0m0[0m
+                [0m d[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mstyle[39m=[32m"position: relative; display: inline-block;"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33maria-expanded[39m=[32m"false"[39m
+                  [33maria-haspopup[39m=[32m"menu"[39m
+                  [33maria-label[39m=[32m"Actions for 010"[39m
+                  [33mdata-hint[39m=[32m"Row actions"[39m
+                  [33mstyle[39m=[32m"font: inherit; padding: 0px 4px; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center;"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [0m⋯[0m
+                [36m</button>[39m
+              [36m</span>[39m
+            [36m</header>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"position: relative; display: block; min-width: 0px;"[39m
+            [36m>[39m
+              [36m<textarea[39m
+                [33maria-label[39m=[32m"Name of 010"[39m
+                [33mclass[39m=[32m"min-h-11 box-border w-full rounded-md border p-2 text-base"[39m
+                [33mdata-cell[39m=[32m"w1::name"[39m
+                [33mdata-rendered-at-rest[39m=[32m""[39m
+                [33mrows[39m=[32m"2"[39m
+                [33mstyle[39m=[32m"height: 0px; max-height: 11.2em; overflow-y: auto;"[39m
+              [36m>[39m
+                [0mLocal successor[0m
+              [36m</textarea>[39m
+              [36m<span[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"min-h-11 box-border w-full rounded-md border p-2 text-base"[39m
+                [33mdata-cell-rendered[39m=[32m"w1::name"[39m
+              [36m>[39m
+                [0mLocal successor[0m
+              [36m</span>[39m
+            [36m</span>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"relative flex min-w-0 items-center gap-2"[39m
+              [33mdata-step[39m=[32m"step-dev"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"text-muted-foreground w-20 shrink-0 truncate text-sm"[39m
+              [36m>[39m
+                [0mDev[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"font-semibold"[39m
+              [36m/>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"ml-20 flex flex-wrap gap-x-4"[39m
+    ...
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:840:80
+    838|       }
+    839|       await act(fixture.grow);
+    840|       await waitFor(() => expect(dialog.getByRole('button', { name: 'S…
+       |                                                                                ^
+    841|       expect(dialog.getByRole('alert')).toHaveTextContent(/scope unava…
+    842|       expect(fixture.update).not.toHaveBeenCalled();
+ ❯ runWithExpensiveErrorDiagnosticsDisabled ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 76 skipped (80)
+   Start at  04:16:32
+   Duration  11.42s (tests 44%, import 35%, transform 17%, environment 4%, setup 1%)

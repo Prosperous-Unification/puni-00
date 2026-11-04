@@ -8,6 +8,7 @@ import { projectSourceOver } from '@/modules/project/composition';
 import { installProjectRuntime } from '@/runtime/project-runtime';
 import { installSessionRuntime, type SessionRuntime } from '@/runtime/session-runtime';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { createRefusingAddressApi } from '@/testing/refusing-address-api';
 import { refusingApi } from '@/testing/refusing-api';
 import { answerJson, stubServer } from '@/testing/stub-server';
 
@@ -33,6 +34,7 @@ function emptyProjects(): ProjectApi {
     openProject: notHere,
     createProject: notHere,
     renameProject: notHere,
+    setAbbreviation: (_id, abbreviation) => Promise.resolve(abbreviation.toUpperCase()),
     tree: notHere,
     setEstimateMethod: notHere,
     setStartDate: notHere,
@@ -76,7 +78,7 @@ function emptyProjects(): ProjectApi {
  * cases are about routing, and the session owner has its own suites.
  */
 const signedIn = (projects: ProjectApi = emptyProjects()): SessionRuntime => {
-  const source = projectSourceOver(projects);
+  const source = projectSourceOver(projects, createRefusingAddressApi());
   return installSessionRuntime({
     userId: 'u1',
     directoryApi: fakeDirectoryApi(),
@@ -300,6 +302,7 @@ describe('the signed-in region, routed', () => {
             id: 'p1',
             name: 'Rewire the shed',
             restricted: false,
+            abbreviation: 'PLAN',
             startDate: null,
             lastOpenedAt: null,
             ownerName: 'kat',

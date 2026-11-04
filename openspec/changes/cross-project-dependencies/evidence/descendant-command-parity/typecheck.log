@@ -1,0 +1,41 @@
+
+ NX   Running target typecheck for 2 projects and 1 task they depend on:
+
+- wbs-mcp-01
+- wbs-be-01
+
+
+
+> nx run wbs-mcp-01:typecheck
+
+> bunx tsc --build --force apps/wbs/mcp-01/tsconfig.json
+
+
+> nx run wbs-be-01:"typecheck:module"
+
+> bun tools/tool-devsync/src/typecheck-modules.ts apps/wbs/be-01/src/module
+
+typecheck apps/wbs/be-01/src/module/optimization
+typecheck apps/wbs/be-01/src/module/solver-launcher
+typecheck apps/wbs/be-01/src/module/solver-supervisor
+
+> nx run wbs-be-01:typecheck
+
+> bunx tsc --build --force apps/wbs/be-01/tsconfig.json
+
+
+
+
+ NX   Successfully ran target typecheck for 2 projects and 1 task they depend on
+
+
+  Run duration:      32.7s
+  Cache:             0/3 hit (0%)
+  Critical path:     32.7s (2 tasks)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Drastically reduce your run duration by sharing a cache across your team and CI → https://cloud.nx.app/get-started?utm_source=nx-cli&utm_medium=cli&utm_campaign=performance-report&utm_content=remote-cache.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-be-01:typecheck           19.9s
+        wbs-be-01:typecheck:module    12.8s

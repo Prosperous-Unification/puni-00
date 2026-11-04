@@ -1,0 +1,68 @@
+from pathlib import Path
+import subprocess
+root=Path('/tmp/puni-cross-graph')
+domain='libs/wbs/domain/domain/src/connected-step-node.ts'
+core='libs/wbs/application/core/src/service/connected-dependency-graph.ts'
+expansion='libs/wbs/domain/domain/src/slice-edges.ts'
+dtest='libs/wbs/domain/domain/src/connected-step-node.test.ts'
+ctest='libs/wbs/application/core/src/service/connected-dependency-graph.test.ts'
+mutations=[
+('duplicate-project', domain, 'projects.has(project.projectId)', 'false', dtest, 'refuses duplicate project'),
+('duplicate-work-owner', domain, 'projectIdByWorkItem.has(workItemId)', 'false', dtest, 'refuses duplicate project'),
+('missing-project-diagnostic', domain, 'if (project === undefined)', 'if (false)', dtest, 'refuses missing endpoint project'),
+('missing-work-item-diagnostic', domain, 'if (leaves === undefined)', 'if (false)', dtest, 'refuses missing endpoint project'),
+('missing-slice-diagnostic', domain, 'slices === undefined || slices.length === 0', 'slices.length === 0', dtest, 'refuses absent and empty slices'),
+('empty-slice', domain, 'slices === undefined || slices.length === 0', 'slices === undefined', dtest, 'refuses absent and empty slices'),
+('local-successor', domain, 'dependency.successor.projectId !== project.projectId', 'false', dtest, 'refuses local/external'),
+('local-predecessor', domain, 'dependency.predecessor.projectId !== project.projectId', 'false', dtest, 'refuses a local relationship whose predecessor'),
+('external-local', domain, 'dependency.predecessor.projectId === dependency.successor.projectId', 'false', dtest, 'refuses local/external'),
+('conflicting-domain-identity', domain, 'formatScopedDependencyKey(previous) !== formatScopedDependencyKey(dependency)', 'false', dtest, 'refuses local/external'),
+('local-endpoint-evidence', domain, '      resolveAuthoredEdges(dependency, context, context);', '', dtest, 'refuses missing local endpoint facts'),
+('omit-expanded-pair', expansion, 'return before.flatMap((predecessor)', 'return before.slice(0, 1).flatMap((predecessor)', dtest, 'expands every remote parent pair'),
+('wrong-remote-context', domain, 'contextOf(dependency.successor.projectId),', 'contextOf(dependency.predecessor.projectId),', dtest, 'expands every remote parent pair'),
+('duplicate-override', core, 'overrides.has(change.projectId)', 'false', ctest, 'rejects duplicate overrides'),
+('proposed-owner', core, 'dependency.projectId !== change.projectId', 'false', ctest, 'rejects each proposed ownership'),
+('proposed-successor', core, 'dependency.successor.projectId !== change.projectId', 'false', ctest, 'rejects each proposed ownership'),
+('stored-owner', core, 'dependency.projectId !== dependency.successor.projectId', 'false', ctest, 'rejects malformed owner'),
+('stored-conflict', core, 'previous !== undefined &&\n        formatScopedDependencyKey(previous) !== formatScopedDependencyKey(dependency)', 'false', ctest, 'rejects conflicting stored identities'),
+('effective-conflict', core, 'previous !== undefined &&\n        formatScopedDependencyKey(previous) !== formatScopedDependencyKey(dependency)', 'false', ctest, 'rejects conflicts between effective'),
+('non-incident', core, 'dependency.predecessor.projectId !== projectId &&\n          dependency.successor.projectId !== projectId', 'false', ctest, 'rejects malformed owner'),
+('missing-project-core-diagnostic', core, 'project === null || project.id !== projectId', 'project !== null && project.id !== projectId', ctest, 'throws for missing required projects'),
+('mismatched-project-core', core, 'project === null || project.id !== projectId', 'project === null', ctest, 'rejects a required project read'),
+('foreign-row', core, 'row.projectId !== projectId', 'false', ctest, 'throws for missing required projects'),
+('authority', core, '        await this.authority.requireProject(projectId);', '', ctest, 'requires reached-project authority'),
+('expiry', core, 'this.authority.assertActive();', '', ctest, 'refuses expired borrowed'),
+('incoming-closure', core, '        if (dependency.successor.projectId === projectId)', '        if (false)', ctest, 'walks incoming and outgoing'),
+('outgoing-closure', core, '        if (dependency.predecessor.projectId === projectId)', '        if (false)', ctest, 'walks incoming and outgoing'),
+('old-new-seeds', core, '        seeds.add(dependency.predecessor.projectId);', '', ctest, 'replaces complete successor-owned'),
+]
+summary=[]
+for name, filename, before, after, testfile, testname in mutations:
+    path=root/filename
+    original=path.read_text()
+    if before not in original:
+        raise Exception(f'fault target not found: {name}: {before}')
+    # The second identical conflict check protects the effective overlay, not stored evidence.
+    if name=='effective-conflict':
+        position=original.rfind(before)
+        mutated=original[:position]+original[position:].replace(before,after,1)
+    elif name=='expiry':
+        mutated=original.replace(before,after)
+    else:
+        mutated=original.replace(before,after,1)
+    try:
+        path.write_text(mutated)
+        run=subprocess.run(['bun','test',testfile,'-t',testname],cwd=root,capture_output=True,text=True)
+        log=run.stdout+run.stderr
+        Path(f'/tmp/puni-graph-fault-{name}.log').write_text(log)
+        if run.returncode==0 or '(fail)' not in log:
+            raise Exception(f'fault not witnessed in test assertion: {name}: {run.returncode}\n{log}')
+    finally:
+        path.write_text(original)
+    green=subprocess.run(['bun','test',testfile,'-t',testname],cwd=root,capture_output=True,text=True)
+    Path(f'/tmp/puni-graph-restored-{name}.log').write_text(green.stdout+green.stderr)
+    if green.returncode!=0:
+        raise Exception(f'restored baseline failed: {name}\n{green.stdout}{green.stderr}')
+    summary.append(f'{name}: fault exit {run.returncode}, restored exit {green.returncode}')
+    print(summary[-1],flush=True)
+Path('/tmp/puni-graph-mutation-summary.log').write_text('\n'.join(summary)+'\n')

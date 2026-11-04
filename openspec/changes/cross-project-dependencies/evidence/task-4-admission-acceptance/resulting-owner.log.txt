@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+40 |     if (isClosed) throw new Error(`Working plan for ${projectId} is closed`);
+41 |   };
+42 |   const assertProject = (requestedProjectId: string): void => {
+43 |     assertOpen();
+44 |     if (requestedProjectId !== projectId) {
+45 |       throw new Error(`Working plan for ${projectId} cannot read project ${requestedProjectId}`);
+                     ^
+error: Working plan for d38b197d-2e69-4417-a06d-d42c275831ff cannot read project 782c61fb-1c94-4767-bd89-6083b3691439
+      at assertProject (/tmp/puni-command-proofs/libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts:45:17)
+      at hasDeletingEndpoint (/tmp/puni-command-proofs/libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts:315:7)
+      at <anonymous> (/tmp/puni-command-proofs/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6686:47)
+      at async withDependencyContext (/tmp/puni-command-proofs/libs/wbs/application/core/src/ports/dependency-context.ts:86:27)
+(fail) admitted redo refuses a misowned resulting relationship before storage [411.50ms]
+
+ 0 pass
+ 116 filtered out
+ 1 fail
+ 11 expect() calls
+Ran 1 test across 1 file. [3.24s]

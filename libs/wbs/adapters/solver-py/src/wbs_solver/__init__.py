@@ -5,7 +5,7 @@ reads it from here (pyproject.toml `[tool.setuptools.dynamic]`), so the running
 interpreter and the installed metadata cannot drift apart, and the coordinator
 reads the installed metadata as the `solverVersion` half of `contractVersion`.
 
-It is `0.3.0` because wire 4 carries resource demands and capacities, which
+It is `0.4.0` because wire 5 carries local or connected optimization scope, which
 the model levels as one cumulative each (`wbs-resources` R5); old cached
 certificates must not share this release key.
 The golden request corpus spends the new string.
@@ -20,6 +20,6 @@ gate from the same version-locked distribution.
 
 # Proof: at 0.1.3 the mounted cache regression read an old integer-infeasibility
 # certificate under the current fixture key (expected miss, received certificate).
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = ["__version__"]

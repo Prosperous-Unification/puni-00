@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:
+115 |   await repo.add(local,stamp);
+116 |   await repo.add(link(),stamp);
+117 |   const baseline = readMigrationFolders(FOLDER).filter(({name})=>name<MIGRATION).at(-1);
+118 |   if (baseline === undefined) throw new Error('missing migration baseline');
+119 |   const ledger = stored('SELECT * FROM __drizzle_migrations ORDER BY id');
+120 |   expect(() => rollbackTo(path,FOLDER,baseline.name)).toThrow('external dependencies remain');
+                                                            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "external dependencies remain"
+
+Received function did not throw
+Received value: [ "20261022211000_add_external_dependencies" ]
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:120:55)
+(fail) down refuses external rows and preserves local rows and their audit when empty [117.44ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.10s]

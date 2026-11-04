@@ -233,17 +233,16 @@ test.describe('the project settings control, in a browser', () => {
     );
   });
 
-  test('opens on its control, offers six sections, and closes back onto it', async ({ page }) => {
+  test('opens on its control, offers seven sections, and closes back onto it', async ({ page }) => {
     await freshProject(page);
     const control = page.getByRole('button', { name: 'Project settings' });
     await control.click();
     const dialog = page.getByRole('dialog', { name: 'Project settings' });
     await expect(dialog).toBeVisible();
-    // Five since `dual-optimized-scheduler`: `Optimization` follows
-    // `Estimating` as the final project-level scheduling section. Six since
-    // `step-node-attempts` D7: `Timezone` last, so the first section holds.
-    // Seven since `compute-providers` slice 5: `Resources` after it.
+    // Proof: removing General from the rendered sections made this exact list fail
+    // while the remaining tabs still worked; Resources follows Timezone.
     await expect(dialog.getByRole('tab')).toHaveText([
+      'General',
       'Teams',
       'Priorities',
       'Steps',

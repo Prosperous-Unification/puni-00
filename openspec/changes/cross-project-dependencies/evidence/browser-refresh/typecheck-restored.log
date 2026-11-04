@@ -1,0 +1,57 @@
+
+ NX   Running target typecheck for 3 projects and 2 tasks they depend on:
+
+- wbs-fe-01
+- wbs-be-01
+- wbs-gw-01
+
+
+
+> nx run wbs-gw-01:typecheck  [existing outputs match the cache, left as is]
+
+> bunx tsc --build --force apps/wbs/gw-01/tsconfig.json
+
+
+> nx run wbs-fe-01:"typecheck:module"
+
+> status=0; for module in apps/wbs/fe-01/src/modules/*/; do echo "typecheck:module $module"; bunx tsc -p "$module"tsconfig.json --noEmit || status=1; done; exit $status
+
+typecheck:module apps/wbs/fe-01/src/modules/calendar-markers/
+typecheck:module apps/wbs/fe-01/src/modules/dependency-lookup/
+typecheck:module apps/wbs/fe-01/src/modules/directory-management/
+typecheck:module apps/wbs/fe-01/src/modules/directory/
+typecheck:module apps/wbs/fe-01/src/modules/plan-commands/
+typecheck:module apps/wbs/fe-01/src/modules/plan-feed/
+typecheck:module apps/wbs/fe-01/src/modules/plan-writer/
+typecheck:module apps/wbs/fe-01/src/modules/preferences/
+typecheck:module apps/wbs/fe-01/src/modules/project/
+typecheck:module apps/wbs/fe-01/src/modules/saved-plans/
+
+> nx run wbs-be-01:"typecheck:module"
+
+> bun tools/tool-devsync/src/typecheck-modules.ts apps/wbs/be-01/src/module
+
+typecheck apps/wbs/be-01/src/module/optimization
+typecheck apps/wbs/be-01/src/module/solver-launcher
+typecheck apps/wbs/be-01/src/module/solver-supervisor
+
+> nx run wbs-be-01:typecheck  [existing outputs match the cache, left as is]
+
+> bunx tsc --build --force apps/wbs/be-01/tsconfig.json
+
+
+> nx run wbs-fe-01:typecheck
+
+> bunx tsc --build --force apps/wbs/fe-01/tsconfig.json
+
+
+
+
+ NX   Successfully ran target typecheck for 3 projects and 2 tasks they depend on
+
+Nx read the output from the cache instead of running the command for 2 out of 5 tasks.
+
+  Run duration:      10.5s
+  Cache:             2/5 hit (40%)
+  Critical path:     10.5s (2 tasks)
+  Recoverable time:  <1ms

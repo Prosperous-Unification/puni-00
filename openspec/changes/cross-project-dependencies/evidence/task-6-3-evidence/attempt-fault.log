@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+174 |   expect(captureState()).toEqual(before);
+175 |   harness.sqlite.run(
+176 |     "INSERT INTO step_node_attempt (work_item_id,step_id,attempt_number,started_at,ended_at,outcome) VALUES ('predecessor-leaf',?,1,1,2,'failed')",
+177 |     [predecessorStep],
+178 |   );
+179 |   expect(((await startable()).body as { leaves: { stepIds: string[] }[] }).leaves).toMatchObject([
+                                                                                         ^
+error: expect(received).toMatchObject(expected)
+
+- [
+-   {
+-     "stepIds": [
+-       "b515a8fa-734f-4c33-8826-532e27696590",
+-     ],
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-63-evidence/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:179:84)
+(fail) SS observes ended unsuccessful attempts while unknown prerequisites refuse atomically [428.44ms]
+
+ 0 pass
+ 36 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [3.71s]

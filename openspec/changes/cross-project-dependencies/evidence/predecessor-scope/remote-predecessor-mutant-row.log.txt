@@ -1,0 +1,37 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-remote-predecessor/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (96 tests | 2 failed | 94 skipped) 1068ms
+   × refuses wrong-row persisted predecessor scopes on desktop 698ms
+   × refuses wrong-row persisted predecessor scopes on phone 367ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > refuses wrong-row persisted predecessor scopes on desktop
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > refuses wrong-row persisted predecessor scopes on phone
+AssertionError: expected [ <option …(1)></option> ] to have a length of +0 but got 1
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:1088:11
+    1086|             name: 'Whole work item',
+    1087|           }),
+    1088|         ).toHaveLength(0);
+       |           ^
+    1089|         fireEvent.click(details.getByRole('button', { name: 'Save' }));
+    1090|         expect(update).not.toHaveBeenCalled();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 94 skipped (96)
+   Start at  05:32:18
+   Duration  7.28s (import 55%, transform 24%, tests 15%, environment 6%, setup 1%)

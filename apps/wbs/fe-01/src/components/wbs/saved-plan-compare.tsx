@@ -3,16 +3,16 @@ import type {
   PlanDiffView,
   SavedPlanListEntryView,
   SavedPlanSideRef,
+  SavedPlanSideSummary,
 } from '../../lib/saved-plan-api';
-import type { SideSchedules } from '../../lib/saved-plan-compare';
 import {
   COMPARE_SAME_SIDE,
   diffIsEmpty,
   diffValueWords,
   groupByCategory,
-  sideScheduleWords,
 } from '../../lib/saved-plan-compare';
 import { savedPlanTitle } from './saved-plan-list';
+import { FrozenProvenance } from './saved-plan-provenance';
 
 /** The value a picker holds, as a `<select>` can carry it. */
 export const CURRENT_OPTION = 'current';
@@ -109,7 +109,10 @@ export type SavedPlanComparisonState =
       readonly left: SavedPlanSideRef;
       readonly right: SavedPlanSideRef;
       readonly diff: PlanDiffView;
-      readonly schedules: SideSchedules;
+      readonly summaries: {
+        readonly left: SavedPlanSideSummary;
+        readonly right: SavedPlanSideSummary;
+      };
       readonly rows: readonly SavedPlanListEntryView[];
       /** {@link SavedPlans.livePlanRevision} when this comparison was asked for. */
       readonly livePlanRevision: number;
@@ -145,38 +148,6 @@ export function compareGoneWords(savedPlanId: string | null): string {
  */
 export function compareUnreadableWords(savedPlanId: string, refusal: string): string {
   return `That saved plan (${savedPlanId}) cannot be read (${refusal}), so it cannot be compared. Pick another.`;
-}
-
-/** One side's heading and, when it has one, its own absence sentence. */
-function SideSummary({
-  side,
-  schedule,
-  rows,
-  which,
-}: {
-  side: SavedPlanSideRef;
-  schedule: SideSchedules['left'];
-  rows: readonly SavedPlanListEntryView[];
-  which: 'left' | 'right';
-}) {
-  const words = sideScheduleWords(side, schedule);
-  return (
-    <div
-      className={`saved-plan-compare__side saved-plan-compare__side--${which} flex flex-col text-xs`}
-    >
-      <span className="saved-plan-compare__side-name font-medium">{sideLabel(side, rows)}</span>
-      {/*
-        Rendered only when there is something to say. A side WITH a schedule
-        gets no sentence rather than "has a schedule": the comparison below
-        already reports every way the two schedules differ, and a line
-        confirming the ordinary case on both sides would push the differences
-        off the top of the panel.
-      */}
-      {words === null ? null : (
-        <span className="saved-plan-compare__absent text-muted-foreground">{words}</span>
-      )}
-    </div>
-  );
 }
 
 /**
@@ -241,7 +212,7 @@ function DiffHalf({
  *
  * Presentational, like {@link SavedPlanList}: it is handed a state and draws it,
  * which is what lets the branches nobody can reach by clicking — `refused` on a
- * pair the pickers will not offer, an `unknown` schedule on a stale shelf — be
+ * pair the pickers will not offer, frozen provenance on an empty diff — be
  * cases rather than reasoning.
  *
  * The two halves are kept apart because they are bounded apart upstream
@@ -294,17 +265,15 @@ export function SavedPlanComparison({ state }: { state: SavedPlanComparisonState
   return (
     <div className="saved-plan-compare flex flex-col gap-2">
       <div className="saved-plan-compare__sides grid grid-cols-2 gap-2">
-        <SideSummary
+        <FrozenProvenance
           which="left"
-          side={state.left}
-          schedule={state.schedules.left}
-          rows={state.rows}
+          title={sideLabel(state.left, state.rows)}
+          summary={state.summaries.left}
         />
-        <SideSummary
+        <FrozenProvenance
           which="right"
-          side={state.right}
-          schedule={state.schedules.right}
-          rows={state.rows}
+          title={sideLabel(state.right, state.rows)}
+          summary={state.summaries.right}
         />
       </div>
       {/*

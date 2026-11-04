@@ -49,6 +49,7 @@ import {
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
+import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
 import { testProjectService } from '../testing/project-fixture';
 import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
@@ -276,6 +277,7 @@ describe('the OIDC callback after activation', () => {
     });
     return buildApp(
       {
+        projectAddressSearch: refusingProjectAddressSearch,
         organizations: legacyOrganizationAccess,
         memberships: refusingMemberships,
         sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -319,6 +321,7 @@ describe('the OIDC callback after activation', () => {
             }
           : {}),
         priorityBands: testPriorityBandService(),
+        admitDependencyClient: () => null,
         probeDatabase: () => 'ok',
         projects: testProjectService(),
         replay: testReplay().replay,

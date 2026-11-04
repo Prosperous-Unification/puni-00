@@ -4,6 +4,7 @@ import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { describe, expect, it, spyOn } from 'bun:test';
 
+import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-support';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 /** Awaits real rejected calls without relying on Bun's void-typed rejection matcher. */
@@ -62,7 +63,10 @@ for (const endpoint of ['single', 'batch']) {
             'INSERT INTO step_parallel (work_item_id,step_id,max_parallel) VALUES (?,?,1)',
             ['parent', step.id],
           );
-        const borrowed = openSqliteSource({ dbPath: h.sqlite.filename });
+        const borrowed = openSqliteSource({
+          dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+          dbPath: h.sqlite.filename,
+        });
         try {
           await borrowed.uow.run(async (scope) => {
             const working = createWorkingPlan(scope, projectId);

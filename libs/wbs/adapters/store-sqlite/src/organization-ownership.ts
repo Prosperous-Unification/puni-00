@@ -325,7 +325,8 @@ export class OrganizationOwnershipRepository {
 
   /**
    * Maps every unmapped root to the legacy organization, copying catalog names, in one
-   * immediate transaction, and returns how many rows each kind gained. Repeatable while the
+   * immediate transaction, and returns how many mapping rows each kind gained, excluding
+   * trigger side effects. Repeatable while the
    * outgoing release still writes: an existing mapping is never overwritten, and a conflicting
    * name fails the whole pass instead of being skipped. Run explicitly, never at boot.
    *
@@ -376,7 +377,10 @@ export class OrganizationOwnershipRepository {
             : sql`INSERT INTO ${side} (resource_id, organization_id)
                 SELECT id, ${legacy.id} FROM ${root}
                 WHERE id NOT IN (SELECT resource_id FROM ${side})`;
-          counts.set(kind, tx.run(statement).changes);
+          // RETURNING counts mapped roots, excluding the abbreviation namespace trigger's writes.
+          // Proof: .run().changes reported 15 for 14 roots in `backfills earlier roots
+          // idempotently while another connection keeps writing` (2026-10-22).
+          counts.set(kind, tx.all(sql`${statement} RETURNING resource_id`).length);
         }
         return counts;
       },

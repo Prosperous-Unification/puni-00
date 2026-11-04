@@ -1,0 +1,32 @@
+
+ NX   Running target lint for 2 projects:
+
+- wbs-core
+- wbs-store-sqlite
+
+
+
+> nx run wbs-store-sqlite:lint  [existing outputs match the cache, left as is]
+
+> bunx eslint libs/wbs/adapters/store-sqlite/src
+
+
+> nx run wbs-core:lint
+
+> bunx eslint libs/wbs/application/core/src libs/wbs/application/core/testing libs/wbs/application/core/playwright.config.ts
+
+
+
+
+ NX   Successfully ran target lint for 2 projects
+
+Nx read the output from the cache instead of running the command for 1 out of 2 tasks.
+
+  Run duration:      32.6s
+  Cache:             1/2 hit (50%)
+  Critical path:     32.6s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Speed up or split the longest tasks on the critical path:
+        wbs-core:lint    32.6s

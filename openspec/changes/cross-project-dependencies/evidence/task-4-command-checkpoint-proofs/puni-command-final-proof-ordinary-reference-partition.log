@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+417 |   if (entry === null) throw new Error('fixture journal missing');
+418 |   const payload = JSON.parse(entry.payload) as { forward: { dependency: import('@wbs/core').StoredTypedDependency } };
+419 |   const inverse = { do: 'batch', steps: [{ do: 'remove_typed_dependency', dependency: payload.forward.dependency }, { do: 'batch', steps: [{ do: 'patch', workItemId: fixture.predecessor.workItemId, patch: { name: 'Unrelated forbidden patch' } }] }] };
+420 |   harness.sqlite.query('UPDATE command_journal SET inverse=? WHERE id=?').run(JSON.stringify(inverse), entry.id);
+421 |   const before = effects();
+422 |   expect(await semantic(fixture, (service) => service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess))).toMatchObject({ ok: false, reason: 'not_found' });
+                                                                                                                                                ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": false,
+-   "reason": "not_found",
++   "ok": true,
++   "value": {
++     "detail": null,
++     "done": "make “Owner row” wait for “PRE.010 Predecessor row”",
++   },
+  }
+
+- Expected  - 2
++ Received  + 5
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:422:139)
+(fail) mixed nested replay keeps an unrelated foreign patch outside typed endpoint authority [383.70ms]
+
+ 0 pass
+ 53 filtered out
+ 1 fail
+ 11 expect() calls
+Ran 1 test across 1 file. [2.41s]

@@ -1,0 +1,250 @@
+Injected fault: edge-all
+        contextOf(dependency.successor.projectId),
+      ),
+=>
+        contextOf(dependency.successor.projectId),
+      ).slice(0, 0),
+
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+1094 |         });
+1095 |         expect(reading.isError).not.toBe(true);
+1096 |         const tree = JSON.parse(reading.text) as { workItems: { id: string }[] };
+1097 |         // Two independent remote leaves finish at 2 and 4. Both must constrain
+1098 |         // the one-day successor; reversing their order catches either lost edge.
+1099 |         expect(tree.workItems.find(({ id }) => id === staged.id)).toMatchObject({
+                                                                         ^
+error: expect(received).toMatchObject(expected)
+
+  {
++   "actuals": {},
++   "assignees": {},
++   "blockageCauses": {
++     "4edfe3a0-e558-4c00-b34b-b775fa70e323": [],
++     "79cb326f-fe78-48f4-9cd8-6595274b44f4": [],
++   },
++   "blockages": {},
++   "charged": {
++     "4edfe3a0-e558-4c00-b34b-b775fa70e323": {
++       "days": 1,
++       "unit": "workdays",
++     },
++   },
++   "dates": {
++     "endsOn": "2026-10-19",
++     "startsOn": "2026-10-19",
++   },
++   "deadline": null,
++   "dependsOn": [],
++   "doesEveryStep": null,
++   "estimates": {
++     "4edfe3a0-e558-4c00-b34b-b775fa70e323": {
++       "optimistic": 1,
++       "pessimistic": 1,
++       "realistic": 1,
++     },
++   },
++   "externalRefs": [],
++   "factEnd": null,
++   "factStart": null,
++   "finalDays": {
++     "4edfe3a0-e558-4c00-b34b-b775fa70e323": 1,
++   },
++   "finalTotal": 1,
++   "frozenNumber": null,
++   "hold": null,
++   "id": "65f66e8b-f3df-4632-ab79-766d749872df",
++   "maxParallel": 1,
++   "measures": {},
++   "name": "Staged successor",
++   "nodeReadings": {
++     "4edfe3a0-e558-4c00-b34b-b775fa70e323": "unknown",
++     "79cb326f-fe78-48f4-9cd8-6595274b44f4": "unknown",
++   },
++   "nodeResources": {
++     "4edfe3a0-e558-4c00-b34b-b775fa70e323": {
++       "assignment": {
++         "kind": "unassigned",
++       },
++       "maxParallel": 1,
++       "nodeId": "sn1.65f66e8b-f3df-4632-ab79-766d749872df.4edfe3a0-e558-4c00-b34b-b775fa70e323",
++       "teams": {
++         "kind": "unstated",
++       },
++       "width": 1,
++     },
++     "79cb326f-fe78-48f4-9cd8-6595274b44f4": {
++       "assignment": {
++         "kind": "unassigned",
++       },
++       "maxParallel": 1,
++       "nodeId": "sn1.65f66e8b-f3df-4632-ab79-766d749872df.79cb326f-fe78-48f4-9cd8-6595274b44f4",
++       "teams": {
++         "kind": "unstated",
++       },
++       "width": 1,
++     },
++   },
++   "notes": "",
++   "number": "010",
++   "parentId": null,
++   "position": 5,
++   "priority": 50,
++   "progress": {},
++   "projectId": "855210ac-8de1-48ac-b3b6-035376b6d993",
++   "readiness": "ready",
++   "revision": 3,
++   "rolledUp": false,
+    "schedule": {
+-     "earliestFinish": 5,
+-     "earliestStart": 4,
++     "critical": false,
++     "duration": 1,
++     "earliestFinish": 1,
++     "earliestStart": 0,
++     "estimated": true,
++     "float": 3,
++     "latestFinish": 4,
++     "latestStart": 3,
+    },
++   "serviceId": null,
++   "serviceIds": [],
++   "serviceTeamId": null,
++   "startNoEarlierThan": null,
++   "startNoEarlierThanReason": null,
++   "status": "ready",
++   "tagIds": [],
++   "teamIds": [],
++   "typeIds": [],
+  }
+
+- Expected  - 2
++ Received  + 95
+
+      at <anonymous> (/tmp/puni-descendant-command-parity/apps/wbs/mcp-01/src/connected-command-parity.test.ts:1099:67)
+(fail) MCP descendant-step remote parent constrains local node with slow leaf last [3978.11ms]
+1094 |         });
+1095 |         expect(reading.isError).not.toBe(true);
+1096 |         const tree = JSON.parse(reading.text) as { workItems: { id: string }[] };
+1097 |         // Two independent remote leaves finish at 2 and 4. Both must constrain
+1098 |         // the one-day successor; reversing their order catches either lost edge.
+1099 |         expect(tree.workItems.find(({ id }) => id === staged.id)).toMatchObject({
+                                                                         ^
+error: expect(received).toMatchObject(expected)
+
+  {
++   "actuals": {},
++   "assignees": {},
++   "blockageCauses": {
++     "2007d3de-7e07-44ff-8851-fc51cb9012eb": [],
++     "30bc7ba1-dff7-4c14-b8d1-8d6155b09b4d": [],
++   },
++   "blockages": {},
++   "charged": {
++     "30bc7ba1-dff7-4c14-b8d1-8d6155b09b4d": {
++       "days": 1,
++       "unit": "workdays",
++     },
++   },
++   "dates": {
++     "endsOn": "2026-10-19",
++     "startsOn": "2026-10-19",
++   },
++   "deadline": null,
++   "dependsOn": [],
++   "doesEveryStep": null,
++   "estimates": {
++     "30bc7ba1-dff7-4c14-b8d1-8d6155b09b4d": {
++       "optimistic": 1,
++       "pessimistic": 1,
++       "realistic": 1,
++     },
++   },
++   "externalRefs": [],
++   "factEnd": null,
++   "factStart": null,
++   "finalDays": {
++     "30bc7ba1-dff7-4c14-b8d1-8d6155b09b4d": 1,
++   },
++   "finalTotal": 1,
++   "frozenNumber": null,
++   "hold": null,
++   "id": "508787d3-86e2-441b-9797-ff3bc2633a1d",
++   "maxParallel": 1,
++   "measures": {},
++   "name": "Staged successor",
++   "nodeReadings": {
++     "2007d3de-7e07-44ff-8851-fc51cb9012eb": "unknown",
++     "30bc7ba1-dff7-4c14-b8d1-8d6155b09b4d": "unknown",
++   },
++   "nodeResources": {
++     "2007d3de-7e07-44ff-8851-fc51cb9012eb": {
++       "assignment": {
++         "kind": "unassigned",
++       },
++       "maxParallel": 1,
++       "nodeId": "sn1.508787d3-86e2-441b-9797-ff3bc2633a1d.2007d3de-7e07-44ff-8851-fc51cb9012eb",
++       "teams": {
++         "kind": "unstated",
++       },
++       "width": 1,
++     },
++     "30bc7ba1-dff7-4c14-b8d1-8d6155b09b4d": {
++       "assignment": {
++         "kind": "unassigned",
++       },
++       "maxParallel": 1,
++       "nodeId": "sn1.508787d3-86e2-441b-9797-ff3bc2633a1d.30bc7ba1-dff7-4c14-b8d1-8d6155b09b4d",
++       "teams": {
++         "kind": "unstated",
++       },
++       "width": 1,
++     },
++   },
++   "notes": "",
++   "number": "010",
++   "parentId": null,
++   "position": 5,
++   "priority": 50,
++   "progress": {},
++   "projectId": "6104e498-4b8f-4a80-9472-fcdf44e184fe",
++   "readiness": "ready",
++   "revision": 3,
++   "rolledUp": false,
+    "schedule": {
+-     "earliestFinish": 5,
+-     "earliestStart": 4,
++     "critical": false,
++     "duration": 1,
++     "earliestFinish": 1,
++     "earliestStart": 0,
++     "estimated": true,
++     "float": 3,
++     "latestFinish": 4,
++     "latestStart": 3,
+    },
++   "serviceId": null,
++   "serviceIds": [],
++   "serviceTeamId": null,
++   "startNoEarlierThan": null,
++   "startNoEarlierThanReason": null,
++   "status": "ready",
++   "tagIds": [],
++   "teamIds": [],
++   "typeIds": [],
+  }
+
+- Expected  - 2
++ Received  + 95
+
+      at <anonymous> (/tmp/puni-descendant-command-parity/apps/wbs/mcp-01/src/connected-command-parity.test.ts:1099:67)
+(fail) MCP descendant-step remote parent constrains local node with slow leaf first [3926.38ms]
+
+ 0 pass
+ 60 filtered out
+ 2 fail
+ 24 expect() calls
+Ran 2 tests across 1 file. [11.06s]
+
+Observed exit code: 1

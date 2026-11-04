@@ -1,0 +1,9 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-preparation-review.test.ts:
+(pass) review: preserves live canonical tuple and captured tuple across settings [27.35ms]
+
+ 1 pass
+ 0 fail
+ 192 expect() calls
+Ran 1 test across 1 file. [403.00ms]

@@ -1,0 +1,32 @@
+
+test/source-role-process-model-child.test.ts:
+source terminal actual-peer refusal: cleanup
+178 |           await rejects(observeSelectedSourceRoles(context), /source process observation refused/);
+179 |           expect(sourceFault.execs).toBe(2);
+180 |           expect(sourceFault.settlements).toBe(2);
+181 |           expect(sourceFault.receiptFailures).toBe(1);
+182 |           sourceFault.name = 'none';
+183 |           await rejects(observeSelectedSourceRoles(context), /source process observation refused/);
+                      ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: /source process observation refused/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-role-process.model.ts:183:17
+      at acquire (unknown:1:1)
+      at unknown:1:1
+      at acquireLock (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source actual helper cleanup failure closes the original observer context [59202.80ms]
+
+ 0 pass
+ 1 filtered out
+ 1 fail
+ 129 expect() calls
+Ran 1 test across 1 file. [59.25s]

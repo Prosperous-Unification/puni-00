@@ -1,0 +1,54 @@
+
+ NX   Running target typecheck for 2 projects and 2 tasks they depend on:
+
+- wbs-core
+- wbs-be-01
+
+
+
+> nx run wbs-core:"typecheck:module"
+
+
+> nx run wbs-be-01:"typecheck:module"
+
+wbs-be-01: typecheck apps/wbs/be-01/src/module/optimization
+wbs-core: typecheck libs/wbs/application/core/src/module/authentication
+wbs-be-01: typecheck apps/wbs/be-01/src/module/solver-launcher
+wbs-be-01: typecheck apps/wbs/be-01/src/module/solver-supervisor
+wbs-core: typecheck libs/wbs/application/core/src/module/bounded-replay-sweep
+
+> nx run wbs-be-01:typecheck
+
+wbs-core: typecheck libs/wbs/application/core/src/module/calendar-marker
+wbs-core: typecheck libs/wbs/application/core/src/module/capacity
+wbs-core: typecheck libs/wbs/application/core/src/module/directory
+wbs-core: typecheck libs/wbs/application/core/src/module/event-log
+wbs-core: typecheck libs/wbs/application/core/src/module/plan-commands
+wbs-core: typecheck libs/wbs/application/core/src/module/plan-document
+wbs-core: typecheck libs/wbs/application/core/src/module/plan-event
+wbs-core: typecheck libs/wbs/application/core/src/module/plan-history
+wbs-core: typecheck libs/wbs/application/core/src/module/plan-import
+wbs-core: typecheck libs/wbs/application/core/src/module/priority-band
+wbs-core: typecheck libs/wbs/application/core/src/module/project
+wbs-core: typecheck libs/wbs/application/core/src/module/realtime
+wbs-core: typecheck libs/wbs/application/core/src/module/saved-plans
+wbs-core: typecheck libs/wbs/application/core/src/module/step
+wbs-core: typecheck libs/wbs/application/core/src/module/work-item
+
+> nx run wbs-core:typecheck
+
+
+
+
+ NX   Successfully ran target typecheck for 2 projects and 2 tasks they depend on
+
+
+  Run duration:      1m 20s
+  Cache:             0/4 hit (0%)
+  Critical path:     1m 20s (2 tasks)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Drastically reduce your run duration by sharing a cache across your team and CI → https://cloud.nx.app/get-started?utm_source=nx-cli&utm_medium=cli&utm_campaign=performance-report&utm_content=remote-cache.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-core:typecheck:module    1m 14s

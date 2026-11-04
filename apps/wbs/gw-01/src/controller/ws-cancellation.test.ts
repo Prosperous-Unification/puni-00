@@ -28,6 +28,7 @@ for (const kind of ['forward', 'resume'] as const) {
       socket: {
         send: (frame) => {
           sent.push(frame);
+          return Promise.resolve('sent');
         },
       },
       subs: new SubscriptionMap(),
@@ -70,6 +71,7 @@ it('closed connection suppresses a late successful replay', async () => {
     socket: {
       send: (frame) => {
         sent.push(frame);
+        return Promise.resolve('sent');
       },
     },
     subs: new SubscriptionMap(),

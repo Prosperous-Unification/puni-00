@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts:
+21 | it('closes success modeled refusal and throws and rejects retained reader capabilities', async () => {
+22 |   let retained: ProjectAddressSnapshot | undefined;
+23 |   expect(await repository().withSnapshot({id:'ada'},reader=>{retained=reader;return reader.capture('a1')?.project.projectId;})).toEqual({ok:true,value:'a1'});
+24 |   expect(closes).toBe(1);
+25 |   if(retained===undefined)throw new Error('reader not captured');
+26 |   expect(()=>retained.capture('a1')).toThrow('snapshot is closed');
+                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "snapshot is closed"
+Received message: "Failed query: select \"project\".\"id\", \"project\".\"name\", \"project_organization\".\"organization_id\", \"project_abbreviation\".\"namespace\", \"project_abbreviation\".\"abbreviation\" from \"project\" left join \"project_organization\" on \"project_organization\".\"resource_id\" = \"project\".\"id\" left join \"project_abbreviation\" on \"project_abbreviation\".\"project_id\" = \"project\".\"id\" where \"project\".\"id\" = ?\nparams: a1"
+
+      at <anonymous> (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts:26:38)
+(fail) closes success modeled refusal and throws and rejects retained reader capabilities [146.81ms]
+
+ 0 pass
+ 3 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [2.62s]

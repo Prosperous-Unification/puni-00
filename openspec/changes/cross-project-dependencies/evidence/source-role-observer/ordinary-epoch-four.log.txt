@@ -1,0 +1,38 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-remote-scripts/src/lib/source-role-process.test.ts:
+
+test/source-role-process-model-child.test.ts:
+source observer RED boundary: original consumed context and original running-tree expectation reached
+source first-binding refusal: missing
+source first-binding refusal: duplicate
+source first-binding refusal: misassigned
+source first-binding refusal: parent
+source first-binding refusal: role-parent
+source first-binding refusal: extra
+source first-binding refusal: uid
+source first-binding refusal: cwd
+source first-binding refusal: watch
+source first-binding refusal: exe
+source first-binding refusal: helper-listener
+source first-binding refusal: closing-listener
+source first-binding refusal: closing-output
+source first candidate remains pinned after closing refusal
+source first-binding refusal: closing-host
+source first-binding refusal: closing-runtime
+source retained-binding refusal: pid-reuse
+source retained-binding refusal: object
+source retained-binding refusal: listener
+(pass) source observer consumes the original running source through raw process transport [73865.77ms]
+(pass) source actual helper cleanup failure closes the original observer context [150304.74ms]
+
+ 2 pass
+ 0 fail
+ 399 expect() calls
+Ran 2 tests across 1 file. [224.22s]
+(pass) source role observer runs its isolated raw-byte consumer suite [224244.71ms]
+
+ 1 pass
+ 0 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [224.27s]

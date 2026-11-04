@@ -1,4 +1,4 @@
-import { deriveNumbers, schedule, sliceKey } from '@wbs/domain';
+import { deriveNumbers, schedule, scheduleResolved, sliceKey } from '@wbs/domain';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import type { PlanInputReads } from '../ports/saved-plan-capture-store';
@@ -85,6 +85,7 @@ function plan(
     actuals: [],
     progress: [],
     measures: [],
+    measureDefinitions: null,
     measureEstimates: [],
     budgets: [],
     stepBlockages: [],
@@ -113,7 +114,7 @@ function capturedScheduler(
     const captured = capture({ ...ask, mode: 'capture' });
     return ask.mode === 'live' ? Promise.resolve(captured) : captured;
   }
-  return { supports, read };
+  return { supports, read, readResolvedFast: scheduleResolved };
 }
 
 const scheduler = capturedScheduler((ask) => {
@@ -407,6 +408,7 @@ describe('readSharedPeople', () => {
     expect(() =>
       readSharedPeople([plan('A', ['ana']), plan('B', ['ana'])], 'B', {
         supports: () => true,
+        readResolvedFast: scheduleResolved,
         read: () => {
           throw new Error('unexpected scheduler fault');
         },

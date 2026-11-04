@@ -32,8 +32,16 @@ for (const kind of ['machine', 'consent'] as const) {
       projectId = (created.body as { project: { id: string } }).project.id;
       for (const personId of ['agent-a', 'agent-b'])
         addAgentPerson(harness.sqlite, personId, 'org-a', harness.userId('ada'));
+      // Pin/cap/receipt fixtures require an unstarted first step before the project's default Dev/QA.
+      const first = harness.sqlite
+        .query<{ position: number }, [string]>(
+          'SELECT position FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+        )
+        .get(projectId);
+      if (first === null) throw new Error('fixture default workflow steps missing');
+      expect(first.position).toBeGreaterThan(0);
       harness.sqlite.run(
-        "INSERT INTO step (id, project_id, name, position, code) VALUES ('dev', ?, 'Develop', 100, 'pin-dev')",
+        "INSERT INTO step (id, project_id, name, position, code) VALUES ('dev', ?, 'Develop', 0, 'pin-dev')",
         [projectId],
       );
       harness.sqlite.run(

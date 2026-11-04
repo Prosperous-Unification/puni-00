@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/cross-project-dependency.boot.db.test.ts:
+(pass) refuses enabled empty authority before service factories and writes on every restart [136.45ms]
+(pass) refuses broken authority before service factories: DELETE FROM cross_project_dependency_activation [77.25ms]
+(pass) refuses broken authority before service factories: DROP TABLE cross_project_dependency_activation_receipt [85.33ms]
+(pass) refuses broken authority before service factories: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation SET state='UNKNOWN' [88.15ms]
+(pass) refuses broken authority before service factories: INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{}') [79.74ms]
+{"level":"info","time":1792677270145,"service":"be-01","coded":0,"msg":"step codes backfilled"}
+{"level":"info","time":1792677270172,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+{"level":"info","time":1792677270173,"service":"be-01","msg":"migrations applied"}
+(pass) admits dormant authority and serves health after dev migrations [114.60ms]
+(pass) refuses disabled authority retaining an external relationship before service factories [100.56ms]
+(pass) closes storage when the authority read becomes unreadable before any service [71.12ms]
+
+ 8 pass
+ 0 fail
+ 32 expect() calls
+Ran 8 tests across 1 file. [3.25s]

@@ -1,0 +1,38 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "./vitest.config" without a file extension (vitest.node.config.ts:3:24). Add the file extension
+  - import "./vitest.node-suites" without a file extension (vitest.node.config.ts:4:29). Add the file extension
+  - JSON import "./vitest.node-suites.json" without import attributes (vitest.node-suites.ts:1:22). Add `with { type: 'json' }`
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-start-admission/apps/wbs/fe-01
+
+ ❯ src/modules/plan-writer/plan-writer.test.ts (19 tests | 1 failed) 12ms
+   × reports a retained external prerequisite without retry or reread 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/modules/plan-writer/plan-writer.test.ts > reports a retained external prerequisite without retry or reread
+Error: Unexpected response variant: object
+ ❯ unreachable src/lib/http.ts:88:9
+     86| /** Unknown discriminants indicate a programming error rather than a m…
+     87| export function unreachable(value: never): never {
+     88|   throw new Error(`Unexpected response variant: ${typeof value}`);
+       |         ^
+     89| }
+     90|
+ ❯ commandCode src/components/wbs/plan-refusal.ts:550:14
+ ❯ refusalCode src/components/wbs/plan-refusal.ts:616:14
+ ❯ src/components/wbs/plan-refusal.ts:657:20
+ ❯ failureText src/components/wbs/plan-refusal.ts:661:8
+ ❯ refusalSentence src/components/wbs/plan-refusal.ts:833:37
+ ❯ Object.run src/modules/plan-writer/plan-writer.feature.ts:94:40
+ ❯ src/modules/plan-writer/plan-writer.test.ts:389:19
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 passed (19)
+   Start at  09:38:22
+   Duration  3.34s (import 88%, transform 12%)

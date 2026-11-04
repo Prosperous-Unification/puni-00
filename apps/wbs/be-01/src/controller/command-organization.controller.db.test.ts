@@ -302,20 +302,32 @@ describe('after activation', () => {
       [h.userId('ada')],
     );
     expect(
-      await h.removeBareStep(own, ownStep, h.userId('ada'), true, {
-        kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
-      }),
+      await h.removeBareStep(
+        own,
+        ownStep,
+        { id: h.userId('ada'), username: 'ada', scopes: ['write'] },
+        true,
+        {
+          kind: 'scoped',
+          scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+        },
+      ),
     ).toEqual({ ok: false, reason: 'forbidden' });
     h.sqlite.run(
       "UPDATE organization_membership SET role = 'member' WHERE organization_id = 'org-a' AND user_id = ?",
       [h.userId('ada')],
     );
     expect(
-      await h.removeBareStep(own, ownStep, h.userId('nell'), true, {
-        kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: h.userId('nell'), role: 'super_admin' },
-      }),
+      await h.removeBareStep(
+        own,
+        ownStep,
+        { id: h.userId('nell'), username: 'nell', scopes: ['write'] },
+        true,
+        {
+          kind: 'scoped',
+          scope: { organizationId: 'org-a', userId: h.userId('nell'), role: 'super_admin' },
+        },
+      ),
     ).toEqual({ ok: false, reason: 'forbidden' });
     expect(
       ['step', 'estimate', 'assignment', 'organization_audit', 'event_log', 'event_sequencer'].map(
@@ -329,10 +341,16 @@ describe('after activation', () => {
     );
     let bareFailure: unknown;
     try {
-      await h.removeBareStep(own, ownStep, h.userId('ada'), true, {
-        kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
-      });
+      await h.removeBareStep(
+        own,
+        ownStep,
+        { id: h.userId('ada'), username: 'ada', scopes: ['write'] },
+        true,
+        {
+          kind: 'scoped',
+          scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+        },
+      );
     } catch (cause) {
       bareFailure = cause;
     }

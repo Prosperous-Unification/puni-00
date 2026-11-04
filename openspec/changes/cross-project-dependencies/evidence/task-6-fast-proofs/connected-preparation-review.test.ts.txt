@@ -1,0 +1,152 @@
+import type { CapturedWorkItem, IsoDate, PlanInputReads, Schedule } from '@wbs/domain';
+import { sliceKey } from '@wbs/domain';
+import { scheduleResolved } from '@wbs/domain';
+import { describe, expect, it } from 'bun:test';
+
+import { deriveConnectedPlan } from './connected-plan';
+import { resolveConnectedCalendar, translateConnectedCalendar } from './connected-plan-calendar';
+import { restoreConnectedSchedule, selectConnectedProject } from './connected-plan-projection';
+import type { ConnectedPlanCapture } from './connected-plan-values';
+import { prepareCapturedScheduleParts } from './schedule-parts';
+
+const work = (projectId: string, id: string): CapturedWorkItem => ({
+  id,
+  projectId,
+  parentId: null,
+  position: 0,
+  name: id,
+  notes: '',
+  frozenNumber: null,
+  startNoEarlierThan: null,
+  startNoEarlierThanReason: null,
+  deadline: null,
+  readiness: null,
+  hold: null,
+  priority: null,
+  serviceTeamId: null,
+  serviceId: null,
+  maxParallel: 1,
+  revision: 1,
+  teamIds: [],
+  tagIds: [],
+  serviceIds: [],
+  typeIds: [],
+  externalRefs: [],
+});
+const reads = (id: string, startDate: IsoDate | null = '2026-10-05'): PlanInputReads => ({
+  project: {
+    id,
+    name: id,
+    ownerId: 'u',
+    restricted: false,
+    estimateMethod: 'realistic',
+    depReach: 'whole-item',
+    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+    estimateRounding: 'exact',
+    startDate,
+    scheduleEngine: 'fast',
+    scheduleObjective: 'pri',
+    optimizationEnabled: false,
+    solutionRef: null,
+    timezone: 'UTC',
+  },
+  steps: [
+    {
+      id: 'build',
+      name: 'Build',
+      code: null,
+      position: 0,
+      allowancePercent: 0,
+      estimateUnit: 'workdays',
+    },
+  ],
+  workItems: [work(id, id.toLowerCase())],
+  estimates: [
+    { workItemId: id.toLowerCase(), stepId: 'build', optimistic: 1, realistic: 1, pessimistic: 1 },
+  ],
+  actuals: [],
+  progress: [],
+  stepBlockages: [],
+  stepParallels: [],
+  measures: [],
+  dependencies: [],
+  typedDependencies: [],
+  assignments: [],
+  capacity: new Map(),
+  demands: [],
+  resourceCapacities: [],
+  resources: [],
+  priorityBands: [],
+  people: [],
+  teams: [],
+  services: [],
+  tags: [],
+  workItemTypes: [],
+  externalSystems: [],
+});
+const capture = (a = reads('A'), b = reads('B')): ConnectedPlanCapture => ({
+  kind: 'connected',
+  organizationId: 'org',
+  mode: 'isolated',
+  projects: [
+    { projectId: 'A', abbreviation: 'A', rank: 0, reads: a },
+    { projectId: 'B', abbreviation: 'B', rank: 1, reads: b },
+  ],
+  relationships: [
+    {
+      id: 'ab',
+      projectId: 'B',
+      predecessor: { projectId: 'A', scope: 'whole', workItemId: 'a' },
+      successor: { projectId: 'B', scope: 'whole', workItemId: 'b' },
+      type: 'FS',
+    },
+  ],
+});
+const derive = (held: ConnectedPlanCapture, installed = false) =>
+  deriveConnectedPlan(held, { supports: () => installed }, scheduleResolved);
+const scheduled = (held: ConnectedPlanCapture) => {
+  const projection = derive(held);
+  if (projection.placement.kind !== 'scheduled') throw new Error(projection.placement.kind);
+  return projection.placement;
+};
+const start = (plan: Schedule, id: string, step: string | null = 'build') => {
+  const placed = plan.slices.get(sliceKey(id, step));
+  if (placed === undefined) throw new Error(`missing slice ${id}`);
+  return placed.earliestStart;
+};
+
+
+import { canonicalScheduleParts as live } from '../module/work-item/work-item.resource';
+import { canonicalScheduleParts as before } from '../module/work-item/work-item.before-review';
+import { canonicalScheduleInput } from '@wbs/domain/canonical-schedule-input';
+
+it('review: preserves live canonical tuple and captured tuple across settings', () => {
+  for (const method of ['realistic', 'optimistic', 'pessimistic', 'pert'] as const)
+    for (const rounding of ['exact','ceil'] as const)
+      for (const anchor of [null, '2026-10-05'] as const)
+        for (const held of [false, true]) {
+          const initial = reads('A', anchor);
+          const sample = {
+            ...initial,
+            project: {...initial.project, estimateMethod:method, estimateRounding:rounding},
+            workItems: [{...work('A','parent'), startNoEarlierThan: anchor === null ? null : '2026-10-07', deadline:anchor === null ? null : '2026-10-16'},
+              {...work('A','a'),parentId:'parent',hold:held?'on_hold':null,teamIds:['team'],maxParallel:3},
+              {...work('A','a2'),parentId:'parent',position:1,teamIds:['team'],maxParallel:2}],
+            estimates: ['a','a2'].map(workItemId=>({workItemId,stepId:'build',optimistic:0.5,realistic:1.25,pessimistic:2.5})),
+            dependencies:[{predecessorId:'a',successorId:'a2'}],
+            capacity:new Map([['team',2]]),
+            demands:[{workItemId:'a',resourceId:'res',units:1}],
+            resourceCapacities:[{resourceId:'res',units:2}],
+          };
+          const rows=sample.workItems.map(row=>({...row,factStart:null,factEnd:null}));
+          const args=[sample.project,rows,sample.estimates,sample.dependencies,sample.typedDependencies,sample.assignments,sample.steps,sample.capacity,sample.demands,sample.resourceCapacities] as const;
+          const previous=before(...args);
+          const current=live(...args);
+          expect(current.input).toEqual(previous.input);
+          expect(current.rule).toEqual(previous.rule);
+          expect(current.hasChildren).toEqual(previous.hasChildren);
+          expect(current.assigneesOf).toEqual(previous.assigneesOf);
+          expect(prepareCapturedScheduleParts(sample).input).toEqual(previous.input);
+          expect(canonicalScheduleInput(current.input)).toBe(canonicalScheduleInput(previous.input));
+        }
+});

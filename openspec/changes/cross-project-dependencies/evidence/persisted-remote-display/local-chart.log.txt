@@ -1,0 +1,44 @@
+Command: ['bunx', 'vitest', 'run', 'src/components/wbs/persisted-remote-dependencies.test.tsx', '--maxWorkers=1', '--no-file-parallelism', '-t', 'excludes captured foreign endpoints']
+Injected fault: dependency.predecessor.captured === undefined &&
+        dependency.successor.captured === undefined -> true
+
+ RUN  v5.0.0 /tmp/puni-persisted-remote-display/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (8 tests | 1 failed | 7 skipped) 559ms
+   × excludes captured foreign endpoints from local chart input while retaining local relationships 554ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 skipped (8)
+   Start at  11:45:49
+   Duration  16.43s (import 59%, transform 31%, environment 6%, tests 3%, setup 1%)
+
+  Transform  transforming modules took 4.99s · 31% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > excludes captured foreign endpoints from local chart input while retaining local relationships
+AssertionError: expected [ 'external', 'local' ] to deeply equal [ 'local' ]
+
+- Expected
++ Received
+
+  [
++   "external",
+    "local",
+  ]
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:152:5
+    150|       },
+    151|     ]).map(({ id }) => id),
+    152|   ).toEqual(['local']);
+       |     ^
+    153| });
+    154| it('refuses an absent stable work-item target visibly', async () => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

@@ -1,0 +1,25 @@
+Injected discovery-grammar; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/source-exclusion-transport.test.ts:
+125 |   try {
+126 |     await work;
+127 |   } catch (cause) {
+128 |     failure = cause;
+129 |   }
+130 |   expect(failure).toBeInstanceOf(Error);
+                        ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: undefined
+
+      at refuses (/tmp/puni-source-exclusion-acceptance-fix/tools/tool-remote-scripts/test/source-exclusion-transport.test.ts:130:19)
+      at async <anonymous> (/tmp/puni-source-exclusion-acceptance-fix/tools/tool-remote-scripts/test/source-exclusion-transport.test.ts:274:9)
+(fail) unsupported discovery filters refuse rather than narrowing audit inventory [1.59ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [53.00ms]

@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:
+127 |   });
+128 |   const connection = openReadOnlyConnection(path);
+129 |   try {
+130 |     expect(
+131 |       connection.db.all("SELECT name FROM sqlite_master WHERE name='forbidden_inspection_write'"),
+132 |     ).toEqual([]);
+            ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   {
++     "name": "forbidden_inspection_write",
++   },
++ ]
+
+- Expected  - 1
++ Received  + 5
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:132:7)
+(fail) SQLite refuses a real write attempted by the inspector dependency [2344.46ms]
+
+ 0 pass
+ 21 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [4.55s]

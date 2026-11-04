@@ -11,15 +11,21 @@ import {
 } from '@wbs/core/module/plan-commands/composition';
 import type { RuntimeContext } from '@wbs/core/module/plan-commands/runtime-state';
 import type { CommittedProjectEvent } from '@wbs/core/ports/committed-fanout';
+import type { DependencyContext } from '@wbs/core/ports/dependency-context';
 import type { EditAdmission } from '@wbs/core/ports/edit-admission';
 import { NO_ADMISSION } from '@wbs/core/ports/edit-admission';
 import type { Broadcaster } from '@wbs/core/ports/project-event';
 import type { Scope } from '@wbs/core/ports/unit-of-work';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
+import { SqliteCommandAccess } from '@wbs/store-sqlite/command-access';
+import { MachineCredentialRepository } from '@wbs/store-sqlite/machine-credential';
+import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
 import { openSqliteSource } from '@wbs/store-sqlite/source';
+import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
 import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, describe, expect, it } from 'bun:test';
 
@@ -49,6 +55,7 @@ async function seeded(shared = false) {
   let captures = 0;
   let turns = 0;
   const sqlite = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,
     organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
     onBorrowedUnitOfWork: () => {
@@ -59,6 +66,7 @@ async function seeded(shared = false) {
       captures++;
     },
   });
+  sqlite.db.run("UPDATE organization_activation SET state='activated', activated_at=1");
   const source = sqlite.bindLivePlans({ schedulerOf: () => fastScheduler });
   cleanups.push(async () => {
     await source.close();
@@ -89,6 +97,7 @@ async function seeded(shared = false) {
   );
   const broadcast = recordingBroadcaster();
   const options = {
+    dependencyContext: createLocalDependencyContext(source.stores),
     admission: NO_ADMISSION,
     clock: testClock,
     broadcast,
@@ -96,6 +105,15 @@ async function seeded(shared = false) {
   };
   const delivered: CommittedProjectEvent[] = [];
   const runnerSource = {
+    commandAccess: new SqliteCommandAccess(
+      sqlite.db,
+      new SqliteOrganizationAccess(
+        sqlite.db,
+        () => Promise.resolve('org-a'),
+        () => testClock.now(),
+      ),
+      new MachineCredentialRepository(sqlite.db, sqlite.gate),
+    ),
     committedFanout: {
       now: () => 10,
       deliverCommitted: (events: readonly CommittedProjectEvent[]) => {
@@ -106,12 +124,22 @@ async function seeded(shared = false) {
     uow: source.uow,
     announcements: broadcast,
     publicServices: servicesOver(source.stores, options),
-    batchServices: (scope: Scope, announcements: Broadcaster, admission: EditAdmission) =>
-      servicesOver(scope.stores, { ...options, broadcast: announcements, admission }),
+    batchServices: (
+      scope: Scope,
+      announcements: Broadcaster,
+      admission: EditAdmission,
+      dependencies: DependencyContext,
+    ) =>
+      servicesOver(scope.stores, {
+        ...options,
+        broadcast: announcements,
+        admission,
+        dependencyContext: { kind: 'bound', context: dependencies },
+        schedulerMode: 'capture',
+      }),
   };
   const runner = createPlanCommandRunner(runnerSource, nodeDigest);
   if (shared) {
-    sqlite.db.run("UPDATE organization_activation SET state='activated', activated_at=1");
     sqlite.db.run("UPDATE organization SET shared_people=1 WHERE id='org-a'");
     sqlite.db.run("UPDATE project SET start_date='2026-10-05' WHERE id IN ('a1','a2')");
     await source.stores.steps.add(
@@ -137,7 +165,7 @@ async function seeded(shared = false) {
       expect(
         await runner.runWithin(
           projectId,
-          'ada',
+          actor,
           [
             {
               kind: 'setEstimate',
@@ -148,8 +176,6 @@ async function seeded(shared = false) {
             { kind: 'setAssignee', workItemId, stepId, personId: 'agent' },
           ],
           context.access,
-          null,
-          null,
         ),
       ).toMatchObject({ ok: true });
     }
@@ -260,12 +286,17 @@ describe('conditional exact runtime claim', () => {
   });
 
   it('refuses stale basis after a real competing claim while ordinary claim semantics remain unchanged', async () => {
-    const { runner, request, snapshot } = await seeded();
+    const { runner, request, snapshot, source } = await seeded();
+    // Retained started review work may continue while its earlier dev step is unfinished.
+    await source.stores.progress.set(
+      { workItemId: 'leaf', stepId: 'review', state: 'in_progress', statedAt: 2 },
+      stamp,
+    );
     const claimRequest = await request();
     expect(
       await runner.runWithin(
         'a1',
-        'ada',
+        actor,
         [
           {
             kind: 'claimWorkItem',
@@ -276,8 +307,6 @@ describe('conditional exact runtime claim', () => {
           },
         ],
         context.access,
-        null,
-        null,
       ),
     ).toMatchObject({ ok: true });
     const before = await snapshot();
@@ -289,11 +318,16 @@ describe('conditional exact runtime claim', () => {
   });
 
   it('never adopts an unbound ordinary alreadyHeld claim', async () => {
-    const { runner, request, snapshot } = await seeded();
+    const { runner, request, snapshot, source } = await seeded();
+    // Retained started review work may continue while its earlier dev step is unfinished.
+    await source.stores.progress.set(
+      { workItemId: 'leaf', stepId: 'review', state: 'in_progress', statedAt: 2 },
+      stamp,
+    );
     expect(
       await runner.runWithin(
         'a1',
-        'ada',
+        actor,
         [
           {
             kind: 'claimWorkItem',
@@ -304,8 +338,6 @@ describe('conditional exact runtime claim', () => {
           },
         ],
         context.access,
-        null,
-        null,
       ),
     ).toMatchObject({ ok: true });
     const claimRequest = await request();
@@ -351,11 +383,9 @@ describe('conditional exact runtime claim', () => {
     expect(
       await runner.runWithin(
         'a1',
-        'ada',
+        actor,
         [{ kind: 'setProgress', workItemId: 'leaf', stepId: 'dev', state: 'done' }],
         context.access,
-        null,
-        null,
       ),
     ).toMatchObject({ ok: true });
     const before = await snapshot();
@@ -419,10 +449,15 @@ describe('conditional exact runtime claim', () => {
 
   it('selects the exact target after applying alongside another already-held step', async () => {
     const { runner, request, source } = await seeded();
+    // Retained started review work may continue while its earlier dev step is unfinished.
+    await source.stores.progress.set(
+      { workItemId: 'leaf', stepId: 'review', state: 'in_progress', statedAt: 2 },
+      stamp,
+    );
     expect(
       await runner.runWithin(
         'a1',
-        'ada',
+        actor,
         [
           {
             kind: 'claimWorkItem',
@@ -433,8 +468,6 @@ describe('conditional exact runtime claim', () => {
           },
         ],
         context.access,
-        null,
-        null,
       ),
     ).toMatchObject({ ok: true });
     const previous = await source.stores.claims.listByProject('a1');
@@ -464,7 +497,7 @@ describe('conditional exact runtime claim', () => {
     expect(
       await runner.runWithin(
         'a1',
-        'ada',
+        actor,
         [
           {
             kind: 'claimWorkItem',
@@ -475,8 +508,6 @@ describe('conditional exact runtime claim', () => {
           },
         ],
         context.access,
-        null,
-        null,
       ),
     ).toMatchObject({ ok: true });
     const held = (await source.stores.claims.listByProject('a1')).at(0);
@@ -498,7 +529,7 @@ describe('conditional exact runtime claim', () => {
     expect(
       await runner.runWithin(
         'a1',
-        'ada',
+        actor,
         [
           {
             kind: 'claimWorkItem',
@@ -509,19 +540,15 @@ describe('conditional exact runtime claim', () => {
           },
         ],
         context.access,
-        null,
-        null,
       ),
     ).toEqual(refusal);
     expect(await snapshot()).toEqual(before);
     expect(
       await runner.runWithin(
         'a1',
-        'ada',
+        actor,
         [{ kind: 'releaseWorkItem', workItemId: 'leaf', personId: 'agent', steps: ['dev'] }],
         context.access,
-        null,
-        null,
       ),
     ).toMatchObject({ ok: true });
     const fresh = await request();
@@ -634,6 +661,7 @@ describe('conditional exact runtime claim', () => {
     const before = await source.stores.runtimeCommands.inspectLedger();
     await source.close();
     const reopened = openSqliteSource({
+      dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
       dbPath,
       organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
     });
@@ -684,7 +712,7 @@ describe('conditional exact runtime claim', () => {
   it('retains resource exhaustion detail from existing default demand semantics', async () => {
     const { runner, request, source } = await seeded();
     const created = await runner.runDirectoryWithin(
-      'ada',
+      actor,
       [{ kind: 'createResource', name: 'RAM', resourceKind: 'divisible', unitLabel: 'GB' }],
       context.access,
     );
@@ -694,7 +722,7 @@ describe('conditional exact runtime claim', () => {
     expect(
       await runner.runWithin(
         'a1',
-        'ada',
+        actor,
         [
           { kind: 'setResourceCapacity', resourceId, units: 1 },
           { kind: 'setDemand', workItemId: 'other', resourceId, units: 1 },
@@ -708,8 +736,6 @@ describe('conditional exact runtime claim', () => {
           },
         ],
         context.access,
-        null,
-        null,
       ),
     ).toMatchObject({ ok: true });
     const claimRequest = await request();
@@ -879,7 +905,7 @@ describe('conditional exact runtime claim', () => {
     expect(
       await runner.runWithin(
         'a1',
-        'ada',
+        actor,
         [
           { kind: 'moveWorkItem', workItemId: 'leaf', parentId: 'other', afterId: null },
           {
@@ -890,8 +916,6 @@ describe('conditional exact runtime claim', () => {
           },
         ],
         context.access,
-        null,
-        null,
       ),
     ).toMatchObject({ ok: true });
     const parent = (await source.stores.claims.listByProject('a1')).find(

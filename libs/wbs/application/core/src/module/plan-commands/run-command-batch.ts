@@ -1,4 +1,4 @@
-import { actingPersonOf, type AuthenticatedUser, credentialPinOf } from '@wbs/contracts';
+import { type AuthenticatedUser } from '@wbs/contracts';
 
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { PlanCommand } from '../../service/plan-command';
@@ -31,18 +31,8 @@ export function runCommandBatch(
     return Promise.resolve({ ok: false, error: 'insufficient_scope' });
   }
   return input.projectId === null
-    ? graph.runDirectoryWithin(input.actor.id, input.commands, input.access)
-    : graph.runWithin(
-        input.projectId,
-        input.actor.id,
-        input.commands,
-        input.access,
-        credentialPinOf(input.actor.authentication),
-        // Proof: with `null` here, every case of
-        // `undo-acting-person.controller.db.test.ts` failed (0 pass, 5 fail);
-        // watched 2026-10-26.
-        actingPersonOf(input.actor.authentication),
-      );
+    ? graph.runDirectoryWithin(input.actor, input.commands, input.access)
+    : graph.runWithin(input.projectId, input.actor, input.commands, input.access);
 }
 
 /**
@@ -60,16 +50,5 @@ export function runCommandBatchAfter<R>(
   if (!input.actor.scopes.includes('write')) {
     return Promise.resolve({ ok: false, error: 'insufficient_scope' });
   }
-  return graph.runAfterWithin(
-    input.projectId,
-    input.actor.id,
-    prelude,
-    input.commands,
-    input.access,
-    credentialPinOf(input.actor.authentication),
-    // Proof: with `null` here, `an agent's step allowance edit is undone on its
-    // own stack` (undo-acting-person.controller.db.test.ts) answered the
-    // agent's undo 409 nothing_to_undo (5 pass, 1 fail); watched 2026-10-26.
-    actingPersonOf(input.actor.authentication),
-  );
+  return graph.runAfterWithin(input.projectId, input.actor, prelude, input.commands, input.access);
 }

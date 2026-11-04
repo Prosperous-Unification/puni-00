@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts:
+(pass) source borrowed shared reads include staged edits without closing their owner [165.46ms]
+
+ 1 pass
+ 10 filtered out
+ 0 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.18s]

@@ -112,11 +112,12 @@ export function StepBlockageSection({
   );
 }
 
-/** Names only nodes present in the retained row and step collections; unresolved roots throw in {@link stepBlockageOf}. */
+/** Names retained local nodes and captured foreign roots; unresolved roots throw in {@link stepBlockageOf}. */
 export function blockageLabelsOf(
   rows: readonly TreeRow[],
   steps: readonly StepView[],
   nodes: PlanRead['stepNodes'],
+  remote?: PlanRead['remoteBlockageLabels'],
 ): ReadonlyMap<string, string> {
   const labels = new Map(rows.map((row) => [row.id, `${row.number} · ${row.name}`]));
   const owners = new Map(rows.map((row) => [row.id, row]));
@@ -127,5 +128,8 @@ export function blockageLabelsOf(
     if (row !== undefined && step !== undefined)
       labels.set(node.id, `${node.reference ?? row.number} · ${row.name} · ${step.name}`);
   }
+  // Proof: omitting this insertion failed unavailable hold/step and both rename/clear mounted layouts (2026-10-23).
+  for (const { root, label } of remote ?? [])
+    labels.set(root.kind === 'step' ? root.nodeId : root.workItemId, label);
   return labels;
 }

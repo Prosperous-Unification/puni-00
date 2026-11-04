@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/module/optimization/connected-publication.test.ts:
+(pass) restart replaces an old-budget queued question with the installed exact question [182.66ms]
+
+ 1 pass
+ 12 filtered out
+ 0 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [2.61s]

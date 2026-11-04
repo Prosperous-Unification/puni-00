@@ -1,0 +1,25 @@
+Command: bun test tools/tool-remote-scripts/src/solver-supervisor-install-operation.test.ts --preload ./tools/test/scratch/preload.ts --test-name-pattern policy refusal
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/solver-supervisor-install-operation.test.ts:
+629 |   const host = await fixture();
+630 |   const path = join(host.state, 'edge-policy.json');
+631 |   const before = await stat(path);
+632 |   const bytes = await readFile(path, 'utf8');
+633 |   const refused = await host.run('policy');
+634 |   expect(refused.code).not.toBe(0);
+                                 ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/solver-supervisor-install-operation.test.ts:634:28)
+(fail) policy refusal precedes every installed replacement; successful install preserves policy identity [225.44ms]
+
+ 0 pass
+ 46 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [268.00ms]
+
+Exit: 1

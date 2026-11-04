@@ -1,0 +1,628 @@
+Listing tests:
+  [chromium] › arrange-by-schedule.spec.ts:110:3 › arranging a plan by its schedule, in a browser › puts the row whose bar starts first at the top
+  [chromium] › arrange-by-schedule.spec.ts:125:3 › arranging a plan by its schedule, in a browser › draws the arranged rows against bars that start left to right
+  [chromium] › arrange-by-schedule.spec.ts:158:3 › arranging a plan by its schedule, in a browser › moves a frozen row and leaves the number that left the tool alone
+  [chromium] › arrange-by-schedule.spec.ts:183:3 › arranging a plan by its schedule, in a browser › says why it cannot arrange a plan whose dependencies run in a circle
+  [chromium] › attempts.spec.ts:76:3 › attempts on the step card, in a browser (step-node-attempts D7) › starts, ends and undoes an attempt, printed in the project zone
+  [chromium] › attempts.spec.ts:124:3 › attempts on the step card, in a browser (step-node-attempts D7) › removes an attempt, and one Undo restores it under its own number
+  [chromium] › attempts.spec.ts:150:3 › attempts on the step card, in a browser (step-node-attempts D7) › captures the attempt surfaces in dark and at 375px, and their ink clears its surface
+  [chromium] › browser-packages.spec.ts:16:1 › the three libraries run in Chromium from this app’s Vite build
+  [chromium] › card-lanes.spec.ts:303:3 › every cell card leaves its own column clear › the pointer walks down each column and every row answers for itself
+  [chromium] › card-lanes.spec.ts:374:3 › every cell card leaves its own column clear › an informative card stands beside its cell, not over its column
+  [chromium] › card-lanes.spec.ts:450:3 › every cell card leaves its own column clear › every card goes when the pointer moves off its cell
+  [chromium] › card-lanes.spec.ts:484:3 › every cell card leaves its own column clear › the links card leaves its own column clear too
+  [chromium] › control-edge.spec.ts:24:3 › outline controls paint a 3:1 edge, in light (F-124)
+  [chromium] › control-edge.spec.ts:24:3 › outline controls paint a 3:1 edge, in dark (F-124)
+  [chromium] › cross-project-refresh.real.spec.ts:46:1 › A completion refreshes admitted B and C through their own real trees and reconnect replay
+  [chromium] › dark-mode.spec.ts:250:3 › the theme control › repaints the page, and the answer outlives the tab
+  [chromium] › dark-mode.spec.ts:274:3 › the theme control › is dark at the first paint, before the app has mounted
+  [chromium] › dark-mode.spec.ts:296:3 › the theme control › follows the machine while nothing has been chosen, and stops when something is
+  [chromium] › dark-mode.spec.ts:320:3 › the theme control › hands the platform its own controls in the right palette
+  [chromium] › dark-mode.spec.ts:332:3 › the theme control › takes the platform’s grey off the light page too, not only the dark one
+  [chromium] › dark-mode.spec.ts:368:3 › the theme control › answers the arrows after a palette was taken with the mouse
+  [chromium] › dark-mode.spec.ts:407:3 › the theme control › leaves a modified Enter to whatever it was aimed at
+  [chromium] › dark-mode.spec.ts:430:3 › what the dark palette paints › the Gantt’s row labels stand off the column they are in
+  [chromium] › dark-mode.spec.ts:455:3 › what the dark palette paints › the quiet trio in a folded step cell stands off the row it is in
+  [chromium] › dark-mode.spec.ts:487:3 › what the dark palette paints › the way out of the app stands off the menu it is in
+  [chromium] › dark-mode.spec.ts:507:3 › what the dark palette paints › the header’s page links are chrome rather than the browser’s blue
+  [chromium] › dark-mode.spec.ts:542:3 › what the dark palette paints › the dependency picker is a card of the palette’s own colour
+  [chromium] › dark-mode.spec.ts:567:3 › what the dark palette paints › nothing on the page is painted a colour the palette never names
+  [chromium] › deadline.spec.ts:272:1 › the phone deadline sheet leaves its card visible and drives Save and Clear
+  [chromium] › deadline.spec.ts:351:1 › renders impossible marks on both faces and downloads both deadline columns
+  [chromium] › deps-cell.spec.ts:112:3 › the deps cell rests on one line › rests the seven-chip row at a chipless row’s height
+  [chromium] › deps-cell.spec.ts:165:3 › the deps cell rests on one line › a clipped chip is invisible at rest, and an unclipped one is not
+  [chromium] › deps-cell.spec.ts:246:3 › the deps cell offers an always-visible add button › keeps the add button visible in a cell whose chips are clipped
+  [chromium] › deps-cell.spec.ts:308:3 › the deps cell offers an always-visible add button › opens the picker from the add button, with the caret in the box
+  [chromium] › deps-cell.spec.ts:321:3 › the deps cell offers an always-visible add button › closes the picker when the add button is pressed a second time
+  [chromium] › deps-cell.spec.ts:394:3 › the deps cell offers an always-visible add button › rests an empty cell at its own height while the picker is open
+  [chromium] › deps-cell.spec.ts:485:3 › the deps cell offers an always-visible add button › picks the add button up off the row it is hovered on, in both palettes
+  [chromium] › deps-cell.spec.ts:632:3 › the cell answers the pointer that is in it › lights the whole set from a crowded cell at its default width
+  [chromium] › deps-cell.spec.ts:717:3 › the cell answers the pointer that is in it › narrows to one pill when the pointer settles on it, from the cell
+  [chromium] › directory.spec.ts:93:3 › the directory has an address › opens from the header, marks itself, and survives a reload
+  [chromium] › directory.spec.ts:113:3 › the directory has an address › opens a cold deep link through the fixed local identity
+  [chromium] › directory.spec.ts:126:3 › the directory, edited against be-01 › adds, renames, and chips a membership
+  [chromium] › directory.spec.ts:159:3 › the directory, edited against be-01 › names what a removal would take, and takes it only once confirmed
+  [chromium] › directory.spec.ts:213:3 › the directory on a phone › stacks the two panels into one column, and does not scroll sideways
+  [chromium] › directory.spec.ts:254:3 › the directory on a phone › gives every control it offers at least 44px in both dimensions
+  [chromium] › directory.spec.ts:289:3 › the directory on a laptop › puts the two panels side by side
+  [chromium] › directory.spec.ts:306:5 › the directory’s load lines › are the palette’s ink, not the browser’s link blue, light (F-102)
+  [chromium] › directory.spec.ts:306:5 › the directory’s load lines › are the palette’s ink, not the browser’s link blue, dark (F-102)
+  [chromium] › drop-cue.spec.ts:135:3 › the drop line starts at the depth the row will land at, in light (F-128)
+  [chromium] › drop-cue.spec.ts:135:3 › the drop line starts at the depth the row will land at, in dark (F-128)
+  [chromium] › drop-cue.spec.ts:165:1 › a drop leaves no tool hint waiting where the drag began (F-129)
+  [chromium] › external-refs.spec.ts:251:3 › the ref column, in a browser › three marks stand inside the cell, and move neither the row nor the column
+  [chromium] › external-refs.spec.ts:353:3 › the ref column, in a browser › the heading is the word Links, and the column is ruled off from the name
+  [chromium] › external-refs.spec.ts:403:3 › the ref column, in a browser › the same at 390×844, where the plan is cards rather than a table
+  [chromium] › external-refs.spec.ts:449:5 › the ref column, in a browser › every mark is legible in the light palette
+  [chromium] › external-refs.spec.ts:449:5 › the ref column, in a browser › every mark is legible in the dark palette
+  [chromium] › external-refs.spec.ts:480:3 › the ref column, in a browser › a stored javascript: URL never becomes an href, on either surface
+  [chromium] › external-refs.spec.ts:517:3 › the ref column, in a browser › the card is drawn on top of the rows below it, not under them
+  [chromium] › external-refs.spec.ts:570:3 › the ref column, in a browser › a card line says what the link is called, and tints under the pointer
+  [chromium] › external-refs.spec.ts:620:3 › the ref column, in a browser › a name typed into the editor is what the card then says
+  [chromium] › external-refs.spec.ts:659:3 › the ref column, in a browser › the pointer opens the card from anywhere in the cell, not just off a dot
+  [chromium] › external-refs.spec.ts:757:3 › the ref column, in a browser › the pointer walks onto the card and follows a link
+  [chromium] › external-refs.spec.ts:873:3 › the ref column, in a browser › the card as a reader sees it
+  [chromium] › fault-boundary.spec.ts:26:1 › the root fault boundary discloses a public report and nothing raw
+  [chromium] › gantt-attempts.spec.ts:108:1 › paint, completed forecast, translated hits and tick collision list agree at 15 min
+  [chromium] › gantt-detail.spec.ts:59:3 › what the chart’s detail switch hides, in a browser › draws an uncosted row with the detail off, and paints it as a guess
+  [chromium] › gantt-detail.spec.ts:108:3 › what the chart’s detail switch hides, in a browser › leaves the uncosted row alone when the switch is pressed
+  [chromium] › gantt-detail.spec.ts:199:3 › the detail switch across a project switch, in a browser › decides the never-said default again for the project chosen next (F-088)
+  [chromium] › gantt-legibility.spec.ts:247:5 › Gantt legibility (ui-review 2026-10-13) › every bar label clears 4.5:1 on its bar, light (F-038)
+  [chromium] › gantt-legibility.spec.ts:247:5 › Gantt legibility (ui-review 2026-10-13) › every bar label clears 4.5:1 on its bar, dark (F-038)
+  [chromium] › gantt-legibility.spec.ts:277:3 › Gantt legibility (ui-review 2026-10-13) › a strip toggle that is off reads as off, not as disabled (F-013)
+  [chromium] › gantt-legibility.spec.ts:319:3 › Gantt legibility (ui-review 2026-10-13) › Detail opens on for a plan with links even when the chart opens first (F-065)
+  [chromium] › gantt-legibility.spec.ts:360:3 › Gantt legibility (ui-review 2026-10-13) › labels never overlap one another on the chart (F-012)
+  [chromium] › gantt-legibility.spec.ts:393:3 › Gantt legibility (ui-review 2026-10-13) › a row whose steps share one instant writes its number once, whole (F-101)
+  [chromium] › gantt-legibility.spec.ts:466:3 › Gantt legibility (ui-review 2026-10-13) › a compressed axis names its months and the chart fills the panel (F-023, F-026)
+  [chromium] › gantt-legibility.spec.ts:494:5 › Gantt legibility (ui-review 2026-10-13) › full screen fills its width at every rung, 1440px (F-062)
+  [chromium] › gantt-legibility.spec.ts:494:5 › Gantt legibility (ui-review 2026-10-13) › full screen fills its width at every rung, 1024px (F-062)
+  [chromium] › gantt-minute-estimate.spec.ts:79:1 › a persisted two-minute estimate schedules a 4px tick with an 18px pointer and native card
+  [chromium] › gantt-minute-estimate.spec.ts:120:1 › missing trusted native minutes on an API read reaches the visible Error Boundary
+  [chromium] › gantt-minute-estimate.spec.ts:136:1 › fractional native minutes are refused by the real API without changing the stored charge
+  [chromium] › gantt-minute-estimate.spec.ts:179:1 › a missing project zone visibly disables attempts while retaining the forecast
+  [chromium] › gantt.spec.ts:730:3 › the chart, after the browser has scaled it › draws a bar at the pixel its calendar day says, under its own axis cell
+  [chromium] › gantt.spec.ts:836:3 › the chart, after the browser has scaled it › draws the arrow head and the caret where they can be seen
+  [chromium] › gantt.spec.ts:996:3 › the chart, after the browser has scaled it › starts a successor beside the predecessor nobody estimated
+  [chromium] › gantt.spec.ts:1072:3 › the chart, after the browser has scaled it › paints an arrow that routes off either end of the schedule
+  [chromium] › gantt.spec.ts:1157:3 › the chart, after the browser has scaled it › opens with the detail on, and keeps the answer through a reload
+  [chromium] › gantt.spec.ts:1212:3 › the chart, after the browser has scaled it › draws every mark at rest, and drops only the bracket once the detail is off
+  [chromium] › gantt.spec.ts:1257:3 › the chart, after the browser has scaled it › holds the labels at the left edge with the chart scrolled fully right
+  [chromium] › gantt.spec.ts:1294:3 › the chart, after the browser has scaled it › scrolls the plan back to the row whose bar was clicked, and lands the caret
+  [chromium] › gantt.spec.ts:1351:3 › the chart under a plan being edited › redraws the open chart as each schedule input changes
+  [chromium] › gantt.spec.ts:1384:3 › the chart under a plan being edited › moves the axis onto the day picked for the plan, with the box never left
+  [chromium] › gantt.spec.ts:1469:3 › the chart on a phone › holds its labels and leaves the page still
+  [chromium] › gantt.spec.ts:1490:3 › the chart on a phone › shows more of the plan at every rung, and more again with the names put away
+  [chromium] › gantt.spec.ts:1545:3 › the chart on a phone › gives the chart the whole screen, and gives it back on Escape
+  [chromium] › gantt.spec.ts:1655:3 › the chart on a phone › keeps keyboard focus inside full screen and restores its trigger
+  [chromium] › gantt.spec.ts:1681:3 › the chart on a phone › a picked scale reaches Reset layout on the phone, and Reset puts it back at Days
+  [chromium] › gantt.spec.ts:1717:3 › the chart on a phone › takes the cards face to a row when its bar is clicked
+  [chromium] › gantt.spec.ts:1830:3 › the surface a bar opens, as a browser places it › reads the hovered bar’s own dates, with the chart scrolled partway
+  [chromium] › gantt.spec.ts:1876:3 › the surface a bar opens, as a browser places it › names an axis day’s month on hover, from the chart and not the browser
+  [chromium] › gantt.spec.ts:1894:3 › the surface a bar opens, as a browser places it › flips a surface above a bar that has no room below it
+  [chromium] › gantt.spec.ts:1946:3 › the surface a bar opens, as a browser places it › clamps the right-most bar’s surface inside the window
+  [chromium] › gantt.spec.ts:2000:3 › the surface a bar opens, as a browser places it › takes the surface away when the panel is scrolled under it
+  [chromium] › gantt.spec.ts:2022:3 › the surface a bar opens, as a browser places it › picks the row on Space, and does not scroll the panel doing it
+  [chromium] › gantt.spec.ts:2142:3 › a bar on a touch screen › opens facts first in full screen, then dismisses or takes a deliberate second tap
+  [chromium] › gantt.spec.ts:2172:3 › a bar on a touch screen › takes the plan to the row and opens no surface at all
+  [chromium] › gantt.spec.ts:2184:3 › a bar on a touch screen › opens nothing under a finger that stays on the bar
+  [chromium] › gantt.spec.ts:2214:3 › a bar on a touch screen › opens a bar against the bottom edge, and keeps its card on the glass
+  [chromium] › gantt.spec.ts:2448:3 › the chart edge the reader drags › gives the chart the screen the pointer asks for, remembers it, and resets
+  [chromium] › gantt.spec.ts:2499:3 › the chart edge the reader drags › stops at the floor, and is still there to be dragged back open
+  [chromium] › gantt.spec.ts:2514:3 › the chart edge the reader drags › stays inside the column it lives in
+  [chromium] › gantt.spec.ts:2580:3 › the chart edge the reader drags › a height dragged in a tall window is clamped in a short one
+  [chromium] › gantt.spec.ts:2616:3 › the chart edge the reader drags › a wider window gives the dragged height back
+  [chromium] › gantt.spec.ts:2675:3 › the chart edge the reader drags › re-measures the room when the toolbar wraps under a new control
+  [chromium] › gantt.spec.ts:2770:8 › the chart edge the reader drags › dragging up moves the boundary up
+  [chromium] › gantt.spec.ts:2811:3 › the chart edge the reader drags › owns every point on its strip, rather than the chart sliding under it
+  [chromium] › gantt.spec.ts:2937:3 › the bottom edge of a chart dragged short › fades while there is chart below it, and lifts at the last row
+  [chromium] › gantt.spec.ts:3001:3 › the bottom edge of a chart dragged short › covers the visible band with the calendar scrolled right
+  [chromium] › gantt.spec.ts:3027:3 › the bottom edge of a chart dragged short › keeps the calendar over the bars, and every bar on its own label
+  [chromium] › gantt.spec.ts:3168:3 › the pointed row, across both faces › lights the table row, the row label and a band from a bar
+  [chromium] › gantt.spec.ts:3199:3 › the pointed row, across both faces › lights the same colour on an even row as on an odd one
+  [chromium] › gantt.spec.ts:3257:3 › the pointed row, across both faces › lights the chart from a table row
+  [chromium] › gantt.spec.ts:3282:3 › the pointed row, across both faces › clears when the pointer leaves both faces
+  [chromium] › gantt.spec.ts:3297:3 › the pointed row, across both faces › moves neither face
+  [chromium] › gantt.spec.ts:3314:3 › the pointed row, across both faces › keeps an open editor and its half-typed value
+  [chromium] › gantt.spec.ts:3431:3 › how far a dependency reaches, from the chart › the successor bar moves when the project changes its reach
+  [chromium] › gantt.spec.ts:3477:3 › how far a dependency reaches, from the chart › the arrow leaves the slice the reach names
+  [chromium] › gantt.spec.ts:3518:3 › the chart docks to the bottom of its column › sits at the column’s bottom edge however short the plan is
+  [chromium] › gantt.spec.ts:3555:3 › the chart docks to the bottom of its column › and the handle still grows the chart, which an auto margin stopped
+  [chromium] › gantt.spec.ts:3598:3 › the chart downloaded as a standalone .svg › a name longer than the gutter ends before the first day column
+  [chromium] › gantt.spec.ts:3882:3 › the marker rule, measured in the columns it paints › is one opaque hairline at every rung, and the only body ink the marker adds
+  [chromium] › gantt.spec.ts:4083:3 › a calendar marker, made and unmade in a browser › survives a reload, and a delete takes both its marks away
+  [chromium] › gantt.spec.ts:4257:3 › a dated axis cell says where the keyboard is › grows a focus indicator when the keyboard reaches it
+  [chromium] › gantt.spec.ts:4403:3 › a marker's rule against the bars, in pixels › leaves an opaque bar it passes under pixel-identical
+  [chromium] › gantt.spec.ts:4524:3 › a marker's rule against the bars, in pixels › shows the rule through an assumed bar it passes under
+  [chromium] › gantt.spec.ts:4826:3 › a marker chip's contrast, as the compositor drew it › clears 3:1 against the weekday cell it stands on, in light
+  [chromium] › gantt.spec.ts:4862:3 › a marker chip's contrast, as the compositor drew it › clears 3:1 against the weekend cell it stands on, in light
+  [chromium] › gantt.spec.ts:4882:5 › a marker chip's contrast, as the compositor drew it › in dark › clears 3:1 against the weekday cell it stands on
+  [chromium] › gantt.spec.ts:4889:5 › a marker chip's contrast, as the compositor drew it › in dark › clears 3:1 against the weekend cell it stands on
+  [chromium] › gantt.spec.ts:5004:3 › the crowded day collapses to a +N a pointer can open › draws its rung’s chips, counts the rest, and names the whole day on hover
+  [chromium] › header.spec.ts:352:3 › the header bar, measured by a browser › gives the table the height the chrome stopped taking
+  [chromium] › header.spec.ts:369:3 › the header bar, measured by a browser › ends the frame at the bottom of the window, and stops the page scrolling
+  [chromium] › header.spec.ts:388:3 › the header bar, measured by a browser › keeps the header to one row at every laptop width
+  [chromium] › header.spec.ts:410:3 › the header bar, measured by a browser › grows page links to phone touch targets only below the card breakpoint
+  [chromium] › header.spec.ts:436:3 › the header bar, measured by a browser › keeps the page from scrolling at all at 125% zoom
+  [chromium] › header.spec.ts:466:3 › the header bar, measured by a browser › holds the five things it is one row of
+  [chromium] › header.spec.ts:527:3 › the header bar, read by eye and measured › keeps the picker readable and the roster unclipped from 900 up (F-011)
+  [chromium] › header.spec.ts:576:3 › the header bar, read by eye and measured › is two rows on a phone, with 44px project controls (F-010, F-041)
+  [chromium] › header.spec.ts:601:3 › the header bar, read by eye and measured › is one row off a project on a phone (F-047)
+  [chromium] › header.spec.ts:612:3 › the header bar, read by eye and measured › draws the account menu in one control style (F-017)
+  [chromium] › header.spec.ts:658:5 › the header bar, read by eye and measured › draws a pressed toggle filled and its neighbour plain, 3:1 apart, light (F-116)
+  [chromium] › header.spec.ts:658:5 › the header bar, read by eye and measured › draws a pressed toggle filled and its neighbour plain, 3:1 apart, dark (F-116)
+  [chromium] › header.spec.ts:709:3 › the open project picker, measured by a browser › the widest entry be-01 permits stays inside the window
+  [chromium] › header.spec.ts:749:3 › the open project picker, measured by a browser › a long entry wraps whole and its full text is still readable
+  [chromium] › header.spec.ts:774:3 › the open project picker, measured by a browser › the portalled card follows its option when the listbox scrolls
+  [chromium] › header.spec.ts:814:3 › the open project picker, measured by a browser › two imports of one long name read apart at every width
+  [chromium] › header.spec.ts:934:3 › the open project picker, measured by a browser › every entry’s date is still on screen at 1024 (F-107)
+  [chromium] › header.spec.ts:981:3 › the open project picker, measured by a browser › a short entry is shown whole
+  [chromium] › hints.spec.ts:145:3 › hints are the page’s own › no control anywhere on the plan carries a native tooltip
+  [chromium] › hints.spec.ts:176:3 › hints are the page’s own › no mark anywhere on the plan carries both a hint and a fact
+  [chromium] › hints.spec.ts:209:3 › hints are the page’s own › a toolbar control waits two seconds, and rings while it does
+  [chromium] › hints.spec.ts:346:3 › hints are the page’s own › a press ends the wait, and the ring with it
+  [chromium] › hints.spec.ts:421:3 › hints are the page’s own › a pressed control explains itself again once the pointer has left
+  [chromium] › hints.spec.ts:455:3 › hints are the page’s own › every column’s pop-up stands diagonally: past its cell and past its row
+  [chromium] › hints.spec.ts:536:3 › hints are the page’s own › a card reads in the table’s own type, wherever it is drawn
+  [chromium] › hints.spec.ts:595:3 › hints are the page’s own › a project fact answers at once and never rings
+  [chromium] › home.spec.ts:16:1 › offers the account’s projects, Create and Import, and remembers the one opened
+  [chromium] › home.spec.ts:60:1 › imports a plan from the card and opens it
+  [chromium] › hover-cards.spec.ts:95:3 › a hover card answers at once, whole, and out past its cell › opens the folded figure in the same breath as the mouse arrives
+  [chromium] › hover-cards.spec.ts:108:3 › a hover card answers at once, whole, and out past its cell › paints the card past the bottom of a 96px cell
+  [chromium] › hover-cards.spec.ts:158:3 › a hover card answers at once, whole, and out past its cell › opens the Start cell’s sentence in the same breath, and carries no title
+  [chromium] › hover-cards.spec.ts:202:3 › a hover card answers at once, whole, and out past its cell › paints the Start cell’s card past the edge of a 52px column
+  [chromium] › hover-cards.spec.ts:253:3 › a hover card answers at once, whole, and out past its cell › lets a click through to the row underneath it
+  [chromium] › hover-cards.spec.ts:407:3 › hovering a dependency lights the rows it names › the cell lights every dependency’s row, and dark again on leaving
+  [chromium] › hover-cards.spec.ts:432:3 › hovering a dependency lights the rows it names › a pill narrows the light to its row and tints its line in the card
+  [chromium] › hover-cards.spec.ts:474:3 › hovering a dependency lights the rows it names › travels through passive card space to the third row and leaves empty padding click-through
+  [chromium] › hover-cards.spec.ts:602:3 › hovering a dependency lights the rows it names › the tint moves the same way on both surfaces, in both palettes
+  [chromium] › hover-cards.spec.ts:663:3 › hovering a dependency lights the rows it names › the keyboard gets the same light, from the box’s focus
+  [chromium] › hover-cards.spec.ts:692:3 › hovering a dependency lights the rows it names › the light outranks the pointer on a banded row as well as a plain one
+  [chromium] › hover-cards.spec.ts:744:3 › hovering a dependency lights the rows it names › a clipped chip has no hover target, and the cell still lights its row
+  [chromium] › hover-cards.spec.ts:819:3 › the Name cell answers from its marker alone › opens nothing from the cell and the rendered notes from the marker
+  [chromium] › hover-cards.spec.ts:837:3 › the Name cell answers from its marker alone › leaves its own row and the marker lane clear
+  [chromium] › hover-cards.spec.ts:923:3 › the Name cell answers from its marker alone › is still there after a flick of the hand towards it
+  [chromium] › hover-cards.spec.ts:968:3 › the Name cell answers from its marker alone › goes when the pointer leaves the marker for anywhere but the card
+  [chromium] › hover-cards.spec.ts:1000:3 › the Name cell answers from its marker alone › goes when the hand leaves the marker through the cell beside it
+  [chromium] › hover-cards.spec.ts:1081:3 › the Name cell answers from its marker alone › keeps the preview while the hand crosses a live trigger on its way to it
+  [chromium] › hover-cards.spec.ts:1124:3 › the Name cell answers from its marker alone › lets a pointer that rests on another trigger take over
+  [chromium] › hover-cards.spec.ts:1146:3 › the Name cell answers from its marker alone › the editing preview is the same card as the hover preview, and stays on screen
+  [chromium] › hover-cards.spec.ts:1202:3 › the Name cell answers from its marker alone › while editing, the notes marker opens no second preview
+  [chromium] › hover-cards.spec.ts:1225:3 › the Name cell answers from its marker alone › a link in the notes is followable, and drawn like the name’s
+  [chromium] › hover-cards.spec.ts:1280:3 › the Name cell answers from its marker alone › Escape saves the note and closes the editor
+  [chromium] › hover-cards.spec.ts:1326:3 › the Name cell answers from its marker alone › Done stands by the notes marker, and closes the editor when pressed
+  [chromium] › hover-cards.spec.ts:1390:3 › the Name cell answers from its marker alone › scrolls a note taller than the preview once the pointer is on it
+  [chromium] › hover-cards.spec.ts:1451:3 › the Name cell answers from its marker alone › marks only the rows that have notes
+  [chromium] › hover-cards.spec.ts:1498:3 › the Name cell’s preview takes the room around its cell › gives a long note the room below rather than 320px of it
+  [chromium] › hover-cards.spec.ts:1530:3 › the Name cell’s preview takes the room around its cell › opens the card above a row low in the table
+  [chromium] › hover-cards.spec.ts:1638:5 › the pointer moves a row by the same ink on both steps of the stripe › a pointed row is one colour, banded or not, in light
+  [chromium] › hover-cards.spec.ts:1699:5 › the pointer moves a row by the same ink on both steps of the stripe › a hovered banded row is nobody else’s colour, in light
+  [chromium] › hover-cards.spec.ts:1722:5 › the pointer moves a row by the same ink on both steps of the stripe › a focused bar keeps one row light under the pointer on both stripes, in light
+  [chromium] › hover-cards.spec.ts:1638:5 › the pointer moves a row by the same ink on both steps of the stripe › a pointed row is one colour, banded or not, in dark
+  [chromium] › hover-cards.spec.ts:1699:5 › the pointer moves a row by the same ink on both steps of the stripe › a hovered banded row is nobody else’s colour, in dark
+  [chromium] › hover-cards.spec.ts:1722:5 › the pointer moves a row by the same ink on both steps of the stripe › a focused bar keeps one row light under the pointer on both stripes, in dark
+  [chromium] › hover-cards.spec.ts:1788:3 › a pointed row the plan stops drawing › stops outranking the bar the pointer has moved to
+  [chromium] › hover-cards.spec.ts:1870:3 › a Gantt row’s own line › points the row from the empty part of its line
+  [chromium] › hover-cards.spec.ts:1906:3 › a Gantt row’s own line › points a row from a stretch of its line with no bar on it
+  [chromium] › hover-cards.spec.ts:1936:3 › a Gantt row’s own line › crossing from a table row to another row’s line moves every light with it
+  [chromium] › hover-cards.spec.ts:1966:3 › a Gantt row’s own line › clears when the pointer leaves the chart
+  [chromium] › hover-cards.spec.ts:1983:1 › pointing a visible paired row neither scrolls nor requests row navigation
+  [chromium] › import-with-ai.spec.ts:11:1 › Export / Import opens Import with AI, copies the guide prompt and returns the focus
+  [chromium] › keyboard.spec.ts:232:3 › the command chords, in a browser › types a note under a name with Enter, and the box grows to hold it
+  [chromium] › keyboard.spec.ts:266:3 › the command chords, in a browser › Cmd+Enter saves the cell before it creates the row it lands in
+  [chromium] › keyboard.spec.ts:315:3 › the command chords, in a browser › a chord after a blur whose save is still out waits for that save
+  [chromium] › keyboard.spec.ts:362:3 › the command chords, in a browser › Cmd+Enter in an open team picker takes no entry and creates none
+  [chromium] › keyboard.spec.ts:397:3 › the command chords, in a browser › Ctrl+D arms on the first press and deletes on the second
+  [chromium] › keyboard.spec.ts:429:3 › the command chords, in a browser › a key still held when the row goes does not arm the row after it
+  [chromium] › keyboard.spec.ts:465:3 › the command chords, in a browser › arming one row and pressing Ctrl+D in another arms the second, and deletes neither
+  [chromium] › keyboard.spec.ts:488:3 › the command chords, in a browser › a modified Enter or Space on a menu item takes nothing
+  [chromium] › keyboard.spec.ts:530:3 › the command chords, in a browser › a modified Enter or Space on a freeze menu item takes nothing
+  [chromium] › keyboard.spec.ts:582:3 › the command chords, in a browser › a modified Enter, Space or ↓ does not open the ⋯ menu
+  [chromium] › keyboard.spec.ts:603:3 › the command chords, in a browser › a click opens the earliest-start editor, which a mousedown did not
+  [chromium] › keyboard.spec.ts:626:3 › the command chords, in a browser › Escape leaves the stored day alone, blur and all
+  [chromium] › keyboard.spec.ts:671:3 › the command chords, in a browser › Escape puts the project start date back, and leaving it does not send the abandoned day
+  [chromium] › keyboard.spec.ts:715:3 › the command chords, in a browser › saves a day picked from the native calendar when the field is left
+  [chromium] › keyboard.spec.ts:746:3 › the command chords, in a browser › does not lose the edit to a Tab out of the date segments
+  [chromium] › keyboard.spec.ts:772:3 › the command chords, in a browser › saves only the year that was typed, digit by digit, in a real Chrome
+  [chromium] › keyboard.spec.ts:820:3 › the command chords, in a browser › a held Ctrl+D arms once and never deletes
+  [chromium] › keyboard.spec.ts:873:3 › the shortcuts sheet holds the keyboard like a modal › Tab never leaves it, and Escape still closes it afterwards
+  [chromium] › keyboard.spec.ts:918:3 › the shortcuts sheet holds the keyboard like a modal › a click on the backdrop closes it, and a click on the sheet does not
+  [chromium] › layout.spec.ts:990:3 › the table, measured by a browser › takes the hidden Links width out of the fresh layout without leaving a pinned gap
+  [chromium] › layout.spec.ts:1021:3 › the table, measured by a browser › leaves a picture of the table for the eye that has to judge the widths
+  [chromium] › layout.spec.ts:1032:3 › the table, measured by a browser › takes a hidden column’s width off the table, and the frame stops scrolling
+  [chromium] › layout.spec.ts:1076:3 › the table, measured by a browser › lays the heading row out with no two cells on top of each other
+  [chromium] › layout.spec.ts:1085:3 › the table, measured by a browser › lays every body row out with no two cells on top of each other
+  [chromium] › layout.spec.ts:1092:3 › the table, measured by a browser › keeps every control inside the cell it belongs to
+  [chromium] › layout.spec.ts:1110:3 › the table, measured by a browser › holds a trio and its figure on one line of a folded step cell
+  [chromium] › layout.spec.ts:1268:3 › the table, measured by a browser › yields the trio to an ellipsis where a staffed cell’s result is fractional
+  [chromium] › layout.spec.ts:1443:3 › the table, measured by a browser › a toolbar panel closes when the pointer goes down outside it
+  [chromium] › layout.spec.ts:1474:3 › the table, measured by a browser › a step’s figure lands at one x whether or not the row is assigned
+  [chromium] › layout.spec.ts:1576:3 › the table, measured by a browser › stands a parent’s figure in the same slot as its leaves’
+  [chromium] › layout.spec.ts:1662:3 › the table, measured by a browser › puts the pinned columns exactly where they are declared to sit
+  [chromium] › layout.spec.ts:1672:3 › the table, measured by a browser › puts Status in the pinned block where it is declared, once it is shown
+  [chromium] › layout.spec.ts:1696:3 › the table, measured by a browser › holds the pinned columns there once the table is scrolled sideways
+  [chromium] › layout.spec.ts:1711:3 › the table, measured by a browser › widens a column by dragging its header edge, and moves every pin behind it
+  [chromium] › layout.spec.ts:1758:3 › the table, measured by a browser › still has the width it was dragged to after the browser is reloaded
+  [chromium] › layout.spec.ts:1789:3 › the table, measured by a browser › gives every column back to the width the layout resolves for it now
+  [chromium] › layout.spec.ts:1824:3 › the table, measured by a browser › offers a handle on every column, the Name column included
+  [chromium] › layout.spec.ts:1846:3 › the table, measured by a browser › widens the Name column by dragging its header edge, with its <col> silent
+  [chromium] › layout.spec.ts:1901:3 › the table, measured by a browser › keeps every other column on its envelope while Name holds a dragged width
+  [chromium] › layout.spec.ts:1955:3 › the table, measured by a browser › keeps a depth-6 name readable and editable with Name dragged to its floor
+  [chromium] › layout.spec.ts:2031:3 › the table, measured by a browser › paints the pinned block over the row that scrolls behind it, and stops there
+  [chromium] › layout.spec.ts:2092:3 › the table, measured by a browser › opens the dependency list out past the bottom of its own cell
+  [chromium] › layout.spec.ts:2117:3 › the table, measured by a browser › opens the notes preview out past the bottom of the name cell
+  [chromium] › layout.spec.ts:2147:3 › the table, measured by a browser › moves the caret through a wrapped name before it leaves the row
+  [chromium] › layout.spec.ts:2202:3 › the table, measured by a browser › opens a row’s actions menu out past the bottom of its own cell
+  [chromium] › layout.spec.ts:2235:3 › the table, measured by a browser › drives the actions menu from the keyboard, and gives the focus back
+  [chromium] › layout.spec.ts:2318:3 › the table, measured by a browser › holds the folded budget at 1280, and says where it stops
+  [chromium] › layout.spec.ts:2498:3 › the table, measured by a browser › fits every laptop width with the steps folded
+  [chromium] › layout.spec.ts:2517:3 › the table, measured by a browser › gives the name column everything the other columns did not take, up to its cap
+  [chromium] › layout.spec.ts:2562:3 › the table, measured by a browser › stops the table at the Name cap, and leaves the rest of the window empty
+  [chromium] › layout.spec.ts:2592:3 › the table, measured by a browser › sets the grid body’s type below the page’s own, and keeps a row inside its budget
+  [chromium] › layout.spec.ts:2660:3 › the table, measured by a browser › holds the equation with one step unfolded, and scrolls only where it must
+  [chromium] › layout.spec.ts:2708:3 › the table, measured by a browser › opens every step at once, scrolls the frame for it, and holds the pinned block
+  [chromium] › layout.spec.ts:2790:3 › the table, measured by a browser › fits a deep plan with an unbreakable name and six dependencies
+  [chromium] › layout.spec.ts:2937:3 › the table, measured by a browser › scrolls the frame below the table’s minimum, with the name still pinned
+  [chromium] › layout.spec.ts:2976:3 › the table, measured by a browser › keeps the page from scrolling sideways at 125% zoom
+  [chromium] › layout.spec.ts:2994:3 › the table, measured by a browser › opens the dependency list wider than the column it drops from
+  [chromium] › layout.spec.ts:3023:3 › the table, measured by a browser › opens the folded step’s @ picker out past the bottom of a 96px cell
+  [chromium] › layout.spec.ts:3057:3 › the table, measured by a browser › opens the last row’s actions menu at the right edge of a laptop
+  [chromium] › layout.spec.ts:3089:3 › the table, measured by a browser › is as narrow as the plan lets the earliest-start column be
+  [chromium] › layout.spec.ts:3114:3 › the table, measured by a browser › opens an editor no narrower than this browser’s own unconstrained field
+  [chromium] › layout.spec.ts:3136:3 › the table, measured by a browser › draws a dated Start and End on one line
+  [chromium] › layout.spec.ts:3175:3 › the table, measured by a browser › is as wide as the widest day the formatter can print
+  [chromium] › layout.spec.ts:3225:3 › the table, measured by a browser › the In-parallel column holds three digits at the grid’s own type
+  [chromium] › layout.spec.ts:3267:3 › the table, measured by a browser › the Number column fits its envelope
+  [chromium] › layout.spec.ts:3330:3 › the table, measured by a browser › clips a number past the envelope and keeps it whole in the title
+  [chromium] › layout.spec.ts:3361:3 › the table, measured by a browser › two rows a level apart read as two different numbers at depth 4
+  [chromium] › layout.spec.ts:3421:3 › the table, measured by a browser › two rows a level apart read as two different numbers, at depth 5 and 6
+  [chromium] › layout.spec.ts:3463:3 › the table, measured by a browser › the break moves to depth 6 and 7, and this change does not claim to have closed it
+  [chromium] › layout.spec.ts:3496:3 › the table, measured by a browser › sets the Number column’s type below the row’s own, at the size the cap was bought with
+  [chromium] › layout.spec.ts:3533:3 › the table, measured by a browser › walks the row with Tab in the order the cells are in the DOM
+  [chromium] › layout.spec.ts:3795:3 › the Number column keeps its figures in a line › keeps the drag handle close to the printed number without clipping it
+  [chromium] › layout.spec.ts:3838:3 › the Number column keeps its figures in a line › lines up the number of a parent and a childless sibling
+  [chromium] › layout.spec.ts:3866:3 › the Number column keeps its figures in a line › holds a number still while its row is collapsed and opened again
+  [chromium] › layout.spec.ts:3883:3 › the Number column keeps its figures in a line › holds a number still when its row’s number is frozen
+  [chromium] › layout.spec.ts:3998:3 › the plan toolbar’s own width › the folded toolbar fits its budget
+  [chromium] › lifetime-fault.spec.ts:24:1 › a refused application runtime discloses a public report and nothing raw
+  [chromium] › live-caret.spec.ts:152:3 › a caret survives another session’s edit › their rename of the row being typed in moves neither the caret nor the text
+  [chromium] › live-caret.spec.ts:270:3 › a caret survives another session’s edit › a peer marker appears without disturbing the editor
+  [chromium] › mobile.spec.ts:338:3 › the plan on a phone, measured by a browser › is cards, and nothing on the page scrolls sideways
+  [chromium] › mobile.spec.ts:370:3 › the plan on a phone, measured by a browser › keeps the card’s number at the card’s own size, not the table’s
+  [chromium] › mobile.spec.ts:408:3 › the plan on a phone, measured by a browser › gives every control a finger has to hit at least 44px
+  [chromium] › mobile.spec.ts:479:3 › the plan on a phone, measured by a browser › gives every control on the phone’s own surfaces at least 44px
+  [chromium] › mobile.spec.ts:547:3 › the plan on a phone, measured by a browser › makes the row of a tick box the tick box, for the whole 44px
+  [chromium] › mobile.spec.ts:562:3 › the plan on a phone, measured by a browser › sends a name typed on a card, and reads it back after a reload
+  [chromium] › mobile.spec.ts:597:3 › the plan on a phone, measured by a browser › makes a team from a card by tapping alone, and still says so after a reload
+  [chromium] › mobile.spec.ts:692:3 › the plan on a phone, measured by a browser › sizes the team picker option rows to a finger
+  [chromium] › mobile.spec.ts:751:3 › the plan on a phone, measured by a browser › sets an earliest start from a card by touch, and still says so after a reload
+  [chromium] › mobile.spec.ts:824:3 › the plan on a phone, measured by a browser › sets a priority from a card by touch, both ways, and still says so after a reload
+  [chromium] › mobile.spec.ts:954:3 › the plan on a phone, measured by a browser › no card sheet covers the card it edits, also at the end of a list
+  [chromium] › mobile.spec.ts:1153:3 › the plan on a phone, measured by a browser › makes and unmakes a dependency from a card by touch, and still says so after a reload
+  [chromium] › mobile.spec.ts:1224:3 › the plan on a phone, measured by a browser › reads its selected fixture through a controlled project-open interleaving
+  [chromium] › mobile.spec.ts:1231:3 › the plan on a phone, measured by a browser › keeps the dependency search and the waits in view at the bottom of a long sheet
+  [chromium] › mobile.spec.ts:1333:3 › the plan on a phone, measured by a browser › types a whole estimate on a card without a slash, and it survives a reload
+  [chromium] › mobile.spec.ts:1402:3 › the plan on a phone, measured by a browser › closes the sheet on a control that acts, and lands the caret in the new card
+  [chromium] › mobile.spec.ts:1434:3 › the plan on a phone, measured by a browser › gives the focus back to the trigger on a control that aims the caret nowhere
+  [chromium] › mobile.spec.ts:1453:3 › the plan on a phone, measured by a browser › keeps the focus and the half-typed word when somebody else edits another card
+  [chromium] › mobile.spec.ts:1486:3 › the same phone, turned sideways › is still cards, at a finger’s size, and still does not scroll sideways
+  [chromium] › mobile.spec.ts:1526:3 › the same dialog on a desktop, where the density is the point › leaves a dialog and the account menu at their own size at 1400 and at 768
+  [chromium] › mobile.spec.ts:1638:3 › the phone review, at 375×812 › reads every priority band chip on a card at 4.5:1, in both palettes (F-008)
+  [chromium] › mobile.spec.ts:1683:3 › the phone review, at 375×812 › folds a card’s empty fields behind one Add… control (F-009)
+  [chromium] › mobile.spec.ts:1719:3 › the phone review, at 375×812 › draws a card’s notes as inline markdown, as the table draws a name (F-039)
+  [chromium] › mobile.spec.ts:1736:3 › the phone review, at 375×812 › gives the o·r·p and Attempts disclosures 44px without growing their words (F-042)
+  [chromium] › mobile.spec.ts:1772:3 › the phone review, at 375×812 › lists the Plan actions as labelled full-width rows grouped by purpose (F-045)
+  [chromium] › mobile.spec.ts:1817:3 › the phone review, at 375×812 › opens the team sheet titled by its field, chips and search at the top (F-049)
+  [chromium] › mobile.spec.ts:1870:3 › the phone review, at 375×812 › lays the Depends sheet’s rows inline, without bullets (F-050)
+  [chromium] › mobile.spec.ts:1895:3 › the phone review, at 375×812 › gives a person’s name the width to be read on the Directory (F-046)
+  [chromium] › name-cell.spec.ts:191:3 › the Name cell at rest is the name alone › at rest the cell is as tall as its wrapped name
+  [chromium] › name-cell.spec.ts:229:3 › the Name cell at rest is the name alone › the notes cannot be scrolled into view at rest
+  [chromium] › name-cell.spec.ts:261:3 › the Name cell at rest is the name alone › focus shows the notes and blur hides them again
+  [chromium] › name-cell.spec.ts:317:3 › the Name cell at rest is the name alone › a peer's longer name arriving while the cell is focused is whole once it is left
+  [chromium] › name-cell.spec.ts:399:3 › the Name cell at rest is the name alone › a peer's longer name still arrives when my own save came back while I was typing
+  [chromium] › name-cell.spec.ts:474:3 › the Name cell at rest is the name alone › a selection left in the name survives the measurement the blur makes
+  [chromium] › name-cell.spec.ts:533:3 › the Name cell at rest is the name alone › a name that wraps further in a narrower window is still shown whole
+  [chromium] › name-cell.spec.ts:600:3 › the Name cell has no grip to drag it out of line › dragging the bottom-right corner leaves the row the height its text asks for
+  [chromium] › name-cell.spec.ts:636:3 › the Name cell has no grip to drag it out of line › the box still grows with the text it is given
+  [chromium] › name-markdown.spec.ts:133:5 › a name of block markdown does not grow what it is drawn in › four rows, four names, one height — in light
+  [chromium] › name-markdown.spec.ts:133:5 › a name of block markdown does not grow what it is drawn in › four rows, four names, one height — in dark
+  [chromium] › name-markdown.spec.ts:188:3 › the Name cell shows one of its two boxes at a time › the rendered reading at rest, the source the moment it is written in
+  [chromium] › name-markdown.spec.ts:215:3 › the Name cell shows one of its two boxes at a time › the drawn text sits exactly where the typed text sits
+  [chromium] › name-markdown.spec.ts:229:3 › the Name cell shows one of its two boxes at a time › a link in a name is followed by ⌘-click, and edited by a plain one
+  [chromium] › name-markdown.spec.ts:319:3 › the Name cell shows one of its two boxes at a time › a javascript: URL in a name is not a link at all
+  [chromium] › name-markdown.spec.ts:342:3 › a row is as tall as the name it shows › a link whose source outruns its reading does not grow the row
+  [chromium] › optimization-cue.spec.ts:136:3 › the schedule cue, in a browser › stands inside the toolbar row and takes the saving with it
+  [chromium] › optimization-cue.spec.ts:159:3 › the schedule cue, in a browser › lays the 1280 toolbar out inside its budget with the cue on it
+  [chromium] › optimization-cue.spec.ts:201:3 › the schedule cue, in a browser › adds no sideways scroll to a phone, open or closed
+  [chromium] › optimization-cue.spec.ts:241:3 › the schedule cue, in a browser › explains the plan at once, with no wait ring, and holds the whole reading
+  [chromium] › optimization-cue.spec.ts:292:3 › the schedule cue, in a browser › keeps its open menu inside the screen, wherever the pill sits
+  [chromium] › optimization-cue.spec.ts:329:3 › the schedule cue, in a browser › a switch moves nothing else on the toolbar row
+  [chromium] › optimization-cue.spec.ts:386:3 › the schedule cue, in a browser › opens on a click, and Escape gives the focus back to the pill
+  [chromium] › optimization-cue.spec.ts:400:3 › the schedule cue, in a browser › asks be-01 for the schedule the reader picked
+  [chromium] › organization.spec.ts:202:5 › organization page at 1280px › draws every control with the chrome, nothing sideways
+  [chromium] › organization.spec.ts:236:5 › organization page at 1280px › shows a denied setup without create or proof controls
+  [chromium] › organization.spec.ts:248:5 › organization page at 1280px › keeps enforcement confirmed and freezes setup while PATCH is pending
+  [chromium] › organization.spec.ts:272:5 › organization page at 1280px › edits configuration and confirms removal with accessible phone-safe controls
+  [chromium] › organization.spec.ts:329:5 › organization page at 1280px › holds the routed proof on one connection
+  [chromium] › organization.spec.ts:345:5 › organization page at 1280px › disables the selected proof form while create is held
+  [chromium] › organization.spec.ts:369:5 › organization page at 1280px › reaches every control by Tab
+  [chromium] › organization.spec.ts:202:5 › organization page at 375px › draws every control with the chrome, nothing sideways
+  [chromium] › organization.spec.ts:236:5 › organization page at 375px › shows a denied setup without create or proof controls
+  [chromium] › organization.spec.ts:248:5 › organization page at 375px › keeps enforcement confirmed and freezes setup while PATCH is pending
+  [chromium] › organization.spec.ts:272:5 › organization page at 375px › edits configuration and confirms removal with accessible phone-safe controls
+  [chromium] › organization.spec.ts:329:5 › organization page at 375px › holds the routed proof on one connection
+  [chromium] › organization.spec.ts:345:5 › organization page at 375px › disables the selected proof form while create is held
+  [chromium] › organization.spec.ts:369:5 › organization page at 375px › reaches every control by Tab
+  [chromium] › organization.spec.ts:454:9 › Shared people at 375px in light › keeps unavailable isolated people read-only with canSwitch true
+  [chromium] › organization.spec.ts:454:9 › Shared people at 375px in light › keeps unavailable isolated people read-only with canSwitch false
+  [chromium] › organization.spec.ts:485:7 › Shared people at 375px in light › explains supported-release permission without controls
+  [chromium] › organization.spec.ts:499:7 › Shared people at 375px in light › rejects an unsupported forbidden sharing reply
+  [chromium] › organization.spec.ts:454:9 › Shared people at 375px in dark › keeps unavailable isolated people read-only with canSwitch true
+  [chromium] › organization.spec.ts:454:9 › Shared people at 375px in dark › keeps unavailable isolated people read-only with canSwitch false
+  [chromium] › organization.spec.ts:485:7 › Shared people at 375px in dark › explains supported-release permission without controls
+  [chromium] › organization.spec.ts:499:7 › Shared people at 375px in dark › rejects an unsupported forbidden sharing reply
+  [chromium] › organization.spec.ts:454:9 › Shared people at 1280px in light › keeps unavailable isolated people read-only with canSwitch true
+  [chromium] › organization.spec.ts:454:9 › Shared people at 1280px in light › keeps unavailable isolated people read-only with canSwitch false
+  [chromium] › organization.spec.ts:485:7 › Shared people at 1280px in light › explains supported-release permission without controls
+  [chromium] › organization.spec.ts:499:7 › Shared people at 1280px in light › rejects an unsupported forbidden sharing reply
+  [chromium] › organization.spec.ts:454:9 › Shared people at 1280px in dark › keeps unavailable isolated people read-only with canSwitch true
+  [chromium] › organization.spec.ts:454:9 › Shared people at 1280px in dark › keeps unavailable isolated people read-only with canSwitch false
+  [chromium] › organization.spec.ts:485:7 › Shared people at 1280px in dark › explains supported-release permission without controls
+  [chromium] › organization.spec.ts:499:7 › Shared people at 1280px in dark › rejects an unsupported forbidden sharing reply
+  [chromium] › page-states.spec.ts:44:3 › the directory has a heading and no card left alone at 1440
+  [chromium] › page-states.spec.ts:44:3 › the directory has a heading and no card left alone at 1024
+  [chromium] › page-states.spec.ts:68:1 › Organization says what local mode means and offers somewhere to go
+  [chromium] › page-states.spec.ts:81:1 › Spaces says what local mode means and offers All projects
+  [chromium] › plan-fixture.spec.ts:13:1 › resolves a predecessor in an earlier chunk
+  [chromium] › plan-fixture.spec.ts:36:1 › implicit recipe order appends rows
+  [chromium] › plan-fixture.spec.ts:60:1 › verifies explicit sibling insertions in their stored order
+  [chromium] › plan-fixture.spec.ts:76:1 › implicit recipe order crosses a chunk boundary
+  [chromium] › plan-fixture.spec.ts:103:1 › chunks 201 directory identities and verifies all links
+  [chromium] › plan-fixture.spec.ts:131:1 › refuses swapped successful tag identities before project commands
+  [chromium] › plan-fixture.spec.ts:168:3 › refuses an authored HTTP200 with empty command results before the tree read
+  [chromium] › plan-fixture.spec.ts:168:3 › refuses an authored HTTP200 with missing command results before the tree read
+  [chromium] › plan-fixture.spec.ts:168:3 › refuses an authored HTTP200 with wrong command results before the tree read
+  [chromium] › plan-fixture.spec.ts:168:3 › refuses an authored HTTP200 with duplicate command results before the tree read
+  [chromium] › plan-fixture.spec.ts:213:1 › an unresolved earlier-chunk ref is refused before a tree sample
+  [chromium] › plan-fixture.spec.ts:257:1 › duplicate recipe refs fail before a write request
+  [chromium] › plan-fixture.spec.ts:279:1 › an unavailable predecessor fails before a write request
+  [chromium] › plan-fixture.spec.ts:303:1 › a duplicate tag ref fails before a write request
+  [chromium] › plan-fixture.spec.ts:331:1 › an unknown row tag ref fails before a write request
+  [chromium] › plan-fixture.spec.ts:355:1 › setup refuses a real backend refusal
+  [chromium] › plan-fixture.spec.ts:376:1 › setup refuses a missing row id at the malformed response
+  [chromium] › plan-fixture.spec.ts:392:1 › verification catches one successfully omitted estimate
+  [chromium] › plan-fixture.spec.ts:436:1 › verification catches one successfully dropped directory link
+  [chromium] › plan-fixture.spec.ts:467:1 › simultaneous recipes keep identical logical labels disjoint
+  [chromium] › plan-import.spec.ts:63:1 › downloads and imports a complete plan through the real chooser
+  [chromium] › plan-import.spec.ts:101:1 › keeps the project and count when a dangling dependency is refused
+  [chromium] › plan-import.spec.ts:125:1 › words a broken file, then names and dates the re-import that replaces it
+  [chromium] › plan-import.spec.ts:174:3 › 390x844 Plan actions sheet › a refused import is drawn above the sheet it was chosen on
+  [chromium] › plan-import.spec.ts:226:1 › a standing toast is drawn above the keyboard shortcuts sheet
+  [chromium] › plan-surface.spec.ts:258:3 › the plan and its chart as one surface › ends the chart at the window’s bottom however short the plan is
+  [chromium] › plan-surface.spec.ts:298:3 › the plan and its chart as one surface › still ends the chart at the bottom of the window when the plan fills the frame
+  [chromium] › plan-surface.spec.ts:334:3 › the plan and its chart as one surface › takes the chart to the row the table was scrolled to
+  [chromium] › plan-surface.spec.ts:356:3 › the plan and its chart as one surface › takes the table to the row the chart was scrolled to
+  [chromium] › plan-surface.spec.ts:373:3 › the plan and its chart as one surface › follows the keyboard down the plan, and leaves the focus where it walked to
+  [chromium] › plan-surface.spec.ts:404:3 › the plan and its chart as one surface › never moves either face sideways for the other
+  [chromium] › plan-table-review.spec.ts:330:3 › the plan table, as the UI review read it › names every column in whole words on one line
+  [chromium] › plan-table-review.spec.ts:373:3 › the plan table, as the UI review read it › keeps a typed dependency chip inside its cell
+  [chromium] › plan-table-review.spec.ts:406:3 › the plan table, as the UI review read it › keeps the initials whole and drops a trio that does not fit
+  [chromium] › plan-table-review.spec.ts:448:3 › the plan table, as the UI review read it › keeps a refused draft’s ink after a resize
+  [chromium] › plan-table-review.spec.ts:494:3 › the plan table, as the UI review read it › draws no placeholder in a box too narrow for it
+  [chromium] › plan-table-review.spec.ts:528:3 › the plan table, as the UI review read it › ends a resting reference line on a whole chip
+  [chromium] › plan-table-review.spec.ts:595:3 › the plan table, as the UI review read it › keeps the dependency list inside the window
+  [chromium] › plan-table-review.spec.ts:623:3 › the plan table, as the UI review read it › gives a step card’s actions one size
+  [chromium] › plan-table-review.spec.ts:644:3 › the plan table, as the UI review read it › draws a dependency number whole and counts what the line hid
+  [chromium] › plan-table-review.spec.ts:683:3 › the plan table, as the UI review read it › says `search` in every empty creatable picker
+  [chromium] › plan-table-review.spec.ts:709:5 › the last dependency chip a resting line draws › keeps its ✕ at 4.5:1 or more, light
+  [chromium] › plan-table-review.spec.ts:709:5 › the last dependency chip a resting line draws › keeps its ✕ at 4.5:1 or more, dark
+  [chromium] › plan-table-review.spec.ts:747:5 › the quiet ink on a banded row (F-071) › draws the hidden-chip count and the search word at 4.5:1 or more, light
+  [chromium] › plan-table-review.spec.ts:747:5 › the quiet ink on a banded row (F-071) › draws the hidden-chip count and the search word at 4.5:1 or more, dark
+  [chromium] › plan-table-review.spec.ts:854:1 › holds a lone chip too wide for its cell steady, counted
+  [chromium] › pointed-row-offscreen.spec.ts:8:1 › pointing a visible bar leaves its linked offscreen table row in place
+  [chromium] › priority-ramp.spec.ts:170:3 › the rung glyph, in a browser › is drawn beside the number and does not swallow the cell’s click
+  [chromium] › priority-ramp.spec.ts:208:3 › the rung glyph, in a browser › shares the 44px column with the widest priority anybody can type
+  [chromium] › priority-ramp.spec.ts:256:3 › the rung glyph, in a browser › leaves an unprioritised row’s cell blank
+  [chromium] › priority-ramp.spec.ts:279:5 › the priority ramp, in a browser › diverges around the middle rung in the light palette
+  [chromium] › priority-ramp.spec.ts:279:5 › the priority ramp, in a browser › diverges around the middle rung in the dark palette
+  [chromium] › project-picker.spec.ts:94:3 › the project picker, driven by a browser › clicking the closed picker does not put a caret in the project name
+  [chromium] › project-picker.spec.ts:127:3 › the project picker, driven by a browser › choosing a project takes the focus off the picker
+  [chromium] › project-picker.spec.ts:147:3 › the project picker, driven by a browser › the open card opens clear of the list it explains
+  [chromium] › project-picker.spec.ts:174:3 › the project picker, driven by a browser › a window with no room on the right never puts the card over the list
+  [chromium] › project-picker.spec.ts:202:3 › the project picker, driven by a browser › creating a project puts the caret in its name, whole
+  [chromium] › project-picker.spec.ts:226:3 › the project picker, driven by a browser › abandoning the new project’s rename keeps the project
+  [chromium] › project-settings.spec.ts:116:3 › the project settings control, in a browser › waits for the initial plan read before opening settings and keeps priority drafts
+  [chromium] › project-settings.spec.ts:161:3 › the project settings control, in a browser › the toolbar keeps its 1280 budget with one settings control
+  [chromium] › project-settings.spec.ts:236:3 › the project settings control, in a browser › opens on its control, offers seven sections, and closes back onto it
+  [chromium] › project-settings.spec.ts:269:3 › the project settings control, in a browser › operates the optimization checkbox and schedule radios from the keyboard
+  [chromium] › project-settings.spec.ts:304:3 › the project settings control, in a browser › keeps the infeasible cue inside a phone card plan and opens it by keyboard
+  [chromium] › project-settings.spec.ts:439:3 › a toast over Project settings › a toast’s ✕ leaves Project settings open
+  [chromium] › project-settings.spec.ts:460:5 › a toast over Project settings › 390x844 › a toast’s ✕ keeps both Plan actions and Project settings open
+  [chromium] › quiet-load.spec.ts:44:3 › loads / in local mode with no refused request and no console noise
+  [chromium] › quiet-load.spec.ts:44:3 › loads /organization in local mode with no refused request and no console noise
+  [chromium] › quiet-load.spec.ts:44:3 › loads /spaces in local mode with no refused request and no console noise
+  [chromium] › reference-cell-panel.spec.ts:160:1 › a landed take keeps the focus, and the panel closes when the focus leaves
+  [chromium] › reference-cell-panel.spec.ts:200:1 › escape closes the list, and escape again leaves the cell
+  [chromium] › reference-cell-panel.spec.ts:224:1 › the Types cell offers what is typed into it, on top of the row below
+  [chromium] › reference-cell-panel.spec.ts:269:1 › a clipped reference cell says its whole set on hover
+  [chromium] › reference-cell-panel.spec.ts:323:1 › the card names the row an inherited tag was written on
+  [chromium] › reference-cell-panel.spec.ts:360:1 › the card keeps out of the way of the open editor
+  [chromium] › reference-cells.spec.ts:254:1 › round-trips every desktop reference set with three reachable values in both palettes
+  [chromium] › reference-cells.spec.ts:361:1 › rests every reference row on one line and opens a crowded cell to reach every chip
+  [chromium] › reference-cells.spec.ts:665:1 › exposes the active priority option at the scrolling table edge
+  [chromium] › reference-cells.spec.ts:703:3 › 390x844 reference sheets with a mouse › an option fact card is painted above its reference sheet
+  [chromium] › reference-cells.spec.ts:738:3 › 390x844 reference sheets › long directory names stay fully visible without panning the reference sheet
+  [chromium] › reference-cells.spec.ts:855:3 › 390x844 reference sheets › round-trips three reachable values, inherited context, and light/dark paint
+  [chromium] › reference-cells.spec.ts:1047:1 › offers the rest of the directory when the add field is clicked again
+  [chromium] › rendering-baseline.spec.ts:117:1 › a broad Find renders no more than its two filter-sensitive cells per row
+  [chromium] › rendering-baseline.spec.ts:193:1 › an editor that left the row window can commit, escape, and hold a refusal
+  [chromium] › rendering-baseline.spec.ts:256:1 › an unfolded plan mounts only its viewport columns
+  [chromium] › rendering-baseline.spec.ts:300:1 › a measured row above the viewport leaves the visible row anchored
+  [chromium] › rendering-baseline.spec.ts:344:1 › a row drag at the frame edge reaches an initially unmounted destination
+  [chromium] › rendering-baseline.spec.ts:366:1 › a row window covers the visible table through bucket edges and frame resize
+  [chromium] › rendering-baseline.spec.ts:438:1 › a windowed table and the complete Gantt stay on the same logical row
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › latency / 100 rows / 2 steps / sparse
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › coverage / 100 rows / 2 steps / sparse
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › gantt / 100 rows / 2 steps / sparse
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › latency / 100 rows / 2 steps / dense
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › coverage / 100 rows / 2 steps / dense
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › gantt / 100 rows / 2 steps / dense
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › latency / 100 rows / 8 steps / sparse
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › coverage / 100 rows / 8 steps / sparse
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › gantt / 100 rows / 8 steps / sparse
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › latency / 100 rows / 8 steps / dense
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › coverage / 100 rows / 8 steps / dense
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › gantt / 100 rows / 8 steps / dense
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › latency / 500 rows / 2 steps / sparse
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › coverage / 500 rows / 2 steps / sparse
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › gantt / 500 rows / 2 steps / sparse
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › latency / 500 rows / 2 steps / dense
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › coverage / 500 rows / 2 steps / dense
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › gantt / 500 rows / 2 steps / dense
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › latency / 500 rows / 8 steps / sparse
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › coverage / 500 rows / 8 steps / sparse
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › gantt / 500 rows / 8 steps / sparse
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › latency / 500 rows / 8 steps / dense
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › coverage / 500 rows / 8 steps / dense
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › gantt / 500 rows / 8 steps / dense
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › latency / 1000 rows / 2 steps / sparse
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › coverage / 1000 rows / 2 steps / sparse
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › gantt / 1000 rows / 2 steps / sparse
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › latency / 1000 rows / 2 steps / dense
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › coverage / 1000 rows / 2 steps / dense
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › gantt / 1000 rows / 2 steps / dense
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › latency / 1000 rows / 8 steps / sparse
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › coverage / 1000 rows / 8 steps / sparse
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › gantt / 1000 rows / 8 steps / sparse
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › latency / 1000 rows / 8 steps / dense
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › coverage / 1000 rows / 8 steps / dense
+  [chromium] › rendering-baseline.spec.ts:534:11 › Chromium rendering baseline › gantt / 1000 rows / 8 steps / dense
+  [chromium] › rendering-evidence.spec.ts:7:1 › a completed timing sample survives before later measurement stages
+  [chromium] › rendering-evidence.spec.ts:29:1 › unwritable evidence is a refused measurement rather than a silent checkpoint
+  [chromium] › rendering-fixture.spec.ts:13:1 › rendering setup reports an actual backend refusal
+  [chromium] › rendering-fixture.spec.ts:26:1 › rendering setup refuses a successful batch without its row identity
+  [chromium] › rendering-fixture.spec.ts:44:1 › rendering setup refuses a wrong authored result index before its tree read
+  [chromium] › rendering-fixture.spec.ts:74:1 › rendering setup refuses an altered estimate value
+  [chromium] › rendering-fixture.spec.ts:101:1 › rendering setup refuses a redirected dependency endpoint
+  [chromium] › rendering-fixture.spec.ts:140:1 › rendering measurement refuses a frame with no layout area
+  [chromium] › scheduler-unavailable.spec.ts:48:1 › names an unavailable optimizer over the last installed dates
+  [chromium] › scroll-stability.e2e.ts:262:1 › 50-row plan reaches matching terminal positions from either face
+  [chromium] › scroll-stability.e2e.ts:291:1 › the two faces end together at any window height
+  [chromium] › scroll-stability.e2e.ts:337:1 › the faces end together with a chart dragged short, and the fit settles
+  [chromium] › scroll-stability.e2e.ts:382:1 › the faces still end together after Full is opened and closed
+  [chromium] › scroll-stability.e2e.ts:420:1 › Full keeps the chart’s horizontal scroll on the way in and out
+  [chromium] › scroll-stability.e2e.ts:493:5 › large-plan scroll stability › 50 rows stay monotonic and paired
+  [chromium] › scroll-stability.e2e.ts:493:5 › large-plan scroll stability › 500 rows stay monotonic and paired
+  [chromium] › scroll-stability.e2e.ts:493:5 › large-plan scroll stability › 2000 rows stay monotonic and paired
+  [chromium] › settings-layout.spec.ts:116:3 › step rows are readable and aligned at 1440
+  [chromium] › settings-layout.spec.ts:116:3 › step rows are readable and aligned at 1024
+  [chromium] › settings-layout.spec.ts:116:3 › step rows are readable and aligned at 375
+  [chromium] › settings-layout.spec.ts:165:3 › the modal keeps its top and title in place across sections at 1440
+  [chromium] › settings-layout.spec.ts:165:3 › the modal keeps its top and title in place across sections at 1024
+  [chromium] › settings-layout.spec.ts:165:3 › the modal keeps its top and title in place across sections at 375
+  [chromium] › settings-layout.spec.ts:215:1 › the section tabs fit a phone, whole and apart, at 44px
+  [chromium] › settings-layout.spec.ts:256:1 › priority bands are readable on a phone, inside the modal, at 44px
+  [chromium] › settings-layout.spec.ts:303:3 › one commit model (F-060, decision D7) › a renamed band applies as the ladder is left and the ✕ closes over it, at 1440 and 375
+  [chromium] › settings-layout.spec.ts:397:3 › the settings flow while a write travels (round 3) › Enter in a band keeps the caret in the box while the ladder travels (F-066)
+  [chromium] › settings-layout.spec.ts:423:5 › the settings flow while a write travels (round 3) › a box whose write travels looks busy, still reads, and its section says so, light (F-081)
+  [chromium] › settings-layout.spec.ts:423:5 › the settings flow while a write travels (round 3) › a box whose write travels looks busy, still reads, and its section says so, dark (F-081)
+  [chromium] › settings-layout.spec.ts:455:3 › the settings flow while a write travels (round 3) › the closing line moves neither the title nor the tabs (453 review nit)
+  [chromium] › settings-layout.spec.ts:478:3 › the settings flow while a write travels (round 3) › on a phone the settings fill the screen, with no sheet showing under them (F-054)
+  [chromium] › settings-layout.spec.ts:502:3 › the settings flow while a write travels (round 3) › a zone typed while the list loads applies once it lands (F-069)
+  [chromium] › settings-vocabulary.spec.ts:102:5 › the settings controls, light › the section tabs wear no border of their own (F-117)
+  [chromium] › settings-vocabulary.spec.ts:114:5 › the settings controls, light › a locked unit says why and still shows which (F-118)
+  [chromium] › settings-vocabulary.spec.ts:134:5 › the settings controls, light › Optimization names its schedules whole, on one line at 375, and shows the active one while off (F-119)
+  [chromium] › settings-vocabulary.spec.ts:102:5 › the settings controls, dark › the section tabs wear no border of their own (F-117)
+  [chromium] › settings-vocabulary.spec.ts:114:5 › the settings controls, dark › a locked unit says why and still shows which (F-118)
+  [chromium] › settings-vocabulary.spec.ts:134:5 › the settings controls, dark › Optimization names its schedules whole, on one line at 375, and shows the active one while off (F-119)
+  [chromium] › settings-vocabulary.spec.ts:168:3 › the priority ladder heads its columns on screen at 1440 (F-120)
+  [chromium] › settings-vocabulary.spec.ts:168:3 › the priority ladder heads its columns on screen at 375 (F-120)
+  [chromium] › settings-vocabulary.spec.ts:224:1 › a scrolling section ends with the room the modal starts with, at 1024×768 (F-123)
+  [chromium] › shell-faults.spec.ts:44:3 › the session gate when the server is down (F-079) › draws the server-unavailable state, then signs in on Try again
+  [chromium] › shell-faults.spec.ts:80:3 › the session gate when a proxy refuses the read (F-095) › draws the access-refused state, in the sign-in column, with no form
+  [chromium] › shell-faults.spec.ts:110:3 › the connection pill (D9) › names the live link beside a write the server could not complete (F-078)
+  [chromium] › shell-faults.spec.ts:136:3 › the connection pill (D9) › claims no roster while the live link is down (F-077)
+  [chromium] › shell-faults.spec.ts:176:1 › tells Live from Reconnecting by the dot’s shape, not colour alone (F-097)
+  [chromium] › shell-faults.spec.ts:281:3 › a dragged row shows where it will land, in light (F-076)
+  [chromium] › shell-faults.spec.ts:281:3 › a dragged row shows where it will land, in dark (F-076)
+  [chromium] › sign-in.spec.ts:53:5 › the sign-in page (F-052) › centres one column and leaves no empty error line at 1440
+  [chromium] › sign-in.spec.ts:53:5 › the sign-in page (F-052) › centres one column and leaves no empty error line at 1024
+  [chromium] › sign-in.spec.ts:53:5 › the sign-in page (F-052) › centres one column and leaves no empty error line at 375
+  [chromium] › sign-in.spec.ts:81:3 › the sign-in page (F-052) › says what the product is under its word mark, readable in both palettes
+  [chromium] › sign-in.spec.ts:100:3 › the sign-in page (F-052) › opens a refused sign-in’s message between the field and the button
+  [chromium] › sign-in.spec.ts:171:5 › the signed-out word mark (F-125) › stands at one height on every signed-out card at 1440
+  [chromium] › sign-in.spec.ts:171:5 › the signed-out word mark (F-125) › stands at one height on every signed-out card at 1024
+  [chromium] › sign-in.spec.ts:171:5 › the signed-out word mark (F-125) › stands at one height on every signed-out card at 375
+  [chromium] › slack-cell.spec.ts:211:5 › a critical row’s slack › is a grey tag rather than a red one in the light palette
+  [chromium] › slack-cell.spec.ts:211:5 › a critical row’s slack › is a grey tag rather than a red one in the dark palette
+  [chromium] › spaces-timeline.spec.ts:14:1 › blank timeline lanes contain wrapped labels at a narrow viewport
+  [chromium] › spaces.spec.ts:58:7 › spaces pages at 1280px › /spaces draws every control with the chrome, nothing sideways
+  [chromium] › spaces.spec.ts:101:7 › spaces pages at 1280px › /spaces reaches every control by Tab
+  [chromium] › spaces.spec.ts:58:7 › spaces pages at 1280px › /spaces/s draws every control with the chrome, nothing sideways
+  [chromium] › spaces.spec.ts:101:7 › spaces pages at 1280px › /spaces/s reaches every control by Tab
+  [chromium] › spaces.spec.ts:58:7 › spaces pages at 375px › /spaces draws every control with the chrome, nothing sideways
+  [chromium] › spaces.spec.ts:101:7 › spaces pages at 375px › /spaces reaches every control by Tab
+  [chromium] › spaces.spec.ts:58:7 › spaces pages at 375px › /spaces/s draws every control with the chrome, nothing sideways
+  [chromium] › spaces.spec.ts:101:7 › spaces pages at 375px › /spaces/s reaches every control by Tab
+  [chromium] › status.spec.ts:104:3 › the Status list, in a browser › opens over the rows below it, not under them
+  [chromium] › status.spec.ts:153:3 › marking a row done, in a browser › asks for the day, then strikes and tints the row, fills the fact end and stops the bar
+  [chromium] › status.spec.ts:287:3 › holding and starting a row, in a browser (add-work-item-statuses) › holds a row from its menu, paints the hold on its strip, then starts it with Started on alone
+  [chromium] › status.spec.ts:341:3 › each status on the chart, in a browser (add-work-item-statuses) › a held row says On hold and draws no bar, its successor is hatched, and a blocked bar is outlined red
+  [chromium] › status.spec.ts:426:3 › status colours on table surfaces, in a browser (add-work-item-statuses) › every status glyph clears 4.5:1 on the table surfaces it can occupy
+  [chromium] › status.spec.ts:542:3 › node readings in the step cells, in a browser (step-node-readings D4) › draws a waiting QA glyph in its step cell corner, clear of the figure and initials
+  [chromium] › status.spec.ts:585:3 › node readings in the step cells, in a browser (step-node-readings D4) › shows the readings and the waiting card in light, dark and at 390px
+  [chromium] › step-blockage.spec.ts:76:3 › step blockage on the production preview path › distinguishes direct and dependency blockage with named roots and retained progress
+  [chromium] › step-blockage.spec.ts:93:3 › step blockage on the production preview path › keyboard clear and block use one undoable step action
+  [chromium] › step-blockage.spec.ts:117:3 › step blockage on the production preview path › phone disclosure names the cause and offers the scoped action
+  [chromium] › step-blockage.spec.ts:133:3 › step blockage on the production preview path › the whole blocked step card stays inside its frame and exposes attempt actions and estimates
+  [chromium] › step-blockage.spec.ts:188:3 › step blockage on the production preview path › nested blocked leaf and its downstream node retain named causes in both layouts
+  [chromium] › step-blockage.spec.ts:254:3 › step blockage on the production preview path › supported blockage facts without node readings reach the Error Boundary
+  [chromium] › step-blockage.spec.ts:273:3 › step blockage on the production preview path › malformed supported cause metadata reaches the application Error Boundary
+  [chromium] › step-blockage.spec.ts:294:3 › step blockage on the production preview path › an inactive writer reports its 409 without changing the direct fact
+  [chromium] › step-blockage.spec.ts:330:3 › step blockage on the production preview path › older backend metadata reads unknown and offers no blockage write
+  [chromium] › step-board.spec.ts:87:1 › renders the ordered mixed board and readable columns at desktop and 390px
+  [chromium] › step-board.spec.ts:157:1 › keeps view controls in the phone toolbar and keyboard focus on the selected view
+  [chromium] › step-board.spec.ts:205:1 › wraps unbroken card labels inside every column at desktop and 390px
+  [chromium] › step-board.spec.ts:240:1 › preserves a cancelled-pointer draft through peer delivery and commits it once on ordinary leave
+  [chromium] › step-board.spec.ts:359:1 › shows a first read failure, retries, then retains cards after a later failed peer refresh
+  [chromium] › step-board.spec.ts:439:1 › does not carry late old cards or a suspended draft into another project
+  [chromium] › step-board.spec.ts:521:1 › keeps the delivered board visible while its live connection is down
+  [chromium] › step-board.spec.ts:573:1 › measures every rendered card for a 500-leaf, five-step fixture
+  [chromium] › steps.spec.ts:89:3 › the steps surface, in a browser › opens from the toolbar and holds the focus inside itself
+  [chromium] › steps.spec.ts:106:3 › the steps surface, in a browser › Escape closes it and gives the focus back to the button that opened it
+  [chromium] › steps.spec.ts:119:3 › the steps surface, in a browser › a click away closes it
+  [chromium] › steps.spec.ts:130:3 › the steps surface, in a browser › Ctrl+Enter in the new-step box adds the step
+  [chromium] › steps.spec.ts:162:3 › the steps surface, in a browser › a bare Enter in the new-step box adds the step
+  [chromium] › steps.spec.ts:179:3 › the steps surface, in a browser › a third step gives the table a third set of columns
+  [chromium] › steps.spec.ts:225:3 › the steps surface, in a browser › a removal names what it would take, and takes nothing until the box is ticked
+  [chromium] › tailwind.spec.ts:103:3 › Tailwind, in the browser › applies the tracer class the brand heading carries
+  [chromium] › tailwind.spec.ts:135:3 › Tailwind, in the browser › takes the user agent’s margin off a chrome heading
+  [chromium] › tailwind.spec.ts:152:3 › Tailwind, in the browser › gives a chrome control the page’s own font
+  [chromium] › tailwind.spec.ts:174:3 › Tailwind, in the browser › leaves a control inside the grid the platform’s text size
+  [chromium] › tailwind.spec.ts:209:3 › Tailwind, in the browser › paints the grid with the page’s own foreground token, deliberately
+  [chromium] › tailwind.spec.ts:229:3 › Tailwind, in the browser › leaves a control inside the grid the platform’s font
+  [chromium] › toolbar-panels.spec.ts:47:3 › the toolbar popovers › every popover closes on Escape and gives the focus back to its summary (F-028)
+  [chromium] › toolbar-panels.spec.ts:71:3 › the toolbar popovers › opening one popover by the keyboard closes the other (F-028)
+  [chromium] › toolbar-panels.spec.ts:91:3 › the toolbar popovers › a popover the keyboard leaves is closed (F-028)
+  [chromium] › toolbar-panels.spec.ts:107:3 › the toolbar popovers › a popover in the phone sheet is part of the sheet’s scroll (F-030)
+  [chromium] › toolbar-panels.spec.ts:128:3 › the toolbar popovers › Filters and Columns show their whole list at 1440×900 (F-030)
+  [chromium] › toolbar-panels.spec.ts:146:3 › the toolbar popovers › a popover too tall for its window says more follows (F-030)
+  [chromium] › toolbar-panels.spec.ts:164:3 › the toolbar popovers › Saved plans has the anatomy and the panel style of Views (F-061)
+  [chromium] › toolbar-panels.spec.ts:226:3 › the toolbar popovers › the Saved plans delete question keeps the keyboard inside the popover (F-061)
+  [chromium] › toolbar-panels.spec.ts:249:3 › the toolbar popovers › a save or a delete leaves a comparison current; an edit to the plan does not (F-100, F-103)
+  [chromium] › toolbar-panels.spec.ts:317:3 › the toolbar popovers › Export / Import is one line and lists plain menu items (F-004, F-031)
+  [chromium] › toolbar-panels.spec.ts:372:5 › the toolbar rows › ends the bar with one group, never split across rows, at 960×600 with the Export / Import menu closed (F-005, F-056, F-099)
+  [chromium] › toolbar-panels.spec.ts:372:5 › the toolbar rows › ends the bar with one group, never split across rows, at 960×600 with the Export / Import menu open (F-005, F-056, F-099)
+  [chromium] › toolbar-panels.spec.ts:372:5 › the toolbar rows › ends the bar with one group, never split across rows, at 1024×900 with the Export / Import menu closed (F-005, F-056, F-099)
+  [chromium] › toolbar-panels.spec.ts:372:5 › the toolbar rows › ends the bar with one group, never split across rows, at 1024×768 with the Export / Import menu open (F-005, F-056, F-099)
+  [chromium] › toolbar-panels.spec.ts:372:5 › the toolbar rows › ends the bar with one group, never split across rows, at 1280×900 with the Export / Import menu closed (F-005, F-056, F-099)
+  [chromium] › toolbar-panels.spec.ts:372:5 › the toolbar rows › ends the bar with one group, never split across rows, at 1440×900 with the Export / Import menu closed (F-005, F-056, F-099)
+  [chromium] › toolbar-panels.spec.ts:455:3 › the toolbar rows › names the bar and its end groups to a screen reader (F-094)
+  [chromium] › toolbar-panels.spec.ts:472:3 › the toolbar rows › the Find count does not move the controls beside it (F-016)
+  [chromium] › toolbar-panels.spec.ts:485:3 › the toolbar rows › the start day reads in the cells’ own words (F-007)
+  [chromium] › toolbar-panels.spec.ts:505:3 › the toolbar rows › an unset start day reads in the app’s words, not mm/dd/yyyy (F-059)
+  [chromium] › types-cell.spec.ts:96:3 › the Types cell at a laptop width › is off the table until Columns turns it on
+  [chromium] › types-cell.spec.ts:108:3 › the Types cell at a laptop width › a row with a crowded type is the same height as a row of none
+  [chromium] › types-cell.spec.ts:164:3 › the Types cell at a laptop width › clips the chip run at the cell rather than letting it paint out
+  [chromium] › types-cell.spec.ts:246:3 › the Types cell at a laptop width › every chip carries a remove, because nothing here is inherited
+  [chromium] › types-cell.spec.ts:262:3 › the Types dimension on a phone › does not put the column on a phone, because the phone has no table
+Total: 626 tests in 63 files

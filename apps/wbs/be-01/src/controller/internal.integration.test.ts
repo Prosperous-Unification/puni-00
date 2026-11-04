@@ -24,6 +24,7 @@ import {
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
+import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
 import { testProjectService } from '../testing/project-fixture';
 import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
@@ -43,6 +44,7 @@ function buildHarness() {
   spyOn(projects, 'readWithin').mockResolvedValue({ project: {}, steps: [] } as never);
   const writes = testWrites();
   const app = buildApp({
+    projectAddressSearch: refusingProjectAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -74,6 +76,7 @@ function buildHarness() {
     migrationsApplied: true,
     internalAuthSecret: SECRET,
     replay,
+    admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
   });
 

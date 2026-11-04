@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+224 |
+225 | it('throws for missing required projects, unreadable facts and foreign work-item rows', async () => {
+226 |   const scope = observation();
+227 |   scope.relationships.push(link('ba', 'b', 'a'));
+228 |   scope.facts.delete('b');
+229 |   await expect(scope.reader.read(['a'])).rejects.toThrow(/project b/);
+                                                       ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /project b/
+Received message: "missing fixture b"
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:229:50)
+(fail) throws for missing required projects, unreadable facts and foreign work-item rows [1.89ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [137.00ms]

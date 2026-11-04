@@ -1,0 +1,48 @@
+{
+  "format": "init-core-integrated-replay",
+  "version": 1,
+  "head": "af4e1dc1156943c7e488df8d05edab269e6f2586",
+  "date": "2026-10-24",
+  "bun": "1.4.4",
+  "reviewedOriginal": [
+    "a53942e505387800d3eaa30916b71210051b3673",
+    "4042f5d68be4768bf1f0b896d60eae856db32496"
+  ],
+  "checks": {
+    "tests": {
+      "passed": 40,
+      "failed": 0,
+      "assertions": 71
+    },
+    "configuredNx": {
+      "targets": ["lint", "typecheck", "build"],
+      "tasks": 6,
+      "exit": 0,
+      "cache": "skipped",
+      "projectGraphSkipWarnings": 0
+    },
+    "openSpec": {
+      "passed": 280,
+      "failed": 0
+    }
+  },
+  "logs": [
+    {
+      "filename": "puni-init-core-integrated-bun144.log",
+      "sha256": "4828949f8d2b226af7d41153effaec9739d2a76e29c7c6f0c87bb2ad7f85fbcf"
+    },
+    {
+      "filename": "puni-init-core-integrated-static.log",
+      "sha256": "72dd833748ad594e0a16b82fc09feaeceb33a04f3b1f12d53861d19eeab62df8"
+    },
+    {
+      "filename": "puni-init-core-openspec.json",
+      "sha256": "9316ce7b82a27078274fae1d313a06c4ac5942d99a96b10e63e1d3f05a1fae04"
+    }
+  ],
+  "limits": [
+    "Incremental preservation and finite-transition core only",
+    "Production observer, CLI, native acceptance and deployment remain incomplete",
+    "No production effects"
+  ]
+}

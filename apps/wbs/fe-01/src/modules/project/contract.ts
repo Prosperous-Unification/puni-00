@@ -14,6 +14,10 @@ import type {
   CalendarMarkersHost,
 } from '@/modules/calendar-markers/contract';
 import type { Channel } from '@/modules/channel';
+import type {
+  DependencyLookup,
+  OpenedDependencyLookup,
+} from '@/modules/dependency-lookup/contract';
 import type { PlanCommands } from '@/modules/plan-commands/contract';
 import type { PlanFeedForReader } from '@/modules/plan-feed/composition';
 import type {
@@ -40,7 +44,7 @@ export type CalendarMarkersReader = Omit<CalendarMarkersHost, 'api'>;
 
 /**
  * What a plan screen may build for the project it shows: its feed, its marker
- * gestures, its commands and its saved plans — feature-services only (rule K2).
+ * gestures, its commands, saved plans and dependency lookup — feature-services only (rule K2).
  *
  * Factories and not instances, because this is what a project runtime is
  * built **from**: `runtime/project-runtime.ts` calls each once for the one
@@ -52,6 +56,11 @@ export type CalendarMarkersReader = Omit<CalendarMarkersHost, 'api'>;
  * new one makes its project owner open the selected project again over it.
  */
 export interface ProjectServices {
+  /** Opens bounded address observations owned by one project runtime. */
+  readonly dependencyLookupFor: (reader: {
+    projectId: string;
+    isCurrent: () => boolean;
+  }) => OpenedDependencyLookup;
   /** Opens one reader's live plan, reading through the plan feed's routes. */
   readonly planFeedFor: (reader: PlanFeedReader) => PlanFeed;
   /** One reader's calendar-marker gestures, writing through the markers' routes. */
@@ -117,6 +126,8 @@ export interface ProjectSource {
  * runtime that has been left all find it false.
  */
 export interface ProjectRuntime {
+  /** Read-only address observations; retained operations cancel after withdrawal. */
+  readonly dependencyLookup: DependencyLookup;
   readonly projectId: string;
   /** Whether this runtime is still the one its owner publishes. */
   readonly isCurrent: () => boolean;
@@ -152,7 +163,12 @@ export interface ProjectRuntime {
  */
 export type ProjectCatalogRoutes = Pick<
   ProjectApi,
-  'listProjects' | 'createProject' | 'openProject' | 'renameProject' | 'importPlan'
+  | 'listProjects'
+  | 'createProject'
+  | 'openProject'
+  | 'renameProject'
+  | 'setAbbreviation'
+  | 'importPlan'
 >;
 
 /**
@@ -171,6 +187,8 @@ export interface ProjectCatalog {
   /** Records this account as having opened the project, which is what sorts the list. */
   readonly markOpened: (projectId: string) => Promise<void>;
   readonly rename: (projectId: string, name: string) => Promise<void>;
+  /** Returns the canonical stored address prefix after an authorized edit. */
+  readonly setAbbreviation: (projectId: string, abbreviation: string) => Promise<string>;
   /** Restores one archival document as a new project. */
   readonly importPlan: (document: PlanDocumentRequest) => Promise<PlanImportSummary>;
 }

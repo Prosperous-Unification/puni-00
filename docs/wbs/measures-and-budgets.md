@@ -44,7 +44,8 @@ and the decisions (D1–D72) in its
 
 ## Export, import and saved plans
 
-- Every plan exports as plan document **version 11**: the budget factor, the definitions its
+- Ordinary plans export as plan document **version 11**; connected plans use **version 12**,
+  retaining the same measure content beside their captured dependency history: the budget factor, the definitions its
   figures name, the facts and trios with their basis, and the budgets, each list empty when there
   are none (design D71, superseding D63's version-10 fallback).
 - Importing version 11 matches each definition by key and never remaps: a held definition of
@@ -57,9 +58,11 @@ and the decisions (D1–D72) in its
   is the legacy organization, which owns the imported project, so a plan's own export
   re-imports; only with no legacy organization does the import match the seeded four and
   refuse any other definition `unknown_measure` (design D65).
-- Twilight Navigator, Burokrat and Dash read version 11 (design D71).
-- Saved plans capture trios, budgets, bases and the factor (plan input schema 9), so compare
-  names a change in any of them (design D66).
+- Twilight Navigator, Burokrat and Dash read ordinary version 11 (design D71);
+  Navigator refuses connected version 12.
+- Saved plans capture trios, budgets, bases and the factor (ordinary plan input schema 9;
+  dependency-aware input schema 10 also captures history), so compare names a change in any
+  of them (design D66).
 
 ## Operating it
 

@@ -100,6 +100,14 @@ export async function createRecoveryReceiver(
     });
     if (step.status !== 200) throw new Error(JSON.stringify(step));
     const stepId = (step.body as { step: { id: string } }).step.id;
+    // Plan is the claimed activity; default Dev and QA otherwise block it with workflow FS.
+    const positioned = harness.sqlite.run(
+      'UPDATE step SET position = 0 WHERE id = ? AND project_id = ?',
+      [stepId, projectId],
+    );
+    // Proof: an absent Plan ID failed "real receiver ordered effects and sender receiver reopen
+    // staged-before-post" here; restoring the ID passed the same case.
+    if (positioned.changes !== 1) throw new Error('fixture Plan step position was not updated');
     harness.sqlite.run("INSERT INTO external_system (id,name) VALUES ('task3','Task3')");
     harness.sqlite.run(
       "INSERT INTO external_system_organization (resource_id,organization_id,name) VALUES ('task3','org-a','Task3')",

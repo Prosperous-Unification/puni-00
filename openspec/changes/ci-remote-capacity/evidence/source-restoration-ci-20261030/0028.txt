@@ -1,0 +1,61 @@
+{
+  "scope": "Actual exact singleton dispatch/membership, not a generic summary parser",
+  "fault": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts",
+        "--test-name-pattern=fresh\\ fixed\\ leaves\\ preserve\\ real\\ canonical\\ Bun\\ discovery\\ including\\ future\\ and\\ collision\\ files$"
+      ],
+      "pid": 3317822,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 0.28207518300041556,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "8a2107e8f25afbc384d88f5d3ca2e436ab52e0561d7bc09e1f57e82e7765b7db"
+    },
+    "wrapper": {
+      "pid": 3317821,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "9e61e9794f4370e73dfa15d0bc6de437bc13ca463dfd1efc00806b9a3cdbecaa",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "restored": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts",
+        "--test-name-pattern=fresh\\ fixed\\ leaves\\ preserve\\ real\\ canonical\\ Bun\\ discovery\\ including\\ future\\ and\\ collision\\ files$"
+      ],
+      "pid": 3318047,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 0.36415035906247795,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "bb25e6e959f545e287d3141d44bfc4aea89a662b313f59222e639beb931eb31e"
+    },
+    "wrapper": {
+      "pid": 3318022,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "116a681fe1c47feccd2fbec4732a7c5fa686fae2fbaacf5647a515d0f389b99c",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}

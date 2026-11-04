@@ -1,0 +1,12 @@
+import {expect,test} from 'bun:test';
+const python='/tmp/puni-solver-wire-venv/bin/python3';
+const request=await Bun.file('/tmp/puni-wire-installed-connected-request.json').json();
+request.scope.boundaries[0].foreignProjectId='C';
+for(const [name,src] of [
+ ['frozen','/tmp/puni-cross-solver-wire/libs/wbs/adapters/solver-py/src'],
+ ['mutant','/tmp/puni-wire-review-python-sandbox/libs/wbs/adapters/solver-py/src'],
+]) test(name+' production entrypoint rejects boundary owner mismatch',()=>{
+ const child=Bun.spawnSync([python,'-m','wbs_solver'],{env:{...process.env,PYTHONPATH:src},stdin:Buffer.from(JSON.stringify(request))});
+ console.log(name,child.exitCode,child.stdout.toString(),child.stderr.toString());
+ expect(child.exitCode).toBe(64);
+});

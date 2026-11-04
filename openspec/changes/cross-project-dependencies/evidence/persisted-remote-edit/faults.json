@@ -1,0 +1,138 @@
+{
+  "base": "729571a7d882e67fc5938cc38bd00897d5f5b7c1",
+  "host": "pop-os",
+  "runner": "TZ=UTC bunx vitest run src/components/wbs/persisted-remote-dependencies.test.tsx --no-file-parallelism --maxWorkers=1 --testTimeout=30000 -t <test pattern>",
+  "cwd": "apps/wbs/fe-01",
+  "runs": [
+    {
+      "fault": "retired-editor",
+      "exit": 1,
+      "summary": [
+        "Test Files  1 failed (1)",
+        "Tests  2 failed | 67 skipped (69)",
+        "\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 2 \u23af\u23af\u23af\u23af\u23af\u23af\u23af",
+        "TestingLibraryElementError: Unable to find a label with the text of: Relationship",
+        "TestingLibraryElementError: Unable to find a label with the text of: Relationship"
+      ]
+    },
+    {
+      "fault": "selector-arrow-left",
+      "exit": 1,
+      "summary": [
+        "Test Files  1 failed (1)",
+        "Tests  2 failed | 67 skipped (69)",
+        "\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 2 \u23af\u23af\u23af\u23af\u23af\u23af\u23af"
+      ]
+    },
+    {
+      "fault": "desktop-owner",
+      "exit": 1,
+      "summary": [
+        "Test Files  1 failed (1)",
+        "Tests  1 failed | 68 skipped (69)",
+        "\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af",
+        "AssertionError: expected <select>\u2026(3)</select> to be null"
+      ]
+    },
+    {
+      "fault": "phone-owner",
+      "exit": 1,
+      "summary": [
+        "Test Files  1 failed (1)",
+        "Tests  1 failed | 68 skipped (69)",
+        "\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af",
+        "AssertionError: expected <select>\u2026(3)</select> to be null"
+      ]
+    },
+    {
+      "fault": "desktop-removed",
+      "exit": 1,
+      "summary": [
+        "Test Files  1 failed (1)",
+        "Tests  1 failed | 68 skipped (69)",
+        "\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af",
+        "TestingLibraryElementError: Unable to find an element with the text: /This dependency was removed/. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible."
+      ]
+    },
+    {
+      "fault": "phone-removed",
+      "exit": 1,
+      "summary": [
+        "Test Files  1 failed (1)",
+        "Tests  1 failed | 68 skipped (69)",
+        "\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af",
+        "TestingLibraryElementError: Unable to find an element with the text: /This dependency was removed/. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible."
+      ]
+    },
+    {
+      "fault": "stable-project",
+      "exit": 1,
+      "summary": [
+        "Test Files  1 failed (1)",
+        "Tests  1 failed | 68 skipped (69)",
+        "\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af",
+        "AssertionError: expected \"vi.fn()\" to be called once with arguments: [ 'p1', 'external', { \u2026(4) }, \u2026(2) ]"
+      ]
+    },
+    {
+      "fault": "missing-step",
+      "exit": 1,
+      "summary": [
+        "Test Files  1 failed (1)",
+        "Tests  1 failed | 68 skipped (69)",
+        "\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af",
+        "AssertionError: expected [Function] to throw an error"
+      ]
+    },
+    {
+      "fault": "unknown-type",
+      "exit": 1,
+      "summary": [
+        "Test Files  1 failed (1)",
+        "Tests  1 failed | 68 skipped (69)",
+        "\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af",
+        "AssertionError: expected [Function] to throw an error"
+      ]
+    },
+    {
+      "fault": "gesture-retired",
+      "exit": 1,
+      "summary": [
+        "Test Files  1 failed (1)",
+        "Tests  2 failed | 67 skipped (69)",
+        "\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 2 \u23af\u23af\u23af\u23af\u23af\u23af\u23af",
+        "TestingLibraryElementError: Unable to find a label with the text of: Relationship",
+        "TestingLibraryElementError: Unable to find a label with the text of: Relationship"
+      ]
+    },
+    {
+      "fault": "gesture-desktop-key",
+      "exit": 1,
+      "summary": [
+        "Test Files  1 failed (1)",
+        "Tests  1 failed | 68 skipped (69)",
+        "\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af",
+        "TestingLibraryElementError: Unable to find a label with the text of: Relationship"
+      ]
+    },
+    {
+      "fault": "gesture-phone-key",
+      "exit": 1,
+      "summary": [
+        "Test Files  1 failed (1)",
+        "Tests  1 failed | 68 skipped (69)",
+        "\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af",
+        "TestingLibraryElementError: Unable to find a label with the text of: Relationship"
+      ]
+    },
+    {
+      "fault": "duplicate-save",
+      "exit": 1,
+      "summary": [
+        "Test Files  1 failed (1)",
+        "Tests  2 failed | 67 skipped (69)",
+        "\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 2 \u23af\u23af\u23af\u23af\u23af\u23af\u23af"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+325 |   const a = { ...state('a', ['A', 'A2']), legacy: [{ predecessorId: 'A', successorId: 'A2' }] };
+326 |   scope.facts.set('a', a);
+327 |   scope.relationships.push({ ...link('ab', 'a', 'b'), predecessor: { projectId: 'a', scope: 'node', workItemId: 'A2', stepId: 'a-last' }, successor: { projectId: 'b', scope: 'node', workItemId: 'B', stepId: 'b-first' } }, { ...link('ba', 'b', 'a'), predecessor: { projectId: 'b', scope: 'node', workItemId: 'B', stepId: 'b-last' }, successor: { projectId: 'a', scope: 'node', workItemId: 'A', stepId: 'a-last' } });
+328 |   expect(await scope.reader.findCycle(['a'])).toBeNull();
+329 |   scope.facts.set('a', { ...a, estimates: a.estimates.filter((estimate) => estimate.workItemId !== 'A') });
+330 |   expect((await scope.reader.findCycle(['a']))?.kind).toBe('cycle');
+                                                            ^
+error: expect(received).toBe(expected)
+
+Expected: "cycle"
+Received: undefined
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:330:55)
+(fail) reobserves staged estimate anchors and project reach between cycle evaluations [3.10ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [135.00ms]

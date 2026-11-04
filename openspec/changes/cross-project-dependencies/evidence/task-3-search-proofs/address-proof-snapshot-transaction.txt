@@ -1,0 +1,45 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts:
+38 |     const observed=await repository().withSnapshot({id:'ada'},reader=>{
+39 |       const first=reader.capture('a1');
+40 |       writer.run("UPDATE project SET name='Changed' WHERE id='a1'");
+41 |       writer.run("INSERT INTO work_item(id,project_id,position,name) VALUES('late','a1',10,'late')");
+42 |       const second=reader.capture('a1');
+43 |       expect(second).toEqual(first);
+                          ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "placements": [],
++   "placements": [
++     {
++       "frozenNumber": null,
++       "id": "late",
++       "name": "late",
++       "parentId": null,
++       "position": 10,
++     },
++   ],
+    "project": {
+      "abbreviation": "PA1",
+-     "name": "a1",
++     "name": "Changed",
+      "projectId": "a1",
+    },
+    "steps": [],
+  }
+
+- Expected  - 2
++ Received  + 10
+
+      at <anonymous> (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts:43:22)
+      at withSnapshot (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:28:29)
+      at async <anonymous> (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts:38:39)
+(fail) holds authorization metadata and selected placements in one snapshot across rival writes [195.51ms]
+
+ 0 pass
+ 3 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.52s]

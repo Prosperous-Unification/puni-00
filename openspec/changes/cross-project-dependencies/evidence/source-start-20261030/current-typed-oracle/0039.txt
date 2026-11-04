@@ -1,0 +1,26 @@
+{"argv": ["bun", "test", "--preload", "./tools/test/scratch/preload.ts", "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts", "--test-name-pattern=^isolated source restoration refuses released original context$", "--timeout=320000"], "pid": 3240927, "exit": 0, "signal": null, "stdoutEOF": true, "stderrEOF": true, "elapsedSeconds": 74.8289835699834, "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47", "stderrSHA256": "eb31842e7fc23b973977345f0c192a43a14e76835c5b92bafc6b5323cc41198a"}
+bun test v1.4.4 (38afee6c8)
+
+
+tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:
+
+test/dependency-source-restoration-model-child.test.ts:
+SOURCE_RESTORATION_REACHED: original prepare/consume/solver/backend/gateway complete; source cold and dev openers excluded
+(pass) source restoration refuses released original context [74741.95ms]
+
+ 1 pass
+ 22 filtered out
+ 0 fail
+ 474 expect() calls
+Ran 1 test across 1 file. [74.79s]
+SOURCE_RESTORATION_INNER_CUSTODY: {"name":"source restoration refuses released original context","exitCode":0,"signal":null,"stdoutEof":true,"stderrEof":true}
+(pass) isolated source restoration refuses released original context [74818.75ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 1 pass
+ 22 filtered out
+ 0 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [74.83s]
+

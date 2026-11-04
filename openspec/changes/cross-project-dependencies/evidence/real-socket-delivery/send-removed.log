@@ -1,0 +1,18 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-delivery.controller.db.test.ts:
+37 |           pending.delete(inspect);
+38 |           resolve(found);
+39 |         };
+40 |         const deadline = setTimeout(() => {
+41 |           pending.delete(inspect);
+42 |           reject(new Error(`missing ${description}: ${JSON.stringify(frames)}`));
+                          ^
+error: missing successor 5f94d1b1-0c2f-4f34-b4a9-0b754ccb749f delivery: [{"type":"presence","users":[]},{"type":"presence","users":["ada"]}]
+      at <anonymous> (/tmp/puni-real-delivery/apps/wbs/be-01/src/controller/cross-project-delivery.controller.db.test.ts:42:22)
+(fail) mounted completion delivers durable successor envelopes through the production gateway [6544.02ms]
+
+ 0 pass
+ 1 fail
+ 10 expect() calls
+Ran 1 test across 1 file. [9.62s]

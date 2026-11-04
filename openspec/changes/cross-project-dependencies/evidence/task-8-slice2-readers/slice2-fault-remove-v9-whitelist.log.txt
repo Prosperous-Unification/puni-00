@@ -1,0 +1,72 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:
+(pass) versioned saved input readers > reads frozen input v1 as local without rewriting bytes [4.04ms]
+(pass) versioned saved input readers > reads frozen input v2 as local without rewriting bytes [0.61ms]
+(pass) versioned saved input readers > reads frozen input v3 as local without rewriting bytes [0.81ms]
+(pass) versioned saved input readers > reads frozen input v4 as local without rewriting bytes [0.39ms]
+(pass) versioned saved input readers > reads frozen input v5 as local without rewriting bytes [0.37ms]
+(pass) versioned saved input readers > reads frozen input v6 as local without rewriting bytes [0.33ms]
+(pass) versioned saved input readers > reads frozen input v7 as local without rewriting bytes [0.40ms]
+(pass) versioned saved input readers > reads frozen input v8 as local without rewriting bytes [0.38ms]
+(pass) versioned saved input readers > keeps the dormant v8 writer byte-identical to the frozen v8 builder [0.15ms]
+(pass) versioned saved input readers > preserves the frozen legacy schedule1 byte contract and retired algorithm identity [2.18ms]
+(pass) versioned saved input readers > requires explicit dependency history on input9 [1.07ms]
+(pass) versioned saved input readers > refuses header/body version mismatch and malformed new fields [5.09ms]
+(pass) versioned saved input readers > refuses external claims before a legacy local upgrade can erase them [0.27ms]
+(pass) versioned saved input readers > folds converted connected context without live capabilities [8.18ms]
+
+libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:
+217 |   body: SavedPlanBodyKind,
+218 |   version: number,
+219 |   supported: readonly number[],
+220 | ): void {
+221 |   if (supported.includes(version)) return;
+222 |   throw new UnknownSavedPlanBodyVersionError(savedPlanId, body, version, supported);
+                                                                                        ^
+UnknownSavedPlanBodyVersionError: saved plan saved: input body is at schema version 9, which this reader does not know (knows 1, 2, 3, 4, 5, 6, 7, 8)
+      at assertKnownBodyVersion (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.ts:222:83)
+      at verifySavedPlanBodies (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.ts:244:3)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:33:12)
+(fail) new saved body integrity > accepts detached complete connected bodies and retains the supplied bytes [0.43ms]
+217 |   body: SavedPlanBodyKind,
+218 |   version: number,
+219 |   supported: readonly number[],
+220 | ): void {
+221 |   if (supported.includes(version)) return;
+222 |   throw new UnknownSavedPlanBodyVersionError(savedPlanId, body, version, supported);
+                                                                                        ^
+UnknownSavedPlanBodyVersionError: saved plan saved: input body is at schema version 9, which this reader does not know (knows 1, 2, 3, 4, 5, 6, 7, 8)
+      at assertKnownBodyVersion (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.ts:222:83)
+      at verifySavedPlanBodies (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.ts:244:3)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:37:14)
+(fail) new saved body integrity > reports correctly hashed malformed new JSON as typed body_invalid [0.20ms]
+217 |   body: SavedPlanBodyKind,
+218 |   version: number,
+219 |   supported: readonly number[],
+220 | ): void {
+221 |   if (supported.includes(version)) return;
+222 |   throw new UnknownSavedPlanBodyVersionError(savedPlanId, body, version, supported);
+                                                                                        ^
+UnknownSavedPlanBodyVersionError: saved plan saved: input body is at schema version 9, which this reader does not know (knows 1, 2, 3, 4, 5, 6, 7, 8)
+      at assertKnownBodyVersion (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.ts:222:83)
+      at verifySavedPlanBodies (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.ts:244:3)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:45:12)
+(fail) new saved body integrity > refuses mismatched targets, missing connection and local input with connected schedule [0.17ms]
+217 |   body: SavedPlanBodyKind,
+218 |   version: number,
+219 |   supported: readonly number[],
+220 | ): void {
+221 |   if (supported.includes(version)) return;
+222 |   throw new UnknownSavedPlanBodyVersionError(savedPlanId, body, version, supported);
+                                                                                        ^
+UnknownSavedPlanBodyVersionError: saved plan saved: input body is at schema version 9, which this reader does not know (knows 1, 2, 3, 4, 5, 6, 7, 8)
+      at assertKnownBodyVersion (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.ts:222:83)
+      at verifySavedPlanBodies (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.ts:244:3)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:61:12)
+(fail) new saved body integrity > refuses missing selected evidence and malformed timings without replaying schedules [0.10ms]
+
+ 14 pass
+ 4 fail
+ 70 expect() calls
+Ran 18 tests across 2 files. [474.00ms]

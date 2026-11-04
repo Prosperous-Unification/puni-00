@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+160 | it('observes staged changes freshly on every evaluation and applies precise local overrides', async () => {
+161 |   const scope = observation();
+162 |   scope.relationships.push(link('ab', 'a', 'b'));
+163 |   expect(await scope.reader.findCycle(['a'])).toBeNull();
+164 |   scope.relationships.push(link('ba', 'b', 'a'));
+165 |   expect((await scope.reader.findCycle(['a']))?.kind).toBe('cycle');
+                                                            ^
+error: expect(received).toBe(expected)
+
+Expected: "cycle"
+Received: undefined
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:165:55)
+(fail) observes staged changes freshly on every evaluation and applies precise local overrides [2.64ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [135.00ms]

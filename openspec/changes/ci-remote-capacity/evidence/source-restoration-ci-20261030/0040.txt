@@ -1,0 +1,24 @@
+
+tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts:
+RESTORATION_TARGET_CHILD: {"leaf":"model","executed":["src/lib/dependency-product-process-model.test.ts"]}
+679 |       const refused = invoke(root, leaf, starts.preload);
+680 |       if (existsSync(starts.marker))
+681 |         console.error(
+682 |           `RESTORATION_TARGET_CHILD: ${JSON.stringify({ leaf, executed: executed(refused.stdout.toString()) })}`,
+683 |         );
+684 |       expect(refused.exitCode).not.toBe(0);
+                                         ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts:684:36)
+(fail) all leaves refuse malformed restoration target before actual children: absent [85.23ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=2
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [128.00ms]

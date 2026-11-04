@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+270 |   const child = harness.sqlite.query<{ id: string }, []>("SELECT id FROM work_item WHERE name='Only child'").get();
+271 |   const step = harness.sqlite.query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1').get(fixture.predecessor.projectId);
+272 |   if (child === null || step === null) throw new Error('fixture descendant facts missing');
+273 |   expect(await semantic(fixture, (service) => service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, { ...fixture.input, predecessor: { ...fixture.input.predecessor, scope: 'descendant-step', stepId: step.id } }))).toMatchObject({ ok: true });
+274 |   const before = effects();
+275 |   expect(await observed(semantic({ ...fixture, owner: fixture.predecessor }, (service) => service.remove(child.id, fixture.principal.id, 'cascade', fixture.expectedAccess)))).toMatchObject({ ok: false, reason: 'descendant_step_on_leaf' });
+                                                                                                                                                                                     ^
+error: expect(received).toMatchObject(expected)
+
+- {
+-   "ok": false,
+-   "reason": "descendant_step_on_leaf",
+- }
++ [Error: descendant-step endpoint of 671d2d0d-e6d0-4088-9894-b0d13ae97e16 names 153e8b80-7407-4243-b21e-126287a1cd46, which is a leaf]
+
+- Expected  - 4
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:275:176)
+(fail) last-child deletion refuses making a remote-owned descendant-step endpoint a leaf [384.85ms]
+
+ 0 pass
+ 53 filtered out
+ 1 fail
+ 11 expect() calls
+Ran 1 test across 1 file. [2.44s]

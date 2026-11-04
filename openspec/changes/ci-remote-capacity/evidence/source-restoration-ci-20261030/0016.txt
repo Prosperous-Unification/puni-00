@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "bun",
+    "test",
+    "--preload",
+    "./tools/test/scratch/preload.ts",
+    "tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts",
+    "--test-name-pattern=fresh\\ fixed\\ leaves\\ preserve\\ real\\ canonical\\ Bun\\ discovery\\ including\\ future\\ and\\ collision\\ files$"
+  ],
+  "pid": 3317822,
+  "exit": 1,
+  "signal": null,
+  "stdoutEOF": true,
+  "stderrEOF": true,
+  "elapsedSeconds": 0.28207518300041556,
+  "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+  "stderrSHA256": "8a2107e8f25afbc384d88f5d3ca2e436ab52e0561d7bc09e1f57e82e7765b7db"
+}

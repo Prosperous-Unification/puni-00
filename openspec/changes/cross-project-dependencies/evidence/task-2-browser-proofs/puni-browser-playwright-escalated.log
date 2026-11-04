@@ -1,0 +1,48 @@
+[WebServer] {"level":"info","time":1792626742889,"service":"be-01","port":5600,"msg":"be-01 listening (migrating)"}
+[WebServer] {"level":"info","time":1792626743078,"service":"be-01","coded":0,"msg":"step codes backfilled"}
+[WebServer] {"level":"info","time":1792626743085,"service":"be-01","msg":"migrations applied"}
+[WebServer] gw-01 listening on 5700
+[WebServer] (node:2516785) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+[WebServer]   - `__dirname` (vite.config.ts:90:20). Use `import.meta.dirname` instead
+[WebServer] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+[WebServer] vite v8.2.2 building client environment for production...
+[WebServer] transforming...
+[WebServer] ✓ 1113 modules transformed.
+[WebServer] rendering chunks...
+[WebServer] computing gzip size...
+[WebServer] ../../../dist/apps/wbs/fe-01/index.html                               2.81 kB │ gzip:   1.33 kB
+[WebServer] ../../../dist/apps/wbs/fe-01/assets/index-DLVYGgUf.css               76.13 kB │ gzip:  12.38 kB
+[WebServer] ../../../dist/apps/wbs/fe-01/assets/rolldown-runtime-7_rZTKki.js      1.79 kB │ gzip:   0.80 kB
+[WebServer] ../../../dist/apps/wbs/fe-01/assets/person-load-page-BlpxRYlx.js      8.55 kB │ gzip:   2.94 kB
+[WebServer] ../../../dist/apps/wbs/fe-01/assets/directory-page-dgPQQBsY.js       36.73 kB │ gzip:   7.92 kB
+[WebServer] ../../../dist/apps/wbs/fe-01/assets/vendor-B3mEOH7p.js              788.52 kB │ gzip: 166.40 kB
+[WebServer] ../../../dist/apps/wbs/fe-01/assets/http-CoCS_-LI.js                950.50 kB │ gzip: 205.99 kB
+[WebServer] ../../../dist/apps/wbs/fe-01/assets/index-D02wwnQu.js             3,174.59 kB │ gzip: 855.35 kB
+[WebServer]
+[WebServer] ✓ built in 2.20s
+[WebServer] (node:2516964) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+[WebServer]   - `__dirname` (vite.config.ts:90:20). Use `import.meta.dirname` instead
+[WebServer] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+[WebServer]   ➜  Local:   http://localhost:6700/
+[WebServer]   ➜  Network: http://192.168.1.104:6700/  wlp0s20f3
+[WebServer]   ➜  Network: http://172.17.0.1:6700/     docker0
+
+Running 9 tests using 1 worker
+
+(node:2517026) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › apps/wbs/fe-01/e2e/spaces-timeline.spec.ts:14:1 › blank timeline lanes contain wrapped labels at a narrow viewport (7.5s)
+  ✓  2 [chromium] › apps/wbs/fe-01/e2e/spaces.spec.ts:58:7 › spaces pages at 1280px › /spaces draws every control with the chrome, nothing sideways (6.3s)
+  ✓  3 [chromium] › apps/wbs/fe-01/e2e/spaces.spec.ts:101:7 › spaces pages at 1280px › /spaces reaches every control by Tab (3.9s)
+  ✓  4 [chromium] › apps/wbs/fe-01/e2e/spaces.spec.ts:58:7 › spaces pages at 1280px › /spaces/s draws every control with the chrome, nothing sideways (3.4s)
+  ✓  5 [chromium] › apps/wbs/fe-01/e2e/spaces.spec.ts:101:7 › spaces pages at 1280px › /spaces/s reaches every control by Tab (4.0s)
+  ✓  6 [chromium] › apps/wbs/fe-01/e2e/spaces.spec.ts:58:7 › spaces pages at 375px › /spaces draws every control with the chrome, nothing sideways (6.9s)
+  ✓  7 [chromium] › apps/wbs/fe-01/e2e/spaces.spec.ts:101:7 › spaces pages at 375px › /spaces reaches every control by Tab (6.5s)
+  ✓  8 [chromium] › apps/wbs/fe-01/e2e/spaces.spec.ts:58:7 › spaces pages at 375px › /spaces/s draws every control with the chrome, nothing sideways (4.0s)
+  ✓  9 [chromium] › apps/wbs/fe-01/e2e/spaces.spec.ts:101:7 › spaces pages at 375px › /spaces/s reaches every control by Tab (3.4s)
+
+  9 passed (59.7s)

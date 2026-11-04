@@ -1,0 +1,52 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+1365 |         },
+1366 |         type: 'FS',
+1367 |       });
+1368 |     }),
+1369 |   ).toMatchObject({ ok: false, reason: 'cycle' });
+1370 |   expect(effects()).toEqual(before);
+                           ^
+error: expect(received).toEqual(expected)
+
+@@ -163,10 +163,11 @@
+      "rows": [],
+    },
+    {
+      "name": "external_dependency",
+      "rows": [
++       "{"id":"21954513-98e0-4e79-ba56-b33964862d8b","organization_id":"org-a","predecessor_project_id":"7eaadf7e-846f-4d2c-9c47-c0e3fde9d9c7","successor_project_id":"2a4443a2-d80c-49eb-9e4c-8db0d85209e8","predecessor_work_item_id":"d1933ba0-4497-475c-a706-76153dcc1451","predecessor_scope":"whole","predecessor_step_id":null,"successor_work_item_id":"db4d946c-3ff1-4253-a483-53ae8ff9be14","successor_scope":"whole","successor_step_id":null,"type":"FS","created_at":1792655462335,"updated_at":1792655462335,"created_by":"f87f45aa-8f39-443d-a739-87924aa21f67"}",
+        "{"id":"6417d834-ca32-430d-82e0-c9e722feace4","organization_id":"org-a","predecessor_project_id":"2a4443a2-d80c-49eb-9e4c-8db0d85209e8","successor_project_id":"7eaadf7e-846f-4d2c-9c47-c0e3fde9d9c7","predecessor_work_item_id":"d8163c59-5cce-4201-8646-eff0f644c850","predecessor_scope":"node","predecessor_step_id":"e87a43c5-9245-4b9b-a4d6-9c3639c7f387","successor_work_item_id":"d1933ba0-4497-475c-a706-76153dcc1451","successor_scope":"node","successor_step_id":"38e3ccb8-abc4-4390-96d7-a1254f3c422a","type":"FS","created_at":1792655462320,"updated_at":1792655462320,"created_by":"f87f45aa-8f39-443d-a739-87924aa21f67"}",
+      ],
+    },
+    {
+      "name": "external_identity",
+@@ -454,13 +455,13 @@
+      ],
+    },
+    {
+      "name": "work_item",
+      "rows": [
+-       "{"id":"d1933ba0-4497-475c-a706-76153dcc1451","project_id":"7eaadf7e-846f-4d2c-9c47-c0e3fde9d9c7","parent_id":null,"position":10,"name":"Predecessor row","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":1,"priority":50,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":1792655462092,"updated_at":1792655462320,"created_by":"f87f45aa-8f39-443d-a739-87924aa21f67","deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
++       "{"id":"d1933ba0-4497-475c-a706-76153dcc1451","project_id":"7eaadf7e-846f-4d2c-9c47-c0e3fde9d9c7","parent_id":null,"position":10,"name":"Predecessor row","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":2,"priority":50,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":1792655462092,"updated_at":1792655462335,"created_by":"f87f45aa-8f39-443d-a739-87924aa21f67","deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
+        "{"id":"d8163c59-5cce-4201-8646-eff0f644c850","project_id":"2a4443a2-d80c-49eb-9e4c-8db0d85209e8","parent_id":null,"position":5,"name":"Batch closing task","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":1,"priority":50,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":1792655462292,"updated_at":1792655462320,"created_by":"f87f45aa-8f39-443d-a739-87924aa21f67","deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
+-       "{"id":"db4d946c-3ff1-4253-a483-53ae8ff9be14","project_id":"2a4443a2-d80c-49eb-9e4c-8db0d85209e8","parent_id":null,"position":10,"name":"Owner row","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":0,"priority":50,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":1792655462212,"updated_at":1792655462212,"created_by":"f87f45aa-8f39-443d-a739-87924aa21f67","deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
++       "{"id":"db4d946c-3ff1-4253-a483-53ae8ff9be14","project_id":"2a4443a2-d80c-49eb-9e4c-8db0d85209e8","parent_id":null,"position":10,"name":"Owner row","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":1,"priority":50,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":1792655462212,"updated_at":1792655462335,"created_by":"f87f45aa-8f39-443d-a739-87924aa21f67","deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
+      ],
+    },
+    {
+      "name": "work_item_external_ref",
+      "rows": [],
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-graph-closure-review-tree/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1370:21)
+(fail) admitted batch rolls back an actual external write when a later command closes the remote cycle [1111.70ms]
+
+ 0 pass
+ 87 filtered out
+ 1 fail
+ 16 expect() calls
+Ran 1 test across 1 file. [3.45s]

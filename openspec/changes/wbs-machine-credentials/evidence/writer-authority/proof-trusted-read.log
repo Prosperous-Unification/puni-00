@@ -1,0 +1,65 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:
+764 |       })
+765 |       .then(
+766 |         () => null,
+767 |         (cause: unknown) => cause,
+768 |       );
+769 |     expect(failure).toBeInstanceOf(Error);
+                          ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: null
+
+      at <anonymous> (/tmp/puni-machine-writer/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:769:21)
+(fail) machine direct runner throws on trusted credential absent-table [383.10ms]
+764 |       })
+765 |       .then(
+766 |         () => null,
+767 |         (cause: unknown) => cause,
+768 |       );
+769 |     expect(failure).toBeInstanceOf(Error);
+                          ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: null
+
+      at <anonymous> (/tmp/puni-machine-writer/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:769:21)
+(fail) machine direct runner throws on trusted credential unreadable-table [252.24ms]
+764 |       })
+765 |       .then(
+766 |         () => null,
+767 |         (cause: unknown) => cause,
+768 |       );
+769 |     expect(failure).toBeInstanceOf(Error);
+                          ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: null
+
+      at <anonymous> (/tmp/puni-machine-writer/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:769:21)
+(fail) machine direct runner throws on trusted credential source [241.97ms]
+764 |       })
+765 |       .then(
+766 |         () => null,
+767 |         (cause: unknown) => cause,
+768 |       );
+769 |     expect(failure).toBeInstanceOf(Error);
+                          ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: null
+
+      at <anonymous> (/tmp/puni-machine-writer/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:769:21)
+(fail) machine direct runner throws on trusted credential revocation [240.63ms]
+
+ 0 pass
+ 99 filtered out
+ 4 fail
+ 16 expect() calls
+Ran 4 tests across 1 file. [4.45s]

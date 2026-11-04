@@ -1,4 +1,5 @@
 import type { ChainAccess, PlanInputReads, SavedPlanCaptureStore } from '@wbs/core';
+import { captureLocalTypedDependency } from '@wbs/core';
 
 import { ActualRepository } from './actual';
 import { CapacityRepository } from './capacity';
@@ -12,6 +13,7 @@ import { OPEN } from './gate';
 import { MeasureEstimateRepository } from './measure-estimate';
 import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
+import { createReadSnapshotLifetime, type ReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { DemandRepository, ResourceCapacityRepository } from './resource';
 import { StepBlockageRepository } from './step-blockage';
 import { StepMeasureRepository } from './step-measure';
@@ -133,59 +135,91 @@ export class SavedPlanCaptureRepository implements SavedPlanCaptureStore {
    */
   async readPlanInput(projectId: string): Promise<PlanInputReads | null> {
     const connection = this.opts.openConnection();
+    const lifetime = createReadSnapshotLifetime();
     try {
       const db = connection.db;
       const tx = drizzleReadTransaction(db);
       tx.begin();
       try {
-        const captured = await readPlanInputIn(db, projectId, this.captureRead);
+        const captured = await readPlanInputIn(db, projectId, lifetime, this.captureRead);
+        lifetime.expire();
         tx.commit();
         return captured;
       } catch (err) {
         // The snapshot is released before the connection closes. Closing a
         // handle with an open transaction would roll it back anyway, but only
         // after `bun:sqlite` has decided how to complain about it.
+        lifetime.expire();
         tx.rollback();
         throw err;
       }
     } finally {
+      lifetime.expire();
       connection.close();
     }
   }
 }
 
-/** Reads detached plan values on a caller-owned snapshot; never begins or closes its connection. */
-export async function readPlanInputIn(
+/** Reads the historical local-only plan input; incident external rows remain a refusal. */
+export function readPlanInputIn(
   db: Drizzle,
   projectId: string,
+  lifetime: ReadSnapshotLifetime,
   captureRead: CaptureReadSeam = inertSqliteCaptureReadSeam,
   access?: ChainAccess,
 ): Promise<PlanInputReads | null> {
+  return readPlanInputValuesIn(db, projectId, lifetime, captureRead, access);
+}
+
+/** Reads detached plan values on a caller-owned snapshot; never begins or closes its connection. */
+async function readPlanInputValuesIn(
+  db: Drizzle,
+  projectId: string,
+  lifetime: ReadSnapshotLifetime,
+  captureRead: CaptureReadSeam = inertSqliteCaptureReadSeam,
+  access?: ChainAccess,
+  connected = false,
+): Promise<PlanInputReads | null> {
+  lifetime.assertOpen();
   const projects = new ProjectRepository(db, OPEN);
+  lifetime.assertOpen();
   const directory = new DirectoryRepository(db, OPEN);
+  lifetime.assertOpen();
   const project =
     access?.kind === 'scoped'
       ? await projects.findInOrganization(projectId, access.scope.organizationId)
       : await projects.findById(projectId);
+  lifetime.assertOpen();
   if (project === null) return null;
+  lifetime.assertOpen();
   const timezone = await projects.timezoneOf(projectId);
   // The project row was just read on this snapshot, so its zone cannot be missing.
   if (timezone === null) throw new Error(`project "${projectId}" has no timezone`);
+  lifetime.assertOpen();
   if (access?.kind === 'scoped') {
     const crossing = await projects.findCrossReferences(projectId, access.scope.organizationId);
     // Proof: dropping this check made the crossing-assignee negative accept foreign person assignment.
     if (crossing.length > 0)
       throw new Error(`project "${projectId}" holds references outside its organization`);
   }
+  lifetime.assertOpen();
   await captureRead.afterFirstRead({ projectId, project: { ...project, timezone } });
+  // Proof: removing this continuation check issued a work-item read after the suspended source capture expired.
+  lifetime.assertOpen();
   const workItems = await new WorkItemRepository(db, OPEN).listByProject(projectId);
+  lifetime.assertOpen();
   const estimates = await new EstimateRepository(db, OPEN).listByProject(projectId);
+  lifetime.assertOpen();
   const actuals = await new ActualRepository(db, OPEN).listByProject(projectId);
+  lifetime.assertOpen();
   const progress = await new StepProgressRepository(db, OPEN).listByProject(projectId);
   // Proof: snapshot read replaced with empty; concurrent-clear capture regression failed (saved-plan-capture.db.test.ts), 2026-10-14.
+  lifetime.assertOpen();
   const stepBlockages = await new StepBlockageRepository(db, OPEN).listByProject(projectId);
   // Proof: snapshot read replaced with empty; concurrent-clear sparse capture failed (sqlite-read.txt), 2026-10-17.
+  lifetime.assertOpen();
   const stepParallels = await new StepParallelRepository(db, OPEN).listByProject(projectId);
+  lifetime.assertOpen();
   const measures = await new StepMeasureRepository(db, OPEN).listByProject(projectId);
   // On the snapshot with the facts, so a saved plan pairs each budget with
   // the figures it bounds (`wbs-measure-budgets` design D66).
@@ -193,54 +227,85 @@ export async function readPlanInputIn(
   // conformance case `savedPlanCapture.readPlanInput:complete` captured none
   // (source-conformance.db.test.ts: 75 pass became 68 pass, 7 fail, for each
   // read alone); watched 2026-10-23.
+  lifetime.assertOpen();
+  const measureDefinitions = await new StepMeasureRepository(db, OPEN).definitionsFor(projectId);
+  lifetime.assertOpen();
+  // Proof: omitting this guard issued the next query after the definitions
+  // read expired in connected-plan-capture.db.test.ts (2026-10-24).
   const measureEstimates = await new MeasureEstimateRepository(db, OPEN).listByProject(projectId);
+  lifetime.assertOpen();
+  // Proof: omitting the preceding guard queried budgets after the estimates
+  // read expired in connected-plan-capture.db.test.ts (2026-10-24).
   const budgets = await new WorkItemBudgetRepository(db, OPEN).listByProject(projectId);
+  lifetime.assertOpen();
+  // Proof: omitting the preceding guard queried dependencies after the budgets
+  // read expired in connected-plan-capture.db.test.ts (2026-10-24).
   const dependencies = await new DependencyRepository(db, OPEN).listByProject(projectId);
+  lifetime.assertOpen();
   const typedDependencies = (
-    await new TypedDependencyRepository(db, OPEN).listByProject(projectId)
-  ).map(({ id, predecessor, successor, type }) => ({ id, predecessor, successor, type }));
+    await new TypedDependencyRepository(db, OPEN).listIncident([projectId])
+  )
+    .filter(
+      (relationship) =>
+        !connected || relationship.predecessor.projectId === relationship.successor.projectId,
+    )
+    .map(captureLocalTypedDependency);
+  lifetime.assertOpen();
   const { assignments } = await directory.assignmentsInProject(projectId);
+  lifetime.assertOpen();
   const steps = await projects.stepsOf(projectId);
+  lifetime.assertOpen();
   const capacity = await new CapacityRepository(db, OPEN).slotsFor(projectId);
   // Plan data both engines level, read on this snapshot (`wbs-resources` R5).
   // Proof: the demand read replaced with `[]` made `levels a demanded resource
   // (shared)` (resource-schedule.controller.db.test.ts) schedule overlapping
   // blocks while its isolated twin passed; watched 2026-10-20.
+  lifetime.assertOpen();
   const demands = await new DemandRepository(db, OPEN).listByProject(projectId);
+  lifetime.assertOpen();
   const resourceCapacities = await new ResourceCapacityRepository(db, OPEN).listFor(projectId);
+  lifetime.assertOpen();
   const priorityBands = await new PriorityBandRepository(db, OPEN).listFor(projectId);
   // Capture the directory whole for independent saved-plan history;
   // the live tree's assigned-name projection cannot replace these reads.
   // Proof: reading the global people list made the scoped capture negative include foreign.
+  lifetime.assertOpen();
   const people =
     access?.kind === 'scoped'
       ? await directory.listInOrganization('people', access.scope.organizationId)
       : await directory.listPeople();
+  lifetime.assertOpen();
   const teams =
     access?.kind === 'scoped'
       ? await directory.listInOrganization('teams', access.scope.organizationId)
       : await directory.listTeams();
+  lifetime.assertOpen();
   const services =
     access?.kind === 'scoped'
       ? await directory.listInOrganization('services', access.scope.organizationId)
       : await directory.listServices();
+  lifetime.assertOpen();
   const tags =
     access?.kind === 'scoped'
       ? await directory.listInOrganization('tags', access.scope.organizationId)
       : await directory.listTags();
+  lifetime.assertOpen();
   const workItemTypes =
     access?.kind === 'scoped'
       ? await directory.listInOrganization('workItemTypes', access.scope.organizationId)
       : await directory.listWorkItemTypes();
+  lifetime.assertOpen();
   const externalSystems =
     access?.kind === 'scoped'
       ? await directory.listInOrganization('externalSystems', access.scope.organizationId)
       : await directory.listExternalSystems();
   // Under the organization's own names, for the label of a bar a resource held.
+  lifetime.assertOpen();
   const resourceCatalog =
     access?.kind === 'scoped'
       ? await directory.listInOrganization('resources', access.scope.organizationId)
       : await directory.listResources();
+  lifetime.assertOpen();
   return {
     project: { ...project, timezone },
     steps,
@@ -251,6 +316,7 @@ export async function readPlanInputIn(
     stepBlockages,
     stepParallels,
     measures,
+    measureDefinitions,
     measureEstimates,
     budgets,
     dependencies,
@@ -269,4 +335,15 @@ export async function readPlanInputIn(
     workItemTypes,
     externalSystems,
   };
+}
+
+/** Explicit connected projection: external relationships are captured separately, never local-hashed. */
+export function readConnectedPlanInputIn(
+  db: Drizzle,
+  projectId: string,
+  access: Extract<ChainAccess, { kind: 'scoped' }>,
+  lifetime: ReadSnapshotLifetime,
+  captureRead: CaptureReadSeam = inertSqliteCaptureReadSeam,
+): Promise<PlanInputReads | null> {
+  return readPlanInputValuesIn(db, projectId, lifetime, captureRead, access, true);
 }

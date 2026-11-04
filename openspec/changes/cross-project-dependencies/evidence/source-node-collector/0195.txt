@@ -1,0 +1,112 @@
+collector-credentials omitted: audited original exit 1 and both original EOF readers
+collector-credentials: exact saved bytes restored after fresh original custody
+collector-credentials restored: audited original exit 0 and both original EOF readers
+collector-arguments omitted: audited original exit 1 and both original EOF readers
+collector-arguments: exact saved bytes restored after fresh original custody
+collector-arguments restored: audited original exit 0 and both original EOF readers
+bounded-proc-read omitted: audited original exit 1 and both original EOF readers
+bounded-proc-read: exact saved bytes restored after fresh original custody
+bounded-proc-read restored: audited original exit 0 and both original EOF readers
+proc-stat-grammar omitted: audited original exit 1 and both original EOF readers
+proc-stat-grammar: exact saved bytes restored after fresh original custody
+proc-stat-grammar restored: audited original exit 0 and both original EOF readers
+link-projection omitted: audited original exit 1 and both original EOF readers
+link-projection: exact saved bytes restored after fresh original custody
+link-projection restored: audited original exit 0 and both original EOF readers
+fatal-byte-decoder omitted: audited original exit 1 and both original EOF readers
+fatal-byte-decoder: exact saved bytes restored after fresh original custody
+fatal-byte-decoder restored: audited original exit 0 and both original EOF readers
+timestamp-projection omitted: audited original exit 1 and both original EOF readers
+timestamp-projection: exact saved bytes restored after fresh original custody
+timestamp-projection restored: audited original exit 0 and both original EOF readers
+receipt-output-bounds omitted: audited original exit 1 and both original EOF readers
+receipt-output-bounds: exact saved bytes restored after fresh original custody
+receipt-output-bounds restored: audited original exit 0 and both original EOF readers
+write-progress omitted: audited original exit 1 and both original EOF readers
+write-progress: exact saved bytes restored after fresh original custody
+write-progress restored: audited original exit 0 and both original EOF readers
+address-projection omitted: audited original exit 1 and both original EOF readers
+address-projection: exact saved bytes restored after fresh original custody
+address-projection restored: audited original exit 0 and both original EOF readers
+executable-capture omitted: audited original exit 1 and both original EOF readers
+executable-capture: exact saved bytes restored after fresh original custody
+executable-capture restored: audited original exit 0 and both original EOF readers
+process-readback omitted: audited original exit 1 and both original EOF readers
+process-readback: exact saved bytes restored after fresh original custody
+process-readback restored: audited original exit 0 and both original EOF readers
+descriptor-roster omitted: audited original exit 1 and both original EOF readers
+descriptor-roster: exact saved bytes restored after fresh original custody
+descriptor-roster restored: audited original exit 0 and both original EOF readers
+census-provenance omitted: audited original exit 1 and both original EOF readers
+census-provenance: exact saved bytes restored after fresh original custody
+census-provenance restored: audited original exit 0 and both original EOF readers
+census-bound omitted: audited original exit 1 and both original EOF readers
+census-bound: exact saved bytes restored after fresh original custody
+census-bound restored: audited original exit 0 and both original EOF readers
+census-probe omitted: audited original exit 1 and both original EOF readers
+census-probe: exact saved bytes restored after fresh original custody
+census-probe restored: audited original exit 0 and both original EOF readers
+launcher-input omitted: audited original exit 1 and both original EOF readers
+launcher-input: exact saved bytes restored after fresh original custody
+launcher-input restored: audited original exit 0 and both original EOF readers
+owned-child-identity omitted: audited original exit 1 and both original EOF readers
+owned-child-identity: exact saved bytes restored after fresh original custody
+owned-child-identity restored: audited original exit 0 and both original EOF readers
+independent-watchdog omitted: audited original exit 1 and both original EOF readers
+independent-watchdog: exact saved bytes restored after fresh original custody
+independent-watchdog restored: audited original exit 0 and both original EOF readers
+input-settlement omitted: audited original exit 1 and both original EOF readers
+input-settlement: exact saved bytes restored after fresh original custody
+input-settlement restored: audited original exit 0 and both original EOF readers
+ack-validation omitted: audited original exit 1 and both original EOF readers
+ack-validation: exact saved bytes restored after fresh original custody
+ack-validation restored: audited original exit 0 and both original EOF readers
+ack-bound omitted: audited original exit 1 and both original EOF readers
+ack-bound: exact saved bytes restored after fresh original custody
+ack-bound restored: audited original exit 0 and both original EOF readers
+launcher-stdout omitted: audited original exit 1 and both original EOF readers
+launcher-stdout: exact saved bytes restored after fresh original custody
+launcher-stdout restored: audited original exit 0 and both original EOF readers
+launcher-stderr omitted: audited original exit 1 and both original EOF readers
+launcher-stderr: exact saved bytes restored after fresh original custody
+launcher-stderr restored: audited original exit 0 and both original EOF readers
+original-reap omitted: audited original exit 1 and both original EOF readers
+original-reap: exact saved bytes restored after fresh original custody
+original-reap restored: audited original exit 0 and both original EOF readers
+fixed-source-command omitted: audited original exit 1 and both original EOF readers
+fixed-source-command: exact saved bytes restored after fresh original custody
+fixed-source-command restored: audited original exit 0 and both original EOF readers
+source-receipt-bound omitted: audited original exit 1 and both original EOF readers
+source-receipt-bound: exact saved bytes restored after fresh original custody
+source-receipt-bound restored: audited original exit 0 and both original EOF readers
+source-tag-boundary omitted: audited original exit 1 and both original EOF readers
+source-tag-boundary: exact saved bytes restored after fresh original custody
+source-tag-boundary restored: audited original exit 0 and both original EOF readers
+source-session-tuple omitted: audited original exit 1 and both original EOF readers
+source-session-tuple: exact saved bytes restored after fresh original custody
+source-session-tuple restored: audited original exit 0 and both original EOF readers
+source-session-before-ack omitted: audited original exit 1 and both original EOF readers
+source-session-before-ack: exact saved bytes restored after fresh original custody
+source-session-before-ack restored: audited original exit 0 and both original EOF readers
+source-done omitted: audited original exit 1 and both original EOF readers
+source-done: exact saved bytes restored after fresh original custody
+source-done restored: audited original exit 0 and both original EOF readers
+source-before-ack-join omitted: audited original exit 1 and both original EOF readers
+source-before-ack-join: exact saved bytes restored after fresh original custody
+source-before-ack-join restored: audited original exit 0 and both original EOF readers
+source-reap-frame omitted: audited original exit 1 and both original EOF readers
+source-reap-frame: exact saved bytes restored after fresh original custody
+source-reap-frame restored: audited original exit 0 and both original EOF readers
+source-mode-frame omitted: audited original exit 1 and both original EOF readers
+source-mode-frame: exact saved bytes restored after fresh original custody
+source-mode-frame restored: audited original exit 0 and both original EOF readers
+source-complete-reap omitted: audited original exit 1 and both original EOF readers
+source-complete-reap: exact saved bytes restored after fresh original custody
+source-complete-reap restored: audited original exit 0 and both original EOF readers
+source-transport-failure omitted: audited original exit 1 and both original EOF readers
+source-transport-failure: exact saved bytes restored after fresh original custody
+source-transport-failure restored: audited original exit 0 and both original EOF readers
+source-empty-census omitted: audited original exit 1 and both original EOF readers
+source-empty-census: exact saved bytes restored after fresh original custody
+source-empty-census restored: audited original exit 0 and both original EOF readers
+Finite37 pairs completed; every original outcome audited and exact saved source restored.

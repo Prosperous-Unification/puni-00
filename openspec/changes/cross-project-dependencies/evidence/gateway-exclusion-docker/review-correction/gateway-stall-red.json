@@ -1,0 +1,21 @@
+{
+  "project": "gateway-proof-3807fb92-7cfa-4c09-94d2-443767234771",
+  "root": "/tmp/gateway-proof-3807fb92-7cfa-4c09-94d2-443767234771-Kg05io",
+  "network": "gateway-proof-3807fb92-7cfa-4c09-94d2-443767234771-net",
+  "image": "docker.io/wbs-gw-01@sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4",
+  "sha": "2f3efc3fa8aecf716b9e5334de55582f984f2dcf",
+  "observations": [
+    {
+      "label": "failure",
+      "proof": "Error: Docker operation deadline exceeded: network"
+    },
+    {
+      "label": "cleanup",
+      "proof": {
+        "ids": [],
+        "complete": true
+      }
+    }
+  ],
+  "cleanupFailures": []
+}

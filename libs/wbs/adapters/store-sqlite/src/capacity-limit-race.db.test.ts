@@ -6,8 +6,11 @@ import type { OrganizationLimitGauge, PlanCommand, ResourceAccess, Scope } from 
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
+import { expectCreated } from '@wbs/core/testing/expect-created';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
@@ -15,6 +18,7 @@ import fc from 'fast-check';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
@@ -52,7 +56,11 @@ function openFresh(prefix: string): void {
   directory = mkdtempSync(join(tmpdir(), prefix));
   const dbPath = join(directory, 'plan.db');
   runMigrations(dbPath, folder);
-  source = openSqliteSource({ dbPath, organizationDefaultLimits: DEFAULTS });
+  source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath,
+    organizationDefaultLimits: DEFAULTS,
+  });
 }
 
 beforeEach(() => {
@@ -100,11 +108,12 @@ async function seeded(cap: number, counting: { source: CountSource }) {
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
+    dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
   const projectIds: string[] = [];
   for (const name of ['P', 'Q']) {
-    const created = await graph.projects.create(name, 'dany');
+    const created = expectCreated(await graph.projects.create(name, 'dany'));
     source.db.run(
       sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${created.project.id}, 'org-a')`,
     );
@@ -135,17 +144,28 @@ async function seeded(cap: number, counting: { source: CountSource }) {
     };
   };
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: broadcast,
     publicServices: graph,
-    batchServices: (scope: Scope, announcements) =>
+    batchServices: (scope: Scope, announcements, admission, dependencyContext) =>
       servicesOver(
         { ...scope.stores, organizationLimits: gauged(scope.stores.organizationLimits) },
-        { ...options, broadcast: announcements },
+        {
+          ...options,
+          broadcast: announcements,
+          admission,
+          dependencyContext: { kind: 'bound', context: dependencyContext },
+        },
       ),
   });
   const run = (projectId: string, userId: string, commands: PlanCommand[]) =>
-    runner.runWithin(projectId, userId, commands, accessOf(userId), null, null);
+    runner.runWithin(
+      projectId,
+      { id: userId, username: userId, scopes: ['write'] },
+      commands,
+      accessOf(userId),
+    );
   /** Arms the hold so the next sum read waits, holding its turn, until released. */
   const holdNextRead = () => {
     let release: () => void = () => undefined;

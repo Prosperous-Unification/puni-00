@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+{"level":"error","time":1792719280057,"service":"be-01","err":{"occurrence_id":"AE_6C97SR7FXFZC4W8WDT122FBS27","fingerprint":"fp1_f6436f846d7caae56b2e15de50f75296","stack":["Error: read snapshot is closed","    at assertOpen (/tmp/puni-postclose-proof/libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.ts:12:28)","    at <anonymous> (/tmp/puni-postclose-proof/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:616:16)","    at deriveConnectedPlan (/tmp/puni-postclose-proof/libs/wbs/application/core/src/service/connected-plan.ts:264:7)","    at placement (/tmp/puni-postclose-proof/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:625:14)","    at selectConnectedProject (/tmp/puni-postclose-proof/libs/wbs/application/core/src/service/connected-plan-projection.ts:125:7)","    at captureConnectedHistory (/tmp/puni-postclose-proof/libs/wbs/application/core/src/module/saved-plans/connected-history.ts:147:18)","    at captureConnectedHistory (unknown)","    at captureAndAttempt (/tmp/puni-postclose-proof/libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts:652:44)","    at async captureSchedulePlan (/tmp/puni-postclose-proof/libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts:571:32)","    at async projectCurrentPlan (/tmp/puni-postclose-proof/libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts:285:33)","    at async sideOf (/tmp/puni-postclose-proof/libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts:381:31)","    at async compare (/tmp/puni-postclose-proof/libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts:351:33)","    at async callSavedPlan (/tmp/puni-postclose-proof/libs/wbs/application/core/src/http/saved-plan.routes.ts:68:37)","    at async <anonymous> (/tmp/puni-postclose-proof/libs/wbs/application/core/src/http/saved-plan.routes.ts:234:26)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+
+apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts:
+130 |     const compared = await mounted.call(
+131 |       'ada',
+132 |       'GET',
+133 |       `/api/projects/${beta}/saved-plans/compare?left=current&right=current`,
+134 |     );
+135 |     expect(compared.status).toBe(200);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at <anonymous> (/tmp/puni-postclose-proof/apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts:135:29)
+(fail) connected current/current captures once and serialization follows read connection closure [352.63ms]
+
+ 0 pass
+ 4 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [3.29s]
+
+Observed process exit: 1

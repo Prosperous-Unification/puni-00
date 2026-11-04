@@ -9,7 +9,9 @@ import { describe, expect, it } from 'bun:test';
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from '../plan-commands/composition';
@@ -69,6 +71,7 @@ async function seeded() {
   let stamps = 0;
   let ids = 0;
   const requirements = {
+    dependencyContext: createLocalDependencyContext(stores),
     ...stores,
     admission: CREATOR_ADMISSION,
     scheduler: fastScheduler,
@@ -303,6 +306,7 @@ it('reads admitted sparse deletion evidence and rolls a preceding patch and jour
   const graph = servicesOver(fixture.stores, fixture.requirements);
   const before = await fixture.snapshot();
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: {
       run: (act) =>
         fixture.source.uow.run(async (scope) => {
@@ -317,7 +321,11 @@ it('reads admitted sparse deletion evidence and rolls a preceding patch and jour
     announcements: fixture.broadcast,
     publicServices: graph,
     batchServices: (scope, broadcast) =>
-      servicesOver(scope.stores, { ...fixture.requirements, broadcast }),
+      servicesOver(scope.stores, {
+        ...fixture.requirements,
+        dependencyContext: createLocalDependencyContext(scope.stores),
+        broadcast,
+      }),
   });
   expect(
     await runner.run('p', 'owner', [

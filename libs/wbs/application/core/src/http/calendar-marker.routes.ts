@@ -1,3 +1,4 @@
+import type { AuthenticatedUser } from '@wbs/contracts';
 import {
   createCalendarMarker,
   listCalendarMarkers,
@@ -18,6 +19,7 @@ import type {
   CalendarMarkerRefused,
   CalendarMarkerService,
 } from '../module/calendar-marker/calendar-marker.resource';
+import type { AuthorityRefusal } from '../module/plan-commands/plan-commands.feature';
 import type { CalendarMarker } from '../ports/calendar-marker-store';
 import type { OrganizationAccess } from '../ports/organization-access';
 import type { ResourceAccess } from '../ports/organization-access';
@@ -278,19 +280,22 @@ export function calendarMarkerRoutes(
   const write = (
     access: ResourceAccess,
     projectId: string,
-    actorId: string,
+    actor: AuthenticatedUser,
     detail: { readonly marker: 'create' | 'rename' | 'recolor' | 'remove' },
-    perform: (service: CalendarMarkerService) => Promise<CalendarMarkerOutcome>,
-  ): Promise<CalendarMarkerOutcome> => {
-    if (access.kind === 'legacy') return perform(markers);
+    perform: (
+      service: CalendarMarkerService,
+      access: ResourceAccess,
+    ) => Promise<CalendarMarkerOutcome>,
+  ): Promise<CalendarMarkerOutcome | AuthorityRefusal> => {
+    if (access.kind === 'legacy') return perform(markers, access);
     if (recovery === undefined) throw new Error('scoped marker write has no recovery boundary');
     return runRecoveryWrite(
       recovery,
       access,
       projectId,
-      actorId,
+      actor,
       detail,
-      (services) => perform(services.calendarMarkers),
+      (services, freshAccess) => perform(services.calendarMarkers, freshAccess),
       (reason) => ({ ok: false, reason, about: 'project' }),
     );
   };
@@ -313,9 +318,9 @@ export function calendarMarkerRoutes(
         const outcome = await write(
           resolved.access,
           params.id,
-          principal.id,
+          principal,
           { marker: 'create' },
-          (service) =>
+          (service, access) =>
             service.createWithin(
               params.id,
               principal.id,
@@ -325,9 +330,11 @@ export function calendarMarkerRoutes(
                 ...(created.markerId === undefined ? {} : { id: created.markerId }),
                 ...(created.color === undefined ? {} : { color: created.color }),
               },
-              resolved.access,
+              access,
             ),
         );
+        if ('refusal' in outcome) return organizationRefusal(outcome);
+        if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
         return outcome.ok
           ? { ok: true, status: 201, body: { marker: answered(outcome.value) } }
           : stateRefused(outcome, created.markerId !== undefined);
@@ -346,31 +353,33 @@ export function calendarMarkerRoutes(
             ? await write(
                 resolved.access,
                 params.id,
-                principal.id,
+                principal,
                 { marker: 'rename' },
-                (service) =>
+                (service, access) =>
                   service.renameWithin(
                     params.id,
                     params.markerId,
                     principal.id,
                     change.name,
-                    resolved.access,
+                    access,
                   ),
               )
             : await write(
                 resolved.access,
                 params.id,
-                principal.id,
+                principal,
                 { marker: 'recolor' },
-                (service) =>
+                (service, access) =>
                   service.recolorWithin(
                     params.id,
                     params.markerId,
                     principal.id,
                     change.color,
-                    resolved.access,
+                    access,
                   ),
               );
+        if ('refusal' in outcome) return organizationRefusal(outcome);
+        if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
         return outcome.ok
           ? { ok: true, status: 200, body: { marker: answered(outcome.value) } }
           : stateRefused(outcome, true);
@@ -383,11 +392,12 @@ export function calendarMarkerRoutes(
       const outcome = await write(
         resolved.access,
         params.id,
-        principal.id,
+        principal,
         { marker: 'remove' },
-        (service) =>
-          service.removeWithin(params.id, params.markerId, principal.id, resolved.access),
+        (service, access) => service.removeWithin(params.id, params.markerId, principal.id, access),
       );
+      if ('refusal' in outcome) return organizationRefusal(outcome);
+      if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
       return outcome.ok ? { ok: true, status: 204, body: EMPTY } : stateRefused(outcome, true);
     }),
   ] as const;

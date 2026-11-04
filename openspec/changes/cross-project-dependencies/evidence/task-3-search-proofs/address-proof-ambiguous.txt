@@ -1,0 +1,39 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+104 |   const before = h.sqlite.query('SELECT total_changes() AS count').get();
+105 |   for (const [reference,status,body] of [
+106 |     ['P.080',422,{error:'unresolvable_reference',reason:'ambiguous_work_item'}],
+107 |     ['P.999',404,{error:'not_found'}],['OTHER.080',404,{error:'not_found'}],['P.080.unknown',422,{error:'unresolvable_reference',reason:'ambiguous_work_item'}],
+108 |     ['1P.080',422,{error:'unresolvable_reference',reason:'malformed'}],['P'.repeat(21)+'.080',422,{error:'unresolvable_reference',reason:'malformed'}],
+109 |   ] as const) expect(await h.call('ada','GET',`/api/projects/${selected}/address-references?reference=${reference}&revision=${page.addressRevision}`)).toEqual({status,body});
+                                                                                                                                                             ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "error": "unresolvable_reference",
+-     "reason": "ambiguous_work_item",
++     "addressRevision": "qar1:37aecfa3428e29ca9e3c986c3ddf1cf986f7f19df9c99c6140f27904491de167",
++     "endpoint": {
++       "scope": "whole",
++       "workItemId": "first",
++     },
++     "projectId": "956315e5-e07a-48ab-aa35-24fd0dba68f4",
++     "reference": "P.080",
+    },
+-   "status": 422,
++   "status": 200,
+  }
+
+- Expected  - 3
++ Received  + 8
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:109:152)
+(fail) refuses duplicate numbers and missing endpoints without changing database state [206.80ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [2.75s]

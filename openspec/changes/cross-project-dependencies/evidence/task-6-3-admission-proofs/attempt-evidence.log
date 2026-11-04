@@ -1,0 +1,33 @@
+$ bun test apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts -t SS observes
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+80 |   harness.sqlite.run("UPDATE external_dependency SET type='SS' WHERE id='prerequisite'");
+81 |   const before = captureState();
+82 |   expect((await claim()).status).toBe(409);
+83 |   expect(captureState()).toEqual(before);
+84 |   harness.sqlite.run("INSERT INTO step_node_attempt (work_item_id,step_id,attempt_number,started_at,ended_at,outcome) VALUES ('predecessor-leaf',?,1,1,2,'failed')", [predecessorStep]);
+85 |   expect(((await startable()).body as { leaves: { stepIds: string[] }[] }).leaves).toMatchObject([{ stepIds: [targetStep] }]);
+                                                                                        ^
+error: expect(received).toMatchObject(expected)
+
+- [
+-   {
+-     "stepIds": [
+-       "4d6355af-c4e0-4278-83f0-8264e3278b5b",
+-     ],
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-start-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:85:84)
+(fail) SS observes ended unsuccessful attempts while unknown prerequisites refuse atomically [374.02ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [2.60s]

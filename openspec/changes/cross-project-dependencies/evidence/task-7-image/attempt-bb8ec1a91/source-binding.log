@@ -1,0 +1,17 @@
+[solver-image-smoke] supervisor authenticated and accepted /app/libs/wbs/domain/contracts/solver/fixtures/request/valid-quantised-baseline.json
+[solver-image-smoke] supervisor authenticated and accepted shared-person
+[solver-image-smoke] supervisor authenticated and accepted connected-feasible
+[solver-image-smoke] supervisor authenticated and accepted connected-fractional
+[solver-image-smoke] cleanup-complete 8be07a30-de06-4f0a-b341-22ee17bee8cf
+236 |     const placement = async () => {
+237 |       assert.ok(bound);
+238 |       const observed = await bound.stores.livePlans?.read(TARGET_PROJECT_ID, access);
+239 |       if (observed?.kind !== 'connected') throw new Error('connected projection absent');
+240 |       const placed = observed.projection.placement;
+241 |       if (placed.kind !== 'scheduled') throw new Error('complete placement absent');
+                                                       ^
+error: complete placement absent
+      at <anonymous> (/app/apps/wbs/be-01/scripts/connected-composed-image-scenario.ts:241:50)
+      at async runComposedImageScenario (/app/apps/wbs/be-01/scripts/connected-composed-image-scenario.ts:256:28)
+
+Bun v1.4.2 (Linux x64)

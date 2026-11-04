@@ -1,0 +1,27 @@
+{"argv": ["bun", "test", "--preload", "./tools/test/scratch/preload.ts", "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts", "--test-name-pattern=^isolated source restoration refuses missing gateway record and terminal repair$", "--timeout=320000"], "pid": 3245507, "exit": 0, "signal": null, "stdoutEOF": true, "stderrEOF": true, "elapsedSeconds": 75.4146739859134, "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47", "stderrSHA256": "944cf2051999dee5ecb969a258cb0502031b1212d97bb4d31fdf1ad8c1995110"}
+bun test v1.4.4 (38afee6c8)
+
+
+tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:
+
+test/dependency-source-restoration-model-child.test.ts:
+SOURCE_RESTORATION_REACHED: original prepare/consume/solver/backend/gateway complete; source cold and dev openers excluded
+SOURCE_RESTORATION_REFUSED: record-missing before start and after exact repair
+(pass) source restoration refuses missing gateway record and terminal repair [75322.05ms]
+
+ 1 pass
+ 22 filtered out
+ 0 fail
+ 476 expect() calls
+Ran 1 test across 1 file. [75.38s]
+SOURCE_RESTORATION_INNER_CUSTODY: {"name":"source restoration refuses missing gateway record and terminal repair","exitCode":0,"signal":null,"stdoutEof":true,"stderrEof":true}
+(pass) isolated source restoration refuses missing gateway record and terminal repair [75400.90ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 1 pass
+ 22 filtered out
+ 0 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [75.41s]
+

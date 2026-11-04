@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/connected-step-node.test.ts:
+(pass) accepts A.design B.build A.test and retains ownership and relationship provenance [0.62ms]
+(pass) refuses true reverse cycles and a cycle through distinct tasks [0.34ms]
+(pass) keeps local self-node refusal and authored provenance [0.10ms]
+(pass) expands every remote parent pair using each endpoint tree and own step identity [0.16ms]
+(pass) preserves whole FS SS FF boundaries and stepless nodes [0.20ms]
+(pass) accepts empty projects [0.03ms]
+(pass) refuses duplicate project and work-item ownership even without relationships [0.26ms]
+(pass) refuses missing endpoint project, cross-owned work item, absent work item and absent step [0.15ms]
+(pass) refuses absent and empty slices instead of creating a boundary [0.19ms]
+(pass) refuses local/external misclassification and conflicting relationship identities [0.25ms]
+(pass) refuses a local relationship whose predecessor belongs to another project [0.06ms]
+(pass) refuses missing local endpoint facts in a supplied project context [0.04ms]
+(pass) refuses each foreign local endpoint project independently even when work-item lookup would succeed [0.06ms]
+(pass) refuses duplicate empty project identities without ownership masking [0.04ms]
+
+ 14 pass
+ 0 fail
+ 30 expect() calls
+Ran 14 tests across 1 file. [31.00ms]

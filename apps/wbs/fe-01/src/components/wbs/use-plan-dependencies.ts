@@ -2,11 +2,20 @@ import type * as React from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
+import type { PlanRead } from '@/lib/wbs-api';
 import type { StepView, TypedDependencyView } from '@/lib/wbs-api';
+import type { DependencyLookup } from '@/modules/dependency-lookup/contract';
 import type { PlanCommands } from '@/modules/plan-commands/contract';
 import type { BusyWrites } from '@/modules/plan-writer/busy-store';
 
 import { pickerEntries } from './dep-picker';
+import { resolveDependencyDraft } from './dependency-draft';
+import { type DependencySelection, serializeDependencyEndpoint } from './dependency-selection';
+import type {
+  DependencyDraftCapture,
+  DependencyTokenObservation,
+} from './dependency-token-bindings';
+import { currentDependencyToken } from './depends-input';
 import { parseDependencies, unknownMessage } from './depends-input';
 import { type CommitOutcome } from './live-editing';
 import { indexRowsById } from './plan-indexes';
@@ -24,6 +33,9 @@ import { type TreeRow } from './wbs-rows';
  */
 export function usePlanDependencies({
   flat,
+  projectId,
+  lookup,
+  stepNodes,
   pushToast,
   busy,
   commands,
@@ -35,6 +47,9 @@ export function usePlanDependencies({
   typedDependencies,
 }: {
   flat: TreeRow[];
+  projectId: string;
+  lookup: DependencyLookup;
+  stepNodes: PlanRead['stepNodes'];
   pushToast: (toast: Toast) => void;
   busy: BusyWrites;
   commands: PlanCommands;
@@ -124,7 +139,20 @@ export function usePlanDependencies({
    * a typed list is one gesture and its outcome is one sentence.
    */
   const dependOn = useCallback(
-    (successorId: string, typed: string) => {
+    (successorId: string, typed: string, draftCapture: DependencyDraftCapture) => {
+      // A numeric list is a submitted gesture: it may partly land even when a
+      // transport response is lost. Clear its captured draft before the writes,
+      // while leaving a newer edit or another row alone. Remote selections use
+      // the separate resolved path, which retains refused drafts for repair.
+      // Proof: removing this guarded clear failed both ambiguous dependency-list
+      // recovery cases and `clears a submitted local list immediately without
+      // erasing a newer draft`: the submitted text remained in the input.
+      // Watched with the guard forced false, 2026-10-22.
+      setDepPicker((current) =>
+        current?.rowId === successorId && draftCapture.matchesDraft(current.typed)
+          ? { ...current, typed: '', highlightId: null }
+          : current,
+      );
       const { found, unknown } = parseDependencies(typed, flat);
       const notThere = unknownMessage(unknown);
       if (found.length === 0) {
@@ -191,7 +219,84 @@ export function usePlanDependencies({
           pushToast({ kind: 'error', text: problems.join(' ') });
       })();
     },
-    [busy, commands, flat, isCurrent, pushToast, refreshOrMarkStale],
+    [busy, commands, flat, isCurrent, pushToast, refreshOrMarkStale, setDepPicker],
+  );
+
+  /** Submits mixed local/qualified source spans, preserving identity and one aggregate refusal. */
+  const submitDependencies = useCallback(
+    (
+      successorId: string,
+      typed: string,
+      observations: readonly DependencyTokenObservation[],
+      draftCapture: DependencyDraftCapture,
+    ) => {
+      if (
+        typed.split(/[,\s]+/).every((token) => token === '' || /^[0-9]+(?:\.[0-9]+)*$/.test(token))
+      ) {
+        dependOn(successorId, typed, draftCapture);
+        return;
+      }
+      void (async () => {
+        busy.raise();
+        const refused: string[] = [];
+        let ambiguous = false;
+        try {
+          const draft = await resolveDependencyDraft({
+            typed,
+            projectId,
+            rows: flat,
+            nodes: stepNodes ?? [],
+            lookup,
+            observations,
+          });
+          refused.push(...draft.problems);
+          for (const predecessor of draft.found) {
+            if (!isCurrent()) return;
+            try {
+              if (
+                predecessor.endpoint.projectId === projectId &&
+                predecessor.endpoint.scope === 'whole'
+              )
+                await commands.addDependency(successorId, predecessor.endpoint.workItemId);
+              else
+                await commands.addTypedDependency(
+                  serializeDependencyEndpoint(predecessor.endpoint, projectId),
+                  { scope: 'whole', workItemId: successorId },
+                  'FS',
+                );
+            } catch (failure: unknown) {
+              refused.push(`${predecessor.token} (${failureText(failure, 'refused')})`);
+              if (isAmbiguousWriteFailure(failure)) ambiguous = true;
+            }
+          }
+          await refreshOrMarkStale(ambiguous ? undefined : 'tree');
+          if (isCurrent() && refused.length > 0)
+            pushToast({ kind: 'error', text: `These were refused: ${refused.join(', ')}.` });
+          // Proof: text equality alone erased a newer same-text holder when an older list completed (mounted round1 list-capture test).
+          if (isCurrent() && refused.length === 0)
+            setDepPicker((current) =>
+              current?.rowId === successorId && draftCapture.matchesDraft(current.typed)
+                ? { ...current, typed: '', highlightId: null }
+                : current,
+            );
+        } finally {
+          busy.lower();
+        }
+      })();
+    },
+    [
+      busy,
+      commands,
+      dependOn,
+      flat,
+      isCurrent,
+      lookup,
+      projectId,
+      pushToast,
+      refreshOrMarkStale,
+      setDepPicker,
+      stepNodes,
+    ],
   );
 
   /**
@@ -212,13 +317,13 @@ export function usePlanDependencies({
           // Keep the row available for Customize; the command boundary checks exact endpoints.
           dependsOn: forRow.dependsOn,
         },
-        typed,
+        currentDependencyToken(typed).token,
       ),
     [flat],
   );
 
   /**
-   * Adds the picked dependency and keeps the picker open, cleared, for the
+   * Adds the selected endpoint and clears only its active token after success for the
    * next one — picking three predecessors is one visit, not three.
    *
    * The `run` outcome is handed back rather than swallowed, so the card's
@@ -226,38 +331,47 @@ export function usePlanDependencies({
    * not send the same write twice (the card locks it until this resolves).
    */
   const pickDependency = useCallback(
-    (successorId: string, predecessorId: string): Promise<CommitOutcome> => {
-      // Proof: forcing this exact-pair guard false made `refuses an exact Whole FS
-      // duplicate while leaving Customize available` fail because the refusal
-      // announcement never appeared. Watched 2026-09-28.
+    (
+      successorId: string,
+      selection: DependencySelection,
+      draftCapture: DependencyDraftCapture,
+    ): Promise<CommitOutcome> => {
+      const predecessor = selection.endpoint;
       if (
-        // Proof: bypassing this legacy duplicate guard made `offers Customize on an existing legacy predecessor and refuses its default duplicate` lose its refusal announcement; watched 2026-09-28.
-        flat.find((row) => row.id === successorId)?.dependsOn.includes(predecessorId) ||
-        typedDependencies.some(
-          (dependency) =>
-            dependency.type === 'FS' &&
-            dependency.predecessor.scope === 'whole' &&
-            dependency.predecessor.workItemId === predecessorId &&
-            dependency.successor.scope === 'whole' &&
-            dependency.successor.workItemId === successorId,
-        )
+        predecessor.projectId === projectId &&
+        predecessor.scope === 'whole' &&
+        (flat.find((row) => row.id === successorId)?.dependsOn.includes(predecessor.workItemId) ||
+          typedDependencies.some(
+            (dependency) =>
+              dependency.type === 'FS' &&
+              dependency.predecessor.scope === 'whole' &&
+              dependency.predecessor.workItemId === predecessor.workItemId &&
+              dependency.successor.scope === 'whole' &&
+              dependency.successor.workItemId === successorId,
+          ))
       )
         return Promise.resolve('refused');
-      setDepPicker((current) =>
-        current === null ? null : { ...current, typed: '', highlightId: null },
-      );
       return run((write) =>
         write.perform(['tree'], () =>
           commands.addTypedDependency(
-            { scope: 'whole', workItemId: predecessorId },
+            serializeDependencyEndpoint(predecessor, projectId),
             { scope: 'whole', workItemId: successorId },
-            // Proof: changing this one-click default to FF made `commits one whole FS relationship when a search result is clicked` fail on the recorded fourth command argument; watched 2026-09-28.
             'FS',
           ),
         ),
-      );
+      ).then((outcome) => {
+        if (outcome === 'landed' || outcome === 'landed-unread')
+          setDepPicker((current) => {
+            if (current?.rowId !== successorId) return current;
+            const consumed = draftCapture.consumeToken(current.typed);
+            return consumed.kind === 'stale'
+              ? current
+              : { ...current, typed: consumed.typed, highlightId: null };
+          });
+        return outcome;
+      });
     },
-    [commands, flat, run, setDepPicker, typedDependencies],
+    [commands, flat, projectId, run, setDepPicker, typedDependencies],
   );
 
   /** Moves the picker highlight by `delta` over `entryIds`, clamped. */
@@ -284,5 +398,11 @@ export function usePlanDependencies({
   useEffect(() => {
     setDepPicker(null);
   }, [setDepPicker, steps]);
-  return { dependenciesOf, dependOn, depEntriesFor, pickDependency, moveDepHighlight };
+  return {
+    dependenciesOf,
+    dependOn: submitDependencies,
+    depEntriesFor,
+    pickDependency,
+    moveDepHighlight,
+  };
 }

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-plan.test.ts:
+720 |   expect(seen).toEqual(['A', 'B']);
+721 |   expect(start(projection.placement.combined, 'a')).toBe(0);
+722 |   expect(start(projection.placement.combined, 'b')).toBe(4);
+723 |   expect(start(projection.placement.baseline, 'a')).toBe(3);
+724 |   expect(projection.placement.stages[0]?.stage.starts.get(sliceKey('b', 'build'))).toBe(4);
+725 |   expect(projection.placement.stages[1]?.stage.starts.get(sliceKey('a', 'build'))).toBe(0);
+                                                                                         ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 3
+
+      at <anonymous> (/tmp/puni-optimizer-capture/libs/wbs/application/core/src/service/connected-plan.test.ts:725:84)
+(fail) selects actual mixed-engine stages before projection and keeps earlier boundaries detached [8.88ms]
+
+ 0 pass
+ 28 filtered out
+ 1 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [162.00ms]

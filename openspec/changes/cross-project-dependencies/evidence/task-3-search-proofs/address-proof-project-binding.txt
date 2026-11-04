@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+84 |     '/api/project-addresses/projects?limit=0','/api/project-addresses/projects?limit=201',
+85 |     '/api/project-addresses/projects?q=a&q=b','/api/project-addresses/projects?cursor=bad',
+86 |     `/api/project-addresses/projects?q=${'a'.repeat(201)}`,
+87 |     `/api/projects/${selected}/address-references?reference=010`,
+88 |     `/api/projects/${selected}/address-references?reference=010&revision=x&revision=y`,
+89 |   ]) expect(await h.call('ada','GET',path)).toEqual({status:400,body:{error:'invalid_query'}});
+                                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "error": "invalid_query",
++     "nextCursor": null,
++     "projects": [],
+    },
+-   "status": 400,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:89:45)
+(fail) refuses malformed queries and cursor reuse across query project organization and kind [178.70ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [2.60s]

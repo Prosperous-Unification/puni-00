@@ -8,9 +8,10 @@ import { DirectoryService } from '@wbs/core/module/directory/directory.resource'
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { readPreconditions } from '@wbs/core/service/compensating';
-import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import type { DependencyEndpoint, RelationshipType } from '@wbs/domain';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
@@ -63,6 +64,7 @@ import {
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
+import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
 import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
@@ -106,7 +108,7 @@ beforeEach(() => {
   dependencies = new DependencyRepository(db, OPEN);
   typed = new TypedDependencyRepository(db, OPEN);
   const directory = new DirectoryRepository(db, OPEN);
-  const dependencyGraph = new DependencyGraphGuard({
+  const dependencyContext = createLocalDependencyContext({
     projects,
     workItems,
     estimates,
@@ -127,16 +129,24 @@ beforeEach(() => {
       clock: testClock,
       projects,
       broadcast: recordingBroadcaster(),
-      dependencyGraph,
+      dependencyContext,
     }),
     steps: new StepService({
       clock: testClock,
       projects,
       steps,
       broadcast: recordingBroadcaster(),
-      dependencyGraph,
+      dependencyContext,
     }),
     workItems: new WorkItemService({
+      dependencyContext: createLocalDependencyContext({
+        projects: projects,
+        workItems: workItems,
+        estimates: estimates,
+        dependencies: dependencies,
+        typedDependencies: typed,
+      }),
+      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
       admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
@@ -168,6 +178,7 @@ beforeEach(() => {
     clock: testClock,
     appOrigin: 'http://localhost',
     savedPlans: testSavedPlanService(),
+    projectAddressSearch: refusingProjectAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -189,6 +200,7 @@ beforeEach(() => {
     }),
     ...writing,
     replay: testReplay().replay,
+    admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
     // The real unit of work over this connection: every refusal here has to
@@ -197,7 +209,12 @@ beforeEach(() => {
     // rollback without performing one.
     writes: {
       ...testWrites(undefined, writing),
-      uow: countingRuns(sqliteUnitOfWork(db, new WriteCoordinator(), buildStores(db, OPEN))),
+      uow: countingRuns(
+        sqliteUnitOfWork(db, new WriteCoordinator(), {
+          createScope: () => ({ stores: buildStores(db, OPEN) }),
+          createRepairScope: () => ({ stores: buildStores(db, OPEN) }),
+        }),
+      ),
     },
     migrationsApplied: true,
   });
@@ -307,7 +324,13 @@ async function seedTyped(
 ): Promise<string> {
   const id = crypto.randomUUID();
   await typed.add(
-    { id, projectId: at.projectId, predecessor, successor, type },
+    {
+      id,
+      projectId: at.projectId,
+      predecessor: { ...predecessor, projectId: at.projectId },
+      successor: { ...successor, projectId: at.projectId },
+      type,
+    },
     { at: 1, by: at.userId },
   );
   return id;

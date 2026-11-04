@@ -1,0 +1,13 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+(pass) mounted fresh store observation completes after durable drain before source replay [10829.14ms]
+(pass) mounted store enabled retains drained fences without automatic recovery [2164.70ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 2 pass
+ 48 filtered out
+ 0 fail
+ 24 expect() calls
+Ran 2 tests across 1 file. [13.03s]

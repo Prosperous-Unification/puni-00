@@ -1,0 +1,20 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/backend-exclusion.test.ts:
+93 |   return text;
+94 | }
+95 | // Proof: omitting comparisons let lying-update reach stop; the mounted negative observes the forbidden stop.
+96 | export function assertSame(expected: unknown, observed: unknown, description: string): void {
+97 |   if (JSON.stringify(expected) !== JSON.stringify(observed))
+98 |     throw new Error(`managed cohort ${description} changed or was not excluded`);
+                   ^
+error: managed cohort complete inventory identity after namespace audit changed or was not excluded
+      at assertSame (/tmp/puni-source-started-binding/tools/tool-remote-scripts/src/lib/managed-cohort.ts:98:15)
+      at inspectBackendCohortCore (/tmp/puni-source-started-binding/tools/tool-remote-scripts/src/lib/backend-cohort.ts:472:3)
+(fail) combined coordinator retains solver tmpfs and source members throughout awaited protected work [706.62ms]
+
+ 0 pass
+ 63 filtered out
+ 1 fail
+ 12 expect() calls
+Ran 1 test across 1 file. [761.00ms]
