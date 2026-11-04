@@ -1277,7 +1277,7 @@ activation, rollback or host adoption is implemented by this prerequisite.
 
 ### Solver supervisor continuous exclusion and restoration delivery boundary
 
-[ADR 0066](../../../docs/adr/0066-supervisor-exclusion-does-not-require-an-identity-broker.md) separates delivery from the [proposed solver identity broker](../solver-supervisor-identity-broker/proposal.md). The broker's root provisioning, captured-byte bootstrap and per-client TLS identity protocol are future hardening; they are not a prerequisite for completing cross-project-dependencies. They establish no participant exclusion and grant no activation or recovery authority.
+[ADR 0071](../../../docs/adr/0071-supervisor-exclusion-does-not-require-an-identity-broker.md) separates delivery from the [proposed solver identity broker](../solver-supervisor-identity-broker/proposal.md). The broker's root provisioning, captured-byte bootstrap and per-client TLS identity protocol are future hardening; they are not a prerequisite for completing cross-project-dependencies. They establish no participant exclusion and grant no activation or recovery authority.
 
 Task 10.2 still requires actual coordinator-owned solver stop/drain and admission closure before protected storage work. Inventory and fence the effective supervisor service, Restart=always/user-manager and manual launch paths, every supported installer/replacement caller and the active managed solver attempts. Keep those restart/install/request barriers continuously enforced with the other required backend/gateway/MCP/ingress/replay/background participant barriers through maintenance, activation decision and final pre-exposure recheck. Existing canonical edge admission and retained owner guards are necessary but source lock adoption or a one-time stop cannot prove the whole interval. Missing, unreadable, changed, unrecognized or incomplete authority refuses, retaining evidence for attended recovery; no narrower exclusion promise is introduced.
 
@@ -1928,7 +1928,7 @@ The sole selected worker input is exactly176 bytes of canonical two-profile JSON
 
 Independent review72a62cc4049fd2258acd6f880d80497a24151b5237b0741c034572ad7af6d83d identified LP1/LP2; this correction specifies their exact data channel and full closing set. The proposed21-path amendment preserves both the original17-path lease and its issued two-path lint amendment as active19 lineage and adds only installed-authority-collector.ts and its owning test. Remove only collector.ts from the21 read-only dependency list;20 remain. Existing mutable code is WIP, not reset to original baselines or claimed absent. Root acceptance and independent review of this amendment precede any change to the two added paths.
 
-The persistent pin tradeoff is recorded in [proposed ADR-0067](../../../docs/adr/0067-runtime-launch-pins-exclude-verified-session-identity.md). Existing technical vocabulary is sufficient; no CONTEXT implementation glossary is added. All prior full-goal, publisher/preparation, native/capacity, policy proof and main/deploy obligations remain open.
+The persistent pin tradeoff is recorded in [proposed ADR-0072](../../../docs/adr/0072-runtime-launch-pins-exclude-verified-session-identity.md). Existing technical vocabulary is sufficient; no CONTEXT implementation glossary is added. All prior full-goal, publisher/preparation, native/capacity, policy proof and main/deploy obligations remain open.
 
 ## Joint ordinary controller admission prerequisite
 
