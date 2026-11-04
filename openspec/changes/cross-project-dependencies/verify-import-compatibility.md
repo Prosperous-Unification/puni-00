@@ -109,3 +109,29 @@ endpoint, revocation/version matrices and genuine activation/participant/native,
 full CI/host gate and deployment obligations remain open. Parent8.1 stays open.
 The acceptance changes are prepared on a separate branch based on PR845,
 preserving its running full CI.
+
+## Mounted revalidation of changed external facts — 2026-11-04
+
+Two new counterparts preserve the existing synthetic missing-row and cycle
+cases, but submit the original downloaded v12 document through the capable
+mounted HTTP import route. Each asserts that the harness has no synthetic
+importer. The remote row is deleted, or a reverse typed edge makes the actual
+persisted remote component cyclic, after export and before import.
+
+The HTTP assertions require exact indexed 400 bodies: `unknown_ref` at the
+original external predecessor for the missing row, and
+`invalid_typed_dependency` with `detail: cycle` at the original external
+relationship for the cycle. Full application-table snapshots taken after the
+deliberate remote mutation remain equal after import; no pushes occur.
+
+The focused ordinary Bun invocation selected exactly these cases: 2 passed,
+25 filtered, zero failed, 17 assertions. Raw argv, streams and source hashes
+are retained privately at
+`tmp/puni-delivery-evidence/20261104/import-revalidation/`. Astra independently
+reviewed the mounted paths, real database mutations and no-effect oracles.
+Configured forced uncached backend typecheck (including module checks), scoped
+ESLint and the owning source Prettier check all passed.
+No production safety guard changed; existing necessity proofs retain their
+historical scope. This adds public transport acceptance, not new guard-removal
+credit. Parent 8.1, remaining access/version matrices, native acceptance,
+exact-SHA host gate, full CI, architectural adoption and deployment remain open.

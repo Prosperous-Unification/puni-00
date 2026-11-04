@@ -1054,6 +1054,86 @@ for (const fault of [
     expect(pushes).toBe(0);
   });
 
+for (const fault of ['missing-row', 'cycle'] as const)
+  test(`capable mounted v12 import refuses current ${fault} with indexed diagnosis and no effects`, async () => {
+    let pushes = 0;
+    harness = OrganizationHarness.openComposedWith({
+      dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+      pushFetch: () => {
+        pushes += 1;
+        return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+      },
+    });
+    expect(() => harness.syntheticImports()).toThrow('synthetic transfer imports are absent');
+    const { remote, source } = await connectedTransferFixture(harness);
+    if (fault === 'cycle')
+      harness.sqlite
+        .query(
+          "DELETE FROM external_dependency WHERE successor_project_id=? AND id<>'incoming-node-a'",
+        )
+        .run(source.projectId);
+    const downloaded = await exported(source.projectId);
+    expect(downloaded.document).toMatchObject({
+      document: { version: 12 },
+      connected: { kind: 'connected' },
+    });
+    if (fault === 'missing-row') {
+      harness.sqlite
+        .query('UPDATE work_item SET parent_id=? WHERE id=?')
+        .run(remote.parentId, remote.tailId);
+      harness.sqlite
+        .query(
+          'DELETE FROM external_dependency WHERE predecessor_work_item_id=? OR successor_work_item_id=?',
+        )
+        .run(remote.leafId, remote.leafId);
+      harness.sqlite
+        .query(
+          'DELETE FROM typed_dependency WHERE predecessor_work_item_id=? OR successor_work_item_id=?',
+        )
+        .run(remote.leafId, remote.leafId);
+      harness.sqlite
+        .query('DELETE FROM dependency WHERE predecessor_id=? OR successor_id=?')
+        .run(remote.leafId, remote.leafId);
+      harness.sqlite.query('DELETE FROM estimate WHERE work_item_id=?').run(remote.leafId);
+      harness.sqlite.query('DELETE FROM work_item WHERE id=?').run(remote.leafId);
+    } else {
+      // The persisted remote node already reaches its tail; the reverse edge
+      // changes that real component after the artifact was downloaded.
+      harness.sqlite
+        .query(
+          "INSERT INTO typed_dependency(id,project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('late-cycle',?,?,?,'whole','whole','FS')",
+        )
+        .run(remote.projectId, remote.tailId, remote.leafId);
+    }
+    const index = downloaded.classified.typedDependencies.findIndex(({ predecessor }) => {
+      if (!('kind' in predecessor) || predecessor.kind !== 'external') return false;
+      return fault === 'cycle' ? true : predecessor.workItemId === remote.leafId;
+    });
+    expect(index).toBeGreaterThanOrEqual(0);
+    if (fault === 'cycle') {
+      expect(index).toBe(0);
+      expect(downloaded.classified.typedDependencies.map(({ id }) => id)).toEqual([
+        'incoming-node-a',
+        'internal-node',
+      ]);
+      expect(downloaded.classified.workItems.flatMap(({ dependsOn }) => dependsOn)).toEqual([
+        source.leafId,
+      ]);
+    }
+    const before = transferSnapshot(harness);
+    pushes = 0;
+    expect(await harness.call('ada', 'POST', '/api/projects/import', downloaded.document)).toEqual({
+      status: 400,
+      body: {
+        error: fault === 'missing-row' ? 'unknown_ref' : 'invalid_typed_dependency',
+        path: `typedDependencies[${String(index)}]${fault === 'cycle' ? '' : '.predecessor'}`,
+        detail: fault === 'cycle' ? 'cycle' : null,
+      },
+    });
+    expect(transferSnapshot(harness)).toEqual(before);
+    expect(pushes).toBe(0);
+  });
+
 /**
  * Proof: replacing the catch-path ROLLBACK with COMMIT in sqliteUnitOfWork
  * retained the imported project/rows/links and predecessor revisions, failing
