@@ -769,7 +769,7 @@ describe('the Ansible host and k3s contract', () => {
     ]);
     // The sudo exception is opt-in per host and only h2puni carries it (gate-hosts.md, step 0).
     // Proof: setting the default to true, and adding the flag to h4claw, each failed this.
-    expect(defaults['puni_gate_account_may_sudo']).toBe(false);
+    expect(defaults['puni_gate_account_may_sudo']).toBe<boolean>(false);
     expect(
       Object.entries(inventory.all.children['gate_hosts']?.hosts ?? {})
         .filter(
