@@ -1,4 +1,4 @@
-import { rejects } from 'node:assert/strict';
+import { doesNotReject, rejects } from 'node:assert/strict';
 
 import { type ReservedSQL, SQL } from 'bun';
 import { describe, expect, test } from 'bun:test';
@@ -384,7 +384,7 @@ databaseTests('private PostgreSQL session (requires explicitly owned fixture)', 
         session.snapshot(() => Promise.resolve(19)),
         /fenced/,
       );
-      await session.close();
+      await doesNotReject(session.close());
     });
   });
   test('synchronously fences new calls, rejects queued calls and drains admitted work', async () => {
@@ -903,5 +903,85 @@ databaseTests('private PostgreSQL session (requires explicitly owned fixture)', 
         await session.close();
       });
     }
+  });
+  test('sticky close retains callback and rollback causes arriving after the caller timeout', async () => {
+    await withFixture(async ({ open, faults, closeCalls, administrator, table }) => {
+      const original = new Error('late callback failed');
+      const rollback = new Error('late rollback acknowledgement failed');
+      const entered = Promise.withResolvers<undefined>();
+      const release = Promise.withResolvers<undefined>();
+      const session = await open({ operationMilliseconds: 50, closeMilliseconds: 1000 });
+      faults.query = async (command, execute) => {
+        const rows = await execute();
+        if (command === 'ROLLBACK') throw rollback;
+        return rows;
+      };
+      let observed = false;
+      faults.inspect = async (command, execute) => {
+        const rows = await execute();
+        if (command === 'EXECUTE twilight_observer_probe') observed = true;
+        return rows;
+      };
+      const pending = session.write(1n, async (connection) => {
+        await connection.unsafe('UPDATE ' + table + ' SET value = 41');
+        entered.resolve(undefined);
+        await release.promise;
+        throw original;
+      });
+      track(pending);
+      await reached(entered.promise);
+      let timeout: unknown;
+      await rejects(pending, (cause) => {
+        timeout = cause;
+        return cause instanceof DOMException && cause.name === 'TimeoutError';
+      });
+      const closing = session.close();
+      track(closing);
+      release.resolve(undefined);
+      let failure: unknown;
+      await rejects(closing, (cause) => {
+        failure = cause;
+        return contains(cause, original) && contains(cause, rollback);
+      });
+      expect(observed).toBe(true);
+      expect(closeCalls.toSorted()).toEqual([
+        'observer:pool',
+        'observer:reservation',
+        'writer:pool',
+        'writer:reservation',
+      ]);
+      expect(await readValue(administrator, table)).toBe(0);
+      expectSticky(() => session.close(), closing);
+      await rejects(session.close(), (cause) => cause === failure);
+      await rejects(pending, (cause) => cause === timeout);
+    });
+  });
+  test('acknowledged rollback of a late callback error does not poison close', async () => {
+    await withFixture(async ({ open, administrator, table }) => {
+      const original = new Error('ordinary late callback failure');
+      const entered = Promise.withResolvers<undefined>();
+      const release = Promise.withResolvers<undefined>();
+      const session = await open({ operationMilliseconds: 50, closeMilliseconds: 1000 });
+      const pending = session.write(1n, async (connection) => {
+        await connection.unsafe('UPDATE ' + table + ' SET value = 42');
+        entered.resolve(undefined);
+        await release.promise;
+        throw original;
+      });
+      track(pending);
+      await reached(entered.promise);
+      let timeout: unknown;
+      await rejects(pending, (cause) => {
+        timeout = cause;
+        return cause instanceof DOMException && cause.name === 'TimeoutError';
+      });
+      const closing = session.close();
+      track(closing);
+      release.resolve(undefined);
+      await closing;
+      expect(await readValue(administrator, table)).toBe(0);
+      expectSticky(() => session.close(), closing);
+      await rejects(pending, (cause) => cause === timeout);
+    });
   });
 });

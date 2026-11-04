@@ -64,7 +64,9 @@ async function disposeResource(
  * Close synchronously fences admission, drains actual work (not its caller deadline),
  * disposes the writer, observes server disappearance, then disposes the observer.
  * One deadline bounds close and its sticky outcome; expiry cannot certify release.
- * An unanswered COMMIT stays unknown even when subsequent close succeeds.
+ * An unanswered COMMIT stays unknown even when subsequent close succeeds. Rollback
+ * failure after a caller deadline retains both transaction causes on sticky close;
+ * ordinary callback failure with acknowledged rollback does not poison close.
  */
 export async function openPostgresSession(
   factory: PostgresClientFactory,
@@ -149,6 +151,7 @@ export async function openPostgresSession(
     throw cause;
   }
 
+  const rollbackFailures: AggregateError[] = [];
   let isFenced = false;
   const queued = new Set<() => void>();
   let drained = Promise.resolve();
@@ -216,9 +219,17 @@ export async function openPostgresSession(
       } catch (rollback) {
         fenceAdmission();
         // Proof: S09 discarded rollback failure; the retained-both-causes assertion failed.
-        throw new AggregateError([cause, rollback], 'PostgreSQL operation and rollback failed', {
-          cause: rollback,
-        });
+        const failure = new AggregateError(
+          [cause, rollback],
+          'PostgreSQL operation and rollback failed',
+          {
+            cause: rollback,
+          },
+        );
+        // Proof: S28 removed retention; the real late-rollback test falsely completed close and lost both causes.
+        // Proof: S30c retained an already-reported rollback failure; the explicit close-success assertion rejected.
+        if (signal.aborted) rollbackFailures.push(failure);
+        throw failure;
       }
       throw cause;
     }
@@ -250,7 +261,7 @@ export async function openPostgresSession(
       }
       const actual = transact(key, operation, signal);
       void actual.then(completion.resolve, completion.reject);
-      // An operation's error belongs to its caller; this observes actual settlement for disposal.
+      // Transaction errors reach the caller; late rollback failures also remain available to close.
       // Proof: S12 drained only the deadline race; close finished while the actual callback remained held.
       await Promise.allSettled([actual]);
     });
@@ -276,6 +287,8 @@ export async function openPostgresSession(
     }
     // Proof: S17 skipped final observer disposal; its independently injected failure disappeared.
     await disposeResource(observer, signal, failures);
+    // Proof: S29 removed close exposure; the retained late-rollback causes became inaccessible again.
+    failures.push(...rollbackFailures);
     if (failures.length > 0)
       throw new AggregateError(failures, 'PostgreSQL close failed; disposal uncertain');
   }
