@@ -637,6 +637,56 @@ describe('the Ansible host and k3s contract', () => {
     expect(prerequisites?.['ansible.builtin.apt']?.name).toContain('busybox');
   });
 
+  // H2-A7 (2026-11-04): `content: |` with `join('\\n')` wrote h2puni's five keys as one line and
+  // locked out every caller but the first; the evaluator's E11 and E12 render both forms.
+  // Proof: restoring that copy task failed the first expectation, and dropping the count
+  // condition from validate.yml failed the last.
+  it('writes one authorized key per line and validates the count', async () => {
+    const role = join(import.meta.dir, '../../../infra/ansible/roles/gate_host');
+    const tasks = parse(await readFile(join(role, 'tasks/main.yml'), 'utf8')) as {
+      name: string;
+      'ansible.builtin.copy'?: unknown;
+      'ansible.builtin.template'?: Record<string, string>;
+      'ansible.builtin.file'?: Record<string, string>;
+    }[];
+    const keys = tasks.find(({ name }) => name === 'Install the exact gate authorized keys');
+    expect(keys?.['ansible.builtin.template']).toEqual({
+      src: 'authorized_keys.j2',
+      dest: '{{ puni_gate_home }}/.ssh/authorized_keys',
+      owner: '{{ puni_gate_user }}',
+      group: '{{ puni_gate_user }}',
+      mode: '0600',
+    });
+    expect(keys?.['ansible.builtin.copy']).toBeUndefined();
+    expect(await readFile(join(role, 'templates/authorized_keys.j2'), 'utf8')).toBe(
+      '{% for key in puni_gate_authorized_keys %}{{ key }}\n{% endfor %}\n',
+    );
+    // h2puni's own mode; the role had widened it to 0755 on apply 1.
+    expect(
+      tasks.find(({ name }) => name === 'Create the heavy-lock directory')?.[
+        'ansible.builtin.file'
+      ]?.['mode'],
+    ).toBe('0700');
+    const validate = parse(await readFile(join(role, 'tasks/validate.yml'), 'utf8')) as {
+      name: string;
+      register?: string;
+      'ansible.builtin.command'?: { argv: string[] };
+      'ansible.builtin.assert'?: { that: string[] };
+    }[];
+    const probe = validate.find(({ name }) => name === 'Fingerprint the gate authorized keys');
+    expect(probe?.['ansible.builtin.command']?.argv).toEqual([
+      'ssh-keygen',
+      '-lf',
+      '{{ puni_gate_home }}/.ssh/authorized_keys',
+    ]);
+    expect(probe?.register).toBe('puni_gate_keys_probe');
+    expect(
+      validate.find(({ name }) => name === 'Require one authorized key per listed key')?.[
+        'ansible.builtin.assert'
+      ]?.that,
+    ).toEqual(['puni_gate_keys_probe.stdout_lines | length == puni_gate_authorized_keys | length']);
+  });
+
   it('requires system resolutions and both literal BusyBox paths in gate validation', async () => {
     const tasks = parse(
       await readFile(

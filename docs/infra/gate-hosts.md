@@ -90,9 +90,29 @@ To rerun only the probes, pass `--tags validate`.
 1. Add the host to `gate_hosts` in its inventory. Keep its other group membership.
 2. Put the gate's SSH public keys in an operator-only file, `$OPS/gate.json`, with the host not
    yet enrolled: `{"puni_gate_authorized_keys": ["ssh-ed25519 …"], "puni_gate_host_pool_enroll": false}`.
-   The role refuses to run without `puni_gate_host_pool_enroll`.
-3. Take a backup of what the role touches (accounts and package selections). Then run the
-   playbook twice through the fleet controller. The second run must print `changed=0`.
+   The role refuses to run without `puni_gate_host_pool_enroll`. The role replaces
+   `~/.ssh/authorized_keys` with exactly this list, so on a host where `puni1` already exists,
+   stage the list from that host's live file, read just before the apply (not an earlier
+   snapshot), and compare the two byte for byte. A trailing space on one key once differed
+   between a snapshot and the staged list (H2-B1, 2026-11-04):
+
+   ```sh
+   ssh root@<host> cat /home/puni1/.ssh/authorized_keys > "$OPS/authorized_keys.live"
+   jq -Rn '{puni_gate_authorized_keys: [inputs], puni_gate_host_pool_enroll: false}' \
+     "$OPS/authorized_keys.live" > "$OPS/gate.json"
+   jq -r '.puni_gate_authorized_keys[]' "$OPS/gate.json" | cmp - "$OPS/authorized_keys.live"
+   ```
+
+   `cmp` exits 0 only for the same bytes; a live file with a comment line, a blank line or no
+   final newline differs, and is cleaned up on the host before staging.
+
+3. Take a backup of what the role touches (accounts, `~/.ssh/authorized_keys` and package
+   selections). Then run the playbook twice through the fleet controller. The second run must
+   print `changed=0`. After the first run, log in as `puni1` from a second session with each
+   caller's key before closing the session the apply came through. Validate's "Require one
+   authorized key per listed key" refuses a file whose `ssh-keygen -lf` fingerprint count differs
+   from the list's length: the guard for H2-A7 (2026-11-04), when a role bug wrote h2puni's five
+   keys as one line and locked out every caller but the first until the backup was restored.
 
 For h4claw, the controller is the one the 2026-09-27 enrollment used. It runs on the operator
 laptop and reaches `10.1.0.4` as root through a jump via h2puni. Its inputs are in
@@ -134,7 +154,14 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
      yet observed as an apply on h2puni:
      - `~/.ssh/authorized_keys` becomes exactly `puni_gate_authorized_keys`. On h2puni `puni1`
        is also the operator and dev account, so `gate.json` must list every key it authorizes
-       today, or the apply locks those callers out.
+       today, or the apply locks those callers out. Stage it from the live file and compare
+       byte for byte as in [Add a gate host](#add-a-gate-host) step 2, and after apply 1 log in
+       from a second session before closing the first. Apply 1 on 2026-11-04 wrote the five
+       keys as one line (H2-A7, fixed by the role's `authorized_keys.j2` template); validate's
+       key-count assertion now refuses that file.
+     - `~/.cache` stays 0700, h2puni's mode. Before the H2-A7 fix the role set it to 0755, which
+       apply 1 did (observed 2026-11-04); the next apply narrows it back. Every heavy run on the
+       host is `puni1`, so no other account needs to enter it.
      - `~/.bashrc` becomes the role's template. Its PATH puts `~/.venv-solver`, `~/.bun-1.4.4`
        and `~/.node-24.18.1` first, and everything below the interactivity guard is dropped,
        including Volta's setup, so Volta's Node leaves interactive shells.

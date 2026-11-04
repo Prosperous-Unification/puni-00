@@ -4,10 +4,11 @@ Runs each named task of `roles/gate_host/tasks/*.yml` unchanged against localhos
 registered values it reads recorded through `set_fact` (or produced by fake commands first on
 PATH), then once per fault with one condition removed, and requires the fault's bad input to get
 through. Prints one line per case and exits 1 if any expectation fails. Run from the repository
-root with the digest-locked controller (see tools/tool-fleet/src/check.ts):
+root with the digest-locked controller (see tools/tool-fleet/src/check.ts), as root because
+`ssh-keygen` refuses the image's uid 1000, which has no passwd entry (E11, E12):
 
     docker run --rm --network none --read-only --tmpfs /tmp:exec --tmpfs /runner/.ansible \\
-      -v "$PWD/infra/ansible:/work/ansible:ro" --entrypoint python3 \\
+      --user 0:0 -v "$PWD/infra/ansible:/work/ansible:ro" --entrypoint python3 \\
       ghcr.io/prosperous-unification/fleet-controller:0.1.0 /work/ansible/tests/gate-host-assertions.py
 
 Results and the fault table are in openspec/changes/dash-host-jobs/verify.md, Slice 6c.
@@ -328,6 +329,57 @@ family("E10 sudo exception is a boolean", gate_inputs, [
 ], [(drop_condition("puni_gate_account_may_sudo is boolean"), "string false")])
 
 
+# Throwaway keys made for this run, outside WORK, which every `run` clears.
+KEYS_DIR = "/tmp/gate-host-keys"
+shutil.rmtree(KEYS_DIR, ignore_errors=True)
+os.makedirs(KEYS_DIR)
+
+
+def public_key(comment):
+    path = os.path.join(KEYS_DIR, comment.split("@")[0])
+    subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", comment, "-f", path],
+                   check=True)
+    return open(path + ".pub").read().strip()
+
+
+KEYS = [public_key(c) for c in ("laptop-a@example.invalid", "laptop-b@example.invalid",
+                                "deploy@example.invalid")]
+
+
+def keys_task():
+    """The role's keys task with an absolute template path: the play is not in the role."""
+    t = task("main.yml", "Install the exact gate authorized keys")
+    t["ansible.builtin.template"]["src"] = ROLE + "/../templates/authorized_keys.j2"
+    return t
+
+
+# The form h2puni's apply 1 ran on 2026-11-04 (H2-A7), parsed from its YAML text.
+JOINED = yaml.safe_load(r"""
+name: Install the exact gate authorized keys
+ansible.builtin.copy:
+  dest: '{{ puni_gate_home }}/.ssh/authorized_keys'
+  content: |
+    {{ puni_gate_authorized_keys | join('\n') }}
+  mode: '0600'
+""")
+key_count = [task("validate.yml", "Fingerprint the gate authorized keys"),
+             task("validate.yml", "Require one authorized key per listed key")]
+SSH_DIR = {WORK + "/home/.ssh/.keep": ""}
+COUNTED = "keys, but puni_gate_authorized_keys lists"
+family("E11 one authorized key per listed key", [keys_task(), *key_count], [
+    ("three keys", {"puni_gate_authorized_keys": KEYS}, None, None, ("accepted-pre", SSH_DIR)),
+    ("one key", {"puni_gate_authorized_keys": KEYS[:1]}, None, None, ("accepted-pre", SSH_DIR)),
+    ("key with options", {"puni_gate_authorized_keys": ['from="192.0.2.0/24" ' + KEYS[0], *KEYS[1:]]},
+     None, None, ("accepted-pre", SSH_DIR)),
+    ("malformed key", {"puni_gate_authorized_keys": [*KEYS[:2], "ssh-ed25519 AAAAnot-a-key x@y"]},
+     None, None, ("refused-pre", SSH_DIR, "holds 2 " + COUNTED + " 3")),
+], [(drop_that(0), "malformed key")])
+family("E12 the joined block-scalar form is refused", [JOINED, *key_count], [
+    ("three keys joined", {"puni_gate_authorized_keys": KEYS}, None, None,
+     ("refused-pre", SSH_DIR, "holds 1 " + COUNTED + " 3")),
+], [(drop_that(0), "three keys joined")])
+
+
 def recap(output, field):
     """One counter of localhost's PLAY RECAP line; None when the recap is missing."""
     found = re.search(r"^localhost\s*:.*\b" + field + r"=(\d+)", output, re.M)
@@ -335,7 +387,7 @@ def recap(output, field):
 
 
 def judge(expectation, rc, output):
-    kind, detail = expectation
+    kind, detail = expectation[:2]
     log = WORK + "/bun.log"
     if kind == "accepted":
         return rc == 0 and recap(output, "skipped") == 0
@@ -351,13 +403,17 @@ def judge(expectation, rc, output):
     if kind == "skipped":
         return rc == 0 and SKIP in output and not os.path.exists(log)
     if kind == "refused-pre":
-        return rc != 0 and "Inspect the host pool and audit its envelopes" in output
+        message = expectation[2] if len(expectation) > 2 else \
+            "Inspect the host pool and audit its envelopes"
+        return rc != 0 and message in output
+    if kind == "accepted-pre":
+        return rc == 0 and recap(output, "skipped") == 0
     raise SystemExit(kind)
 
 
 def pre_of(expectation):
-    kind, detail = expectation
-    return detail if kind in ("ran", "skipped", "refused-pre") else None
+    kind, detail = expectation[:2]
+    return detail if kind in ("ran", "skipped", "refused-pre", "accepted-pre") else None
 
 
 failures = 0
