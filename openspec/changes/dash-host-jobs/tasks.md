@@ -166,7 +166,8 @@
   - [x] 6.3b h2puni sudo exception (2026-11-04, H2-A1): `puni1` on h2puni has passwordless
         sudo, which the dev poller and monitoring scripts use, so validate's no-sudo assertion
         would fail every apply. `puni_gate_account_may_sudo` (default false, set only on h2puni
-        in the inventory) swaps it for an assertion that the escalation still exists, so a stale
+        in the inventory) swaps it for an assertion requiring the state the strict check would refuse (the `sudo` group or
+        `sudo -n` succeeding), so a stale
         exception fails. Debt: the gate-host isolation property does not hold on h2puni until
         those callers leave `puni1` and the flag is removed (verify.md, "2026-11-04 h2puni
         apply, blocked").

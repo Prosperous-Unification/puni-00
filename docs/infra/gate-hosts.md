@@ -11,7 +11,8 @@ second, configured by `infra/ansible/playbooks/gate-host.yml` (WBS 070.05) and l
 
 `infra/ansible/roles/gate_host` makes the host match h2puni's gate environment:
 
-- **Account.** It creates the `puni1` system account in the `docker` group, with no sudo. The name
+- **Account.** It creates the `puni1` system account in the `docker` group, with no sudo; a pre-existing
+  grant is tolerated only where the inventory sets `puni_gate_account_may_sudo` (step 0). The name
   is fixed because `resolve_heavy_lock_path` in `bin/heavy-lock-lib.sh` hard-codes
   `/home/puni1/.cache/wbs-heavy-work.lock` on Linux and takes no override. Each host's lock is
   local to that host. A lane queued on h4claw waits only for h4claw's gates.
@@ -119,7 +120,7 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
      h2puni passes the input asserts, but without an exception validate's "Require the gate
      account without sudo" would fail every apply after it had changed the host. Its inventory
      entry therefore sets `puni_gate_account_may_sudo: true` (default false), and validate then
-     requires the escalation to still be there instead. On h2puni a gate payload can become root,
+     requires the state the strict check would refuse (the `sudo` group or `sudo -n` succeeding). On h2puni a gate payload can become root,
      so the gate-host isolation property does not hold. This is debt: once those callers leave
      `puni1` and its sudo is removed, the next apply fails as stale until the flag is deleted.
    - Pass `--extra-vars '{"puni_gate_host_pool_enroll": false}'`, as h4claw's apply did; that flag
@@ -149,8 +150,8 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
      - `~/.venv-solver` is created or brought to the lock, and the template puts it first, so
        every non-interactive `ssh puni1@h2puni CMD`, gate or not, gets the venv's `python3`
        instead of `/usr/bin/python3`. Linger turns on for `puni1`.
-     - Unchanged: login shells still get Volta. `~/.profile` prepends `~/.local/bin` and Volta after it
-       sources `~/.bashrc`, so Volta's Node shadows the pin there. Gates are unaffected, because
+     - Unchanged: login shells still get Volta. `~/.profile` prepends `~/.local/bin` and Volta
+       after it sources `~/.bashrc`, so Volta's Node shadows the pin there. Gates are unaffected, because
        `ssh host CMD` is not a login shell.
      - The role creates `~/.config/systemd/user`, the Dash directories and the token unit, and
        installs the Dash units but does not enable them. It clones `~/puni-00-gate-tbf2` and
@@ -161,9 +162,12 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
      `git remote get-url origin` = `https://github.com/Prosperous-Unification/puni-00.git`, is not
      shallow or blobless, and has an empty `git status --porcelain`. `validate` refuses anything
      else, and a refusal mid-apply leaves the host half-configured.
-   - Run it with no gate in flight (`bin/with-heavy-lock.sh status` reads `holder none`), twice,
-     the second with `changed=0`.
-1. **Disk.** On h2puni, free space first: the recorded cleanup order is the "h2puni DISK, FOR DANY"
+   - Apply only after step 1's disk and the backup bullet above: the role's free-space refusal
+     runs after it has replaced `~/.ssh/authorized_keys`, rendered `~/.bashrc` and installed the
+     pins, so applying with too little disk half-configures the host. The order is disk (step 1),
+     backup, `bin/with-heavy-lock.sh status` reading `holder none`, then the apply, twice, the
+     second with `changed=0`.
+1. **Disk.** On h2puni, free space before step 0's apply: the recorded cleanup order is the "h2puni DISK, FOR DANY"
    entry of 2026-11-02 in the private `puni-plan` `RESUME.md`, and Dany approves it. The role
    refuses to clone below 5 GiB per missing checkout plus 10 GiB. On h2puni, which lacks two
    checkouts, that means at least **20 GiB free** before the apply; a fresh host lacking all three
