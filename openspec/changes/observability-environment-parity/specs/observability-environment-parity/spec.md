@@ -1212,3 +1212,34 @@ Baseline helper source and tests SHALL be retained in the repository, and new na
 - **WHEN** a missing dependency or malformed child projection rejects through the exported API or source CLI
 - **THEN** the public refusal retains its fixed category without preserving child output or supplied private paths as raw error causes
 - **AND** direct API regressions and a cause-restoration fault prove this boundary independently of CLI rendering
+
+### Requirement: Raw production joins enforced native bounds to original artifacts
+
+The durable baseline producer SHALL create a fixed8GiB raw artifact only after source/input, physical capacity, allocated staging and independent native worker/descriptor admission succeed. Its profile SHALL retain1GiB service memory,1CPU,128PIDs, swap0, bounded runtime/stop, a2GiB live/final host reserve and3.375GiB initial available-memory requirement. Core observation concepts SHALL remain provider-neutral; Linux/QEMU identities belong to this adapter.
+
+#### Scenario: Only the observed owned worker can allocate
+
+- **WHEN** source/input hashes, original creator/file descriptors, current capacity, actual unit/InvocationID/MainPID/process start and effective cgroup limits match before the parent ACK
+- **THEN** the bounded worker may preallocate and convert its owned raw file while preserving fixed geometry and byte accounting
+- **AND** absent/malformed/unreadable state, mismatched caps, changed identities or missing/foreign ACK refuse allocation
+- **AND** the writer has no writable directory or unrelated regular-file grant
+
+#### Scenario: Content or allocation mismatch refuses acceptance
+
+- **WHEN** conversion fails, target geometry/allocation changes, comparison detects substituted content, physical floors cross or evidence cannot be durably persisted
+- **THEN** the component remains unaccepted and retains its original evidence
+- **AND** focused production-path negatives expose removal of the relevant checks
+
+#### Scenario: Terminal observation preserves authentic counter lifetime
+
+- **WHEN** converters are reaped and the live original worker sends its bounded counter record to the coordinator, which fsyncs the record and ACKs durability before worker exit
+- **THEN** parent validation joins the original identities and actual interval to fresh terminal/empty-group facts and client exit0 before accepting the component
+- **AND** stale/future/foreign/partial records, OOM, failed client, cancellation or cleanup uncertainty refuse acceptance
+- **AND** unloaded unit fields remain native blank values and no full-rehearsal or guest authority is granted
+
+#### Scenario: Concurrent nonces cannot overcommit shared staging
+
+- **WHEN** one original worker owns staging from fresh admission through converter reap and the durability ACK
+- **THEN** a competing worker refuses before creating its raw file or reaching allocation readiness
+- **AND** completion, refusal or process termination releases that ownership for a later fresh attempt
+- **AND** missing, unreadable or replaced staging state cannot become an unlocked successful attempt
