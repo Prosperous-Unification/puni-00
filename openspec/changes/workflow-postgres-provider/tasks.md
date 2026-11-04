@@ -1,6 +1,6 @@
 # PostgreSQL implementation tasks
 
-All checkboxes below are future implementation/acceptance work. This initial publication records the selected direction and existing feasibility evidence. Test filenames below name planned tests; they do not claim those files or passing cases exist.
+The checkboxes below track remaining complete-provider acceptance. The [private lifecycle plan](lifecycle-tasks.md) records completed observer/session prerequisites and their real tests; it does not complete these broader obligations. The [operation-order map](evidence/postgres-operation-order.md) supplies the required source matrix. Other test filenames below name planned tests, without claiming those files or passing cases exist.
 
 ## 1. Resolve private protocol prerequisites
 
