@@ -605,3 +605,31 @@ test('raw producer shared staging excludes competing nonces through durability A
     'verified competing workers and success/refusal/crash release; all raw files zero bytes\n',
   );
 });
+
+test('raw producer capacity parser accepts native horizontal whitespace and refuses malformed fields', () => {
+  const capacityRead = String.raw`
+import importlib.util,os,sys,tempfile,types
+spec=importlib.util.spec_from_file_location('producer',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+original_text=p.read_text
+p.os.statvfs=lambda path:types.SimpleNamespace(f_bavail=50*1024**3//4096,f_frsize=4096)
+with tempfile.TemporaryDirectory() as state:
+    for line,expected in [('MemAvailable:   17850452 kB\n',17850452*1024),('MemAvailable:\t3538944\tkB\n',3623878656),('MemAvailable: \t 3538944 \t kB\n',3623878656),('MemAvailable: 3538944 kB\n',3623878656)]:
+        p.read_text=lambda path,limit=65536:line if path=='/proc/meminfo' else original_text(path,limit)
+        assert p.observe_capacity(state,initial=True)['availableMemoryBytes']==expected,line
+    for line in ['MemTotal: 3538944 kB\n','MemAvailable: 3538944 kB\nMemAvailable: 3538944 kB\n','MemAvailable: 3538944.0 kB\n','MemAvailable: -3538944 kB\n','MemAvailable: unknown kB\n','MemAvailable: 3538944 MB\n','MemAvailable: 3538944 KB\n','MemAvailable:\n3538944 kB\n','MemAvailable: 3538944\nkB\n','MemAvailable: 3538944 kB extra\n','MemAvailable:3538944 kB\n']:
+        p.read_text=lambda path,limit=65536:line if path=='/proc/meminfo' else original_text(path,limit)
+        try:p.observe_capacity(state,initial=True)
+        except p.PreparationRefusal as failure:assert str(failure)=='raw-capacity-malformed',(line,str(failure))
+        else:raise AssertionError('malformed native capacity accepted: '+repr(line))
+print('verified native capacity whitespace and strict fields')
+`;
+  const invocation = Bun.spawnSync(['/usr/bin/python3', '-I', '-B', '-c', capacityRead, helper], {
+    timeout: 5000,
+    maxBuffer: 65536,
+  });
+  expect(invocation.stderr.toString()).toBe('');
+  expect(invocation.exitCode).toBe(0);
+  expect(invocation.stdout.toString()).toBe(
+    'verified native capacity whitespace and strict fields\n',
+  );
+});

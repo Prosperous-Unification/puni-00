@@ -215,7 +215,8 @@ def allocated_bytes(state):
 
 
 def observe_capacity(state, initial=False, after_allocation=False):
-    memory = re.findall(r'^MemAvailable: ([0-9]+) kB$', read_text('/proc/meminfo'), re.M)
+    # Proof: restoring exact single spaces fails the production capacity-parser test on native aligned spaces and tabs.
+    memory = re.findall(r'^MemAvailable:[ \t]+([0-9]+)[ \t]+kB$', read_text('/proc/meminfo'), re.M)
     require(len(memory) == 1, 'raw-capacity-malformed')
     filesystem = os.statvfs(state)
     allocated = allocated_bytes(state)
