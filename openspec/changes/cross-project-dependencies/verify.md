@@ -7856,3 +7856,5 @@ Actual component tests keep their original epochs: harmless80, real Graph202/11/
 [Current-main CI caller corrections](verify-ci-callers-20261104.md) records fixture/docs reconciliation, fresh scoped checks and the occupancy failure followed by its verified fixture correction. Full CI and native/host acceptance remain separate.
 
 [Private main645 integration](verify-main645-integration-20261105.md) records the source union, recovery-fixture compatibility proof and actual Nx graph-contamination failure. Final scoped checks and full delivery gates retain separate scopes.
+
+[Hosted CI follow-up](verify-ci-hosted-followup-20261105.md) records the actual four SQLite fixture failures and restored checks, the real Vite teardown failure and its bounded candidate hypothesis. Full delivery and native acceptance remain open.

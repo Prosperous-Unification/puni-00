@@ -1,4 +1,7 @@
-/** Trusted test-only Node harness for the real Vite producer; never evaluates served JavaScript. */
+/**
+ * Trusted test-only Node harness for the real Vite producer; never evaluates served JavaScript.
+ * Successful observations await Vite's request-idle boundary before resource closure.
+ */
 export const SOURCE_FRONTEND_PRODUCER_PROGRAM = String.raw`import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { writeSync } from 'node:fs';
@@ -208,6 +211,9 @@ try {
     const metadata = JSON.parse(bytes);
     capture.packages[name] = { path, version: metadata.version, sha256: digest(bytes) };
   }
+  // Proof: removing this await made both extracted-producer inert tests enter
+  // cleanup before the held idle promise; restoring it passed hold and refusal.
+  await server.waitForRequestsIdle();
   phase = 'complete';
 } catch (cause) {
   failure = cause;

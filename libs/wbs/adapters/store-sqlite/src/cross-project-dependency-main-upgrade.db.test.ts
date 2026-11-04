@@ -10,7 +10,7 @@ import { runMigrations } from './migrate';
 import { readMigrationFolders } from './migrate-down';
 import { parseMigrationSetCapture } from './migration-set';
 
-const MAIN = '25b873b1d49c2d2cd3e130958af682e309e9f844';
+const MAIN = '64572eeeb6a393662b29c2377ba9278a7d85e21f';
 const REPOSITORY = new URL('../../../../../', import.meta.url).pathname;
 const APP = join(REPOSITORY, 'apps/wbs/be-01');
 const OLDER_DEPENDENCIES = [
@@ -180,14 +180,14 @@ test('upgrades the exact fresh main pool database with four older dependency ide
     runMigrations(dbPath, mainMigrations);
     seedMain(dbPath);
     const baseline = ledgerAt(dbPath);
-    expect(baseline).toHaveLength(100);
+    expect(baseline).toHaveLength(103);
     expect(baseline.map(({ name, hash }) => ({ name, hash }))).toEqual(
       readMigrationFolders(mainMigrations).map(({ name, hash }) => ({ name, hash })),
     );
     const values = mainValuesAt(dbPath);
     const schema = schemaAt(dbPath);
     expect(baseline.some(({ name }) => name === '20261022121000_add_runtime_commands')).toBe(true);
-    expect(baseline.at(-1)?.name).toBe('20261028100100_widen_organization_audit_agent_pools');
+    expect(baseline.at(-1)?.name).toBe('20261101120000_add_host_job_projection');
     expect(baseline.filter(({ name }) => name.startsWith('20261023'))).toHaveLength(5);
     expect(values.project).toMatchObject([{ budget_factor: 2.75 }]);
     expect(values.definitions).toHaveLength(5);
@@ -244,7 +244,7 @@ test('upgrades the exact fresh main pool database with four older dependency ide
     expect(
       upgraded.filter(({ name }) => ADDED.includes(name)).map(({ name, hash }) => ({ name, hash })),
     ).toEqual(capture.pending.map(({ name, hash }) => ({ name, hash })));
-    expect(upgraded).toHaveLength(104);
+    expect(upgraded).toHaveLength(107);
     expect(
       schemaAt(dbPath)
         .filter(

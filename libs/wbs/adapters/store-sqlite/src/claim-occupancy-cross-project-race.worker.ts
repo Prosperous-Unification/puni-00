@@ -14,6 +14,7 @@ interface RaceRequest {
   readonly barrier: SharedArrayBuffer;
   readonly projectId: string;
   readonly workItemId: string;
+  readonly stepId: string;
   readonly personId: string;
   readonly actorId: string;
 }
@@ -24,7 +25,7 @@ interface RaceRequest {
  * with the other worker's by the barrier.
  */
 self.onmessage = async (message: MessageEvent<RaceRequest>) => {
-  const { path, barrier, projectId, workItemId, personId, actorId } = message.data;
+  const { path, barrier, projectId, workItemId, stepId, personId, actorId } = message.data;
   const source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: path,
@@ -55,7 +56,7 @@ self.onmessage = async (message: MessageEvent<RaceRequest>) => {
     Atomics.notify(state, 0);
     Atomics.wait(state, 1, 0);
     const outcome = await runner.run(projectId, actorId, [
-      { kind: 'claimWorkItem', workItemId, personId },
+      { kind: 'claimWorkItem', workItemId, personId, steps: [stepId] },
     ]);
     if (outcome.ok) self.postMessage('applied');
     else if ('reason' in outcome) self.postMessage(outcome.reason);

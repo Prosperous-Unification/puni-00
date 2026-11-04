@@ -75,10 +75,16 @@ async function seeded(hold: Hold | null, stale: ResourceUnits[] | null = null) {
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const projects = [
-    expectCreated(await graph.projects.create('A', F)).project.id,
-    expectCreated(await graph.projects.create('B', F)).project.id,
+  const created = [
+    expectCreated(await graph.projects.create('A', F)),
+    expectCreated(await graph.projects.create('B', F)),
   ] as const;
+  const projects = [created[0].project.id, created[1].project.id] as const;
+  const firstA = created[0].steps.at(0);
+  const firstB = created[1].steps.at(0);
+  if (firstA === undefined || firstB === undefined)
+    throw new Error('race fixture project omitted its first workflow step');
+  const stepIds = [firstA.id, firstB.id] as const;
   for (const id of ['claire', 'codex']) {
     await source.stores.directory.addPerson({ id, name: id, kind: 'agent' }, [], { at: 1, by: F });
     const bound = await source.stores.directory.patchPerson(id, { accountId: F }, { at: 1, by: F });
@@ -142,13 +148,14 @@ async function seeded(hold: Hold | null, stale: ResourceUnits[] | null = null) {
     kind: 'claimWorkItem',
     workItemId: leaves[index] ?? '',
     personId: index === 0 ? 'claire' : 'codex',
+    steps: [stepIds[index]],
   });
   /** Each leaf's units: its largest copy, one per leaf however many steps it claimed. */
   const held = () =>
     source.db.all<{ units: number }>(
       sql`SELECT max(o.units) AS units FROM claim_occupancy AS o JOIN claim AS c ON c.id = o.claim_id GROUP BY c.work_item_id ORDER BY units`,
     );
-  return { projects, leaves, runner, claim, held };
+  return { projects, leaves, runner, claim, held, stepIds };
 }
 
 describe('two projects claim a shared resource at once', () => {
@@ -199,7 +206,7 @@ describe('two projects claim a shared resource at once', () => {
   }
 
   it('applies exactly one across two connections', async () => {
-    const { projects, leaves, held } = await seeded(null);
+    const { projects, leaves, held, stepIds } = await seeded(null);
     const barrier = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 2);
     const state = new Int32Array(barrier);
     const workers = [0, 1].map(
@@ -221,6 +228,7 @@ describe('two projects claim a shared resource at once', () => {
           barrier,
           projectId: projects[index === 0 ? 0 : 1],
           workItemId: leaves[index],
+          stepId: index === 0 ? stepIds[0] : stepIds[1],
           personId: index === 0 ? 'claire' : 'codex',
           actorId: F,
         });
