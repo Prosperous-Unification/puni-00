@@ -1,0 +1,296 @@
+{
+  "schema": 1,
+  "kind": "proposed-design-evidence",
+  "base": "b1fd7fd15f59e8064d6e9286f0ba82cc723c880f",
+  "scope": "Design/source correspondence, independent review and document validation only. No physical provider implementation, PostgreSQL acceptance or full runtime gate is certified.",
+  "source": [
+    {
+      "path": "docs/adr/0070-workflow-store-locks-bind-to-postgres-namespaces.md",
+      "sha256": "89dba060a320662bb46d06a11cc64d53dc0fa34cddde9b8e065c346bf181352e"
+    },
+    {
+      "path": "openspec/changes/workflow-postgres-provider/physical-store-design.md",
+      "sha256": "b2ccab2f814b0f74615bce77de0439a16cd76a6d597025b80cf199328be8b252"
+    },
+    {
+      "path": "openspec/changes/workflow-postgres-provider/physical-store-tasks.md",
+      "sha256": "da5f457e17eeba882adffc2ec9afe4a450dd53da52db86567ca832ae6550ab69"
+    },
+    {
+      "path": "openspec/changes/workflow-postgres-provider/design.md",
+      "sha256": "0ae64868f8b6b52d8609c467690a4c667538b7aef0e81cc5311b8c6455e20abb"
+    },
+    {
+      "path": "openspec/changes/workflow-postgres-provider/tasks.md",
+      "sha256": "b19767a75cbabe3ae918e64af15fee7ca637c04fab6d7e6b2583489f829b3367"
+    },
+    {
+      "path": "openspec/changes/workflow-postgres-provider/proposal.md",
+      "sha256": "27fb4e9f54f53423cab6078baca5b1667529e6f5df47e151cb78614c952e01fc"
+    },
+    {
+      "path": "openspec/changes/workflow-postgres-provider/specs/workflow-postgres-store/spec.md",
+      "sha256": "b5ff0e4c9c5aa19a0fe5151c1258734726cfbbd0ea5386f2b83ee3f7fed0c719"
+    }
+  ],
+  "packet": {
+    "file": "postgres-physical-store-design-20261105.json.gz",
+    "bytes": 103982,
+    "sha256": "e2b5c9c871bb6708eadfabc67be26cdae2987424b624bb38eefd6c8d188ed8e1",
+    "decodedBytes": 814441,
+    "decodedSha256": "13d0d2d287fbfe9c659ede0d42da0e40d6c46c729ab703bba44e5af4fea7701c"
+  },
+  "entries": [
+    {
+      "path": "reviewed-source/docs/adr/0070-workflow-store-locks-bind-to-postgres-namespaces.md",
+      "bytes": 2495,
+      "sha256": "89dba060a320662bb46d06a11cc64d53dc0fa34cddde9b8e065c346bf181352e"
+    },
+    {
+      "path": "reviewed-source/openspec/changes/workflow-postgres-provider/physical-store-design.md",
+      "bytes": 16368,
+      "sha256": "b2ccab2f814b0f74615bce77de0439a16cd76a6d597025b80cf199328be8b252"
+    },
+    {
+      "path": "reviewed-source/openspec/changes/workflow-postgres-provider/physical-store-tasks.md",
+      "bytes": 8720,
+      "sha256": "da5f457e17eeba882adffc2ec9afe4a450dd53da52db86567ca832ae6550ab69"
+    },
+    {
+      "path": "reviewed-source/openspec/changes/workflow-postgres-provider/design.md",
+      "bytes": 18740,
+      "sha256": "0ae64868f8b6b52d8609c467690a4c667538b7aef0e81cc5311b8c6455e20abb"
+    },
+    {
+      "path": "reviewed-source/openspec/changes/workflow-postgres-provider/tasks.md",
+      "bytes": 7701,
+      "sha256": "b19767a75cbabe3ae918e64af15fee7ca637c04fab6d7e6b2583489f829b3367"
+    },
+    {
+      "path": "reviewed-source/openspec/changes/workflow-postgres-provider/proposal.md",
+      "bytes": 2206,
+      "sha256": "27fb4e9f54f53423cab6078baca5b1667529e6f5df47e151cb78614c952e01fc"
+    },
+    {
+      "path": "reviewed-source/openspec/changes/workflow-postgres-provider/specs/workflow-postgres-store/spec.md",
+      "bytes": 8143,
+      "sha256": "b5ff0e4c9c5aa19a0fe5151c1258734726cfbbd0ea5386f2b83ee3f7fed0c719"
+    },
+    {
+      "path": "review/initial-package.json",
+      "bytes": 64718,
+      "sha256": "37090d187d9f641eb57a62eed56e7a10a555833f053cac3848ff76d6cce34bf7"
+    },
+    {
+      "path": "review/report.md",
+      "bytes": 10325,
+      "sha256": "90c53e6d7d633e9b18a997834cdde47544dfa1e8be2a0054abc262098090e323"
+    },
+    {
+      "path": "commands/physical-design-install.started.json",
+      "bytes": 318,
+      "sha256": "cd7731ae2b6fa373be3d9fc6662463a89e6c6cb43843af10ea3908c0f67dbe12"
+    },
+    {
+      "path": "commands/physical-design-install.pid.json",
+      "bytes": 255,
+      "sha256": "5bf08f1ae06f4fea253114240852a86d7baf5a947c45a8398884505dac04b48c"
+    },
+    {
+      "path": "commands/physical-design-install.json",
+      "bytes": 945,
+      "sha256": "66a17c211e7346d681d85ef8836f178fc44ba8c6457858f8a7043a0a272f6dce"
+    },
+    {
+      "path": "commands/physical-design-install.helper.mjs",
+      "bytes": 2084,
+      "sha256": "1c981d30644a587f751bbc2c0097ddfe6b2b11df60d055c7c13fb6ee10049c88"
+    },
+    {
+      "path": "commands/physical-design-install.stdout",
+      "bytes": 2680,
+      "sha256": "8c41855380a67b8ba2ec4ae3f6e4488308c9820b228af342e6f1eb193ca2c11c"
+    },
+    {
+      "path": "commands/physical-design-install.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "commands/physical-design-checks.started.json",
+      "bytes": 873,
+      "sha256": "d25cf2be6a785027b26e6e6c8749ceb509739df925ef54eb6830aaac403f263c"
+    },
+    {
+      "path": "commands/physical-design-checks.pid.json",
+      "bytes": 810,
+      "sha256": "88c984f4359d808fc6e472104f0d594d68859ead0fab9812b3336579104ae323"
+    },
+    {
+      "path": "commands/physical-design-checks.json",
+      "bytes": 1500,
+      "sha256": "60ca6f261c42080adc7527516b3502f751b67a02c2b7d339735df81ed68202bd"
+    },
+    {
+      "path": "commands/physical-design-checks.helper.mjs",
+      "bytes": 2084,
+      "sha256": "1c981d30644a587f751bbc2c0097ddfe6b2b11df60d055c7c13fb6ee10049c88"
+    },
+    {
+      "path": "commands/physical-design-checks.stdout",
+      "bytes": 1027,
+      "sha256": "216217bde32c212d9212810dc1bdb0387f0450b8846a32e9b8f4bafb4cfdb6c2"
+    },
+    {
+      "path": "commands/physical-design-checks.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "commands/physical-design-openspec-all.started.json",
+      "bytes": 339,
+      "sha256": "9415397760b34fb25cb1ae2e2bf4fcce6bf529a2c543f3936e2713cfb53573d5"
+    },
+    {
+      "path": "commands/physical-design-openspec-all.pid.json",
+      "bytes": 276,
+      "sha256": "657284da95059f38420a82286f633f1fbc6bb82a535cd2e8a873c7d2dd5a7878"
+    },
+    {
+      "path": "commands/physical-design-openspec-all.json",
+      "bytes": 968,
+      "sha256": "0faf694e59203308d25ae10cc80419cc55eaa930eacb1c13cfbf5463d0e72e5e"
+    },
+    {
+      "path": "commands/physical-design-openspec-all.helper.mjs",
+      "bytes": 2084,
+      "sha256": "1c981d30644a587f751bbc2c0097ddfe6b2b11df60d055c7c13fb6ee10049c88"
+    },
+    {
+      "path": "commands/physical-design-openspec-all.stdout",
+      "bytes": 300434,
+      "sha256": "596fa0b3e80bd19c9900d8461f009f1df0c42f7da57759a8306de097971ee508"
+    },
+    {
+      "path": "commands/physical-design-openspec-all.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "commands/physical-design-recheck.started.json",
+      "bytes": 384,
+      "sha256": "d158698976d41e1a2f5cf43ff742ec0ed32396c94544fbbdfd3c1815c44dc872"
+    },
+    {
+      "path": "commands/physical-design-recheck.pid.json",
+      "bytes": 321,
+      "sha256": "1adca306df962df6cd421d4f277217edab0a364da84e710891b23d41dc04521b"
+    },
+    {
+      "path": "commands/physical-design-recheck.json",
+      "bytes": 1013,
+      "sha256": "c52f09113a91029f2e4a636288663eba85232573aada0d6e585a55a6f676fa7c"
+    },
+    {
+      "path": "commands/physical-design-recheck.helper.mjs",
+      "bytes": 2084,
+      "sha256": "1c981d30644a587f751bbc2c0097ddfe6b2b11df60d055c7c13fb6ee10049c88"
+    },
+    {
+      "path": "commands/physical-design-recheck.stdout",
+      "bytes": 300420,
+      "sha256": "e3f29af293681f79bfa7ae631e94cefa5721b0d678af181c79da913845a837e8"
+    },
+    {
+      "path": "commands/physical-design-recheck.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "receipts": [
+    {
+      "label": "physical-design-install",
+      "code": 0,
+      "argv": [
+        "bash",
+        "-c",
+        "cd \"$1\"; exec bun install --frozen-lockfile",
+        "bash",
+        "/home/df/.codex/worktrees/13fb/puni-00"
+      ],
+      "stdout": {
+        "bytes": 2680,
+        "sha256": "8c41855380a67b8ba2ec4ae3f6e4488308c9820b228af342e6f1eb193ca2c11c"
+      },
+      "stderr": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "startedAt": "2026-11-04T23:23:19.546Z",
+      "finishedAt": "2026-11-04T23:23:19.958Z"
+    },
+    {
+      "label": "physical-design-checks",
+      "code": 0,
+      "argv": [
+        "bash",
+        "-c",
+        "cd \"$1\"; ./node_modules/.bin/prettier --write docs/adr/0070-workflow-store-locks-bind-to-postgres-namespaces.md openspec/changes/workflow-postgres-provider/physical-store-design.md openspec/changes/workflow-postgres-provider/physical-store-tasks.md openspec/changes/workflow-postgres-provider/design.md openspec/changes/workflow-postgres-provider/tasks.md openspec/changes/workflow-postgres-provider/proposal.md openspec/changes/workflow-postgres-provider/specs/workflow-postgres-store/spec.md && ./node_modules/.bin/openspec validate workflow-postgres-provider --json && bunx nx format:check --all",
+        "bash",
+        "/home/df/.codex/worktrees/13fb/puni-00"
+      ],
+      "stdout": {
+        "bytes": 1027,
+        "sha256": "216217bde32c212d9212810dc1bdb0387f0450b8846a32e9b8f4bafb4cfdb6c2"
+      },
+      "stderr": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "startedAt": "2026-11-04T23:26:45.991Z",
+      "finishedAt": "2026-11-04T23:28:56.881Z"
+    },
+    {
+      "label": "physical-design-openspec-all",
+      "code": 0,
+      "argv": [
+        "bash",
+        "-c",
+        "cd \"$1\"; exec ./node_modules/.bin/openspec validate --all --json",
+        "bash",
+        "/home/df/.codex/worktrees/13fb/puni-00"
+      ],
+      "stdout": {
+        "bytes": 300434,
+        "sha256": "596fa0b3e80bd19c9900d8461f009f1df0c42f7da57759a8306de097971ee508"
+      },
+      "stderr": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "startedAt": "2026-11-04T23:28:49.326Z",
+      "finishedAt": "2026-11-04T23:28:50.494Z"
+    },
+    {
+      "label": "physical-design-recheck",
+      "code": 0,
+      "argv": [
+        "bash",
+        "-c",
+        "cd \"$1\"; ./node_modules/.bin/openspec validate --all --json && bunx nx format:check --all && git diff --check",
+        "bash",
+        "/home/df/.codex/worktrees/13fb/puni-00"
+      ],
+      "stdout": {
+        "bytes": 300420,
+        "sha256": "e3f29af293681f79bfa7ae631e94cefa5721b0d678af181c79da913845a837e8"
+      },
+      "stderr": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "startedAt": "2026-11-04T23:32:06.826Z",
+      "finishedAt": "2026-11-04T23:34:10.405Z"
+    }
+  ]
+}
