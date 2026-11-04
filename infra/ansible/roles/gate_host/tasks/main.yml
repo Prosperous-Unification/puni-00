@@ -78,15 +78,41 @@
 # and Ansible's templating of a task string left them so, which joined h2puni's five keys into one
 # line; sshd honoured its first key and read the rest as comment (H2-A7, 2026-11-04). The same
 # expression in a double-quoted YAML string, or a template file, writes newlines (observed in the
-# controller image). validate.yml counts the file's keys against the list.
-- name: Install the exact gate authorized keys
+# controller image). The keys are rendered to a staged file and counted before they replace the
+# live file, so a bad render stops the play while the old keys still log in.
+- name: Stage the exact gate authorized keys
   tags: [gate_host]
   ansible.builtin.template:
     src: authorized_keys.j2
-    dest: '{{ puni_gate_home }}/.ssh/authorized_keys'
+    dest: '{{ puni_gate_home }}/.ssh/authorized_keys.staged'
     owner: '{{ puni_gate_user }}'
     group: '{{ puni_gate_user }}'
     mode: '0600'
+  # The staged file is written and removed on every run; the install below reports the change.
+  changed_when: false
+
+- name: Count the staged gate authorized keys
+  tags: [gate_host]
+  ansible.builtin.import_tasks: authorized-keys-count.yml
+  vars:
+    puni_gate_keys_file: '{{ puni_gate_home }}/.ssh/authorized_keys.staged'
+
+- name: Install the exact gate authorized keys
+  tags: [gate_host]
+  ansible.builtin.copy:
+    src: '{{ puni_gate_home }}/.ssh/authorized_keys.staged'
+    dest: '{{ puni_gate_home }}/.ssh/authorized_keys'
+    remote_src: true
+    owner: '{{ puni_gate_user }}'
+    group: '{{ puni_gate_user }}'
+    mode: '0600'
+
+- name: Remove the staged gate authorized keys
+  tags: [gate_host]
+  ansible.builtin.file:
+    path: '{{ puni_gate_home }}/.ssh/authorized_keys.staged'
+    state: absent
+  changed_when: false
 
 # The parent of the lock path that `resolve_heavy_lock_path` hard-codes; the lock library creates
 # the lock file, its holder record and its queue inside it. 0700, h2puni's own mode: every heavy

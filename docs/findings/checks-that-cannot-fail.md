@@ -165,10 +165,12 @@ in the role read the file back, so no step of an apply could fail on it; h4claw,
 had passed every apply. The pre-apply backup,
 restored by hand as root, was the only recovery.
 
-The role now renders a template, and validate compares the `ssh-keygen -lf` fingerprint count
-with the list's length. In the controller-image evaluator (`infra/ansible/tests/gate-host-assertions.py`,
-E11 and E12) the reinstated form was refused with `holds 1 keys, but puni_gate_authorized_keys
-lists 3`, and with the condition removed it passed. A task that names an exact result is a
+The role now renders a template to a staged file and compares its `ssh-keygen -lf` fingerprint
+count with the list's length before the file replaces the live one; validate repeats the count on
+the live file. In the controller-image evaluator (`infra/ansible/tests/gate-host-assertions.py`,
+E11 to E13) the reinstated form was refused at the staged count with `holds 1 keys, but
+puni_gate_authorized_keys lists 3` and the previous live file intact; with the condition removed
+it passed. A task that names an exact result is a
 claim until a read-only probe of that result can fail
 ([verify.md](../../openspec/changes/dash-host-jobs/verify.md)).
 

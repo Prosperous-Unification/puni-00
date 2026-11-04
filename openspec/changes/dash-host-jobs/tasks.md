@@ -175,8 +175,9 @@
         change or the archive refuses the delta.
   - [x] 6.3c Authorized keys one per line (2026-11-04, H2-A7): apply 1 on h2puni wrote the
         five keys as one line and locked out all callers but the first; the role now renders
-        `authorized_keys.j2`, validate counts `ssh-keygen -lf` fingerprints against the list,
-        and `~/.cache` stays 0700 (verify.md, "2026-11-04 h2puni apply 1 — authorized_keys
+        `authorized_keys.j2` to a staged file, counts its `ssh-keygen -lf` fingerprints against
+        the list before installing it, validate repeats the count on the live file, and
+        `~/.cache` stays 0700 (verify.md, "2026-11-04 h2puni apply 1 — authorized_keys
         incident (H2-A7)").
 - [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
       `Restart=on-failure` and `KillMode=process` (beside the observation units of 4.2). It

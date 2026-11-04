@@ -2479,3 +2479,29 @@ puni_gate_authorized_keys lists 3`. With the count condition removed both bad fi
   (`cmp`, H2-B1: a trailing space differed between a snapshot and the staged list), and after
   apply 1 log in from a second session before closing the first.
 - Not done: no host was touched. Apply 2 and validate on h2puni remain task 6.3's operator half.
+
+### Review fixes (Fable, PR #852)
+
+- M2: the keys no longer reach the live file before they are counted. main.yml renders them to
+  `~/.ssh/authorized_keys.staged`, imports `tasks/authorized-keys-count.yml` (the `ssh-keygen -lf`
+  probe and the count assertion) on it, copies it into place with `remote_src: true` and removes
+  it; validate.yml imports the same file against the live `authorized_keys`. The template
+  module's `validate:` cannot do this: `ssh-keygen -lf` exits 0 when any key parses. Staging and
+  removal are `changed_when: false`, so a rerun reports only the install. Evaluator E11 to E13:
+  the role's sequence installed three keys, one key and a key with a `from=` option, and a rerun
+  with the same 0600 file reported `changed=0`; dropping either `changed_when` failed that. The
+  reinstated `content: |` render (E12) and a malformed third key were refused at the staged
+  count, with no `Install the exact gate authorized keys` task in the output and the previous
+  live file unchanged; moving the install before the count overwrote it, and removing the
+  condition let both bad files through. E13 refused a joined live file through validate's import.
+  Full run: 88 `ok` lines, `{"failures": 0}`, exit 0.
+- `ansible.test.ts` "stages the authorized keys, counts them, then installs them" pins the
+  four-task order, the staged template, the import and its `puni_gate_keys_file`, the
+  `remote_src` copy, the removal, validate's import, the probe and the assertion. Restoring the
+  copy task (`- Expected - 7`), moving the install above the count (`- Expected - 1`) and dropping
+  the count condition (`- Expected - 3`) each failed it.
+- M1, M3, L2: gate-hosts.md says what `cmp` proves (a lossless copy and the final newline) and
+  adds a key-count line for comment and blank lines, completes step 0's order through
+  `--tags validate`, and records h4claw's `~/.cache` narrowing to 0700.
+- L1: the assertion's `fail_msg` prints the parsed fingerprints, and the count file says the
+  count is not a login test.

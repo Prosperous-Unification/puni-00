@@ -101,18 +101,27 @@ To rerun only the probes, pass `--tags validate`.
    jq -Rn '{puni_gate_authorized_keys: [inputs], puni_gate_host_pool_enroll: false}' \
      "$OPS/authorized_keys.live" > "$OPS/gate.json"
    jq -r '.puni_gate_authorized_keys[]' "$OPS/gate.json" | cmp - "$OPS/authorized_keys.live"
+   test "$(grep -vc '^\s*\(#\|$\)' "$OPS/authorized_keys.live")" -eq \
+     "$(jq '.puni_gate_authorized_keys | length' "$OPS/gate.json")"
    ```
 
-   `cmp` exits 0 only for the same bytes; a live file with a comment line, a blank line or no
-   final newline differs, and is cleaned up on the host before staging.
+   `cmp` exiting 0 proves the list is a lossless copy of the live file, final newline included:
+   `jq -R` and `jq -r` keep every byte of every line, so a live file without a final newline is
+   the only one it refuses. A comment or blank line is copied as an entry too, and the last
+   command refuses it here (the role's key count would refuse it at staging); remove such lines
+   on the host and stage again.
 
 3. Take a backup of what the role touches (accounts, `~/.ssh/authorized_keys` and package
    selections). Then run the playbook twice through the fleet controller. The second run must
    print `changed=0`. After the first run, log in as `puni1` from a second session with each
-   caller's key before closing the session the apply came through. Validate's "Require one
-   authorized key per listed key" refuses a file whose `ssh-keygen -lf` fingerprint count differs
-   from the list's length: the guard for H2-A7 (2026-11-04), when a role bug wrote h2puni's five
-   keys as one line and locked out every caller but the first until the backup was restored.
+   caller's key before closing the session the apply came through. The role renders the keys to
+   `~/.ssh/authorized_keys.staged`, and "Require one authorized key per listed key" refuses it
+   when its `ssh-keygen -lf` fingerprint count differs from the list's length, before it replaces
+   the live file; validate runs the same check on the live file. A bad render therefore stops the
+   play with the old keys still in place: the lock-out window of H2-A7 (2026-11-04), when a role
+   bug wrote h2puni's five keys as one line and locked out every caller but the first until the
+   backup was restored, is closed by construction. The count is not a login test (sshd may refuse
+   a key that parses), which is why the second-session login stays.
 
 For h4claw, the controller is the one the 2026-09-27 enrollment used. It runs on the operator
 laptop and reaches `10.1.0.4` as root through a jump via h2puni. Its inputs are in
@@ -157,11 +166,12 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
        today, or the apply locks those callers out. Stage it from the live file and compare
        byte for byte as in [Add a gate host](#add-a-gate-host) step 2, and after apply 1 log in
        from a second session before closing the first. Apply 1 on 2026-11-04 wrote the five
-       keys as one line (H2-A7, fixed by the role's `authorized_keys.j2` template); validate's
-       key-count assertion now refuses that file.
+       keys as one line (H2-A7, fixed by the role's `authorized_keys.j2` template); the key
+       count on the staged file now refuses such a render before the live file is replaced.
      - `~/.cache` stays 0700, h2puni's mode. Before the H2-A7 fix the role set it to 0755, which
-       apply 1 did (observed 2026-11-04); the next apply narrows it back. Every heavy run on the
-       host is `puni1`, so no other account needs to enter it.
+       apply 1 did (observed 2026-11-04); the next apply narrows it back. h4claw's `~/.cache`
+       was created 0755 by the earlier role, and its next apply narrows it to 0700 too. Every
+       heavy run on these hosts is `puni1`, so no other account needs to enter it.
      - `~/.bashrc` becomes the role's template. Its PATH puts `~/.venv-solver`, `~/.bun-1.4.4`
        and `~/.node-24.18.1` first, and everything below the interactivity guard is dropped,
        including Volta's setup, so Volta's Node leaves interactive shells.
@@ -191,9 +201,11 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
      else, and a refusal mid-apply leaves the host half-configured.
    - Apply only after step 1's disk and the backup bullet above: the role's free-space refusal
      runs after it has replaced `~/.ssh/authorized_keys`, rendered `~/.bashrc` and installed the
-     pins, so applying with too little disk half-configures the host. The order is disk (step 1),
-     backup, `bin/with-heavy-lock.sh status` reading `holder none`, then the apply, twice, the
-     second with `changed=0`.
+     pins, so applying with too little disk half-configures the host. The order is: disk
+     (step 1); the backup; the key list staged from the live file and checked with `cmp` and the
+     key count ([Add a gate host](#add-a-gate-host) step 2); `bin/with-heavy-lock.sh status`
+     reading `holder none`; apply 1; a `puni1` login from a second session before closing the
+     first; apply 2, with `changed=0`; then `--tags validate`.
 1. **Disk.** On h2puni, free space before step 0's apply: the recorded cleanup order is the "h2puni DISK, FOR DANY"
    entry of 2026-11-02 in the private `puni-plan` `RESUME.md`, and Dany approves it. The role
    refuses to clone below 5 GiB per missing checkout plus 10 GiB. On h2puni, which lacks two

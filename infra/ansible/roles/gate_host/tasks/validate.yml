@@ -4,31 +4,11 @@
 # with one exception: on an initialized pool, `ops pool inspect` and `ops job audit` open the
 # ledger, and an open migrates an older ledger version forward in place (resources.md).
 
-# sshd reads one key per line and treats the rest of a line as its comment, so a file that joined
-# the keys onto one line logs in only the first caller. `ssh-keygen -lf` prints one fingerprint per
-# key it parses and exits 255 for a missing file or one with no key (OpenSSH, observed 2026-11-04).
-- name: Fingerprint the gate authorized keys
-  become_user: '{{ puni_gate_user }}'
-  ansible.builtin.command:
-    argv: [ssh-keygen, -lf, '{{ puni_gate_home }}/.ssh/authorized_keys']
-  register: puni_gate_keys_probe
-  changed_when: false
-
-- name: Require one authorized key per listed key
-  ansible.builtin.assert:
-    that:
-      - puni_gate_keys_probe.stdout_lines | length == puni_gate_authorized_keys | length
-    fail_msg: >-
-      {{ puni_gate_home }}/.ssh/authorized_keys holds {{ puni_gate_keys_probe.stdout_lines | length }}
-      keys, but puni_gate_authorized_keys lists {{ puni_gate_authorized_keys | length }}: a caller
-      whose key did not parse is locked out. Log in from a second session before closing this one
-      (docs/infra/gate-hosts.md, step 0)
-  # Proof (2026-11-04): in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py,
-  # E11, E12) the role's template task with three generated keys rendered three fingerprints and
-  # passed, as did one key and a key with a `from=` option; the reinstated `content: |` and
-  # `join('\n')` task wrote one line and was refused with `holds 1 keys, but
-  # puni_gate_authorized_keys lists 3`, and a malformed third key with `holds 2`. With the condition
-  # removed both bad files passed.
+# The live file, which main.yml wrote only after the same count passed on its staged copy.
+- name: Count the live gate authorized keys
+  ansible.builtin.import_tasks: authorized-keys-count.yml
+  vars:
+    puni_gate_keys_file: '{{ puni_gate_home }}/.ssh/authorized_keys'
 
 - name: Resolve Bun the way a remote gate does
   become_user: '{{ puni_gate_user }}'
