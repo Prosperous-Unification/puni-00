@@ -76,3 +76,62 @@ Pair packet `/tmp/puni-mounted-import-marker-pair-actual-r1-20261102/` preserves
 One adjacent Proof comment was then added; exact removal reproduces585c source. Scoped format/populated-boundary lint/formatcheck passed0 with original joins,17 protected sources unchanged and no skipped lint. No types/compiler/subject tests were rerun solely for that comment. Final owning45118 bytes SHA256b513aa9af7e0792feb4c044b8f0ae810ac60bc06b63b181da0532703df7f584b,mode0664. Comment/static reportb56ae24660d6de0f46a29b3c5eb11619b8d574c4307fff4faea6fdf16a7ab412 preserves its exact narrow scope. No production implementation changed.
 
 This is one actual capable mounted rollback boundary with fixture-seeded durable authority. Remaining version/mapping/revocation/public transport matrices, genuine activation/participant fencing, full backend/browser/MCP/CI/host gates and deployment remain open. Parent8.1 stays unchecked, and no broader acceptance or main adoption follows.
+
+## Explicit mapping public-transport acceptance — 2026-11-04
+
+Two new capable mounted counterparts retain the earlier synthetic matrix unchanged.
+Both assert that the synthetic importer is absent, build the existing connected
+v12 export and send the actual document plus explicit external mappings through
+`POST /api/projects/import`. The success case requires201, validates the public
+summary, checks all five whole/node/descendant-step predecessor identities and
+steps against the explicit destinations while original UUIDs remain valid, then
+checks original rows, unchanged history and the expected publication count.
+The invalid mapped node step requires the exact indexed400 `unknown_ref` response,
+unchanged complete application-table/history snapshots and zero publications.
+
+Observed checks on the isolated product fixtures:
+
+- Exact two-case Bun selector: **2 passed, 0 failed, 23 filtered,129 assertions**,
+  exit0, with explicit empty preloads, no env-file loading and controlled scratch.
+- One R5 production dependency fault discarded validated `externalMappings` before
+  classification returned them. The same success case failed its exact mapped-row
+  equality (original UUIDs were retained); the invalid-step case failed because
+  the public route returned201 instead of400. **0 passed,2 failed**, exit1, at
+  those intended semantic assertions. No setup exception was credited.
+- Classifier bytes were restored in `finally` and hash-verified. The same two-case
+  selector then passed again: **2 passed,0 failed,23 filtered,129 assertions**, exit0.
+- Configured `wbs-be-01:typecheck --skip-nx-cache` passed, including module checks.
+  Only the adjacent observed Proof comment was added after these observations.
+
+No production behavior was changed by this slice. It closes explicit-mapping
+precedence and this one invalid-step public transport boundary; other invalid
+endpoint, revocation/version matrices and genuine activation/participant/native,
+full CI/host gate and deployment obligations remain open. Parent8.1 stays open.
+The acceptance changes are prepared on a separate branch based on PR845,
+preserving its running full CI.
+
+## Mounted revalidation of changed external facts — 2026-11-04
+
+Two new counterparts preserve the existing synthetic missing-row and cycle
+cases, but submit the original downloaded v12 document through the capable
+mounted HTTP import route. Each asserts that the harness has no synthetic
+importer. The remote row is deleted, or a reverse typed edge makes the actual
+persisted remote component cyclic, after export and before import.
+
+The HTTP assertions require exact indexed 400 bodies: `unknown_ref` at the
+original external predecessor for the missing row, and
+`invalid_typed_dependency` with `detail: cycle` at the original external
+relationship for the cycle. Full application-table snapshots taken after the
+deliberate remote mutation remain equal after import; no pushes occur.
+
+The focused ordinary Bun invocation selected exactly these cases: 2 passed,
+25 filtered, zero failed, 17 assertions. Raw argv, streams and source hashes
+are retained privately at
+`tmp/puni-delivery-evidence/20261104/import-revalidation/`. Astra independently
+reviewed the mounted paths, real database mutations and no-effect oracles.
+Configured forced uncached backend typecheck (including module checks), scoped
+ESLint and the owning source Prettier check all passed.
+No production safety guard changed; existing necessity proofs retain their
+historical scope. This adds public transport acceptance, not new guard-removal
+credit. Parent 8.1, remaining access/version matrices, native acceptance,
+exact-SHA host gate, full CI, architectural adoption and deployment remain open.
