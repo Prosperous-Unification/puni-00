@@ -92,6 +92,17 @@ const PAIRS = [
       sha256: 'e3e915704bce2282142eae1f2374cd6217f408d1fed38ae116579a4f6fb1025d',
     },
   },
+  {
+    epoch: 'fresh-main-20261104',
+    'package.json': {
+      bytes: 4992,
+      sha256: '6482624ce19f7d9ea6cd919328f839e3bb7bb8c48ae120a4f5c3104e9a87c381',
+    },
+    'bun.lock': {
+      bytes: 534113,
+      sha256: '129512f0a0fc719b814e7998353190f8827d96085f99000c418c6988ebbbb728',
+    },
+  },
 ];
 
 function refuse(): never {
@@ -132,7 +143,7 @@ function readFrontendInput(
   return namespace.get(resolved.join('/'));
 }
 
-/** Selects sixteen common size/hash inputs and one of two exact coupled package/lock epochs from the original already decoded canonical manifest. Private lookup follows declared relative links in its source/dependencies/git namespace, including real ancestors before '..', with the same forty-link ceiling. No live filesystem, response, version fallback or caller digest supplies expectations; this literal grants no readiness or startup authority. */
+/** Selects sixteen common size/hash inputs and one of three exact coupled package/lock epochs from the original already decoded canonical manifest. Private lookup follows declared relative links in its source/dependencies/git namespace, including real ancestors before '..', with the same forty-link ceiling. No live filesystem, response, version fallback or caller digest supplies expectations; this literal grants no readiness or startup authority. */
 export function selectSourceFrontendProfile(
   manifest: SourceStartupManifest,
 ): SourceFrontendProfile {

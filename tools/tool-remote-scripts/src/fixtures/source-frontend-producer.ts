@@ -112,6 +112,17 @@ const PAIRS = [
       sha256: 'e3e915704bce2282142eae1f2374cd6217f408d1fed38ae116579a4f6fb1025d',
     },
   },
+  {
+    epoch: 'fresh-main-20261104',
+    'package.json': {
+      bytes: 4992,
+      sha256: '6482624ce19f7d9ea6cd919328f839e3bb7bb8c48ae120a4f5c3104e9a87c381',
+    },
+    'bun.lock': {
+      bytes: 534113,
+      sha256: '129512f0a0fc719b814e7998353190f8827d96085f99000c418c6988ebbbb728',
+    },
+  },
 ];
 
 const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');

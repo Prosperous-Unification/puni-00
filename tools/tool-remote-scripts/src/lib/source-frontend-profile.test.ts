@@ -60,6 +60,17 @@ const PAIRS = [
       sha256: 'e3e915704bce2282142eae1f2374cd6217f408d1fed38ae116579a4f6fb1025d',
     },
   },
+  {
+    epoch: 'fresh-main-20261104',
+    'package.json': {
+      bytes: 4992,
+      sha256: '6482624ce19f7d9ea6cd919328f839e3bb7bb8c48ae120a4f5c3104e9a87c381',
+    },
+    'bun.lock': {
+      bytes: 534113,
+      sha256: '129512f0a0fc719b814e7998353190f8827d96085f99000c418c6988ebbbb728',
+    },
+  },
 ];
 
 let current: SourceStartupManifest;
@@ -119,7 +130,7 @@ for (const pair of PAIRS)
     beforeAll(() => {
       // Historical pair is modeled canonical selection metadata, not freshly produced Vite output.
       manifest =
-        pair.epoch === 'ctt-0.12.0'
+        pair.epoch === 'fresh-main-20261104'
           ? current
           : canonical({
               ...current,
@@ -297,25 +308,24 @@ for (const pair of PAIRS)
     });
   });
 
-test.each(['package.json', 'bun.lock'] as const)(
-  'mixed frontend pair refuses the historical %s alone',
-  (path) => {
-    const old = PAIRS.at(0);
-    if (old === undefined) throw new Error('historical pair absent');
-    const expected = old[path];
-    const mixed = canonical({
-      ...current,
-      entries: current.entries.map((entry) =>
-        entry.root === 'source' && entry.path === path && entry.kind === 'file'
-          ? { ...entry, size: expected.bytes, sha256: expected.sha256 }
-          : entry,
-      ),
-    });
-    expect(() => selectSourceFrontendProfile(mixed)).toThrow(
-      'source frontend input profile unsupported',
-    );
-  },
-);
+for (const historical of PAIRS.slice(0, -1))
+  test.each(['package.json', 'bun.lock'] as const)(
+    `mixed frontend pair refuses ${historical.epoch} %s alone`,
+    (path) => {
+      const expected = historical[path];
+      const mixed = canonical({
+        ...current,
+        entries: current.entries.map((entry) =>
+          entry.root === 'source' && entry.path === path && entry.kind === 'file'
+            ? { ...entry, size: expected.bytes, sha256: expected.sha256 }
+            : entry,
+        ),
+      });
+      expect(() => selectSourceFrontendProfile(mixed)).toThrow(
+        'source frontend input profile unsupported',
+      );
+    },
+  );
 
 test.each(['package.json', 'bun.lock'] as const)(
   'actual committed same-length %s drift reaches selector refusal',
@@ -326,7 +336,7 @@ test.each(['package.json', 'bun.lock'] as const)(
     // Both replacements preserve valid manifest syntax and change non-launch-relevant metadata.
     const changed =
       path === 'package.json'
-        ? original.replace('"name": "@puni/workspace"', '"name": "@puni/workspacf"')
+        ? original.replace('"name": "@puni-mono/workspace"', '"name": "@puni-mono/workspacf"')
         : original.replace('configurable-tree-traversal', 'configurable-tree-traversam');
     expect(changed).not.toBe(original);
     expect(Buffer.byteLength(changed)).toBe(Buffer.byteLength(original));
@@ -393,6 +403,55 @@ test.each(['package.json', 'bun.lock'] as const)(
   },
   30000,
 );
+/** Exact reverse of the pinned fresh-main package/lock changes; no Git history is read by this test. */
+const HISTORICAL_REVERSALS = {
+  'package.json': [
+    ['  "name": "@puni-mono/workspace",\n', '  "name": "@puni/workspace",\n'],
+    [
+      '    "test:queued": "bin/test-queued.sh",\n',
+      '    "test:queued": "bin/with-heavy-lock.sh -- nx run-many -t test",\n',
+    ],
+    ['    "@optique/core": "1.3.6",\n    "@optique/run": "1.3.6",\n', ''],
+    ['    "application-exception": "0.9.0",\n', '    "application-exception": "0.7.0",\n'],
+    [
+      '    "caught-object-report-json": "15.0.0",\n',
+      '    "caught-object-report-json": "13.0.0",\n',
+    ],
+    ['    "di-bag": "0.5.2",\n', '    "di-bag": "0.5.1",\n'],
+    ['    "mmdb-lib": "3.0.3",\n', ''],
+  ],
+  'bun.lock': [
+    ['        "@optique/core": "1.3.6",\n        "@optique/run": "1.3.6",\n', ''],
+    ['        "application-exception": "0.9.0",\n', '        "application-exception": "0.7.0",\n'],
+    [
+      '        "caught-object-report-json": "15.0.0",\n',
+      '        "caught-object-report-json": "13.0.0",\n',
+    ],
+    ['        "di-bag": "0.5.2",\n', '        "di-bag": "0.5.1",\n'],
+    ['        "mmdb-lib": "3.0.3",\n', ''],
+    [
+      '    "@optique/core": ["@optique/core@1.3.6", "", {}, "sha512-BXVuVyxP9bg8FbyvBYrSHisnAeG3XTf1xcuUjAWgDWKfzZssMGbSrMdiv4tA+BK3+CrSo6no+uHWpiHh4HMKeg=="],\n\n    "@optique/run": ["@optique/run@1.3.6", "", { "dependencies": { "@optique/core": "1.3.6" } }, "sha512-uxlHO8vG/5ni1V+t+jdmYqiyYYY5uOevO/6U866oBpnlOxOGn2ZWIlPpDXAU3e5GRu4VecbeXoNff18yRDGoQw=="],\n\n',
+      '',
+    ],
+    [
+      '    "application-exception": ["application-exception@0.9.0", "", { "dependencies": { "caught-object-report-json": "^15.0.0", "nanoid": "^3.3.19" } }, "sha512-ly7CqHHmvqcQ2BnjdpX1wjEXi/jBBWy2ekBuDvkDOj3RlKeLC9zsU6e9pykFfIS/VzPHfhPGz0IXhOGHDcXesA=="],\n',
+      '    "application-exception": ["application-exception@0.7.0", "", { "dependencies": { "caught-object-report-json": "^13.0.0", "nanoid": "^3.3.19" } }, "sha512-kxx0XcOZ2wDcW1/G/s9izPg5ESzuD2SzqAdbZ8wCVMibsGd9IRTvFBZYIi1Z3QGMnJJo41IGQ9/3dqJQ9j9RWA=="],\n',
+    ],
+    [
+      '    "caught-object-report-json": ["caught-object-report-json@15.0.0", "", {}, "sha512-LUykHhgBgVLiIy4m3raMlIFrRH+LPvGUl4MqJHeVF3gryc21vtCJcCmC1vcH0fYqmEadrVkbhk/682YcjKkheg=="],\n',
+      '    "caught-object-report-json": ["caught-object-report-json@13.0.0", "", {}, "sha512-iH0UiWMMlAcNWcCQUFH/fEexacjojkd2eXvVG/czarM7MsFLOKeTcmbZPa6X8aWtJh/EhmvstlKeEjfF5L+hAQ=="],\n',
+    ],
+    [
+      '    "di-bag": ["di-bag@0.5.2", "", {}, "sha512-JzsbaXpNbRuYkGXaNwfPK+EmM2yR7lF7OVaXLFFnJN0K25lEGpr4Y2621pm/smYJyGp55yjhqwcAROJ5vLuWAQ=="],\n',
+      '    "di-bag": ["di-bag@0.5.1", "", {}, "sha512-rzG0NI9/M+/F1lYDRs+Get/jqZ6+X3mKPqe96WgCDOa1CJrFY+5I1/T+Vfnw3ffEcLPy5YS9++tTksauLadw3w=="],\n',
+    ],
+    [
+      '\n    "mmdb-lib": ["mmdb-lib@3.0.3", "", {}, "sha512-xQPoBXcNjjHiOvOraFBKtA++uNWF6aCVHL9dRKFXEov8eI3QJwtgiw3qApsonFT5SpoqsEVISUTg3HIDs2DiXw=="],\n',
+      '',
+    ],
+  ],
+} as const;
+
 const HISTORICAL_REMOVALS = {
   'package.json': ['    "configurable-tree-traversal": "0.12.0",\n'],
   'bun.lock': [
@@ -403,16 +462,28 @@ const HISTORICAL_REMOVALS = {
 };
 
 function reconstructHistoricalInput(path: 'package.json' | 'bun.lock', bytes: Uint8Array): Buffer {
-  const current = PAIRS.at(1),
-    historical = PAIRS.at(0);
-  if (current === undefined || historical === undefined)
+  const current = PAIRS.at(2);
+  const ctt = PAIRS.at(1);
+  const historical = PAIRS.at(0);
+  if (current === undefined || ctt === undefined || historical === undefined)
     throw new Error('independent pair expectations absent');
   expect({
     bytes: bytes.byteLength,
     sha256: createHash('sha256').update(bytes).digest('hex'),
   }).toEqual(current[path]);
-  // Exact reviewed CTT additions are removed only for owned negative inputs, avoiding CI shallow-history dependence.
+  // Restore the exact reviewed private pair with pinned literal reverse hunks.
+  // Each hunk must occur once; the intermediate hash proves no other bytes changed.
   let contents = Buffer.from(bytes).toString('utf8');
+  for (const [present, prior] of HISTORICAL_REVERSALS[path]) {
+    expect(contents.split(present).length - 1).toBe(1);
+    contents = contents.replace(present, prior);
+  }
+  const cttBytes = Buffer.from(contents);
+  expect({
+    bytes: cttBytes.byteLength,
+    sha256: createHash('sha256').update(cttBytes).digest('hex'),
+  }).toEqual(ctt[path]);
+  // Exact reviewed CTT additions are removed only for owned negative inputs.
   for (const hunk of HISTORICAL_REMOVALS[path]) {
     expect(contents.split(hunk).length - 1).toBe(1);
     contents = contents.replace(hunk, '');

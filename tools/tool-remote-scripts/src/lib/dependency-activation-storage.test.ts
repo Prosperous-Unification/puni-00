@@ -2791,7 +2791,7 @@ function observe(first, second) {
     'Buffer',
     emitted + '\nreturn observe;',
   ) as (
-    processPort: typeof processPort,
+    processInput: typeof processPort,
     intervalPort: typeof interval,
     writerPort: typeof writer,
     buffer: typeof Buffer,

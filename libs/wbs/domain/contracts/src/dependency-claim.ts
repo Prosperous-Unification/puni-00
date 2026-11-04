@@ -18,6 +18,10 @@ const EXEMPT_OPERATIONS = new Set([
   'getApiAuthLinkAuth0Callback',
   'postApiAuthRefresh',
   'postApiAuthLogout',
+  // Browser cookie recovery must stay reachable from an incompatible client.
+  // Proof: omitting this exemption moved postApiAuthReset into the protected
+  // side of the dependency-client.test.ts operation matrix (2026-11-04).
+  'postApiAuthReset',
   'postApiSmokeEcho',
   'getApiTimezones',
   'postInternalMcpCredentials',
