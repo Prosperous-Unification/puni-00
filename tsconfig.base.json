@@ -156,6 +156,7 @@
       "@shared/test-levels": ["./libs/shared/domain/test-levels/src/index.ts"],
       "@shared/test-evidence": ["./libs/shared/domain/test-evidence/src/index.ts"],
       "@shared/failures": ["./libs/shared/domain/failures/src/index.ts"],
+      "@shared/failures/testing": ["./libs/shared/domain/failures/src/testing.ts"],
       "@shared/portability-format": ["./libs/shared/domain/portability-format/index.ts"],
       "@shared/delivery-github": ["./libs/shared/adapters/delivery-github/src/index.ts"],
       "@shared/delivery": ["./libs/shared/domain/delivery/src/index.ts"],

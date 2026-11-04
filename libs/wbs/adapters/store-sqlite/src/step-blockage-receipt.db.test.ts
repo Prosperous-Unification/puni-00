@@ -49,6 +49,9 @@ const newerMigrations = [
   '20261019130100_add_external_identity_person',
   '20261019130000_add_person_account',
   '20261019120000_add_claim',
+  '20261101100000_widen_organization_audit_directory_capacity',
+  '20261101100100_add_resource_directory_capacity',
+  '20261101120000_add_host_job_projection',
 ];
 const receipt: StepBlockageReceipt = {
   protocol: 'step-blockage-activation',

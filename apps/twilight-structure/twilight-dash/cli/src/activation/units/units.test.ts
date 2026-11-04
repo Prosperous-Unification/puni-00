@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { expect, test } from 'bun:test';
 
-import { runDash } from '../../cli';
+import { runDashArguments } from '../../cli';
 import {
   OBSERVATION_SERVICE_UNIT,
   OBSERVATION_TIMER_UNIT,
@@ -272,12 +272,12 @@ test('render-observation-units refuses a malformed grammar before any effect', a
       ['--layout', outputDirectory],
       [inputPath, ''],
     ]) {
-      const refusal = await runDash(['render-observation-units', ...argv], deps).then(
+      const refusal = await runDashArguments(['render-observation-units', ...argv], deps).then(
         () => 'resolved',
         (cause: unknown) => String(cause),
       );
-      expect(refusal, JSON.stringify(argv)).toBe(
-        'Error: Usage: render-observation-units <layout.json> <new-dir>',
+      expect(refusal, JSON.stringify(argv)).toMatch(
+        /^UsageRefusal: usage: twilight-dash render-observation-units LAYOUT_JSON NEW_DIRECTORY \(.+\)$/,
       );
       expect(existsSync(outputDirectory), JSON.stringify(argv)).toBe(false);
     }

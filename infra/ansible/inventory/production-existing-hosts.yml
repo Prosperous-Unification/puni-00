@@ -71,7 +71,10 @@ all:
             - h3mon-observability-grafana-1
     k3s_join_servers:
       hosts: {}
-    # Second h2puni-style gate host (playbooks/gate-host.yml); host vars stay on h4claw above.
+    # playbooks/gate-host.yml; h4claw's host vars stay above. h2puni is a gate host only, never a
+    # k3s node, so the node plays' input asserts stop on it (docs/infra/gate-hosts.md, step 0).
     gate_hosts:
       hosts:
         h4claw: {}
+        h2puni:
+          ansible_host: 10.1.0.3

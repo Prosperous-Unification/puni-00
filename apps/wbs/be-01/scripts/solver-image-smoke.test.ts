@@ -236,6 +236,7 @@ function runSmoke(
     retain?: boolean;
     cleanupToken?: string;
     script?: string;
+    jobId?: string;
   } = {},
 ): SmokeRun {
   const commands = join(root, 'commands');
@@ -325,6 +326,7 @@ function runSmoke(
         ...(options.retain ? { WBS_SOLVER_SMOKE_INVENTORY: retained } : {}),
         WBS_RUN_SOLVER_ORPHAN_PROC: options.orphan || !options.supplied ? '1' : '0',
         ...(fault === undefined ? {} : { WBS_FAKE_FAULT: fault }),
+        DASH_JOB_ID: options.jobId ?? '',
       },
       stdout: 'pipe',
       stderr: 'pipe',
@@ -351,6 +353,56 @@ function runSmoke(
 }
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+
+describe('solver-image-smoke container bounds (dash-host-jobs J16)', () => {
+  const catalogue = JSON.parse(
+    readFileSync(join(import.meta.dir, '../../../../infra/jobs/catalogue.json'), 'utf8'),
+  ) as { jobs: { id: string; containers: 'none' | { memoryGib: number; cpuCores: number } }[] };
+  const declared = catalogue.jobs.find((job) => job.id === 'gate')?.containers;
+
+  it('runs every container it starts bounded and labelled inside a Dash job', () => {
+    if (declared === undefined || declared === 'none') throw new Error('gate declares no bound');
+    const bound = `--memory ${String(declared.memoryGib)}g --cpus ${String(declared.cpuCores)}`;
+    const smoke = runSmoke(undefined, { jobId: 'job-under-test' });
+    expect(smoke.exitCode).toBe(0);
+    const runs = smoke.dockerCalls.filter((call) => call.startsWith('run '));
+    // The named baseline, registry and five authenticated clients.
+    expect(runs).toHaveLength(7);
+    for (const call of runs) expect(call).toContain(`${bound} --label puni.job=job-under-test `);
+  });
+
+  it('leaves its containers unbounded outside a Dash job', () => {
+    const smoke = runSmoke();
+    expect(smoke.exitCode).toBe(0);
+    const runs = smoke.dockerCalls.filter((call) => call.startsWith('run '));
+    expect(runs).toHaveLength(7);
+    for (const call of runs) {
+      expect(call).not.toContain('--memory');
+      expect(call).not.toContain('--cpus');
+      expect(call).not.toContain('puni.job');
+    }
+    // The merged roster has a named baseline, a registry and five authenticated clients.
+    // Keep every unbounded argv exact so a Dash-only bound cannot leak into the normal gate.
+    const socket = '[^ ]+/socket:/run/wbs-solver:ro';
+    const image = '127\\.0\\.0\\.1:5000/wbs-be-01@sha256:[0-9a-f]{64}';
+    const client =
+      '/app/apps/wbs/be-01/scripts/solver-supervisor-image-client.ts /run/wbs-solver/supervisor.sock';
+    const caller = `wbs-solver-smoke-caller-${UUID}`;
+    const expected = [
+      `^run --rm --interactive --name wbs-solver-smoke-baseline-${UUID} --entrypoint wbs-solver wbs-be-01:solver-smoke-${UUID}$`,
+      `^run --detach --rm --publish 127\\.0\\.0\\.1::5000 --name wbs-solver-smoke-registry-${UUID} registry:2$`,
+      `^run --rm --name ${caller} --volume ${socket} --entrypoint bun ${image} ${client} /app/libs/wbs/domain/contracts/solver/fixtures/request/valid-quantised-baseline\\.json ${UUID}$`,
+      `^run --rm --name ${caller} --volume ${socket} --entrypoint bun ${image} ${client} shared-person ${UUID}$`,
+      `^run --rm --name ${caller} --volume ${socket} --entrypoint bun ${image} ${client} connected-feasible ${UUID}$`,
+      `^run --rm --name ${caller} --volume ${socket} --entrypoint bun ${image} ${client} connected-fractional ${UUID}$`,
+      `^run --rm --name ${caller} --volume [^ ]+/socket:/run/wbs-solver --volume [^ ]+/files:/app/apps/wbs/be-01/src/testing:ro --entrypoint bun ${image} /app/apps/wbs/be-01/src/testing/solver-composed-image-client.ts /run/wbs-solver/supervisor.sock connected-composed /run/wbs-solver/composed-attempts$`,
+    ];
+    // Proof: applying the bound unconditionally failed the first line (2026-11-02, review F4).
+    runs.forEach((call, index) => {
+      expect(call).toMatch(new RegExp(expected[index] ?? '^$'));
+    });
+  });
+});
 
 describe('solver-image-smoke image lifecycle', () => {
   it('tags every image it builds uniquely per attempt and removes all of them after a pass', () => {

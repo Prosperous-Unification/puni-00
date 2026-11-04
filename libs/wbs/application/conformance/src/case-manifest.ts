@@ -60,6 +60,7 @@ export const CASE_MANIFEST = {
     'directory.removePerson:delegated-claims',
     'directory.addResource:taken',
     'directory.setResourceProvider:unknown-and-clear',
+    'directory.setDirectoryCapacity:state-clear-remove',
     'directory.removeResource:in-use-cascade',
     'directory.listMeasures:seeded-per-organization',
     'directory.addMeasure:index-backstop',
@@ -175,6 +176,7 @@ export const CASE_MANIFEST = {
     'claims.lease:revoked-instant-read',
     'claims.lease:run-scoped',
     'claims.occupancy:hold-read-cascade',
+    'claims.occupancy:organization-scope',
   ],
   demands: ['demands.set:replace-clear-scope', 'demands.set:missing-reference'],
   dependencies: [

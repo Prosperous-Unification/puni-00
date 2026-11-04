@@ -15,6 +15,10 @@ const build = await Bun.build({
 if (!build.success) throw new Error('Website API bundle failed');
 mkdirSync(output, { recursive: true });
 cpSync(join(migrationSource, 'migrations'), join(output, 'migrations'), { recursive: true });
+// Proof: before this staging copy, package smoke failed on the actual bundle's absent release.json.
+cpSync(join(import.meta.dir, 'src/assets/country'), join(output, 'assets/country'), {
+  recursive: true,
+});
 // The private release pin copies this into its receipt; fleet-check refuses an `s3` journal for a
 // release without `retention-journal/1` (design D§5, veto V13). Scoping compatibility
 // covers persisted v1 drafts, raw Retry, structured replies and failure/accounting/retention;

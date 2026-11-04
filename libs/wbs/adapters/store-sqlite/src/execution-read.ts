@@ -135,8 +135,15 @@ export async function readExecutionIn(
   const teamNames = new Map(teams.map((team) => [team.id, team.name]));
   if (teamId !== null && !teamNames.has(teamId)) return { kind: 'unknown_team' };
   const capacities = await read(new ResourceCapacityRepository(db, OPEN).listFor(projectId));
+  const demands = await read(new DemandRepository(db, OPEN).listByProject(projectId));
+  const directoryCapacities = await read(
+    directory.directoryCapacitiesOf([...new Set(demands.map(({ resourceId }) => resourceId))]),
+  );
+  const organizationOccupied = await read(
+    claims.organizationUnitsOf(directoryCapacities.map(({ resourceId }) => resourceId)),
+  );
   const resources =
-    capacities.length === 0
+    capacities.length === 0 && directoryCapacities.length === 0
       ? []
       : await read(
           access.kind === 'scoped'
@@ -157,7 +164,9 @@ export async function readExecutionIn(
       teamNames,
       teamId,
       capacities,
-      demands: await read(new DemandRepository(db, OPEN).listByProject(projectId)),
+      demands,
+      directoryCapacities,
+      organizationOccupied,
       occupancy: await read(claims.occupancyOf(projectId)),
       resources: new Map(resources.map((resource) => [resource.id, resource])),
     },

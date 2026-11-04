@@ -69,6 +69,18 @@ if [ -n "$retained_inventory" ]; then
     record_owned_resource container "$baseline_name"
   fi
 fi
+# Inside a Dash host job, every container this script starts runs under the `gate` job type's
+# declared containers bound in infra/jobs/catalogue.json, which Docker's own cgroup enforces, and
+# carries the job's label, which Dash reads to attribute it (`dash-host-jobs` J16). Outside one (CI,
+# every unenrolled gate) the argv is unchanged: the bound is declared, not yet measured (task 6.4).
+# Proof: solver-image-smoke.test.ts `runs every container it starts bounded and labelled inside a
+# Dash job` failed with the bound dropped from the registry run and with the label dropped, and
+# `leaves its containers unbounded outside a Dash job` failed with the bound applied
+# unconditionally (2026-11-02, slice 6a and review F4).
+container_bound=()
+if [ -n "${DASH_JOB_ID:-}" ]; then
+  container_bound=(--memory 1g --cpus 1 --label "puni.job=$DASH_JOB_ID")
+fi
 
 # Returns 0 when image $1 exists, 1 when Docker reports it absent and 2 when Docker cannot
 # answer, so a broken daemon cannot pass for a removed image.
@@ -329,9 +341,10 @@ else
   record_owned_resource image "$image"
   docker build --file "$repo_root/apps/wbs/be-01/Dockerfile" --tag "$image" "$repo_root"
 
-  docker run --rm --interactive --name "$baseline_name" --entrypoint wbs-solver "$image" <"$request" >/dev/null
+  docker run --rm --interactive "${container_bound[@]}" --name "$baseline_name" --entrypoint wbs-solver "$image" <"$request" >/dev/null
 
-  docker run --detach --rm --publish 127.0.0.1::5000 --name "$registry_name" registry:2 >/dev/null
+  docker run --detach --rm "${container_bound[@]}" --publish 127.0.0.1::5000 \
+    --name "$registry_name" registry:2 >/dev/null
   registry_port="$(
     docker inspect --format '{{(index (index .NetworkSettings.Ports "5000/tcp") 0).HostPort}}' \
       "$registry_name"
@@ -390,7 +403,7 @@ done
 
 # Proof: removing only the launcher's project.scripts entry leaves the direct
 # wbs-solver check green and makes this authenticated real-container bind fail.
-docker run --rm "${client_pull[@]}" --name "$caller_name" \
+docker run --rm "${client_pull[@]}" "${container_bound[@]}" --name "$caller_name" \
   --volume "$socket_directory:/run/wbs-solver:ro" \
   --entrypoint bun "$solver_image" \
   /app/apps/wbs/be-01/scripts/solver-supervisor-image-client.ts \
@@ -404,7 +417,7 @@ docker run --rm "${client_pull[@]}" --name "$caller_name" \
 shared_attempt_token="$(cat /proc/sys/kernel/random/uuid)"
 attempt_tokens+=("$shared_attempt_token")
 record_owned_resource container "wbs-solver-$shared_attempt_token"
-docker run --rm "${client_pull[@]}" --name "$caller_name" \
+docker run --rm "${client_pull[@]}" "${container_bound[@]}" --name "$caller_name" \
   --volume "$socket_directory:/run/wbs-solver:ro" \
   --entrypoint bun "$solver_image" \
   /app/apps/wbs/be-01/scripts/solver-supervisor-image-client.ts \
@@ -417,7 +430,7 @@ docker run --rm "${client_pull[@]}" --name "$caller_name" \
 connected_feasible_token="$(cat /proc/sys/kernel/random/uuid)"
 attempt_tokens+=("$connected_feasible_token")
 record_owned_resource container "wbs-solver-$connected_feasible_token"
-docker run --rm "${client_pull[@]}" --name "$caller_name" \
+docker run --rm "${client_pull[@]}" "${container_bound[@]}" --name "$caller_name" \
   --volume "$socket_directory:/run/wbs-solver:ro" \
   --entrypoint bun "$solver_image" \
   /app/apps/wbs/be-01/scripts/solver-supervisor-image-client.ts \
@@ -430,7 +443,7 @@ docker run --rm "${client_pull[@]}" --name "$caller_name" \
 connected_fractional_token="$(cat /proc/sys/kernel/random/uuid)"
 attempt_tokens+=("$connected_fractional_token")
 record_owned_resource container "wbs-solver-$connected_fractional_token"
-docker run --rm "${client_pull[@]}" --name "$caller_name" \
+docker run --rm "${client_pull[@]}" "${container_bound[@]}" --name "$caller_name" \
   --volume "$socket_directory:/run/wbs-solver:ro" \
   --entrypoint bun "$solver_image" \
   /app/apps/wbs/be-01/scripts/solver-supervisor-image-client.ts \
@@ -443,7 +456,7 @@ docker run --rm "${client_pull[@]}" --name "$caller_name" \
 # This fifth external test driver joins the unchanged in-image scenario to its
 # exact read-only fixtures. The original four clients receive no fixture mount.
 # Proof: omitting this invocation fails both image inventories and composed-client fault tests.
-docker run --rm "${client_pull[@]}" --name "$caller_name" \
+docker run --rm "${client_pull[@]}" "${container_bound[@]}" --name "$caller_name" \
   --volume "$socket_directory:/run/wbs-solver" \
   --volume "$composed_fixture_directory/files:/app/apps/wbs/be-01/src/testing:ro" \
   --entrypoint bun "$solver_image" \

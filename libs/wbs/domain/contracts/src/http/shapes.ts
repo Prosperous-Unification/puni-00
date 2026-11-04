@@ -19,6 +19,7 @@ import {
   readPasswordSession,
   registerPassword,
 } from './auth-password-shapes';
+import { resetBrowserSession } from './auth-reset-shapes';
 import { readBudgetHeadroom } from './budget-headroom-shapes';
 import {
   createCalendarMarker,
@@ -134,7 +135,7 @@ import {
   readResourceAuthority,
   readResourceCleanupRequests,
 } from './resource-runtime-shapes';
-import { readProjectResources } from './resource-shapes';
+import { previewDirectoryCapacity, readProjectResources } from './resource-shapes';
 import {
   appendResourceUseEvent,
   listResourceUses,
@@ -205,6 +206,7 @@ const ordinaryHttpShapes = [
   registerPassword,
   loginPassword,
   readPasswordSession,
+  resetBrowserSession,
   issueBearerContext,
   listAuthMethods,
   startOidcLogin,
@@ -251,6 +253,7 @@ const ordinaryHttpShapes = [
   readSessionPolicy,
   setSessionPolicy,
   readOrganizationLimits,
+  previewDirectoryCapacity,
   listSsoConnections,
   createSsoConnection,
   updateSsoConnection,

@@ -42,16 +42,13 @@ target=${1:-HEAD}
 # rather than as `unlabeled`. It is a name, not a budget, so nothing downstream
 # can act on it.
 #
-# A target that names no commit is NOT refused here. `gate_with_pinned_head`
-# owns that refusal — before the lock is taken, exit 64, with the path and the
-# sha named — and two places refusing the same thing is how one of them drifts.
-# Resolved ONCE, and the resolved sha is what gets gated. `gate_with_pinned_head`
-# resolves its argument the same way and before the same lock, so handing it the
-# sha rather than the caller's `HEAD` changes no timing — what it removes is the
-# possibility of the label naming one commit and the gate pinning another,
-# because a branch that moves between the two resolutions would give exactly
-# that. An unresolvable target keeps its ORIGINAL spelling here, so the refusal
-# that follows names what the caller actually typed.
+# A target that names no commit is refused below, after the activation checks
+# and before the job is queued, exit 64, with the path and the target named.
+# Resolved ONCE, and the resolved sha is what gets gated: the payload receives
+# the sha, never the caller's `HEAD`, so the label cannot name one commit and the
+# gate pin another, which a branch moving between two resolutions would give. An
+# unresolvable target keeps its ORIGINAL spelling here, so the refusal names
+# what the caller actually typed.
 if gate_sha=$(git -C "$repo_root" rev-parse --verify --quiet "${target}^{commit}"); then
   export HEAVY_LOCK_LABEL="gate:${gate_sha:0:8}"
   target=$gate_sha
@@ -110,9 +107,24 @@ fi
 # repository gate, but cannot run until the preserved external-trust verifier has accepted HEAD.
 # Proof: gate-entrypoints.test.ts commits exit-0 replacements for both candidate scripts and
 # observes the externally selected launcher reject obligation.application before either runs.
-# Positional parameters belong to the preserved inner shell.
-# shellcheck disable=SC2016
-gate_with_pinned_head "$repo_root" "$(resolve_heavy_lock_path)" "$target" -- \
-  bash -c 'set -euo pipefail; if [[ -n "$1" ]]; then bash "$1" committed "$2" "$3"; else printf "%s\n" "{\"schemaVersion\":1,\"status\":\"inactive\",\"certified\":false,\"reason\":\"external activation marker is not provisioned\"}"; fi; exec bash "$4" "$2" "$3"' \
-  h2puni-preserved-wiki "$trusted_launcher" "$repo_root" HEAD \
-  "$repo_root/bin/h2puni-gate-steps.sh"
+#
+# The copy reaches the payload through the environment because the payload is a job of type
+# `gate`, whose argument profile is the sha alone; this launcher's EXIT trap removes it once,
+# whichever mechanism ran the payload (`dash-host-jobs` J13).
+export H2PUNI_GATE_TRUSTED_LAUNCHER="$trusted_launcher"
+
+# Refused before the job is queued or admitted, as `gate_with_pinned_head` refuses before its
+# lock: a sha that names no commit is a typo in the caller.
+# Proof (observed 2026-11-02): removed, `bin/h2puni-gate.sh not-a-commit` reached `run_heavy_job`
+# and was refused 70 for the absent canonical lock instead — `47 … want exit 64, got 70`
+# (bin/h2puni-gate.test.sh, case 47).
+if [[ -z ${gate_sha:-} ]]; then
+  printf 'h2puni gate: %s is not a commit in %s\n' "$target" "$repo_root" >&2
+  exit 64
+fi
+
+# The outer launcher ends here (`dash-host-jobs` J15): `run_heavy_job` takes the heavy lock on
+# an unenrolled host and runs the payload in this checkout, or, on an enrolled one, asks Dash to
+# admit a `gate` job, which hands the payload its own gate tree as `DASH_JOB_UNIT_GATE_TREE`.
+# Job type `gate` in infra/jobs/catalogue.json.
+HEAVY_LOCK_JOB_TYPE=gate run_heavy_job -- "$repo_root/bin/h2puni-gate-payload.sh" "$gate_sha"

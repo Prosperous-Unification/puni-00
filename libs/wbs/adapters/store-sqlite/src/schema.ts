@@ -2018,6 +2018,31 @@ export const projectResourceCapacity = sqliteTable(
 export type ProjectResourceCapacityRow = typeof projectResourceCapacity.$inferSelect;
 
 /**
+ * A resource's **Directory capacity** (`wbs-shared-occupancy` S1,
+ * `20261101100100_add_resource_directory_capacity`): the units of it that exist
+ * for every project of its organization. A row is stated, its absence
+ * unstated; nothing is remembered, since it is a fact about the resource, not
+ * about any plan's use of it. Cascades from the resource; 0 is a legal
+ * statement, as a project capacity's is.
+ */
+export const resourceDirectoryCapacity = sqliteTable(
+  'resource_directory_capacity',
+  {
+    resourceId: text('resource_id')
+      .primaryKey()
+      .references(() => resource.id, { onDelete: 'cascade' }),
+    units: integer('units').notNull(),
+    ...auditColumns(),
+  },
+  (t) => [
+    check(
+      'resource_directory_capacity_units',
+      sql`typeof(${t.units}) = 'integer' AND ${t.units} >= 0`,
+    ),
+  ],
+);
+
+/**
  * The units of one resource one work item needs while any of its steps runs: a
  * satellite of the work item like {@link workItemTeam}, so writing one moves the
  * item's revision. Both ends cascade; indexed by resource for the directory
@@ -3650,11 +3675,13 @@ export const savedPlanOrganization = sqliteTable(
  * `20261022130100_widen_organization_audit_organization_limits` the
  * operator's limits changes; and
  * `20261022140100_widen_organization_audit_compute_providers` the compute
- * provider acts; and `20261026130000_widen_organization_audit_machine_tokens`
+ * provider acts; `20261026130000_widen_organization_audit_machine_tokens`
  * machine grant issuance, with the two partial unique indexes its targeted
- * insert names (`MachineTokenAuditRepository`); and
+ * insert names (`MachineTokenAuditRepository`);
  * `20261028100100_widen_organization_audit_agent_pools` the agent pool acts,
- * recreating those two indexes after its rebuild.
+ * recreating those two indexes after its rebuild; and
+ * `20261101100000_widen_organization_audit_directory_capacity` the
+ * directory capacity changes, recreating the same two indexes.
  */
 export const organizationAudit = sqliteTable(
   'organization_audit',
@@ -3673,11 +3700,11 @@ export const organizationAudit = sqliteTable(
   (t) => [
     check(
       'organization_audit_action',
-      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed', 'organization_limits_changed', 'compute_provider_registered', 'compute_provider_updated', 'compute_provider_removed', 'machine_token_issued', 'machine_token_issued_overflow', 'agent_pool_created', 'agent_pool_revoked', 'agent_pool_rekeyed')`,
+      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed', 'organization_limits_changed', 'compute_provider_registered', 'compute_provider_updated', 'compute_provider_removed', 'machine_token_issued', 'machine_token_issued_overflow', 'agent_pool_created', 'agent_pool_revoked', 'agent_pool_rekeyed', 'directory_capacity_changed')`,
     ),
     check(
       'organization_audit_subject_kind',
-      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy', 'machine_credential', 'trusted_issuer', 'organization_limits', 'compute_provider', 'agent_pool')`,
+      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy', 'machine_credential', 'trusted_issuer', 'organization_limits', 'compute_provider', 'agent_pool', 'resource')`,
     ),
     index('organization_audit_organization_created').on(t.organizationId, t.createdAt),
     uniqueIndex('organization_audit_machine_token_issued_run')
@@ -4420,6 +4447,10 @@ export const resourceCapacityReport = sqliteTable(
     outcome: text('outcome', { enum: CAPACITY_REPORT_OUTCOMES }).notNull(),
     capacityUnits: integer('capacity_units'),
     usageUnits: integer('usage_units'),
+    /** What a host pool's ledger reserves, beside `usageUnits` (`dash-host-jobs` J10). */
+    reservedUnits: integer('reserved_units'),
+    /** The host pool dimension `reservedUnits` counts; set exactly when they are. */
+    reservedDimension: text('reserved_dimension'),
     reason: text('reason'),
     reportedByPersonId: text('reported_by_person_id')
       .notNull()
@@ -4557,6 +4588,28 @@ export const resourceRuntimeEventRecord = sqliteTable('resource_runtime_event', 
     .$type<{ acceptedSequence: number; useId: string; revision: number }>()
     .notNull(),
 });
+/**
+ * One host job its resource authority published (`dash-host-jobs` J10): owned by the
+ * authority and its organization, never by a planning row, so no deletion strands it.
+ * `declaration` is the use exactly as sent; `evidence` the settlement evidence once returned.
+ */
+export const resourceHostJobRecord = sqliteTable(
+  'resource_host_job',
+  {
+    useId: text('use_id').primaryKey(),
+    authorityId: text('authority_id').notNull(),
+    organizationId: text('organization_id').notNull(),
+    providerId: text('provider_id').notNull(),
+    incarnation: text('incarnation').notNull(),
+    revision: integer('revision').notNull(),
+    declaration: text('declaration').notNull(),
+    state: text('state', { enum: ['registered', 'release_verified'] }).notNull(),
+    registeredAt: integer('registered_at').notNull(),
+    releasedAt: integer('released_at'),
+    evidence: text('evidence'),
+  },
+  (t) => [index('resource_host_job_provider').on(t.providerId, t.state)],
+);
 /** Durable request queue; only an accepted matching runtime event acknowledges a request. */
 export const resourceCleanupRequestRecord = sqliteTable(
   'resource_cleanup_request',

@@ -17,7 +17,11 @@ export {
   type LimitsSideTables,
   seedOrganizationLimits,
 } from './stores/organization-limits';
-export { CONFORMANCE_RESOURCES, seedResourceCase } from './stores/resources';
+export {
+  CONFORMANCE_RESOURCES,
+  seedResourceCase,
+  SHARED_OCCUPANCY_OWNERSHIP,
+} from './stores/resources';
 export * from './stores/saved-plan-capture';
 export * from './stores/subtrees';
 export * from './testing/broken-source';

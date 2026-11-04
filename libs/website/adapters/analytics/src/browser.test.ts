@@ -14,6 +14,9 @@ function browser(url = 'https://dev.app.puni.dev/?email=secret@example.test#priv
     referrer: 'https://search.example/private?email=secret@example.test',
   });
   const window = dom.window;
+  Object.assign(window, {
+    fetch: () => Promise.resolve(Response.json({ region: 'unknown', database: null })),
+  });
   return { dom, window };
 }
 function queue(window: Window & typeof globalThis): unknown[][] {
@@ -252,6 +255,10 @@ test('real domain cookies share development consent across hosts without grantin
   const site = new JSDOM('', { url: 'https://dev.puni.dev/', cookieJar });
   const app = new JSDOM('', { url: 'https://dev.app.puni.dev/', cookieJar });
   const production = new JSDOM('', { url: 'https://app.puni.dev/', cookieJar });
+  for (const dom of [site, app, production])
+    Object.assign(dom.window, {
+      fetch: () => Promise.resolve(Response.json({ region: 'unknown', database: null })),
+    });
   const siteAnalytics = createBrowserAnalytics(site.window, options);
   siteAnalytics.accept();
   const appAnalytics = createBrowserAnalytics(app.window, options);
@@ -438,6 +445,283 @@ test('cookieless browser leads work with unreadable session storage and write no
   expect(analytics.dispatchLead('PRIVATE_RECEIPT', lead)).toBe('duplicate');
   expect(window.document.cookie).toBe('');
   expect(JSON.stringify(queue(window))).not.toContain('PRIVATE_RECEIPT');
+  analytics.dispose();
+  dom.window.close();
+});
+
+const database = { month: '2026-11', refreshDue: '2026-12-01', updateDue: false };
+async function settleRegion() {
+  for (let turn = 0; turn < 8; turn++) await Promise.resolve();
+}
+function pendingRegion(window: Window) {
+  const pending = Promise.withResolvers<Response>();
+  const requests: { url: unknown; options: RequestInit | undefined }[] = [];
+  Object.assign(window, {
+    fetch: (url: unknown, options?: RequestInit) => {
+      requests.push({ url, options });
+      return pending.promise;
+    },
+  });
+  return { pending, requests };
+}
+
+test('region fetch is one credential-free no-store request to the site with no visitor content', async () => {
+  const { dom, window } = browser('https://dev.puni.dev/?email=REGION_SECRET#REGION_SECRET');
+  const { pending, requests } = pendingRegion(window);
+  const analytics = createBrowserAnalytics(window, options);
+  expect(requests).toHaveLength(1);
+  expect(requests[0]?.url).toBe('https://dev.puni.dev/api/analytics/region');
+  expect(requests[0]?.options).toMatchObject({
+    credentials: 'omit',
+    cache: 'no-store',
+    referrerPolicy: 'no-referrer',
+  });
+  expect(requests[0]?.options?.signal).toBeInstanceOf(AbortSignal);
+  expect(JSON.stringify(requests)).not.toContain('REGION_SECRET');
+  analytics.dispatch({ name: 'funnel_failure', category: 'network' });
+  window.history.pushState({}, '', '/services?email=REGION_SECRET');
+  analytics.navigate();
+  pending.resolve(Response.json({ region: 'elsewhere', database }));
+  await settleRegion();
+  expect(analytics.getRegion()).toBe('elsewhere');
+  expect(analytics.getChoice()).toBe('unset');
+  expect(analytics.getState().status).toBe('loading');
+  expect(window.document.cookie).toBe('');
+  expect(queue(window).at(-1)).toMatchObject([
+    'consent',
+    'update',
+    { analytics_storage: 'granted' },
+  ]);
+  expect(
+    queue(window)
+      .filter((command) => command[0] === 'event')
+      .map((command) => command[1]),
+  ).toEqual(['page_view', 'funnel_failure', 'page_view']);
+  await loaded(window);
+  expect(analytics.getState().status).toBe('ready');
+  window.dispatchEvent(new window.Event('focus'));
+  expect(requests).toHaveLength(1);
+  analytics.dispose();
+  dom.window.close();
+});
+
+for (const scenario of [
+  'disabled',
+  'operator',
+  'unknown-route',
+  'accepted',
+  'rejected',
+  'unreadable',
+] as const)
+  test(`region lookup excluded for ${scenario}`, () => {
+    const { dom, window } = browser(
+      scenario === 'operator'
+        ? 'https://dev.app.puni.dev/operator'
+        : scenario === 'unknown-route'
+          ? 'https://dev.app.puni.dev/unknown'
+          : undefined,
+    );
+    const { requests } = pendingRegion(window);
+    if (scenario === 'accepted' || scenario === 'rejected') {
+      const preference = JSON.stringify({
+        version: 1,
+        accepted: scenario === 'accepted',
+        expires: Date.now() + 60000,
+      });
+      window.document.cookie = `puni_dev_consent_v1=${encodeURIComponent(preference)}; Domain=puni.dev; Path=/`;
+    }
+    if (scenario === 'unreadable')
+      Object.defineProperty(window.document, 'cookie', {
+        get() {
+          throw new window.DOMException('denied', 'SecurityError');
+        },
+      });
+    const analytics = createBrowserAnalytics(window, {
+      ...options,
+      enabled: scenario !== 'disabled',
+    });
+    analytics.sync();
+    analytics.navigate();
+    expect(requests).toHaveLength(0);
+    analytics.dispose();
+    dom.window.close();
+  });
+
+test('operator to public navigation starts once when first eligible', async () => {
+  const { dom, window } = browser('https://dev.app.puni.dev/operator');
+  const { pending, requests } = pendingRegion(window);
+  const analytics = createBrowserAnalytics(window, options);
+  expect(requests).toHaveLength(0);
+  window.history.pushState({}, '', '/');
+  analytics.navigate();
+  expect(requests).toHaveLength(1);
+  expect(requests[0]?.url).toBe('https://dev.puni.dev/api/analytics/region');
+  pending.resolve(Response.json({ region: 'consent-required', database }));
+  await settleRegion();
+  expect(analytics.getRegion()).toBe('consent-required');
+  expect(queue(window).filter((command) => command[0] === 'consent')).toHaveLength(1);
+  analytics.navigate();
+  expect(requests).toHaveLength(1);
+  analytics.dispose();
+  dom.window.close();
+});
+
+for (const action of [
+  'accept',
+  'reject',
+  'failed-write',
+  'dispose',
+  'cross-host-reject',
+  'unreadable',
+] as const)
+  test(`pending regional answer is fenced after ${action}`, async () => {
+    const { dom, window } = browser();
+    const { pending, requests } = pendingRegion(window);
+    const analytics = createBrowserAnalytics(window, options);
+    const regions: string[] = [];
+    analytics.subscribeRegion((region) => regions.push(region));
+    await settleRegion();
+    if (action === 'failed-write')
+      Object.defineProperty(window.document, 'cookie', { get: () => '', set: () => undefined });
+    if (action === 'accept') analytics.accept();
+    if (action === 'reject' || action === 'failed-write') analytics.reject();
+    if (action === 'dispose') analytics.dispose();
+    if (action === 'cross-host-reject') {
+      window.document.cookie = `puni_dev_consent_v1=${encodeURIComponent(JSON.stringify({ version: 1, accepted: false, expires: Date.now() + 60000 }))}; Domain=puni.dev; Path=/`;
+    }
+    if (action === 'unreadable')
+      Object.defineProperty(window.document, 'cookie', {
+        get() {
+          throw new window.DOMException('denied', 'SecurityError');
+        },
+      });
+    pending.resolve(Response.json({ region: 'elsewhere', database }));
+    await settleRegion();
+    expect(analytics.getRegion()).toBe('unknown');
+    expect(regions).toEqual([]);
+    expect(requests[0]?.options?.signal?.aborted).toBe(true);
+    expect(analytics.getChoice()).toBe(
+      action === 'accept'
+        ? 'accepted'
+        : action === 'reject' || action === 'cross-host-reject'
+          ? 'rejected'
+          : action === 'dispose'
+            ? 'unset'
+            : 'unavailable',
+    );
+    analytics.dispose();
+    dom.window.close();
+  });
+
+for (const failure of ['network', 'http', 'malformed', 'invalid-region', 'unknown'] as const)
+  test(`region ${failure} retains unknown and denied cookies without retry`, async () => {
+    const { dom, window } = browser();
+    const { pending, requests } = pendingRegion(window);
+    const analytics = createBrowserAnalytics(window, options);
+    if (failure === 'network') pending.reject(new TypeError('network failed'));
+    else if (failure === 'http')
+      pending.resolve(Response.json({ region: 'elsewhere', database }, { status: 503 }));
+    else if (failure === 'malformed') pending.resolve(new Response('{'));
+    else if (failure === 'invalid-region')
+      pending.resolve(Response.json({ region: 'elsewhere', database, address: 'SECRET' }));
+    else pending.resolve(Response.json({ region: 'unknown', database: null }));
+    await settleRegion();
+    await loaded(window);
+    expect(analytics.getRegion()).toBe('unknown');
+    expect(analytics.getState().status).toBe('cookieless');
+    expect(queue(window).filter((command) => command[0] === 'consent')).toHaveLength(1);
+    analytics.sync();
+    expect(requests).toHaveLength(1);
+    analytics.dispose();
+    dom.window.close();
+  });
+
+test('region request has a 3000ms deadline that aborts and fences even a noncooperative response', async () => {
+  const { dom, window } = browser();
+  const { pending, requests } = pendingRegion(window);
+  const deadlines: { callback: () => void; delay: number | undefined }[] = [];
+  window.setTimeout = ((callback: () => void, delay?: number) => {
+    deadlines.push({ callback, delay });
+    return deadlines.length;
+  }) as typeof window.setTimeout;
+  const analytics = createBrowserAnalytics(window, options);
+  const deadline = deadlines.find((deadline) => deadline.delay === 3000);
+  expect(deadline).toBeDefined();
+  if (!deadline) throw new Error('Missing region deadline');
+  deadline.callback();
+  expect(requests[0]?.options?.signal?.aborted).toBe(true);
+  pending.resolve(Response.json({ region: 'elsewhere', database }));
+  await settleRegion();
+  expect(analytics.getRegion()).toBe('unknown');
+  expect(queue(window).filter((command) => command[0] === 'consent')).toHaveLength(1);
+  analytics.navigate();
+  expect(requests).toHaveLength(1);
+  analytics.dispose();
+  dom.window.close();
+});
+
+test('pending response cannot grant on a newly unsupported route', async () => {
+  const { dom, window } = browser();
+  const { pending } = pendingRegion(window);
+  const analytics = createBrowserAnalytics(window, options);
+  await settleRegion();
+  window.history.pushState({}, '', '/operator');
+  pending.resolve(Response.json({ region: 'elsewhere', database }));
+  await settleRegion();
+  expect(analytics.getRegion()).toBe('unknown');
+  expect(analytics.getState().status).toBe('disabled');
+  expect(window.document.scripts).toHaveLength(0);
+  analytics.dispose();
+  dom.window.close();
+});
+
+test('disposed operator controller cannot start its first region lookup on navigation', () => {
+  const { dom, window } = browser('https://dev.app.puni.dev/operator');
+  const { requests } = pendingRegion(window);
+  const analytics = createBrowserAnalytics(window, options);
+  analytics.dispose();
+  window.history.pushState({}, '', '/');
+  analytics.navigate();
+  analytics.sync();
+  expect(requests).toHaveLength(0);
+  expect(analytics.getState().status).toBe('disabled');
+  dom.window.close();
+});
+
+test('failed preference remains recoverable across operator navigation and explicit retry', async () => {
+  const { dom, window } = browser();
+  const preference = JSON.stringify({ version: 1, accepted: true, expires: Date.now() + 60000 });
+  window.document.cookie = `puni_dev_consent_v1=${encodeURIComponent(preference)}; Domain=puni.dev; Path=/`;
+  const analytics = createBrowserAnalytics(window, options);
+  await loaded(window);
+  const cookie = Object.getOwnPropertyDescriptor(window.Document.prototype, 'cookie');
+  if (!cookie?.get) throw new Error('Missing browser cookie boundary');
+  Object.defineProperty(window.document, 'cookie', {
+    configurable: true,
+    get: (): unknown => cookie.get?.call(window.document),
+    set: () => undefined,
+  });
+  analytics.reject();
+  expect(analytics.getChoice()).toBe('unavailable');
+  expect(analytics.getState()).toEqual({ status: 'unavailable', reason: 'storage' });
+  window.history.pushState({}, '', '/operator');
+  analytics.navigate();
+  expect(analytics.getState().status).toBe('disabled');
+  window.history.pushState({}, '', '/');
+  analytics.navigate();
+  expect(analytics.getChoice()).toBe('unavailable');
+  expect(analytics.getState()).toEqual({ status: 'unavailable', reason: 'storage' });
+  expect(window.document.scripts).toHaveLength(1);
+  expect(Reflect.get(window, 'ga-disable-G-R0JM3R4SSV')).toBe(true);
+  expect(queue(window)).toEqual([]);
+  analytics.setRegion('elsewhere');
+  expect(analytics.getChoice()).toBe('unavailable');
+  expect(analytics.getState()).toEqual({ status: 'unavailable', reason: 'storage' });
+  expect(window.document.cookie).toContain(encodeURIComponent(preference));
+  Reflect.deleteProperty(window.document, 'cookie');
+  analytics.reject();
+  expect(analytics.getChoice()).toBe('rejected');
+  expect(analytics.getState().status).toBe('denied');
   analytics.dispose();
   dom.window.close();
 });

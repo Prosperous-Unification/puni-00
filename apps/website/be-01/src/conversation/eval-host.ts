@@ -219,6 +219,8 @@ if (import.meta.main) {
     const inputRate = Number(environment['OPENROUTER_INPUT_USD_PER_MILLION']);
     const outputRate = Number(environment['OPENROUTER_OUTPUT_USD_PER_MILLION']);
     const maximumUsd = mode === 'pilot' ? 0.05 : 0.5;
+    // Static reachable maxima: pilot 2 × 8 and unchanged 34-scenario full corpus; adaptive closure cannot raise them.
+    const maximumRequests = mode === 'pilot' ? 16 : 157;
     const get = async (path: string): Promise<unknown> => {
       const response = await fetch(`https://openrouter.ai/api/v1/${path}`, {
         headers: { Authorization: `Bearer ${key}` },
@@ -245,9 +247,21 @@ if (import.meta.main) {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     // Proof: bypassing this gate made missing, unreadable, malformed, failed and different-SHA
     // receipts reach fake inference in the full host-entry tests; the passing receipt is a positive control.
+    // Proof: removing exact subset validation admitted old-subset and incomplete-subset receipts;
+    // reverting pilot selection failed the real pilot mode test before acceptance could be reused.
     if (mode === 'full') {
       const pilot: unknown = JSON.parse(readFileSync(join(directory, 'pilot.json'), 'utf8'));
-      if (!isRecord(pilot) || pilot['sha'] !== sha || pilot['passed'] !== true)
+      const sessions = isRecord(pilot) ? pilot['sessions'] : undefined;
+      if (
+        !isRecord(pilot) ||
+        pilot['sha'] !== sha ||
+        pilot['passed'] !== true ||
+        !Array.isArray(sessions) ||
+        sessions.length !== 2 ||
+        JSON.stringify(
+          sessions.map((session: unknown) => (isRecord(session) ? session['script'] : null)).sort(),
+        ) !== JSON.stringify(['click-unsure', 'mixed-improve'])
+      )
         throw new Error('Full evaluation requires a passing pilot for this SHA');
     }
     const corpus = parseSalesCorpus(
@@ -258,7 +272,7 @@ if (import.meta.main) {
     );
     const scripts =
       mode === 'pilot'
-        ? eligible.filter((script) => ['click-improve', 'mixed-improve'].includes(script.name))
+        ? eligible.filter((script) => ['click-unsure', 'mixed-improve'].includes(script.name))
         : eligible;
     const path = join(directory, `${mode}-${String(Date.now())}.log`);
     const receipt = {
@@ -271,6 +285,7 @@ if (import.meta.main) {
       inputCeilingUsdPerMillion: provider.openRouterInputCeilingUsdPerMillion,
       outputCeilingUsdPerMillion: provider.openRouterOutputCeilingUsdPerMillion,
       maximumUsd,
+      maximumRequests,
       collectionPolicy: mode === 'full' ? 'full-quality' : 'fail-fast',
       endpoint,
       budget,
@@ -292,6 +307,7 @@ if (import.meta.main) {
       stopOnFailure: true,
       continueAfterQualityFailure: mode === 'full',
       maximumMicroUsd: maximumUsd * 1_000_000,
+      maximumRequests,
       write: (line) => {
         appendFileSync(path, line + '\n');
         if (line.startsWith('session:') || line.startsWith('FAIL ') || line.startsWith('result:'))
