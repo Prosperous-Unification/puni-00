@@ -57,7 +57,10 @@ self.onmessage = async (message: MessageEvent<RaceRequest>) => {
     const outcome = await runner.run(projectId, actorId, [
       { kind: 'claimWorkItem', workItemId, personId },
     ]);
-    self.postMessage(outcome.ok ? 'applied' : outcome.reason);
+    if (outcome.ok) self.postMessage('applied');
+    else if ('reason' in outcome) self.postMessage(outcome.reason);
+    else
+      throw new Error(`the race claim was refused before the command: ${JSON.stringify(outcome)}`);
   } finally {
     await source.close();
   }

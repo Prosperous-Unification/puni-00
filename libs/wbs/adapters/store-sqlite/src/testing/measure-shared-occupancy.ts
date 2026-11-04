@@ -181,11 +181,9 @@ async function measure(): Promise<void> {
       const started = performance.now();
       const claimed = await runner.runWithin(
         target,
-        F,
+        { id: F, username: F, scopes: ['write'] },
         [{ kind: 'claimWorkItem', workItemId, personId }],
         admin,
-        null,
-        null,
       );
       const elapsed = performance.now() - started;
       if (!claimed.ok) throw new Error(`a measured claim was refused: ${JSON.stringify(claimed)}`);

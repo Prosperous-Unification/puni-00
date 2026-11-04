@@ -14,6 +14,7 @@ import { clockOf, CREATOR_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { ClaimLeaseSweep } from '@wbs/core/module/plan-commands/claim-lease-sweep';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import type { ScopedUndoOutcome } from '@wbs/core/module/plan-commands/plan-commands.feature';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { expectCreated } from '@wbs/core/testing/expect-created';
@@ -41,6 +42,12 @@ const RAM = 'resource-host-ram';
 const STAGING = 'resource-staging';
 const LEAVES = 4;
 const T = 1_000_000;
+
+function staleDetail(outcome: ScopedUndoOutcome): string | null {
+  if (outcome.ok || !('reason' in outcome) || outcome.reason !== 'stale_undo')
+    throw new Error(`expected stale_undo: ${JSON.stringify(outcome)}`);
+  return outcome.detail;
+}
 
 interface Opened {
   readonly source: Source<TransactionalStores>;
@@ -171,9 +178,13 @@ async function seeded(store: (typeof STORES)[number]) {
     { at: 1, by: F },
   );
   const projects: string[] = [];
+  const firstStepByProject = new Map<string, string>();
   for (const name of ['A', 'B']) {
     const created = expectCreated(await graph.projects.create(name, F));
     projects.push(created.project.id);
+    const firstStep = created.steps.at(0);
+    if (firstStep === undefined) throw new Error(`project ${name} has no first workflow step`);
+    firstStepByProject.set(created.project.id, firstStep.id);
     if (isMemory)
       for (const step of created.steps)
         await source.stores.steps.add(
@@ -235,13 +246,48 @@ async function seeded(store: (typeof STORES)[number]) {
     leaves.push(tree.results.map(({ id }) => id ?? ''));
   }
   const [a, b] = projects as [string, string];
+  const firstStepOf = (projectId: string): string => {
+    const stepId = firstStepByProject.get(projectId);
+    if (stepId === undefined) throw new Error(`project ${projectId} has no first workflow step`);
+    return stepId;
+  };
   const leaf = (project: 0 | 1, index: number): string => {
     const id = leaves.at(project)?.at(index);
     if (id === undefined) throw new Error(`no leaf ${String(index)} in project ${String(project)}`);
     return id;
   };
-  const run = (project: 0 | 1, commands: PlanCommand[], credential: CredentialPin | null = null) =>
-    runner.runWithin(project === 0 ? a : b, F, commands, { kind: 'legacy' }, credential, null);
+  const run = (
+    project: 0 | 1,
+    commands: PlanCommand[],
+    credential: CredentialPin | null = null,
+    claimSteps = true,
+  ) => {
+    const projectId = project === 0 ? a : b;
+    return runner.runWithin(
+      projectId,
+      {
+        id: F,
+        username: F,
+        scopes: ['write'],
+        ...(credential === null
+          ? {}
+          : {
+              authentication: {
+                kind: 'machine' as const,
+                credentialId: 'fixture-credential',
+                personId: credential.personId,
+                ...(credential.runId === undefined ? {} : { runId: credential.runId }),
+              },
+            }),
+      },
+      commands.map((command) =>
+        command.kind === 'claimWorkItem' && command.steps === undefined && claimSteps
+          ? { ...command, steps: [firstStepOf(projectId)] }
+          : command,
+      ),
+      { kind: 'legacy' },
+    );
+  };
   const claim = (project: 0 | 1, index: number, personId: string): PlanCommand => ({
     kind: 'claimWorkItem',
     workItemId: leaf(project, index),
@@ -278,6 +324,7 @@ async function seeded(store: (typeof STORES)[number]) {
     people,
     runner,
     projects: { a, b },
+    firstStepOf,
     leaf,
     run,
     claim,
@@ -360,7 +407,7 @@ for (const store of STORES) {
     // failed beside its legacy twin (26 pass, 3 fail); watched 2026-10-25.
     if (store.name === 'sqlite')
       it('agrees with the claim across projects under scoped access', async () => {
-        const { opened, graph, runner, people, projects, run, leaf, state, close } =
+        const { opened, graph, runner, people, projects, run, firstStepOf, leaf, state, close } =
           await seeded(store);
         try {
           if (opened.activate === undefined) throw new Error('only SQLite activates');
@@ -377,11 +424,9 @@ for (const store of STORES) {
           const claimIn = (projectId: string, workItemId: string, personId: string) =>
             runner.runWithin(
               projectId,
-              F,
-              [{ kind: 'claimWorkItem', workItemId, personId }],
+              { id: F, username: F, scopes: ['write'] },
+              [{ kind: 'claimWorkItem', workItemId, personId, steps: [firstStepOf(projectId)] }],
               admin,
-              null,
-              null,
             );
           expect(await claimIn(projects.a, leaf(0, 0), 'a0')).toMatchObject({ ok: true });
           const startable = await graph.workItems.startableWithin(projects.b, admin, null);
@@ -579,7 +624,7 @@ for (const store of STORES) {
         expect(await run(1, [claim(1, 0, 'b0')])).toMatchObject({ ok: true });
         const undone = await runner.undo(projects.a, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
-        expect(undone.ok ? null : undone.detail).toBe(
+        expect(staleDetail(undone)).toBe(
           'resources_exhausted: that needs 16 GB of “host ram” and 0 are free now across the organization.',
         );
         expect(await held(RAM)).toBe(16);
@@ -601,7 +646,7 @@ for (const store of STORES) {
         expect(await run(1, [claim(1, 0, 'b0')])).toMatchObject({ ok: true });
         const redone = await runner.redo(projects.a, F);
         expect(redone).toMatchObject({ ok: false, reason: 'stale_undo' });
-        expect(redone.ok ? null : redone.detail).toStartWith('resources_exhausted:');
+        expect(staleDetail(redone)).toStartWith('resources_exhausted:');
         expect(await held(RAM)).toBe(12);
       } finally {
         await close();
@@ -630,7 +675,7 @@ for (const store of STORES) {
           const undone = await runner.undo(projects.a, F);
           if (expected === 'refused') {
             expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
-            expect(undone.ok ? null : undone.detail).toStartWith('resources_exhausted:');
+            expect(staleDetail(undone)).toStartWith('resources_exhausted:');
             expect(await source.stores.claims.listByProject(projects.a)).toEqual([]);
             expect(await held(RAM)).toBe(taken);
           } else {
@@ -672,9 +717,12 @@ for (const store of STORES) {
         if (!tree.ok) throw new Error(`the tree was refused: ${JSON.stringify(tree)}`);
         const [parent, x, y] = tree.results.map(({ id }) => id ?? '');
         await run(1, [{ kind: 'setDemand', workItemId: leaf(1, 0), resourceId: RAM, units: 10 }]);
-        const subtree = await run(0, [
-          { kind: 'claimWorkItem', workItemId: parent, personId: 'a0' },
-        ]);
+        const subtree = await run(
+          0,
+          [{ kind: 'claimWorkItem', workItemId: parent, personId: 'a0' }],
+          null,
+          false,
+        );
         if (!subtree.ok)
           throw new Error(`the subtree claim was refused: ${JSON.stringify(subtree)}`);
         const applied = subtree.results[0];
@@ -695,7 +743,7 @@ for (const store of STORES) {
         expect(await run(1, [claim(1, 0, 'b0')])).toMatchObject({ ok: true });
         const undone = await runner.undo(projects.a, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
-        expect(undone.ok ? null : undone.detail).toStartWith('resources_exhausted:');
+        expect(staleDetail(undone)).toStartWith('resources_exhausted:');
         expect(await source.stores.claims.listByProject(projects.a)).toEqual([]);
         expect(await held(RAM)).toBe(10);
       } finally {
