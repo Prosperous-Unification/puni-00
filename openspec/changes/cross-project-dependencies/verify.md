@@ -7858,3 +7858,5 @@ Actual component tests keep their original epochs: harmless80, real Graph202/11/
 [Private main645 integration](verify-main645-integration-20261105.md) records the source union, recovery-fixture compatibility proof and actual Nx graph-contamination failure. Final scoped checks and full delivery gates retain separate scopes.
 
 [Hosted CI follow-up](verify-ci-hosted-followup-20261105.md) records the actual four SQLite fixture failures and restored checks, the real Vite teardown failure and its bounded candidate hypothesis. Full delivery and native acceptance remain open.
+
+[Ordinary/constructor test ownership](verify-test-ownership.md) records the reversible source split, exact discovery obligations and separate mandatory native/release qualification. No native grant is inferred.

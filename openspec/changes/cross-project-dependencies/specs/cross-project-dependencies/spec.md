@@ -2718,3 +2718,31 @@ Given explicitly frozen native fault cases, the fixture captures actual original
 #### Scenario: Adapter completion does not imply owner safety
 
 Given a caller discards or sanitizes a genuine adapter failure, this component alone does not supply strong owner retention, keeper, sticky work revocation or runtime/outer lock HOLD. The two storage paths and owner sequence must later enroll the exact original before sanitization and unwind. No main adoption, parked-producer success, native custody, full feature delivery or pending constructor exception is inferred from adapter-only results.
+
+### Requirement: Ordinary verification and admitted constructor acceptance have disjoint ownership
+
+Canonical and remainder CI discovery SHALL preserve all ordinary storage callbacks
+without importing private constructor preparation. The three constructor result
+callbacks SHALL retain their titles, missing-observation refusal and original
+oracles in an explicitly selected acceptance entry. Both ordinary runners SHALL
+exclude only that exact entry; its configured typechecking and lint coverage SHALL
+remain required. No empty observation fallback, conditional registration or skipped
+constructor callback SHALL replace preparation. Existing literal admission and
+historical source pins SHALL remain unchanged. Ordinary CI success SHALL NOT be
+reported as constructor qualification or full-goal/release readiness.
+
+#### Scenario: Canonical and remainder verification avoid private acquisition
+
+- **WHEN** either ordinary runner discovers its selected test files
+- **THEN** every ordinary storage callback remains owned and the exact constructor acceptance entry is excluded before private preparation
+
+#### Scenario: Similarly named ordinary files retain coverage
+
+- **GIVEN** an ordinary marker resembles the constructor acceptance path
+- **WHEN** canonical or remainder discovery runs
+- **THEN** the ordinary marker executes and only the exact acceptance entry is excluded
+
+#### Scenario: Constructor evidence remains separate and mandatory
+
+- **WHEN** the ownership split is reviewed
+- **THEN** the same three constructor callback bodies and admission helper remain, the entry is typechecked and linted, and ordinary CI alone leaves native and release acceptance open

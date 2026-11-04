@@ -21,6 +21,8 @@ const CONTINUATION = 'src/lib/dependency-participant-continuation-model.test.ts'
 const RESTORATION = 'src/lib/dependency-source-restoration.test.ts';
 const POLICY = 'src/lib/dependency-participant-policy-restoration.test.ts';
 const COMPLETE = 'src/lib/complete-dependency-exclusion.test.ts';
+const NATIVE = 'acceptance/dependency-owner-custody.test.ts';
+const ORDINARY_CUSTODY = 'acceptance/dependency-owner-custody-extra.test.ts';
 const SOURCE = [
   'src/lib/source-role-process.test.ts',
   'src/lib/source-inner-command.test.ts',
@@ -45,9 +47,20 @@ function write(root: string, path: string, content: string): void {
   writeFileSync(join(root, path), content);
 }
 
+/** Adds only tiny fixture markers to Bun's copied runner discovery; source tokens remain intact. */
+function discoverCustodyMarkers(source: string): string {
+  const ending = "  'test/fixture-failure.test.ts',\n];";
+  if (source.split(ending).length !== 2)
+    throw new Error('Copied runner discovery boundary changed');
+  return source.replace(
+    ending,
+    `  'test/fixture-failure.test.ts',\n  '${NATIVE}',\n  '${ORDINARY_CUSTODY}',\n];`,
+  );
+}
+
 function fixture(): string {
   const root = graphRoutingFixture();
-  write(root, `${PROJECT}/test/ci-leaf.ts`, readFileSync(CLI, 'utf8'));
+  write(root, `${PROJECT}/test/ci-leaf.ts`, discoverCustodyMarkers(readFileSync(CLI, 'utf8')));
   for (const path of [`${PROJECT}/project.json`, 'nx.json', '.bun-version'])
     write(root, path, readFileSync(join(ROOT, path), 'utf8'));
   write(root, 'tools/test/scratch/preload.ts', '');
@@ -160,6 +173,8 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
   const complement = executed(rest.stdout.toString());
   expect(singleton).toEqual([MODEL]);
   expect(complement).toContain('src/new.test.ts');
+  expect(complement).toContain(ORDINARY_CUSTODY);
+  expect(complement).not.toContain(NATIVE);
   expect(complement).toContain('src/lib/initial-handoff-graph-extra.test.ts');
   expect(complement).toContain('elsewhere/src/lib/initial-handoff-graph.test.ts');
   expect(complement).toContain('src/lib/source-role-process-extra.test.ts');
@@ -1504,7 +1519,7 @@ function graphRoutingFixture(fault: GraphRoutingFault = 'none'): string {
   write(
     root,
     `${PROJECT}/test/run-tests.ts`,
-    readFileSync(join(ROOT, PROJECT, 'test/run-tests.ts'), 'utf8'),
+    discoverCustodyMarkers(readFileSync(join(ROOT, PROJECT, 'test/run-tests.ts'), 'utf8')),
   );
   write(root, 'tools/test/scratch/preload.ts', '');
   mkdirSync(join(root, 'child-scratch'));
@@ -1541,6 +1556,8 @@ for(let index=first;index<end;index++){
   for (const path of [
     ...explicit,
     'src/new.test.ts',
+    NATIVE,
+    ORDINARY_CUSTODY,
     'src/lib/initial-handoff-graph-extra.test.ts',
     'elsewhere/src/lib/initial-handoff-graph.test.ts',
   ])
@@ -1549,7 +1566,7 @@ for(let index=first;index<end;index++){
       `${PROJECT}/${path}`,
       `
 import {test,expect} from 'bun:test';
-test(${JSON.stringify(path)},()=>{console.log('EXECUTED='+${JSON.stringify(path)});expect(true).toBe(true);});
+test(${JSON.stringify(path)},()=>{console.log('EXECUTED='+${JSON.stringify(path)});${path === NATIVE ? "throw Error('NATIVE_CUSTODY_MARKER_RAN');" : 'expect(true).toBe(true);'}});
 `,
     );
   return root;
@@ -1714,6 +1731,7 @@ test('graph launcher routing owns the canonical graph once while preserving coll
     [
       ...explicit,
       'src/new.test.ts',
+      ORDINARY_CUSTODY,
       'src/lib/initial-handoff-graph-extra.test.ts',
       'elsewhere/src/lib/initial-handoff-graph.test.ts',
     ].sort(),
@@ -1726,7 +1744,7 @@ test('graph launcher routing owns the canonical graph once while preserving coll
 
 function graphRestFixture(fault: GraphRoutingFault = 'none'): string {
   const root = graphRoutingFixture(fault);
-  write(root, `${PROJECT}/test/ci-leaf.ts`, readFileSync(CLI, 'utf8'));
+  write(root, `${PROJECT}/test/ci-leaf.ts`, discoverCustodyMarkers(readFileSync(CLI, 'utf8')));
   for (const path of [MODEL, CONTINUATION, ...SOURCE, RESTORATION, POLICY, COMPLETE])
     write(
       root,
@@ -1839,6 +1857,7 @@ test('graph rest integration composes graph once before the disjoint collision-p
   const remainder = [
     ...explicit,
     'src/new.test.ts',
+    ORDINARY_CUSTODY,
     'src/lib/initial-handoff-graph-extra.test.ts',
     'elsewhere/src/lib/initial-handoff-graph.test.ts',
     'src/lib/dependency-product-process-model-extra.test.ts',
@@ -1861,13 +1880,13 @@ test('graph rest integration composes graph once before the disjoint collision-p
     uniqueGraphFiles: 1,
   });
   expect(invocation.stderr.toString()).toMatch(
-    /12 pass\r?\n[ \t]*0 fail\r?\n[ \t]*12 expect\(\) calls\r?\nRan 12 tests across 12 files\./,
+    /13 pass\r?\n[ \t]*0 fail\r?\n[ \t]*13 expect\(\) calls\r?\nRan 13 tests across 13 files\./,
   );
   expect(graphRestReceipt(stdout)).toMatchObject({
     leaf: 'rest',
     fresh: true,
-    tests: 240,
-    files: 13,
+    tests: 241,
+    files: 14,
     exitCode: 0,
   });
 });

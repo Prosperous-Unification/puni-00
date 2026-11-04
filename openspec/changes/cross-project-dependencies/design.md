@@ -1960,3 +1960,29 @@ Wire-v1 denotes transported response text rather than a unique commit, but curre
 TDD preserves the old28-case selector matrix and adds the same current28, both mixed pairs, two actual same-length package/lock scratch drifts and two materializer mixed-pair boundary cases (62 cases). Actual drifts must be valid committed inputs and canonical manifests before selector refusal. Historical selection metadata is modeled; prior actual producer evidence remains attached to its old epoch. Extend the one existing actual producer positive and retain the other14 HTTP cases. Add two producer initial mixed-pair cases, a separately supported Git/live mismatch before Node, and an original-epoch closing mismatch after delegated actual child settlement: nineteen HTTP cases. The closing fault changes only owned regular package/lock bytes after the exact successful child returns; no polling, source guard removal or shared installed mutation. Run four unchanged restoration-input cases. Historical negative bytes may be reconstructed only by reversing the exact reviewed CTT additions from verified current bytes, requiring each hunk once and the complete historical length/hash before use; no shallow-CI historical-object dependency.
 
 Prospective outer allocations: selector180s; filtered actual producer240s with unchanged130000ms test/90000ms child/5000ms Node resolution/15000ms Git and HTTP stages/256KiB body; whole HTTP420s; restoration180s with30000ms cases; remote types300s, five-file lint180s, format60s, OpenSpec180s separately. Pin actual names/counts and preserve all failed epochs, original process/pipe settlement and scratch cleanup. No automatic retries/signals, widened bounds, local full catalogs or held omission work. Freeze preparation before final ordinary tests. Full CI, custody/native/proof and delivery requirements remain separate.
+
+## Ordinary and admitted constructor test ownership — 2026-11-05
+
+[Intent and limits](test-ownership-intent.md). The storage test's unconditional
+private preparation currently refuses before callback registration in ordinary CI.
+Move only its helper import, top-level preparation and three-case registration to
+`tools/tool-remote-scripts/acceptance/dependency-owner-custody.test.ts`, adjusting
+only the import path. Preserve all other callback bodies, hooks, four genuine
+raw-original unit combinations and prehelper/model/STOP controls. The existing
+admission helper and every historical pin remain unchanged.
+
+Both `test/run-tests.ts` and `test/ci-leaf.ts` explicitly exclude the exact entry
+from canonical remainder/rest discovery; directory placement alone is insufficient.
+Typechecking and both lint commands include the entry without executing it.
+Source census contracts bind ordinary bodies and the moved three cases to the
+frozen parent. Actual harmless routing fixtures observe exact exclusion and
+retained lookalikes. Independently removing each exclusion or widening it must
+break the same relevant routing test; existing Graph receipt checks stay required.
+
+No new native execution target or receipt authority is added. Explicit constructor
+acceptance remains fail-closed under the existing literal admission, executable,
+subject, epoch and selector rules. No real acceptance import or private diagnostic
+is used to verify this source split. Native qualification remains mandatory;
+ordinary CI green does not close parents10.1/10.2/11, authorize an architectural
+main merge, or prove activation/deployment. Historical source-pinned invocation
+packets can be invalidated by relocation and are not rewritten or reused.

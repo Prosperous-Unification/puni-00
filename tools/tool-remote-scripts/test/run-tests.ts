@@ -112,6 +112,7 @@ export function readGraphTestAdmission(
 
 const PROJECT = 'tools/tool-remote-scripts';
 const GRAPH_FILE = 'src/lib/initial-handoff-graph.test.ts';
+const NATIVE_CUSTODY_FILE = 'acceptance/dependency-owner-custody.test.ts';
 const DISCOVERY = [
   'src',
   'test/edge-init.test.ts',
@@ -630,6 +631,9 @@ async function runCommand(command: RemoteTestCommand): Promise<void> {
       '../test/scratch/preload.ts',
       '--timeout=10000',
       `--path-ignore-patterns=${GRAPH_FILE}`,
+      // Proof: omitting this literal ran the native custody marker; widening it
+      // to acceptance/* hid the ordinary collision marker and failed the census.
+      `--path-ignore-patterns=${NATIVE_CUSTODY_FILE}`,
     ];
     const remainder = await invokeTests(owner, argv, project, { ...process.env });
     if (remainder.exit !== 0) throw new CommandFailure(remainder.exit);
