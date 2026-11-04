@@ -27,3 +27,7 @@ Fresh scoped Prettier check and the complete `nx format:check --all` passed (nat
 ## Remaining unverified work
 
 All implementation tasks are open. No new PostgreSQL RunStore/ArtifactStore adapter, Bun SQL lifecycle protocol, production-path negative, durable driver restart/commit proof, complete shared conformance, transfer, new exact-SHA host gate, current-change CI, merge or deployment is accepted. Earlier P10 immediate backend-absence failures remain unresolved. No operator-store migration or production action.
+
+## Private observer implementation checkpoint
+
+The initial planning-only checkpoint has advanced to a reviewed private observer/deadline implementation. [The observer publication record](evidence/postgres-observer-publication.md) preserves exact source identities, real-driver checks, negative controls, reviews, tooling deviations and limits. Task1 of [the lifecycle plan](lifecycle-tasks.md) is approved; Task2 session ownership and all complete-provider/transfer acceptance remain open. Earlier sections describe the initial checkpoint and do not certify the new runtime code.
