@@ -97,6 +97,18 @@ def drop_that(index):
     return mutate
 
 
+def keep_disjunct(index, disjunct):
+    def mutate(tasks):
+        for t in tasks:
+            if "ansible.builtin.assert" in t:
+                that = t["ansible.builtin.assert"]["that"]
+                that[index] = that[index].split(" or ")[disjunct]
+                return
+        raise SystemExit("no assert to mutate")
+    mutate.label = f"assert condition {index} reduced to its disjunct {disjunct}"
+    return mutate
+
+
 def drop_key(key, task_name=None):
     def mutate(tasks):
         for t in tasks:
@@ -255,6 +267,38 @@ family("E7 pinned fields unchanged", pinned, [
     ("unreadable live file", {"puni_gate_host_pool_enroll": True},
      live("", 2, "jq: error: Could not open host-pool.json"), None, refused(PINNED)),
 ], [(drop_that(0), "memory moved"), (drop_that(0), "unreadable live file")])
+
+
+def probe(*lines):
+    return {"puni_gate_sudo_probe": {"stdout_lines": list(lines)}}
+
+
+SUDOER = probe("puni1 sudo docker", "sudo_rc=0")
+GROUP_ONLY = probe("puni1 docker sudo", "sudo_rc=1")
+GRANT_ONLY = probe("puni1 docker", "sudo_rc=0")
+NO_SUDO = probe("puni1 docker", "sudo: a password is required", "sudo_rc=1")
+STRICT = {"puni_gate_account_may_sudo": False}
+EXCEPTED = {"puni_gate_account_may_sudo": True}
+
+no_sudo = [task("validate.yml", "Require the gate account without sudo")]
+family("E8 gate account without sudo", no_sudo, [
+    ("no escalation", STRICT, NO_SUDO, None, ACCEPTED),
+    ("sudo group", STRICT, GROUP_ONLY, None, refused("it must not escalate")),
+    ("sudoers grant", STRICT, GRANT_ONLY, None, refused("it must not escalate")),
+    ("exception skips", EXCEPTED, SUDOER, None, ACCEPTED),
+], [(drop_that(0), "sudo group"), (drop_that(1), "sudoers grant"),
+    (drop_key("when"), "exception skips")])
+
+exception = [task("validate.yml", "Require the sudo exception to still match the gate account")]
+STALE = "the puni_gate_account_may_sudo exception is stale"
+family("E9 sudo exception still matches", exception, [
+    ("h2puni today", EXCEPTED, SUDOER, None, ACCEPTED),
+    ("group only", EXCEPTED, GROUP_ONLY, None, ACCEPTED),
+    ("grant only", EXCEPTED, GRANT_ONLY, None, ACCEPTED),
+    ("stale", EXCEPTED, NO_SUDO, None, refused(STALE)),
+    ("strict skips", STRICT, NO_SUDO, None, ACCEPTED),
+], [(drop_that(0), "stale"), (keep_disjunct(0, 1), "group only"),
+    (keep_disjunct(0, 0), "grant only"), (drop_key("when"), "strict skips")])
 
 
 def judge(expectation, rc, output):

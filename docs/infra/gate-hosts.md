@@ -114,14 +114,23 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
    only reads `/etc/machine-id`), and `tool-fleet:check` renders the k3s sysctl only for k3s
    hosts. The role has not been applied to it. Its first apply is a larger change than
    enrollment, and it is owed by task 6.3's operator half, which Dany sees before it runs:
-   - Pass `--extra-vars '{"puni_gate_host_pool_enroll": false}'`, as h4claw's apply did; the flag
+   - `puni1` on h2puni escalates: it is in the `sudo` group and `sudo -n true` exits 0, because
+     the dev poller and the monitoring scripts run `sudo docker` and `sudo openssl` as `puni1`.
+     h2puni passes the input asserts, but without an exception validate's "Require the gate
+     account without sudo" would fail every apply after it had changed the host. Its inventory
+     entry therefore sets `puni_gate_account_may_sudo: true` (default false), and validate then
+     requires the escalation to still be there instead. On h2puni a gate payload can become root,
+     so the gate-host isolation property does not hold. This is debt: once those callers leave
+     `puni1` and its sudo is removed, the next apply fails as stale until the flag is deleted.
+   - Pass `--extra-vars '{"puni_gate_host_pool_enroll": false}'`, as h4claw's apply did; that flag
      is never in the inventory. `$OPS/known_hosts` needs h2puni's key for `10.1.0.3`.
    - Take the base backup the role's touched state needs (accounts, `~/.ssh/authorized_keys`,
      package selections, and `puni1`'s current `~/.bashrc`), as in
      [Add a gate host](#add-a-gate-host).
    - h2puni passes the role's input asserts: Ubuntu 26.04 on x86_64, account `puni1`, home
      `/home/puni1`.
-   - Expect the first apply to change these, read from the role and not yet observed on h2puni:
+   - Expect the first apply to change these, read from the role and the 2026-11-04 preflight, not
+     yet observed as an apply on h2puni:
      - `~/.ssh/authorized_keys` becomes exactly `puni_gate_authorized_keys`. On h2puni `puni1`
        is also the operator and dev account, so `gate.json` must list every key it authorizes
        today, or the apply locks those callers out.
@@ -130,9 +139,19 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
        including Volta's setup, so Volta's Node leaves interactive shells.
      - The pinned Node goes to `~/.node-24.18.1`, beside Volta. Bun 1.4.4 already sits at
        `~/.bun-1.4.4`; its directory mode becomes 0755, as on h4claw (H4-A4).
-     - The pinned gh `.deb` replaces the apt gh if they differ. The apt list installs `busybox`,
-       which removes `busybox-static` if present (h4claw, H4-A3).
-     - `~/.venv-solver` is created or brought to the lock. Linger turns on for `puni1`.
+     - The pinned gh `.deb` replaces the apt gh if they differ. On h2puni `/usr/bin/gh` is 2.97.0
+       from GitHub's apt repository and the pin is 2.102.1, so it changes; a later `apt upgrade`
+       moves it off the pin again, and validate fails until the role is reapplied. Whether the
+       `.deb` install downgrades a newer installed gh is not observed.
+     - The apt list installs `busybox`, which removes `busybox-static`. h2puni has
+       `busybox-static` and no `busybox`, so the swap happens there as on h4claw (H4-A3), and it
+       recurs whenever something reinstalls `busybox-static`.
+     - `~/.venv-solver` is created or brought to the lock, and the template puts it first, so
+       every non-interactive `ssh puni1@h2puni CMD`, gate or not, gets the venv's `python3`
+       instead of `/usr/bin/python3`. Linger turns on for `puni1`.
+     - Unchanged: login shells still get Volta. `~/.profile` prepends `~/.local/bin` and Volta after it
+       sources `~/.bashrc`, so Volta's Node shadows the pin there. Gates are unaffected, because
+       `ssh host CMD` is not a login shell.
      - The role creates `~/.config/systemd/user`, the Dash directories and the token unit, and
        installs the Dash units but does not enable them. It clones `~/puni-00-gate-tbf2` and
        `~/puni-00-gate-launcher`, which is why step 1's disk comes first.

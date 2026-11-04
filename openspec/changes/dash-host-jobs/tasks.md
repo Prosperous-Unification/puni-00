@@ -163,6 +163,13 @@
       configuration's mode, owner and shape, and the units, then runs `ops pool inspect` and
       `ops job audit` once a ledger exists. No host was touched; the apply, the h2puni cleanup
       and the converging proof stay in 6.3 (verify.md Slice 6c, S6C-A1 to S6C-A25).
+  - [x] 6.3b h2puni sudo exception (2026-11-04, H2-A1): `puni1` on h2puni has passwordless
+        sudo, which the dev poller and monitoring scripts use, so validate's no-sudo assertion
+        would fail every apply. `puni_gate_account_may_sudo` (default false, set only on h2puni
+        in the inventory) swaps it for an assertion that the escalation still exists, so a stale
+        exception fails. Debt: the gate-host isolation property does not hold on h2puni until
+        those callers leave `puni1` and the flag is removed (verify.md, "2026-11-04 h2puni
+        apply, blocked").
 - [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
       `Restart=on-failure` and `KillMode=process` (beside the observation units of 4.2). It
       lands before 6.4, because observe mode needs a running `watch` (review H1 of #818). A host
