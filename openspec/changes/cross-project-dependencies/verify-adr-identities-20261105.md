@@ -35,3 +35,26 @@ final configured checks will be recorded only after observation.
 This is a mechanical document identity repair in a separate private draft branch.
 It does not qualify native execution, change source pins, adopt architecture on
 main or deploy. Broader CI and exact-SHA h2 gate remain required.
+
+## Committed-tree verification
+
+Commit `51267bb3489343436b89376abca89ba0202d96c4` passed normal repository
+hooks. Root staged the exact renames before running the current-tree document
+checker; it exited0 with `Verified current documents and indexes`.
+The earlier unstaged check could not read deleted cached old paths and supplies
+no pass credit.
+
+Root then ran the unchanged ADR index and complete document-target integration
+file against that committed HEAD with explicit empty Bun configuration, configured
+scratch preload, isolated fixture caches and60000ms per-test allowance:
+**7passed,0failed,41assertions across2files**,70.69seconds overall.
+This includes actual configured document-target execution, runtime-selection
+cleanliness and broken local-link, ADR-numbering, retired-root and root-migration
+payload refusals. Scratch teardown returned. No native/helper/storage recipe was
+invoked. Fresh `openspec validate --all --json` again exited0 with333/333 passed
+(313 changes,20 specs).
+
+Astra High independently reviewed the final mechanical diff and confirmed exact
+decision/main-identity preservation, historical numbering and unchanged evidence.
+This evidence update is a documentation-only follow-up on the same branch;
+full CI and exact-SHA host gate remain unqualified.
