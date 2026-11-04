@@ -83,3 +83,27 @@ current-head execution. No unchecked parent task was marked complete from an aud
 Full current-head CI, exact-SHA h2 gate, native/activation qualification, architectural
 adoption and deployment remain open. The earlier native-test ownership implementation
 approval question is unchanged by these ordinary fixture corrections.
+
+## Actual hosted Vite qualification
+
+Run41930921822's remote-source job126928187119 completed SUCCESS for PR851
+head `5b6529c429e948721ab50d0d137879714634e2c6`. Its actual executed synthetic
+merge head was `8bb090906df0e8d9c6d9805842de4fda1f77d702`; these are distinct
+identities. Artifact `nx-gate-log-remote-source-1` is875411 bytes with SHA-256
+`cb904da30d77a73fa8588dd2357b42f7474cc3bde73f777792fcdf0d7c1ef0e4`.
+
+The unchanged actual pinned Vite producer acceptance passed in1989.95ms after
+two captured observations and joined original Node child/pipes, requests, server
+and watcher. Its consumer requires successful producer completion and the actual
+cleanup observations before recording success. Root inspected that passing
+consumer line and final uncached source-target exit0. The full source leaf
+reported152passed/0failed/1253assertions across7files. It has no outer skipped or
+todo cases; selected nested readiness children retain their filtered populations.
+This qualifies the hosted idle-wait correction at those source/runtime identities,
+not a local native recipe or the separately owned remainder's inert test.
+
+Backend job126928187168 also completed SUCCESS; its detailed test counts were
+not audited. The overall run remains incomplete and its workspace job failed on
+the independent ADR-number collision recorded in
+[ADR identity repair](verify-adr-identities-20261105.md). No native UC2/private
+acceptance, final h2 gate, architectural adoption or deployment follows.
