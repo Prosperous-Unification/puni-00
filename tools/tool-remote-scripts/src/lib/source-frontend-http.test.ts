@@ -89,12 +89,12 @@ const CAPTURED_INPUTS = {
     sha256: '4a001feffe9d32b5fb63860d4faa8725f8a4d7a13c2c37b92587234ab3d66c23',
   },
   'package.json': {
-    bytes: 4930,
-    sha256: '74ba36c471df0f1dd7ca4221a49f1dd9bab2c7feb7d022a5ff6be39a3aff0e8a',
+    bytes: 4992,
+    sha256: '6482624ce19f7d9ea6cd919328f839e3bb7bb8c48ae120a4f5c3104e9a87c381',
   },
   'bun.lock': {
-    bytes: 533521,
-    sha256: 'e3e915704bce2282142eae1f2374cd6217f408d1fed38ae116579a4f6fb1025d',
+    bytes: 534113,
+    sha256: '129512f0a0fc719b814e7998353190f8827d96085f99000c418c6988ebbbb728',
   },
 };
 
@@ -114,7 +114,7 @@ test('actual pinned Vite producer reaches the complete frontend document and ent
     const fields = readFields(packet);
     const selectedInputs = readFields(fields['selectedInputs']);
     const sourceFiles = readFields(fields['files']);
-    expect(fields['epoch']).toBe('ctt-0.12.0');
+    expect(fields['epoch']).toBe('fresh-main-20261104');
     expect(Object.keys(selectedInputs).sort()).toEqual(Object.keys(CAPTURED_INPUTS).sort());
     const captured = new Map<string, Buffer>();
     for (const [path, expected] of Object.entries(CAPTURED_INPUTS)) {
@@ -1119,6 +1119,16 @@ const HISTORICAL_PAIR = {
     sha256: 'bf54a6c6202a5d8f54f9bb8fe7e76935a8f4c667c660da720db3fd5f16391383',
   },
 };
+const CTT_PAIR = {
+  'package.json': {
+    bytes: 4930,
+    sha256: '74ba36c471df0f1dd7ca4221a49f1dd9bab2c7feb7d022a5ff6be39a3aff0e8a',
+  },
+  'bun.lock': {
+    bytes: 533521,
+    sha256: 'e3e915704bce2282142eae1f2374cd6217f408d1fed38ae116579a4f6fb1025d',
+  },
+};
 const CURATED_SOURCE = [
   'apps/wbs/fe-01',
   'libs/wbs/domain',
@@ -1505,7 +1515,7 @@ test('producer rejects a different supported live epoch after the actual child c
       JSON.parse(await readFile(join(retained, 'source-manifest.json'), 'utf8')),
     );
     expect(packet['head']).toBe(prepared.sourceSha);
-    expect(packet['epoch']).toBe('ctt-0.12.0');
+    expect(packet['epoch']).toBe('fresh-main-20261104');
     expect(packet['selectedInputs']).toEqual(CAPTURED_INPUTS);
     for (const [path, expected] of Object.entries(CAPTURED_INPUTS))
       expect(describeBytes(await readFile(join(retained, 'snapshot', path)))).toEqual(expected);
@@ -1568,6 +1578,54 @@ test('producer rejects a different supported live epoch after the actual child c
     }
   }
 }, 130000);
+const HISTORICAL_REVERSALS = {
+  'package.json': [
+    ['  "name": "@puni-mono/workspace",\n', '  "name": "@puni/workspace",\n'],
+    [
+      '    "test:queued": "bin/test-queued.sh",\n',
+      '    "test:queued": "bin/with-heavy-lock.sh -- nx run-many -t test",\n',
+    ],
+    ['    "@optique/core": "1.3.6",\n    "@optique/run": "1.3.6",\n', ''],
+    ['    "application-exception": "0.9.0",\n', '    "application-exception": "0.7.0",\n'],
+    [
+      '    "caught-object-report-json": "15.0.0",\n',
+      '    "caught-object-report-json": "13.0.0",\n',
+    ],
+    ['    "di-bag": "0.5.2",\n', '    "di-bag": "0.5.1",\n'],
+    ['    "mmdb-lib": "3.0.3",\n', ''],
+  ],
+  'bun.lock': [
+    ['        "@optique/core": "1.3.6",\n        "@optique/run": "1.3.6",\n', ''],
+    ['        "application-exception": "0.9.0",\n', '        "application-exception": "0.7.0",\n'],
+    [
+      '        "caught-object-report-json": "15.0.0",\n',
+      '        "caught-object-report-json": "13.0.0",\n',
+    ],
+    ['        "di-bag": "0.5.2",\n', '        "di-bag": "0.5.1",\n'],
+    ['        "mmdb-lib": "3.0.3",\n', ''],
+    [
+      '    "@optique/core": ["@optique/core@1.3.6", "", {}, "sha512-BXVuVyxP9bg8FbyvBYrSHisnAeG3XTf1xcuUjAWgDWKfzZssMGbSrMdiv4tA+BK3+CrSo6no+uHWpiHh4HMKeg=="],\n\n    "@optique/run": ["@optique/run@1.3.6", "", { "dependencies": { "@optique/core": "1.3.6" } }, "sha512-uxlHO8vG/5ni1V+t+jdmYqiyYYY5uOevO/6U866oBpnlOxOGn2ZWIlPpDXAU3e5GRu4VecbeXoNff18yRDGoQw=="],\n\n',
+      '',
+    ],
+    [
+      '    "application-exception": ["application-exception@0.9.0", "", { "dependencies": { "caught-object-report-json": "^15.0.0", "nanoid": "^3.3.19" } }, "sha512-ly7CqHHmvqcQ2BnjdpX1wjEXi/jBBWy2ekBuDvkDOj3RlKeLC9zsU6e9pykFfIS/VzPHfhPGz0IXhOGHDcXesA=="],\n',
+      '    "application-exception": ["application-exception@0.7.0", "", { "dependencies": { "caught-object-report-json": "^13.0.0", "nanoid": "^3.3.19" } }, "sha512-kxx0XcOZ2wDcW1/G/s9izPg5ESzuD2SzqAdbZ8wCVMibsGd9IRTvFBZYIi1Z3QGMnJJo41IGQ9/3dqJQ9j9RWA=="],\n',
+    ],
+    [
+      '    "caught-object-report-json": ["caught-object-report-json@15.0.0", "", {}, "sha512-LUykHhgBgVLiIy4m3raMlIFrRH+LPvGUl4MqJHeVF3gryc21vtCJcCmC1vcH0fYqmEadrVkbhk/682YcjKkheg=="],\n',
+      '    "caught-object-report-json": ["caught-object-report-json@13.0.0", "", {}, "sha512-iH0UiWMMlAcNWcCQUFH/fEexacjojkd2eXvVG/czarM7MsFLOKeTcmbZPa6X8aWtJh/EhmvstlKeEjfF5L+hAQ=="],\n',
+    ],
+    [
+      '    "di-bag": ["di-bag@0.5.2", "", {}, "sha512-JzsbaXpNbRuYkGXaNwfPK+EmM2yR7lF7OVaXLFFnJN0K25lEGpr4Y2621pm/smYJyGp55yjhqwcAROJ5vLuWAQ=="],\n',
+      '    "di-bag": ["di-bag@0.5.1", "", {}, "sha512-rzG0NI9/M+/F1lYDRs+Get/jqZ6+X3mKPqe96WgCDOa1CJrFY+5I1/T+Vfnw3ffEcLPy5YS9++tTksauLadw3w=="],\n',
+    ],
+    [
+      '\n    "mmdb-lib": ["mmdb-lib@3.0.3", "", {}, "sha512-xQPoBXcNjjHiOvOraFBKtA++uNWF6aCVHL9dRKFXEov8eI3QJwtgiw3qApsonFT5SpoqsEVISUTg3HIDs2DiXw=="],\n',
+      '',
+    ],
+  ],
+} as const;
+
 const HISTORICAL_REMOVALS = {
   'package.json': ['    "configurable-tree-traversal": "0.12.0",\n'],
   'bun.lock': [
@@ -1579,8 +1637,14 @@ const HISTORICAL_REMOVALS = {
 
 function reconstructHistoricalInput(path: 'package.json' | 'bun.lock', bytes: Uint8Array): Buffer {
   expect(describeBytes(bytes)).toEqual(CAPTURED_INPUTS[path]);
-  // Exact reviewed CTT additions are removed only for owned negative inputs, avoiding CI shallow-history dependence.
+  // Restore the reviewed CTT pair before removing its additions. Exact hashes
+  // at both boundaries keep the owned negatives independent of CI history.
   let contents = Buffer.from(bytes).toString('utf8');
+  for (const [present, prior] of HISTORICAL_REVERSALS[path]) {
+    expect(contents.split(present).length - 1).toBe(1);
+    contents = contents.replace(present, prior);
+  }
+  expect(describeBytes(Buffer.from(contents))).toEqual(CTT_PAIR[path]);
   for (const hunk of HISTORICAL_REMOVALS[path]) {
     expect(contents.split(hunk).length - 1).toBe(1);
     contents = contents.replace(hunk, '');
