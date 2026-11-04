@@ -1529,7 +1529,7 @@ async function observePrehelperRefusal(
     if (finish <= begin) throw new Error('UC2 finite source declaration order differs');
     return source.slice(begin, finish);
   }
-  const state = between('interface ParentPipe {', '\nfunction stop(cause: unknown)');
+  const state = between('interface ParentPipe {', '\nfunction stop(');
   const admission = between('function assertParentStart(): void {', 'const PARENT_CAPS:');
   const operation = between('const PARENT_CAPS:', 'function joinPrehelperRefusal()');
   const refusal = between(
@@ -2359,8 +2359,8 @@ import {mkdtemp,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 interface CustodyObservation {pass:boolean;oracle:string;}`,
-    between('interface ParentPipe {', '\nfunction stop(cause: unknown)'),
-    between('function stop(cause: unknown)', 'function replaceOnce('),
+    between('interface ParentPipe {', '\nfunction stop('),
+    between('function stop(', 'function replaceOnce('),
     between('const prehelperWriteSync = writeSync;', 'const PARENT_CAPS:'),
     between('const PARENT_CAPS:', 'function joinPrehelperRefusal()'),
     between('function joinPrehelperRefusal()', 'async function joinOuterOperations()'),
@@ -2507,3 +2507,419 @@ test('UC2 actual invalid build retires pre-helper parent after original rejectio
   expect(report.buffer.at(-1)).toBe(10);
   expect(report.buffer.equals(actualPrehelperExpectedDiagnostic)).toBe(true);
 }, 10000);
+
+interface ParentStopModel {
+  returnedPromise: boolean;
+  stopped: boolean;
+  retainedCause: boolean;
+  keeper: boolean;
+  intervalCalls: number;
+  emissions: readonly string[];
+  snapshot: unknown;
+  hostileTouches: number;
+}
+
+/** Evaluates only actual parent declarations and STOP, with inert diagnostic/timer ports. */
+function observeParentStop(): ParentStopModel {
+  const source = filesystem.readFileSync(
+    new URL('../fixtures/dependency-owner-custody.ts', import.meta.url),
+    'utf8',
+  );
+  const start = 'interface ParentPipe {';
+  const end = '\nfunction replaceOnce(';
+  if (source.split(start).length !== 2 || source.split(end).length !== 2)
+    throw new Error('UC2 parent STOP source boundary differs');
+  const begin = source.indexOf(start);
+  const finish = source.indexOf(end, begin + start.length);
+  if (finish <= begin) throw new Error('UC2 parent STOP source boundary order differs');
+  const declarations = source.slice(begin, finish);
+  const capsStart = 'const PARENT_CAPS:';
+  const capsEnd = '\nfunction outerOperation<';
+  if (source.split(capsStart).length !== 2 || source.split(capsEnd).length !== 2)
+    throw new Error('UC2 parent STOP cap declaration boundary differs');
+  const caps = source.slice(source.indexOf(capsStart), source.indexOf(capsEnd));
+  const image = [
+    '"use strict";',
+    'const prehelperWriteSync = writeSync;',
+    'const prehelperStderr = process.stderr.fd;',
+    caps,
+    declarations,
+    `
+function observe() {
+  const pending = new Promise(() => undefined);
+  parent.allocationStart = 10000n;
+  parent.allocationEnd = 28000n;
+  parent.lastTick = 10025n;
+  parent.spawnEntered = true;
+  parent.operations.push({
+    label:'outer.Bun.build',state:'pending',returned:pending,value:undefined,
+    original:undefined,receiver:undefined,args:[],cause:undefined,
+    promise:pending,observer:pending,observerSettled:false,joined:false,
+  });
+  parent.clockOperations.push({state:'returned',returned:'100.25 1.00\\n',cause:undefined,tick:10025n});
+  parent.originals.push({
+    child:undefined,exit:pending,known:false,
+    stdout:{stream:undefined,reader:undefined,closedPromise:pending,closedObserver:pending,
+      closedState:'pending',closedCause:undefined,pump:pending,eof:false},
+    stderr:undefined,
+  });
+  const returned = stop(cause, 'helper-outcome-catch');
+  return {
+    returnedPromise:returned instanceof Promise,stopped:parent.stopped,
+    retainedCause:parent.failures[0]===cause,keeper:parent.keeper===timerToken,
+  };
+};`,
+  ].join('\n');
+  const emitted = new Bun.Transpiler({ loader: 'ts', target: 'bun' }).transformSync(image);
+  const emissions: string[] = [];
+  let intervalCalls = 0;
+  let hostileTouches = 0;
+  const timerToken = Object.freeze({ inert: 'UC2-parent-stop-interval' });
+  const cause = new Proxy(Object.create(null) as object, {
+    get() {
+      hostileTouches++;
+      throw new Error('UC2 private cause property touched');
+    },
+    ownKeys() {
+      hostileTouches++;
+      throw new Error('UC2 private cause keys touched');
+    },
+  });
+  const processPort = {
+    stderr: {
+      fd: 2,
+      write(text: string) {
+        emissions.push(text);
+        return true;
+      },
+    },
+  };
+  const intervalPort = () => {
+    intervalCalls++;
+    return timerToken;
+  };
+  const writerPort = (
+    descriptor: number,
+    buffer: Buffer,
+    offset: number,
+    length: number,
+    position: number | null,
+  ) => {
+    if (descriptor !== 2 || offset !== 0 || length !== buffer.length || position !== null)
+      throw new Error('UC2 parent STOP writer call differs');
+    emissions.push(buffer.toString('utf8'));
+    return length;
+  };
+  // This test-only Function receives only the exact transpiled private cut and inert lexical ports.
+  // eslint-disable-next-line @typescript-eslint/no-implied-eval -- This test evaluates only the bounded private source cut with inert ports.
+  const evaluate = new Function(
+    'process',
+    'setInterval',
+    'writeSync',
+    'Buffer',
+    'cause',
+    'timerToken',
+    emitted + '\nreturn observe;',
+  ) as (
+    process: typeof processPort,
+    interval: typeof intervalPort,
+    writer: typeof writerPort,
+    buffer: typeof Buffer,
+    failure: object,
+    token: typeof timerToken,
+  ) => () => Omit<ParentStopModel, 'intervalCalls' | 'emissions' | 'snapshot' | 'hostileTouches'>;
+  const observe = evaluate(processPort, intervalPort, writerPort, Buffer, cause, timerToken);
+  const observed = observe();
+  const text = emissions.at(0);
+  const opening = text?.indexOf('{') ?? -1;
+  // Legacy STOP has no JSON body: leave the missing diagnostic as an assertion value, not a parse error.
+  const snapshot: unknown =
+    text !== undefined && opening >= 0 ? JSON.parse(text.slice(opening)) : undefined;
+  return { ...observed, intervalCalls, emissions, snapshot, hostileTouches };
+}
+
+test('UC2 parent STOP publishes first-site retained parent context', () => {
+  const observed = observeParentStop();
+  expect(observed.returnedPromise).toBe(true);
+  expect(observed.stopped).toBe(true);
+  expect(observed.retainedCause).toBe(true);
+  expect(observed.keeper).toBe(true);
+  expect(observed.intervalCalls).toBe(1);
+  expect(observed.emissions).toHaveLength(1);
+  expect(observed.emissions[0]).toStartWith(
+    'UC2 parent STOP: original helper or reader outcomes incomplete',
+  );
+  expect(observed.hostileTouches).toBe(0);
+  expect(observed.snapshot).toMatchObject({
+    schema: 'uc2-parent-stop',
+    version: 1,
+    site: 'helper-outcome-catch',
+    causeCategory: 'object',
+    spawnEntered: true,
+    allocation: { startPresent: true, endPresent: true, lastTickPresent: true },
+    operationCount: 1,
+    operationsTruncated: false,
+    operations: [
+      {
+        index: 0,
+        label: 'outer.Bun.build',
+        state: 'pending',
+        originalPresent: false,
+        promisePresent: true,
+        observerPresent: true,
+        observerSettled: false,
+        joined: false,
+      },
+    ],
+    clockOperationCount: 1,
+    clockOperationsTruncated: false,
+    clockOperations: [{ state: 'returned', validated: true }],
+    childCount: 1,
+    childrenTruncated: false,
+    children: [
+      {
+        index: 0,
+        known: false,
+        exitPresent: true,
+        stdout: {
+          present: true,
+          readerPresent: false,
+          pumpPresent: true,
+          closedPromisePresent: true,
+          closedObserverPresent: true,
+          closedState: 'pending',
+          eof: false,
+        },
+        stderr: { present: false },
+      },
+    ],
+  });
+});
+
+function observeStopWrite(mode: 'full' | 'short' | 'throw' | 'unsupported' | 'prepare-throw') {
+  const source = filesystem.readFileSync(
+    new URL('../fixtures/dependency-owner-custody.ts', import.meta.url),
+    'utf8',
+  );
+  const parentStart = source.indexOf('interface ParentPipe {');
+  const parentEnd = source.indexOf('\nfunction replaceOnce(', parentStart);
+  const capsStart = source.indexOf('const PARENT_CAPS:');
+  const capsEnd = source.indexOf('\nfunction outerOperation<', capsStart);
+  if (parentStart < 0 || parentEnd < 0 || capsStart < 0 || capsEnd < 0)
+    throw new Error('UC2 parent STOP source cut unavailable');
+  const image = [
+    '"use strict";',
+    'const prehelperWriteSync = writeSync;',
+    'const prehelperStderr = process.stderr.fd;',
+    source.slice(capsStart, capsEnd),
+    source.slice(parentStart, parentEnd),
+    `
+function observe(first, second) {
+  const originalKeeper = Object.freeze({inert:'keeper'});
+  parent.keeper = originalKeeper;
+  const originalTimer = Object.freeze({inert:'deadline'});
+  parent.timer = originalTimer;
+  for (let index=0; index<129; index++) {
+    parent.operations.push({label:'outer.Bun.build',state:'pending',original:undefined,
+      promise:undefined,observer:undefined,observerSettled:false,joined:false});
+    parent.clockOperations.push({state:'returned',tick:123n});
+  }
+  for (let index=0; index<2; index++)
+    parent.originals.push({child:undefined,exit:undefined,known:false,
+      stdout:undefined,stderr:undefined});
+  const firstPromise = stop(first, 'helper-outcome-catch');
+  const firstReport = parent.stopReport;
+  parent.operations[0].state = 'fulfilled';
+  parent.originals[0].known = true;
+  const secondPromise = stop(second, 'parent-catch');
+  return {parent, firstPromise, secondPromise, firstReport, originalKeeper, originalTimer};
+}`,
+  ].join('\n');
+  const emitted = new Bun.Transpiler({ loader: 'ts', target: 'bun' }).transformSync(image);
+  const calls: {
+    descriptor: number;
+    buffer: Buffer;
+    offset: number;
+    length: number;
+    position: null;
+  }[] = [];
+  const writeFailure = new Error('inert diagnostic refusal');
+  const unsupportedReturn = Promise.resolve(7);
+  const writer = (
+    descriptor: number,
+    buffer: Buffer,
+    offset: number,
+    length: number,
+    position: null,
+  ) => {
+    calls.push({ descriptor, buffer, offset, length, position });
+    if (mode === 'throw') throw writeFailure;
+    if (mode === 'short') return length - 1;
+    if (mode === 'unsupported') return unsupportedReturn;
+    return length;
+  };
+  let intervalCalls = 0;
+  const interval = () => {
+    intervalCalls++;
+    throw new Error('unexpected interval');
+  };
+  let hostileTouches = 0;
+  const first = new Proxy(Object.create(null) as object, {
+    get() {
+      hostileTouches++;
+      throw new Error('cause getter touched');
+    },
+    ownKeys() {
+      hostileTouches++;
+      throw new Error('cause keys touched');
+    },
+  });
+  const second = new Error('later cause');
+  const processPort = {
+    stderr: {
+      fd: 2,
+      write() {
+        throw new Error('legacy stderr port used');
+      },
+    },
+  };
+  // eslint-disable-next-line @typescript-eslint/no-implied-eval -- This test evaluates only the bounded private source cut with inert ports.
+  const evaluate = new Function(
+    'process',
+    'setInterval',
+    'writeSync',
+    'Buffer',
+    emitted + '\nreturn observe;',
+  ) as (
+    processPort: typeof processPort,
+    intervalPort: typeof interval,
+    writerPort: typeof writer,
+    buffer: typeof Buffer,
+  ) => (
+    first: object,
+    second: Error,
+  ) => {
+    parent: {
+      failures: unknown[];
+      stopped: boolean;
+      keeper: unknown;
+      timer: unknown;
+      stopReport: unknown;
+      stopContext: { site: string; cause: unknown };
+      prehelperRefusalTerminal: boolean;
+      report: unknown;
+    };
+    firstPromise: Promise<never>;
+    secondPromise: Promise<never>;
+    firstReport: unknown;
+    originalKeeper: unknown;
+    originalTimer: unknown;
+  };
+  const bufferPort =
+    mode === 'prepare-throw'
+      ? ({
+          from() {
+            throw writeFailure;
+          },
+        } as unknown as typeof Buffer)
+      : Buffer;
+  const observe = evaluate(processPort, interval, writer, bufferPort);
+  return {
+    ...observe(first, second),
+    first,
+    second,
+    calls,
+    intervalCalls,
+    hostileTouches,
+    writer,
+    writeFailure,
+    unsupportedReturn,
+  };
+}
+
+test('UC2 parent STOP write outcomes retain one first record and permanent HOLD', () => {
+  for (const mode of ['full', 'short', 'throw', 'unsupported', 'prepare-throw'] as const) {
+    const observed = observeStopWrite(mode);
+    const report = observed.firstReport as {
+      cause: unknown;
+      site: string;
+      snapshot: { site: string };
+      writer: unknown;
+      descriptor: number;
+      buffer: Buffer;
+      offset: number;
+      length: number;
+      position: null;
+      state: string;
+      returned: unknown;
+      writeCause: unknown;
+    };
+    expect(observed.firstPromise).toBeInstanceOf(Promise);
+    expect(observed.secondPromise).toBeInstanceOf(Promise);
+    expect(observed.parent.stopped).toBe(true);
+    expect(observed.parent.keeper).toBe(observed.originalKeeper);
+    expect(observed.parent.timer).toBe(observed.originalTimer);
+    expect(observed.intervalCalls).toBe(0);
+    expect(observed.hostileTouches).toBe(0);
+    expect(observed.parent.failures[0]).toBe(observed.first);
+    expect(observed.parent.failures.at(-1)).toBe(observed.second);
+    expect(observed.parent.stopContext.site).toBe('helper-outcome-catch');
+    expect(observed.parent.stopContext.cause).toBe(observed.first);
+    expect(observed.parent.prehelperRefusalTerminal).toBe(false);
+    expect(observed.parent.report).toBeUndefined();
+    if (mode === 'prepare-throw') {
+      expect(observed.firstReport).toBeUndefined();
+      expect(observed.parent.stopReport).toBeUndefined();
+      expect(observed.parent.failures[1]).toBe(observed.writeFailure);
+      expect(observed.calls).toHaveLength(0);
+      continue;
+    }
+    expect(observed.parent.stopReport).toBe(report);
+    expect(report.cause).toBe(observed.first);
+    expect(report.site).toBe('helper-outcome-catch');
+    expect(report.snapshot.site).toBe('helper-outcome-catch');
+    const snapshot = report.snapshot as typeof report.snapshot & {
+      operationCount: number;
+      operationsTruncated: boolean;
+      operations: { state: string }[];
+      clockOperationCount: number;
+      clockOperationsTruncated: boolean;
+      clockOperations: unknown[];
+      childCount: number;
+      childrenTruncated: boolean;
+      children: { known: boolean }[];
+    };
+    expect(snapshot.operationCount).toBe(129);
+    expect(snapshot.operationsTruncated).toBe(true);
+    expect(snapshot.operations.length).toBeLessThanOrEqual(128);
+    expect(snapshot.operations[0]?.state).toBe('pending');
+    expect(snapshot.clockOperationCount).toBe(129);
+    expect(snapshot.clockOperationsTruncated).toBe(true);
+    expect(snapshot.clockOperations.length).toBeLessThanOrEqual(128);
+    expect(snapshot.childCount).toBe(2);
+    expect(snapshot.childrenTruncated).toBe(true);
+    expect(snapshot.children).toHaveLength(1);
+    expect(snapshot.children[0]?.known).toBe(false);
+    expect(report.writer).toBe(observed.writer);
+    expect(report.descriptor).toBe(2);
+    expect(report.offset).toBe(0);
+    expect(report.length).toBe(report.buffer.length);
+    expect(report.length).toBeLessThanOrEqual(32768);
+    expect(report.position).toBeNull();
+    expect(observed.calls).toHaveLength(1);
+    expect(observed.calls[0]?.buffer).toBe(report.buffer);
+    expect(report.buffer.toString('utf8')).toStartWith(
+      'UC2 parent STOP: original helper or reader outcomes incomplete\nUC2_PARENT_STOP:',
+    );
+    if (mode === 'throw') {
+      expect(report.state).toBe('threw');
+      expect(report.writeCause).toBe(observed.writeFailure);
+      expect(observed.parent.failures[1]).toBe(observed.writeFailure);
+    } else {
+      expect(report.state).toBe('returned');
+      if (mode === 'full') expect(report.returned).toBe(report.length);
+      if (mode === 'short') expect(report.returned).toBe(report.length - 1);
+      if (mode === 'unsupported') expect(report.returned).toBe(observed.unsupportedReturn);
+    }
+  }
+});

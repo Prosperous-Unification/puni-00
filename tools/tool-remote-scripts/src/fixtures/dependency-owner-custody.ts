@@ -306,6 +306,34 @@ interface ParentReport {
   reportingFailure: unknown;
   failures: readonly unknown[];
 }
+type ParentStopSite =
+  | 'outer-operation-incomplete'
+  | 'parent-pipe-cap'
+  | 'parent-pipe-closed'
+  | 'parent-pipe-catch'
+  | 'deadline-notice'
+  | 'helper-acquisition-refused'
+  | 'build-refused'
+  | 'spawn-refused'
+  | 'pump-absent'
+  | 'readers-not-closed'
+  | 'helper-outcome-catch'
+  | 'allocation-exceeded'
+  | 'parent-catch';
+interface ParentStopReport {
+  site: ParentStopSite;
+  cause: unknown;
+  snapshot: object;
+  writer: typeof prehelperWriteSync;
+  descriptor: number;
+  buffer: Buffer;
+  offset: 0;
+  length: number;
+  position: null;
+  state: 'entered' | 'returned' | 'threw';
+  returned: unknown;
+  writeCause: unknown;
+}
 const parent = {
   originals: [] as ParentOriginal[],
   failures: [] as unknown[],
@@ -316,6 +344,8 @@ const parent = {
   prehelperRefusalTerminal: false,
   reported: false,
   report: undefined as ParentReport | undefined,
+  stopContext: undefined as { site: ParentStopSite; cause: unknown } | undefined,
+  stopReport: undefined as ParentStopReport | undefined,
   allocationStart: undefined as bigint | undefined,
   allocationEnd: undefined as bigint | undefined,
   lastTick: undefined as bigint | undefined,
@@ -328,14 +358,128 @@ const parent = {
   }[],
 };
 
-function stop(cause: unknown): Promise<never> {
+/** Projects only recorded parent state; presence does not establish settlement or hidden helper progress. */
+function snapshotParentStop(site: ParentStopSite, cause: unknown) {
+  const pipeState = (pipe: ParentPipe | undefined) =>
+    pipe === undefined
+      ? { present: false }
+      : {
+          present: true,
+          readerPresent: pipe.reader !== undefined,
+          pumpPresent: pipe.pump !== undefined,
+          closedPromisePresent: pipe.closedPromise !== undefined,
+          closedObserverPresent: pipe.closedObserver !== undefined,
+          closedState: pipe.closedState,
+          eof: pipe.eof,
+        };
+  const operations = parent.operations.slice(0, 128).map((operation, index) => ({
+    index,
+    label: Object.hasOwn(PARENT_CAPS, operation.label) ? operation.label : 'unsupported',
+    state: operation.state,
+    originalPresent: operation.original !== undefined,
+    promisePresent: operation.promise !== undefined,
+    observerPresent: operation.observer !== undefined,
+    observerSettled: operation.observerSettled,
+    joined: operation.joined,
+  }));
+  const clockOperations = parent.clockOperations.slice(0, 128).map((operation) => ({
+    state: ['entered', 'returned', 'threw'].includes(operation.state)
+      ? operation.state
+      : 'unsupported',
+    validated: operation.tick !== undefined,
+  }));
+  // The selected variant admits one parent helper; the inner ledger's child cap is separate.
+  const children = parent.originals.slice(0, 1).map((original, index) => ({
+    index,
+    known: original.known,
+    exitPresent: original.exit !== undefined,
+    stdout: pipeState(original.stdout),
+    stderr: pipeState(original.stderr),
+  }));
+  const snapshot = {
+    schema: 'uc2-parent-stop',
+    version: 1,
+    site,
+    causeCategory: cause === null ? 'null' : typeof cause,
+    spawnEntered: parent.spawnEntered,
+    allocation: {
+      startPresent: parent.allocationStart !== undefined,
+      endPresent: parent.allocationEnd !== undefined,
+      lastTickPresent: parent.lastTick !== undefined,
+    },
+    operationCount: parent.operations.length,
+    operationsTruncated: parent.operations.length > operations.length,
+    operations,
+    clockOperationCount: parent.clockOperations.length,
+    clockOperationsTruncated: parent.clockOperations.length > clockOperations.length,
+    clockOperations,
+    childCount: parent.originals.length,
+    childrenTruncated: parent.originals.length > children.length,
+    children,
+  };
+  return snapshot;
+}
+
+/** Publishes one bounded first-site frame with the original captured writer, retaining its exact outcome. */
+function reportParentStop(site: ParentStopSite, cause: unknown): void {
+  const snapshot = snapshotParentStop(site, cause);
+  const prefix = 'UC2 parent STOP: original helper or reader outcomes incomplete\nUC2_PARENT_STOP:';
+  let buffer = Buffer.from(prefix + JSON.stringify(snapshot) + '\n', 'utf8');
+  while (buffer.length > 32768) {
+    if (snapshot.children.length > 0) {
+      snapshot.children.pop();
+      snapshot.childrenTruncated = true;
+    } else if (snapshot.operations.length > 0) {
+      snapshot.operations.pop();
+      snapshot.operationsTruncated = true;
+    } else if (snapshot.clockOperations.length > 0) {
+      snapshot.clockOperations.pop();
+      snapshot.clockOperationsTruncated = true;
+    } else {
+      throw new Error('UC2 fixed parent STOP frame exceeded bound');
+    }
+    buffer = Buffer.from(prefix + JSON.stringify(snapshot) + '\n', 'utf8');
+  }
+  const report: ParentStopReport = {
+    site,
+    cause,
+    snapshot,
+    writer: prehelperWriteSync,
+    descriptor: prehelperStderr,
+    buffer,
+    offset: 0,
+    length: buffer.length,
+    position: null,
+    state: 'entered',
+    returned: undefined,
+    writeCause: undefined,
+  };
+  parent.stopReport = report;
+  try {
+    report.returned = report.writer(
+      report.descriptor,
+      report.buffer,
+      report.offset,
+      report.length,
+      report.position,
+    );
+    report.state = 'returned';
+  } catch (diagnostic) {
+    report.state = 'threw';
+    report.writeCause = diagnostic;
+    parent.failures.push(diagnostic);
+  }
+}
+
+function stop(cause: unknown, site: ParentStopSite): Promise<never> {
   parent.failures.push(cause);
   parent.stopped = true;
   parent.keeper ??= setInterval(() => parent, 30000);
   if (!parent.reported) {
     parent.reported = true;
+    parent.stopContext = { site, cause };
     try {
-      process.stderr.write('UC2 parent STOP: original helper or reader outcomes incomplete\n');
+      reportParentStop(site, cause);
     } catch (diagnostic) {
       parent.failures.push(diagnostic);
     }
@@ -788,7 +932,10 @@ async function joinOuterOperations(): Promise<void> {
       operation.joined = true;
     }
     if (operation.state !== 'fulfilled' || !operation.joined || !operation.observerSettled)
-      return await stop(new Error('UC2 original outer operation not known successful'));
+      return await stop(
+        new Error('UC2 original outer operation not known successful'),
+        'outer-operation-incomplete',
+      );
   }
 }
 function captureParentPipe(
@@ -833,17 +980,21 @@ function captureParentPipe(
           break;
         }
         count += chunk.value.byteLength;
-        if (count > 1048576) return await stop(new Error('UC2 original parent pipe cap exceeded'));
+        if (count > 1048576)
+          return await stop(new Error('UC2 original parent pipe cap exceeded'), 'parent-pipe-cap');
         chunks.push(chunk.value);
       }
       await closedPromise;
       await closedObserver;
       if (pipe.closedState !== 'fulfilled')
-        return await stop(new Error('UC2 original closed promise not fulfilled'));
+        return await stop(
+          new Error('UC2 original closed promise not fulfilled'),
+          'parent-pipe-closed',
+        );
       reader.releaseLock();
       return Buffer.concat(chunks);
     } catch (cause) {
-      return await stop(cause);
+      return await stop(cause, 'parent-pipe-catch');
     }
   })();
   return pipe;
@@ -962,6 +1113,7 @@ export async function prepareDependencyOwnerCustody(): Promise<
     () => {
       void stop(
         new Error('UC2 conservative local deadline notice; fixed-clock expiry not inferred'),
+        'deadline-notice',
       );
     },
     Math.max(1, Math.floor(allocation.localDeadline - performance.now())),
@@ -970,7 +1122,10 @@ export async function prepareDependencyOwnerCustody(): Promise<
   try {
     for (const row of dependencyOwnerCustodyCases.filter((row) => row.variant === selected)) {
       if (parent.stopped || readKernelTick() >= allocation.end)
-        return await stop(new Error('UC2 next helper acquisition refused after allocation'));
+        return await stop(
+          new Error('UC2 next helper acquisition refused after allocation'),
+          'helper-acquisition-refused',
+        );
       const root = await outerOperation('outer.fs.mkdtemp', mkdtemp, undefined, [
         join(tmpdir(), 'dependency-owner-custody-'),
       ]);
@@ -1191,7 +1346,7 @@ export async function prepareDependencyOwnerCustody(): Promise<
         [entry, bundle],
       ]) {
         if (isParentStopped() || readKernelTick() >= allocation.end)
-          return await stop(new Error('UC2 next build refused after allocation'));
+          return await stop(new Error('UC2 next build refused after allocation'), 'build-refused');
         const built = await outerOperation('outer.Bun.build', Bun.build, Bun, [
           { entrypoints: [input], target: 'bun', plugins: [plugin] },
         ]);
@@ -1218,7 +1373,7 @@ export async function prepareDependencyOwnerCustody(): Promise<
         }),
       ]);
       if (isParentStopped() || readKernelTick() >= allocation.end)
-        return await stop(new Error('UC2 next spawn refused after allocation'));
+        return await stop(new Error('UC2 next spawn refused after allocation'), 'spawn-refused');
       await joinOuterOperations();
       assertParentStart();
       parent.spawnEntered = true;
@@ -1247,7 +1402,7 @@ export async function prepareDependencyOwnerCustody(): Promise<
         const stdoutPipe = captureParentPipe(original, 'stdout', child.stdout);
         const stderrPipe = captureParentPipe(original, 'stderr', child.stderr);
         if (stdoutPipe.pump === undefined || stderrPipe.pump === undefined)
-          return await stop(new Error('UC2 original pump absent'));
+          return await stop(new Error('UC2 original pump absent'), 'pump-absent');
         const [stdout, stderr, code] = await Promise.all([
           stdoutPipe.pump,
           stderrPipe.pump,
@@ -1259,7 +1414,10 @@ export async function prepareDependencyOwnerCustody(): Promise<
           stdoutPipe.closedState !== 'fulfilled' ||
           stderrPipe.closedState !== 'fulfilled'
         )
-          return await stop(new Error('UC2 original parent readers not known closed'));
+          return await stop(
+            new Error('UC2 original parent readers not known closed'),
+            'readers-not-closed',
+          );
         original.known = true;
         await outerOperation('outer.fs.writeFile', writeFile, undefined, [
           join(root, 'stdout.log'),
@@ -1291,12 +1449,15 @@ export async function prepareDependencyOwnerCustody(): Promise<
           throw new Error('UC2 helper retirement record invalid');
         observations.set(row.variant, { pass: decoded.pass, oracle: decoded.oracle });
       } catch (cause) {
-        if (!original.known) return await stop(cause);
+        if (!original.known) return await stop(cause, 'helper-outcome-catch');
         throw cause;
       }
     }
     if (parent.stopped || readKernelTick() >= allocation.end)
-      return await stop(new Error('UC2 observation exceeded original allocation'));
+      return await stop(
+        new Error('UC2 observation exceeded original allocation'),
+        'allocation-exceeded',
+      );
     await joinOuterOperations();
     return observations;
   } catch (cause) {
@@ -1311,7 +1472,7 @@ export async function prepareDependencyOwnerCustody(): Promise<
           throw report.state === 'failed' ? report.failure : cause;
         }
       }
-      return await stop(cause);
+      return await stop(cause, 'parent-catch');
     }
     throw cause;
   } finally {

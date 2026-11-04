@@ -163,3 +163,17 @@ The finite operation SHALL keep its existing sanitized public phase error and re
 
 - **WHEN** a modeled native attempt fails before route or other deliberate fault injection
 - **THEN** the invocation-owned exclusive mode600 evidence file retains the private inner reason/hash and bounded safe effect transcript before the unchanged oracle rejects the missing injection
+
+### Requirement: Report first parent STOP without releasing original custody
+
+The private custody diagnostic SHALL retain the first parent STOP site, original cause identity and safe bounded snapshot of existing parent records. It SHALL attempt at most one synchronous write through its already captured stderr descriptor, with the existing generic STOP prefix and a tagged context frame of at most32768bytes. It SHALL expose only approved labels, states, safe categories and recorded presence/known/EOF flags, without reading raw cause properties or helper payload. Diagnostic completeness SHALL NOT authorize retirement or alter terminal pre-helper reporting.
+
+#### Scenario: A parent STOP occurs while original helper outcomes are incomplete
+
+- **WHEN** the first STOP occurs with an existing child or pipe outcome incomplete
+- **THEN** one fixed-site snapshot describes only currently recorded parent state, retains the exact private cause and preserves permanent HOLD, original handles, keeper and deadline
+
+#### Scenario: Repeated STOP or diagnostic write refusal
+
+- **WHEN** another STOP occurs or the first write is short, throws or returns an unsupported value
+- **THEN** first-site/context remains unchanged, no diagnostic retry or terminal eligibility follows, and original custody remains held
