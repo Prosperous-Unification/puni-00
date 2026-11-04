@@ -1,6 +1,7 @@
 import type { RuntimeAuthority, RuntimeScope } from '@wbs/contracts';
 
 import type { ArtifactDigest, ArtifactRef, Ownership, Revision } from './records';
+import type { RecoveryHistory } from './recovery-records';
 
 export type { RuntimeAuthority, RuntimeScope };
 
@@ -45,6 +46,26 @@ export interface RuntimeGrant {
 }
 /** Raw inspection validates local history; independent receipt artifacts require {@link readRuntimeHistory}. */
 export type RuntimeScopeSnapshot =
+  RuntimeScopeSnapshot1 | RuntimeScopeSnapshot2 | RuntimeScopeSnapshot3;
+export type RuntimeScopeSnapshot3 = RuntimeScopeSnapshot2 extends infer Snapshot
+  ? Snapshot extends RuntimeScopeSnapshot2
+    ? Omit<Snapshot, 'version'> & { readonly version: 3 }
+    : never
+  : never;
+export type RuntimeScopeSnapshot2 =
+  | (Omit<Extract<RuntimeScopeSnapshot1, { kind: 'uninitialized' }>, 'version'> & {
+      readonly version: 2;
+      readonly recoveries: readonly RecoveryHistory[];
+      readonly activeRecoveryId: null;
+      readonly generationFloor: null;
+    })
+  | (Omit<Extract<RuntimeScopeSnapshot1, { kind: 'pinned' }>, 'version'> & {
+      readonly version: 2;
+      readonly recoveries: readonly RecoveryHistory[];
+      readonly activeRecoveryId: string | null;
+      readonly generationFloor: number | null;
+    });
+export type RuntimeScopeSnapshot1 =
   | {
       readonly version: 1;
       readonly kind: 'uninitialized';

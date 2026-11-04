@@ -344,8 +344,9 @@ _Avoid_: Operation key, turn key, session ID
 
 **Executor session**:
 The adapter or backend conversation identity used as an attempt's agent run; it is distinct
-from that attempt and its logical operation.
-_Avoid_: Attempt, worker, provider response ID
+from that attempt, its logical operation and its workflow run. The receiver's live runtime
+claim identifies this session as its agent run.
+_Avoid_: Attempt, workflow run, worker, provider response ID
 
 **Turn key**:
 The session-scoped identity of one immutable activity turn request, reused for exact

@@ -767,6 +767,17 @@ describe('the Ansible host and k3s contract', () => {
     expect(Object.keys(inventory.all.children['k3s_bootstrap_servers']?.hosts ?? {})).toEqual([
       'h4claw',
     ]);
+    // The sudo exception is opt-in per host and only h2puni carries it (gate-hosts.md, step 0).
+    // Proof: setting the default to true, and adding the flag to h4claw, each failed this.
+    expect(defaults['puni_gate_account_may_sudo']).toBe<boolean>(false);
+    expect(
+      Object.entries(inventory.all.children['gate_hosts']?.hosts ?? {})
+        .filter(
+          ([, host]) =>
+            (host as Record<string, unknown> | null)?.['puni_gate_account_may_sudo'] === true,
+        )
+        .map(([name]) => name),
+    ).toEqual(['h2puni']);
     // The non-interactive SSH shell a remote gate runs in stops at the guard, so the pinned PATH
     // has to precede it. Proof: moving the PATH line below the guard failed (351 not < 309).
     expect(bashrc.indexOf('export PATH=')).toBeGreaterThan(-1);

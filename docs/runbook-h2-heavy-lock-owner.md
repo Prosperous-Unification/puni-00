@@ -7,7 +7,7 @@ a current answer; a prior report is not a reservation or a live ownership claim.
 ```sh
 ssh h2puni 'bash -s' <<'SH'
 set -euo pipefail
-lock_status=/home/puni1/wbs-t267/bin/with-heavy-lock.sh
+lock_status=/home/puni1/puni-00-gate-launcher/bin/with-heavy-lock.sh
 before=$($lock_status status)
 printf '%s\n' "$before"
 line=${before%%$'\n'*}
