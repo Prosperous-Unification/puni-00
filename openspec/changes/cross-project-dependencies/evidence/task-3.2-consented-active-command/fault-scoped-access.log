@@ -1,0 +1,43 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:
+(pass) MCP organization delegation against a booted be-01 > before activation an MCP session works exactly as before [74.11ms]
+(pass) MCP organization delegation against a booted be-01 > the operator activates organizations [2977.02ms]
+(pass) MCP organization delegation against a booted be-01 > a session bound at consent lists projects and runs a command batch [111.40ms]
+(pass) MCP organization delegation against a booted be-01 > the same session is refused on another organization's project [41.31ms]
+(pass) MCP organization delegation against a booted be-01 > a raw upstream Bearer with no delegation is refused [5.96ms]
+(pass) MCP organization delegation against a booted be-01 > keeps the signed delegation through an upstream refresh retry [3023.53ms]
+(pass) MCP organization delegation against a booted be-01 > offers dany's agents at consent, and a consent as claire mints her credential [29.19ms]
+(pass) MCP organization delegation against a booted be-01 > a consent session's tool call claims as its agent, never with the human's reach [135.02ms]
+(pass) MCP organization delegation against a booted be-01 > a consent cannot borrow its super-admin account’s restricted-project recovery [137.64ms]
+(pass) MCP organization delegation against a booted be-01 > refresh keeps the agent alive as the agent [19.04ms]
+(pass) MCP organization delegation against a booted be-01 > authorizing as yourself beside agents stays the human session [76.29ms]
+(pass) MCP organization delegation against a booted be-01 > a second consent for the same agent mints a second credential [10.79ms]
+(pass) MCP organization delegation against a booted be-01 > revoking the consent in WBS ends the session: 401, and refresh is refused [8.15ms]
+(pass) MCP organization delegation against a booted be-01 > a family mcp-01 ends marks its credential revoked in WBS [10.07ms]
+(pass) MCP organization delegation against a booted be-01 > MCP and direct HTTP carry the same scoped external command to the dormant backend [111.83ms]
+(pass) MCP organization delegation against a booted be-01 > HTTP and MCP refuse dormant external add and local-to-external update for all scopes and types [860.62ms]
+(pass) MCP organization delegation against a booted be-01 > HTTP preserves legacy aliases and typed local stable relationship history [1094.73ms]
+(pass) MCP organization delegation against a booted be-01 > MCP preserves legacy aliases and typed local stable relationship history [1202.64ms]
+(pass) MCP organization delegation against a booted be-01 > HTTP and MCP preserve indexed malformed endpoint and closed request refusals atomically [1213.95ms]
+(pass) MCP organization delegation against a booted be-01 > explicit endpoint IDs reject empty and surrounding whitespace through HTTP and MCP [2144.29ms]
+305 |   const body = (await response.json()) as {
+306 |     result?: { isError?: boolean; content: { text: string }[] };
+307 |     error?: unknown;
+308 |   };
+309 |   if (body.result === undefined)
+310 |     throw new Error(`MCP response has no result: ${JSON.stringify(body.error)}`);
+                    ^
+error: MCP response has no result: {"code":-32603,"message":"postApiProjectsByIdCommands: be-01 answered unexpected HTTP 500 from POST /api/projects/{id}/commands."}
+      at tool (/tmp/puni-connected-delegation-command-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:310:15)
+      at async <anonymous> (/tmp/puni-connected-delegation-command-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:1119:30)
+(fail) MCP organization delegation against a booted be-01 > consented HTTP and generated MCP commands commit active whole FS with the same authority [353.40ms]
+(pass) MCP organization delegation against a booted be-01 > a removed member's session is refused on its next call and cannot refresh [9.83ms]
+
+1 tests failed:
+(fail) MCP organization delegation against a booted be-01 > consented HTTP and generated MCP commands commit active whole FS with the same authority [353.40ms]
+
+ 21 pass
+ 1 fail
+ 714 expect() calls
+Ran 22 tests across 1 file. [20.10s]

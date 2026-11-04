@@ -1,0 +1,229 @@
+import { isIP } from 'node:net';
+
+import type { ParticipantListener } from './dependency-participant-listener';
+import type { HostMember, InnerPass, InnerProcess } from './dependency-product-validation';
+import { decodeListeners, decodeLocalAddresses } from './dependency-product-validation';
+import type { HostProcessIdentity } from './installed-authorities';
+import { assertSame, readFields, readString } from './managed-cohort';
+import type { SourceConfigSlot } from './source-startup-manifest';
+
+export interface SourceRoleBinding {
+  readonly process: HostProcessIdentity & {
+    readonly executable: InnerProcess['executable'];
+    readonly cwd: string;
+  };
+  readonly innerPid: number;
+  readonly listeners: readonly ParticipantListener[];
+}
+export interface SourceProfile {
+  readonly roles: Readonly<Record<SourceConfigSlot, SourceRoleBinding>>;
+  readonly localAddresses: readonly string[];
+}
+/** Named refusal for a topology outside the source-pinned launcher forms. Native whole-stack acceptance remains required. */
+export class UnsupportedSourceProfile extends Error {
+  constructor() {
+    super('source process unsupported launch profile; native acceptance pending');
+  }
+}
+const tiers = { backend: 'be-01', gateway: 'gw-01', mcp: 'mcp-01', frontend: 'fe-01' } as const;
+const ports = { backend: 3100, gateway: 3200, mcp: 3300, frontend: 4200 } as const;
+const isArgvEqual = (left: readonly string[], right: readonly string[]) =>
+  JSON.stringify(left) === JSON.stringify(right);
+const isBun = (process: InnerProcess) =>
+  process.executablePath === '/usr/local/bin/bun' &&
+  ['bun', '/usr/local/bin/bun'].includes(process.argv[0]);
+const isNode = (process: InnerProcess) =>
+  process.executablePath === '/usr/local/bin/node' &&
+  ['node', '/usr/local/bin/node'].includes(process.argv[0]);
+
+/**
+ * Joins the complete source roster to exact serving-role and launcher identities.
+ * Throws {@link UnsupportedSourceProfile} for unclassified forms or ancestry.
+ * Native acceptance and the derivation of supported forms are recorded in
+ * {@link ../../../../openspec/changes/cross-project-dependencies/design.md}.
+ */
+export function inspectSourceProfile(
+  pass: InnerPass,
+  roster: readonly HostMember[],
+  native: Readonly<Record<string, unknown>>,
+): SourceProfile {
+  const refuse: () => never = () => {
+    throw new UnsupportedSourceProfile();
+  };
+  const root = pass.processes.find((process) => process.pid === 1);
+  if (root === undefined || roster.length !== pass.processes.length) refuse();
+  const rootHost = roster.find((member) => member.namespacePid === 1);
+  if (rootHost === undefined) refuse();
+  for (const host of roster) {
+    const inner = pass.processes.find((process) => process.pid === host.namespacePid);
+    // Proof: omitting this join admitted inner UID0 against the original UID1000 host; the raw uid consumer missed its rejection, then passed after exact restoration.
+    if (
+      inner?.start !== host.start ||
+      inner.uid !== host.uid ||
+      !isArgvEqual(inner.uids.map(String), host.uids.map(String)) ||
+      host.uids.some((uid) => uid !== 1000) ||
+      host.cgroup !== rootHost.cgroup
+    )
+      refuse();
+  }
+  const parent = (process: InnerProcess): number => {
+    const host = roster.find((member) => member.namespacePid === process.pid);
+    if (host === undefined) return refuse();
+    const ancestor = roster.find((member) => member.pid === host.parent);
+    if (ancestor === undefined) return refuse();
+    return ancestor.namespacePid;
+  };
+  const admitted = new Set<number>();
+  const hostConfig = readFields(native['HostConfig']);
+  let spineParent: number | null = null;
+  if (hostConfig['Init'] === true) {
+    const rawArgs = native['Args'];
+    if (!Array.isArray(rawArgs)) refuse();
+    const args = rawArgs.map((argument: unknown) => readString(argument));
+    if (
+      !['/sbin/docker-init', '/usr/bin/docker-init'].includes(root.executablePath) ||
+      root.cwd !== '/src' ||
+      !isArgvEqual(root.argv, [root.executablePath, '--', readString(native['Path']), ...args])
+    )
+      refuse();
+    admitted.add(root.pid);
+    spineParent = root.pid;
+  }
+  const launchers = pass.processes.filter(
+    (process) =>
+      isBun(process) &&
+      process.cwd === '/src' &&
+      isArgvEqual(process.argv.slice(1), ['run', 'dev']),
+  );
+  if (launchers.length > 1) refuse();
+  const launcher = launchers.at(0);
+  if (launcher !== undefined) {
+    if (spineParent === null ? launcher.pid !== 1 : parent(launcher) !== spineParent) refuse();
+    admitted.add(launcher.pid);
+    spineParent = launcher.pid;
+  }
+  const controllers = pass.processes.filter(
+    (process) =>
+      isNode(process) &&
+      process.cwd === '/src' &&
+      ['/src/node_modules/nx/dist/bin/nx.js', '/src/node_modules/.bin/nx'].includes(
+        process.argv[1],
+      ) &&
+      isArgvEqual(process.argv.slice(2), [
+        'run-many',
+        '-t',
+        'serve',
+        '--projects=wbs-be-01,wbs-gw-01,wbs-fe-01,wbs-mcp-01',
+      ]),
+  );
+  if (controllers.length !== 1) refuse();
+  const controller = controllers[0];
+  if (spineParent === null ? controller.pid !== 1 : parent(controller) !== spineParent) refuse();
+  admitted.add(controller.pid);
+  const localAddresses = decodeLocalAddresses(pass.addresses);
+  const roles = {} as Record<SourceConfigSlot, SourceRoleBinding>; // Every fixed role is assigned in the closed loop before this object escapes.
+  for (const role of ['backend', 'gateway', 'mcp', 'frontend'] as const) {
+    const cwd = `/src/apps/wbs/${tiers[role]}`;
+    const candidates = pass.processes.filter(
+      (process) =>
+        process.cwd === cwd &&
+        (role === 'frontend'
+          ? isNode(process) &&
+            isArgvEqual(process.argv.slice(1), ['/src/node_modules/vite/bin/vite.js'])
+          : isBun(process) && isArgvEqual(process.argv.slice(1), ['--watch', 'src/main.ts'])),
+    );
+    const owned = decodeListeners(pass, ports[role]);
+    // Proof: replacing this owner join with the first candidate admitted swapped backend/gateway listener owners; the raw misassigned consumer missed its rejection, then passed after exact restoration.
+    const application = candidates.find((process) =>
+      owned.every((listener) => listener.owner === process.pid),
+    );
+    const hostApplication = roster.find((member) => member.namespacePid === application?.pid);
+    if (
+      application === undefined ||
+      hostApplication === undefined ||
+      candidates.length < 1 ||
+      candidates.length > (role === 'frontend' ? 1 : 2)
+    )
+      refuse();
+    admitted.add(application.pid);
+    let child = application;
+    const supervisors = candidates.filter((process) => process.pid !== application.pid);
+    if (supervisors.length === 1) {
+      const supervisor = supervisors[0];
+      if (parent(child) !== supervisor.pid) refuse();
+      admitted.add(supervisor.pid);
+      child = supervisor;
+    }
+    if (role === 'frontend') {
+      const wrappers = pass.processes.filter(
+        (process) =>
+          process.cwd === cwd &&
+          process.executablePath === '/usr/local/bin/bun' &&
+          ['bunx', '/usr/local/bin/bunx'].includes(process.argv[0]) &&
+          isArgvEqual(process.argv.slice(1), ['vite']),
+      );
+      if (wrappers.length > 1) refuse();
+      const wrapper = wrappers.at(0);
+      if (wrapper !== undefined) {
+        if (parent(child) !== wrapper.pid) refuse();
+        admitted.add(wrapper.pid);
+        child = wrapper;
+      }
+    }
+    const command = role === 'frontend' ? 'bunx vite' : 'bun --watch src/main.ts';
+    const shells = pass.processes.filter(
+      (process) =>
+        process.cwd === cwd &&
+        ['/usr/bin/dash', '/bin/dash'].includes(process.executablePath) &&
+        ['sh', '/bin/sh'].includes(process.argv[0]) &&
+        isArgvEqual(process.argv.slice(1), ['-c', command]),
+    );
+    if (shells.length > 1) refuse();
+    const shell = shells.at(0);
+    if (shell !== undefined) {
+      if (parent(child) !== shell.pid) refuse();
+      admitted.add(shell.pid);
+      child = shell;
+    }
+    // Proof: omitting this ancestry check admitted a backend parented by gateway in coherent top/host/inner receipts; the raw role-parent consumer missed UnsupportedSourceProfile, then passed after exact restoration.
+    if (parent(child) !== controller.pid) refuse();
+    for (const listener of owned) {
+      const family = listener.family === 'ipv4' ? 4 : 6;
+      if (
+        !localAddresses.some((address) => isIP(address) === family) ||
+        (listener.address !== '0.0.0.0' &&
+          listener.address !== '::' &&
+          (!localAddresses.includes(listener.address) || isIP(listener.address) !== family))
+      )
+        refuse();
+    }
+    roles[role] = {
+      process: {
+        pid: hostApplication.pid,
+        startTime: hostApplication.start,
+        uid: hostApplication.uid,
+        cgroup: hostApplication.cgroup,
+        executable: application.executable,
+        argvSha256: application.argvSha256,
+        cwd: application.cwd,
+      },
+      innerPid: application.pid,
+      listeners: owned.map(({ owner: _owner, ...listener }) => listener),
+    };
+  }
+  // Proof: omitting full admission accepted an unsupported seventh process; the raw extra consumer missed its rejection, then passed after exact restoration.
+  if (admitted.size !== pass.processes.length) refuse();
+  // The pinned runtime has one Bun and one Node object; all admitted uses must agree independently of their argv spelling.
+  for (const executable of [
+    '/usr/local/bin/bun',
+    '/usr/local/bin/node',
+    '/usr/bin/dash',
+    '/bin/dash',
+  ]) {
+    const uses = pass.processes.filter((process) => process.executablePath === executable);
+    for (const process of uses.slice(1))
+      assertSame(uses[0].executable, process.executable, 'source runtime executable object');
+  }
+  if (new Set(Object.values(roles).map((role) => role.process.pid)).size !== 4) refuse();
+  return { roles, localAddresses };
+}

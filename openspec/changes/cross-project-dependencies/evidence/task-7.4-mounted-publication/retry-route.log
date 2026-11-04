@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/services-connected-publication.db.test.ts:
+(pass) mounted child publishes improved durable ready candidate and replays exact target and foreign dates [1354.96ms]
+382 |   await f.tree();
+383 |   expect(ledger(f.sqlite)).toEqual(settled);
+384 |   expect(f.launched).toHaveLength(2);
+385 |   const stale = await retry(f, 'stale');
+386 |   expect(stale.status).toBe(409);
+387 |   expect(await stale.json()).toMatchObject({ code: 'stale-input-hash' });
+                                   ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "code": "stale-input-hash",
++   "code": "not-retryable",
++   "state": "idle",
+  }
+
+- Expected  - 1
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-publication-74/apps/wbs/be-01/src/services-connected-publication.db.test.ts:387:30)
+(fail) mounted current-hash Retry alone recovers failed objective without retrying healthy sibling [908.48ms]
+(pass) mounted persisted candidate tamper is corrupt and never admits on read [982.13ms]
+(pass) mounted persisted comparison tamper is corrupt and never admits on read [890.59ms]
+
+ 3 pass
+ 1 fail
+ 62 expect() calls
+Ran 4 tests across 1 file. [14.88s]

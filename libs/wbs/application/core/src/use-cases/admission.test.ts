@@ -14,6 +14,7 @@ import { replay } from '../module/realtime/realtime.feature';
 import { savePlan } from '../module/saved-plans/save-plan';
 import { LEGACY_ACCESS } from '../ports/organization-access';
 import { inMemoryServices } from '../testing/harness';
+import { localCommandAccess } from '../testing/organization-access-fixture';
 import { batchServices, testWrites } from '../testing/writes-fixture';
 
 const writer: AuthenticatedUser = { id: 'owner', username: 'Ada', scopes: ['read', 'write'] };
@@ -47,6 +48,7 @@ describe('runCommandBatch', () => {
     const plan = inMemoryServices({ projects });
     const writes = testWrites(undefined, batchServices(plan));
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       batchServices: writes.batch,
       publicServices: batchServices(plan),
       uow: writes.uow,
@@ -88,7 +90,7 @@ describe('runCommandBatchAfter', () => {
       {
         runAfterWithin: async (_projectId, _actorId, prelude) => {
           writes.push('ran');
-          await prelude({} as never);
+          await prelude({} as never, LEGACY_ACCESS);
           return { ok: true, results: [], undoable: false, redoable: false };
         },
       },

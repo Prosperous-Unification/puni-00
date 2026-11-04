@@ -33,13 +33,13 @@ test('declares the plan import shape and complete typed outcomes', async () => {
   });
   expect(importProject.responses.map(({ status }) => status)).toEqual([201]);
   expect(importProject.refusals.map(({ status }) => status)).toEqual([
-    409, 400, 401, 403, 403, 409, 403, 409, 409, 409,
+    409, 400, 401, 403, 403, 409, 403, 409, 409, 409, 409,
   ]);
-  const limit = importProject.refusals[8];
+  const limit = importProject.refusals[9];
   const crossed = { error: 'agent_person_limit' as const, cap: 8, current: 6, added: 3 };
   expect(await validateSchema(limit.schema, crossed)).toEqual({ value: crossed });
   expect((await validateSchema(limit.schema, { ...crossed, added: '3' })).issues).toBeDefined();
-  const capacityLimit = importProject.refusals[9];
+  const capacityLimit = importProject.refusals[10];
   const statedPast = {
     error: 'capacity_limit' as const,
     resourceId: 'ram',

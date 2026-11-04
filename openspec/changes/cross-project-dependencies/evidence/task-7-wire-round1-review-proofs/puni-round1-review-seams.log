@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+../puni-wire-round1-review-probes/seams.test.ts:
+(pass) different objectives must not share a full question identity [5.71ms]
+(pass) malformed budget must not produce a prepared boundary terminal [0.32ms]
+(pass) fractional origin must not produce a prepared boundary terminal [0.26ms]
+nonfinite token NaN exit 64 stdout  stderr wbs-solver: nonfinite number at <root>/scope/fixed/0/finish
+
+nonfinite token 1e309 exit 64 stdout  stderr wbs-solver: nonfinite number at <root>/scope/fixed/0/finish
+
+(pass) installed receiver rejects nonfinite foreign placement [793.05ms]
+invalid budget exit 64 stderr wbs-solver: request does not satisfy #/$defs/request: budgetMs: 0 is less than the minimum of 1
+
+invalid origin exit 64 stderr wbs-solver: request does not satisfy #/$defs/request: scope/originOrdinal: 0.5 is not of type 'integer'
+
+(pass) installed receiver independently rejects malformed terminal requests [979.66ms]
+overflow-float exit 64 stdout  stderr wbs-solver: nonfinite number at <root>/scope/fixed/0/finish
+
+(pass) installed receiver rejects exponent-overflow foreign placement [432.85ms]
+bad-witness exit 64 stdout  stderr wbs-solver: declared feasibleBaselineOffsets violate the full model
+
+(pass) installed CLI classifies invalid declared witness as bad request [465.47ms]
+(pass) finite unrepresentable connected horizon is a typed preflight failure [1.15ms]
+
+../puni-round1-installed.test.ts:
+(pass) installed 0.4.0 classifies valid terminal and invalid witness [902.28ms]
+(pass) installed 0.4.0 refuses nonfinite fixed and occupancy evidence [3332.91ms]
+(pass) installed 0.4.0 refuses finite quantization overflow [796.57ms]
+
+ 11 pass
+ 0 fail
+ 49 expect() calls
+Ran 11 tests across 2 files. [7.91s]

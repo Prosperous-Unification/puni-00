@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/solver-drain-transport.test.ts:
+(pass) discovery retains original census and adds only owner filter [0.14ms]
+(pass) execution mapping preserves real serialization bookkeeping and rejects alien argv [0.11ms]
+(pass) execution rejects unknown native serialization and extra execution records [0.04ms]
+(pass) bounded command kills and reaps exact child on timeout and malformed UTF8 [105.41ms]
+45 |
+46 | async function refuses(operation: Promise<string>, message: string): Promise<void> {
+47 |   try {
+48 |     await operation;
+49 |   } catch (cause) {
+50 |     expect(String(cause)).toContain(message);
+                               ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "bound"
+Received: "Error: fixture command deadline/cancellation"
+
+      at refuses (/tmp/puni-solver-drain-acceptance/tools/tool-remote-scripts/test/solver-drain-transport.test.ts:50:27)
+      at async <anonymous> (/tmp/puni-solver-drain-acceptance/tools/tool-remote-scripts/test/solver-drain-transport.test.ts:91:9)
+(fail) bounded command refuses excessive output and nonzero status [2003.69ms]
+(pass) ownership rejects foreign label, unknown name and changed ID before exact effect [1.43ms]
+(pass) cleanup refuses a no-op kill and changed terminal identity before remove [0.99ms]
+(pass) cleanup removes created-inert without kill/wait and verifies terminal kill agreement [0.33ms]
+(pass) effective unit refuses prefix drop-ins and extra commands before initial start [1.66ms]
+(pass) effective preflight blocks actual guarded unit start and cleanup stop effects [1.19ms]
+
+ 9 pass
+ 1 fail
+ 36 expect() calls
+Ran 10 tests across 1 file. [2.17s]

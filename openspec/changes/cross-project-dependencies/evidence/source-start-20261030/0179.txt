@@ -1,0 +1,14 @@
+{
+  "originalSHA256": "1f96475065f6b79228c6ea0e7bd80b60f93cf0be5d3d9bb5a46db2f93a05720d",
+  "mutantSHA256": "245e7b016f6b4bfdc81a844240214a6e5e15eb40b4b1e28d5fcaa9a20c5729e8",
+  "before": "          assertSame(expected.executable, opener.executable, 'backend database opener executable');",
+  "after": "          // Injected: source-phase executable equality omitted.",
+  "sourceStat": {
+    "device": 66307,
+    "inode": 22631290,
+    "mode": 436,
+    "size": 33957,
+    "mtimeNs": 1793312334084626912,
+    "ctimeNs": 1793312334084626912
+  }
+}

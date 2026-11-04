@@ -1,0 +1,47 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-plan-benchmark.db.test.ts:
+117 |             const captureStart = performance.now();
+118 |             const captured = await snapshot.captureConnected(target.projectId);
+119 |             const captureMs = performance.now() - captureStart;
+120 |             const captureQueries = queries.length - beforeCapture;
+121 |             // Proof: applying lookup's 25-project page limit to full capture omitted 177 sparse and one dense member.
+122 |           expect(captured.projects.map(({ projectId }) => projectId).sort()).toEqual(
+                                                                                   ^
+error: expect(received).toEqual(expected)
+
+@@ -1,7 +1,6 @@
+  [
+-   "sparse-0",
+    "sparse-1",
+    "sparse-10",
+    "sparse-100",
+    "sparse-101",
+    "sparse-102",
+@@ -112,11 +111,10 @@
+    "sparse-198",
+    "sparse-199",
+    "sparse-2",
+    "sparse-20",
+    "sparse-200",
+-   "sparse-201",
+    "sparse-21",
+    "sparse-22",
+    "sparse-23",
+    "sparse-24",
+    "sparse-25",
+
+- Expected  - 2
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/connected-plan-benchmark.db.test.ts:122:78)
+      at async withSnapshot (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:125:29)
+      at async <anonymous> (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/connected-plan-benchmark.db.test.ts:112:46)
+(fail) sparse: captures each required project once; closure includes incident and shared person bridges; lookup page bounds never truncate scheduling closure [1346.46ms]
+{"metric":"connected-capture","shape":"dense","projects":26,"relationships":300,"captureQueries":5897,"totalQueries":5935,"captureMs":106.73899799999981,"deriveMs":8.449678999999833}
+(pass) dense: captures each required project once; closure includes incident and shared person bridges; lookup page bounds never truncate scheduling closure [422.26ms]
+
+ 1 pass
+ 1 fail
+ 121 expect() calls
+Ran 2 tests across 1 file. [4.08s]

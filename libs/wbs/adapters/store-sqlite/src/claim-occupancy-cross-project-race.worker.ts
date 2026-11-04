@@ -1,10 +1,13 @@
 import { clockOf, CREATOR_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 
 import { openSqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 interface RaceRequest {
   readonly path: string;
@@ -22,21 +25,30 @@ interface RaceRequest {
  */
 self.onmessage = async (message: MessageEvent<RaceRequest>) => {
   const { path, barrier, projectId, workItemId, personId, actorId } = message.data;
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
   try {
     const options = {
       admission: CREATOR_ADMISSION,
       clock: clockOf({ now: () => 2_000, newId: () => crypto.randomUUID() }),
       broadcast: recordingBroadcaster(),
       scheduler: fastScheduler,
+      dependencyContext: createLocalDependencyContext(source.stores),
     };
     const graph = servicesOver(source.stores, options);
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       uow: source.uow,
       announcements: options.broadcast,
       publicServices: graph,
       batchServices: (scope, announcements) =>
-        servicesOver(scope.stores, { ...options, broadcast: announcements }),
+        servicesOver(scope.stores, {
+          ...options,
+          broadcast: announcements,
+          dependencyContext: createLocalDependencyContext(scope.stores),
+        }),
     });
     const state = new Int32Array(barrier);
     Atomics.add(state, 0, 1);

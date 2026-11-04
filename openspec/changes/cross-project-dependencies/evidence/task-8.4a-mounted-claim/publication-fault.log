@@ -1,0 +1,20 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-live.controller.db.test.ts:
+{"level":"error","time":1792665025408,"service":"be-01","err":{"occurrence_id":"AE_36C77AY3C2KFFB3KCC2PAB6ADN","fingerprint":"fp1_feb7c01297c177941dea9918c14e7994","stack":["Error: injected connected publication fault","    at tree (/tmp/puni-tree-admission-combine/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2131:19)","    at async announceTree (/tmp/puni-tree-admission-combine/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:8830:29)","    at async execute (/tmp/puni-tree-admission-combine/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:556:49)","    at async <anonymous> (/tmp/puni-tree-admission-combine/libs/wbs/application/core/src/http/work-item.routes.ts:575:31)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+501 |   });
+502 |   try {
+503 |     await Promise.race([
+504 |       arrived.promise,
+505 |       new Promise<never>((_resolve, reject) => {
+506 |         setTimeout(() => reject(new Error('claim did not reach postcommit push')), 1500);
+                                          ^
+error: claim did not reach postcommit push
+      at <anonymous> (/tmp/puni-tree-admission-combine/apps/wbs/be-01/src/controller/cross-project-live.controller.db.test.ts:506:37)
+(fail) nonassigning remote governed claim commits before durable announcement delivery [1852.58ms]
+
+ 0 pass
+ 8 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [4.08s]

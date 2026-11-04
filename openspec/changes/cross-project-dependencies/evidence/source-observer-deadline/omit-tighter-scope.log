@@ -1,0 +1,41 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:
+29 | }
+30 | const exclusions = new WeakMap<SourceDevExclusion, SourceScope>();
+31 | 
+32 | function assertScopeDeadline(scope: SourceScope): void {
+33 |   if (!Number.isFinite(scope.deadline) || performance.now() >= scope.deadline)
+34 |     throw new Error('source dev exclusion deadline exceeded');
+                   ^
+error: source dev exclusion deadline exceeded
+      at assertScopeDeadline (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:34:15)
+      at assertScope (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:45:3)
+      at inspectScope (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:151:9)
+      at withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:251:13)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source inspection tighter deadline aborts and reaps stalled ps child without changing original scope [2007.97ms]
+29 | }
+30 | const exclusions = new WeakMap<SourceDevExclusion, SourceScope>();
+31 | 
+32 | function assertScopeDeadline(scope: SourceScope): void {
+33 |   if (!Number.isFinite(scope.deadline) || performance.now() >= scope.deadline)
+34 |     throw new Error('source dev exclusion deadline exceeded');
+                   ^
+error: source dev exclusion deadline exceeded
+      at assertScopeDeadline (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:34:15)
+      at assertScope (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:47:3)
+      at async inspectScope (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:151:9)
+      at async withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:251:13)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source inspection tighter deadline aborts and reaps stalled image child without changing original scope [2017.21ms]
+
+ 0 pass
+ 45 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [4.07s]

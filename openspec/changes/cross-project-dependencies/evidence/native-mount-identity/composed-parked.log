@@ -1,0 +1,14 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/backend-exclusion.test.ts:
+(pass) combined coordinator retains solver tmpfs and source members throughout awaited protected work [2881.44ms]
+(pass) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: none [3411.19ms]
+(pass) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: source-mount-duplicate [3288.24ms]
+(pass) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: source-mount-field [3306.29ms]
+(pass) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: unrelated-mount-field [3348.92ms]
+
+ 5 pass
+ 91 filtered out
+ 0 fail
+ 10224 expect() calls
+Ran 5 tests across 1 file. [16.37s]

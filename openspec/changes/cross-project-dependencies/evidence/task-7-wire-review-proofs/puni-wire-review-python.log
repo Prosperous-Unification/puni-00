@@ -1,0 +1,27 @@
+
+> nx run wbs-solver-py:test
+
+> python3 -m unittest discover -s tests -t tests
+
+.............................wbs-solver: unexpected arguments ['--search-workers', '0']; usage: wbs-solver [--version | --search-workers COUNT [--child-deadline-epoch-ms EPOCH_MS]]
+...wbs-solver: empty request: expected one JSON object on stdin
+.................................................................................................................................................................................................................................................
+----------------------------------------------------------------------
+Ran 273 tests in 35.382s
+
+OK
+
+
+
+ NX   Successfully ran target test for project wbs-solver-py
+
+
+  Run duration:      35.9s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     35.9s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-solver-py:test    35.9s

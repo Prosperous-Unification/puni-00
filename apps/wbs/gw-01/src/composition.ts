@@ -16,7 +16,9 @@ export function projectAccessFor(be: {
 }): (credential: SocketCredential) => CheckProjectAccess {
   const browser = browserProjectAccess(be);
   return (credential) =>
-    credential.kind === 'local' ? LOCAL_PROJECT_ACCESS : browser(credential.forwarded);
+    credential.kind === 'local'
+      ? LOCAL_PROJECT_ACCESS
+      : browser(credential.forwarded, credential.dependencySemantics);
 }
 
 /**

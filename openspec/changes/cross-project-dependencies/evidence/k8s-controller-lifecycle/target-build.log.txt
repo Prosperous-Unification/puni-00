@@ -1,0 +1,42 @@
+
+ NX   Nx was denied permission to create a plugin worker socket. Running plugins in the main process instead.
+
+Plugins that expect isolation may misbehave, and this is slower than a worker.
+Nx was denied permission to use its unix socket under /tmp/.nx or ~/.nx.
+To fix this, do one of the following:
+  - In `~/.codex/config.toml`, set `sandbox_workspace_write.network_access` to true and add /tmp/.nx or ~/.nx to `sandbox_workspace_write.writable_roots`. Codex has no setting that scopes sockets to a path, and `network_access` also grants general network access, so this is a broader grant than the other agents need.
+  - Get permission to create sockets under /tmp/.nx or ~/.nx, or set NX_SOCKET_DIR to a directory you do have permission for.
+See https://nx.dev/docs/kb/nx-sandbox-unix-sockets for details.
+
+
+ NX   Running target build for project tool-deploy and 8 tasks it depends on:
+
+
+✔  nx run tool-test-scratch:build  [local cache]
+✔  nx run shared-validation:build  [local cache]
+✔  nx run wbs-solver-supervisor-protocol:build  [local cache]
+✔  nx run shared-test-evidence:build  [local cache]
+✔  nx run shared-test-levels:build  [local cache]
+✔  nx run tool-compose:build  [local cache]
+✔  nx run tool-remote-scripts:build  [local cache]
+✔  nx run tool-devsync:build  [local cache]
+
+> nx run tool-deploy:build
+
+> command -v shellcheck >/dev/null 2>&1 || { echo '[tool-deploy] shellcheck is required but not installed. macOS: brew install shellcheck. Debian/Ubuntu: apt-get install shellcheck.' >&2; exit 1; }
+
+> shellcheck -s bash bin/assert-no-prod-release.sh
+
+
+
+
+ NX   Successfully ran target build for project tool-deploy and 8 tasks it depends on
+
+Nx read the output from the cache instead of running the command for 8 out of 9 tasks.
+
+Output of 8 successful tasks were not shown. Run with --verbose or --output-style=static to see it.
+
+  Run duration:      125ms
+  Cache:             8/9 hit (89%)
+  Critical path:     103ms (3 tasks)
+  Recoverable time:  <1ms

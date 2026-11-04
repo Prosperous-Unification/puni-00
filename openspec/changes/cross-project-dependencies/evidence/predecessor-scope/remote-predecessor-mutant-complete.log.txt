@@ -1,0 +1,35 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-remote-predecessor/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (96 tests | 2 failed | 94 skipped) 1050ms
+   × refuses paged persisted predecessor scopes on desktop 726ms
+   × refuses paged persisted predecessor scopes on phone 320ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > refuses paged persisted predecessor scopes on desktop
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > refuses paged persisted predecessor scopes on phone
+Error: expect(element).toBeDisabled()
+
+Received element is not disabled:
+  <button
+  type="button"
+/>
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:1076:63
+    1074|       if (evidence === 'paged') {
+    1075|         await screen.findByRole('button', { name: 'More scopes' });
+    1076|         expect(details.getByRole('button', { name: 'Save' })).toBeDisa…
+       |                                                               ^
+    1077|         fireEvent.click(screen.getByRole('button', { name: 'More scope…
+    1078|         await waitFor(() => expect(details.getByRole('button', { name:…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 94 skipped (96)
+   Start at  05:32:10
+   Duration  7.40s (import 55%, transform 25%, tests 14%, environment 6%, setup 1%)

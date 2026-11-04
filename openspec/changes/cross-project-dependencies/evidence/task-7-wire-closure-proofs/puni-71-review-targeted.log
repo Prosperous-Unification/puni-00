@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:
+(pass) connected response parser requires the exact captured question identity [5.86ms]
+(pass) external FS targets the second selected-project step [1.97ms]
+(pass) each connected request boundary and version member is required on the production path [3.71ms]
+
+ 3 pass
+ 18 filtered out
+ 0 fail
+ 70 expect() calls
+Ran 3 tests across 1 file. [214.00ms]

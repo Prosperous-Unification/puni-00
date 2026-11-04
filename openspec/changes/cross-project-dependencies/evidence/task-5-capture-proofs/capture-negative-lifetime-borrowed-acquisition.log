@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:
+493 |   } as const;
+494 |   try {
+495 |     const reader = createLivePlanStore(options);
+496 |     open = false;
+497 |     expect((await failureOf(reader.readProject('a1'))).message).toContain('scope is closed');
+498 |     expect(() => createLivePlanStore(options)).toThrow('scope is closed');
+                                                     ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "scope is closed"
+
+Received function did not throw
+Received value: {
+  read: [Function: read],
+  readAggregate: [Function: readAggregate],
+  readExport: [Function: readExport],
+  readProject: [Function: readProject],
+}
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:498:48)
+(fail) borrowed live reader refuses acquisition and reads after its one-way scope expires [153.26ms]
+
+ 0 pass
+ 21 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.10s]

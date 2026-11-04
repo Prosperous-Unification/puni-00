@@ -1,0 +1,364 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/gw-01/src/delivery.integration.test.ts:
+(pass) push awaits asynchronous recipient outcome and never counts a failed send [37.01ms]
+(pass) delayed replay reaches its recipient before later replay and resume acknowledgement [3.43ms]
+(pass) presence exposes asynchronous delivery failure while reaching healthy recipients [0.29ms]
+(pass) a retired replay stops before any later event or acknowledgement [0.16ms]
+(pass) fresh admission stops replay when authority changes after the first accepted event [0.25ms]
+(pass) held project admission cannot restore subscription after connection cancellation [2.43ms]
+(pass) mounted push cannot write after held admission cancellation or exact expiry with withheld timer [17.26ms]
+(pass) mounted expired FIFO head never asks authority even when timer callback is withheld [4.03ms]
+
+apps/wbs/gw-01/src/retirement.integration.test.ts:
+{"level":"error","time":1792772265426,"service":"gw-01","reason":"incompatible","err":{"occurrence_id":"AE_BM4ERKY5NS13P2JR45Z6GP48C8","fingerprint":"fp1_b21151a2d9c5fd4cba58161e87aefe9e","instanceof_error":false,"typeof":"undefined","as_string":"undefined","as_json":null,"as_string_format":"derived","v":"corj/v0.15"},"connectionId":"75c6846d-0bf5-4901-b3cc-1f38ae21b670","msg":"socket delivery retired"}
+(pass) mounted retirement removes presence and subscriptions and aborts before physical close [9.32ms]
+{"level":"error","time":1792772265431,"service":"gw-01","reason":"incompatible","err":{"occurrence_id":"AE_R57R3B84N536P5DS84FBHCB7NG","fingerprint":"fp1_b21151a2d9c5fd4cba58161e87aefe9e","instanceof_error":false,"typeof":"undefined","as_string":"undefined","as_json":null,"as_string_format":"derived","v":"corj/v0.15"},"connectionId":"61f26479-187c-4bde-b08c-1c92fb238f09","msg":"socket delivery retired"}
+(pass) mounted late identity verification cannot join presence after retirement [1.15ms]
+
+apps/wbs/gw-01/src/dependency-capabilities-cli.test.ts:
+(pass) observes frozen gateway V1 transport support independently of configuration and startup (DB_PATH=%s) [14.50ms]
+(pass) observes frozen gateway V1 transport support independently of configuration and startup (DB_PATH=/unavailable/store.sqlite) [18.62ms]
+(pass) refuses capability arguments before emitting an observation [24.88ms]
+
+apps/wbs/gw-01/src/retained-admission.integration.test.ts:
+{"level":"error","time":1792772265532,"service":"gw-01","reason":"incompatible","err":{"occurrence_id":"AE_T2VXBFXV8D6VJ7KE685JXTBFD9","fingerprint":"fp1_b21151a2d9c5fd4cba58161e87aefe9e","instanceof_error":false,"typeof":"undefined","as_string":"undefined","as_json":null,"as_string_format":"derived","v":"corj/v0.15"},"connectionId":"4e1648d9-5617-4937-bbed-b3eba46078d2","msg":"socket delivery retired"}
+(pass) incompatible retained push accepts zero and retires held subscribe without revival [34.98ms]
+{"level":"error","time":1792772265564,"service":"gw-01","reason":"failure","err":{"occurrence_id":"AE_6MDJJKVBBHP49M78N8P2HVPTEC","fingerprint":"fp1_92c4ebca8685ca0602f98e2ae219f07c","stack":["Error: dependency admission failed 404","    at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/service/dependency-admission.ts:47:19)","    at async untilAborted (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:32:25)"],"as_string_format":"derived","v":"corj/v0.15"},"connectionId":"90858b31-2bcb-4235-947a-f2835961163a","msg":"socket delivery retired"}
+{"level":"error","time":1792772265580,"service":"gw-01","reason":"failure","err":{"occurrence_id":"AE_SFR5EJ1SYRS692FK7ZWY0CDG55","fingerprint":"fp1_aa68dfd814d31bb7d5f6330cef53cc86","stack":["Error: malformed dependency admission refusal","    at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/service/dependency-admission.ts:60:19)","    at async untilAborted (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:32:25)"],"as_string_format":"derived","v":"corj/v0.15"},"connectionId":"c4b84455-988f-4740-9bbc-f8a5592d82a6","msg":"socket delivery retired"}
+{"level":"error","time":1792772265598,"service":"gw-01","reason":"failure","err":{"occurrence_id":"AE_EN2QJ5VS4ACNRV0FGFMY0VHE57","fingerprint":"fp1_12480f6892e2fa86533fd7cd3067b3ac","stack":["Error: authority unavailable","    at fetchImpl (/tmp/puni-v1-clients/apps/wbs/gw-01/src/retained-admission.integration.test.ts:111:58)","    at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/service/dependency-admission.ts:34:35)","    at untilAborted (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:59:32)","    at withinDeadline (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at admitDependencyUpgrade (/tmp/puni-v1-clients/apps/wbs/gw-01/src/service/dependency-admission.ts:29:10)","    at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/app.ts:369:22)","    at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/service/delivery.ts:109:45)","    at async untilAborted (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async deliver (/tmp/puni-v1-clients/apps/wbs/gw-01/src/service/delivery.ts:93:23)"],"as_string_format":"derived","v":"corj/v0.15"},"connectionId":"e1251729-0508-488c-bc93-46ba3cf0061c","msg":"socket delivery retired"}
+{"level":"error","time":1792772265637,"service":"gw-01","reason":"deadline","err":{"occurrence_id":"AE_8H6AKH0ZTVHJ0Y55S8F027RTG5","fingerprint":"fp1_23ed83a491fb9bd09be3340ca8f57737","as_json":{"name":"DeadlineExceeded"},"stack":["DeadlineExceeded: request deadline exceeded","    at <anonymous> (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:29:26)"],"as_string_format":"derived","v":"corj/v0.15"},"connectionId":"09fd4a13-7ba3-4c01-a01e-9599d6b6797f","msg":"socket delivery retired"}
+(pass) retained authority unavailable retires without sending application frames [96.73ms]
+{"level":"error","time":1792772265670,"service":"gw-01","reason":"incompatible","err":{"occurrence_id":"AE_V9T0A8E2WNVSNRC6ZRESDXS7KT","fingerprint":"fp1_b21151a2d9c5fd4cba58161e87aefe9e","instanceof_error":false,"typeof":"undefined","as_string":"undefined","as_json":null,"as_string_format":"derived","v":"corj/v0.15"},"connectionId":"3a5910cc-bc34-462b-8a95-b6e5b0d1c677","msg":"socket delivery retired"}
+(pass) retirement aborts pending backend work and removes subscriptions before physical close [31.41ms]
+(pass) physical close cancels a held retained authority request [21.94ms]
+
+apps/wbs/gw-01/src/project-authorization.integration.test.ts:
+(pass) gw-01 authorizes project subscriptions against be-01 > asks with the socket’s own credential and organization binding [81.23ms]
+(pass) gw-01 authorizes project subscriptions against be-01 > refuses a project the principal cannot read [86.00ms]
+(pass) gw-01 authorizes project subscriptions against be-01 > refuses resume points for a project the socket may not read [24.92ms]
+(pass) gw-01 authorizes project subscriptions against be-01 > withholds replay when access is lost while be-01 reads it [20.67ms]
+(pass) gw-01 authorizes project subscriptions against be-01 > drops a removed member’s live subscription when its lease is renewed [100.65ms]
+{"level":"error","time":1792772266040,"service":"gw-01","err":{"occurrence_id":"AE_3JEDRF20DRVAGDGAF9MN0YJP3A","fingerprint":"fp1_a05a1858218334d6c910f58fbc9c84ef","stack":["Error: be-01 unreachable","    at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/project-authorization.integration.test.ts:311:24)"],"context":{"operation":"project_access"},"as_string_format":"derived","v":"corj/v0.15"},"connection_id":"e34f268c-fefb-4954-870e-b59b8ccdb8f6","user_id":"ada","backend_operation":"project_access","msg":"gateway backend request failed"}
+(pass) gw-01 authorizes project subscriptions against be-01 > closes the socket when be-01 cannot answer, and grants nothing [22.74ms]
+(pass) gw-01 authorizes project subscriptions against be-01 > closes the socket when its credential no longer proves anyone [103.86ms]
+
+apps/wbs/gw-01/src/config.test.ts:
+(pass) loadConfig > supplies the fixed identity for cookie-free local WebSockets [0.91ms]
+(pass) loadConfig > refuses local auth on the production boot path [0.07ms]
+(pass) loadConfig > requires the browser callback origin when OIDC authenticates WebSockets [0.36ms]
+(pass) loadConfig > builds the WebSocket verifier and exact allowed origin in OIDC mode [0.11ms]
+(pass) loadConfig > turns password-session verification off and back on with the kill switch [0.97ms]
+
+apps/wbs/gw-01/src/fan-out.integration.test.ts:
+(pass) project events reach the sockets that asked for them > delivers to every subscriber of that project and nobody else [128.63ms]
+(pass) project events reach the sockets that asked for them > refuses a socket that asks for an unknown subscription [125.58ms]
+(pass) the presence roster is a project’s, not the gateway’s > shows each socket only the names in the project it subscribed to [7.98ms]
+(pass) the presence roster is a project’s, not the gateway’s > answers `who` with the asking socket’s own project [24.75ms]
+(pass) the presence roster is a project’s, not the gateway’s > moves a socket that switches project, and tells both rosters [24.11ms]
+(pass) a closed socket leaves the subscription it joined > is not counted in the fan-out after it disconnects [185.45ms]
+(pass) targets socket presence transitions and leaves unrelated streams silent [61.97ms]
+
+apps/wbs/gw-01/src/ws-ingress.integration.test.ts:
+(pass) refuses malformed decoded frames and still pings on the same real socket [36.57ms]
+(pass) keeps supported forwarding and resume maps through the real socket boundary [24.45ms]
+(pass) decodes space-prefixed controls, forwarding and resume without reinterpreting strings [20.68ms]
+(pass) decodes tab-prefixed controls, forwarding and resume without reinterpreting strings [18.81ms]
+(pass) decodes newline-prefixed controls, forwarding and resume without reinterpreting strings [19.53ms]
+(pass) replays event zero from the covered empty-history cursor on a real socket [18.66ms]
+
+apps/wbs/gw-01/src/composition.integration.test.ts:
+(pass) the production gateway composition > asks be-01 and refuses a foreign project [27.22ms]
+(pass) the production gateway composition > resumes for the socket’s own principal through be-01 [21.06ms]
+
+apps/wbs/gw-01/src/presence-race.integration.test.ts:
+(pass) a frame that arrives before the connection has joined > rosters a socket whose `subscribe` overtakes its own join [257.38ms]
+(pass) a frame that arrives before the connection has joined > leaves no ghost behind when a socket closes before it has joined [360.83ms]
+
+apps/wbs/gw-01/src/failure-reporting.integration.test.ts:
+(pass) unexpected backend failure reporting through the production gateway > reports one forward failure without changing its wire frames [19.52ms]
+(pass) unexpected backend failure reporting through the production gateway > reports one resume failure without changing its wire frames [16.70ms]
+(pass) unexpected backend failure reporting through the production gateway > keeps modeled and successful production paths silent [23.35ms]
+
+apps/wbs/gw-01/src/integration.test.ts:
+(pass) gw-01 /health > returns 200 when the backend it forwards to answers [5.44ms]
+{"level":"error","time":1792772267659,"service":"gw-01","err":{"occurrence_id":"AE_HDDEH3RRQV949RJ3P0HK8BYM6Q","fingerprint":"fp1_b13b60a9028fa878f35222cc575f3a14","stack":["Error: connect ECONNREFUSED","    at fetchImpl (/tmp/puni-v1-clients/apps/wbs/gw-01/src/integration.test.ts:29:43)","    at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/app.ts:275:29)","    at handle (file:///home/df/wd/puni/puni-00/node_modules/elysia/dist/compose.mjs:6:69)","    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:149:43)","    at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/integration.test.ts:32:27)"],"as_string_format":"derived","v":"corj/v0.15"},"beUrl":"http://be","msg":"health probe could not reach be-01"}
+(pass) gw-01 /health > is unhealthy when be-01 cannot be reached [4.94ms]
+(pass) gw-01 /health > is unhealthy when be-01 answers but is not itself healthy [4.77ms]
+(pass) gw-01 /metrics > keeps the Prometheus representation after the shared Elysia plugin is removed [9.47ms]
+(pass) POST /internal/push > rejects without auth [4.97ms]
+(pass) POST /internal/push > returns delivered_to_sockets:0 when no subscribers [4.46ms]
+(pass) POST /internal/push > rejects malformed body with 400 [4.88ms]
+
+apps/wbs/gw-01/src/ws-auth.integration.test.ts:
+(pass) WebSocket query authentication > refuses a valid session JWT carried in the production OIDC URL [4.58ms]
+(pass) WebSocket query authentication > refuses an upgrade when WebSocket authentication is not configured [15.62ms]
+(pass) OIDC WebSocket authentication > accepts the hardened access cookie from the application origin [12.07ms]
+(pass) OIDC WebSocket authentication > refuses a valid cookie presented by a foreign origin [16.74ms]
+(pass) OIDC WebSocket authentication > refuses an expired access cookie during the upgrade [19.90ms]
+(pass) WebSocket identity after the upgrade > closes a socket whose identity fails the recheck instead of serving it as anon [19.18ms]
+(pass) WebSocket identity after the upgrade > drops a frame already in flight when the identity recheck fails [215.79ms]
+
+apps/wbs/gw-01/src/dependency-admission.integration.test.ts:
+(pass) legacy reconnect rereads ENABLED authority and exact V1 offers remain admitted [23.20ms]
+{"level":"error","time":1792772268057,"service":"gw-01","err":{"occurrence_id":"AE_BEDZQ672RVJ13KNVJ4H33VAAYT","fingerprint":"fp1_a50bc190dfc4adeead2171a5bab3b068","stack":["Error: offline","    at fetchImpl (/tmp/puni-v1-clients/apps/wbs/gw-01/src/dependency-admission.integration.test.ts:89:57)","    at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/service/dependency-admission.ts:34:35)","    at untilAborted (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:59:32)","    at withinDeadline (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at admitDependencyUpgrade (/tmp/puni-v1-clients/apps/wbs/gw-01/src/service/dependency-admission.ts:29:10)","    at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/app.ts:216:21)","    at handle (file:///home/df/wd/puni/puni-00/node_modules/elysia/dist/compose.mjs:80:70)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"dependency upgrade admission unavailable"}
+{"level":"error","time":1792772268082,"service":"gw-01","err":{"occurrence_id":"AE_Y74MZ4QFJG6SG6PGXEGEK7NYMA","fingerprint":"fp1_92c4ebca8685ca0602f98e2ae219f07c","stack":["Error: dependency admission failed 200","    at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/service/dependency-admission.ts:47:19)","    at async untilAborted (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:32:25)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"dependency upgrade admission unavailable"}
+{"level":"error","time":1792772268107,"service":"gw-01","err":{"occurrence_id":"AE_9DWB2TZHV8RGYX02ZH2PP5Q58G","fingerprint":"fp1_aa68dfd814d31bb7d5f6330cef53cc86","stack":["Error: malformed dependency admission refusal","    at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/service/dependency-admission.ts:60:19)","    at async untilAborted (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:32:25)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"dependency upgrade admission unavailable"}
+{"level":"error","time":1792772268151,"service":"gw-01","err":{"occurrence_id":"AE_SPN952M2ZK9528XRZJP54KX6GF","fingerprint":"fp1_23ed83a491fb9bd09be3340ca8f57737","as_json":{"name":"DeadlineExceeded"},"stack":["DeadlineExceeded: request deadline exceeded","    at <anonymous> (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:29:26)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"dependency upgrade admission unavailable"}
+(pass) transport, malformed success and malformed refusal fail closed within the upgrade deadline [120.69ms]
+(pass) origin and credential refusals never inspect backend dependency authority [23.88ms]
+(pass) dual offers explicitly select V1 and retained presence keeps that exact admission [25.08ms]
+
+apps/wbs/gw-01/src/request-deadline.integration.test.ts:
+(pass) forward headers: deadline cancels real transport and socket still pings [134.36ms]
+(pass) forward headers: close cancels without late frames or failure metrics [194.15ms]
+(pass) forward body: deadline cancels real transport and socket still pings [130.96ms]
+(pass) forward body: close cancels without late frames or failure metrics [185.03ms]
+(pass) resume headers: deadline cancels real transport and socket still pings [139.59ms]
+(pass) resume headers: close cancels without late frames or failure metrics [182.94ms]
+(pass) resume body: deadline cancels real transport and socket still pings [134.40ms]
+(pass) resume body: close cancels without late frames or failure metrics [184.27ms]
+(pass) maps success-shaped 503 resume replies to unavailable on the live socket [26.84ms]
+
+apps/wbs/mcp-01/src/dependency-capabilities-cli.test.ts:
+(pass) observes frozen mcp V1 transport support independently of configuration and startup (DB_PATH=%s) [15.49ms]
+(pass) observes frozen mcp V1 transport support independently of configuration and startup (DB_PATH=/unavailable/store.sqlite) [13.75ms]
+(pass) refuses capability arguments before emitting an observation [14.41ms]
+
+apps/wbs/mcp-01/src/startup-document.test.ts:
+(pass) default runtime refuses a missing required generated document [19.47ms]
+(pass) default runtime refuses an unreadable generated document [18.15ms]
+(pass) default runtime refuses malformed generated JSON and document shape [60.86ms]
+(pass) same-checkout emitter supplies the runtime document without schema compilation [2846.70ms]
+(pass) startup survives poisoned contracts and core runtime barrels [49.31ms]
+(pass) Docker document stage generates using exactly its copied sources [5335.14ms]
+
+apps/wbs/mcp-01/src/wbs-client.test.ts:
+(pass) buildRequest > substitutes path parameters and puts the rest in the query string [0.32ms]
+(pass) buildRequest > splits path from body for a write, and sends only what was given [0.06ms]
+(pass) buildRequest > forwards the caller token as Bearer authentication [0.02ms]
+(pass) buildRequest > adds a basic-auth header only when WBS_BASIC_AUTH is set [0.05ms]
+(pass) buildRequest > escapes a path parameter rather than letting it change the path [0.02ms]
+(pass) buildRequest > treats an explicit undefined as an omitted input, but sends null [0.02ms]
+(pass) buildRequest > models an undeclared input with only its correction details and makes no request [0.79ms]
+(pass) buildRequest > models a missing path input with only its correction details and makes no request [0.12ms]
+(pass) buildRequest > models a non-scalar URL input with only its correction details and makes no request [0.10ms]
+(pass) buildRequest > does not send a body for an operation that declares none [0.02ms]
+(pass) callTool > returns be-01’s JSON body unedited on success [0.14ms]
+(pass) callTool > reports a 204 as no content rather than as a parse failure [0.06ms]
+(pass) callTool > carries be-01’s refusal code verbatim, with the status [0.13ms]
+(pass) callTool > keeps the rest of a refusal body, not only the code [0.07ms]
+(pass) callTool > types a 401 from be-01 as an upstream credential rejection [0.13ms]
+(pass) callTool > separates the deployment gate’s 401 even when its credential is missing [0.13ms]
+(pass) callTool > treats a Bearer challenge as an upstream rejection [0.08ms]
+(pass) callTool > throws an unexpected response failure for a secret-bearing 500 body [0.09ms]
+(pass) callTool > throws when a secret-bearing 2xx body is not JSON rather than returning agent content [0.10ms]
+(pass) callTool > does not call be-01 at all when the request cannot be built [0.14ms]
+(pass) claims V1 for protected tools and preserves typed backend incompatibility [0.10ms]
+
+apps/wbs/gw-01/src/service/connection-access.test.ts:
+(pass) ConnectionAccess > keeps the production constants inside the five-second revocation bound [0.01ms]
+(pass) ConnectionAccess > revokes within the lease bound when access is lost just after a renewal [0.52ms]
+(pass) ConnectionAccess > keeps the bound and serves a subscribe with five held projects and a slow be-01 [0.94ms]
+(pass) ConnectionAccess > queues at most one lease round behind busy subscription changes [0.44ms]
+(pass) ConnectionAccess > closes as unavailable when a check outlives its deadline [0.18ms]
+(pass) ConnectionAccess > applies a subscription change only after the one queued before it [0.14ms]
+(pass) ConnectionAccess > stops leasing once the connection closes [0.15ms]
+(pass) reports a rejected asynchronous revocation and retires its lease [0.15ms]
+
+apps/wbs/gw-01/src/service/delivery.test.ts:
+(pass) orders producers and counts Bun backpressure as accepted without retry [5.38ms]
+(pass) overflow retires once and cancels every queued write [5.31ms]
+(pass) bounds a signal-ignoring admission by deadline and never starts its queued successor [21.42ms]
+(pass) writer rejection and physical drop retire without false acceptance or detached rejection [0.57ms]
+(pass) connection cancellation settles a stalled delivery and blocks later writes [2.38ms]
+(pass) an already closed connection starts no physical writer [0.29ms]
+(pass) invalid queue limits cannot disable delivery bounds [0.17ms]
+(pass) withheld deadline callbacks never allow an expired queued frame to reach its writer [0.42ms]
+(pass) each FIFO head freshly admits and incompatible authority stops queued frames [0.27ms]
+(pass) held admission cancellation never reaches synchronous writer [4.54ms]
+(pass) held admission exact expiry blocks writer even with withheld deadline callback [2.59ms]
+(pass) incompatible retirement callback failures remain observable to the producer [0.32ms]
+
+apps/wbs/gw-01/src/service/subscription-map.test.ts:
+(pass) SubscriptionMap > subscribes/unsubscribes and lists sockets per key [0.10ms]
+(pass) SubscriptionMap > deletes the subscription when the last socket unsubscribes [0.04ms]
+(pass) SubscriptionMap > removeAll deletes the socket from every subscription [0.04ms]
+(pass) SubscriptionMap > activeCount sums sockets across subscriptions [0.09ms]
+
+apps/wbs/gw-01/src/service/presence.test.ts:
+(pass) Presence > lists a joined user once per name, not once per connection [0.09ms]
+(pass) Presence > keeps a user online while any of their connections remains [0.03ms]
+(pass) Presence > broadcasts the roster to every connection [0.12ms]
+(pass) Presence > still reaches the other clients when one socket is retired [0.08ms]
+(pass) Presence > resolves the username behind a connection id [0.02ms]
+(pass) a roster is a project’s, not the gateway’s > shows each project only the names in it [0.04ms]
+(pass) a roster is a project’s, not the gateway’s > broadcasts each socket its own project’s names and no others [0.08ms]
+(pass) a roster is a project’s, not the gateway’s > moves a connection when it switches project [0.06ms]
+(pass) a roster is a project’s, not the gateway’s > puts a connection that has named no project in nobody’s roster [0.06ms]
+(pass) a roster is a project’s, not the gateway’s > knows nothing about a connection that never joined [0.02ms]
+(pass) a roster is a project’s, not the gateway’s > takes a connection out of the project it leaves [0.02ms]
+(pass) a roster is a project’s, not the gateway’s > ignores an unsubscribe from a project the connection has already left [0.02ms]
+(pass) the two indexes never disagree > over a thousand random socket sequences [15.24ms]
+(pass) identifies only changed projects across join, move, reset, rejoin and disconnect [0.08ms]
+(pass) sends an unprojected newcomer one initial roster and zero frames to 1000 connections in 100 projects [0.98ms]
+(pass) delivers only to affected members and resets a renamed connection after its own unsubscribe [0.44ms]
+(pass) disconnects one tab through its project lookup while keeping the duplicate username [0.07ms]
+
+apps/wbs/gw-01/src/service/dependency-admission.test.ts:
+(pass) requires independent binary support and exact offered WebSocket token [0.08ms]
+(pass) capable binaries forward only an exact offered WS claim and strictly decode the decision [0.34ms]
+(pass) unexpected status, extra refusal fields and invalid budgets remain infrastructure failures [0.15ms]
+(pass) selection refuses duplicate, malformed and unknown-only offers without implicit echo [0.09ms]
+
+apps/wbs/gw-01/src/service/request-deadline.test.ts:
+(pass) forward aborts stalled headers within the overall budget with one attempt [0.50ms]
+(pass) forward aborts stalled body within the overall budget with one attempt [0.13ms]
+(pass) forward refuses non-2xx even with valid success JSON and rejects malformed replies [0.48ms]
+(pass) forward propagates unknown transport failures and caller cancellation without retry [0.18ms]
+(pass) resume aborts stalled headers within the overall budget with one attempt [0.05ms]
+(pass) resume aborts stalled body within the overall budget with one attempt [0.05ms]
+(pass) resume refuses non-2xx even with valid success JSON and rejects malformed replies [0.28ms]
+(pass) resume propagates unknown transport failures and caller cancellation without retry [0.05ms]
+(pass) forward enforces attempt budget and rejects invalid budgets [0.33ms]
+(pass) resume enforces attempt budget and rejects invalid budgets [0.05ms]
+
+apps/wbs/gw-01/src/service/socket-writer.test.ts:
+(pass) what a socket did with a frame > counts a frame the socket refused because it was not open [0.08ms]
+(pass) what a socket did with a frame > counts a frame enqueued behind backpressure, and does not call it dropped [0.03ms]
+(pass) what a socket did with a frame > counts nothing for a frame that went [0.01ms]
+(pass) what a socket did with a frame > reads a sink that answers nothing as sent [0.01ms]
+(pass) what a socket did with a frame > reads a throwing socket as dropped, and does not rethrow [0.03ms]
+
+apps/wbs/gw-01/src/service/jwt-auth.test.ts:
+(pass) JwtVerifier > routes OIDC tokens to the primary and password tokens to the local key [0.68ms]
+(pass) JwtVerifier > propagates an OIDC verifier outage instead of disguising it as a local rejection [0.16ms]
+(pass) JwtVerifier > accepts a CURRENT-signed token [0.19ms]
+(pass) JwtVerifier > falls back to PREVIOUS on invalid signature only [0.41ms]
+(pass) JwtVerifier > does not fall back on expired token even if PREVIOUS exists [0.27ms]
+
+apps/wbs/gw-01/src/service/browser-access-client.test.ts:
+(pass) browserProjectAccess > forwards the gateway secret and the browser cookies as sent, and nothing else [0.15ms]
+(pass) browserProjectAccess > maps be-01’s typed refusals to verdicts [0.15ms]
+(pass) browserProjectAccess > throws on a refused gateway secret [0.07ms]
+(pass) browserProjectAccess > throws on a success-shaped body under any other status [0.14ms]
+(pass) browserProjectAccess > retries one transport failure inside the same budget [0.11ms]
+(pass) browserProjectAccess > fails closed after a second transport failure, and never retries an aborted check [0.11ms]
+
+apps/wbs/gw-01/src/service/forward-client.test.ts:
+(pass) ForwardClient > posts to be-01 /internal/forward with auth + identity headers [0.14ms]
+(pass) ForwardClient > throws when backend returns non-2xx [0.13ms]
+
+apps/wbs/gw-01/src/service/delegation-client.test.ts:
+(pass) presents service and bearer credentials without cookies [0.16ms]
+(pass) refuses a success-shaped body on any status other than 204 [0.09ms]
+
+apps/wbs/gw-01/src/service/dependency-forwarding.test.ts:
+(pass) forward, resume and browser access forward only their connection selected semantics [0.33ms]
+
+apps/wbs/gw-01/src/controller/ws.controller.test.ts:
+(pass) handleWsMessage > responds to ping with pong [0.14ms]
+(pass) handleWsMessage > forwards non-control frames to backend [0.13ms]
+(pass) handleWsMessage > responds to resume with the replayed events, then resume_ack [0.26ms]
+(pass) handleWsMessage > replays only to the socket that asked [0.12ms]
+(pass) handleWsMessage > emits backend_unavailable error when forward throws [0.16ms]
+(pass) handleWsMessage > honours subscribe/unsubscribe control frames [0.13ms]
+(pass) subscription names > accepts presence and a project subscription [0.02ms]
+(pass) subscription names > refuses anything else [0.01ms]
+(pass) subscription names > does not register a socket for an unknown subscription, and says so [0.10ms]
+(pass) handleWsMessage — cross-review findings > tells the client when it could not serve the resume at all [0.18ms]
+(pass) client frame validation before dispatch > refuses not json before dispatch [0.18ms]
+(pass) client frame validation before dispatch > refuses null before dispatch [0.06ms]
+(pass) client frame validation before dispatch > refuses 42 before dispatch [0.04ms]
+(pass) client frame validation before dispatch > refuses "text" before dispatch [0.02ms]
+(pass) client frame validation before dispatch > refuses true before dispatch [0.02ms]
+(pass) client frame validation before dispatch > refuses [] before dispatch [0.04ms]
+(pass) client frame validation before dispatch > refuses [1] before dispatch [0.03ms]
+(pass) client frame validation before dispatch > refuses {} before dispatch [0.02ms]
+(pass) client frame validation before dispatch > refuses {"type":42,"subscription":"presence","message":{}} before dispatch [0.04ms]
+(pass) client frame validation before dispatch > refuses {"subscription":42,"message":{}} before dispatch [0.04ms]
+(pass) client frame validation before dispatch > refuses {"subscription":"presence"} before dispatch [0.04ms]
+(pass) client frame validation before dispatch > refuses {"type":"subscribe","subscription":42,"message":{}} before dispatch [0.03ms]
+(pass) client frame validation before dispatch > refuses {"type":"unsubscribe","subscription":null,"message":{}} before dispatch [0.02ms]
+(pass) client frame validation before dispatch > refuses {"type":"resume","message":{},"subscription":"presence"} before dispatch [0.05ms]
+(pass) client frame validation before dispatch > refuses {"type":"resume","resume_points":null} before dispatch [0.02ms]
+(pass) client frame validation before dispatch > refuses {"type":"resume","resume_points":[]} before dispatch [0.04ms]
+(pass) client frame validation before dispatch > refuses {"type":"resume","resume_points":[1]} before dispatch [0.05ms]
+(pass) client frame validation before dispatch > refuses {"type":"resume","resume_points":{"presence":"1"}} before dispatch [0.04ms]
+(pass) client frame validation before dispatch > refuses {"type":"resume","resume_points":{"presence":null}} before dispatch [0.03ms]
+(pass) client frame validation before dispatch > refuses {"type":"resume","resume_points":{"presence":-2}} before dispatch [0.03ms]
+(pass) client frame validation before dispatch > refuses {"type":"resume","resume_points":{"presence":1.5}} before dispatch [0.04ms]
+(pass) client frame validation before dispatch > refuses {"type":"resume","resume_points":{"presence":1e999}} before dispatch [0.03ms]
+(pass) client frame validation before dispatch > refuses {"type":"resume","resume_points":{"presence":9007199254740992}} before dispatch [0.03ms]
+(pass) client frame validation before dispatch > keeps an unrecognized string tag on a supported forwarded message [0.13ms]
+
+apps/wbs/gw-01/src/controller/ws-cancellation.test.ts:
+(pass) closed connection suppresses forward failure frames and metrics [0.17ms]
+(pass) closed connection suppresses resume failure frames and metrics [0.04ms]
+(pass) closed connection suppresses a late successful replay [0.13ms]
+
+apps/wbs/gw-01/src/controller/unexpected-backend-failure.test.ts:
+(pass) logs one registered forward failure with owned secrets redacted [0.95ms]
+(pass) logs one visible correlated loss when reporting cannot inspect the failure [0.52ms]
+
+libs/wbs/domain/contracts/src/dependency-client.test.ts:
+(pass) documents resource admission and exempts health and immutable capability [0.48ms]
+(pass) pins the complete protected and exempt operation matrix [0.32ms]
+
+apps/wbs/be-01/src/http/elysia/dependency-client.db.test.ts:
+(pass) mounted resource freshly checks durable authority and exact claims without enabling authoring [298.61ms]
+(pass) origin and identity refusals precede dependency inspection [5.95ms]
+(pass) production app refuses omitted authority callback at composition [0.35ms]
+(pass) request authority uses one coherent snapshot when another connection activates mid-inspection [218.08ms]
+(pass) health, immutable capability and OpenAPI never inspect dependency authority [19.12ms]
+
+libs/wbs/domain/contracts/src/http/client.test.ts:
+(pass) shape-derived client response boundary > preserves a declared bodyless refusal through the portable client [0.16ms]
+(pass) shape-derived client response boundary > validates a contextual import refusal as JSON [10.83ms]
+(pass) shape-derived client response boundary > validates an in-process response while retaining additive nested fields [0.38ms]
+(pass) shape-derived client response boundary > refuses a backend-only known field type change [0.14ms]
+(pass) shape-derived client response boundary > validates refusal at status 429 and rejects malformed details [0.22ms]
+(pass) shape-derived client response boundary > validates refusal at status 503 and rejects malformed details [0.17ms]
+(pass) shape-derived client response boundary > validates refusal at status 501 and rejects malformed details [0.56ms]
+(pass) shape-derived client response boundary > refuses undeclared statuses and mismatched refusal status/body pairs [0.20ms]
+(pass) shape-derived client response boundary > awaits asynchronous validators and throws unexpected validator errors [0.44ms]
+(pass) shape-derived client response boundary > supports later response alternatives, JSON null, explicit empty and text [0.69ms]
+(pass) client request and transport boundary > encodes path literals, slash-containing params, optional query and JSON body through fetch [0.94ms]
+(pass) client request and transport boundary > validates request input before invoking transport and does not share calls [0.17ms]
+(pass) client request and transport boundary > distinguishes transport failure and cancellation without invoking an already aborted request [0.12ms]
+(pass) client request and transport boundary > refuses duplicate operation identifiers instead of replacing a method [0.05ms]
+(pass) client request and transport boundary > parses Fetch replies without disguising malformed JSON or a proxy challenge [0.14ms]
+(pass) refuses malformed 501 detail despite its recognized error code [0.07ms]
+(pass) accepts a later same-status asynchronous refusal schema [1.04ms]
+(pass) cancels while asynchronous response validation is held [0.19ms]
+(pass) keeps overlapping GET requests independent while their answers are held [0.22ms]
+(pass) refuses a successful refusal envelope even with a permissive success schema [0.57ms]
+(pass) refuses missing, extra and URL dot-segment params before transport [0.14ms]
+(pass) passes omitted query fields and performs no implicit body encoding for GET [0.22ms]
+(pass) validates optional undefined body fields as the JSON representation sent by both transports [1.37ms]
+(pass) preflights synchronous request shapes without yielding and returns their wire normalization [0.06ms]
+(pass) forwards the Retry validator projected body to the transport [0.60ms]
+(pass) validates the modeled Retry schedule-input refusal on the typed client [0.75ms]
+(pass) forwards an asynchronous validator normalized value to the transport [0.20ms]
+(pass) starts transport in the calling stack after synchronous request validation [0.12ms]
+(pass) keeps preflight asynchronous when a request schema validates asynchronously [0.09ms]
+(pass) reports non-JSON client bodies before transport without hiding unexpected serialization failures [3.25ms]
+(pass) preserves transport encoding failures when a composed transport corrupts validated input [0.35ms]
+(pass) cancels after held request validation and after a held transport without returning a success [0.35ms]
+(pass) returns boundary failure for an unreadable Fetch response body [0.11ms]
+(pass) rejects blank operation identifiers consistently with shape document emission [0.05ms]
+(pass) cancels an unread Fetch body before reporting an undeclared status [0.11ms]
+(pass) propagates a required response-body cleanup failure [0.11ms]
+(pass) rejects malformed normalized text before returning a typed text success [0.09ms]
+(pass) throws for a trusted query declaration that cannot be represented on the wire [1.39ms]
+(pass) refuses JSON fetch configuration for a form-only declaration before sending [0.13ms]
+(pass) decodes exact resource dependency incompatibility without claiming support [0.14ms]
+(pass) does not misclassify malformed dependency refusals or ordinary conflicts [0.21ms]
+(pass) keeps exempt operations and non-409 responses outside dependency admission [0.19ms]
+(pass) cancels while decoding the dependency admission envelope [0.18ms]
+(pass) fetch transport claims implemented dependency semantics only for protected operations [0.11ms]
+
+ 272 pass
+ 0 fail
+ 4050 expect() calls
+Ran 272 tests across 36 files. [16.20s]

@@ -1,0 +1,62 @@
+Command: ['bunx', 'vitest', 'run', 'src/components/wbs/persisted-remote-dependencies.test.tsx', '--maxWorkers=1', '--no-file-parallelism', '--testTimeout=30000', '--hookTimeout=30000', '-t', 'dismisses captured details with Escape']
+Injected fault: if (event.key !== 'Escape' && event.key !== 'ArrowLeft') return; -> if (event.key !== 'ArrowLeft') return;
+
+ RUN  v5.0.0 /tmp/puni-remote-display-proof/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (21 tests | 2 failed | 19 skipped) 777ms
+   × dismisses captured details with Escape and returns focus on desktop 629ms
+   × dismisses captured details with Escape and returns focus on phone 146ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 19 skipped (21)
+   Start at  12:13:08
+   Duration  7.58s (import 56%, transform 25%, tests 10%, environment 7%, setup 1%)
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > dismisses captured details with Escape and returns focus on desktop
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > dismisses captured details with Escape and returns focus on phone
+AssertionError: expected <div role="dialog" …(2)>…(3)</div> to be null
+
+- Expected:
+null
+
++ Received:
+<div
+  aria-label="Captured dependency"
+  class="typed-dependency-editor"
+  role="dialog"
+>
+  <a
+    aria-label="Open REMOTE.080.s2-dev"
+    href="/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev"
+  >
+    REMOTE.080.s2-dev
+     ·
+    Captured remote build
+  </a>
+  <p>
+    Relationship:
+    FS
+    . Changing captured remote scopes is unavailable here.
+  </p>
+  <button
+    type="button"
+  >
+    Back to dependency picker
+  </button>
+</div>
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:296:77
+    294|       back.focus();
+    295|       fireEvent.keyDown(back, { key });
+    296|       expect(screen.queryByRole('dialog', { name: 'Captured dependency…
+       |                                                                             ^
+    297|       await waitFor(() => expect(screen.getByLabelText('Add a dependen…
+    298|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯

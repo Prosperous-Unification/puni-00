@@ -76,7 +76,7 @@ const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
  * builder computed.
  *
  * **It is the FINISH, not the horizon, and the difference is load-bearing.**
- * `horizonUnits` bounds a slice's *start* (`solver-wire.v4.json` clause 1, and
+ * `horizonUnits` bounds a slice's *start* (`solver-wire.v5.json` clause 1, and
  * `model.py` builds the start domain from it); PRIORITY is `Σ w(s) · finish(s)`
  * and a finish past the horizon is legal — the makespan's business, not an
  * error. So the true ceiling exceeds `Σ w(s) × horizonUnits` by exactly
@@ -109,6 +109,8 @@ export function preflightSolverRequest(
   baselineOffsets: SolverOffsetMap,
   edges: readonly SolverEdge[],
   elsewhere: SolverElsewhere = {},
+  incomingMinimums: readonly number[] = [],
+  includeReferenceExtent = false,
 ): SolverPreflight {
   let latestFloor = 0n;
   let totalDuration = 0n;
@@ -135,6 +137,15 @@ export function preflightSolverRequest(
     for (const [, end] of bookings) {
       if (BigInt(end) > latestFloor) latestFloor = BigInt(end);
     }
+  }
+  for (const minimum of incomingMinimums) {
+    if (!Number.isSafeInteger(minimum)) throw new Error('incoming minimum is not a safe integer');
+    if (BigInt(minimum) > latestFloor) latestFloor = BigInt(minimum);
+  }
+  for (const offset of Object.values(baselineOffsets)) {
+    if (!Number.isSafeInteger(offset) || offset < 0)
+      throw new Error('movement reference is not a nonnegative safe integer');
+    if (includeReferenceExtent && BigInt(offset) > latestFloor) latestFloor = BigInt(offset);
   }
 
   let placementGaps = 0n;

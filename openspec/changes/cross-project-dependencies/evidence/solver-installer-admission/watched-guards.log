@@ -1,0 +1,34 @@
+state-directory: (fail) file-state refuses before replacement [7.30ms];  1 fail
+state-symlink: (fail) symlink-state refuses before replacement [110.88ms];  1 fail
+lock-regular: (fail) directory-lock refuses before replacement [123.24ms];  1 fail
+lock-symlink: (fail) symlink-lock refuses before replacement [106.39ms];  1 fail
+remote-flock: (fail) all replacements, hash readback and service readiness hold canonical admission with exact modes [12.60ms];  1 fail
+marker-refusal: (fail) edge-owner.json malformed closes host operation [101.72ms]; (fail) edge-owner.json unreadable closes host operation [98.22ms]; (fail) edge-owner.json directory closes host operation [115.20ms]; (fail) edge-owner.json dangling closes host operation [151.80ms]; (fail) edge-owner.pending malformed closes host operation [144.37ms]; (fail) edge-owner.pending unreadable closes host operation [128.18ms]; (fail) edge-owner.pending directory closes host operation [124.70ms]; (fail) edge-owner.pending dangling closes host operation [95.66ms];  8 fail
+state-readable: (fail) unreadable-state refuses before replacement [131.96ms];  1 fail
+staged-hash: (fail) staged mismatch refuses before any replacement [70.77ms];  1 fail
+installed-hash: (fail) readback reports partial or uncertain publication without rollback [101.84ms];  1 fail
+staged-runtime: (fail) runtime mismatch refuses before any replacement [133.77ms];  1 fail
+executable-modes: (fail) all replacements, hash readback and service readiness hold canonical admission with exact modes [78.12ms];  1 fail
+private-config-mode: (fail) all replacements, hash readback and service readiness hold canonical admission with exact modes [106.81ms];  1 fail
+unit-mode: (fail) all replacements, hash readback and service readiness hold canonical admission with exact modes [75.95ms];  1 fail
+socket-readiness: (fail) no-socket reports partial or uncertain publication without rollback [82.20ms];  1 fail
+ready-bound: (fail) readiness reports partial or uncertain publication without rollback [114.23ms];  1 fail
+local-shell-identity: (fail) local shell-foreign descriptor refuses without fallback acquisition [129.21ms];  1 fail
+second-fd-mapping: (fail) actual Bun runner to installer runner to shell retains the same description at FD3 [60.16ms];  1 fail
+second-fd-validation: (fail) actual Bun runner to installer runner to shell retains the same description at FD3 [54.21ms];  1 fail
+host-local-mix: (fail) parseSolverSupervisorInstallArgs > accepts explicit local inheritance and rejects host mixing [0.31ms];  1 fail
+private-staging: (fail) real remote CLI transport positive retains captured hashes [146.43ms];  1 fail
+devsync-inheritance: (fail) the production solver binding runtime > keeps the credential out of argv and drives the exact host transition [2.14ms];  1 fail
+private-attempt-identity: (fail) real remote CLI transport positive retains captured hashes [774.77ms]; (fail) real local inherited CLI transport positive retains captured hashes [752.04ms];  2 fail
+retained-service-interval: (fail) all replacements, hash readback and service readiness hold canonical admission with exact modes [59.23ms];  1 fail
+broken-stat-is-not-absence: (fail) broken identity tool refuses the actual local installer shell [123.12ms];  1 fail
+local-cli-inheritance: (fail) real local inherited CLI transport positive retains captured hashes [196.53ms];  1 fail
+reload-command: (fail) real remote CLI transport positive retains captured hashes [729.12ms]; (fail) real local inherited CLI transport positive retains captured hashes [753.17ms];  2 fail
+enable-command: (fail) real remote CLI transport positive retains captured hashes [761.36ms]; (fail) real local inherited CLI transport positive retains captured hashes [839.07ms];  2 fail
+restart-command: (fail) real remote CLI transport positive retains captured hashes [924.00ms]; (fail) real local inherited CLI transport positive retains captured hashes [1042.44ms];  2 fail
+partial-diagnostic: (fail) second-move reports partial or uncertain publication without rollback [35.68ms];  1 fail
+readback-before-service: (fail) readback reports partial or uncertain publication without rollback [61.07ms];  1 fail
+local-lock-readable: (fail) unreadable canonical lock refuses even when the local description was acquired earlier [121.46ms];  1 fail
+failure-identity-evidence: (fail) second-move reports partial or uncertain publication without rollback [32.82ms]; (fail) readback reports partial or uncertain publication without rollback [52.91ms]; (fail) service reports partial or uncertain publication without rollback [82.13ms]; (fail) readiness reports partial or uncertain publication without rollback [279.10ms]; (fail) no-socket reports partial or uncertain publication without rollback [167.63ms];  5 fail
+transport-failure-evidence: (fail) real remote CLI transport upload retains captured hashes [130.44ms];  1 fail
+spawn-failure-evidence: (fail) installSolverSupervisor > retains attempt and expected hashes when a transport cannot spawn [1.71ms];  1 fail

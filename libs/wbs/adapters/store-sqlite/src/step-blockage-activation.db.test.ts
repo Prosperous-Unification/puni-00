@@ -17,6 +17,7 @@ import {
   readStepBlockageActivation,
   translateStepBlockageFailure,
 } from './step-blockage-activation';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
@@ -197,7 +198,10 @@ it('keeps writer admission disabled across migration restart', () => {
 });
 
 it('rolls back earlier writes before mapping an inactive writer through the production UoW', async () => {
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
   try {
     expect(
       source.uow.run(async ({ stores }) => {
@@ -222,7 +226,10 @@ it('rolls back earlier writes before mapping an inactive writer through the prod
 
 for (const direction of ['forward', 'inverse', 'preconditions'] as const) {
   it(`refuses empty nested structural ${direction} replay at cursor flip and rolls back its writes`, async () => {
-    const source = openSqliteSource({ dbPath: path });
+    const source = openSqliteSource({
+      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+      dbPath: path,
+    });
     try {
       const payload =
         direction === 'forward'
@@ -316,7 +323,10 @@ it('refuses an absent marker table and missing trigger metadata at readiness', (
 
 it('maps an inactive raw owner cascade after full production UoW rollback', async () => {
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
   try {
     source.db.run(
       "INSERT INTO step_blockage (work_item_id,step_id,blocked_at) VALUES ('a','dev',1)",

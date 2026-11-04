@@ -1,0 +1,346 @@
+{
+  "purpose": "Exact unpublished historical working snapshots; unapplied, not qualified current implementation",
+  "integratedHead": "6db648edf5336ebddcbc12ca324e2475f63363a4",
+  "snapshots": [
+    {
+      "worktreeId": "161d",
+      "branch": "integration/dependencies-original-custody-20261101",
+      "baseCommit": "2801e0d333f7d218febd782e3f76218b543ea384",
+      "patch": "161d.patch",
+      "patchSha256": "7fd658791651efad91e03b629ddcac8c3be6838c6cbef0c572ec50281c9c5cd4",
+      "patchBytes": 52540,
+      "reverseApplyCheck": "passed against unchanged source worktree",
+      "files": [
+        {
+          "path": "tools/tool-remote-scripts/src/lib/dependency-operation-custody.test.ts",
+          "sha256": "f77a75972d3f6bf9c2e44275057bb3edc46baa97b3f6243411106ff7c295765d",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "tools/tool-remote-scripts/src/lib/dependency-operation-custody.ts",
+          "sha256": "c16b993a6421967cc551d1c210b98aef90b665b41911758456497bd4e9afec64",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "tools/tool-remote-scripts/src/lib/installed-authority-supervision.test.ts",
+          "sha256": "1d11b85ecdcb4641ca40a8f4d56887b5dfcf5b0b059fc12b5c1391bf5d31165d",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "tools/tool-remote-scripts/src/lib/installed-authority-supervision.ts",
+          "sha256": "8cf0be628c5f19f5681b9144846f410d92cd083067238efe8fb5a4e42ce2ed63",
+          "includedByteExactlyInIntegratedHead": false
+        }
+      ]
+    },
+    {
+      "worktreeId": "4a91",
+      "branch": "integration/source-stageb-constructor-20261026",
+      "baseCommit": "7e035f18359354cc731fb90e9353f54a68f3b266",
+      "patch": "4a91.patch",
+      "patchSha256": "2e78c360c28298d70c7259b5a6e64bd2a9c0d9517e86f861800d0d1e867b012a",
+      "patchBytes": 1005629,
+      "reverseApplyCheck": "passed against unchanged source worktree",
+      "files": [
+        {
+          "path": "eslint.config.js",
+          "sha256": "d8ce07ea2fe02364024beafe82e3a0377f11f6382c38a0715d8822308c4cd6c6",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "openspec/changes/cross-project-dependencies/specs/cross-project-dependencies/spec.md",
+          "sha256": "01be5c3aa3b8f5347e5df78a7ecf9c1abd46783d3efea72bc59be5726da02ea7",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "openspec/changes/cross-project-dependencies/tasks.md",
+          "sha256": "7dcf88091431195e1987aa449abdcff09edfd0abc52843031e7fd6e125296e03",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "openspec/changes/cross-project-dependencies/verify-source-stageb-clock.md",
+          "sha256": "bd3e372090cbbf50882aab947de93956935a115a97e0a797b79b1877ea377f62",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "openspec/changes/cross-project-dependencies/verify-source-stageb-fixture.md",
+          "sha256": "d4bab9069d678dfae88de2f8599e526c5275a47748c1ada98ac1c0c0eb668a25",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-devsync/src/eslint-boundaries.test.ts",
+          "sha256": "9edea65489321c0668ef8b848ddda089754964dd2d2e349fa93a7e532e849904",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "tools/tool-remote-scripts/rehearsals/source-stageb-archive-preflight.ts",
+          "sha256": "3bb4e5721a4a51d35b822c2b27555403a5e0184e2fc4139caab9c965e9760f70",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/rehearsals/source-stageb-builder.test.ts",
+          "sha256": "29e4f41d924a05406991fded0ba4a4cfd3f766226b070eaf7c89cd98bf80a29b",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/rehearsals/source-stageb-builder.ts",
+          "sha256": "6fcda9bb3571dd87752f858e579d6134d704801f1256353acff60edda63e61e6",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/rehearsals/source-stageb-fixture-bootstrap.test.ts",
+          "sha256": "348446029c717410796ee6136e5e210d32fa558d1252b2f4b0a8337135ded616",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/rehearsals/source-stageb-fixture-bootstrap.ts",
+          "sha256": "c3efe52c4fc9163f2bc496a454438a3a1d5ff5fb1638de51813c2ce06028c8cf",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/rehearsals/source-stageb-fixture.test.ts",
+          "sha256": "e3682ca22575b052141630f9042a4b83ad3ea8c6be76411db19382e52ae14604",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/rehearsals/source-stageb-fixture.ts",
+          "sha256": "655639cd1a4111c46df0d2362fe3068ac58b2e35a3dbfdc6e9f88ad5d81906df",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/rehearsals/source-stageb-migration-worker.ts",
+          "sha256": "2aace89f48f7ff35686aef59d97cbbb030bc0b36efa7a07805188883d7a70a35",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/rehearsals/tsconfig.json",
+          "sha256": "531d5fbb15e94b607ae40494a998e7e8fcda59b3d644e231ace8a45fadc1cbd6",
+          "includedByteExactlyInIntegratedHead": true
+        }
+      ]
+    },
+    {
+      "worktreeId": "5765",
+      "branch": "integration/compiled-traversal-sharing-20261027-r17",
+      "baseCommit": "64963ac904853379bc13b4aad0f0915f1b11331b",
+      "patch": "5765.patch",
+      "patchSha256": "f83848671892bb2ff3c44b06984d8fedf6bf48887d95ab39feb72dd09ae93525",
+      "patchBytes": 35863,
+      "reverseApplyCheck": "passed against unchanged source worktree",
+      "files": [
+        {
+          "path": "bun.lock",
+          "sha256": "bf54a6c6202a5d8f54f9bb8fe7e76935a8f4c667c660da720db3fd5f16391383",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "openspec/changes/compiled-traversal-sharing/design.md",
+          "sha256": "bc81d2f0c8a32a68ffb29fb2f095ddb1b4f0db4edcb63a84c171b060994d9301",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "openspec/changes/compiled-traversal-sharing/proposal.md",
+          "sha256": "c85f2050e254c454de8c34084473cceb353d5559f8f7345a39a06eea3927c923",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "openspec/changes/compiled-traversal-sharing/specs/compiled-traversal-sharing/spec.md",
+          "sha256": "051d0d8fff512431072ad33da11c3a179cdba258bd38441e47569fdef7c81510",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "openspec/changes/compiled-traversal-sharing/tasks.md",
+          "sha256": "38a5c59a420007c0b4f04816b0e9ec6f8fd94e1fab52ab4b8516908136ee6b5a",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "openspec/changes/compiled-traversal-sharing/verify.md",
+          "sha256": "8b423ef9b014ced84f2429a273731f9b097b844107dfb36a7ca23b88616188b6",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "package.json",
+          "sha256": "bf45a6e5f8f806d2762dfb22af77375a9ad55d806781a34812812de31f07eb74",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "patches/@ark%2Fschema@0.56.2.patch",
+          "sha256": "95380ed9b554038220bc538ec54cb02834a0a3134e391b4a195358338fbbec1c",
+          "includedByteExactlyInIntegratedHead": true
+        }
+      ]
+    },
+    {
+      "worktreeId": "9f5c",
+      "branch": "integration/dependencies-uc2-report-controls-20261103",
+      "baseCommit": "4f321687186944734ffb11454b29dc79070517d2",
+      "patch": "9f5c.patch",
+      "patchSha256": "cbcfade9749145aff10d1f5f498929b4fbdab79fc04a493d63e33156599070c2",
+      "patchBytes": 4618,
+      "reverseApplyCheck": "passed against unchanged source worktree",
+      "files": [
+        {
+          "path": "tools/tool-remote-scripts/src/lib/dependency-activation-storage.test.ts",
+          "sha256": "101a0da8bf6a718bc469474ba2326b8819bedbc62893283b7fe571d7f6ff5a07",
+          "includedByteExactlyInIntegratedHead": false
+        }
+      ]
+    },
+    {
+      "worktreeId": "f7f1",
+      "branch": "integration/dependencies-participant-policy-handoff-20261030",
+      "baseCommit": "947f44515913864be3bb7a489a13e4361ed5d851",
+      "patch": "f7f1.patch",
+      "patchSha256": "8b6788731763dd93a67299e295770d34ed20e988236d258fef82217281b03e35",
+      "patchBytes": 218256,
+      "reverseApplyCheck": "passed against unchanged source worktree",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "sha256": "76c8dc90531ce2cd7bff3048bd4c30cd553bb2074d78472867b6fe0d2096ed30",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "openspec/changes/ci-remote-capacity/design.md",
+          "sha256": "406ec55c0a727b4e167dac362fa2e4b3dcc3db6ee165e60ca923d629199bf71b",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "openspec/changes/ci-remote-capacity/specs/ci-gate/spec.md",
+          "sha256": "ae79c3ed7f8059eeb7a15bcb039320d33c84805fd68eb6cbdbc03a2db6ddd83b",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "openspec/changes/ci-remote-capacity/tasks.md",
+          "sha256": "08599c7ff38c777c78a7f6eecaa630c10c982fbd32f522098400de00e103bba2",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "openspec/changes/ci-remote-capacity/verify.md",
+          "sha256": "d7c9997b56b73f22db45d832a8b71d90e5a6e5f999f9e26b7f9ee14af99e3144",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "openspec/changes/cross-project-dependencies/design.md",
+          "sha256": "80a103df0a0619d12c31bfc00320cf15f283bf1617aa3c0e5e445c52b1f6b440",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "openspec/changes/cross-project-dependencies/specs/cross-project-dependencies/spec.md",
+          "sha256": "968ddd8d1de48592d7d16878c2c215ebf813aeb16c1b01f61dc4f124353fc772",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "openspec/changes/cross-project-dependencies/tasks.md",
+          "sha256": "8fafd2c38099fcdedfb67e6ac8725c02fd77b7441fb1760f1d3bac1aab5432b1",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "openspec/changes/cross-project-dependencies/verify-participant-policy.md",
+          "sha256": "2e898a4b57d9683df82c412c175c85d1c27d18eaa534c8c7876df5eed0c6c501",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts",
+          "sha256": "dae7c9b6a1449e863ca2b16ec77fd6d69b062e122e3410a017ef4e6d9d10d730",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "tools/tool-git-hooks/src/hooks/ci-plan.test.ts",
+          "sha256": "cd3900b13ddc6a88517538fdf3888bf655247659f973bd216a7ba6b4ac521b90",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts",
+          "sha256": "38d628300fbd477dfe4088ef75343d98fc20583d9adcec0714f1a0f41b3b2453",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "tools/tool-git-hooks/src/hooks/ci-run-runtime.ts",
+          "sha256": "c3ab4704412c02ef7e765039c7a8fdb614a085d9874673eb3d079bc987b7f4ef",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "tools/tool-git-hooks/src/hooks/gate-workflow.test.ts",
+          "sha256": "0488d667889d7947507b5352bbfe7415ac525ce1753ddd011e22ffae5451469e",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-git-hooks/src/hooks/pr-merge-base.test.ts",
+          "sha256": "e25947a42995547e49d62661e2983235a462f7e965023a88897055b5e7aec8a2",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "tools/tool-remote-scripts/project.json",
+          "sha256": "bab9b81075bc95abbee01d05d838188e122370e980ce2822bd11b5075bdf167b",
+          "includedByteExactlyInIntegratedHead": false
+        },
+        {
+          "path": "tools/tool-remote-scripts/src/fixtures/participant-restoration-profile.ts",
+          "sha256": "85eb285585ccf5a6f024e09cc45c57da64378b99132e9a85af75536575a55ee5",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/src/fixtures/participant-source-restoration-cases.ts",
+          "sha256": "3501676a8755b2dac8f01f11898a3194b91fe49822dcdfffa469a053135b37ed",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/src/fixtures/participant-source-restoration.ts",
+          "sha256": "cfd12125ab2d226f1fa145ab475ea5dcb7b08bc0227244365a19f5fd9e5dffb4",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/src/lib/dependency-participant-policy-restoration.test.ts",
+          "sha256": "de40cb94a13c1fd53306a469f8b114e7a030a077654792b74c74575391a5c134",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/src/lib/dependency-participant-restoration.ts",
+          "sha256": "abe952ba0fcd768f83c57b469e393c2a4726b4bfb0725f00ca3d139b4731abc7",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/src/lib/dependency-product-process.ts",
+          "sha256": "77597e1340066fe40c0194f85ef0a5c9253005b45db6a581596e63be20720b26",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/src/lib/dependency-source-restoration-parent.test.ts",
+          "sha256": "0b26680c2fbfb376a696f877e222e1330a4fe7c8e47e904f65eebf555104438c",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/src/lib/dependency-source-restoration-parent.ts",
+          "sha256": "bde80947504aafe3bf31895e49635dc4c8e1888288db762193d6a454e7f8f45a",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/src/lib/dependency-source-restoration.model.ts",
+          "sha256": "2fedf1a3fdb9acf5f66cdcff2ddf553a78b7991ab65588535943492dce0bb6b9",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+          "sha256": "902aa8e8a6c7e920ddd59f31e0680537155a2564fe20ca2350da42e154454b55",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/src/lib/participant-restoration-profile.test.ts",
+          "sha256": "e835fb0f487a703808ee8a1eae347e6d8e40d19b90bf96e320027a7014132fe0",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/src/lib/source-role-process.ts",
+          "sha256": "ab15a50941af934f350bce3f834c3320a66fe6551a0ff2ce089015f60933f0fa",
+          "includedByteExactlyInIntegratedHead": true
+        },
+        {
+          "path": "tools/tool-remote-scripts/test/ci-leaf.ts",
+          "sha256": "9f6204a82dee1ccd16d47eabfa572dc6a3d60d2b8fe55f13b8fbad4079b0da50",
+          "includedByteExactlyInIntegratedHead": false
+        }
+      ]
+    }
+  ]
+}

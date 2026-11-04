@@ -1,0 +1,35 @@
+
+> nx run wbs-solver-supervisor-protocol:test
+
+> bun test --coverage --coverage-reporter=lcov --timeout=10000
+
+[0m[1mbun test [0m[2mv1.4.2 (744846f84)[0m
+[0m
+src/index.test.ts:
+[0m[32m✓[0m [0mdecodeSupervisorStartFrame[2m >[0m[1m returns the one authenticated, bounded start frame unchanged[0m [0m[2m[0.96ms[0m[2m][0m
+[0m[32m✓[0m [0mdecodeSupervisorStartFrame[2m >[0m[1m accepts the exact Docker hostname prefix and canonicalizes it to the peer identity[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mdecodeSupervisorStartFrame[2m >[0m[1m rejects unknown authority and duplicate newline frames[0m [0m[2m[0.58ms[0m[2m][0m
+[0m[32m✓[0m [0mdecodeSupervisorStartFrame[2m >[0m[1m rejects oversize input before parsing it[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m [0mdecodeSupervisorStartFrame[2m >[0m[1m rejects invalid or spoofed identities and a spent deadline[0m [0m[2m[0.69ms[0m[2m][0m
+[0m[32m✓[0m [0mdecodeSupervisorStartFrame[2m >[0m[1m accepts all solver wire versions a rolling deploy can send and refuses any other[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m [0mdecodeSupervisorStartFrame[2m >[0m[1m carries fixed person calendars on solver wire 3 unchanged[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mdecodeSupervisorStartFrame[2m >[0m[1m carries resource demands and capacities on solver wire 4 unchanged[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mdecodeSupervisorStartFrame[2m >[0m[1m rejects caller resource values above the host caps and mismatched work[0m [0m[2m[0.30ms[0m[2m][0m
+[0m[32m✓[0m [0mdecodeSupervisorReplyFrame[2m >[0m[1m counts decoded payload bytes against the matching stream[0m [0m[2m[0.50ms[0m[2m][0m
+[0m[32m✓[0m [0mdecodeSupervisorReplyFrame[2m >[0m[1m rejects one oversize payload and cumulative overflow separately[0m [0m[2m[1.12ms[0m[2m][0m
+[0m[32m✓[0m [0mdecodeSupervisorReplyFrame[2m >[0m[1m accepts exact started and terminal frames and rejects extra evidence[0m [0m[2m[0.21ms[0m[2m][0m
+
+[0m[32m 12 pass[0m
+[0m[2m 0 fail[0m
+ 32 expect() calls
+Ran 12 tests across 1 file. [0m[2m[[1m15.00ms[0m[2m][0m
+
+
+
+ NX   Successfully ran target test for project wbs-solver-supervisor-protocol
+
+
+  Run duration:      53ms
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     43ms (1 task)
+  Recoverable time:  <1ms

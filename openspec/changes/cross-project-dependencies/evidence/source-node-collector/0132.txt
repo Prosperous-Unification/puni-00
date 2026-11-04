@@ -1,0 +1,24 @@
+
+test/source-inner-program-child.test.ts:
+source Node owning namespace actual UID/GID1000:1000 observed
+source Node launcher BEGIN credential
+798 |       }
+799 |       if (fault === 'exit-status')
+800 |         launcher = launcherWithCollector(SOURCE_NODE_COLLECTOR + '\nprocess.exitCode=1;');
+801 |       console.error(`source Node launcher BEGIN ${fault}`);
+802 |       const receipt = await runActualReceipt(launcher, 'observe', [String(target.pid)]);
+803 |       expect(receipt.code).toBe(1);
+                                 ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-program.model.ts:803:28)
+(fail) actual source launcher rejects credential before granting reap [249.76ms]
+
+ 0 pass
+ 48 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [273.00ms]

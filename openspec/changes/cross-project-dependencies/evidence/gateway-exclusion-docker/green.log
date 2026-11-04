@@ -1,0 +1,16 @@
+
+> nx run tool-remote-scripts:"test:gateway-exclusion"
+
+> bun run tools/tool-remote-scripts/test/gateway-exclusion.ts
+
+PASS gateway physical exclusion; evidence: /tmp/puni-gateway-acceptance/openspec/changes/cross-project-dependencies/evidence/gateway-exclusion-docker/green.json
+
+
+
+ NX   Successfully ran target test:gateway-exclusion for project tool-remote-scripts
+
+
+  Run duration:      4.1s
+  Cache:             0/1 hit (0%)
+  Critical path:     4.0s (1 task)
+  Recoverable time:  <1ms

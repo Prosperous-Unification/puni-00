@@ -122,6 +122,7 @@ describe('executeRelease', () => {
     const phases: string[] = [];
     const recording = {
       ...journal,
+      read: () => journal.read(),
       write: (r: Parameters<typeof journal.write>[0]) => {
         phases.push(r.state.phase);
         journal.write(r);
@@ -129,21 +130,34 @@ describe('executeRelease', () => {
     };
     const final = await executeRelease(request(), recording, fake, quiet, on(fake));
     expect(final.phase).toBe('lease-released');
-    expect(phases).toEqual(
+    expect(phases.filter((phase, index) => index === 0 || phase !== phases[index - 1])).toEqual(
       FORWARD_PHASES.filter((p) => !['requested', 'validated', 'lease-acquired'].includes(p)),
     );
-    const mutations = fake.calls.filter((c) => !c.endsWith('Lease'));
+    const mutations = fake.calls.filter(
+      (c) =>
+        !c.endsWith('Lease') &&
+        c !== 'requireJournal' &&
+        ![
+          'suspendStorageController',
+          'drainStorageController',
+          'restoreStorageController',
+        ].includes(c),
+    );
     expect(mutations).toEqual([
       'observeCluster',
       'admitBackendImages',
+      'observeDependencyBinaries',
       'suspendFlux',
       'closeWrites',
       'drainGateway',
       'stopWriter',
+      'observeDependencyStore',
       'observeReplayInventory',
       'observeReplayCapabilities',
       'observeReplayCapabilities',
+      'observeDependencyStore',
       'capture',
+      'observeDependencyStore',
       'migrate',
       'rolloutBackend',
       'rolloutTiers',
@@ -249,6 +263,32 @@ describe('executeRelease', () => {
     expect(fake.migrationJobRuns).toBe(1);
     expect(fake.maxConcurrentWriters).toBe(1);
     expect(journal.read()?.state.phase).toBe('lease-released');
+  });
+
+  it('refuses a live marked Lease before treating its in-flight journal as lost', async () => {
+    const fake = cluster();
+    const journal = memoryJournal();
+    fake.seedLease('other-transaction#run-a', journal.path);
+    if (fake.lease === null) throw new Error('seeded Lease is missing');
+    // The winner marks its Lease after the loser's first read but before its first checkpoint.
+    const options = {
+      ...on(fake),
+      sleep: () => {
+        if (fake.lease === null) throw new Error('live Lease disappeared during wait');
+        fake.lease = { ...fake.lease, journalRequired: true, renewedAtMs: fake.now };
+        return Promise.resolve();
+      },
+    };
+
+    expect(await rejection(executeRelease(request(), journal, fake, quiet, options))).toContain(
+      'still renewed',
+    );
+    expect(fake.calls).toEqual(['observeCluster', 'readLease', 'readLease']);
+    expect(fake.lease.journalRequired).toBe(true);
+    expect(fake.lease.holder).toBe('other-transaction#run-a');
+    expect(journal.read()).toBeNull();
+    expect(fake.writesOpen).toBe(true);
+    expect(fake.migrationJobRuns).toBe(0);
   });
 
   it('refuses to resume a transaction whose live coordinator still renews the Lease', async () => {
@@ -363,7 +403,7 @@ describe('executeRelease', () => {
     const journal = memoryJournal();
     const release = request();
     journal.stored = JSON.stringify({
-      schemaVersion: 3,
+      schemaVersion: 4,
       request: release,
       state: { ...initialState(release), phase: 'migrated', capture: null },
       history: [{ phase: 'migrated', at: '2026-10-06T00:00:00.000Z' }],
@@ -737,6 +777,7 @@ describe('executeRelease', () => {
       };
       const recording = {
         ...journal,
+        read: () => journal.read(),
         write: (entry: Parameters<typeof journal.write>[0]) => {
           journal.write(entry);
           if (entry.state.phase === 'rollback-failed') terminalRecorded.resolve(undefined);

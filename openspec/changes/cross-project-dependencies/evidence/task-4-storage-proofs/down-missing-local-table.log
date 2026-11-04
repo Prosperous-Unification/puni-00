@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/typed-dependency-migration.db.test.ts:
+273 |    */
+274 |   it('refuses rollback when the typed table is missing', () => {
+275 |     withDatabase((sqlite) => {
+276 |       sqlite.run('DROP TABLE typed_dependency');
+277 |     });
+278 |     expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow('no such table: typed_dependency');
+                                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "no such table: typed_dependency"
+Received message: "rolling back 20261022211000_add_external_dependencies failed: no such trigger: typed_dependency_cross_identity_insert"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/typed-dependency-migration.db.test.ts:278:54)
+(fail) 20260927213000_add_typed_dependency > refuses rollback when the typed table is missing [90.05ms]
+
+ 0 pass
+ 7 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [129.00ms]

@@ -1,0 +1,68 @@
+from pathlib import Path
+import subprocess
+import re
+
+root = Path.cwd()
+lib = root / 'tools/tool-remote-scripts/src/lib'
+paths = [lib / name for name in ['solver-exclusion.ts', 'solver-host.ts', 'edge-ownership.ts']]
+originals = {path: path.read_text() for path in paths}
+exclusion, host, owner = paths
+faults = []
+def replace(path, old, new):
+    text = originals[path]
+    if old not in text: raise RuntimeError('mutation source absent: ' + old)
+    return {path: text.replace(old, new)}
+def add(name, path, old, new, test):
+    faults.append((name, replace(path, old, new), test))
+add('stop', exclusion, "  await runDockerBefore(\n    ['stop'],\n    async (_args, signal) => host({ kind: 'stop' }, signal),\n    deadline,\n  );", '', 'stops creator, drains child')
+add('stop-readback', exclusion, '    parseSolverUnit(await show(), false, ports.edgeState);', '', 'zero-exit stop')
+add('cgroup', exclusion, '(observed.populated || observed.device !== cgroup.device || observed.inode !== cgroup.inode)', 'false', 'surviving descendant')
+runtime = originals[exclusion].replace('return withOwnerSolverRuntime(owner, layouts.prod, async () => {', 'return (async () => {')
+ending = runtime.rfind('  });')
+runtime = runtime[:ending] + '  })();' + runtime[ending + len('  });'):]
+faults.append(('runtime', {exclusion: runtime}, 'surviving descendant'))
+add('kill', exclusion, "await run(exactManagedContainerArgs('kill', id).slice(1));", "await Promise.resolve('omitted kill');", 'stops creator, drains child')
+terminal = originals[exclusion]
+terminal, count = re.subn(r"        if \(\n          terminal.phase !== 'terminal' \|\|.*?throw new Error\('solver terminal drain evidence differs'\);", '', terminal, flags=re.S)
+if count != 1: raise RuntimeError('terminal mutation absent')
+terminal = terminal.replace("current.phase === 'running' || ", '')
+faults.append(('terminal', {exclusion: terminal}, 'stopped creator with surviving Docker'))
+add('membership', exclusion, 'if (JSON.stringify(await discover()) !== JSON.stringify(ids))', 'if (false)', 'final membership')
+add('owner', owner, "if ((await readRecord(join(ownership.directory, 'edge-owner.pending'))) !== ownership.publication)", 'if (false)', 'final membership')
+add('namespace', owner, 'if (ownership.directory !== directory)', 'if (false)', 'actual owner namespace')
+add('dev-owner', owner, "  const ownership = owners.get(owner);\n  if (ownership === undefined) throw new Error('dependency owner is not live');\n  // Proof: omitted SHA binding", "  if (layout.env === 'dev') return;\n  const ownership = owners.get(owner);\n  if (ownership === undefined) throw new Error('dependency owner is not live');\n  // Proof: omitted SHA binding", 'refuses missing dev ownership')
+add('tuple', host, 'if (observed.sha256 !== hash || observed.mode !== mode)', 'if (false)', 'refuses missing dev ownership')
+add('image', exclusion, 'if (imageBindings.get(container.imageRef) !== container.image)', 'if (false)', 'unreviewed solver image')
+add('unit-environment', host, "fields['Environment'] !== `WBS_EDGE_STATE=${expectedState}`", 'false', 'unrecognized effective unit')
+add('process-identity', exclusion, 'if (JSON.stringify(await ports.observeProcess(initial.pid)) !== JSON.stringify(process))', 'if (false)', 'missing unreadable and changed initial process')
+add('reader-cleanup', host, "    if (child.exitCode === null) child.kill('SIGKILL');\n    await child.exited;", '', 'malformed output kills')
+add('stop-intent', exclusion, "  await retainSolverRecord(owner, layouts, 'stop', { initial, process, cgroup });", '', 'timeout and owner loss')
+identity = originals[exclusion]
+identity, count = re.subn(r"if \(\n\s*JSON.stringify\(await captureSolverTuple\(pins, ports.captureFile\)\) !==\s*JSON.stringify\(installed\)\n\s*\)", 'if (false)', identity)
+if count != 2: raise RuntimeError('tuple identity comparison count ' + str(count))
+faults.append(('tuple-inode', {exclusion: identity}, 'final membership'))
+pins = originals[host]
+pins, count = re.subn(r"const pins = readClosed\(value, \[.*?\]\);", 'const pins = readFields(value);', pins, count=1, flags=re.S)
+if count != 1: raise RuntimeError('pin closure check absent')
+faults.append(('pins-closed', {host: pins}, 'independent pins'))
+add('canonical-alias', host, "  const named = await lstat(path, { bigint: true });", "  path = await realpath(path);\n  const named = await lstat(path, { bigint: true });", 'required installed files')
+add('file-bound', host, "  const named = await lstat(path, { bigint: true });", "  maximum = Number.MAX_SAFE_INTEGER;\n  const named = await lstat(path, { bigint: true });", 'captures bounded canonical')
+add('nonblocking-open', host, ' | constants.O_NONBLOCK', '', 'actual file boundary refuses fifo-open')
+metadata = originals[host]
+for line in ['      final.size !== current.size ||\n', '      final.mode !== current.mode ||\n', '      final.mtimeNs !== current.mtimeNs ||\n', '      final.ctimeNs !== current.ctimeNs ||\n']:
+    if line not in metadata: raise RuntimeError('metadata line absent')
+    metadata = metadata.replace(line, '')
+faults.append(('final-metadata', {host: metadata}, 'actual file boundary refuses metadata-readback'))
+logroot = root / 'openspec/changes/cross-project-dependencies/evidence/solver-drain'
+try:
+    for name, edits, test in faults:
+        for path, text in originals.items(): path.write_text(text)
+        for path, text in edits.items(): path.write_text(text)
+        target = 'solver-host.test.ts' if name in ['reader-cleanup', 'pins-closed', 'canonical-alias', 'file-bound', 'nonblocking-open', 'final-metadata'] else 'solver-exclusion.test.ts'
+        command = ['bun', 'test', str(lib / target), '-t', test, '--preload', './tools/test/scratch/preload.ts']
+        completed = subprocess.run(command, cwd=root, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=20)
+        (logroot / (name + '.log.txt')).write_text('Command: ' + ' '.join(command) + '\n' + completed.stdout + '\nExit: ' + str(completed.returncode) + '\n')
+        print(name + ': ' + str(completed.returncode), flush=True)
+        if completed.returncode != 1: raise RuntimeError('fault did not fail intended acceptance: ' + name)
+finally:
+    for path, text in originals.items(): path.write_text(text)

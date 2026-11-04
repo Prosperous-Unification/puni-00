@@ -1,0 +1,35 @@
+
+ NX   Nx was denied permission to create a plugin worker socket. Running plugins in the main process instead.
+
+Plugins that expect isolation may misbehave, and this is slower than a worker.
+Nx was denied permission to use its unix socket under /tmp/.nx or ~/.nx.
+To fix this, do one of the following:
+  - In `~/.codex/config.toml`, set `sandbox_workspace_write.network_access` to true and add /tmp/.nx or ~/.nx to `sandbox_workspace_write.writable_roots`. Codex has no setting that scopes sockets to a path, and `network_access` also grants general network access, so this is a broader grant than the other agents need.
+  - Get permission to create sockets under /tmp/.nx or ~/.nx, or set NX_SOCKET_DIR to a directory you do have permission for.
+See https://nx.dev/docs/kb/nx-sandbox-unix-sockets for details.
+
+
+> nx run wbs-be-01:"acceptance:historical-plan-reader"
+
+> bun test ./apps/wbs/be-01/scripts/historical-plan-reader.acceptance.ts --timeout=60000
+
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/scripts/historical-plan-reader.acceptance.ts:
+✓ pinned pre-v11 reader refuses downloaded v11 (malformed: %s) without writes [4163.38ms]
+✓ pinned pre-v11 reader refuses downloaded v11 (malformed: %s) without writes [4473.73ms]
+
+ 2 pass
+ 0 fail
+ 10 expect() calls
+Ran 2 tests across 1 file. [11.47s]
+
+
+
+ NX   Successfully ran target acceptance:historical-plan-reader for project wbs-be-01
+
+
+  Run duration:      11.5s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     11.5s (1 task)
+  Recoverable time:  <1ms

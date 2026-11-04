@@ -1,0 +1,61 @@
+{
+  "scope": "Newpartition actualCLI forward ledger in affected/full; static-once remains",
+  "fault": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "tools/tool-git-hooks/src/hooks/ci-plan.test.ts",
+        "--test-name-pattern=fixed\\ remote\\ leaves\\ retain\\ one\\ logical\\ owner\\ and\\ explicit\\ static/dependency\\ execution$"
+      ],
+      "pid": 3319162,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 2.8861434389837086,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "839e438d53ccb1f173902188f198e99cba7baef9b175419929e74545673c7108"
+    },
+    "wrapper": {
+      "pid": 3319161,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "a955d0e757a62dfb26ca489883a732115f5f1bcaaeb469a1274ffc806b7dff97",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "restored": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "tools/tool-git-hooks/src/hooks/ci-plan.test.ts",
+        "--test-name-pattern=fixed\\ remote\\ leaves\\ retain\\ one\\ logical\\ owner\\ and\\ explicit\\ static/dependency\\ execution$"
+      ],
+      "pid": 3320031,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 4.461915269028395,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "577b82323e1de1dd4ec7382f5195d0594da4188513f5346bf6fe09a2ef633dca"
+    },
+    "wrapper": {
+      "pid": 3320030,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "c87c54e4487c85d448d4e66029ae56292ab78cdd8d7f88e59b1886ec9ee047e6",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}

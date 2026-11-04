@@ -1,0 +1,18 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-remote-scripts/src/lib/source-inner-transport.test.ts:
+
+test/source-inner-transport-child.test.ts:
+actual immutable Node production byte transport ACK/reap and fresh original-group census observed
+(pass) actual Node program uses production byte ACK transport and a fresh empty-group census [356.21ms]
+
+ 1 pass
+ 0 fail
+ 37 expect() calls
+Ran 1 test across 1 file. [372.00ms]
+(pass) actual source Node program runs through an isolated exact production byte transport adapter [382.60ms]
+
+ 1 pass
+ 0 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [403.00ms]

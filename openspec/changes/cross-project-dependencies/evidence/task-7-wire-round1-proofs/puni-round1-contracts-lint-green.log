@@ -1,0 +1,15 @@
+
+> nx run wbs-contracts:lint
+
+> bunx eslint libs/wbs/domain/contracts/src libs/wbs/domain/contracts/solver/src
+
+
+
+
+ NX   Successfully ran target lint for project wbs-contracts
+
+
+  Run duration:      18.8s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     18.8s (1 task)
+  Recoverable time:  <1ms

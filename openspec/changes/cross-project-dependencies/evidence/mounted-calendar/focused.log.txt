@@ -1,0 +1,16 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-calendar.controller.db.test.ts:
+(pass) isolated mounted calendars preserve fractional FS boundary from both project targets [382.02ms]
+(pass) isolated mounted Wednesday floor binds after short Monday predecessor [277.27ms]
+(pass) isolated mounted weekend floor and deadline use the Wednesday anchor [282.63ms]
+(pass) isolated mounted missing connected anchor stays explicit and unrelated undated project stays outside [342.02ms]
+(pass) shared mounted calendars preserve fractional FS boundary from both project targets [261.44ms]
+(pass) shared mounted Wednesday floor binds after short Monday predecessor [262.97ms]
+(pass) shared mounted weekend floor and deadline use the Wednesday anchor [280.47ms]
+(pass) shared mounted missing connected anchor stays explicit and unrelated undated project stays outside [326.19ms]
+
+ 8 pass
+ 0 fail
+ 58 expect() calls
+Ran 8 tests across 1 file. [5.59s]

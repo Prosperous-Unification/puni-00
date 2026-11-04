@@ -1,3 +1,4 @@
+import type { CommandAccess } from '../ports/command-access';
 import type { DomainChallenges } from '../ports/domain-challenges';
 import type { EnterpriseConnections } from '../ports/enterprise-connections';
 import type { MembershipAdministration } from '../ports/membership-administration';
@@ -75,4 +76,13 @@ export const refusingEnterpriseConnections: EnterpriseConnections = {
 /** A fixture without durable restore authority explicitly refuses approval issuance. */
 export const refusingRestoreApprovals: SharedPeopleRestoreApprovals = {
   approve: () => Promise.resolve({ ok: false, refusal: 'forbidden' }),
+};
+
+/** Explicit resolver for local-only command fixtures; never installed by production. */
+export const localCommandAccess: CommandAccess = {
+  resolve: (caller) =>
+    Promise.resolve({
+      ok: true,
+      access: caller.kind === 'human' ? caller.expectedAccess : { kind: 'legacy' },
+    }),
 };

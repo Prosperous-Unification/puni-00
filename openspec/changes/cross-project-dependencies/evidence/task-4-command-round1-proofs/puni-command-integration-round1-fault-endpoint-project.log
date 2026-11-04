@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/compensating.test.ts:
+611 |     expect([...restoredTypedAddressesOf(nested(nested(restored), nested(nested(typed))), 'owner')]).toEqual([key]);
+612 |     expect([...restoredTypedAddressesOf(nested(nested(typed), nested(restored)), 'owner')]).toEqual([]);
+613 |   }
+614 |   expect([...restoredTypedAddressesOf(nested(restoreForTypedReplay('owner', 'different'), add), 'owner')]).toEqual([]);
+615 |   expect([...restoredTypedAddressesOf(nested(restoreForTypedReplay('remote', 'restored'), add), 'owner')]).toEqual([]);
+616 |   expect([...restoredTypedAddressesOf(nested(restored, { do: 'add_typed_dependency', dependency: { ...dependency, predecessor: remote } }), 'owner')]).toEqual([]);
+                                                                                                                                                             ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "["remote","restored"]",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/service/compensating.test.ts:616:152)
+(fail) predicts only earlier owner-local restores before nested typed adds and updates in application order [0.63ms]
+
+ 0 pass
+ 39 filtered out
+ 1 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [116.00ms]

@@ -1,0 +1,86 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/source-dev-cohort.test.ts:
+171 |   expect(source).toEqual(before);
+172 |   expect(() => identifySourceInventory([source], structuredClone(source))).toThrow(
+173 |     'raw inventory membership',
+174 |   );
+175 |   Reflect.set(source.Mounts[0], 'Propagation', 'rshared');
+176 |   expect(() => identifyParkedSourceInventory([source], envLayout('dev'), expected)).toThrow(
+                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "parked source inventory member"
+
+Received function did not throw
+Received value: [
+  {
+    id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    name: "/wbs-dev-src",
+    image: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    config: {
+      Image: "wbs-dev-src:1",
+      WorkingDir: "/src",
+      Cmd: [ "bun", "run", "dev" ],
+      Entrypoint: null,
+      User: "1000:1000",
+      Labels: {
+        "com.docker.compose.service": "dev-src",
+        "com.docker.compose.project": "dev-src",
+      },
+    },
+    host: {
+      Init: null,
+      PidMode: "",
+      Privileged: false,
+      CapAdd: null,
+      NetworkMode: "wbs-dev-net",
+      RestartPolicy: {
+        Name: "no",
+        MaximumRetryCount: 0,
+      },
+    },
+    mounts: [
+      {
+        Type: "bind",
+        Source: "/home/puni1/wbs-dev/data",
+        Destination: "/data",
+        RW: true,
+      }, {
+        Type: "bind",
+        Source: "/run/user/1000/wbs-solver",
+        Destination: "/run/wbs-solver",
+        RW: false,
+        Propagation: "rshared",
+      }, {
+        Type: "bind",
+        Source: "/home/puni1/wbs-dev/src",
+        Destination: "/src",
+        RW: true,
+      }
+    ],
+    networks: {
+      "wbs-dev-net": {
+        NetworkID: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      },
+    },
+    restarts: 0,
+    process: {
+      running: false,
+      paused: false,
+      restarting: false,
+      dead: false,
+      pid: 0,
+      startedAt: "2026-10-23T00:00:00Z",
+    },
+  }
+]
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-cohort.test.ts:176:85)
+(fail) parked identity derives actual source fields and exact raw membership without mutating input [2.01ms]
+
+ 0 pass
+ 34 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [46.00ms]

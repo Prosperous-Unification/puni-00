@@ -1,0 +1,118 @@
+/**
+ * Immutable source collector: built-ins only, bounded actual proc reads and lossless executable metadata.
+ * ADDR is a deterministic projection of observed interfaces for the unchanged decoder:
+ * the fixed numeric prefix and internal-derived scope labels are encoding fields,
+ * not observations of interface indices or verbatim ip output.
+ */
+export const SOURCE_NODE_COLLECTOR = String.raw`
+'use strict';
+const fs=require('node:fs');
+const crypto=require('node:crypto');
+const os=require('node:os');
+const net=require('node:net');
+const [nonce,mode,...arguments_]=process.argv.slice(1);
+function requireTrue(predicate,message){if(!predicate)throw new Error(message);}
+/* Proof: collector-credentials group; reported UID0. actual source collector function boundary refuses uid failed with this group omitted and passed after exact restoration. */requireTrue(process.getuid()===1000&&process.getgid()===1000,'source collector UID/GID differs');
+/* Proof: collector-arguments group; out-of-range PID. actual source collector function boundary refuses pid-argument failed with this group omitted and passed after exact restoration. */requireTrue(/^[A-Za-z0-9-]{1,64}$/.test(nonce),'source nonce malformed');
+requireTrue(mode==='observe'||mode==='cleanup','source mode unsupported');
+function pidNumber(text){requireTrue(/^[1-9][0-9]*$/.test(text)&&Number.isSafeInteger(Number(text))&&Number(text)<=4194304,'source PID malformed');return Number(text);}
+function readBytes(path,maximum){
+ const descriptor=fs.openSync(path,fs.constants.O_RDONLY);
+ try{const chunks=[];let count=0;for(;;){const bytes=Buffer.alloc(Math.min(65536,maximum+1-count));const length=fs.readSync(descriptor,bytes,0,bytes.length,null);if(length===0)break;count+=length;/* Proof: bounded-proc-read group; owned65537-byte input. actual source collector function boundary refuses proc-bound failed with this group omitted and passed after exact restoration. */requireTrue(count<=maximum,'source read bound exceeded');chunks.push(bytes.subarray(0,length));}return Buffer.concat(chunks);}finally{fs.closeSync(descriptor);}
+}
+function decodeBytes(bytes){return /* Proof: fatal-byte-decoder group; actual nonUTF8 link target. actual source collector function boundary refuses link-utf8 failed with this group omitted and passed after exact restoration. */new TextDecoder('utf-8',{fatal:true}).decode(bytes);}
+function readBounded(path,maximum){return decodeBytes(readBytes(path,maximum));}
+function readStat(pid){const text=readBounded('/proc/'+pid+'/stat',65536);const closing=text.lastIndexOf(') ');/* Proof: proc-stat-grammar group; foreign PID in proc stat. actual source collector function boundary refuses stat-identity failed with this group omitted and passed after exact restoration. */requireTrue(text.startsWith(String(pid)+' (')&&closing>1,'source proc identity malformed');const fields=text.slice(closing+2).trim().split(/\s+/);requireTrue(fields.length>=20&&/^[1-9][0-9]*$/.test(fields[19]),'source start malformed');return {text,state:fields[0],parent:fields[1],group:fields[2],session:fields[3],ticks:fields[19]};}
+function utc(nanoseconds){
+ let seconds=nanoseconds/1000000000n;let fraction=nanoseconds%1000000000n;if(fraction<0n){seconds-=1n;fraction+=1000000000n;}
+ /* Proof: timestamp-projection group; coherent out-of-range stat/fstat mtime. actual source collector normal proc boundary observes timestamp-range failed with this group omitted and passed after exact restoration. */requireTrue(seconds>=-62167219200n&&seconds<=253402300799n,'source timestamp range unsupported');
+ const iso=new Date(Number(seconds)*1000).toISOString();requireTrue(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.000Z$/.test(iso),'source timestamp unsupported');
+ return iso.slice(0,10)+' '+iso.slice(11,19)+'.'+String(fraction).padStart(9,'0')+' +0000';
+}
+function metadata(attributes){return String(attributes.dev)+':'+String(attributes.ino)+':'+String(attributes.size)+'|'+utc(attributes.mtimeNs)+'|'+utc(attributes.ctimeNs);}
+function link(path){const text=decodeBytes(fs.readlinkSync(path,{encoding:'buffer'}));/* Proof: link-projection group; NUL link view. actual source collector function boundary refuses link-input failed with this group omitted and passed after exact restoration. */requireTrue(Buffer.byteLength(text)<=65536&&!text.includes('\0'),'source link unsupported');return text;}
+let output=0;
+function emit(...tokens){const bytes=Buffer.from(tokens.join('\0')+'\0');output+=bytes.length;/* Proof: receipt-output-bounds group; output beyond32MiB. actual source collector function boundary refuses output-total failed with this group omitted and passed after exact restoration. */requireTrue(output<=32*1024*1024&&tokens.every(token=>Buffer.byteLength(token)<=4*1024*1024),'source output bound exceeded');let offset=0;while(offset<bytes.length){const written=fs.writeSync(1,bytes,offset,bytes.length-offset);/* Proof: write-progress group; write count beyond remaining bytes. actual source writer handles excess byte progress at its output boundary failed with this group omitted and passed after exact restoration. */requireTrue(Number.isSafeInteger(written)&&written>0&&written<=bytes.length-offset,'source output write progress refused');offset+=written;}}
+function addresses(){
+ const interfaces=os.networkInterfaces();const lines=[];let count=0;
+ for(const name of Object.keys(interfaces).sort()){
+  /* Proof: address-projection group; expanded IPv6 builtin view. actual source address projection refuses canonical-v6 builtin observation failed with this group omitted and passed after exact restoration. */requireTrue(/^[A-Za-z0-9_.:@-]{1,64}$/.test(name),'source interface name unsupported');const entries=interfaces[name];requireTrue(Array.isArray(entries),'source interface absent');
+  for(const entry of entries){const family=entry.family==='IPv4'?4:entry.family==='IPv6'?6:0;requireTrue(family!==0&&net.isIP(entry.address)===family&&typeof entry.cidr==='string'&&!entry.address.includes('%')&&!entry.address.toLowerCase().startsWith('::ffff:'),'source address unsupported');const [address,prefix,...extra]=entry.cidr.split('/');requireTrue(extra.length===0&&address===entry.address&&/^(0|[1-9][0-9]*)$/.test(prefix)&&Number(prefix)<=(family===4?32:128),'source address CIDR unsupported');const canonical=family===4?entry.address:new URL('http://['+entry.address+']').hostname.slice(1,-1);requireTrue(canonical===entry.address.toLowerCase(),'source address noncanonical');count++;requireTrue(count<=256,'source address count exceeded');lines.push('1: '+name+' '+(family===4?'inet':'inet6')+' '+canonical+'/'+prefix+' scope '+(entry.internal?'host':'global')+' '+name);}
+ }
+ requireTrue(lines.length>0&&new Set(lines.map(line=>line.split(' ')[3].split('/')[0])).size<=64,'source addresses absent or oversized');const text=lines.sort().join('\n')+'\n';requireTrue(Buffer.byteLength(text)<=65536,'source addresses bound exceeded');return text;
+}
+function observe(){
+ requireTrue(arguments_.length>0&&arguments_.length<=10000&&new Set(arguments_).size===arguments_.length,'source roster unsupported');const pids=arguments_.map(pidNumber);
+ for(const label of ['before','after']){
+  emit('PASS',label);
+  for(const pid of pids){
+   const root='/proc/'+pid;const before=readStat(pid);const status=readBounded(root+'/status',65536);
+   const command=readBytes(root+'/cmdline',1024*1024);const argv=command.toString('base64');const cwd=link(root+'/cwd');const executable=link(root+'/exe');
+   /* Proof: process-readback group; closing start-tick drift. actual source collector normal proc boundary observes pid-start failed with this group omitted and passed after exact restoration. */requireTrue(cwd.startsWith('/')&&executable.startsWith('/')&&!cwd.endsWith(' (deleted)')&&!executable.endsWith(' (deleted)'),'source executable path unsupported');
+   const descriptor=fs.openSync(root+'/exe',fs.constants.O_RDONLY);let attributes,digest;
+   try{
+    attributes=fs.fstatSync(descriptor,{bigint:true});/* Proof: executable-capture group; premature executable EOF. actual source collector normal proc boundary observes short-read failed with this group omitted and passed after exact restoration. */requireTrue(attributes.isFile()&&attributes.size>0n&&attributes.size<=134217728n,'source executable bound exceeded');const first=metadata(attributes);requireTrue(metadata(fs.statSync(root+'/exe',{bigint:true}))===first,'source executable open drift');
+    const hash=crypto.createHash('sha256');const buffer=Buffer.alloc(65536);let count=0n;for(;;){const length=fs.readSync(descriptor,buffer,0,buffer.length,null);if(length===0)break;count+=BigInt(length);requireTrue(count<=134217728n&&count<=attributes.size,'source executable read exceeded');hash.update(buffer.subarray(0,length));}
+    requireTrue(count===attributes.size&&metadata(fs.fstatSync(descriptor,{bigint:true}))===first&&metadata(fs.statSync(root+'/exe',{bigint:true}))===first,'source executable readback drift');digest=hash.digest('hex');
+   }finally{fs.closeSync(descriptor);}
+   const namespaces=['pid','net','mnt'].map(name=>link(root+'/ns/'+name));const after=readStat(pid);requireTrue(before.ticks===after.ticks&&link(root+'/exe')===executable&&metadata(fs.statSync(root+'/exe',{bigint:true}))===metadata(attributes),'source process changed');
+   emit('PROC',String(pid),before.text,status,argv,cwd,executable,metadata(attributes),digest,...namespaces);
+   const descriptors=fs.readdirSync(root+'/fd');/* Proof: descriptor-roster group; FD4097 view with an owned descriptor. actual source collector normal proc boundary observes fd-identity failed with this group omitted and passed after exact restoration. */requireTrue(descriptors.length<=4096,'source FD count exceeded');descriptors.sort((left,right)=>Number(left)-Number(right));
+   for(const descriptor of descriptors){requireTrue(/^(0|[1-9][0-9]*)$/.test(descriptor)&&Number(descriptor)<=4096,'source FD unsupported');emit('FD',String(pid),descriptor,link(root+'/fd/'+descriptor));}
+  }
+  emit('SELF',...['pid','net','mnt'].map(name=>link('/proc/self/ns/'+name)));
+  emit('TCP','4',readBounded('/proc/self/net/tcp',4*1024*1024),'TCP','6',readBounded('/proc/self/net/tcp6',4*1024*1024),'ADDR',addresses());
+ }
+ emit('DONE',nonce,'2');
+}
+function cleanup(){
+ /* Proof: census-provenance group; missing expected session tick. actual source fresh census refuses arguments at its identity boundary failed with this group omitted and passed after exact restoration. */requireTrue(arguments_.length===4,'source census identity absent');const [original,group,session,ticks]=arguments_;pidNumber(original);requireTrue(group===original&&session===original&&/^[1-9][0-9]*$/.test(ticks),'source census identity malformed');
+ const own=readStat(process.pid);requireTrue(own.group===String(process.pid)&&own.session===String(process.pid)&&own.group!==group,'source census own session differs');
+ const names=fs.readdirSync('/proc').filter(name=>/^[1-9][0-9]*$/.test(name));/* Proof: census-bound group; 10001-entry discovery view. actual source fresh census refuses count at its identity boundary failed with this group omitted and passed after exact restoration. */requireTrue(names.length<=10000,'source census count exceeded');
+ for(const name of names){let observed;try{observed=readStat(pidNumber(name));}catch(cause){if(cause&&cause.code==='ENOENT'){try{fs.lstatSync('/proc/'+name+'/stat');}catch(probeFailure){/* Proof: census-probe group; second-probe EACCES. actual source census second probe models EACCES explicitly failed with this group omitted and passed after exact restoration. */if(probeFailure&&probeFailure.code==='ENOENT')continue;throw probeFailure;}}throw cause;}
+  if(observed.group===group||observed.session===session){requireTrue(name!==original||observed.ticks===ticks,'source census PID reused');emit('MEMBER',name,observed.state,observed.ticks);}
+ }
+ emit('DONE',nonce,String(names.length));
+}
+if(mode==='observe')observe();else cleanup();
+`;
+
+/** Independent source-only watchdog owns one detached collector; ACK and actual original exit/EOF precede REAPED. */
+export const SOURCE_NODE_LAUNCHER =
+  String.raw`
+'use strict';
+const fs=require('node:fs');
+const {spawn}=require('node:child_process');
+const [nonce,mode,...arguments_]=process.argv.slice(1);
+/* Proof: launcher-input group; reported GID0. actual source launcher rejects credential before granting reap failed with this group omitted and passed after exact restoration. */if(process.getuid()!==1000||process.getgid()!==1000||!/^[A-Za-z0-9-]{1,64}$/.test(nonce)||!['observe','cleanup'].includes(mode))throw new Error('source launcher input refused');
+const program=` +
+  JSON.stringify(SOURCE_NODE_COLLECTOR) +
+  String.raw`;
+const child=spawn(process.execPath,['-e',program,'--',nonce,mode,...arguments_],{detached:true,cwd:'/',env:{PATH:'/usr/local/bin:/usr/bin:/bin',LC_ALL:'C'},stdio:['ignore','pipe','pipe']});
+let identity=null,ack=false,input='',inputEnded=false;
+let settleAcknowledgement=null;
+const failures=[];let stdoutBytes=0,stderrBytes=0;
+function readIdentity(){
+ const text=fs.readFileSync('/proc/'+child.pid+'/stat','utf8');/* Proof: owned-child-identity group; foreign owned-child group view. actual source launcher rejects identity before granting reap failed with this group omitted and passed after exact restoration. */if(Buffer.byteLength(text)>65536)throw new Error('source child stat bound');const closing=text.lastIndexOf(') ');const fields=text.slice(closing+2).trim().split(/\s+/);if(!text.startsWith(String(child.pid)+' (')||closing<2||fields[2]!==String(child.pid)||fields[3]!==String(child.pid)||!/^[1-9][0-9]*$/.test(fields[19]))throw new Error('source owned child identity differs');return {pid:String(child.pid),group:fields[2],session:fields[3],ticks:fields[19]};
+}
+function stop(cause){
+ failures.push(cause);/* Proof: input-settlement group; withheld ACK input left pending. actual source launcher refuses withheld ACK and settles original custody failed with this group omitted and passed after exact restoration. */if(settleAcknowledgement!==null){settleAcknowledgement();process.stdin.destroy();}if(identity===null){child.kill('SIGKILL');}else{try{const current=readIdentity();if(JSON.stringify(current)!==JSON.stringify(identity))throw new Error('source owned child identity drift');process.kill(-Number(identity.group),'SIGKILL');}catch(failure){if(!(failure&&failure.code==='ENOENT')&&!(failure&&failure.code==='ESRCH'))failures.push(failure);}}
+}
+/* Proof: independent-watchdog group; synchronously blocked collector. actual independent launcher deadline kills a synchronously blocked collector failed with this group omitted and passed after exact restoration. */const timer=setTimeout(()=>stop(new Error('source independent work/ACK deadline exceeded')),15000);
+const exit=new Promise(resolve=>{child.once('error',cause=>{stop(cause);resolve({code:null,signal:null});});child.once('exit',(code,signal)=>resolve({code,signal}));});
+function forward(stream,isError){return new Promise(resolve=>{stream.on('data',bytes=>{if(isError){stderrBytes+=bytes.length;/* Proof: launcher-stderr group; owned-child stderr warning. actual source launcher refuses stderr from its owned collector boundary failed with this group omitted and passed after exact restoration. */if(stderrBytes>65536){stop(new Error('source collector stderr bound'));return;}if(bytes.length>0)stop(new Error('source collector stderr refused'));}else{stdoutBytes+=bytes.length;/* Proof: launcher-stdout group; 33MiB owned-child output. actual source launcher refuses stdout from its owned collector boundary failed with this group omitted and passed after exact restoration. */if(stdoutBytes>32*1024*1024){stop(new Error('source collector output bound'));return;}if(identity===null){stop(new Error('source output before identity'));return;}process.stdout.write(bytes);}});stream.once('error',cause=>{stop(cause);resolve();});stream.once('end',resolve);});}
+const stdout=forward(child.stdout,false),stderr=forward(child.stderr,true);
+const acknowledged=new Promise(resolve=>{
+ settleAcknowledgement=resolve;
+ process.stdin.on('data',bytes=>{input+=bytes.toString('utf8');/* Proof: ack-bound group; 129-byte open ACK. actual source launcher bounds an open ACK channel before its work deadline failed with this group omitted and passed after exact restoration. */if(Buffer.byteLength(input)>128){stop(new Error('source ACK bound'));resolve();}});
+ process.stdin.once('end',()=>{inputEnded=true;/* Proof: ack-validation group; malformed ACK. actual source launcher refuses malformed ACK and settles original custody failed with this group omitted and passed after exact restoration. */if(input!=='ACK '+nonce+'\n'){stop(new Error('source ACK malformed'));}else ack=true;resolve();});
+ process.stdin.once('error',cause=>{stop(cause);resolve();});
+});
+child.once('spawn',()=>{try{identity=readIdentity();process.stdout.write(['SESSION',nonce,identity.pid,identity.group,identity.session,identity.ticks,''].join('\0'));}catch(cause){stop(cause);}});
+Promise.allSettled([exit,stdout,stderr,acknowledged]).then(receipts=>{
+ clearTimeout(timer);
+ for(const receipt of receipts)if(receipt.status==='rejected')failures.push(receipt.reason);
+ const outcome=receipts[0];/* Proof: original-reap group; nonzero original-child exit. actual source launcher rejects exit-status before granting reap failed with this group omitted and passed after exact restoration. */if(outcome.status!=='fulfilled'||outcome.value.code!==0||outcome.value.signal!==null||!ack||!inputEnded||identity===null||failures.length>0){process.stderr.write('source collector session refused\n');process.exitCode=1;return;}
+ process.stdout.write(['REAPED',nonce,''].join('\0'));
+});
+`;

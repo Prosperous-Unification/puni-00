@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/fixture-failure.test.ts:
+137 |     });
+138 |     const report = summarizeFixtureFailure(new Error('outer', { cause: failure }));
+139 |     expect(report.chain.at(-1)?.category).toBe('unreadable-error');
+140 |     expect(JSON.stringify(report)).not.toContain('PRIVATE_');
+141 |   }
+142 |   expect(reads).toBe(0);
+                      ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 6
+
+      at <anonymous> (/tmp/puni-source-native-init-descriptors/tools/tool-remote-scripts/test/fixture-failure.test.ts:142:17)
+(fail) diagnostic descriptors never invoke error or typed metadata getters [1.10ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 13 expect() calls
+Ran 1 test across 1 file. [47.00ms]

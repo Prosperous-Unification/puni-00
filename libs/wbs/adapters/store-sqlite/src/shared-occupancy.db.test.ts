@@ -14,7 +14,10 @@ import { clockOf, CREATOR_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { ClaimLeaseSweep } from '@wbs/core/module/plan-commands/claim-lease-sweep';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
+import { expectCreated } from '@wbs/core/testing/expect-created';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { CLAIM_LEASE_MS } from '@wbs/domain';
 import { openMemorySourceFixture } from '@wbs/store-memory/source';
@@ -23,6 +26,7 @@ import { describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 /**
@@ -79,6 +83,7 @@ const STORES: readonly { readonly name: string; readonly open: () => Opened }[] 
       return {
         // Caps far above the fixture: a scoped claim counts them, never reaches them.
         source: openSqliteSource({
+          dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
           dbPath,
           organizationDefaultLimits: {
             maxAgentPersons: 1_000,
@@ -158,6 +163,7 @@ async function seeded(store: (typeof STORES)[number]) {
     clock,
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
+    dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
   await source.stores.users.create(
@@ -166,7 +172,7 @@ async function seeded(store: (typeof STORES)[number]) {
   );
   const projects: string[] = [];
   for (const name of ['A', 'B']) {
-    const created = await graph.projects.create(name, F);
+    const created = expectCreated(await graph.projects.create(name, F));
     projects.push(created.project.id);
     if (isMemory)
       for (const step of created.steps)
@@ -201,11 +207,16 @@ async function seeded(store: (typeof STORES)[number]) {
   }
   opened.own(projects, [RAM, STAGING]);
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: options.broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
-      servicesOver(scope.stores, { ...options, broadcast: announcements }),
+      servicesOver(scope.stores, {
+        ...options,
+        broadcast: announcements,
+        dependencyContext: createLocalDependencyContext(scope.stores),
+      }),
   });
   const leaves: string[][] = [];
   for (const projectId of projects) {
@@ -393,7 +404,7 @@ for (const store of STORES) {
       const { source, graph, runner, state, close } = await seeded(store);
       try {
         await state(RAM, 16);
-        const { project, steps } = await graph.projects.create('Orphan', F);
+        const { project, steps } = expectCreated(await graph.projects.create('Orphan', F));
         const step = steps.at(0);
         if (step === undefined) throw new Error('the orphan project has no step');
         if (store.name === 'memory')

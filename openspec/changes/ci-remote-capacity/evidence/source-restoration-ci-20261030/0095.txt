@@ -1,0 +1,8 @@
+{
+  "existingSevenSourceByteEqual": true,
+  "discoveryOptionsByteEqual": true,
+  "terminalReceiptByteEqual": true,
+  "existingProjectTargetsDeepEqual": true,
+  "newTargetExactCloneExceptCommand": true,
+  "workflowDeepEqualAfterOnlyTwoReviewedInverses": true
+}

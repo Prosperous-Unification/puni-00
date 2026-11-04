@@ -47,6 +47,7 @@ import { fenceFirstStartManifests, firstStartEffects } from './first-start-adapt
 import { buildSourceRefPatch } from './first-start-source';
 import { serveGitHttp } from './git-http';
 import { fileJournal } from './journal';
+import { type ConfigDigestReader, registryConfigDigestReader } from './registry';
 import { type ReleaseIdentity, releaseIdOf, type ReleaseRequest } from './release';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
@@ -73,6 +74,23 @@ const lock = JSON.parse(readFileSync(join(ROOT, 'infra/versions/toolchain.json')
   runtimeImages: Record<string, { name: string; digest: string }>;
   manifests: { fluxInstall: { sha256: string } };
 };
+
+/** Keeps the F11 follow-up release on its own fixed registry, using verified OCI identities. */
+export function cutoverConfigDigestReader(port: number): ConfigDigestReader {
+  // Proof: cutover caller invalid-port cases reject zero, fractional, non-finite and out-of-range ports.
+  if (!Number.isSafeInteger(port) || port < 1 || port > 65535)
+    throw new Error('invalid cutover registry port');
+  const read = registryConfigDigestReader(null);
+  return async (ref, timeoutMs) => {
+    // Proof: the cutover caller test refuses both F8 and foreign authorities before lookup.
+    if (!/^k3d-puni-f11-registry:5000\/[^@]+@sha256:[0-9a-f]{64}$/.test(ref))
+      throw new Error('image is not pinned to the F11 lab registry');
+    return read(
+      ref.replace(/^k3d-puni-f11-registry:5000\//, `127.0.0.1:${String(port)}/`),
+      timeoutMs,
+    );
+  };
+}
 
 function log(line: string): void {
   console.log(`[cutover ${new Date().toISOString().slice(11, 19)}] ${line}`);
@@ -1058,6 +1076,7 @@ async function main(): Promise<void> {
 
     phase('start-tiers');
     const settings = {
+      readConfigDigest: cutoverConfigDigestReader(port),
       kubectl,
       kubeconfig: join(state, 'kubeconfig'),
       context: CONTEXT,

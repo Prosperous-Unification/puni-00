@@ -1,0 +1,63 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-remote-scripts/src/install-solver-supervisor.test.ts:
+83 |     await promise;
+84 |   } catch (error: unknown) {
+85 |     if (error instanceof Error) return error;
+86 |     throw new Error(`expected Error rejection, got ${String(error)}`, { cause: error });
+87 |   }
+88 |   throw new Error('expected rejection');
+                 ^
+error: expected rejection
+      at rejectionOf (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/install-solver-supervisor.test.ts:88:13)
+      at async <anonymous> (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/install-solver-supervisor.test.ts:185:25)
+(fail) rejects unmeasured or malformed Bun "1.4.3" before mutation [1.38ms]
+83 |     await promise;
+84 |   } catch (error: unknown) {
+85 |     if (error instanceof Error) return error;
+86 |     throw new Error(`expected Error rejection, got ${String(error)}`, { cause: error });
+87 |   }
+88 |   throw new Error('expected rejection');
+                 ^
+error: expected rejection
+      at rejectionOf (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/install-solver-supervisor.test.ts:88:13)
+      at async <anonymous> (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/install-solver-supervisor.test.ts:185:25)
+(fail) rejects unmeasured or malformed Bun "1.2.20" before mutation [0.26ms]
+83 |     await promise;
+84 |   } catch (error: unknown) {
+85 |     if (error instanceof Error) return error;
+86 |     throw new Error(`expected Error rejection, got ${String(error)}`, { cause: error });
+87 |   }
+88 |   throw new Error('expected rejection');
+                 ^
+error: expected rejection
+      at rejectionOf (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/install-solver-supervisor.test.ts:88:13)
+      at async <anonymous> (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/install-solver-supervisor.test.ts:185:25)
+(fail) rejects unmeasured or malformed Bun "" before mutation [0.22ms]
+83 |     await promise;
+84 |   } catch (error: unknown) {
+85 |     if (error instanceof Error) return error;
+86 |     throw new Error(`expected Error rejection, got ${String(error)}`, { cause: error });
+87 |   }
+88 |   throw new Error('expected rejection');
+                 ^
+error: expected rejection
+      at rejectionOf (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/install-solver-supervisor.test.ts:88:13)
+      at async <anonymous> (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/install-solver-supervisor.test.ts:185:25)
+(fail) rejects unmeasured or malformed Bun "not-a-version" before mutation [0.14ms]
+83 |     await promise;
+84 |   } catch (error: unknown) {
+85 |     if (error instanceof Error) return error;
+86 |     throw new Error(`expected Error rejection, got ${String(error)}`, { cause: error });
+87 |   }
+88 |   throw new Error('expected rejection');
+                 ^
+error: expected rejection
+      at rejectionOf (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/install-solver-supervisor.test.ts:88:13)
+      at async <anonymous> (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/install-solver-supervisor.test.ts:185:25)
+(fail) rejects unmeasured or malformed Bun "1.4.4\\n1.4.2" before mutation [0.12ms]
+
+ 0 pass
+ 12 filtered out
+ 5 fail
+Ran 5 tests across 1 file. [45.00ms]

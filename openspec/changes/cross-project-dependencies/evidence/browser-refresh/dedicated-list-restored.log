@@ -1,0 +1,3 @@
+Listing tests:
+  cross-project-refresh.real.spec.ts:46:1 › A completion refreshes admitted B and C through their own real trees and reconnect replay
+Total: 1 test in 1 file

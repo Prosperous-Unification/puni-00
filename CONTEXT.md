@@ -270,6 +270,14 @@ settings they share, the dependencies between them and the budgets that bound se
 them. Every project belongs to exactly one organization.
 _Avoid_: engagement, programme, portfolio, project (for one WBS)
 
+**Project abbreviation**:
+The short name that distinguishes a project within its organization when addressing its work items from another project.
+_Avoid_: project ID, project prefix, slug
+
+**Qualified work-item address**:
+A project abbreviation followed by a dot and a work item number, such as `PUNI-CORE.080.39`. A qualified step reference additionally names that work item's step.
+_Avoid_: work-item ID, dependency ID
+
 **Work item**:
 One unit of work in a work package, holding a name, notes and a place in the tree; once it has
 children it owns no estimate of its own
@@ -672,8 +680,13 @@ A claim that names a subtree claim as its parent and is written by the same acco
 superagent lets its subagents claim leaves inside its subtree. Released with its parent.
 _Avoid_: Delegation (an auth term here), sub-claim, child lock, handoff
 
+**Execution eligibility**:
+A node's observed permission to start or finish under its resolved local and remote prerequisites: FS needs predecessor completion before start, SS needs actual start, and FF needs completion before finish.
+It is separate from forecast placement, node-reading labels and manual progress corrections.
+_Avoid_: readiness, waiting, eligible slice, completion lock
+
 **Startable**:
-A step whose leaf is not blocked, held or done, whose progress is not done, and that no claim
+A step whose leaf is not blocked, held or done, whose progress is not done, whose prerequisites permit a new start, and that no claim
 holds; startable **for a team** when that team is also in the leaf's effective team set.
 Derived from the folds the table uses, never stored. A startable step whose leaf's demand the
 project's free units do not cover is still startable, but listed apart as not fitting, with its
@@ -1248,6 +1261,14 @@ _Avoid_: done modal, confirmation, completion dialog, date picker
 An authored ordering relationship between predecessor and successor dependency endpoints.
 Legacy dependencies use project Dependency reach; typed dependencies name their endpoints and relationship type.
 _Avoid_: link, blocker, edge (outside the graph code)
+
+**Cross-project dependency**:
+A dependency whose predecessor and successor belong to different projects in the same organization. Its ordering applies to the selected work items or steps, not to their projects as indivisible units.
+_Avoid_: project dependency, external link
+
+**Dependency activation authority**:
+The durable decision that permits cross-project dependency authoring for a WBS store after incompatible participants have been excluded. It remains in force when that store has no live cross-project dependencies.
+_Avoid_: feature flag, active edge count
 
 **Dependency endpoint**:
 One side of a typed dependency, in one of three scopes: **whole** (a work item, leaf or
@@ -2049,8 +2070,9 @@ ranks. An undated work package stops traversal because it neither consumes nor s
 _Avoid_: recursive project dependencies, recursive work package dependencies
 
 **Elsewhere**:
-The bookings a work package's scheduler works around: those of the people it names, made by
-the work packages that outrank it. Named as the `elsewhere` floor on a slice that waited for one.
+Other work by a person named on a work package that holds up this work. It includes bookings
+from outranking work packages, including those in another project, and direct person constraints
+in a connected plan. A slice waiting for one records an `elsewhere` floor.
 _Avoid_: foreign load
 
 **Shared people**:
@@ -2560,3 +2582,27 @@ _Avoid_: failed creation, absent resource
 **Reviewed-empty membership**:
 An explicit review assertion that no member of a named earlier test level belongs to the reviewed fixture scope. It carries no execution or certification claim.
 _Avoid_: unknown membership, passing Performance result
+
+**Effective supervisor identity**:
+The identity of the running solver supervisor established by agreement between
+its captured boot material, its service invocation and the kernel identities of
+its readiness and solver connections, within the proposed [identity-broker followup](openspec/changes/solver-supervisor-identity-broker/proposal.md).
+_Avoid_: installed identity, socket readiness, adopted supervisor
+
+**Solver identity broker**:
+The host authority that publishes fresh solver supervisor identity observations to
+backend clients against an independently approved admission baseline.
+_Avoid_: certificate file, supervisor identity endpoint, activation controller
+
+**Supervisor admission baseline**:
+The approved supervisor artifact and service-policy identity against which the
+solver identity broker admits a running invocation.
+_Avoid_: observed identity, auto-adopted hashes, current certificate cache
+
+**Solver restoration intent**:
+An owner's declaration of the independently approved compatible supervisor and solver images eligible for solver-only restoration. It establishes neither semantic activation nor permission to expose application participants.
+_Avoid_: activation receipt, installed-adoption proof, maintenance-success claim
+
+**Parked dependencies**:
+Application participants kept excluded, with ingress closed, during solver-only restoration.
+_Avoid_: activated participants, restored application, reopened deployment

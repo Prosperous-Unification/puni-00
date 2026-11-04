@@ -1,0 +1,90 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/module/optimization/connected-publication.test.ts:
+626 |   const before = storedSnapshot(f);
+627 |   rejectConnectedRecipient(f);
+628 |   await f.admit();
+629 |   await f.coordinator.drain();
+630 |   expect(f.errors).toHaveLength(2);
+631 |   expect(storedSnapshot(f)).toEqual(before);
+                                  ^
+error: expect(received).toEqual(expected)
+
+@@ -1,9 +1,49 @@
+  {
+-   "cache": [],
++   "cache": [
++     {
++       "budgetMs": 1000,
++       "contractVersion": "18+0.4.0",
++       "createdAt": 10,
++       "failureReason": null,
++       "generation": 1,
++       "inputHash": "50627b95298c7ca1c16ad632b8096eb3d4419dc74955d337b599f8ea5294aba0",
++       "objective": "pri",
++       "projectId": "B",
++       "resultJson": "{"dtoVersion":2,"scope":{"kind":"connected-stage","projectId":"B"},"identity":{... (4104 bytes truncated) ...makespan":2,"priority":0,"movement":1},"baselineValues":{"makespan":3,"priority":0,"movement":0}}}",
++       "status": "ok",
++     },
++     {
++       "budgetMs": 1000,
++       "contractVersion": "18+0.4.0",
++       "createdAt": 10,
++       "failureReason": null,
++       "generation": 1,
++       "inputHash": "50627b95298c7ca1c16ad632b8096eb3d4419dc74955d337b599f8ea5294aba0",
++       "objective": "time",
++       "projectId": "B",
++       "resultJson": "{"dtoVersion":2,"scope":{"kind":"connected-stage","projectId":"B"},"identity":{... (4106 bytes truncated) ...makespan":2,"priority":0,"movement":1},"baselineValues":{"makespan":3,"priority":0,"movement":0}}}",
++       "status": "ok",
++     },
++   ],
+    "certificates": [],
+-   "events": [],
++   "events": [
++     {
++       "createdAt": 10,
++       "id": 1,
++       "message": "{"type":"schedule_optimized","projectId":"B","generation":1,"inputHash":"50627b95298c7ca1c16ad632b8096eb3d4419dc74955d337b599f8ea5294aba0","objective":"pri","contractVersion":"18+0.4.0","budgetMs":1000}",
++       "seq": 0,
++       "subscription": "project:B",
++     },
++     {
++       "createdAt": 10,
++       "id": 2,
++       "message": "{"type":"schedule_optimized","projectId":"B","generation":1,"inputHash":"50627b95298c7ca1c16ad632b8096eb3d4419dc74955d337b599f8ea5294aba0","objective":"time","contractVersion":"18+0.4.0","budgetMs":1000}",
++       "seq": 1,
++       "subscription": "project:B",
++     },
++   ],
+    "generations": [
+      {
+        "admissionState": "open",
+        "cancelEpoch": 0,
+        "contractVersion": "18+0.4.0",
+@@ -11,7 +51,12 @@
+        "inputHash": "50627b95298c7ca1c16ad632b8096eb3d4419dc74955d337b599f8ea5294aba0",
+        "projectId": "B",
+        "updatedAt": 1,
+      },
+    ],
+-   "sequences": [],
++   "sequences": [
++     {
++       "nextSeq": 2,
++       "subscription": "project:B",
++     },
++   ],
+  }
+
+- Expected  - 3
++ Received  + 48
+
+      at <anonymous> (/tmp/puni-optimizer-lifecycle/apps/wbs/be-01/src/module/optimization/connected-publication.test.ts:631:29)
+(fail) scoped connected recipient insert fault rolls back selected outcome and both event sequences [276.96ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.55s]

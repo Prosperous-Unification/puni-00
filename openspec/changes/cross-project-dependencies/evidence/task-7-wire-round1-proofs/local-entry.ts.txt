@@ -1,0 +1,2 @@
+import { revalidateSolverResult } from '/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/revalidate-solver-result.ts';
+console.log(typeof revalidateSolverResult);

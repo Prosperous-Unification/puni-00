@@ -1,0 +1,13 @@
+bun test v1.4.4 (38afee6c8)
+
+test/source-inner-program-child.test.ts:
+source Node owning namespace actual UID/GID1000:1000 observed
+source Node function BEGIN link-utf8
+actual source function link-utf8 refusal observed
+(pass) actual source collector function boundary refuses link-utf8 [42.40ms]
+
+ 1 pass
+ 43 filtered out
+ 0 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [66.00ms]

@@ -1,0 +1,28 @@
+[solver-image-smoke] supervisor authenticated and accepted /app/libs/wbs/domain/contracts/solver/fixtures/request/valid-quantised-baseline.json
+[solver-image-smoke] supervisor authenticated and accepted shared-person
+[solver-image-smoke] supervisor authenticated and accepted connected-feasible
+[solver-image-smoke] supervisor authenticated and accepted connected-fractional
+[solver-image-smoke] cleanup-complete 045ad925-3ecd-4789-80bf-87e862c3e995
+294 |       assert.deepEqual(decoded.identity, identity);
+295 |       assert.equal(canonicalConnectedStageInput(decoded.stage), stageBytes);
+296 |       assert.deepEqual(encodeConnectedStage(decoded.stage), encodeConnectedStage(asked.stage));
+297 |       assert.equal(decoded.outcome.kind, 'ok');
+298 |       if (row.objective === 'pri') {
+299 |         assert.equal(decoded.outcome.decision.chosen, 'optimized');
+                     ^
+AssertionError: Expected values to be strictly equal:
++ actual - expected
+
++ 'baseline'
+- 'optimized'
+
+ generatedMessage: true,
+     actual: "baseline",
+   expected: "optimized",
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at runComposedImageScenario (/app/apps/wbs/be-01/scripts/connected-composed-image-scenario.ts:299:16)
+
+Bun v1.4.2 (Linux x64)

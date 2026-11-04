@@ -1,0 +1,1032 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:
+35 |
+36 | test('retains exact local and foreign placements without rounding', () => {
+37 |   const before = stage();
+38 |   const after = stage();
+39 |   (after.starts as Map<string, number>).set(sliceKey('b', null), 1.3000000000000003);
+40 |   expect(canonicalConnectedStageInput(before)).not.toBe(canonicalConnectedStageInput(after));
+                                                        ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:40:52)
+(fail) retains exact local and foreign placements without rounding [0.77ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed stage owner [0.42ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed mode [0.35ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed origin [0.24ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed rank [0.25ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed anchor [0.16ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed row position [0.15ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed row priority [0.14ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed row parent [0.39ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed effort [0.22ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed null effort [0.18ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed width [0.15ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed person [0.14ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed team [0.14ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed resource units [0.13ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed resource identity [0.16ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed pool capacity [0.94ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed resource capacity [0.23ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed floor [0.15ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed deadline [0.15ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed elsewhere start [0.08ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed elsewhere finish [0.06ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed elsewhere holder project [0.05ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed elsewhere holder work [0.06ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed elsewhere person [0.07ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed graph provenance [0.06ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed relationship type [0.14ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed relationship identity [0.09ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed graph predecessor position [0.05ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed original selector identity [0.06ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed original selector scope [0.06ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed original selector step [0.06ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed local start [0.06ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed local finish [0.06ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed foreign start [0.07ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed foreign finish [0.07ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed ownership [0.06ms]
+91 |   ['ownership', s => { connectedOrder(s).projectIdByWorkItem.set('a','B'); s.relationships[0].predecessor.projectId='B'; }],
+92 |   ['step order', s => { s.input.slices.reverse(); s.input.graph.nodes = s.input.graph.nodes.map(n => n.kind==='step' ? {...n,at:1-n.at} : n); s.input.graph.edges=s.input.graph.edges.map(e=>({...e,predecessor:{...e.predecessor,at:e.predecessor.leafId==='a'?1-e.predecessor.at:e.predecessor.at},successor:{...e.successor,at:e.successor.leafId==='a'?1-e.successor.at:e.successor.at}})); }],
+93 | ];
+94 | for (const [field, edit] of edits) test(`identifies changed ${field}`, () => {
+95 |   const after = mutableStage(); edit(after);
+96 |   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
+                                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:96:51)
+(fail) identifies changed step order [0.21ms]
+(pass) canonicalizes set and map permutations without mutating the capture [0.23ms]
+(pass) ignores descriptive labels and frozen numbers [0.07ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "stage owner"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses unknown stage owner [0.11ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "connected order"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses local input [0.07ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "duplicate project"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses duplicate project [0.05ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "rank evidence"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses missing rank [0.06ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "rank evidence"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses inconsistent rank [0.05ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "rank evidence"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses extra rank [0.05ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "finite"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses nonfinite rank [0.06ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "finite"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses nonfinite origin [0.05ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "active project anchor"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses missing anchor [0.05ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "finite"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses nonfinite anchor [0.05ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "ownership"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses missing ownership [0.05ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "ownership"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses unknown ownership [0.05ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "duplicate row"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses duplicate row [0.08ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "duplicate slice"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses duplicate slice [0.09ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "placement keys"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses missing start [0.05ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "placement keys"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses extra finish [0.05ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "finite"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses nonfinite start [0.05ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "finite"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses nonfinite finish [0.06ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "reversed placement"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses reversed interval [0.09ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "finite"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses nonfinite effort [0.06ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "finite"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses nonfinite position [0.05ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "finite"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses nonfinite priority [0.05ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "finite"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses nonfinite floor [0.05ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "finite"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses nonfinite deadline [0.05ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "finite"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses nonfinite pool [0.05ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "finite"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses nonfinite resource [0.05ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "omits a slice"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses missing graph node [0.08ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "endpoint"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses foreign graph endpoint [0.06ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "duplicate relationship"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses duplicate relationship [0.07ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "relationship evidence"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses missing relationship evidence [0.05ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "relationship evidence"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses relationship type mismatch [0.06ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "relationship ownership"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses relationship owner mismatch [0.06ms]
+152 |  ['relationship owner mismatch',s=>{s.relationships[0].predecessor.projectId='B';},'relationship ownership'],
+153 |  ['unknown selector project',s=>{s.relationships[0].predecessor.projectId='unknown';},'selector project'],
+154 | ];
+155 | for (const [fault,inject,message] of faults) test(`refuses ${fault}`,()=>{
+156 |  const s=mutableStage(); inject(s);
+157 |  expect(()=>canonicalConnectedStageInput(s)).toThrow(message);
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "selector project"
+
+Received function did not throw
+Received value: ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:157:46)
+(fail) refuses unknown selector project [0.09ms]
+
+ 2 pass
+ 71 fail
+ 74 expect() calls
+Ran 73 tests across 1 file. [41.00ms]

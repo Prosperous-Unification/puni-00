@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+276 | });
+277 |
+278 | it('rejects conflicting stored identities even if an override removes their owner', async () => {
+279 |   const scope = observation();
+280 |   scope.relationships.push(link('same', 'b', 'a'), link('same', 'c', 'a'));
+281 |   await expect(scope.reader.read(['a'], [{ projectId: 'a', typed: [] }])).rejects.toThrow(/conflicting relationship same/);
+                                                                                        ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:281:83)
+(fail) rejects conflicting stored identities even if an override removes their owner [1.41ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [132.00ms]

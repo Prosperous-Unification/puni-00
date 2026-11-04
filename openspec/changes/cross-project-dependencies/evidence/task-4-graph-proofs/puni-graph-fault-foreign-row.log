@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+232 |     throw new Error('unreadable estimates');
+233 |   };
+234 |   await expect(broken.reader.read(['a'])).rejects.toThrow(/unreadable estimates/);
+235 |   const foreign = observation();
+236 |   foreign.facts.set('a', { ...state('a'), rows: [workItemRow({ id: 'A', projectId: 'foreign' })] });
+237 |   await expect(foreign.reader.read(['a'])).rejects.toThrow(/work item A.*project a/);
+                                                         ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:237:52)
+(fail) throws for missing required projects, unreadable facts and foreign work-item rows [2.02ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [137.00ms]

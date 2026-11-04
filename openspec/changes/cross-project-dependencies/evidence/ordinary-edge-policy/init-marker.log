@@ -1,0 +1,42 @@
+Command: bun test tools/tool-remote-scripts/src/lib/edge-policy.test.ts --preload ./tools/test/scratch/preload.ts --test-name-pattern initializer refuses
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/edge-policy.test.ts:
+168 |   try {
+169 |     await operation;
+170 |   } catch (cause) {
+171 |     refusal = cause;
+172 |   }
+173 |   expect(refusal).toBeInstanceOf(Error);
+                        ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: undefined
+
+      at refuses (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.test.ts:173:19)
+      at async <anonymous> (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.test.ts:78:11)
+(fail) initializer refuses edge-owner.pending [4.30ms]
+168 |   try {
+169 |     await operation;
+170 |   } catch (cause) {
+171 |     refusal = cause;
+172 |   }
+173 |   expect(refusal).toBeInstanceOf(Error);
+                        ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: undefined
+
+      at refuses (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.test.ts:173:19)
+      at async <anonymous> (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.test.ts:78:11)
+(fail) initializer refuses edge-owner.json [1.30ms]
+
+ 0 pass
+ 16 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [49.00ms]
+
+Exit: 1

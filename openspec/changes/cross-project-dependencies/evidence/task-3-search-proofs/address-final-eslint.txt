@@ -1,0 +1,11 @@
+
+/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts
+    1:1   error  Run autofix to sort these imports!                                                          simple-import-sort/imports
+   36:59  error  Passing a string to String() does not change the type or value of the string                @typescript-eslint/no-unnecessary-type-conversion
+  283:7   error  Prefer using an optional chain expression instead, as it's more concise and easier to read  @typescript-eslint/prefer-optional-chain
+
+/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts
+  124:8  error  Prefer the safe `: unknown` for a `then` rejection callback variable  @typescript-eslint/use-unknown-in-catch-callback-variable
+
+✖ 4 problems (4 errors, 0 warnings)
+  1 error and 0 warnings potentially fixable with the `--fix` option.

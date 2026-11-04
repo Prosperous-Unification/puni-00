@@ -1,0 +1,1347 @@
+
+> nx run tool-deploy:test
+
+> bun test --preload ../test/scratch/preload.ts --timeout=10000
+
+[0m[1mbun test [0m[2mv1.4.2 (744846f84)[0m
+[0m
+src/deploy.test.ts:
+[0m[32m✓[0m [0mparseDeployArgs[2m >[0m[1m defaults to affected + dry-run[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mparseDeployArgs[2m >[0m[1m parses --all[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mparseDeployArgs[2m >[0m[1m parses positional tier list[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m [0mparseDeployArgs[2m >[0m[1m rejects unknown tier[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0mparseDeployArgs[2m >[0m[1m parses --host and --execute[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mparseDeployArgs[2m >[0m[1m refuses --since=abc, which was previously ignored[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mparseDeployArgs[2m >[0m[1m refuses --version=v1, which was previously ignored[0m
+[0m[32m✓[0m [0mparseDeployArgs[2m >[0m[1m refuses --skip-build, which was previously ignored[0m
+[0m[32m✓[0m [0mparseDeployArgs[2m >[0m[1m refuses a mistyped flag rather than defaulting to prod[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mparseDeployArgs[2m >[0m[1m parses --with-migrations[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mparseDeployArgs[2m >[0m[1m parses --stop-the-world[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mparseSha256sumOutput[2m >[0m[1m parses coreutils sha256sum lines into a path -> hash map[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mparseSha256sumOutput[2m >[0m[1m ignores blank lines[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialize[2m >[0m[1m expands all to three tiers[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialize[2m >[0m[1m uses affected when tiers is "affected"[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m emits a per-tier plan with --all, defaulting to the h2puni host[0m [0m[2m[0.68ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m passes the whole digest-pinned ref through to swap.js, registry address included[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m preflights every tier before any of them swaps, without --execute[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m preflights the supervisor, socket and exact next prod colour before registry access[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m does not make non-backend deploys depend on the solver supervisor[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m drives every tier from one swap.js invocation so the lock spans the run[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m names only the selected tiers in that one invocation[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m refuses a release built at a different commit than HEAD[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m refuses to plan a deploy from a dirty worktree[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m refuses a dirty worktree on a dry run too, before reading remote state[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m plans normally when the worktree is clean[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m honors an explicit --host[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m appends --execute to the remote command when not a dry run[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m reports "(never deployed)" for a tier with no remote state[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m is silent about migrations when the deployed and head sets match[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m names only the migrations this deploy adds, not every one at HEAD[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m does not gate a gw-only deploy on migrations it cannot apply[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m still gates the same migration when be is in the deploy[0m [0m[2m[0.23ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m measures migrations against be, not against the tier being deployed[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m throws and never reaches ssh when a new migration lacks an override flag[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m proceeds when --with-migrations acknowledges the new migration[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m refuses --stop-the-world outright, even with a new migration present[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m refuses --stop-the-world even when there is no migration to gate[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m never gates a first-ever deploy (no baseline) even with new migration files[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m throws a clear error when the release manifest has no entry for a tier[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildDeployPlan[2m >[0m[1m uses affected tiers when none are given positionally[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSmokeCommand[2m >[0m[1m passes each tier a URL built from its OWN colour, not a single shared one[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSmokeCommand[2m >[0m[1m never puts SMOKE_COLOR, INTERNAL_AUTH_SECRET, or a JWT key on the command line[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSmokeCommand[2m >[0m[1m supplies secrets only via the server-side gw-01.secrets.env, never inline[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSmokeCommand[2m >[0m[1m runs the bundled single-file smoke.js, not a $PWD-mounted checkout[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSmokeCommand[2m >[0m[1m passes be-01 its API base for the read checks[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSmokeCommand[2m >[0m[1m hands docker the read-account file only when the host has one[0m [0m[2m[6.88ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSmokeCommand[2m >[0m[1m omits an override for a tier with no recorded state rather than guessing a colour[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0mparseRemoteStateOutput[2m >[0m[1m parses every present tier[0m [0m[2m[0.47ms[0m[2m][0m
+[0m[32m✓[0m [0mparseRemoteStateOutput[2m >[0m[1m treats a genuinely absent state file as "never deployed"[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mparseRemoteStateOutput[2m >[0m[1m refuses an unreadable state file instead of calling it never-deployed[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m [0mparseRemoteStateOutput[2m >[0m[1m refuses a state file whose contents are not valid JSON[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0mparseRemoteStateOutput[2m >[0m[1m refuses a present but empty state file[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mparseRemoteStateOutput[2m >[0m[1m refuses output that does not report all three tiers[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mparseRemoteStateOutput header handling[2m >[0m[1m refuses a header missing its status word rather than reading it as a tier[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0m--env[2m >[0m[1m defaults to prod[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0m--env[2m >[0m[1m parses --env=dev into dev’s layout[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0m--env[2m >[0m[1m refuses an environment nobody provisioned[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mper-environment deploy plans[2m >[0m[1m sends prod the exact command it sent before environments existed[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mper-environment deploy plans[2m >[0m[1m sends dev its own root and WBS_ENV[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mper-environment deploy plans[2m >[0m[1m reads the state directory of the environment being deployed, never another[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0mper-environment deploy plans[2m >[0m[1m smokes dev over dev’s own network, root and address[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mmigration gate per environment[2m >[0m[1m lets dev deploy a new migration unattended, and says so[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mmigration gate per environment[2m >[0m[1m still refuses prod without an explicit acknowledgement[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m [0mmigration gate per environment[2m >[0m[1m still honours an explicit --with-migrations on prod[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSmokeCommand across environments[2m >[0m[1m targets prod’s container names unchanged[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSmokeCommand across environments[2m >[0m[1m targets dev’s prefixed container names[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mthe installer command a stale bundle tells an operator to run[2m >[0m[1m names the environment the deploy is for, not the one WBS_ENV happens to be[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mthe installer command a stale bundle tells an operator to run[2m >[0m[1m is quoted and pasteable, host first[0m
+[0m
+src/migrations.test.ts:
+[0m[32m✓[0m [0mhasNewMigrations[2m >[0m[1m is true when the head tree has a migration the deployed sha lacks[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mhasNewMigrations[2m >[0m[1m is false when the migration sets match[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mhasNewMigrations[2m >[0m[1m is false on a first-ever deploy with no baseline[0m
+[0m[32m✓[0m [0mmigrationsAtSha[2m >[0m[1m resolves the migration tree in each revision across the namespace rename[0m [0m[2m[[1m65.79ms[0m[2m][0m
+[0m[32m✓[0m [0mmigrationsAtSha[2m >[0m[1m refuses a revision with neither supported migration tree[0m [0m[2m[[1m21.45ms[0m[2m][0m
+[0m[32m✓[0m [0mmigrationsAtSha[2m >[0m[1m refuses a revision with both supported migration trees[0m [0m[2m[[1m21.59ms[0m[2m][0m
+[0m[32m✓[0m [0mmigrationsAtSha[2m >[0m[1m refuses a supported migration path that is not a Git tree[0m [0m[2m[[1m21.48ms[0m[2m][0m
+[0m[32m✓[0m [0mmigrationsAtSha[2m >[0m[1m names an unreadable revision instead of treating it as an empty tree[0m [0m[2m[8.72ms[0m[2m][0m
+[0m[32m✓[0m [0mmigrationsAtSha[2m >[0m[1m refuses malformed Git tree output instead of choosing a layout[0m [0m[2m[9.11ms[0m[2m][0m
+[0m[32m✓[0m [0mmigrationsAtSha[2m >[0m[1m refuses listing output outside the selected migration tree[0m [0m[2m[7.89ms[0m[2m][0m
+[0m[32m✓[0m [0mmigrationsAtSha[2m >[0m[1m refuses a file stored directly in the migration tree[0m [0m[2m[[1m25.35ms[0m[2m][0m
+[0m[32m✓[0m [0massertMigrationFlag[2m >[0m[1m passes when there are no new migrations[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0massertMigrationFlag[2m >[0m[1m throws when migrations exist and the flag is not given[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0massertMigrationFlag[2m >[0m[1m does not suggest --stop-the-world as a remedy[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m [0massertMigrationFlag[2m >[0m[1m passes when --with-migrations is given[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0massertStopTheWorldNotImplemented[2m >[0m[1m passes when the flag is not given[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0massertStopTheWorldNotImplemented[2m >[0m[1m throws when the flag is given, naming what to do instead[0m [0m[2m[0.06ms[0m[2m][0m
+[0m
+src/assert-no-prod-release.test.ts:
+[0m[32m✓[0m [0massert-no-prod-release[2m >[0m[1m passes on a never-deployed state[0m [0m[2m[5.09ms[0m[2m][0m
+[0m[32m✓[0m [0massert-no-prod-release[2m >[0m[1m refuses a recorded colour[0m [0m[2m[4.65ms[0m[2m][0m
+[0m[32m✓[0m [0massert-no-prod-release[2m >[0m[1m refuses a recorded colour on a tier other than be[0m [0m[2m[4.17ms[0m[2m][0m
+[0m[32m✓[0m [0massert-no-prod-release[2m >[0m[1m refuses an unreadable state file[0m [0m[2m[3.04ms[0m[2m][0m
+[0m[32m✓[0m [0massert-no-prod-release[2m >[0m[1m refuses a missing state directory[0m [0m[2m[2.66ms[0m[2m][0m
+[0m[32m✓[0m [0massert-no-prod-release[2m >[0m[1m refuses a state directory it cannot list[0m [0m[2m[2.72ms[0m[2m][0m
+[0m[32m✓[0m [0massert-no-prod-release[2m > [0m--override-with-ledger[2m >[0m[1m accepts a recorded release whose ledger holds only the skeleton migration[0m [0m[2m[6.23ms[0m[2m][0m
+[0m[32m✓[0m [0massert-no-prod-release[2m > [0m--override-with-ledger[2m >[0m[1m refuses a ledger that lists any later migration[0m [0m[2m[8.10ms[0m[2m][0m
+[0m[32m✓[0m [0massert-no-prod-release[2m > [0m--override-with-ledger[2m >[0m[1m refuses the skeleton name split across two lines[0m [0m[2m[9.76ms[0m[2m][0m
+[0m[32m✓[0m [0massert-no-prod-release[2m > [0m--override-with-ledger[2m >[0m[1m refuses an empty ledger[0m [0m[2m[9.11ms[0m[2m][0m
+[0m[32m✓[0m [0massert-no-prod-release[2m > [0m--override-with-ledger[2m >[0m[1m refuses an unreadable ledger[0m [0m[2m[4.94ms[0m[2m][0m
+[0m[32m✓[0m [0massert-no-prod-release[2m > [0m--override-with-ledger[2m >[0m[1m refuses a missing ledger[0m [0m[2m[4.57ms[0m[2m][0m
+[0m[32m✓[0m [0massert-no-prod-release[2m > [0m--override-with-ledger[2m >[0m[1m never excuses an unreadable state file[0m [0m[2m[2.66ms[0m[2m][0m
+[0m[32m✓[0m [0massert-no-prod-release[2m > [0m--override-with-ledger[2m >[0m[1m refuses an unknown option rather than ignoring it[0m [0m[2m[2.27ms[0m[2m][0m
+[0m[32m✓[0m [0massert-no-prod-release[2m >[0m[1m refuses when no state directory is named at all[0m [0m[2m[1.70ms[0m[2m][0m
+[0m
+src/k8s/mcp-manifest.test.ts:
+[0m[32m✓[0m [0mMCP deployment persistence[2m >[0m[1m mounts a retained single-writer store and sources rotating keys from a Secret[0m [0m[2m[[1m25.96ms[0m[2m][0m
+[0m[32m✓[0m [0mpublic MCP OAuth discovery ingress[2m >[0m[1m routes each discovery URL on prod to mcp-01[0m [0m[2m[6.06ms[0m[2m][0m
+[0m[32m✓[0m [0mpublic MCP OAuth discovery ingress[2m >[0m[1m routes each discovery URL on staging to mcp-01[0m [0m[2m[8.42ms[0m[2m][0m
+[0m[32m✓[0m [0mpublic MCP OAuth discovery ingress[2m >[0m[1m keeps MCP, API, socket and SPA routing on prod[0m [0m[2m[[1m10.13ms[0m[2m][0m
+[0m[32m✓[0m [0mpublic MCP OAuth discovery ingress[2m >[0m[1m keeps MCP, API, socket and SPA routing on staging[0m [0m[2m[[1m13.06ms[0m[2m][0m
+[0m[32m✓[0m [0mpublic MCP OAuth discovery ingress[2m >[0m[1m does not widen discovery to other well-known paths on prod[0m [0m[2m[6.49ms[0m[2m][0m
+[0m[32m✓[0m [0mpublic MCP OAuth discovery ingress[2m >[0m[1m does not widen discovery to other well-known paths on staging[0m [0m[2m[3.87ms[0m[2m][0m
+[0m
+src/k8s/deploy-repo.test.ts:
+[0m[32m✓[0m [0mprepareDesiredRevision[2m >[0m[1m commits the manifest on the branch head without pushing, deterministically[0m [0m[2m[[1m104.49ms[0m[2m][0m
+[0m[32m✓[0m [0mpublishRevision[2m >[0m[1m moves the branch from previous to desired, and is idempotent[0m [0m[2m[[1m104.44ms[0m[2m][0m
+[0m[32m✓[0m [0mpublishRevision[2m >[0m[1m refuses to move a deploy branch someone else moved[0m [0m[2m[[1m130.96ms[0m[2m][0m
+[0m[32m✓[0m [0mpersist-release publishes the desired revision[2m >[0m[1m pushes only while the WBS unit is suspended, then waits for the source[0m [0m[2m[[1m120.64ms[0m[2m][0m
+[0m[32m✓[0m [0mpersist-release publishes the desired revision[2m >[0m[1m refuses to publish the desired revision while the WBS unit is not suspended[0m [0m[2m[[1m77.22ms[0m[2m][0m
+[0m
+src/k8s/descriptor-cli.test.ts:
+[0m[32m✓[0m [0mdescriptor-cli seal[2m >[0m[1m seals a main commit whose images carry its label[0m [0m[2m[[1m33.79ms[0m[2m][0m
+[0m[32m✓[0m [0mdescriptor-cli seal[2m >[0m[1m refuses a commit main never took[0m [0m[2m[[1m26.52ms[0m[2m][0m
+[0m[32m✓[0m [0mdescriptor-cli seal[2m >[0m[1m refuses images the registry labels with another commit[0m [0m[2m[[1m24.91ms[0m[2m][0m
+[0m
+src/k8s/first-start-source.test.ts:
+[0m[32m✓[0m[0m[1m actual observed Git URL and commit subtree admits none[0m [0m[2m[[1m56.61ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m actual observed Git URL and commit subtree refuses public-open[0m [0m[2m[[1m48.43ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m actual observed Git URL and commit subtree refuses writer-open[0m [0m[2m[[1m51.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m actual observed Git URL and commit subtree refuses extra-resource[0m [0m[2m[[1m52.51ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m actual observed Git URL and commit subtree refuses symlink[0m [0m[2m[[1m49.90ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m actual observed Git URL and commit subtree refuses extra-build[0m [0m[2m[[1m43.71ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m actual observed Git URL and commit subtree refuses nested-tree[0m [0m[2m[[1m45.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m pins actual Git source, admits complete exact bytes and conditionally resumes its bound Kustomization[0m [0m[2m[3.56ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m source admission refuses postBuild before resume[0m [0m[2m[1.65ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m source admission refuses path before resume[0m [0m[2m[1.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m source admission refuses sourceRef before resume[0m [0m[2m[0.63ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m source admission refuses source-url before resume[0m [0m[2m[0.54ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m source admission refuses artifact before resume[0m [0m[2m[0.83ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m source admission refuses manifest before resume[0m [0m[2m[0.93ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m source admission refuses symlink before resume[0m [0m[2m[0.60ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m source admission refuses kustomization-uid before resume[0m [0m[2m[0.61ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m source admission refuses source-uid before resume[0m [0m[2m[0.48ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m source admission refuses source-ref before resume[0m [0m[2m[0.46ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m source admission refuses decryption before resume[0m [0m[2m[0.52ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m source admission refuses images before resume[0m [0m[2m[0.54ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m source admission refuses include before resume[0m [0m[2m[0.61ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m source admission refuses force before resume[0m [0m[2m[0.44ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m source admission refuses provider before resume[0m [0m[2m[0.55ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires current-generation artifact readiness before source admission[0m [0m[2m[1.51ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m conditionally pins and resumes by UID, resourceVersion and exact spec[0m [0m[2m[1.23ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m initial source admission refuses unsupported postBuild[0m [0m[2m[0.33ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m initial source admission refuses unsupported decryption[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m initial source admission refuses unsupported images[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m initial source admission refuses unsupported include[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m initial source admission refuses unsupported force[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m initial source admission refuses unsupported provider[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses source pin when Lease is lost during awaited source observation[0m [0m[2m[0.30ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses Flux resume when Lease is lost during awaited final source observation[0m [0m[2m[1.21ms[0m[2m][0m
+[0m
+src/k8s/replay-coordinator.test.ts:
+[0m[32m✓[0m[0m[1m durably checks nested inverse and precondition replay history before capture[0m [0m[2m[[1m40.92ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses replace_blockage history unsupported by be@sha256:1111111111111111111111111111111111111111111111111111111111111111 before capture[0m [0m[2m[[1m50.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses move_progress_v1 history unsupported by be@sha256:1111111111111111111111111111111111111111111111111111111111111111 before capture[0m [0m[2m[[1m35.29ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses replace_blockage history unsupported by be@sha256:2222222222222222222222222222222222222222222222222222222222222222 before capture[0m [0m[2m[[1m32.93ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses move_progress_v1 history unsupported by be@sha256:2222222222222222222222222222222222222222222222222222222222222222 before capture[0m [0m[2m[[1m40.95ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m records rollback replay evidence before restoring tiers and reopening writes[0m [0m[2m[[1m56.84ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses changed fenced inventory before rollback rollout or reopen[0m [0m[2m[[1m46.36ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses missing replay progress on resume before cluster mutation[0m [0m[2m[[1m28.78ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses null replay progress on resume before cluster mutation[0m [0m[2m[[1m23.53ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses changed replay progress on resume before cluster mutation[0m [0m[2m[[1m32.77ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses changed-bytes replay progress on resume before cluster mutation[0m [0m[2m[[1m24.62ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed replay progress on resume before cluster mutation[0m [0m[2m[[1m24.32ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses foreign replay progress on resume before cluster mutation[0m [0m[2m[[1m35.36ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed inventory output and bounds abort without reopening[0m [0m[2m[7.15ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m crashes after the durable receipt and resumes through guarded rollback[0m [0m[2m[[1m54.79ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses inverse-only guarded moves with empty snapshots before capture[0m [0m[2m[[1m43.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses precondition-only guarded moves with empty snapshots before capture[0m [0m[2m[[1m51.80ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a resealed invalid target receipt before resume effects[0m [0m[2m[[1m30.21ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a resealed invalid attempt receipt before resume effects[0m [0m[2m[[1m27.70ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a resealed invalid direction receipt before resume effects[0m [0m[2m[[1m29.78ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a resealed invalid inventory receipt before resume effects[0m [0m[2m[[1m30.55ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a resealed invalid candidate receipt before resume effects[0m [0m[2m[[1m29.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a resealed invalid previous receipt before resume effects[0m [0m[2m[[1m25.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed image capability output null[0m [0m[2m[[1m45.35ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed image capability output ["move_progress_v1","move_progress_v1"][0m [0m[2m[[1m62.31ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed image capability output [3][0m [0m[2m[[1m53.65ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed image capability output [""][0m [0m[2m[[1m65.77ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses capability observations from a different exact image[0m [0m[2m[[1m56.34ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m allows a new attempt after an abort before the write fence was attempted[0m [0m[2m[[1m28.65ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses invalid inventory transport null[0m [0m[2m[7.80ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses invalid inventory transport {}[0m [0m[2m[5.78ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses invalid inventory transport [{"kind":"move_progress_v1","count":0}][0m [0m[2m[5.60ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses invalid inventory transport [{"kind":"move_progress_v1","count":1.5}][0m [0m[2m[5.50ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses invalid inventory transport [{"kind":"future_kind","count":1}][0m [0m[2m[5.83ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses invalid inventory transport [{"kind":"move_progress_v1","count":1},{"kind":"move_progress_v1","count":1}][0m [0m[2m[4.93ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed receipt JSON even when the corrupted bytes are resealed[0m [0m[2m[[1m25.44ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses missing rollback receipt on resume from rollback-replay-checked[0m [0m[2m[[1m51.51ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses missing rollback receipt on resume from rollback-verified[0m [0m[2m[[1m50.40ms[0m[2m][0m
+[0m[1m413 |[0m         executeRelease(request, corrupting, fake, () => [0m[33mundefined[0m, {
+[0m[1m414 |[0m           clock: fake.clock,
+[0m[1m415 |[0m           heartbeatMs: [0m[33m3_600_000[0m,
+[0m[1m416 |[0m         }),
+[0m[1m417 |[0m       ),
+[0m[1m418 |[0m     )[0m[3m[1m.toMatch[0m(/replay receipt/)[0m[2m;[0m
+            [31m[1m^[0m
+[0m[31merror[0m[2m:[0m [1m[2mexpect([0m[31mreceived[0m[2m).[0mtoMatch[2m([0m[32mexpected[0m[2m)[0m
+
+Expected substring or pattern: [32m/replay receipt/[0m
+Received: [31m"controller checkpoint lost its previous authoritative journal"[0m
+[0m
+[0m      [2mat [0m[0m[2m<anonymous>[0m[2m ([0m[0m[36m[2m/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/[0m[36msrc/k8s/replay-coordinator.test.ts[0m[2m:[0m[33m418[0m[2m:[33m7[0m[2m)[0m
+[0m[31m✗[0m[0m[1m refuses in-process receipt loss at replay-checked before capture[0m [0m[2m[8.78ms[0m[2m][0m
+[0m[1m413 |[0m         executeRelease(request, corrupting, fake, () => [0m[33mundefined[0m, {
+[0m[1m414 |[0m           clock: fake.clock,
+[0m[1m415 |[0m           heartbeatMs: [0m[33m3_600_000[0m,
+[0m[1m416 |[0m         }),
+[0m[1m417 |[0m       ),
+[0m[1m418 |[0m     )[0m[3m[1m.toMatch[0m(/replay receipt/)[0m[2m;[0m
+            [31m[1m^[0m
+[0m[31merror[0m[2m:[0m [1m[2mexpect([0m[31mreceived[0m[2m).[0mtoMatch[2m([0m[32mexpected[0m[2m)[0m
+
+Expected substring or pattern: [32m/replay receipt/[0m
+Received: [31m"controller checkpoint lost its previous authoritative journal"[0m
+[0m
+[0m      [2mat [0m[0m[2m<anonymous>[0m[2m ([0m[0m[36m[2m/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/[0m[36msrc/k8s/replay-coordinator.test.ts[0m[2m:[0m[33m418[0m[2m:[33m7[0m[2m)[0m
+[0m[31m✗[0m[0m[1m refuses in-process receipt loss at release-persisted before reopenWrites[0m [0m[2m[6.08ms[0m[2m][0m
+[0m[1m413 |[0m         executeRelease(request, corrupting, fake, () => [0m[33mundefined[0m, {
+[0m[1m414 |[0m           clock: fake.clock,
+[0m[1m415 |[0m           heartbeatMs: [0m[33m3_600_000[0m,
+[0m[1m416 |[0m         }),
+[0m[1m417 |[0m       ),
+[0m[1m418 |[0m     )[0m[3m[1m.toMatch[0m(/replay receipt/)[0m[2m;[0m
+            [31m[1m^[0m
+[0m[31merror[0m[2m:[0m [1m[2mexpect([0m[31mreceived[0m[2m).[0mtoMatch[2m([0m[32mexpected[0m[2m)[0m
+
+Expected substring or pattern: [32m/replay receipt/[0m
+Received: [31m"controller checkpoint lost its previous authoritative journal"[0m
+[0m
+[0m      [2mat [0m[0m[2m<anonymous>[0m[2m ([0m[0m[36m[2m/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/[0m[36msrc/k8s/replay-coordinator.test.ts[0m[2m:[0m[33m418[0m[2m:[33m7[0m[2m)[0m
+[0m[31m✗[0m[0m[1m refuses in-process receipt loss at rollback-replay-checked before rolloutTiers[0m [0m[2m[5.44ms[0m[2m][0m
+[0m[1m413 |[0m         executeRelease(request, corrupting, fake, () => [0m[33mundefined[0m, {
+[0m[1m414 |[0m           clock: fake.clock,
+[0m[1m415 |[0m           heartbeatMs: [0m[33m3_600_000[0m,
+[0m[1m416 |[0m         }),
+[0m[1m417 |[0m       ),
+[0m[1m418 |[0m     )[0m[3m[1m.toMatch[0m(/replay receipt/)[0m[2m;[0m
+            [31m[1m^[0m
+[0m[31merror[0m[2m:[0m [1m[2mexpect([0m[31mreceived[0m[2m).[0mtoMatch[2m([0m[32mexpected[0m[2m)[0m
+
+Expected substring or pattern: [32m/replay receipt/[0m
+Received: [31m"controller checkpoint lost its previous authoritative journal"[0m
+[0m
+[0m      [2mat [0m[0m[2m<anonymous>[0m[2m ([0m[0m[36m[2m/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/[0m[36msrc/k8s/replay-coordinator.test.ts[0m[2m:[0m[33m418[0m[2m:[33m7[0m[2m)[0m
+[0m[31m✗[0m[0m[1m refuses in-process receipt loss at rollback-verified before reopenWrites[0m [0m[2m[5.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses rollback when the previous image capability observation changes[0m [0m[2m[[1m49.93ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses null forward evidence from recovery-required on disk before recovery takeover[0m [0m[2m[[1m31.96ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses missing forward evidence from recovery-required on disk before recovery takeover[0m [0m[2m[[1m31.34ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires image-owned delete_state_v1 capability in the coordinator (supported=false)[0m [0m[2m[[1m42.74ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires image-owned delete_state_v1 capability in the coordinator (supported=true)[0m [0m[2m[[1m32.18ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses enabled-empty activation unsupported by exact image be@sha256:1111111111111111111111111111111111111111111111111111111111111111[0m [0m[2m[8.48ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses enabled-empty activation unsupported by exact image be@sha256:2222222222222222222222222222222222222222222222222222222222222222[0m [0m[2m[5.51ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preserves enabled-empty admission in the durable coordinator receipt[0m [0m[2m[6.74ms[0m[2m][0m
+[0m
+src/k8s/activation-admission.test.ts:
+[0m[32m✓[0m[0m[1m extracts colored diagnostics without accepting source excerpts[0m [0m[2m[0.82ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes inventories enabled-empty independently of image application code[0m [0m[2m[[1m43.37ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose inventories enabled-empty independently of image application code[0m [0m[2m[[1m51.87ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses broken authority: missing-marker[0m [0m[2m[[1m41.04ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses broken authority: wrong-marker[0m [0m[2m[[1m35.86ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses broken authority: wrong-marker-id[0m [0m[2m[[1m40.19ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses broken authority: duplicate-marker[0m [0m[2m[[1m39.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses broken authority: missing-marker-table[0m [0m[2m[[1m33.41ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses broken authority: duplicate-ledger[0m [0m[2m[[1m33.58ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses broken authority: malformed-ledger[0m [0m[2m[[1m40.39ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses broken authority: missing-ledger[0m [0m[2m[[1m43.35ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses broken authority: missing-trigger[0m [0m[2m[[1m47.84ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses broken authority: missing-update-trigger[0m [0m[2m[[1m42.80ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses broken authority: missing-delete-trigger[0m [0m[2m[[1m41.80ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses broken authority: altered-trigger[0m [0m[2m[[1m44.70ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses broken authority: missing-receipt[0m [0m[2m[[1m41.91ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses broken authority: missing-receipt-ledger[0m [0m[2m[[1m33.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses broken authority: weakened-receipt[0m [0m[2m[[1m42.35ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses broken authority: disabled-receipt[0m [0m[2m[[1m45.65ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses broken authority: enabled-no-receipt[0m [0m[2m[[1m51.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses broken authority: malformed-receipt[0m [0m[2m[[1m48.44ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses broken authority: missing-marker[0m [0m[2m[[1m44.66ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses broken authority: wrong-marker[0m [0m[2m[[1m46.42ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses broken authority: wrong-marker-id[0m [0m[2m[[1m42.58ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses broken authority: duplicate-marker[0m [0m[2m[[1m47.96ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses broken authority: missing-marker-table[0m [0m[2m[[1m39.90ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses broken authority: duplicate-ledger[0m [0m[2m[[1m49.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses broken authority: malformed-ledger[0m [0m[2m[[1m45.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses broken authority: missing-ledger[0m [0m[2m[[1m46.96ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses broken authority: missing-trigger[0m [0m[2m[[1m43.74ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses broken authority: missing-update-trigger[0m [0m[2m[[1m47.40ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses broken authority: missing-delete-trigger[0m [0m[2m[[1m44.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses broken authority: altered-trigger[0m [0m[2m[[1m45.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses broken authority: missing-receipt[0m [0m[2m[[1m46.60ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses broken authority: missing-receipt-ledger[0m [0m[2m[[1m44.17ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses broken authority: weakened-receipt[0m [0m[2m[[1m45.36ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses broken authority: disabled-receipt[0m [0m[2m[[1m42.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses broken authority: enabled-no-receipt[0m [0m[2m[[1m39.80ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses broken authority: malformed-receipt[0m [0m[2m[[1m34.74ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m backend image advertises activation separately from journal replay vocabulary[0m [0m[2m[[1m13.87ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes positively classifies a coherent pre-marker database[0m [0m[2m[[1m40.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes accepts compatible pre-receipt DISABLED without creating receipt authority[0m [0m[2m[[1m45.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose positively classifies a coherent pre-marker database[0m [0m[2m[[1m48.99ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose accepts compatible pre-receipt DISABLED without creating receipt authority[0m [0m[2m[[1m42.37ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses incoherent pre-marker authority: marker-table[0m [0m[2m[[1m51.34ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses incoherent pre-marker authority: marker-view[0m [0m[2m[[1m43.17ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses incoherent pre-marker authority: receipt-table[0m [0m[2m[[1m49.93ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses incoherent pre-marker authority: receipt-view[0m [0m[2m[[1m49.44ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses incoherent pre-marker authority: receipt-ledger[0m [0m[2m[[1m49.85ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses incoherent pre-marker authority: insert-trigger[0m [0m[2m[[1m47.39ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses incoherent pre-marker authority: update-trigger[0m [0m[2m[[1m61.96ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses incoherent pre-marker authority: delete-trigger[0m [0m[2m[[1m67.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses incoherent pre-marker authority: missing-ledger[0m [0m[2m[[1m56.68ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses incoherent pre-marker authority: marker-table[0m [0m[2m[[1m57.66ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses incoherent pre-marker authority: marker-view[0m [0m[2m[[1m54.19ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses incoherent pre-marker authority: receipt-table[0m [0m[2m[[1m56.89ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses incoherent pre-marker authority: receipt-view[0m [0m[2m[[1m65.55ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses incoherent pre-marker authority: receipt-ledger[0m [0m[2m[[1m47.04ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses incoherent pre-marker authority: insert-trigger[0m [0m[2m[[1m59.21ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses incoherent pre-marker authority: update-trigger[0m [0m[2m[[1m65.89ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses incoherent pre-marker authority: delete-trigger[0m [0m[2m[[1m57.33ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses incoherent pre-marker authority: missing-ledger[0m [0m[2m[[1m55.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses unavailable trusted state: missing-database[0m [0m[2m[[1m41.48ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses unavailable trusted state: unreadable-database[0m [0m[2m[[1m41.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses unavailable trusted state: missing-ledger-column[0m [0m[2m[[1m35.91ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses unavailable trusted state: unreadable-ledger[0m [0m[2m[[1m44.52ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes accepts a real fresh migrated pre-marker baseline[0m [0m[2m[[1m260.97ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes accepts a real rollback migrated pre-marker baseline[0m [0m[2m[[1m5706.03ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses unavailable trusted state: missing-database[0m [0m[2m[[1m37.42ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses unavailable trusted state: unreadable-database[0m [0m[2m[[1m48.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses unavailable trusted state: missing-ledger-column[0m [0m[2m[[1m48.88ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses unavailable trusted state: unreadable-ledger[0m [0m[2m[[1m36.38ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose accepts a real fresh migrated pre-marker baseline[0m [0m[2m[[1m168.48ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose accepts a real rollback migrated pre-marker baseline[0m [0m[2m[[1m5029.99ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses invalid receipt field protocol="other"[0m [0m[2m[[1m51.35ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses invalid receipt field version=2[0m [0m[2m[[1m55.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses invalid receipt field activationId=""[0m [0m[2m[[1m51.22ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses invalid receipt field activationId=3[0m [0m[2m[[1m37.88ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses invalid receipt field candidateImage="be:latest"[0m [0m[2m[[1m60.19ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses invalid receipt field candidateImage=["be@sha256:1111111111111111111111111111111111111111111111111111111111111111"][0m [0m[2m[[1m53.88ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses invalid receipt field rollbackImage="be:latest"[0m [0m[2m[[1m39.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses invalid receipt field rollbackImage=["be@sha256:2222222222222222222222222222222222222222222222222222222222222222"][0m [0m[2m[[1m38.30ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses invalid receipt field databaseIdentity=""[0m [0m[2m[[1m47.43ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses invalid receipt field databaseIdentity=3[0m [0m[2m[[1m55.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses invalid receipt field activatedAt=-1[0m [0m[2m[[1m37.68ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses invalid receipt field activatedAt=1.5[0m [0m[2m[[1m41.83ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses invalid receipt field activatedAt="1"[0m [0m[2m[[1m47.37ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses invalid receipt field unexpected=true[0m [0m[2m[[1m48.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses invalid receipt field protocol="other"[0m [0m[2m[[1m55.93ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses invalid receipt field version=2[0m [0m[2m[[1m43.77ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses invalid receipt field activationId=""[0m [0m[2m[[1m41.97ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses invalid receipt field activationId=3[0m [0m[2m[[1m45.20ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses invalid receipt field candidateImage="be:latest"[0m [0m[2m[[1m40.61ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses invalid receipt field candidateImage=["be@sha256:1111111111111111111111111111111111111111111111111111111111111111"][0m [0m[2m[[1m44.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses invalid receipt field rollbackImage="be:latest"[0m [0m[2m[[1m51.20ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses invalid receipt field rollbackImage=["be@sha256:2222222222222222222222222222222222222222222222222222222222222222"][0m [0m[2m[[1m55.35ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses invalid receipt field databaseIdentity=""[0m [0m[2m[[1m47.80ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses invalid receipt field databaseIdentity=3[0m [0m[2m[[1m41.72ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses invalid receipt field activatedAt=-1[0m [0m[2m[[1m44.34ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses invalid receipt field activatedAt=1.5[0m [0m[2m[[1m54.21ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses invalid receipt field activatedAt="1"[0m [0m[2m[[1m52.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses invalid receipt field unexpected=true[0m [0m[2m[[1m45.83ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses a view substituted for the migration ledger[0m [0m[2m[[1m44.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes retains pre-marker journal obligations[0m [0m[2m[[1m56.34ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses a view substituted for the migration ledger[0m [0m[2m[[1m43.89ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose retains pre-marker journal obligations[0m [0m[2m[[1m66.35ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Kubernetes refuses a view substituted for migrated marker authority[0m [0m[2m[[1m50.75ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Compose refuses a view substituted for migrated marker authority[0m [0m[2m[[1m44.40ms[0m[2m][0m
+[0m
+src/k8s/first-start-policies.test.ts:
+[0m[32m✓[0m[0m[1m complete backend policy inventory admits none[0m [0m[2m[3.00ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m complete backend policy inventory refuses extra-allow[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m complete backend policy inventory refuses open-writer[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m complete backend policy inventory refuses missing-deny[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m complete backend policy inventory refuses selected-backend[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m complete backend policy inventory refuses changed-deny[0m [0m[2m[0.08ms[0m[2m][0m
+[0m
+src/k8s/registry.test.ts:
+[0m[32m✓[0m [0mimage revision labels read from the registry[2m >[0m[1m accepts images labelled with the source commit, through an index, with auth[0m [0m[2m[5.01ms[0m[2m][0m
+[0m[32m✓[0m [0mimage revision labels read from the registry[2m >[0m[1m refuses an image built from another commit[0m [0m[2m[2.04ms[0m[2m][0m
+[0m[32m✓[0m [0mimage revision labels read from the registry[2m >[0m[1m refuses an unlabelled image[0m [0m[2m[1.40ms[0m[2m][0m
+[0m[32m✓[0m [0mimage revision labels read from the registry[2m >[0m[1m refuses a registry that answers a digest with other bytes[0m [0m[2m[1.30ms[0m[2m][0m
+[0m
+src/k8s/deploy-k3s-workflow.test.ts:
+[0m[32m✓[0m [0minfra-check.yml is unprivileged[2m >[0m[1m runs only on pull_request and push, never a target-context trigger[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0minfra-check.yml is unprivileged[2m >[0m[1m never reaches secrets, variables, environments or a persistent runner[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0minfra-check.yml is unprivileged[2m >[0m[1m reruns the k3s rehearsal when backend migrations or their rollback change[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0minfra-check.yml is unprivileged[2m >[0m[1m runs the fleet check and the k3s rehearsal through Nx[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mdeploy-k3s.yml separates candidate code from credentials[2m >[0m[1m is a manual dispatch whose apply defaults to plan[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mdeploy-k3s.yml separates candidate code from credentials[2m >[0m[1m gives credentials only to the protected deploy job, which checks out main only[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mdeploy-k3s.yml separates candidate code from credentials[2m >[0m[1m checks out only main, and materialises the candidate after the trusted bootstrap[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mdeploy-k3s.yml separates candidate code from credentials[2m >[0m[1m neither saves nor restores an Actions cache in any job[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mdeploy-k3s.yml separates candidate code from credentials[2m >[0m[1m carries admission.json from the admission job to the deploy job as an artifact[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mdeploy-k3s.yml separates candidate code from credentials[2m >[0m[1m passes --apply only when the apply input is true, and keeps state in the protected dir[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mdeploy-k3s.yml separates candidate code from credentials[2m >[0m[1m refuses a dispatch from any ref but main (production run block)[0m [0m[2m[3.21ms[0m[2m][0m
+[0m[32m✓[0m [0mdeploy-k3s.yml separates candidate code from credentials[2m >[0m[1m refuses a candidate that is not already on main (production run block)[0m [0m[2m[[1m35.70ms[0m[2m][0m
+[0m[32m✓[0m [0mdeploy-k3s.yml separates candidate code from credentials[2m >[0m[1m refuses a malformed recovery input (production run block)[0m [0m[2m[4.51ms[0m[2m][0m
+[0m[32m✓[0m [0mdeploy-k3s.yml separates candidate code from credentials[2m >[0m[1m materialises only a candidate already on main for admission (production run block)[0m [0m[2m[[1m70.40ms[0m[2m][0m
+[0m[32m✓[0m [0mdeploy-k3s.yml separates candidate code from credentials[2m >[0m[1m refuses admission on the archive-launcher route (production run block)[0m [0m[2m[2.42ms[0m[2m][0m
+[0m[32m✓[0m [0mthe puni-deploy runner job-started hook[2m >[0m[1m starts only deploy-k3s.yml from main of the configured repository[0m [0m[2m[[1m14.47ms[0m[2m][0m
+[0m[32m✓[0m [0mthe puni-deploy runner job-started hook[2m >[0m[1m refuses to run without the runner-side repository setting[0m [0m[2m[2.84ms[0m[2m][0m
+[0m
+src/k8s/dependency-observation.test.ts:
+[0m[32m✓[0m[0m[1m fresh capability Job has no storage and returns Pod-attributed evidence[0m [0m[2m[5.03ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m each invocation and role has a fresh bounded name[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m store pins recursive source readonly and omits mount ownership mutation[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses stale[0m [0m[2m[0.23ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses oversize[0m [0m[2m[0.65ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses token[0m [0m[2m[0.58ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses service-account[0m [0m[2m[0.55ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses node-selector[0m [0m[2m[0.48ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses env-from[0m [0m[2m[0.43ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses job-protocol[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses job-kind[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses job-uid-missing[0m [0m[2m[0.31ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses job-name[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses job-namespace[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses job-deleting[0m [0m[2m[0.23ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses job-label[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses template-label[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses job-selector[0m [0m[2m[0.23ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses job-extra[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses job-deadline[0m [0m[2m[0.23ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses job-status[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses job-count[0m [0m[2m[0.36ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses job-failed[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses job-conditions[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses job-failed-condition[0m [0m[2m[0.33ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses job-incomplete[0m [0m[2m[[1m909.32ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses pod-label[0m [0m[2m[0.69ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses pod-namespace[0m [0m[2m[0.56ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses pod-uid-missing[0m [0m[2m[0.67ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses pod-name-missing[0m [0m[2m[0.55ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses pod-deleting[0m [0m[2m[0.54ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses pod-annotation[0m [0m[2m[0.61ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses owners[0m [0m[2m[0.54ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses status-phase[0m [0m[2m[0.71ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses status-missing-phase[0m [0m[2m[0.42ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses status-image[0m [0m[2m[0.41ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses status-name[0m [0m[2m[0.38ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses status-count[0m [0m[2m[0.41ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses restarts[0m [0m[2m[0.41ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses termination-reason[0m [0m[2m[0.54ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses job-uid[0m [0m[2m[0.31ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses job-command[0m [0m[2m[0.37ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses pod-uid[0m [0m[2m[0.79ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses after-logs[0m [0m[2m[0.54ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses owner[0m [0m[2m[0.43ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses pod-image[0m [0m[2m[0.35ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses image-id[0m [0m[2m[0.39ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses pod-command[0m [0m[2m[0.33ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses volume[0m [0m[2m[0.40ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses env[0m [0m[2m[0.34ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses security[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses fs-group[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses sidecar[0m [0m[2m[0.31ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses init[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses ephemeral[0m [0m[2m[0.30ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses device[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses status[0m [0m[2m[0.32ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses termination[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses failed[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses extra-pod[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observation refuses missing-pod[0m [0m[2m[[1m908.92ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m store refuses recursive-status[0m [0m[2m[1.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m store refuses readonly-status[0m [0m[2m[0.74ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m store refuses missing-mount-status[0m [0m[2m[0.68ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m store refuses recursive-spec[0m [0m[2m[0.74ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m store refuses source-writable[0m [0m[2m[0.80ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m store requires positive runtime recursive readonly evidence[0m [0m[2m[1.46ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m exact emitted scanner preserves migrated source bytes including WAL and SHM[0m [0m[2m[[1m215.41ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m exact emitted scanner refuses enabled-empty without changing source[0m [0m[2m[[1m223.00ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m exact emitted scanner refuses historical without changing source[0m [0m[2m[[1m192.46ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m exact emitted scanner refuses absent without changing source[0m [0m[2m[[1m153.79ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m exact emitted scanner refuses unreadable without changing source[0m [0m[2m[[1m205.43ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m exact emitted scanner refuses malformed without changing source[0m [0m[2m[[1m196.55ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m exact capability command ignores inherited DB_PATH and never creates storage[0m [0m[2m[[1m15.04ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m builder refuses timeout 0[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m builder refuses timeout 0.5[0m
+[0m[32m✓[0m[0m[1m builder refuses timeout 3601[0m
+[0m[32m✓[0m[0m[1m builder refuses timeout NaN[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m builder refuses mutable backend image[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m accepts matching serviceAccount alias in create responses[0m [0m[2m[0.94ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m accepts matching serviceAccount alias in pod responses[0m [0m[2m[0.55ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m accepts matching serviceAccount alias in both responses[0m [0m[2m[0.47ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses mismatched serviceAccount alias in create response[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses mismatched serviceAccount alias in pod response[0m [0m[2m[0.32ms[0m[2m][0m
+[0m
+src/k8s/git-http.test.ts:
+[0m[32m✓[0m [0mthe lab Git smart-HTTP server[2m >[0m[1m serves a bare repository to a clone and refuses pushes[0m [0m[2m[[1m82.50ms[0m[2m][0m
+[0m
+src/k8s/execute-adapter.test.ts:
+[0m[32m✓[0m [0mBACKEND_TASK_SCRIPT against the real be-01 migrations[2m >[0m[1m refuses a legacy --to-only candidate before taking a capture snapshot[0m [0m[2m[[1m33.61ms[0m[2m][0m
+[0m[32m✓[0m [0mBACKEND_TASK_SCRIPT against the real be-01 migrations[2m >[0m[1m refuses a missing capability executable before database access[0m [0m[2m[[1m37.27ms[0m[2m][0m
+[0m[32m✓[0m [0mBACKEND_TASK_SCRIPT against the real be-01 migrations[2m >[0m[1m refuses an unreadable capability executable before database access[0m [0m[2m[[1m36.42ms[0m[2m][0m
+[0m[32m✓[0m [0mBACKEND_TASK_SCRIPT against the real be-01 migrations[2m >[0m[1m refuses nonzero exit before opening SQLite or creating a snapshot[0m [0m[2m[[1m34.60ms[0m[2m][0m
+[0m[32m✓[0m [0mBACKEND_TASK_SCRIPT against the real be-01 migrations[2m >[0m[1m refuses malformed stdout before opening SQLite or creating a snapshot[0m [0m[2m[[1m36.81ms[0m[2m][0m
+[0m[32m✓[0m [0mBACKEND_TASK_SCRIPT against the real be-01 migrations[2m >[0m[1m refuses extra stdout before opening SQLite or creating a snapshot[0m [0m[2m[[1m35.47ms[0m[2m][0m
+[0m[32m✓[0m [0mBACKEND_TASK_SCRIPT against the real be-01 migrations[2m >[0m[1m refuses null response before opening SQLite or creating a snapshot[0m [0m[2m[[1m34.38ms[0m[2m][0m
+[0m[32m✓[0m [0mBACKEND_TASK_SCRIPT against the real be-01 migrations[2m >[0m[1m refuses non-array capabilities before opening SQLite or creating a snapshot[0m [0m[2m[[1m36.52ms[0m[2m][0m
+[0m[32m✓[0m [0mBACKEND_TASK_SCRIPT against the real be-01 migrations[2m >[0m[1m refuses wrong protocol before opening SQLite or creating a snapshot[0m [0m[2m[[1m35.64ms[0m[2m][0m
+[0m[32m✓[0m [0mBACKEND_TASK_SCRIPT against the real be-01 migrations[2m >[0m[1m refuses wrong version before opening SQLite or creating a snapshot[0m [0m[2m[[1m34.55ms[0m[2m][0m
+[0m[32m✓[0m [0mBACKEND_TASK_SCRIPT against the real be-01 migrations[2m >[0m[1m refuses unknown field before opening SQLite or creating a snapshot[0m [0m[2m[[1m36.43ms[0m[2m][0m
+[0m[32m✓[0m [0mBACKEND_TASK_SCRIPT against the real be-01 migrations[2m >[0m[1m refuses duplicate capability before opening SQLite or creating a snapshot[0m [0m[2m[[1m38.24ms[0m[2m][0m
+[0m[32m✓[0m [0mBACKEND_TASK_SCRIPT against the real be-01 migrations[2m >[0m[1m refuses unknown capability before opening SQLite or creating a snapshot[0m [0m[2m[[1m34.54ms[0m[2m][0m
+[0m[32m✓[0m [0mBACKEND_TASK_SCRIPT against the real be-01 migrations[2m >[0m[1m refuses missing capture before opening SQLite or creating a snapshot[0m [0m[2m[[1m37.02ms[0m[2m][0m
+[0m[32m✓[0m [0mBACKEND_TASK_SCRIPT against the real be-01 migrations[2m >[0m[1m refuses missing restore before opening SQLite or creating a snapshot[0m [0m[2m[[1m31.50ms[0m[2m][0m
+[0m[32m✓[0m [0mBACKEND_TASK_SCRIPT against the real be-01 migrations[2m >[0m[1m accepts the two declared capabilities in either order[0m [0m[2m[[1m47.69ms[0m[2m][0m
+[0m[32m✓[0m [0mBACKEND_TASK_SCRIPT against the real be-01 migrations[2m >[0m[1m retains schema and ledger after a failing down script, then recovers with the same capture[0m [0m[2m[[1m6234.77ms[0m[2m][0m
+[0m[32m✓[0m [0mBACKEND_TASK_SCRIPT against the real be-01 migrations[2m >[0m[1m reverses an older candidate migration after a newer baseline using the generated script[0m [0m[2m[[0m[33m10218.58ms[0m[2m][0m
+[0m[32m✓[0m [0mBACKEND_TASK_SCRIPT against the real be-01 migrations[2m >[0m[1m migrates, captures a verified snapshot and rolls back to the captured baseline[0m [0m[2m[[0m[33m9165.72ms[0m[2m][0m
+[0m[32m✓[0m [0mcaptureFromReport[2m >[0m[1m derives the baseline and pending down scripts[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mcaptureFromReport[2m >[0m[1m refuses a capture whose applied migration the candidate edited[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0mcaptureFromReport[2m >[0m[1m refuses a pending migration without a down script[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mparseTaskReport[2m >[0m[1m requires exactly one marked result line[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mbackendTaskJob[2m >[0m[1m can never run a second pod beside the first and satisfies trusted admission[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mbackendTaskJob[2m >[0m[1m keeps object names within the Kubernetes limit[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mrun[2m >[0m[1m kills a subprocess past its deadline[0m [0m[2m[[1m206.35ms[0m[2m][0m
+[0m[32m✓[0m [0mschema Jobs through the kubectl adapter[2m >[0m[1m prints an executable manual recovery command with the pinned kubeconfig and intact arguments[0m [0m[2m[3.46ms[0m[2m][0m
+[0m[32m✓[0m [0mschema Jobs through the kubectl adapter[2m >[0m[1m refuses a foreign capture before rendering manual recovery or contacting the cluster[0m [0m[2m[0.66ms[0m[2m][0m
+[0m[32m✓[0m [0mschema Jobs through the kubectl adapter[2m >[0m[1m refuses every schema Job while a writer runs: migrate[0m [0m[2m[5.08ms[0m[2m][0m
+[0m[32m✓[0m [0mschema Jobs through the kubectl adapter[2m >[0m[1m refuses every schema Job while a writer runs: observeDownMigrations[0m [0m[2m[4.32ms[0m[2m][0m
+[0m[32m✓[0m [0mschema Jobs through the kubectl adapter[2m >[0m[1m refuses every schema Job while a writer runs: rollbackSchema[0m [0m[2m[4.60ms[0m[2m][0m
+[0m[32m✓[0m [0mschema Jobs through the kubectl adapter[2m >[0m[1m refuses every schema Job while a writer runs: capture[0m [0m[2m[4.89ms[0m[2m][0m
+[0m[32m✓[0m [0mparseLease[2m >[0m[1m reads holder, renewal, duration, park state and journal[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m [0mparseLease[2m >[0m[1m refuses a Lease without a renewal time[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mbackend rollouts through the kubectl adapter[2m >[0m[1m moves the backup CronJob with every backend rollout[0m [0m[2m[[1m17.70ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay inventory Job output to its image and command: none[0m [0m[2m[8.05ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay inventory Job output to its image and command: image[0m [0m[2m[5.16ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay inventory Job output to its image and command: command[0m [0m[2m[4.64ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay inventory Job output to its image and command: mount[0m [0m[2m[4.85ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay inventory Job output to its image and command: subPath[0m [0m[2m[4.51ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay inventory Job output to its image and command: subPathExpr[0m [0m[2m[5.11ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay inventory Job output to its image and command: readOnly[0m [0m[2m[5.66ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay inventory Job output to its image and command: mountPropagation[0m [0m[2m[7.04ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay inventory Job output to its image and command: recursiveReadOnly[0m [0m[2m[5.74ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay inventory Job output to its image and command: defaults[0m [0m[2m[7.22ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay inventory Job output to its image and command: status[0m [0m[2m[8.90ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay inventory Job output to its image and command: empty-logs[0m [0m[2m[[1m13.09ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay inventory Job output to its image and command: diagnostic-exit[0m [0m[2m[9.64ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay inventory Job output to its image and command: diagnostic-spawn[0m [0m[2m[[1m18.44ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay capabilities Job output to its image and command: none[0m [0m[2m[7.41ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay capabilities Job output to its image and command: image[0m [0m[2m[5.42ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay capabilities Job output to its image and command: command[0m [0m[2m[5.40ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay capabilities Job output to its image and command: mount[0m [0m[2m[4.36ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay capabilities Job output to its image and command: subPath[0m [0m[2m[5.11ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay capabilities Job output to its image and command: subPathExpr[0m [0m[2m[6.24ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay capabilities Job output to its image and command: readOnly[0m [0m[2m[4.57ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay capabilities Job output to its image and command: mountPropagation[0m [0m[2m[4.92ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay capabilities Job output to its image and command: recursiveReadOnly[0m [0m[2m[5.21ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay capabilities Job output to its image and command: defaults[0m [0m[2m[8.05ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay capabilities Job output to its image and command: status[0m [0m[2m[8.73ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay capabilities Job output to its image and command: empty-logs[0m [0m[2m[8.31ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay capabilities Job output to its image and command: diagnostic-exit[0m [0m[2m[8.29ms[0m[2m][0m
+[0m[32m✓[0m [0mreplay Jobs through kubectl[2m >[0m[1m binds reused replay capabilities Job output to its image and command: diagnostic-spawn[0m [0m[2m[7.14ms[0m[2m][0m
+[0m[32m✓[0m [0mdependency observations through kubectlEffects[2m >[0m[1m independently invokes equal images with fresh roles while backend remains live[0m [0m[2m[[1m269.43ms[0m[2m][0m
+[0m[32m✓[0m [0mdependency observations through kubectlEffects[2m >[0m[1m pins distinct candidate and previous images and preserves each manifest[0m [0m[2m[[1m262.88ms[0m[2m][0m
+[0m[32m✓[0m [0mdependency observations through kubectlEffects[2m >[0m[1m refuses a lost evidence directory before creating the observation Job[0m [0m[2m[[1m18.53ms[0m[2m][0m
+[0m[32m✓[0m [0mdependency observations through kubectlEffects[2m >[0m[1m refuses independent malformed candidate[0m [0m[2m[[1m116.60ms[0m[2m][0m
+[0m[32m✓[0m [0mdependency observations through kubectlEffects[2m >[0m[1m refuses independent missing candidate[0m [0m[2m[[1m80.81ms[0m[2m][0m
+[0m[32m✓[0m [0mdependency observations through kubectlEffects[2m >[0m[1m refuses independent unreadable candidate[0m [0m[2m[[1m82.00ms[0m[2m][0m
+[0m[32m✓[0m [0mdependency observations through kubectlEffects[2m >[0m[1m refuses independent failed candidate[0m [0m[2m[[1m80.21ms[0m[2m][0m
+[0m[32m✓[0m [0mdependency observations through kubectlEffects[2m >[0m[1m refuses independent stalled candidate[0m [0m[2m[[1m1006.03ms[0m[2m][0m
+[0m[32m✓[0m [0mdependency observations through kubectlEffects[2m >[0m[1m refuses independent malformed previous[0m [0m[2m[[1m250.15ms[0m[2m][0m
+[0m[32m✓[0m [0mdependency observations through kubectlEffects[2m >[0m[1m refuses independent missing previous[0m [0m[2m[[1m219.45ms[0m[2m][0m
+[0m[32m✓[0m [0mdependency observations through kubectlEffects[2m >[0m[1m refuses independent unreadable previous[0m [0m[2m[[1m237.99ms[0m[2m][0m
+[0m[32m✓[0m [0mdependency observations through kubectlEffects[2m >[0m[1m refuses independent failed previous[0m [0m[2m[[1m221.48ms[0m[2m][0m
+[0m[32m✓[0m [0mdependency observations through kubectlEffects[2m >[0m[1m refuses independent stalled previous[0m [0m[2m[[1m1140.10ms[0m[2m][0m
+[0m[32m✓[0m [0mdependency observations through kubectlEffects[2m >[0m[1m refuses stale at adapter boundary[0m [0m[2m[[1m18.77ms[0m[2m][0m
+[0m[32m✓[0m [0mdependency observations through kubectlEffects[2m >[0m[1m refuses pod-image at adapter boundary[0m [0m[2m[[1m65.64ms[0m[2m][0m
+[0m[32m✓[0m [0mdependency observations through kubectlEffects[2m >[0m[1m requires effective recursive readonly evidence before reading source logs[0m [0m[2m[[1m67.24ms[0m[2m][0m
+[0m
+src/k8s/storage-controller.test.ts:
+[0m[32m✓[0m[0m[1m checkpoints original undefined suspension before returning[0m [0m[2m[5.62ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checkpoints original false suspension before returning[0m [0m[2m[2.75ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checkpoints original true suspension before returning[0m [0m[2m[2.40ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m failed checkpoint cannot return prepared ownership[0m [0m[2m[0.73ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m lost Lease prevents both observation and checkpoint[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m corrupt prepared history refuses before a cluster call[0m [0m[2m[0.48ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m resume refuses changed cluster without replacing original history[0m [0m[2m[0.65ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m resume refuses changed PVC without replacing original history[0m [0m[2m[0.51ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m resume refuses changed backup UID without replacing original history[0m [0m[2m[0.51ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m resume refuses changed backup template without replacing original history[0m [0m[2m[0.41ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m resume refuses changed backup suspension without replacing original history[0m [0m[2m[0.42ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m resume refuses changed Flux UID without replacing original history[0m [0m[2m[0.38ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m resume refuses changed unsuspended Flux without replacing original history[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m resume refuses changed foreign token without replacing original history[0m [0m[2m[0.36ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preparation refuses missing spec[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preparation refuses invalid suspension[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preparation refuses missing template[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preparation refuses deleting backup[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preparation refuses foreign backup kind[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preparation refuses foreign backup namespace[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preparation refuses missing backup version[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preparation propagates absent and unreadable namespace/kube-system[0m [0m[2m[0.30ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preparation propagates absent and unreadable pvc/wbs-data[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preparation propagates absent and unreadable pv/disk[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preparation propagates absent and unreadable cronjob/sqlite-backup[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preparation propagates absent and unreadable kustomizations.kustomize.toolkit.fluxcd.io/release[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rechecks observations before checkpoint and permits resourceVersion progress only[0m [0m[2m[0.73ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m Lease loss after reads prevents durable preparation[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m validated local topology records null Flux without reading a Flux unit[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m adapter rejects malformed spec before constructing a typed observation[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m adapter rejects missing version before constructing a typed observation[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m adapter rejects invalid suspension before constructing a typed observation[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preparation waits for the authoritative checkpoint to become durable[0m [0m[2m[[1m10.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m resume reasserts Lease before returning original-history validation[0m [0m[2m[0.75ms[0m[2m][0m
+[0m
+src/k8s/deploy-k3s.test.ts:
+[0m[1m442 |[0m   [0m[35mconst[0m origin = state.rollbackFrom === [0m[33mnull[0m ? -[0m[33m1[0m : phases[0m[3m[1m.indexOf[0m(state.rollbackFrom)[0m[2m;[0m
+[0m[1m443 |[0m   [0m[35mif[0m (
+[0m[1m444 |[0m     (reached >= phases[0m[3m[1m.indexOf[0m([0m[32m'replay-checked'[0m) || origin >= phases[0m[3m[1m.indexOf[0m([0m[32m'replay-checked'[0m)) &&
+[0m[1m445 |[0m     forward === [0m[33mnull[0m
+[0m[1m446 |[0m   )
+[0m[1m447 |[0m     [0m[35mthrow[0m [0m[35mnew[0m [0m[1mError[0m([0m[32m'missing forward controller interval after source work'[0m)[0m[2m;[0m
+                    [31m[1m^[0m
+[0m[31merror[0m[2m:[0m [1mmissing forward controller interval after source work[0m
+[0m      [2mat [0m[0m[1m[3massertControllerProgress[0m[2m ([0m[0m[36m[2m/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/[0m[36msrc/k8s/controller-lifecycle.ts[0m[2m:[0m[33m447[0m[2m:[33m15[0m[2m)[0m
+[0m      [2mat [0m[0m[1m[3mparseJournal[0m[2m ([0m[0m[36m[2m/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/[0m[36msrc/k8s/journal.ts[0m[2m:[0m[33m115[0m[2m:[33m3[0m[2m)[0m
+[0m      [2mat [0m[0m[1m[3mprepareFromDescriptor[0m[2m ([0m[0m[36m[2m/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/[0m[36msrc/k8s/deploy-k3s.ts[0m[2m:[0m[33m191[0m[2m:[33m44[0m[2m)[0m
+[0m      [2mat [0m[0m[1m[3masync main[0m[2m ([0m[0m[36m[2m/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/[0m[36msrc/k8s/deploy-k3s.ts[0m[2m:[0m[33m260[0m[2m:[33m22[0m[2m)[0m
+[0m      [2mat [0m[0m[2masync <anonymous>[0m[2m ([0m[0m[36m[2m/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/[0m[36msrc/k8s/deploy-k3s.test.ts[0m[2m:[0m[33m181[0m[2m:[33m13[0m[2m)[0m
+[0m[31m✗[0m [0mdeploy-k3s descriptor mode[2m >[0m[1m resumes the request its journal recorded without re-reading the cluster[0m [0m[2m[9.39ms[0m[2m][0m
+[0m[1m193 |[0m       expect(
+[0m[1m194 |[0m         [0m[35mawait[0m main(args, ROOT)[0m[3m[1m.then[0m(
+[0m[1m195 |[0m           () => [0m[32m'resumed'[0m,
+[0m[1m196 |[0m           (e: [0m[34munknown[0m) => String(e),
+[0m[1m197 |[0m         ),
+[0m[1m198 |[0m       )[0m[3m[1m.toContain[0m([0m[32m'cannot resume'[0m)[0m[2m;[0m
+              [31m[1m^[0m
+[0m[31merror[0m[2m:[0m [1m[2mexpect([0m[31mreceived[0m[2m).[0mtoContain[2m([0m[32mexpected[0m[2m)[0m
+
+Expected to contain: [32m"cannot resume"[0m
+Received: [31m"Error: missing forward controller interval after source work"[0m
+[0m
+[0m      [2mat [0m[0m[2m<anonymous>[0m[2m ([0m[0m[36m[2m/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/[0m[36msrc/k8s/deploy-k3s.test.ts[0m[2m:[0m[33m198[0m[2m:[33m9[0m[2m)[0m
+[0m[31m✗[0m [0mdeploy-k3s descriptor mode[2m >[0m[1m refuses to resume a journal recorded against another cluster context[0m [0m[2m[7.85ms[0m[2m][0m
+[0m[32m✓[0m [0mdeploy-k3s descriptor mode[2m >[0m[1m refuses a descriptor whose image the registry labels with another commit[0m [0m[2m[[1m18.50ms[0m[2m][0m
+[0m
+src/k8s/first-start-startup.test.ts:
+[0m[32m✓[0m[0m[1m real backend rejects executable startupProbe[0m [0m[2m[2.99ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend rejects executable readinessProbe[0m [0m[2m[1.59ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend rejects executable livenessProbe[0m [0m[2m[1.45ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses init in Deployment[0m [0m[2m[2.03ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses init in descendant Pod[0m [0m[2m[1.67ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses command in Deployment[0m [0m[2m[1.36ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses command in descendant Pod[0m [0m[2m[1.30ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses args in Deployment[0m [0m[2m[1.45ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses args in descendant Pod[0m [0m[2m[1.26ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses envFrom in Deployment[0m [0m[2m[1.23ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses envFrom in descendant Pod[0m [0m[2m[1.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses ephemeral in Deployment[0m [0m[2m[3.46ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses ephemeral in descendant Pod[0m [0m[2m[1.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses volume in Deployment[0m [0m[2m[0.99ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses volume in descendant Pod[0m [0m[2m[1.03ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses hook in Deployment[0m [0m[2m[1.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses hook in descendant Pod[0m [0m[2m[1.03ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses mount in Deployment[0m [0m[2m[1.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses mount in descendant Pod[0m [0m[2m[1.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses env in Deployment[0m [0m[2m[1.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses env in descendant Pod[0m [0m[2m[0.98ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses startupProbe in Deployment[0m [0m[2m[1.12ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses startupProbe in descendant Pod[0m [0m[2m[1.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses readinessProbe in Deployment[0m [0m[2m[1.31ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses readinessProbe in descendant Pod[0m [0m[2m[2.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses livenessProbe in Deployment[0m [0m[2m[1.54ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend trusted startup refuses livenessProbe in descendant Pod[0m [0m[2m[1.44ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real backend startup admits exact render and explicit API defaults in descendant Pod[0m [0m[2m[1.71ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses init in Deployment[0m [0m[2m[0.94ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses init in descendant Pod[0m [0m[2m[0.84ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses command in Deployment[0m [0m[2m[0.74ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses command in descendant Pod[0m [0m[2m[0.78ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses args in Deployment[0m [0m[2m[0.71ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses args in descendant Pod[0m [0m[2m[0.63ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses envFrom in Deployment[0m [0m[2m[0.68ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses envFrom in descendant Pod[0m [0m[2m[0.70ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses ephemeral in Deployment[0m [0m[2m[0.67ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses ephemeral in descendant Pod[0m [0m[2m[0.68ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses volume in Deployment[0m [0m[2m[0.69ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses volume in descendant Pod[0m [0m[2m[0.66ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses hook in Deployment[0m [0m[2m[0.68ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses hook in descendant Pod[0m [0m[2m[0.65ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses mount in Deployment[0m [0m[2m[0.61ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses mount in descendant Pod[0m [0m[2m[4.36ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses env in Deployment[0m [0m[2m[1.49ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses env in descendant Pod[0m [0m[2m[1.33ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses startupProbe in Deployment[0m [0m[2m[1.38ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses startupProbe in descendant Pod[0m [0m[2m[1.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses readinessProbe in Deployment[0m [0m[2m[1.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses readinessProbe in descendant Pod[0m [0m[2m[1.20ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses livenessProbe in Deployment[0m [0m[2m[1.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway trusted startup refuses livenessProbe in descendant Pod[0m [0m[2m[1.19ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real gateway startup admits exact render and explicit API defaults in descendant Pod[0m [0m[2m[1.57ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses init in Deployment[0m [0m[2m[1.49ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses init in descendant Pod[0m [0m[2m[0.96ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses command in Deployment[0m [0m[2m[0.93ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses command in descendant Pod[0m [0m[2m[0.97ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses args in Deployment[0m [0m[2m[1.04ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses args in descendant Pod[0m [0m[2m[0.91ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses envFrom in Deployment[0m [0m[2m[1.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses envFrom in descendant Pod[0m [0m[2m[0.97ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses ephemeral in Deployment[0m [0m[2m[1.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses ephemeral in descendant Pod[0m [0m[2m[4.63ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses volume in Deployment[0m [0m[2m[2.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses volume in descendant Pod[0m [0m[2m[1.43ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses hook in Deployment[0m [0m[2m[1.34ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses hook in descendant Pod[0m [0m[2m[1.31ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses mount in Deployment[0m [0m[2m[1.35ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses mount in descendant Pod[0m [0m[2m[1.14ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses env in Deployment[0m [0m[2m[0.81ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses env in descendant Pod[0m [0m[2m[0.79ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses startupProbe in Deployment[0m [0m[2m[0.82ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses startupProbe in descendant Pod[0m [0m[2m[0.79ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses readinessProbe in Deployment[0m [0m[2m[0.79ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses readinessProbe in descendant Pod[0m [0m[2m[0.78ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses livenessProbe in Deployment[0m [0m[2m[0.81ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend trusted startup refuses livenessProbe in descendant Pod[0m [0m[2m[0.70ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real frontend startup admits exact render and explicit API defaults in descendant Pod[0m [0m[2m[0.95ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses init in Deployment[0m [0m[2m[0.92ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses init in descendant Pod[0m [0m[2m[0.94ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses command in Deployment[0m [0m[2m[2.22ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses command in descendant Pod[0m [0m[2m[1.04ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses args in Deployment[0m [0m[2m[0.85ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses args in descendant Pod[0m [0m[2m[0.80ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses envFrom in Deployment[0m [0m[2m[0.82ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses envFrom in descendant Pod[0m [0m[2m[0.86ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses ephemeral in Deployment[0m [0m[2m[0.87ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses ephemeral in descendant Pod[0m [0m[2m[0.87ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses volume in Deployment[0m [0m[2m[0.77ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses volume in descendant Pod[0m [0m[2m[0.71ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses hook in Deployment[0m [0m[2m[0.83ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses hook in descendant Pod[0m [0m[2m[0.77ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses mount in Deployment[0m [0m[2m[0.83ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses mount in descendant Pod[0m [0m[2m[0.79ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses env in Deployment[0m [0m[2m[0.73ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses env in descendant Pod[0m [0m[2m[0.84ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses startupProbe in Deployment[0m [0m[2m[2.61ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses startupProbe in descendant Pod[0m [0m[2m[1.63ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses readinessProbe in Deployment[0m [0m[2m[1.47ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses readinessProbe in descendant Pod[0m [0m[2m[1.40ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses livenessProbe in Deployment[0m [0m[2m[0.94ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp trusted startup refuses livenessProbe in descendant Pod[0m [0m[2m[0.86ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real mcp startup admits exact render and explicit API defaults in descendant Pod[0m [0m[2m[0.90ms[0m[2m][0m
+[0m
+src/k8s/descriptor.test.ts:
+[0m[32m✓[0m [0mrelease candidate[2m >[0m[1m reads tool-dagger release.json entries built from the source[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mrelease candidate[2m >[0m[1m refuses a tier built from another commit[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mrelease candidate[2m >[0m[1m refuses a tag-only image or one naming another digest or tier[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m [0mrelease candidate[2m >[0m[1m refuses a candidate without the MCP tier[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mrelease candidate[2m >[0m[1m refuses an admission claim smuggled into the candidate[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mgate evidence[2m >[0m[1m accepts a successful ci run with passing gate and pixels jobs[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mgate evidence[2m >[0m[1m refuses gate evidence for another commit[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mgate evidence[2m >[0m[1m refuses a run whose browser job did not pass[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mgate evidence[2m >[0m[1m refuses a pull_request gate run[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mgate evidence[2m >[0m[1m refuses a run of some other workflow[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0msealing[2m >[0m[1m joins every tier digest to the trusted admission identities[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m [0msealing[2m >[0m[1m refuses an admission record for another commit (failed admission blocks)[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0msealing[2m >[0m[1m refuses a launcher report in place of the admission record[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0msealing[2m >[0m[1m refuses a failed gate[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mdeploy-time admission and promotion[2m >[0m[1m accepts a fresh admission with the same identities[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mdeploy-time admission and promotion[2m >[0m[1m refuses a fresh admission from another activation[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mdeploy-time admission and promotion[2m >[0m[1m promotes the exact descriptor staging proved[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m [0mdeploy-time admission and promotion[2m >[0m[1m refuses a production digest staging did not prove[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mdeploy-time admission and promotion[2m >[0m[1m refuses a descriptor other than the one staging promoted[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mdeploy-time admission and promotion[2m >[0m[1m parses a staging proof and refuses a malformed one[0m [0m[2m[0.10ms[0m[2m][0m
+[0m
+src/k8s/first-start.test.ts:
+[0m[32m✓[0m [0mdurable first cutover admission[2m >[0m[1m persists actual PVC replay and disabled authority before explicitly starting every tier[0m [0m[2m[4.81ms[0m[2m][0m
+[0m[32m✓[0m [0mdurable first cutover admission[2m >[0m[1m refuses restore and keeps the Lease, fence and Flux suspension[0m [0m[2m[1.21ms[0m[2m][0m
+[0m[32m✓[0m [0mdurable first cutover admission[2m >[0m[1m refuses restore-evidence and keeps the Lease, fence and Flux suspension[0m [0m[2m[0.50ms[0m[2m][0m
+[0m[32m✓[0m [0mdurable first cutover admission[2m >[0m[1m refuses actual-bytes and keeps the Lease, fence and Flux suspension[0m [0m[2m[0.45ms[0m[2m][0m
+[0m[32m✓[0m [0mdurable first cutover admission[2m >[0m[1m refuses actual-replay and keeps the Lease, fence and Flux suspension[0m [0m[2m[0.41ms[0m[2m][0m
+[0m[32m✓[0m [0mdurable first cutover admission[2m >[0m[1m refuses enabled and keeps the Lease, fence and Flux suspension[0m [0m[2m[0.48ms[0m[2m][0m
+[0m[32m✓[0m [0mdurable first cutover admission[2m >[0m[1m refuses safety and keeps the Lease, fence and Flux suspension[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m [0mdurable first cutover admission[2m >[0m[1m refuses record and keeps the Lease, fence and Flux suspension[0m [0m[2m[1.15ms[0m[2m][0m
+[0m[32m✓[0m [0mdurable first cutover admission[2m >[0m[1m refuses revision and keeps the Lease, fence and Flux suspension[0m [0m[2m[1.19ms[0m[2m][0m
+[0m[32m✓[0m [0mdurable first cutover admission[2m >[0m[1m refuses handoff-fence and keeps the Lease, fence and Flux suspension[0m [0m[2m[1.74ms[0m[2m][0m
+[0m[32m✓[0m [0mdurable first cutover admission[2m >[0m[1m rereads a persisted admission before scaling and refuses corruption[0m [0m[2m[0.67ms[0m[2m][0m
+[0m[32m✓[0m [0mdurable first cutover admission[2m >[0m[1m resumes partial scaling by stopping tiers and freshly observing the PVC[0m [0m[2m[2.40ms[0m[2m][0m
+[0m[32m✓[0m [0mdurable first cutover admission[2m >[0m[1m refuses foreign resumed request and missing durable receipts before acquiring the Lease[0m [0m[2m[1.72ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses sealed first-start progress corruption before Lease mutation: version[0m [0m[2m[1.58ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses sealed first-start progress corruption before Lease mutation: phase[0m [0m[2m[1.54ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses sealed first-start progress corruption before Lease mutation: transaction[0m [0m[2m[1.53ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses sealed first-start progress corruption before Lease mutation: request-digest[0m [0m[2m[1.34ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses sealed first-start progress corruption before Lease mutation: receipt-digest[0m [0m[2m[1.44ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses sealed first-start progress corruption before Lease mutation: receipt-transaction[0m [0m[2m[1.46ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses sealed first-start progress corruption before Lease mutation: receipt-request[0m [0m[2m[1.55ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses sealed first-start progress corruption before Lease mutation: receipt-report[0m [0m[2m[1.40ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses sealed first-start progress corruption before Lease mutation: receipt-activation[0m [0m[2m[3.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m distinguishes absent durable files from malformed and unreadable state[0m [0m[2m[0.49ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed operator input before creating Kubernetes effects[0m [0m[2m[0.51ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a live foreign Lease before persisting state or fencing the cluster[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m stops mutations when its Lease renewal fails[0m [0m[2m[0.33ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m serializes heartbeats and reclaims its own parked interrupted transaction[0m [0m[2m[[1m34.87ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a foreign target before acquiring a Lease or changing Flux, fence or tiers[0m [0m[2m[0.37ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a parked Lease when its durable transaction journal is missing[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses tier scale when a delayed safety observation returns after heartbeat Lease loss[0m [0m[2m[[1m16.12ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses mutations after Lease loss during awaited source observation[0m [0m[2m[[1m15.94ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses mutations after Lease loss during awaited actual observation[0m [0m[2m[[1m15.99ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses mutations after Lease loss during awaited rollout observation[0m [0m[2m[[1m16.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses mutations after Lease loss during awaited record-readback observation[0m [0m[2m[[1m16.46ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses mutations after Lease loss during awaited source-revision observation[0m [0m[2m[[1m16.53ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a queued renewal after the preceding heartbeat has lost its Lease[0m [0m[2m[[1m13.71ms[0m[2m][0m
+[0m
+src/k8s/first-start-adapter.test.ts:
+[0m[32m✓[0m[0m[1m renders the first Flux handoff revision with its writer ingress fence closed[0m [0m[2m[0.87ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses missing or duplicated fresh markers and non-disabled observation protocol[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m fresh actual SQLite observation requires replay and disabled exact authority: none[0m [0m[2m[[1m4819.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m fresh actual SQLite observation requires replay and disabled exact authority: enabled[0m [0m[2m[[1m4552.14ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m fresh actual SQLite observation requires replay and disabled exact authority: missing-marker[0m [0m[2m[[1m4489.59ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m fresh actual SQLite observation requires replay and disabled exact authority: missing-trigger[0m [0m[2m[[1m4270.37ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m fresh actual SQLite observation requires replay and disabled exact authority: changed-trigger[0m [0m[2m[[1m4126.63ms[0m[2m][0m
+[2mkilled 1 dangling process[0m
+[0m[31m✗[0m[0m[1m fresh actual SQLite observation requires replay and disabled exact authority: missing-ledger[0m [0m[2m[[0m[33m10233.17ms[0m[2m][0m
+  [2m^[0m [31mthis test timed out after 10000ms.[0m
+[0m[32m✓[0m[0m[1m fresh actual SQLite observation requires replay and disabled exact authority: missing-db[0m [0m[2m[[1m190.83ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m fresh actual SQLite observation requires replay and disabled exact authority: unreadable-db[0m [0m[2m[[1m100.90ms[0m[2m][0m
+[2mkilled 1 dangling process[0m
+[0m[31m✗[0m[0m[1m fresh actual SQLite observation requires replay and disabled exact authority: bad-replay[0m [0m[2m[[0m[33m10137.37ms[0m[2m][0m
+  [2m^[0m [31mthis test timed out after 10000ms.[0m
+[2mkilled 1 dangling process[0m
+[0m[31m✗[0m[0m[1m fresh actual SQLite observation requires replay and disabled exact authority: nonempty-wal[0m [0m[2m[[0m[33m10162.16ms[0m[2m][0m
+  [2m^[0m [31mthis test timed out after 10000ms.[0m
+[0m[32m✓[0m[0m[1m rejects foreign PVC namespace cluster, open fence, Flux and running writers at the production observation boundary[0m [0m[2m[7.93ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a backend template that would open another database or migrate on startup[0m [0m[2m[[1m13.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: none[0m [0m[2m[[1m4169.80ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: restore-uid[0m [0m[2m[[1m92.61ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: restore-image[0m [0m[2m[[1m39.51ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: restore-command[0m [0m[2m[[1m135.83ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: restore-mount[0m [0m[2m[[1m124.49ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: restore-status[0m [0m[2m[[1m41.71ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: actual-command[0m [0m[2m[[1m1380.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: actual-mount[0m [0m[2m[[1m1890.75ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: actual-image[0m [0m[2m[[1m1545.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: bad-log[0m [0m[2m[[1m1190.99ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: rollout-image[0m [0m[2m[[1m42.43ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: rollout-status[0m [0m[2m[[1m54.81ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: rollout-mount[0m [0m[2m[[1m31.18ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: unlabeled-pvc[0m [0m[2m[[1m581.89ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: public-open[0m [0m[2m[[1m336.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: extra-public-policy[0m [0m[2m[[1m250.92ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: gateway-init[0m [0m[2m[[1m373.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: observation-lease-loss[0m [0m[2m[[1m450.92ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: writer-fence-lease-loss[0m [0m[2m[[1m28.58ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: missing-lease-guard[0m [0m[2m[[1m300.18ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: gateway-pod-init[0m [0m[2m[[1m244.68ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: gateway-rs-command[0m [0m[2m[[1m231.14ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: backend-probe-startupProbe[0m [0m[2m[[1m101.20ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: backend-probe-readinessProbe[0m [0m[2m[[1m55.46ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m kubectl first-start adapter refuses altered cluster transport: backend-probe-livenessProbe[0m [0m[2m[[1m53.22ms[0m[2m][0m
+[0m
+src/k8s/controller-lease.test.ts:
+[0m[32m✓[0m[0m[1m real Lease adapter preserves a sticky journal marker across renewal takeover and parking[0m [0m[2m[[1m289.87ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real Lease marker refuses UID race or uncertainty[0m [0m[2m[[1m88.63ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real Lease marker refuses resourceVersion race or uncertainty[0m [0m[2m[[1m89.45ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real Lease marker refuses holder race or uncertainty[0m [0m[2m[[1m93.95ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real Lease marker refuses no-apply race or uncertainty[0m [0m[2m[[1m85.30ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real Lease marker refuses ABA race or uncertainty[0m [0m[2m[[1m98.78ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real Lease marker reconciles a committed patch with a lost response[0m [0m[2m[[1m104.17ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real Lease renewLease refuses delete-recreate ABA with the same holder[0m [0m[2m[[1m70.34ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real Lease parkLease refuses delete-recreate ABA with the same holder[0m [0m[2m[[1m56.54ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real Lease releaseLease refuses delete-recreate ABA with the same holder[0m [0m[2m[[1m74.42ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real Lease cleanup refuses recoverable marked journal[0m [0m[2m[[1m147.48ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real Lease cleanup refuses missing marked journal[0m [0m[2m[[1m134.62ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real Lease cleanup refuses corrupt marked journal[0m [0m[2m[[1m171.89ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real Lease takeover refuses UID ABA between observation and CAS[0m [0m[2m[[1m89.22ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real Lease renewLease refuses a cleared sticky marker[0m [0m[2m[[1m169.60ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real Lease parkLease refuses a cleared sticky marker[0m [0m[2m[[1m216.99ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real Lease releaseLease refuses a cleared sticky marker[0m [0m[2m[[1m191.44ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real Lease cleanup deletes an eligible completed journal with exact API preconditions[0m [0m[2m[[1m187.53ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real Lease cleanup deleteUID race cannot delete a replacement[0m [0m[2m[[1m162.50ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real Lease cleanup deleteVersion race cannot delete a replacement[0m [0m[2m[[1m152.07ms[0m[2m][0m
+[0m
+src/k8s/storage-ownership.test.ts:
+[0m[32m✓[0m[0m[1m preserves absent false and true suspension distinctly[0m [0m[2m[0.60ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects altered ownership bytes and envelope[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects ownership from a different transaction[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects ownership from a different cluster[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects ownership from a different namespace[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects ownership from a different pvc[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects ownership from a different flux[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects unsupported format even with resealed bytes[0m [0m[2m[0.35ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects unsupported version even with resealed bytes[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects foreign PVC name even with resealed bytes[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects foreign database path even with resealed bytes[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects foreign storage namespace even with resealed bytes[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects empty Flux name even with resealed bytes[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects unknown field even with resealed bytes[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects unsupported stage even with resealed bytes[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects foreign controller even with resealed bytes[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects missing owner UID even with resealed bytes[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects invalid suspension even with resealed bytes[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects unknown suspension field even with resealed bytes[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects invalid template hash even with resealed bytes[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects inconsistent disposition even with resealed bytes[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects missing Flux UID even with resealed bytes[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects unknown envelope fields without changing original bytes[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m malformed envelope identifies the trusted-state boundary[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects a namespace inconsistent with its own storage even when caller repeats it[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m malformed suspension identifies its trusted-state boundary[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m missing in-memory field identifies its canonical boundary[0m [0m[2m[0.09ms[0m[2m][0m
+[0m
+src/k8s/controller-release.test.ts:
+[0m[32m✓[0m[0m[1m mounted release checkpoints and restores exact undefined backup suspension[0m [0m[2m[[1m3859.19ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted release checkpoints and restores exact false backup suspension[0m [0m[2m[[1m3791.15ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted release checkpoints and restores exact true backup suspension[0m [0m[2m[[1m3778.56ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted dormant abort after rollout creates a new rollback interval and retains forward history[0m [0m[2m[[1m6687.21ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted dormant abort during source work reuses the active forward interval[0m [0m[2m[[1m5384.68ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted omitted checkpoint refuses before controller mutation or capture[0m [0m[2m[[1m443.57ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted restart reconciles suspended patch before durable acknowledgment[0m [0m[2m[[1m2331.72ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted restart reconciles restore-applied patch before durable acknowledgment[0m [0m[2m[[1m6676.35ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted restart reconciles restored patch before durable acknowledgment[0m [0m[2m[[0m[33m10437.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted UID change parks before capture and schema reversal[0m [0m[2m[[1m897.38ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted template change parks before capture and schema reversal[0m [0m[2m[[1m628.90ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted token change parks before capture and schema reversal[0m [0m[2m[[1m556.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted exact restore failure retains barrier and pinned manual inspection command[0m [0m[2m[[1m2793.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted drain deletes actual UID descendants with UID-preconditioned orphan deletion[0m [0m[2m[[1m3619.90ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted drain never deletes a Pod with the same Job name and a foreign Job UID[0m [0m[2m[[1m681.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted unlabelled writable source consumer refuses[0m [0m[2m[[1m631.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted unlabelled readonly source consumer refuses[0m [0m[2m[[1m655.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted repeated inventory refuses a reader appearing after source capture[0m [0m[2m[[1m3552.61ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted Lease loss during inventory stops before descendant deletion or source work[0m [0m[2m[[1m777.87ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted missing journal refuses before controller mutation on restart[0m [0m[2m[[1m403.04ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted unreadable journal refuses before controller mutation on restart[0m [0m[2m[[1m480.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted corrupt journal refuses before controller mutation on restart[0m [0m[2m[[1m592.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted atomic UID guard refuses a patch race before changing suspension[0m [0m[2m[[1m1219.56ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted atomic resourceVersion guard refuses a patch race before changing suspension[0m [0m[2m[[1m1385.79ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted atomic template guard refuses a patch race before changing suspension[0m [0m[2m[[1m1448.91ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted atomic token guard refuses a patch race before changing suspension[0m [0m[2m[[1m1179.47ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted bounded drain timeout preserves suspended owner and refuses source work[0m [0m[2m[[1m4278.04ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m mounted storage replacement after drain refuses before source capture[0m [0m[2m[[1m3803.60ms[0m[2m][0m
+[0m
+src/k8s/journal.test.ts:
+[0m[32m✓[0m [0mfileJournal[2m >[0m[1m reads back what it wrote and leaves no temporary file[0m [0m[2m[2.64ms[0m[2m][0m
+[0m[32m✓[0m [0mfileJournal[2m >[0m[1m answers null only when no journal exists[0m [0m[2m[0.19ms[0m[2m][0m
+[0m[32m✓[0m [0mfileJournal[2m >[0m[1m rejects an unknown phase[0m [0m[2m[0.40ms[0m[2m][0m
+[0m[32m✓[0m [0mfileJournal[2m >[0m[1m rejects a journal that is not JSON[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m [0mfileJournal[2m >[0m[1m rejects a newer schema[0m [0m[2m[0.33ms[0m[2m][0m
+[0m[32m✓[0m [0mfileJournal[2m >[0m[1m refuses a legacy in-flight journal schema 1 without replacing its bytes[0m [0m[2m[0.38ms[0m[2m][0m
+[0m[32m✓[0m [0mfileJournal[2m >[0m[1m refuses a legacy in-flight journal schema 2 without replacing its bytes[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m [0mfileJournal[2m >[0m[1m refuses a legacy in-flight journal schema 3 without replacing its bytes[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m [0mfileJournal[2m >[0m[1m rejects a changed capture from disk before returning a journal record[0m [0m[2m[0.46ms[0m[2m][0m
+[0m[32m✓[0m [0mfileJournal[2m >[0m[1m distinguishes an unreadable journal from an absent one[0m [0m[2m[0.31ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses missing or malformed controller lifecycle trusted state[0m [0m[2m[0.51ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses missing source drain and restore acknowledgments in durable phase history[0m [0m[2m[0.91ms[0m[2m][0m
+[0m
+src/k8s/promotion.test.ts:
+[0m[32m✓[0m [0mprotected state directory[2m >[0m[1m accepts an owner-only directory[0m [0m[2m[0.36ms[0m[2m][0m
+[0m[32m✓[0m [0mprotected state directory[2m >[0m[1m refuses a state directory others can read[0m [0m[2m[0.23ms[0m[2m][0m
+[0m[32m✓[0m [0mprotected state directory[2m >[0m[1m refuses a relative or absent directory[0m [0m[2m[0.34ms[0m[2m][0m
+[0m[32m✓[0m [0mcheckDescriptor[2m >[0m[1m accepts the named, admitted descriptor for staging[0m [0m[2m[1.29ms[0m[2m][0m
+[0m[32m✓[0m [0mcheckDescriptor[2m >[0m[1m refuses a descriptor other than the one named[0m [0m[2m[0.62ms[0m[2m][0m
+[0m[32m✓[0m [0mcheckDescriptor[2m >[0m[1m refuses a failed admission (a record for another commit)[0m [0m[2m[0.53ms[0m[2m][0m
+[0m[32m✓[0m [0mcheckDescriptor[2m >[0m[1m refuses production before staging proved the descriptor[0m [0m[2m[0.85ms[0m[2m][0m
+[0m[32m✓[0m [0mcheckDescriptor[2m >[0m[1m refuses a staging proof older than the bound[0m [0m[2m[1.94ms[0m[2m][0m
+[0m[32m✓[0m [0mcheckDescriptor[2m >[0m[1m refuses a malformed recovers value[0m [0m[2m[0.19ms[0m[2m][0m
+[0m[32m✓[0m [0mcheckDescriptor[2m >[0m[1m promotes to production once staging recorded its proof[0m [0m[2m[1.77ms[0m[2m][0m
+[0m[32m✓[0m [0mdelivery targets[2m >[0m[1m reads the committed staging and prod targets[0m [0m[2m[0.49ms[0m[2m][0m
+[0m[32m✓[0m [0mdelivery targets[2m >[0m[1m builds a Flux request that pins both deploy revisions[0m [0m[2m[1.07ms[0m[2m][0m
+[0m
+src/k8s/lab-diagnostics.test.ts:
+[0m[32m✓[0m[0m[1m bounds pod diagnostics and removes generated key material[0m [0m[2m[0.50ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m fails a rejected lab Secret write without disclosing its keys[0m [0m[2m[0.18ms[0m[2m][0m
+[0m
+src/k8s/controller-lifecycle.test.ts:
+[0m[32m✓[0m[0m[1m conditionally suspends and restores exact undefined field[0m [0m[2m[4.48ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m conditionally suspends and restores exact false field[0m [0m[2m[1.72ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m conditionally suspends and restores exact true field[0m [0m[2m[1.85ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checkpoint failure refuses mutation[0m [0m[2m[6.43ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m restart acknowledges only its exact patch after checkpoint failure[0m [0m[2m[3.21ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses foreign UID before mutation[0m [0m[2m[1.79ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses foreign template before mutation[0m [0m[2m[1.33ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses foreign token before mutation[0m [0m[2m[0.60ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses foreign suspension before mutation[0m [0m[2m[1.14ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m drains actual UID descendants and refuses unrelated unlabelled source readers[0m [0m[2m[5.57ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m atomic UID race refuses before changing suspension[0m [0m[2m[1.86ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m atomic resourceVersion race refuses before changing suspension[0m [0m[2m[1.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m atomic template race refuses before changing suspension[0m [0m[2m[1.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m atomic token race refuses before changing suspension[0m [0m[2m[1.54ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m lost Lease after suspension patch cannot acknowledge or restore[0m [0m[2m[2.38ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m malformed lifecycle never reaches cluster transport[0m [0m[2m[1.34ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m restore mismatch retains token and suspension[0m [0m[2m[2.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m drain timeout retains suspended owner without deleting a foreign Pod[0m [0m[2m[3.82ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m restart finishes exact restoration after restore-applied acknowledgment crash[0m [0m[2m[5.60ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m restart finishes exact restoration after restored acknowledgment crash[0m [0m[2m[4.46ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m completed restore history is checked against current state before writer rollout[0m [0m[2m[4.70ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m malformed lifecycle object identifies the trusted-state boundary[0m [0m[2m[0.38ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m owned token changing between read passes refuses before acknowledgment[0m [0m[2m[3.32ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unknown lifecycle fields refuse before any cluster transport[0m [0m[2m[1.02ms[0m[2m][0m
+[0m
+src/k8s/cutover.test.ts:
+[0m[32m✓[0m [0mSQLITE_REPORT_SCRIPT against the real be-01 migrations[2m >[0m[1m exports a consistent copy and reports migrations, counts and known rows[0m [0m[2m[[1m808.79ms[0m[2m][0m
+[0m[32m✓[0m [0mexport and restore judgements[2m >[0m[1m accepts a sound export[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m [0mexport and restore judgements[2m >[0m[1m refuses an export whose integrity_check is not ok[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mexport and restore judgements[2m >[0m[1m refuses an export with foreign key violations[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mexport and restore judgements[2m >[0m[1m accepts the restored export and refuses a restore with different bytes[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m [0mexport and restore judgements[2m >[0m[1m refuses a restored database the backend UID does not own[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mcutover shape[2m >[0m[1m keeps every step before the traffic switch reversible[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mcutover shape[2m >[0m[1m fences writes and WebSockets at the old edge while reads still pass[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0mcutover shape[2m >[0m[1m refuses a report without exactly one marked line[0m [0m[2m[0.06ms[0m[2m][0m
+[0m
+src/k8s/execute.test.ts:
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m takes the exact phase order and promotes the release[0m [0m[2m[[1m22.08ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m rolls back after a crash following intent-persisted[0m [0m[2m[0.94ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m rolls back after a crash following images-admitted[0m [0m[2m[0.34ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m rolls back after a crash following flux-suspended[0m [0m[2m[1.31ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m rolls back after a crash following writes-closed[0m [0m[2m[1.12ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m rolls back after a crash following gateway-drained[0m [0m[2m[1.06ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m rolls back after a crash following writer-stopped[0m [0m[2m[1.17ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m rolls back after a crash following replay-checked[0m [0m[2m[1.91ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m rolls back after a crash following state-captured[0m [0m[2m[2.27ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m rolls back after a crash following migrated[0m [0m[2m[2.39ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m rolls back after a crash following backend-ready[0m [0m[2m[3.31ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m rolls back after a crash following tiers-ready[0m [0m[2m[3.61ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m finishes the proven release after a crash following smoke-passed[0m [0m[2m[2.00ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m finishes the proven release after a crash following release-persisted[0m [0m[2m[1.69ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m finishes the proven release after a crash following writes-reopened[0m [0m[2m[1.72ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m finishes the proven release after a crash following desired-reconciled[0m [0m[2m[1.58ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m finishes the proven release after a crash following flux-resumed[0m [0m[2m[1.59ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m reclaims the Lease of a coordinator that died before persisting intent[0m [0m[2m[1.70ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses while a live coordinator of another transaction holds the Lease[0m [0m[2m[0.42ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses a second live coordinator for the same request[0m [0m[2m[2.07ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses to resume a transaction whose live coordinator still renews the Lease[0m [0m[2m[0.49ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m stops when another process takes the Lease[0m [0m[2m[1.28ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m rolls back to the captured schema and old digests before writes reopen on failed health[0m [0m[2m[3.29ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m rolls back to the captured schema and old digests before writes reopen on failed smoke[0m [0m[2m[2.90ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m rolls back to the captured schema and old digests before writes reopen on a timeout[0m [0m[2m[1.98ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m restores an older-stamp addition after a newer baseline on failed health[0m [0m[2m[5.68ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses an interrupted legacy capture before changing its journal or cluster[0m [0m[2m[0.50ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses a captured phase without its capture before any mutation[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses wrong target in a resumed capture before journal or cluster mutation[0m [0m[2m[1.31ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses wrong attempt in a resumed capture before journal or cluster mutation[0m [0m[2m[0.86ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses wrong candidate in a resumed capture before journal or cluster mutation[0m [0m[2m[0.83ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses altered bytes in a resumed capture before journal or cluster mutation[0m [0m[2m[0.69ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses duplicate identity in a durable capture before Lease or journal mutation[0m [0m[2m[1.51ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses reordered pending in a durable capture before Lease or journal mutation[0m [0m[2m[0.85ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses malformed forward hash in a durable capture before Lease or journal mutation[0m [0m[2m[0.82ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses divergent envelope in a durable capture before Lease or journal mutation[0m [0m[2m[0.82ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses unsupported format in a durable capture before Lease or journal mutation[0m [0m[2m[0.89ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses a foreign capture before journal persistence[0m [0m[2m[2.15ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m does not promote a failed candidate capability capture or launch migration[0m [0m[2m[1.85ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses changed restored hash before reopening writes[0m [0m[2m[2.73ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses duplicate restored identities before reopening writes[0m [0m[2m[2.48ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m leaves writes fenced and prints the manual command when rollback fails[0m [0m[2m[2.74ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m names the manual completion when a later rollback step fails[0m [0m[2m[3.18ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses an edited down migration and stays fenced[0m [0m[2m[2.53ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses a migration Job that completed without applying the captured set[0m [0m[2m[2.24ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m stops at recovery-required after writes reopen and recovers with a fresh capture[0m [0m[2m[3.74ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m refuses a new release while another release journal is unfinished[0m [0m[2m[0.43ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m rolls back with Flux onto the previous revision only[0m [0m[2m[2.83ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m keeps Flux suspended when the source already serves the failed release[0m [0m[2m[5.92ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m publishes the desired revision before writes reopen, and rolls back when the push fails[0m [0m[2m[4.57ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m drains a delayed heartbeat before parking when renewal succeeds[0m [0m[2m[3.16ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m drains a delayed heartbeat before parking when renewal fails[0m [0m[2m[2.00ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m stops heartbeats throughout a delayed terminal park[0m [0m[2m[[1m12.57ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m never renews the Lease concurrently[0m [0m[2m[[1m133.24ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m admits the candidate and rollback digests before any backend pod starts[0m [0m[2m[1.93ms[0m[2m][0m
+[0m[32m✓[0m [0mexecuteRelease[2m >[0m[1m records every phase it wrote in the journal history[0m [0m[2m[1.56ms[0m[2m][0m
+[0m
+src/k8s/backup-lab.test.ts:
+[0m[32m✓[0m [0mscheduled verification lab evidence[2m >[0m[1m refuses a failed known-backup verification[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mscheduled verification lab evidence[2m >[0m[1m refuses a fault the production runner accepted[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mscheduled verification lab evidence[2m >[0m[1m refuses a failure caused by an unrelated dependency[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mscheduled verification lab evidence[2m >[0m[1m accepts the observed success and the specific production refusal[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mverification lab faults through the production CLI[2m >[0m[1m verifies the known snapshot and complete migration set[0m [0m[2m[[1m102.72ms[0m[2m][0m
+[0m[32m✓[0m [0mverification lab faults through the production CLI[2m >[0m[1m refuses the lab's injected snapshot fault[0m [0m[2m[[1m180.49ms[0m[2m][0m
+[0m[32m✓[0m [0mverification lab faults through the production CLI[2m >[0m[1m refuses the lab's injected report fault[0m [0m[2m[[1m138.84ms[0m[2m][0m
+[0m[32m✓[0m [0mverification lab faults through the production CLI[2m >[0m[1m refuses an absent backup under the isolated prefix[0m [0m[2m[[1m142.49ms[0m[2m][0m
+[0m[32m✓[0m [0mbackup lab schedule isolation[2m >[0m[1m refuses a CronJob whose trusted spec is absent or null[0m [0m[2m[3.08ms[0m[2m][0m
+[0m[32m✓[0m [0mbackup lab schedule isolation[2m >[0m[1m suspends both shipped CronJobs before apply while preserving their manual Job templates[0m [0m[2m[[1m40.86ms[0m[2m][0m
+[0m
+src/k8s/lab-migration.test.ts:
+[0m[32m✓[0m[0m[1m ships the older candidate and the existing additive migration in the upgrade image[0m [0m[2m[0.63ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m stamps the separate older candidate below the newer pre-applied shared-people baseline[0m [0m[2m[0.36ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m keeps the blocked-down migration isolated in the final-scenario image[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m stamps the lab migration after every committed backend migration[0m [0m[2m[0.33ms[0m[2m][0m
+[lab 22:38:50] assert ok: complete migration ledger returned to the pre-upgrade name/hash identities
+[lab 22:38:50] assert ok: complete table schema returned to the pre-upgrade set
+[lab 22:38:50] assert ok: work-item columns returned to the pre-upgrade set
+[lab 22:38:50] assert ok: project sentinel rows returned unchanged
+[lab 22:38:50] assert ok: complete migration ledger returned to the pre-upgrade name/hash identities
+[lab 22:38:50] assert ok: complete migration ledger returned to the pre-upgrade name/hash identities
+[lab 22:38:50] assert ok: complete table schema returned to the pre-upgrade set
+[lab 22:38:50] assert ok: complete migration ledger returned to the pre-upgrade name/hash identities
+[lab 22:38:50] assert ok: complete table schema returned to the pre-upgrade set
+[lab 22:38:50] assert ok: work-item columns returned to the pre-upgrade set
+[lab 22:38:50] assert ok: complete migration ledger returned to the pre-upgrade name/hash identities
+[lab 22:38:50] assert ok: complete table schema returned to the pre-upgrade set
+[lab 22:38:50] assert ok: work-item columns returned to the pre-upgrade set
+[0m[32m✓[0m[0m[1m refuses a changed baseline hash or retained older candidate schema after rollback[0m [0m[2m[0.50ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a broken writer observer instead of accepting missing samples[0m [0m[2m[0.43ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a writer observation gap after one successful sample[0m [0m[2m[[1m304.57ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires at least one writer observation before claiming a maximum[0m [0m[2m[[1m301.58ms[0m[2m][0m
+[0m
+src/k8s/cutover-replay.test.ts:
+[0m[32m✓[0m[0m[1m binds export replay evidence to original descriptor bytes and equal digest aliases[0m [0m[2m[[1m169.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unsupported export [] before snapshot[0m [0m[2m[[1m65.74ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unsupported export ["move_progress_v1"] before snapshot[0m [0m[2m[[1m116.57ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses missing-db trusted export input[0m [0m[2m[[1m48.37ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses missing-journal trusted export input[0m [0m[2m[[1m57.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses missing-source trusted export input[0m [0m[2m[[1m67.48ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unreadable-db trusted export input[0m [0m[2m[[1m59.55ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed trusted export input[0m [0m[2m[[1m57.52ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses missing-cli trusted export input[0m [0m[2m[[1m61.38ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unreadable-cli trusted export input[0m [0m[2m[[1m68.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses foreign-descriptor trusted export input[0m [0m[2m[[1m36.57ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses changed-descriptor trusted export input[0m [0m[2m[[1m37.17ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses foreign-image trusted export input[0m [0m[2m[[1m43.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses foreign-backend trusted export input[0m [0m[2m[[1m38.89ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed-descriptor trusted export input[0m [0m[2m[[1m36.22ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses descriptor-version trusted export input[0m [0m[2m[[1m42.31ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checks incoming replay before rename: none[0m [0m[2m[[1m640.71ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checks incoming replay before rename: empty-capabilities[0m [0m[2m[[1m693.33ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checks incoming replay before rename: missing-incoming[0m [0m[2m[[1m613.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checks incoming replay before rename: unreadable-incoming[0m [0m[2m[[1m605.33ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checks incoming replay before rename: move-only[0m [0m[2m[[1m638.87ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checks incoming replay before rename: changed-bytes[0m [0m[2m[[1m606.39ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checks incoming replay before rename: cli-mutates-bytes[0m [0m[2m[[1m750.60ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checks incoming replay before rename: foreign-export[0m [0m[2m[[1m167.97ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checks incoming replay before rename: foreign-image[0m [0m[2m[[1m175.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checks incoming replay before rename: changed-inventory[0m [0m[2m[[1m740.82ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checks incoming replay before rename: legacy[0m [0m[2m[[1m145.26ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checks incoming replay before rename: stale-marker[0m [0m[2m[[1m127.36ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m inventories independent forward markers with empty snapshots[0m [0m[2m[[1m87.18ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m inventories independent inverse markers with empty snapshots[0m [0m[2m[[1m75.67ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m inventories independent precondition markers with empty snapshots[0m [0m[2m[[1m74.54ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m inventories independent none markers with empty snapshots[0m [0m[2m[[1m109.58ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses broken own capability CLI even with empty history: console.log('[]');process.exit(1)[0m [0m[2m[[1m91.82ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses broken own capability CLI even with empty history: console.log('{}')[0m [0m[2m[[1m84.73ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses broken own capability CLI even with empty history: console.log('[3]')[0m [0m[2m[[1m76.59ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses broken own capability CLI even with empty history: console.log('["move_progress_v1","move_progress_v1"]')[0m [0m[2m[[1m88.87ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m inventories deletionState forward independently (supported=false)[0m [0m[2m[[1m96.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m inventories deletionState forward independently (supported=true)[0m [0m[2m[[1m115.35ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m inventories deletionState inverse independently (supported=false)[0m [0m[2m[[1m141.81ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m inventories deletionState inverse independently (supported=true)[0m [0m[2m[[1m150.81ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m inventories deletionState both independently (supported=false)[0m [0m[2m[[1m111.98ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m inventories deletionState both independently (supported=true)[0m [0m[2m[[1m109.65ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m inventories deletionState combined independently (supported=false)[0m [0m[2m[[1m103.69ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m inventories deletionState combined independently (supported=true)[0m [0m[2m[[1m112.80ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m inventories deletionState legacy independently (supported=false)[0m [0m[2m[[1m87.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m inventories deletionState legacy independently (supported=true)[0m [0m[2m[[1m96.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m retains enabled-empty capability in pinned cutover evidence[0m [0m[2m[0.48ms[0m[2m][0m
+[0m
+src/k8s/source.test.ts:
+[0m[32m✓[0m [0msource commit checks[2m >[0m[1m accepts a commit on main and refuses a commit main never took[0m [0m[2m[[1m57.04ms[0m[2m][0m
+[0m[32m✓[0m [0msource commit checks[2m >[0m[1m refuses an unknown commit instead of calling it off-main[0m [0m[2m[[1m49.19ms[0m[2m][0m
+[0m[32m✓[0m [0msource commit checks[2m >[0m[1m refuses to promote an ancestor of the running release unless asked[0m [0m[2m[[1m43.08ms[0m[2m][0m
+[0m
+src/k8s/first-start-writers.test.ts:
+[0m[32m✓[0m[0m[1m complete PVC inventory refuses unlabeled live mount[0m [0m[2m[0.43ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m complete PVC inventory refuses terminating live mount[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m complete PVC inventory refuses readonly live mount[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m complete PVC inventory refuses pending live mount[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m complete PVC inventory refuses init-only live mount[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m completed Pods are ignored but active unknown controllers cannot create a PVC writer[0m [0m[2m[0.47ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m complete app inventory refuses controller public traffic actor[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m complete app inventory refuses missing public traffic actor[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m complete app inventory refuses pod public traffic actor[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m complete app inventory refuses selected public traffic actor[0m [0m[2m[0.01ms[0m[2m][0m
+[0m
+src/k8s/storage-fence.test.ts:
+[0m[32m✓[0m[0m[1m binds PVC/PV and stopped controllers with unfiltered inventory[0m [0m[2m[1.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses replaced PVC[0m [0m[2m[0.58ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses foreign PV claim[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unbound PVC[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses deleting PVC[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unfenced selector[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses backend replicas[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unsuspended backup[0m [0m[2m[0.84ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unsuspended Flux[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unlabelled writable Pod[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unknown writable Deployment[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m allows only stopped backend ReplicaSets and terminal Jobs[0m [0m[2m[0.55ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses writable containers on unlabelled Pods[0m [0m[2m[0.34ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses writable initContainers on unlabelled Pods[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses writable ephemeralContainers on unlabelled Pods[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses live readonly consumers without runtime proof and raw source devices[0m [0m[2m[0.69ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m propagates absent or unreadable pvc/wbs-data[0m [0m[2m[0.33ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m propagates absent or unreadable pv/disk[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m propagates absent or unreadable networkpolicy/wbs-backend-writers[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m propagates absent or unreadable deployment/wbs-backend[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m propagates absent or unreadable pods[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m propagates absent or unreadable deployments,statefulsets,daemonsets,replicasets,replicationcontrollers,jobs,cronjobs,podtemplates[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real kubectl adapter reads all consumers and propagates failed readback[0m [0m[2m[[1m684.15ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rechecks PV UID across observations[0m [0m[2m[0.83ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rechecks policy UID across observations[0m [0m[2m[0.43ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rechecks backend UID across observations[0m [0m[2m[0.45ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rechecks Flux UID across observations[0m [0m[2m[0.43ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rechecks backup UID across observations[0m [0m[2m[0.44ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rechecks backup template across observations[0m [0m[2m[0.49ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unknown writable ReplicaSet[0m [0m[2m[0.44ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unknown writable StatefulSet[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unknown writable DaemonSet[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unknown writable ReplicationController[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unknown writable PodTemplate[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unknown writable CronJob[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unknown writable Job[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses terminating Running source Pod[0m [0m[2m[0.36ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses terminating Pending source Pod[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses terminating Succeeded source Pod[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses terminating Failed source Pod[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses replacement during inventory before returning evidence[0m [0m[2m[0.51ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed PVC[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses missing PVC UID[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses foreign PVC namespace[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed Pod list[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses missing source container[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed volumes[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses duplicate source volume[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses backend active status[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses missing policy selector[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses deleting controller[0m [0m[2m[0.38ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unsuspended backup on initial inspection[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses backend ReplicaSet owner drift[0m [0m[2m[0.38ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses backend ReplicaSet replicas drift[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses backend ReplicaSet status drift[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses Job active evidence[0m [0m[2m[0.32ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses Job condition evidence[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses source Pod missing or foreign uid[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses source Pod missing or foreign namespace[0m [0m[2m[0.08ms[0m[2m][0m
+[0m
+src/k8s/replay-capability.test.ts:
+[0m[32m✓[0m[0m[1m inventories nested forward markers independently with no live blockage table[0m [0m[2m[[1m28.65ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m inventories nested inverse markers independently with no live blockage table[0m [0m[2m[[1m27.70ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m inventories nested preconditions markers independently with no live blockage table[0m [0m[2m[[1m35.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m inventories nested empty-map markers independently with no live blockage table[0m [0m[2m[[1m36.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m inventories nested mixed markers independently with no live blockage table[0m [0m[2m[[1m37.55ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m counts replacement commands in both directions and leaves empty legacy history empty[0m [0m[2m[[1m49.54ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses missing, unreadable and malformed trusted database state[0m [0m[2m[[1m556.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m executes each pinned image own CLI and binds its observation to that exact digest[0m [0m[2m[[1m64.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses absent source, unreadable source/CLI, dangling and nonregular CLI, failed CLI and malformed output[0m [0m[2m[[1m239.28ms[0m[2m][0m
+[0m
+src/k8s/cutover-cli.test.ts:
+[0m[32m✓[0m [0mcutover-cli[2m >[0m[1m renders the fenced production site from the real template[0m [0m[2m[1.28ms[0m[2m][0m
+[0m[32m✓[0m [0mcutover-cli[2m >[0m[1m builds a writer-labelled restore Job bound to the export digest[0m [0m[2m[0.79ms[0m[2m][0m
+[0m[32m✓[0m [0mcutover-cli[2m >[0m[1m refuses a restore report that does not match the export[0m [0m[2m[1.57ms[0m[2m][0m
+[0m[32m✓[0m [0mcutover-cli[2m >[0m[1m refuses descriptor-only release records before first-start admission[0m [0m[2m[0.56ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires matching descriptor and replay evidence for verify-restore: none[0m [0m[2m[0.77ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires matching descriptor and replay evidence for verify-restore: legacy-export[0m [0m[2m[0.35ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires matching descriptor and replay evidence for verify-restore: bad-version[0m [0m[2m[0.34ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires matching descriptor and replay evidence for verify-restore: bad-inventory[0m [0m[2m[0.43ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires matching descriptor and replay evidence for verify-restore: bad-row[0m [0m[2m[0.41ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires matching descriptor and replay evidence for verify-restore: bad-unknown-kind[0m [0m[2m[0.31ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires matching descriptor and replay evidence for verify-restore: bad-duplicate-kind[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires matching descriptor and replay evidence for verify-restore: bad-array[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires matching descriptor and replay evidence for verify-restore: bad-capabilities[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires matching descriptor and replay evidence for verify-restore: legacy-restore[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires matching descriptor and replay evidence for verify-restore: foreign-descriptor[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires matching descriptor and replay evidence for verify-restore: changed-export[0m [0m[2m[0.31ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires matching descriptor and replay evidence for verify-restore: changed-replay[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m prepares every Deployment at zero and refuses manifests without the backend[0m [0m[2m[2.03ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses legacy restore inputs before rendering a Job[0m [0m[2m[0.47ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m routes release-manifests through zero-replica cutover preparation[0m [0m[2m[[1m24.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed trusted SQLite report {"counts":null}[0m [0m[2m[0.75ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed trusted SQLite report {"known":null}[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed trusted SQLite report {"counts":[]}[0m [0m[2m[0.33ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed trusted SQLite report {"known":{"row":"yes"}}[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed trusted SQLite report {"migrations":[1]}[0m [0m[2m[0.32ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed trusted SQLite report {"integrity":[1]}[0m [0m[2m[0.32ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed trusted SQLite report {"foreignKeyViolations":-1}[0m [0m[2m[0.48ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed trusted SQLite report {"ownerUid":1.5}[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed trusted SQLite report {"sha256":"not-a-digest"}[0m [0m[2m[0.17ms[0m[2m][0m
+[0m
+src/k8s/release.test.ts:
+[0m[32m✓[0m [0mplanRelease[2m >[0m[1m plans every forward step in the contract order[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0mplanRelease[2m >[0m[1m rejects an unknown phase[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0mplanRelease[2m >[0m[1m refuses a journal for another release[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mplanRelease[2m >[0m[1m stops the writer and checks replay before reopening a closed write path[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mplanRelease[2m >[0m[1m restores the backend once the stop-writer step may have run[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mplanRelease[2m >[0m[1m restores the schema whenever a migration set was captured[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mplanRelease[2m >[0m[1m continues a rollback from its journaled rollback phase[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mplanRelease[2m >[0m[1m continues forward after smoke passed[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mplanRelease[2m >[0m[1m refuses to plan past a failed rollback[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mfailStep[2m >[0m[1m rolls back before writes reopen[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mfailStep[2m >[0m[1m requires recovery after writes reopen[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mfailStep[2m >[0m[1m fails the rollback when a rollback step fails[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0massertRequest[2m >[0m[1m refuses an abbreviated source sha[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0massertRequest[2m >[0m[1m refuses a tag without a digest[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0massertRequest[2m >[0m[1m refuses staging without a named Flux unit[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0massertRequest[2m >[0m[1m accepts local without Flux[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0massertObservedCluster[2m >[0m[1m refuses a different cluster behind the same context[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0massertObservedCluster[2m >[0m[1m refuses when the running release differs from expectedCurrent[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0massertObservedCluster[2m >[0m[1m refuses admission parameters that do not approve the running backend[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0massertObservedCluster[2m >[0m[1m admits the candidate then the rollback digest, once when they are equal[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0massertObservedCluster[2m >[0m[1m accepts the expected cluster and release[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mmigration evidence[2m >[0m[1m refuses an edited down migration[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mmigration evidence[2m >[0m[1m refuses a migration Job that completed without applying the captured set[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mmigration evidence[2m >[0m[1m gives every attempt at the same release its own transaction[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mmigration evidence[2m >[0m[1m names releases by their exact bytes[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mdecideLease[2m >[0m[1m creates an absent Lease and keeps its own[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mdecideLease[2m >[0m[1m waits once for a live process of its own transaction[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mdecideLease[2m >[0m[1m refuses a live coordinator of another transaction[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mdecideLease[2m >[0m[1m takes over its own lapsed or parked transaction[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mdecideLease[2m >[0m[1m takes over a lapsed holder that died before persisting intent in the same journal[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mdecideLease[2m >[0m[1m never takes over another transaction, even lapsed or parked[0m [0m[2m[0.03ms[0m[2m][0m
+
+[0m[2m9 tests failed:[0m
+[0m[31m✗[0m[0m[1m refuses in-process receipt loss at replay-checked before capture[0m [0m[2m[8.78ms[0m[2m][0m
+[0m[31m✗[0m[0m[1m refuses in-process receipt loss at release-persisted before reopenWrites[0m [0m[2m[6.08ms[0m[2m][0m
+[0m[31m✗[0m[0m[1m refuses in-process receipt loss at rollback-replay-checked before rolloutTiers[0m [0m[2m[5.44ms[0m[2m][0m
+[0m[31m✗[0m[0m[1m refuses in-process receipt loss at rollback-verified before reopenWrites[0m [0m[2m[5.10ms[0m[2m][0m
+[0m[31m✗[0m [0mdeploy-k3s descriptor mode[2m >[0m[1m resumes the request its journal recorded without re-reading the cluster[0m [0m[2m[9.39ms[0m[2m][0m
+[0m[31m✗[0m [0mdeploy-k3s descriptor mode[2m >[0m[1m refuses to resume a journal recorded against another cluster context[0m [0m[2m[7.85ms[0m[2m][0m
+[0m[31m✗[0m[0m[1m fresh actual SQLite observation requires replay and disabled exact authority: missing-ledger[0m [0m[2m[[0m[33m10233.17ms[0m[2m][0m
+  [2m^[0m [31mthis test timed out after 10000ms.[0m
+[0m[31m✗[0m[0m[1m fresh actual SQLite observation requires replay and disabled exact authority: bad-replay[0m [0m[2m[[0m[33m10137.37ms[0m[2m][0m
+  [2m^[0m [31mthis test timed out after 10000ms.[0m
+[0m[31m✗[0m[0m[1m fresh actual SQLite observation requires replay and disabled exact authority: nonempty-wal[0m [0m[2m[[0m[33m10162.16ms[0m[2m][0m
+  [2m^[0m [31mthis test timed out after 10000ms.[0m
+
+[0m[32m 1120 pass[0m
+[0m[31m 9 fail[0m
+ 2923 expect() calls
+Ran 1129 tests across 39 files. [0m[2m[[1m209.03s[0m[2m][0m
+Warning: command "bun test --preload ../test/scratch/preload.ts --timeout=10000" exited with non-zero status code
+
+
+ NX   Running target test for project tool-deploy failed
+
+Failed tasks:
+
+- tool-deploy:test
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      3m 29s
+  Critical path:     3m 29s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Speed up or split the longest tasks on the critical path:
+        tool-deploy:test    3m 29s

@@ -1,0 +1,60 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/docker-inventory.test.ts:
+ 96 |   const containers = inventory();
+ 97 |   containers[0].Mounts[0].Destination = '/\u00e9';
+ 98 |   containers[0].Mounts[1].Destination = '/e\u0301';
+ 99 |   const baseline = identifyInventory(containers);
+100 |   containers[0].Mounts.reverse();
+101 |   expect(identifyInventory(containers)).toEqual(baseline);
+                                              ^
+error: expect(received).toEqual(expected)
+
+@@ -28,27 +28,27 @@
+      },
+      "id": "1111111111111111111111111111111111111111111111111111111111111111",
+      "image": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "mounts": [
+        {
++         "Destination": "/é",
++         "Driver": "local",
++         "Name": "source-volume",
++         "RW": false,
++         "Source": "/fixture/source/a",
++         "Type": "volume",
++       },
++       {
+          "Destination": "/é",
+          "Extension": {
+            "flag": "kept",
+          },
+          "Mode": "rw",
+          "Propagation": "rprivate",
+          "RW": true,
+          "Source": "/fixture/source/z",
+          "Type": "bind",
+-       },
+-       {
+-         "Destination": "/é",
+-         "Driver": "local",
+-         "Name": "source-volume",
+-         "RW": false,
+-         "Source": "/fixture/source/a",
+-         "Type": "volume",
+        },
+      ],
+      "name": "/source",
+      "networks": {
+        "wbs-dev-net": {
+
+- Expected  - 8
++ Received  + 8
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/docker-inventory.test.ts:101:41)
+(fail) distinct Unicode destinations retain exact strings and a total permutation order [1.15ms]
+
+ 0 pass
+ 26 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [43.00ms]

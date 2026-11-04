@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:
+100 |   const sqlite = openDatabase(path);
+101 |   try {
+102 |     sqlite.run('PRAGMA foreign_keys=OFF');
+103 |     sqlite.run('DROP TRIGGER project_organization_frozen_delete');
+104 |     sqlite.run("DELETE FROM project_organization WHERE resource_id='a'");
+105 |     expect(await rejection(repo.listByProject('b'))).toContain('organization');
+                                                           ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "organization"
+Received: "(resolved)"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:105:54)
+(fail) refuses missing work-item and organization evidence on reads [180.68ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.69s]

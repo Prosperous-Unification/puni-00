@@ -792,6 +792,50 @@ describe('every cached target declares what it reads', () => {
     expect(taskGraph.tasks['twilight-dash:test'].cache).toBe(false);
   });
 
+  it('hashes the backend live-test Gantt consumer and inherited frontend configuration', async () => {
+    const nxJson = JSON.parse(
+      await readFile(new URL('nx.json', WORKSPACE), 'utf8'),
+    ) as NxJsonConfiguration;
+    const inheritedDaemon = process.env['NX_DAEMON'];
+    process.env['NX_DAEMON'] = 'false';
+    let projectGraph: ProjectGraph;
+    try {
+      projectGraph = await createProjectGraphAsync({ exitOnError: true });
+    } finally {
+      if (inheritedDaemon === undefined) delete process.env['NX_DAEMON'];
+      else process.env['NX_DAEMON'] = inheritedDaemon;
+    }
+    const { rustReferences } = getFileMap();
+    if (rustReferences === null) throw new Error('Nx did not hydrate its workspace file map');
+    const task = {
+      id: 'wbs-be-01:test',
+      target: { project: 'wbs-be-01', target: 'test' },
+      overrides: {},
+      outputs: [],
+      cache: true,
+    };
+    const taskGraph = {
+      roots: [task.id],
+      tasks: { [task.id]: task },
+      dependencies: { [task.id]: [] },
+      continuousDependencies: {},
+    };
+    const hasher = new InProcessTaskHasher(projectGraph, nxJson, rustReferences, {});
+    const hash = await hasher.hashTask(task, taskGraph, process.env, WORKSPACE.pathname, true);
+    if (hash.inputs === undefined) throw new Error('Nx did not collect task hash inputs');
+    const required = [
+      'apps/wbs/fe-01/src/components/wbs/gantt-geometry.ts',
+      'apps/wbs/fe-01/src/components/wbs/gantt-axis.ts',
+      'apps/wbs/fe-01/tsconfig.app.json',
+      'apps/wbs/fe-01/tsconfig.json',
+      'tsconfig.base.json',
+    ];
+    const files = hash.inputs.files;
+    // Proof: omitting the inherited frontend tsconfig.json input failed this native Nx
+    // task-hash test naming apps/wbs/fe-01/tsconfig.json (2026-10-23).
+    expect(required.filter((path) => !files.includes(path))).toEqual([]);
+  });
+
   it('hashes Navigator subprocess contract dependencies in Burokrat tests', async () => {
     const nxJson = JSON.parse(
       await readFile(new URL('nx.json', WORKSPACE), 'utf8'),
@@ -986,6 +1030,9 @@ describe('every cached target declares what it reads', () => {
     // entrypoint.ts, the fixtures directory and plan-export.v8.json (2026-10-14).
     // Proof: omitting the maintenance boot imports failed this scan naming
     // tool-remote-scripts and observability/src/index.ts plus store-sqlite/src/source.ts.
+    // Proof: omitting the backend live-test Browser consumer inputs failed this scan naming
+    // wbs-be-01 and fe-01/src/components/wbs/gantt-geometry.ts plus fe-01/tsconfig.app.json.
+    // Proof: omitting the Nx source input from tool-remote-scripts:test failed this scan naming node_modules/nx/dist/src.
     expect(undeclared).toBeEmpty();
   });
 });

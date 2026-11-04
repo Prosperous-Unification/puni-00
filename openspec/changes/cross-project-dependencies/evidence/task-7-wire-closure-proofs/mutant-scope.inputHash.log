@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+../puni-71-review-sandbox/libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:
+876 |     // makes the production request validator refuse it before solver dispatch.
+877 |     expect(() => {
+878 |       validateConnectedSolverRequest(
+879 |         omitted as unknown as Parameters<typeof validateConnectedSolverRequest>[0],
+880 |       );
+881 |     }).toThrow(/wire 5/);
+             ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-71-review-sandbox/libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:881:8)
+(fail) each connected request boundary and version member is required on the production path [12.68ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 22 expect() calls
+Ran 1 test across 1 file. [318.00ms]

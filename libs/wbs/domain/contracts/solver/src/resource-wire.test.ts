@@ -42,7 +42,7 @@ const baselineOf = (plan: SolverRequestPlan) =>
 const requestOf = (plan: SolverRequestPlan): SolverRequest => {
   const built = buildSolverRequest(plan, 'pri', {
     baselineOffsets: baselineOf(plan),
-    solverVersion: '0.3.0',
+    solverVersion: '0.4.0',
     budgetMs: 30_000,
   });
   if (!built.ok) throw new Error(built.detail);
@@ -91,7 +91,7 @@ describe('the wire 4 request', () => {
     expect(() =>
       buildSolverRequest(plan, 'pri', {
         baselineOffsets: { [A]: 0, [B]: 48 },
-        solverVersion: '0.3.0',
+        solverVersion: '0.4.0',
         budgetMs: 30_000,
       }),
     ).toThrow('no capacity for resource staging');
@@ -99,7 +99,7 @@ describe('the wire 4 request', () => {
 
   const spawnFor = {
     baselineOffsets: { [A]: 0, [B]: 48 },
-    solverVersion: '0.3.0',
+    solverVersion: '0.4.0',
     budgetMs: 30_000,
   };
 

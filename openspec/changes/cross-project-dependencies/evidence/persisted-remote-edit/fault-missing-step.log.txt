@@ -1,0 +1,35 @@
+
+ RUN  v5.0.0 /home/df/.codex/worktrees/685b/puni-00/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (69 tests | 1 failed | 68 skipped) 18ms
+   × rejects a persisted scoped endpoint without its step identity before producing a write 15ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 68 skipped (69)
+   Start at  00:48:52
+   Duration  6.34s (import 65%, transform 27%, environment 7%, setup 1%)
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > rejects a persisted scoped endpoint without its step identity before producing a write
+AssertionError: expected [Function] to throw an error
+
+- Expected:
+null
+
++ Received:
+undefined
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:697:5
+    695|       'p1',
+    696|     ),
+    697|   ).toThrow('Missing persisted dependency step identity');
+       |     ^
+    698| });
+    699|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

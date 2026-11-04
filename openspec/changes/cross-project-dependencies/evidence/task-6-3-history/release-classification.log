@@ -1,0 +1,65 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:
+316 |         ).status,
+317 |       ).toBe(200);
+318 |       // Later observations no longer justify a fresh start; release undo restores ownership only.
+319 |       harness.sqlite.run('DELETE FROM step_progress');
+320 |       await readPermission(false, false);
+321 |       expect((await harness.call('ada', 'POST', `/api/projects/${target}/undo`)).status).toBe(200);
+                                                                                               ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:321:90)
+(fail) isolated local release undo restores historical claim without creating a governed start [510.41ms]
+316 |         ).status,
+317 |       ).toBe(200);
+318 |       // Later observations no longer justify a fresh start; release undo restores ownership only.
+319 |       harness.sqlite.run('DELETE FROM step_progress');
+320 |       await readPermission(false, false);
+321 |       expect((await harness.call('ada', 'POST', `/api/projects/${target}/undo`)).status).toBe(200);
+                                                                                               ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:321:90)
+(fail) isolated remote release undo restores historical claim without creating a governed start [404.09ms]
+316 |         ).status,
+317 |       ).toBe(200);
+318 |       // Later observations no longer justify a fresh start; release undo restores ownership only.
+319 |       harness.sqlite.run('DELETE FROM step_progress');
+320 |       await readPermission(false, false);
+321 |       expect((await harness.call('ada', 'POST', `/api/projects/${target}/undo`)).status).toBe(200);
+                                                                                               ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:321:90)
+(fail) shared local release undo restores historical claim without creating a governed start [436.20ms]
+316 |         ).status,
+317 |       ).toBe(200);
+318 |       // Later observations no longer justify a fresh start; release undo restores ownership only.
+319 |       harness.sqlite.run('DELETE FROM step_progress');
+320 |       await readPermission(false, false);
+321 |       expect((await harness.call('ada', 'POST', `/api/projects/${target}/undo`)).status).toBe(200);
+                                                                                               ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:321:90)
+(fail) shared remote release undo restores historical claim without creating a governed start [374.63ms]
+
+ 0 pass
+ 20 filtered out
+ 4 fail
+ 32 expect() calls
+Ran 4 tests across 1 file. [4.81s]

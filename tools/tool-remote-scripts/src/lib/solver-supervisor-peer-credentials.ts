@@ -15,6 +15,7 @@ export type SupervisorGetsockopt = (
 ) => number;
 
 const SOL_SOCKET = 1;
+// Proof: changing this native option to 16 failed both real cross-process listener positives.
 const SO_PEERCRED = 17;
 const UCRED_BYTES = 12;
 const NATIVE_LITTLE_ENDIAN = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
@@ -28,6 +29,7 @@ function acceptedFileDescriptor(socket: unknown): number {
     throw defect('accepted socket has no file descriptor');
   }
   const fd = Reflect.get(socket, 'fd') as unknown;
+  // Proof: removing fd validation failed source/built cross-process missing-fd refusals in solver-supervisor-peer.proc.test.ts.
   if (!Number.isSafeInteger(fd) || (fd as number) < 0) {
     throw defect('accepted socket has no file descriptor');
   }

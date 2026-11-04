@@ -1,0 +1,15 @@
+bun test v1.4.2 (744846f84)
+Internal error: directory mismatch for directory "/tmp/puni-transfer-v11/tsconfig.base.json", fd 3. You don't need to do anything, but this indicates a bug.
+
+../puni-transfer-review-probes.test.ts:
+{"version":1,"answer":{"status":400,"body":{"error":"invalid_typed_dependency","path":"typedDependencies[0]","detail":null}},"projects":[]}
+(pass) review: v1 disguising external identity must refuse [536.49ms]
+{"version":2,"answer":{"status":400,"body":{"error":"invalid_typed_dependency","path":"typedDependencies[0]","detail":null}},"projects":[]}
+(pass) review: v2 disguising external identity must refuse [341.72ms]
+{"version":3,"answer":{"status":400,"body":{"error":"invalid_typed_dependency","path":"typedDependencies[0]","detail":null}},"projects":[]}
+(pass) review: v3 disguising external identity must refuse [361.84ms]
+
+ 3 pass
+ 0 fail
+ 3 expect() calls
+Ran 3 tests across 1 file. [4.92s]

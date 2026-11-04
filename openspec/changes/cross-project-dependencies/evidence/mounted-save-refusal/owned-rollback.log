@@ -1,0 +1,39 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts:
+{"level":"error","time":1792743943936,"service":"be-01","err":{"occurrence_id":"AE_96NY522ZYSKEGZRZ6KQ5S12AMR","fingerprint":"fp1_79bf4f2e5ec87dc1e657c250c5ba3063","stack":["Error: injected owned foreign row read failure","    at <anonymous> (/tmp/puni-mounted-save-proof/apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts:377:23)","    at listByProject (unknown)","    at readPlanInputValuesIn (/tmp/puni-mounted-save-proof/libs/wbs/adapters/store-sqlite/src/saved-plan-capture.ts:207:60)","    at async captureConnectedPlanIn (/tmp/puni-mounted-save-proof/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.ts:149:25)","    at async readConnectedLivePlanIn (/tmp/puni-mounted-save-proof/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:602:25)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+398 |         });
+399 |         expect(saved.status).toBe(500);
+400 |         expect(reached).toBe(1);
+401 |         expect(probe.opened - opened).toBe(1);
+402 |         expect(probe.closed - closed).toBe(1);
+403 |         expect(rollbacks).toBe(1);
+                                ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-mounted-save-proof/apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts:403:27)
+(fail) mounted isolated connected save refuses unreadable rows inside owned capture [308.51ms]
+{"level":"error","time":1792743944183,"service":"be-01","err":{"occurrence_id":"AE_B9XQ46BKNPEQH15KM67HD3WJD4","fingerprint":"fp1_79bf4f2e5ec87dc1e657c250c5ba3063","stack":["Error: injected owned foreign row read failure","    at <anonymous> (/tmp/puni-mounted-save-proof/apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts:377:23)","    at listByProject (unknown)","    at readPlanInputValuesIn (/tmp/puni-mounted-save-proof/libs/wbs/adapters/store-sqlite/src/saved-plan-capture.ts:207:60)","    at async captureConnectedPlanIn (/tmp/puni-mounted-save-proof/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.ts:149:25)","    at async readConnectedLivePlanIn (/tmp/puni-mounted-save-proof/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:602:25)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+398 |         });
+399 |         expect(saved.status).toBe(500);
+400 |         expect(reached).toBe(1);
+401 |         expect(probe.opened - opened).toBe(1);
+402 |         expect(probe.closed - closed).toBe(1);
+403 |         expect(rollbacks).toBe(1);
+                                ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-mounted-save-proof/apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts:403:27)
+(fail) mounted shared connected save refuses unreadable rows inside owned capture [246.52ms]
+
+ 0 pass
+ 13 filtered out
+ 2 fail
+ 16 expect() calls
+Ran 2 tests across 1 file. [3.52s]

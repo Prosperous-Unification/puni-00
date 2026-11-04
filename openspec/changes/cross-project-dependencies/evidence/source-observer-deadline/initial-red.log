@@ -1,0 +1,111 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:
+616 |       const f = await fixture();
+617 |       await withDependencyOwner({ sha: 'a'.repeat(40), layouts: [f.layouts.prod, f.layouts.dev] },
+618 |         (owner) => withSourceDevExcluded(owner, f.layouts, 'a'.repeat(40), f.docker,
+619 |           performance.now() + 5000, async (token) => {
+620 |             const before = f.commands.length;
+621 |             await rejects(operation === 'inspection'
+                        ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: /deadline/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:621:19
+      at withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:232:18)
+      at acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24
+      at acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source inspection refuses invalid supplied deadline NaN before Docker reads [134.80ms]
+616 |       const f = await fixture();
+617 |       await withDependencyOwner({ sha: 'a'.repeat(40), layouts: [f.layouts.prod, f.layouts.dev] },
+618 |         (owner) => withSourceDevExcluded(owner, f.layouts, 'a'.repeat(40), f.docker,
+619 |           performance.now() + 5000, async (token) => {
+620 |             const before = f.commands.length;
+621 |             await rejects(operation === 'inspection'
+                        ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: /deadline/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:621:19
+      at withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:232:18)
+      at acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24
+      at acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source inspection refuses invalid supplied deadline Infinity before Docker reads [107.28ms]
+616 |       const f = await fixture();
+617 |       await withDependencyOwner({ sha: 'a'.repeat(40), layouts: [f.layouts.prod, f.layouts.dev] },
+618 |         (owner) => withSourceDevExcluded(owner, f.layouts, 'a'.repeat(40), f.docker,
+619 |           performance.now() + 5000, async (token) => {
+620 |             const before = f.commands.length;
+621 |             await rejects(operation === 'inspection'
+                        ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: /deadline/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:621:19
+      at withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:232:18)
+      at acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24
+      at acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source inspection refuses invalid supplied deadline -1 before Docker reads [102.01ms]
+31 | 
+32 | async function assertScope(scope: SourceScope): Promise<void> {
+33 |   await assertDependencyOwner(scope.owner, scope.layouts.prod, scope.sha);
+34 |   await assertDependencyOwner(scope.owner, scope.layouts.dev, scope.sha);
+35 |   if (!Number.isFinite(scope.deadline) || performance.now() >= scope.deadline)
+36 |     throw new Error('source dev exclusion deadline exceeded');
+                   ^
+error: source dev exclusion deadline exceeded
+      at assertScope (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:36:15)
+      at async inspectScope (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:136:9)
+      at async withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:236:13)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source inspection tighter deadline aborts and reaps stalled ps child without changing original scope [2005.05ms]
+31 | 
+32 | async function assertScope(scope: SourceScope): Promise<void> {
+33 |   await assertDependencyOwner(scope.owner, scope.layouts.prod, scope.sha);
+34 |   await assertDependencyOwner(scope.owner, scope.layouts.dev, scope.sha);
+35 |   if (!Number.isFinite(scope.deadline) || performance.now() >= scope.deadline)
+36 |     throw new Error('source dev exclusion deadline exceeded');
+                   ^
+error: source dev exclusion deadline exceeded
+      at assertScope (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:36:15)
+      at async inspectScope (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:136:9)
+      at async withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:236:13)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source inspection tighter deadline aborts and reaps stalled image child without changing original scope [2903.74ms]
+
+ 0 pass
+ 40 filtered out
+ 5 fail
+ 2 expect() calls
+Ran 5 tests across 1 file. [5.30s]

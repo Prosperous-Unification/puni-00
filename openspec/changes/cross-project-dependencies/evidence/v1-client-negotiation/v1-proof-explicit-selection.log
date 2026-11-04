@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/gw-01/src/dependency-admission.integration.test.ts:
+181 |       socket.addEventListener('message', (event) => resolve(String(event.data)), { once: true });
+182 |       socket.addEventListener('error', () => reject(new Error('V1 upgrade refused')), {
+183 |         once: true,
+184 |       });
+185 |     });
+186 |     expect(socket.protocol).toBe(DEPENDENCY_WEBSOCKET_PROTOCOL);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: "wbs.cross-project-dependencies.v1"
+Received: "wbs.legacy"
+
+      at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/dependency-admission.integration.test.ts:186:29)
+(fail) dual offers explicitly select V1 and retained presence keeps that exact admission [57.01ms]
+
+ 0 pass
+ 3 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [5.57s]

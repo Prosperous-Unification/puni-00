@@ -1,0 +1,48 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+256 |       case 'project-reach': return graph.projects.updateWithin(fixture.owner.projectId, actor, { depReach: 'anchor-slice' }, fixture.expectedAccess);
+257 |       case 'step-add': return graph.steps.addWithin(fixture.owner.projectId, actor, 'Never written', 0, undefined, fixture.expectedAccess);
+258 |       case 'step-remove': case 'step-references': return graph.steps.removeWithin(fixture.owner.projectId, step.id, actor, true, fixture.expectedAccess);
+259 |     }
+260 |   }, undefined, undefined, failedGraphRead));
+261 |   expect(failure).toBeInstanceOf(Error);
+                        ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: {
+  ok: true,
+  value: {
+    id: "58a9b54c-5e96-4db6-ab41-fd4f6e54f855",
+    name: "Owner",
+    ownerId: "88d007b2-2e36-4a80-aa2d-a775fbffa0ef",
+    restricted: false,
+    startDate: null,
+    revision: 1,
+    optimizationEnabled: false,
+    createdAt: 1792631982834,
+    abbreviation: "OWN",
+    estimateMethod: "pert",
+    depReach: "anchor-slice",
+    estimateRounding: "ceil",
+    pertWeights: {
+      optimistic: 1,
+      realistic: 4,
+      pessimistic: 1,
+    },
+    solutionRef: null,
+    scheduleEngine: "fast",
+    scheduleObjective: "pri",
+    timezone: "UTC",
+  },
+}
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:261:19)
+(fail) connected project-reach refuses an injected failed graph read without partial effects [434.03ms]
+
+ 0 pass
+ 42 filtered out
+ 1 fail
+ 12 expect() calls
+Ran 1 test across 1 file. [2.82s]

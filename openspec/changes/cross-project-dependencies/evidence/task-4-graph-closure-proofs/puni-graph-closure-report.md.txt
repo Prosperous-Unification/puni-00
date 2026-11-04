@@ -1,0 +1,64 @@
+# Task 4.3 connected graph scenario receipt
+
+Worktree: `/tmp/puni-cross-graph-closure`, branch `feat/cross-project-graph-closure`, base `0894d25aec01701ab0c615bc34a40f57e3c72a4b`. Scope follows `/tmp/puni-command-task-closure-audit.md`. This is a test-only addition to the approved command integration; no production defect was reproduced and no production source fix is included. Root owns commits, WBS, OpenSpec evidence and the integration decision.
+
+Frozen exact manifest: `/tmp/puni-graph-closure-manifest.json`, SHA256 `a146ec5772ed07d2f46b065ea915bcc3516ae053a1964dc904be398433038df8`. The sole changed source path is 89,557 bytes, SHA256 `e17da34e771468293f21d34094d74a256a0fb8e1845c7c0517e1ec6a6c295ddd`. Manifest generation verified the base, the one-path diff and every temporarily mutated production file's restored hash against the proof receipt.
+
+## Permanent scenarios
+
+One existing test file changes: `apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts`. It keeps the real semantic admitted SQLite fixture single-sourced instead of duplicating its transaction/auth/context/journal construction into a nominal second controller file. The callback now additionally receives only the actual transaction's `TypedDependencyStore`, allowing the batch to prove a write exists before rollback; no account store or production contract is widened.
+
+Nine added tests execute genuine current authority, owner admission, retained writer, connected graph, `collect` and successful `recordCollected` through the real UoW. None uses the fixture's graph-delivery-failure injection, permissive graph or fake tree.
+
+1. Distinct tasks: A.Dev → B.Dev, B.QA → C.QA in project A is accepted. Adding C.QA → A.Dev closes a real node cycle through both projects and refuses atomically.
+2. Own-project expansion: remote parent QA → owner parent Dev expands two leaves on each side. All four concrete reverse leaf-pair proposals individually refuse as cycles. Steps are distinct stable IDs belonging to their respective projects. Every refused proposal leaves the complete database snapshot unchanged.
+3. Move: an owner leaf begins outside an owner parent whose descendant-QA endpoint feeds the remote Dev node. The remote QA node feeds that leaf's Dev node. Moving the leaf into the parent closes the actual descendant-expanded cycle; it refuses and rolls back.
+4–6. Clear-estimate, step removal and reach change: owner A has an explicit zero Dev estimate, anchor-slice legacy A → C, C.QA → remote B.Dev, B.QA → A.QA. The baseline is acyclic. Clearing A.Dev's estimate, removing the unreferenced Dev step with cascade, or changing owner reach to whole-item moves the legacy predecessor anchor to QA and closes the real remote cycle. Each distinct service transition refuses with its modeled `cycle`/`dependency_cycle` outcome and unchanged complete effects.
+7. Batch: an existing C.QA → remote A.Dev link is committed. In one admitted collected transaction, A.whole → B.whole succeeds and the actual transaction typed store confirms the new relationship. A later local B.QA → C.Dev command closes the graph cycle. The entire transaction refuses: both link tables, every project/work-item revision, audit, owner history, event log/sequencer and all other tables match the pre-batch snapshot. The first write is real, not a dormant rejection or a mocked success.
+8. Estimate insertion and appended step succeed on a valid connected interleaving; both external links remain and fresh graph inspection remains acyclic.
+9. A remote project retains anchor-slice reach while the operation's owner uses whole-item reach. A valid estimate insertion on the owner succeeds; applying the owner's reach globally would create a false remote cycle.
+
+All-table effects are the existing fixture's literal SQLite snapshots of every non-internal table. The fixture also asserts that the actual recording broadcaster publishes nothing during semantic transactions. These tests prove internal admitted transaction semantics, not mounted activated authoring or post-commit connected announcements.
+
+## Why no invented append-caused cycle
+
+`StepService.addWithin` only appends a fresh final step. It does not reorder existing steps, supply estimates for the new step or allow existing typed endpoints to reference it. Collapsing each new final node onto its old final node maps every new workflow, whole-boundary and unestimated legacy-anchor edge to an old edge/path. A new cycle would imply a prior cycle. Estimate insertion similarly moves an anchor earlier or leaves it fixed; an earlier-to-successor edge was already reachable through the old later anchor. Neither operation can introduce the requested cycle from a legal acyclic baseline under these rules. They receive genuine positive scenarios here. The previously approved independent graph-consumer delivery faults remain their call-site invocation evidence; those are not mislabeled actual cycles. No reorder API or illegal persisted endpoint was invented.
+
+## Watched faults
+
+`/tmp/puni-graph-closure-proofs.json` records ten independently executed mutations, selected assertion failures and before/restored production-file SHA256 hashes. Each mutation was restored in `finally`; no production mutation remains. Adjacent test `Proof:` comments name the observations. Individual logs are `/tmp/puni-graph-closure-fault-<name>.log`.
+
+| Name | Observed classification |
+| --- | --- |
+| distinct-cycle | Semantic acceptance: bypass typed connected cycle consumer; closing link succeeds instead of refusing cycle. |
+| batch-cycle | Semantic acceptance: bypass typed connected cycle consumer; later graph-invalid command succeeds after the first actual external write. |
+| move-cycle | Semantic acceptance: bypass structural cycle consumer; the actual cyclic subtree move succeeds. |
+| estimate-cycle | Semantic acceptance: bypass structural cycle consumer; clearing the anchor estimate succeeds. |
+| reach-cycle | Semantic acceptance: bypass project reach cycle condition; the actual cyclic reach transition succeeds. |
+| step-remove-cycle | Semantic acceptance: bypass step-removal cycle condition; the actual cyclic removal succeeds. |
+| omit-expanded-pair | Semantic acceptance: expand only the first remote predecessor leaf; a reverse edge for an omitted pair succeeds. |
+| target-reach-globally | Compatibility: apply the requested owner's reach to every reached project; after valid setup, the final valid owner estimate write is wrongly refused as cycle. |
+| project-dag-refusal | Compatibility: refuse reciprocal project arcs regardless of their step/task nodes; valid distinct-task interleaving is wrongly refused. |
+| rollback | Atomicity: force UoW COMMIT despite modeled refusal; earlier external relationship and revision changes survive and fail the complete effects equality assertion. |
+
+All ten runs exited1 with the actual selected expectation failure. These are seven semantic acceptance observations, two compatibility observations and one atomicity observation, all using the real SQLite composition. No injected graph-read failure is counted as an actual-cycle scenario. Existing proof manifests/reports were not altered.
+
+## Verification and limits
+
+The first scenario run had two test-setup failures: `service.create` returns a row rather than its ID, and the harness's separate SQLite connection cannot observe the writer transaction's uncommitted changes. Both were corrected in test code; the batch now reads the actual borrowed transaction store. `/tmp/puni-graph-closure-initial.log` preserves those failures. They are not production defects or meaningful guard RED evidence. `/tmp/puni-graph-closure-scenarios.log`, `-append.log` and `-own-reach.log` record the corresponding initial green scenarios.
+
+The first actual backend type run caught test-only store-width and generic-union inference errors. The callback was narrowed to the exact typed store and the heterogeneous transition callback was given its explicit common outcome bound. `/tmp/puni-graph-closure-types.log` preserves that diagnostic run; final verification follows those corrections and all restored production bytes.
+
+Final commands and outcomes are recorded in the final receipt below. No full host gate, build, performance benchmark or unrelated full suite is claimed. Required local tools were available. This bounded task adds the missing named semantic controller/transaction scenarios; root must not conflate it with task4.2 mounted external-success activation or task4.4 incident hand-down/deletion. Production external authoring remains dormant and its existing mounted refusal test runs in the final focused suite. Full task4.3 hand-down wording remains tied to the separately outstanding4.4 lifecycle implementation. No Git mutations, WBS/OpenSpec edits or worktree edits elsewhere were made.
+
+## Final verification receipt
+
+All commands ran from the named worktree after production fault restoration. Final test/type/lint checks follow the last fixture corrections and formatting.
+
+- `bun test ./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts ./apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts ./libs/wbs/application/core/src/service/connected-dependency-graph.test.ts ./libs/wbs/domain/domain/src/connected-step-node.test.ts`: exit0, **133 pass, 0 fail, 1,418 assertions, four files**, 31.94s. `/tmp/puni-graph-closure-focused-final.log`.
+- `bunx tsc --build --force apps/wbs/be-01/tsconfig.json`: exit0. This actual solution includes backend lib, spec and tools programs; the first diagnostic run demonstrated that the changed database test is checked. `/tmp/puni-graph-closure-types-final.log` is empty on success.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx graph --file=/tmp/puni-graph-closure-nx-graph.json`: exit0, graph created. `/tmp/puni-graph-closure-graph.log`.
+- `bunx eslint --no-cache apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts`: exit0, no diagnostics. `/tmp/puni-graph-closure-lint.log`.
+- `bunx prettier --check apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts`: exit0, all matched files use Prettier code style. `git diff --check HEAD`: exit0. Exact one-path status was checked again during manifest generation.
+
+Source is frozen for root's normal-hook commit and independent Astra review. No whole-feature completion, full task4.3 lifecycle completion, activation, deployment or final host-gate claim is made.

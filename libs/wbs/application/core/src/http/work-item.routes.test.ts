@@ -3,6 +3,7 @@ import { expect, spyOn, test } from 'bun:test';
 import { createPlanCommandRunner } from '../module/plan-commands/composition';
 import { NO_COMPUTE_PROVIDERS } from '../ports/compute-providers';
 import { inMemoryServices } from '../testing/harness';
+import { localCommandAccess } from '../testing/organization-access-fixture';
 import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { batchServices, testWrites } from '../testing/writes-fixture';
 import { workItemRoutes } from './work-item.routes';
@@ -11,6 +12,7 @@ function fixture() {
   const plan = inMemoryServices();
   const writes = testWrites(undefined, batchServices(plan));
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     batchServices: writes.batch,
     publicServices: batchServices(plan),
     uow: writes.uow,
@@ -56,7 +58,8 @@ test('typed undo and redo preserve actor and details without exposing journal en
       }),
     ).toEqual({ ok: true, status: 200, body: { done: 'Undo change', detail: 'Work' } });
     expect(call).toHaveBeenCalledWith(
-      { projectId: 'p', userId: 'owner', personId: null },
+      'p',
+      { ...actor, organizationOperation: { kind: 'mutation', expected: { kind: 'absent' } } },
       { kind: 'legacy' },
     );
   }
@@ -95,7 +98,8 @@ test('undo and redo walk a consent agent’s own stack, not its human’s', asyn
       },
     });
     expect(call).toHaveBeenCalledWith(
-      { projectId: 'p', userId: 'owner', personId: 'codex' },
+      'p',
+      { ...agent, organizationOperation: { kind: 'mutation', expected: { kind: 'absent' } } },
       { kind: 'legacy' },
     );
   }

@@ -1,0 +1,243 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/source-exclusion-native.test.ts:
+67 |     !(host['Init'] === null || host['Init'] === false || host['Init'] === true) ||
+68 |     host['PidMode'] !== '' ||
+69 |     host['Privileged'] !== false ||
+70 |     !(caps === null || (Array.isArray(caps) && caps.length === 0))
+71 |   )
+72 |     throw new Error('source dev requires typed init, private PID, unprivileged and no added caps');
+                   ^
+error: source dev requires typed init, private PID, unprivileged and no added caps
+      at decodeSourceDev (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-cohort.ts:72:15)
+      at observeMember (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:108:18)
+      at withSourceDevExcluded (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:171:25)
+      at async <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:46:9)
+      at async acquire (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/edge-ownership.ts:105:20)
+      at async <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/edge-ownership.ts:91:24)
+      at async acquireLock (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) native omitted Init and inherited entrypoint survive full transport and owner exclusion [15.66ms]
+54 |  },f.root);
+55 |  expect(entered).toBe(true);
+56 | });
+57 | test('native omitted Init reaches independent mutable-tag substitution refusal before effects',async()=>{
+58 |  const f=await fixture(true);
+59 |  await rejects(withDependencyOwner({sha:'a'.repeat(40),layouts:[f.layouts.prod,f.layouts.dev]},async(owner)=>{
+            ^
+AssertionError: The input did not match the regular expression /mutable image tag resolution/. Input:
+
+'Error: source dev requires typed init, private PID, unprivileged and no added caps'
+
+ generatedMessage: true,
+   expected: /mutable image tag resolution/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at expectedException (node:assert:327:33)
+      at expectsError (node:assert:395:20)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-native-init/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:59:8
+
+67 |     !(host['Init'] === null || host['Init'] === false || host['Init'] === true) ||
+68 |     host['PidMode'] !== '' ||
+69 |     host['Privileged'] !== false ||
+70 |     !(caps === null || (Array.isArray(caps) && caps.length === 0))
+71 |   )
+72 |     throw new Error('source dev requires typed init, private PID, unprivileged and no added caps');
+                   ^
+error: source dev requires typed init, private PID, unprivileged and no added caps
+      at decodeSourceDev (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-cohort.ts:72:15)
+      at observeMember (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:108:18)
+      at withSourceDevExcluded (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:171:25)
+      at async <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:60:9)
+      at async acquire (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/edge-ownership.ts:105:20)
+      at async <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/edge-ownership.ts:91:24)
+      at async acquireLock (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) native omitted Init reaches independent mutable-tag substitution refusal before effects [12.97ms]
+62 |  expect(f.commands.some((args)=>args[0]==='update'||args[0]==='stop')).toBe(false);
+63 | });
+64 | for(const init of [null,false,true])
+65 |  test(`native omitted Init refuses present-shape drift to ${String(init)}`,async()=>{
+66 |  const f=await fixture();const entered={value:false};
+67 |  await rejects(withDependencyOwner({sha:'a'.repeat(40),layouts:[f.layouts.prod,f.layouts.dev]},async(owner)=>{
+            ^
+AssertionError: The input did not match the regular expression /source dev current exclusion/. Input:
+
+'Error: source dev requires typed init, private PID, unprivileged and no added caps'
+
+ generatedMessage: true,
+   expected: /source dev current exclusion/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at expectedException (node:assert:327:33)
+      at expectsError (node:assert:395:20)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-native-init/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:67:8
+
+67 |     !(host['Init'] === null || host['Init'] === false || host['Init'] === true) ||
+68 |     host['PidMode'] !== '' ||
+69 |     host['Privileged'] !== false ||
+70 |     !(caps === null || (Array.isArray(caps) && caps.length === 0))
+71 |   )
+72 |     throw new Error('source dev requires typed init, private PID, unprivileged and no added caps');
+                   ^
+error: source dev requires typed init, private PID, unprivileged and no added caps
+      at decodeSourceDev (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-cohort.ts:72:15)
+      at observeMember (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:108:18)
+      at withSourceDevExcluded (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:171:25)
+      at async <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:68:9)
+      at async acquire (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/edge-ownership.ts:105:20)
+      at async <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/edge-ownership.ts:91:24)
+      at async acquireLock (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) native omitted Init refuses present-shape drift to null [11.01ms]
+62 |  expect(f.commands.some((args)=>args[0]==='update'||args[0]==='stop')).toBe(false);
+63 | });
+64 | for(const init of [null,false,true])
+65 |  test(`native omitted Init refuses present-shape drift to ${String(init)}`,async()=>{
+66 |  const f=await fixture();const entered={value:false};
+67 |  await rejects(withDependencyOwner({sha:'a'.repeat(40),layouts:[f.layouts.prod,f.layouts.dev]},async(owner)=>{
+            ^
+AssertionError: The input did not match the regular expression /source dev current exclusion/. Input:
+
+'Error: source dev requires typed init, private PID, unprivileged and no added caps'
+
+ generatedMessage: true,
+   expected: /source dev current exclusion/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at expectedException (node:assert:327:33)
+      at expectsError (node:assert:395:20)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-native-init/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:67:8
+
+67 |     !(host['Init'] === null || host['Init'] === false || host['Init'] === true) ||
+68 |     host['PidMode'] !== '' ||
+69 |     host['Privileged'] !== false ||
+70 |     !(caps === null || (Array.isArray(caps) && caps.length === 0))
+71 |   )
+72 |     throw new Error('source dev requires typed init, private PID, unprivileged and no added caps');
+                   ^
+error: source dev requires typed init, private PID, unprivileged and no added caps
+      at decodeSourceDev (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-cohort.ts:72:15)
+      at observeMember (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:108:18)
+      at withSourceDevExcluded (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:171:25)
+      at async <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:68:9)
+      at async acquire (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/edge-ownership.ts:105:20)
+      at async <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/edge-ownership.ts:91:24)
+      at async acquireLock (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) native omitted Init refuses present-shape drift to false [10.40ms]
+62 |  expect(f.commands.some((args)=>args[0]==='update'||args[0]==='stop')).toBe(false);
+63 | });
+64 | for(const init of [null,false,true])
+65 |  test(`native omitted Init refuses present-shape drift to ${String(init)}`,async()=>{
+66 |  const f=await fixture();const entered={value:false};
+67 |  await rejects(withDependencyOwner({sha:'a'.repeat(40),layouts:[f.layouts.prod,f.layouts.dev]},async(owner)=>{
+            ^
+AssertionError: The input did not match the regular expression /source dev current exclusion/. Input:
+
+'Error: source dev requires typed init, private PID, unprivileged and no added caps'
+
+ generatedMessage: true,
+   expected: /source dev current exclusion/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at expectedException (node:assert:327:33)
+      at expectsError (node:assert:395:20)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-native-init/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:67:8
+
+67 |     !(host['Init'] === null || host['Init'] === false || host['Init'] === true) ||
+68 |     host['PidMode'] !== '' ||
+69 |     host['Privileged'] !== false ||
+70 |     !(caps === null || (Array.isArray(caps) && caps.length === 0))
+71 |   )
+72 |     throw new Error('source dev requires typed init, private PID, unprivileged and no added caps');
+                   ^
+error: source dev requires typed init, private PID, unprivileged and no added caps
+      at decodeSourceDev (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-cohort.ts:72:15)
+      at observeMember (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:108:18)
+      at withSourceDevExcluded (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:171:25)
+      at async <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:68:9)
+      at async acquire (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/edge-ownership.ts:105:20)
+      at async <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/edge-ownership.ts:91:24)
+      at async acquireLock (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) native omitted Init refuses present-shape drift to true [9.91ms]
+
+tools/tool-remote-scripts/src/lib/source-dev-cohort.test.ts:
+(pass) source decoder permits typed init null [0.88ms]
+(pass) source decoder permits typed init false [0.07ms]
+(pass) source decoder permits typed init true [0.03ms]
+(pass) source decoder refuses PID sharing host [0.09ms]
+(pass) source decoder refuses PID sharing container:other [0.02ms]
+(pass) source decoder binds complete config mounts and lifecycle identity [0.38ms]
+(pass) source decoder refuses unsupported image [0.15ms]
+(pass) source decoder refuses unsupported cwd [0.02ms]
+(pass) source decoder refuses unsupported user [0.02ms]
+(pass) source decoder refuses unsupported service
+(pass) source decoder refuses unsupported project [0.01ms]
+(pass) source decoder refuses unsupported command [0.02ms]
+(pass) source decoder refuses unsupported entrypoint [0.01ms]
+(pass) source decoder refuses unsupported init [0.01ms]
+(pass) source decoder refuses unsupported privileged [0.02ms]
+(pass) source decoder refuses unsupported caps [0.01ms]
+(pass) source decoder refuses unsupported network [0.01ms]
+(pass) source decoder refuses unsupported mount [0.02ms]
+(pass) source decoder refuses unsupported policy [0.03ms]
+(pass) source decoder refuses unsupported state [0.03ms]
+(pass) source decoder binds inherited image entrypoint to effective executable and arguments [0.13ms]
+(pass) source mount contract is independent of Docker mount array order [0.06ms]
+(pass) source decoder refuses incoherent timestamp lifecycle unfinished-exit [0.10ms]
+(pass) source decoder refuses incoherent timestamp lifecycle unstarted-running [0.05ms]
+(pass) source decoder refuses incoherent timestamp lifecycle early-finish [0.05ms]
+(pass) source running after restart retains coherent historical finish time [0.15ms]
+67 |     !(host['Init'] === null || host['Init'] === false || host['Init'] === true) ||
+68 |     host['PidMode'] !== '' ||
+69 |     host['Privileged'] !== false ||
+70 |     !(caps === null || (Array.isArray(caps) && caps.length === 0))
+71 |   )
+72 |     throw new Error('source dev requires typed init, private PID, unprivileged and no added caps');
+                                                                                                      ^
+error: source dev requires typed init, private PID, unprivileged and no added caps
+      at decodeSourceDev (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-cohort.ts:72:98)
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-cohort.test.ts:108:18)
+(fail) source decoder preserves native omitted Init without manufacturing a value [0.14ms]
+(pass) source decoder rejects own malformed Init undefined [0.10ms]
+(pass) source decoder rejects own malformed Init false [0.06ms]
+(pass) source decoder rejects own malformed Init 0 [0.02ms]
+(pass) source omitted Init still refuses shared PID host [0.08ms]
+(pass) source omitted Init still refuses shared PID container:other [0.02ms]
+123 |   });
+124 | test('source omitted Init still refuses unfinished terminal lifecycle', () => {
+125 |   const source = sourceFixture();
+126 |   Reflect.deleteProperty(source.HostConfig, 'Init');
+127 |   source.State.Running = false; source.State.Pid = 0; source.State.Status = 'exited';
+128 |   expect(() => decodeSourceDev(source,envLayout('dev'))).toThrow('timestamp lifecycle');
+                                                               ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "timestamp lifecycle"
+Received message: "source dev requires typed init, private PID, unprivileged and no added caps"
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-cohort.test.ts:128:58)
+(fail) source omitted Init still refuses unfinished terminal lifecycle [0.15ms]
+
+7 tests failed:
+(fail) native omitted Init and inherited entrypoint survive full transport and owner exclusion [15.66ms]
+(fail) native omitted Init reaches independent mutable-tag substitution refusal before effects [12.97ms]
+(fail) native omitted Init refuses present-shape drift to null [11.01ms]
+(fail) native omitted Init refuses present-shape drift to false [10.40ms]
+(fail) native omitted Init refuses present-shape drift to true [9.91ms]
+(fail) source decoder preserves native omitted Init without manufacturing a value [0.14ms]
+(fail) source omitted Init still refuses unfinished terminal lifecycle [0.15ms]
+
+ 31 pass
+ 7 fail
+ 35 expect() calls
+Ran 38 tests across 2 files. [108.00ms]

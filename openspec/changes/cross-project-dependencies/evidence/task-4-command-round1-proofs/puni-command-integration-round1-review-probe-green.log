@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+Internal error: directory mismatch for directory "/tmp/puni-cross-command-integration/tsconfig.base.json", fd 3. You don't need to do anything, but this indicates a bug.
+
+../puni-command-review-probe.test.ts:
+REVIEW redo outcome {
+  ok: true,
+  value: {
+    done: "2 changes",
+    detail: null,
+  },
+} unchanged false
+(pass) REVIEW external create-link batch can redo its restored local successor [745.94ms]
+REVIEW mounted create-update redo 200 {
+  done: "2 changes",
+  detail: null,
+}
+(pass) REVIEW mounted local create-update batch can redo its restored predecessor [717.38ms]
+
+ 2 pass
+ 1 filtered out
+ 0 fail
+ 23 expect() calls
+Ran 2 tests across 1 file. [5.59s]

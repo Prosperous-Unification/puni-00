@@ -1,0 +1,184 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:
+(pass) versioned saved input readers > reads frozen input v1 as local without rewriting bytes [36.28ms]
+(pass) versioned saved input readers > reads frozen input v2 as local without rewriting bytes [4.56ms]
+(pass) versioned saved input readers > reads frozen input v3 as local without rewriting bytes [3.83ms]
+(pass) versioned saved input readers > reads frozen input v4 as local without rewriting bytes [1.19ms]
+(pass) versioned saved input readers > reads frozen input v5 as local without rewriting bytes [1.00ms]
+(pass) versioned saved input readers > reads frozen input v6 as local without rewriting bytes [1.55ms]
+(pass) versioned saved input readers > reads frozen input v7 as local without rewriting bytes [1.22ms]
+(pass) versioned saved input readers > reads frozen input v8 as local without rewriting bytes [1.63ms]
+(pass) versioned saved input readers > keeps the dormant v8 writer byte-identical to the frozen v8 builder [0.46ms]
+(pass) versioned saved input readers > preserves the frozen legacy schedule1 byte contract and retired algorithm identity [3.41ms]
+(pass) versioned saved input readers > requires explicit dependency history on input9 [2.14ms]
+(pass) versioned saved input readers > refuses header/body version mismatch and malformed new fields [9.28ms]
+(pass) versioned saved input readers > refuses external claims before a legacy local upgrade can erase them [0.61ms]
+104 |       projects: [...history.projects].reverse(),
+105 |       ownership: [...history.ownership].reverse(),
+106 |       relationships: [...history.relationships].reverse(),
+107 |       readiness: [...history.readiness].reverse(),
+108 |     });
+109 |     expect(JSON.stringify(left)).toBe(JSON.stringify(right));
+                                       ^
+error: expect(received).toBe(expected)
+
+Expected: "{"schemaVersion":9,"project":{"id":"A","name":"Rewire the shed","restricted":false,"ownerId":"u1","... (3419 bytes truncated) ...dencyHistory":{"kind":"connected","targetProjectId":"A","mode":"isolated","projects":[{"projectId":"B","name":"Beta","abbreviation":"B","startDate":"2026-10-02","timezone":"UTC","rank":1,"engine":"fast","objective":"pri","enabled":false,"steps":[{"id":"build","code":10,"name":"Build","position":0}],"workItems":[{"id":"b","name":"b","parentId":null,"number":"002","hold":null,"status":"blocked_by_proxy"}]},{"projectId":"A","name":"Alpha","abbreviation":"A","startDate":"2026-10-01","timezone":"UTC","rank":0,"engine":"optimized","objective":"time","enabled":true,"steps":[{"id":"design","code":null,"name":"Design","position":0},{"id":"test","code":20,"name":"Test","position":1}],"workItems":[{"id":"root","name":"Held root","parentId":null,"number":"001","hold":"on_hold","status":"on_hold"},{"id":"a","name":"a","parentId":"root","number":"002","hold":null,"status":"unknown"}]}],"relationships":[{"id":"ff","projectId":"B","type":"FF","predecessor":{"projectId":"A","workItemId":"root","scope":"descendant-step","stepId":"design","name":"Held root","projectAbbreviation":"A","workItemNumber":"001","step":{"id":"design","code":null,"name":"Design","position":0},"stepNodeId":null,"stepReference":null,"qualifiedReference":null,"isLeaf":false},"successor":{"projectId":"B","workItemId":"b","scope":"node","stepId":"build","name":"b","projectAbbreviation":"B","workItemNumber":"002","step":{"id":"build","code":10,"name":"Build","position":0},"stepNodeId":"sn1.b.build","stepReference":null,"qualifiedReference":null,"isLeaf":true}},{"id":"ss","projectId":"A","type":"SS","predecessor":{"projectId":"B","workItemId":"b","scope":"node","stepId":"build","name":"b","projectAbbreviation":"B","workItemNumber":"002","step":{"id":"build","code":10,"name":"Build","position":0},"stepNodeId":"sn1.b.build","stepReference":null,"qualifiedReference":null,"isLeaf":true},"successor":{"projectId":"A","workItemId":"a","scope":"node","stepId":"test","name":"a","projectAbbreviation":"A","workItemNumber":"002","step":{"id":"test","code":20,"name":"Test","position":1},"stepNodeId":"sn1.a.test","stepReference":null,"qualifiedReference":null,"isLeaf":true}},{"id":"fs","projectId":"B","type":"FS","predecessor":{"projectId":"A","workItemId":"a","scope":"node","stepId":"design","name":"a","projectAbbreviation":"A","workItemNumber":"002","step":{"id":"design","code":null,"name":"Design","position":0},"stepNodeId":"sn1.a.design","stepReference":null,"qualifiedReference":null,"isLeaf":true},"successor":{"projectId":"B","workItemId":"b","scope":"node","stepId":"build","name":"b","projectAbbreviation":"B","workItemNumber":"002","step":{"id":"build","code":10,"name":"Build","position":0},"stepNodeId":"sn1.b.build","stepReference":null,"qualifiedReference":null,"isLeaf":true}}],"graph":{"nodes":[{"kind":"step","ref":{"workItemId":"a","stepId":"design"},"at":0},{"kind":"step","ref":{"workItemId":"a","stepId":"test"},"at":1},{"kind":"step","ref":{"workItemId":"b","stepId":"build"},"at":0}],"edges":[{"predecessor":{"leafId":"a","at":0},"successor":{"leafId":"b","at":0},"type":"FS","provenance":"authored","relationshipId":"fs"},{"predecessor":{"leafId":"b","at":0},"successor":{"leafId":"a","at":1},"type":"SS","provenance":"authored","relationshipId":"ss"}]},"ownership":[["b","B"],["a","A"],["root","A"]],"readiness":[{"kind":"step","key":"b\u0000build","projectId":"B","workItemId":"b","stepId":"build","status":"blocked_by_proxy","reading":"blocked_by_proxy","causes":[{"kind":"work-item","workItemId":"root"}],"intrinsic":{"started":false,"done":false},"eligibility":{"canStart":true,"canFinish":true,"startBlockers":[],"finishBlockers":[]}},{"kind":"step","key":"a\u0000test","projectId":"A","workItemId":"a","stepId":"test","status":"unknown","reading":"blocked_by_proxy","causes":[{"kind":"work-item","workItemId":"root"}],"intrinsic":{"started":false,"done":false},"eligibility":{"canStart":true,"canFinish":true,"startBlockers":[],"finishBlockers":[]}},{"kind":"step","key":"a\u0000design","projectId":"A","workItemId":"a","stepId":"design","status":"unknown","reading":"blocked_by_proxy","causes":[{"kind":"work-item","workItemId":"root"}],"intrinsic":{"started":false,"done":false},"eligibility":{"canStart":true,"canFinish":true,"startBlockers":[],"finishBlockers":[]}}],"placementState":{"kind":"scheduled"}}}"
+Received: "{"schemaVersion":9,"project":{"id":"A","name":"Rewire the shed","restricted":false,"ownerId":"u1","... (3419 bytes truncated) ...dencyHistory":{"kind":"connected","targetProjectId":"A","mode":"isolated","projects":[{"projectId":"A","name":"Alpha","abbreviation":"A","startDate":"2026-10-01","timezone":"UTC","rank":0,"engine":"optimized","objective":"time","enabled":true,"steps":[{"id":"design","code":null,"name":"Design","position":0},{"id":"test","code":20,"name":"Test","position":1}],"workItems":[{"id":"root","name":"Held root","parentId":null,"number":"001","hold":"on_hold","status":"on_hold"},{"id":"a","name":"a","parentId":"root","number":"002","hold":null,"status":"unknown"}]},{"projectId":"B","name":"Beta","abbreviation":"B","startDate":"2026-10-02","timezone":"UTC","rank":1,"engine":"fast","objective":"pri","enabled":false,"steps":[{"id":"build","code":10,"name":"Build","position":0}],"workItems":[{"id":"b","name":"b","parentId":null,"number":"002","hold":null,"status":"blocked_by_proxy"}]}],"relationships":[{"id":"fs","projectId":"B","type":"FS","predecessor":{"projectId":"A","workItemId":"a","scope":"node","stepId":"design","name":"a","projectAbbreviation":"A","workItemNumber":"002","step":{"id":"design","code":null,"name":"Design","position":0},"stepNodeId":"sn1.a.design","stepReference":null,"qualifiedReference":null,"isLeaf":true},"successor":{"projectId":"B","workItemId":"b","scope":"node","stepId":"build","name":"b","projectAbbreviation":"B","workItemNumber":"002","step":{"id":"build","code":10,"name":"Build","position":0},"stepNodeId":"sn1.b.build","stepReference":null,"qualifiedReference":null,"isLeaf":true}},{"id":"ss","projectId":"A","type":"SS","predecessor":{"projectId":"B","workItemId":"b","scope":"node","stepId":"build","name":"b","projectAbbreviation":"B","workItemNumber":"002","step":{"id":"build","code":10,"name":"Build","position":0},"stepNodeId":"sn1.b.build","stepReference":null,"qualifiedReference":null,"isLeaf":true},"successor":{"projectId":"A","workItemId":"a","scope":"node","stepId":"test","name":"a","projectAbbreviation":"A","workItemNumber":"002","step":{"id":"test","code":20,"name":"Test","position":1},"stepNodeId":"sn1.a.test","stepReference":null,"qualifiedReference":null,"isLeaf":true}},{"id":"ff","projectId":"B","type":"FF","predecessor":{"projectId":"A","workItemId":"root","scope":"descendant-step","stepId":"design","name":"Held root","projectAbbreviation":"A","workItemNumber":"001","step":{"id":"design","code":null,"name":"Design","position":0},"stepNodeId":null,"stepReference":null,"qualifiedReference":null,"isLeaf":false},"successor":{"projectId":"B","workItemId":"b","scope":"node","stepId":"build","name":"b","projectAbbreviation":"B","workItemNumber":"002","step":{"id":"build","code":10,"name":"Build","position":0},"stepNodeId":"sn1.b.build","stepReference":null,"qualifiedReference":null,"isLeaf":true}}],"graph":{"nodes":[{"kind":"step","ref":{"workItemId":"a","stepId":"design"},"at":0},{"kind":"step","ref":{"workItemId":"a","stepId":"test"},"at":1},{"kind":"step","ref":{"workItemId":"b","stepId":"build"},"at":0}],"edges":[{"predecessor":{"leafId":"a","at":0},"successor":{"leafId":"b","at":0},"type":"FS","provenance":"authored","relationshipId":"fs"},{"predecessor":{"leafId":"b","at":0},"successor":{"leafId":"a","at":1},"type":"SS","provenance":"authored","relationshipId":"ss"}]},"ownership":[["root","A"],["a","A"],["b","B"]],"readiness":[{"kind":"step","key":"a\u0000design","projectId":"A","workItemId":"a","stepId":"design","status":"unknown","reading":"blocked_by_proxy","causes":[{"kind":"work-item","workItemId":"root"}],"intrinsic":{"started":false,"done":false},"eligibility":{"canStart":true,"canFinish":true,"startBlockers":[],"finishBlockers":[]}},{"kind":"step","key":"a\u0000test","projectId":"A","workItemId":"a","stepId":"test","status":"unknown","reading":"blocked_by_proxy","causes":[{"kind":"work-item","workItemId":"root"}],"intrinsic":{"started":false,"done":false},"eligibility":{"canStart":true,"canFinish":true,"startBlockers":[],"finishBlockers":[]}},{"kind":"step","key":"b\u0000build","projectId":"B","workItemId":"b","stepId":"build","status":"blocked_by_proxy","reading":"blocked_by_proxy","causes":[{"kind":"work-item","workItemId":"root"}],"intrinsic":{"started":false,"done":false},"eligibility":{"canStart":true,"canFinish":true,"startBlockers":[],"finishBlockers":[]}}],"placementState":{"kind":"scheduled"}}}"
+
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:109:34)
+(fail) versioned saved input readers > canonicalizes unordered captured history before future writer activation [15.24ms]
+(pass) versioned saved input readers > retains direct-fact ownership and duplicate refusal in new bodies [4.10ms]
+133 |         ...planFixtureRows,
+134 |         project: { ...planFixtureRows.project, id: captured.history.targetProjectId },
+135 |       },
+136 |       history,
+137 |     );
+138 |     expect(input.dependencyHistory).toEqual(JSON.parse(serializeSavedDependencyHistory(history)));
+                                          ^
+error: expect(received).toEqual(expected)
+
+@@ -57,21 +57,21 @@
+    },
+    "kind": "connected",
+    "mode": "isolated",
+    "ownership": [
+      [
++       "root",
++       "A",
++     ],
++     [
+        "a",
+        "A",
+      ],
+      [
+        "b",
+        "B",
+      ],
+-     [
+-       "root",
+-       "A",
+-     ],
+    ],
+    "placementState": {
+      "kind": "scheduled",
+    },
+    "projects": [
+@@ -225,53 +225,10 @@
+        "workItemId": "b",
+      },
+    ],
+    "relationships": [
+      {
+-       "id": "ff",
+-       "predecessor": {
+-         "isLeaf": false,
+-         "name": "Held root",
+-         "projectAbbreviation": "A",
+-         "projectId": "A",
+-         "qualifiedReference": null,
+-         "scope": "descendant-step",
+-         "step": {
+-           "code": null,
+-           "id": "design",
+-           "name": "Design",
+-           "position": 0,
+-         },
+-         "stepId": "design",
+-         "stepNodeId": null,
+-         "stepReference": null,
+-         "workItemId": "root",
+-         "workItemNumber": "001",
+-       },
+-       "projectId": "B",
+-       "successor": {
+-         "isLeaf": true,
+-         "name": "b",
+-         "projectAbbreviation": "B",
+-         "projectId": "B",
+-         "qualifiedReference": null,
+-         "scope": "node",
+-         "step": {
+-           "code": 10,
+-           "id": "build",
+-           "name": "Build",
+-           "position": 0,
+-         },
+-         "stepId": "build",
+-         "stepNodeId": "sn1.b.build",
+-         "stepReference": null,
+-         "workItemId": "b",
+-         "workItemNumber": "002",
+-       },
+-       "type": "FF",
+-     },
+-     {
+        "id": "fs",
+        "predecessor": {
+          "isLeaf": true,
+          "name": "a",
+          "projectAbbreviation": "A",
+@@ -352,9 +309,52 @@
+          "stepReference": null,
+          "workItemId": "a",
+          "workItemNumber": "002",
+        },
+        "type": "SS",
++     },
++     {
++       "id": "ff",
++       "predecessor": {
++         "isLeaf": false,
++         "name": "Held root",
++         "projectAbbreviation": "A",
++         "projectId": "A",
++         "qualifiedReference": null,
++         "scope": "descendant-step",
++         "step": {
++           "code": null,
++           "id": "design",
++           "name": "Design",
++           "position": 0,
++         },
++         "stepId": "design",
++         "stepNodeId": null,
++         "stepReference": null,
++         "workItemId": "root",
++         "workItemNumber": "001",
++       },
++       "projectId": "B",
++       "successor": {
++         "isLeaf": true,
++         "name": "b",
++         "projectAbbreviation": "B",
++         "projectId": "B",
++         "qualifiedReference": null,
++         "scope": "node",
++         "step": {
++           "code": 10,
++           "id": "build",
++           "name": "Build",
++           "position": 0,
++         },
++         "stepId": "build",
++         "stepNodeId": "sn1.b.build",
++         "stepReference": null,
++         "workItemId": "b",
++         "workItemNumber": "002",
++       },
++       "type": "FF",
+      },
+    ],
+    "targetProjectId": "A",
+  }
+
+- Expected  - 47
++ Received  + 47
+
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:138:37)
+(fail) versioned saved input readers > folds converted connected context without live capabilities [5.99ms]
+
+ 14 pass
+ 2 fail
+ 72 expect() calls
+Ran 16 tests across 1 file. [1285.00ms]

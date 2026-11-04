@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-lifecycle.test.ts:
+(pass) malformed lifecycle never reaches cluster transport [3.10ms]
+
+ 1 pass
+ 22 filtered out
+ 0 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [39.00ms]

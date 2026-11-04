@@ -1,0 +1,29 @@
+Injected complete-census; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/source-exclusion-transport.test.ts:
+265 |     true,
+266 |   );
+267 |   const ids = (await f.docker(['ps', '-a', '--no-trunc', '--format', '{{.ID}}']))
+268 |     .trim()
+269 |     .split('\n');
+270 |   expect(ids).toEqual([source.Id, unrelated.Id]);
+                    ^
+error: expect(received).toEqual(expected)
+
+  [
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+-   "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  ]
+
+- Expected  - 1
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-source-exclusion-acceptance-fix/tools/tool-remote-scripts/test/source-exclusion-transport.test.ts:270:15)
+(fail) full production inventory cannot become a second-list subset [1.16ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [50.00ms]

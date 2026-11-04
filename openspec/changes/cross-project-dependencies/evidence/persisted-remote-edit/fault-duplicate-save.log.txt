@@ -1,0 +1,51 @@
+
+ RUN  v5.0.0 /home/df/.codex/worktrees/685b/puni-00/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (69 tests | 2 failed | 67 skipped) 664ms
+   × retires a pending captured edit before reopening on desktop 465ms
+   × retires a pending captured edit before reopening on phone 197ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 67 skipped (69)
+   Start at  00:50:31
+   Duration  7.14s (import 59%, transform 25%, tests 9%, environment 6%, setup 1%)
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > retires a pending captured edit before reopening on desktop
+Error: expect(element).toBeDisabled()
+
+Received element is not disabled:
+  <button
+  type="button"
+/>
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:603:60
+    601|       expect(update).toHaveBeenCalledTimes(1);
+    602|     });
+    603|     expect(editor().getByRole('button', { name: 'Save' })).toBeDisable…
+       |                                                            ^
+    604|     fireEvent.click(editor().getByRole('button', { name: 'Save' }));
+    605|     expect(update).toHaveBeenCalledTimes(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > retires a pending captured edit before reopening on phone
+Error: expect(element).toBeDisabled()
+
+Received element is not disabled:
+  <button
+  type="button"
+/>
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:603:60
+    601|       expect(update).toHaveBeenCalledTimes(1);
+    602|     });
+    603|     expect(editor().getByRole('button', { name: 'Save' })).toBeDisable…
+       |                                                            ^
+    604|     fireEvent.click(editor().getByRole('button', { name: 'Save' }));
+    605|     expect(update).toHaveBeenCalledTimes(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯

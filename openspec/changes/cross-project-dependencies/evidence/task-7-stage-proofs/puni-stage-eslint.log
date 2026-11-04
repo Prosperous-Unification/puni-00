@@ -1,0 +1,9 @@
+
+/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.ts
+   43:15  error  Unnecessary conditional, comparison is always true, since `"connected-stage" === "connected-stage"` is true  @typescript-eslint/no-unnecessary-condition
+   44:42  error  Unnecessary conditional, comparison is always true, since `"isolated" === "isolated"` is true                @typescript-eslint/no-unnecessary-condition
+  125:9   error  Unnecessary conditional, comparison is always true, since `"authored" === "authored"` is true                @typescript-eslint/no-unnecessary-condition
+  129:75  error  Unnecessary conditional, comparison is always true, since `"FS" === "FS"` is true                            @typescript-eslint/no-unnecessary-condition
+  135:7   error  Prefer using an optional chain expression instead, as it's more concise and easier to read                   @typescript-eslint/prefer-optional-chain
+
+✖ 5 problems (5 errors, 0 warnings)

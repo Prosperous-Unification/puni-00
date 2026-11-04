@@ -1,0 +1,67 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/solver-supervisor-install-operation.test.ts:
+549 | /bin/mv "$@"
+550 | destination_identity=$(stat -c '%d:%i' "$destination_path")
+551 | if [ "$source_identity" != "$destination_identity" ]; then echo 'cross-device publication copied into live bytes' >&2; exit 96; fi`,
+552 |     ),
+553 |   );
+554 |   expect(await host.run()).toMatchObject({ code: 0 });
+                                 ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "code": 0,
++   "code": 96,
++   "output":
++ "/tmp/solver-install-operation-AQtjMQ/stage/0: OK
++ /tmp/solver-install-operation-AQtjMQ/stage/1: OK
++ /tmp/solver-install-operation-AQtjMQ/stage/2: OK
++ /tmp/solver-install-operation-AQtjMQ/stage/3: OK
++ cross-device publication copied into live bytes
++ attempt=/tmp/solver-install-operation-AQtjMQ/stage; expected SHA-256: e1356dbe5efdcd5d593f00fbd6ed7828f67ff2b378a1970298358bb948c66459  /tmp/solver-install-operation-AQtjMQ/installed-0; f7595954e888f1c9158b4f50d50ffed04490be106723ec43f38510e2a3619b54  /tmp/solver-install-operation-AQtjMQ/installed-1; 3f64bb010d07282d277fcef84c296784400d9e891eca48679cec8291378579f2  /dev/shm/solver-install-filesystem-RFnrz2/installed-2; d599dc023e20789b9afb2055a2965329234783efe58d5060b8e21225bd194bf3  /dev/shm/solver-install-filesystem-RFnrz2/installed-3
++ partial or uncertain solver supervisor installation; inspect all four installed hashes and service readiness under edge.lock before retry; no automatic rollback
++ "
++ ,
+  }
+
+- Expected  - 1
++ Received  + 11
+
+      at <anonymous> (/tmp/puni-solver-admission-v2/tools/tool-remote-scripts/src/solver-supervisor-install-operation.test.ts:554:28)
+(fail) publication stages beside each destination across real filesystems before atomic replacement [51.67ms]
+558 |
+559 | test('first installation creates destination parents inside admission before sibling preparation', async () => {
+560 |   const host = await fixture();
+561 |   for (const [index, file] of host.files.entries())
+562 |     file.remote = join(host.root, `new-parent-${String(index)}`, 'installed');
+563 |   expect(await host.run()).toMatchObject({ code: 0 });
+                                 ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "code": 0,
++   "code": 1,
++   "output":
++ "/tmp/solver-install-operation-rhpd5E/stage/0: OK
++ /tmp/solver-install-operation-rhpd5E/stage/1: OK
++ /tmp/solver-install-operation-rhpd5E/stage/2: OK
++ /tmp/solver-install-operation-rhpd5E/stage/3: OK
++ /bin/mv: cannot move '/tmp/solver-install-operation-rhpd5E/stage/0' to '/tmp/solver-install-operation-rhpd5E/new-parent-0/installed': No such file or directory
++ attempt=/tmp/solver-install-operation-rhpd5E/stage; expected SHA-256: e1356dbe5efdcd5d593f00fbd6ed7828f67ff2b378a1970298358bb948c66459  /tmp/solver-install-operation-rhpd5E/new-parent-0/installed; f7595954e888f1c9158b4f50d50ffed04490be106723ec43f38510e2a3619b54  /tmp/solver-install-operation-rhpd5E/new-parent-1/installed; 3f64bb010d07282d277fcef84c296784400d9e891eca48679cec8291378579f2  /tmp/solver-install-operation-rhpd5E/new-parent-2/installed; d599dc023e20789b9afb2055a2965329234783efe58d5060b8e21225bd194bf3  /tmp/solver-install-operation-rhpd5E/new-parent-3/installed
++ partial or uncertain solver supervisor installation; inspect all four installed hashes and service readiness under edge.lock before retry; no automatic rollback
++ "
++ ,
+  }
+
+- Expected  - 1
++ Received  + 11
+
+      at <anonymous> (/tmp/puni-solver-admission-v2/tools/tool-remote-scripts/src/solver-supervisor-install-operation.test.ts:563:28)
+(fail) first installation creates destination parents inside admission before sibling preparation [35.31ms]
+
+ 0 pass
+ 44 filtered out
+ 2 fail
+ 3 expect() calls
+Ran 2 tests across 1 file. [118.00ms]

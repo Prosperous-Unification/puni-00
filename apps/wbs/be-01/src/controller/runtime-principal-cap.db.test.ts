@@ -10,12 +10,18 @@ import {
   createRuntimeReceiver,
 } from '@wbs/core/module/plan-commands/composition';
 import type { RuntimeContext } from '@wbs/core/module/plan-commands/runtime-state';
+import type { CommittedProjectEvent } from '@wbs/core/ports/committed-fanout';
 import { NO_ADMISSION } from '@wbs/core/ports/edit-admission';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
+import { SqliteCommandAccess } from '@wbs/store-sqlite/command-access';
+import { MachineCredentialRepository } from '@wbs/store-sqlite/machine-credential';
+import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
 import { openSqliteSource } from '@wbs/store-sqlite/source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
 import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 
@@ -240,9 +246,11 @@ async function createQueuedFixture() {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-runtime-cap-'));
   const dbPath = await openSpaceDatabase(directory);
   const sqlite = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,
     organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
   });
+  sqlite.db.run("UPDATE organization_activation SET state='activated', activated_at=1");
   const source = sqlite.bindLivePlans({ schedulerOf: () => fastScheduler });
   cleanups.push(async () => {
     await source.close();
@@ -281,18 +289,42 @@ async function createQueuedFixture() {
     );
   const broadcast = recordingBroadcaster();
   const options = {
+    dependencyContext: createLocalDependencyContext(source.stores),
     admission: NO_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
   };
+  const delivered: CommittedProjectEvent[] = [];
   const runner = createPlanCommandRunner(
     {
+      committedFanout: {
+        now: () => testClock.now(),
+        deliverCommitted: (events) => {
+          delivered.push(...events);
+          return Promise.resolve();
+        },
+      },
+      commandAccess: new SqliteCommandAccess(
+        sqlite.db,
+        new SqliteOrganizationAccess(
+          sqlite.db,
+          () => Promise.resolve('org-a'),
+          () => testClock.now(),
+        ),
+        new MachineCredentialRepository(sqlite.db, sqlite.gate),
+      ),
       uow: source.uow,
       announcements: broadcast,
       publicServices: servicesOver(source.stores, options),
-      batchServices: (scope, announcements, admission) =>
-        servicesOver(scope.stores, { ...options, broadcast: announcements, admission }),
+      batchServices: (scope, announcements, admission, dependencies) =>
+        servicesOver(scope.stores, {
+          ...options,
+          broadcast: announcements,
+          admission,
+          dependencyContext: { kind: 'bound', context: dependencies },
+          schedulerMode: 'capture',
+        }),
     },
     nodeDigest,
   );
@@ -357,6 +389,7 @@ async function createQueuedFixture() {
     authorities: sqlite.db.all('SELECT * FROM runtime_authority'),
     receipts: sqlite.db.all('SELECT * FROM runtime_command_receipt'),
     bindings: sqlite.db.all('SELECT * FROM runtime_claim_binding'),
+    delivered: [...delivered],
     progress: sqlite.db.all('SELECT * FROM step_progress'),
     claims: sqlite.db.all('SELECT * FROM claim'),
   });

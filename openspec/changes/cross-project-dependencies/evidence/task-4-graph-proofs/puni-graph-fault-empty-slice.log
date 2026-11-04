@@ -1,0 +1,98 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/connected-step-node.test.ts:
+211 |     expect(() =>
+212 |       resolveConnectedGraph({
+213 |         projects: [{ ...a, slicesByLeaf }, b],
+214 |         external: [link('whole', ['a', 'A'], ['b', 'B'])],
+215 |       }),
+216 |     ).toThrow(/slice.*A/);
+            ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /slice.*A/
+
+Received function did not throw
+Received value: {
+  graph: {
+    nodes: [
+      {
+        kind: "step",
+        ref: {
+          workItemId: "A",
+          stepId: "design",
+        },
+        at: 0,
+      }, {
+        kind: "step",
+        ref: {
+          workItemId: "A",
+          stepId: "test",
+        },
+        at: 1,
+      }, {
+        kind: "step",
+        ref: {
+          workItemId: "B",
+          stepId: "build",
+        },
+        at: 0,
+      }
+    ],
+    edges: [
+      {
+        predecessor: {
+          leafId: "A",
+          at: 0,
+        },
+        successor: {
+          leafId: "A",
+          at: 1,
+        },
+        type: "FS",
+        provenance: "workflow",
+      }, {
+        predecessor: {
+          leafId: "A",
+          at: -1,
+        },
+        successor: {
+          leafId: "B",
+          at: 0,
+        },
+        type: "FS",
+        provenance: "authored",
+        relationshipId: "whole",
+      }
+    ],
+  },
+  projectIdByWorkItem: Map(2) {
+    "A": "a",
+    "B": "b",
+  },
+  relationships: Map(1) {
+    "whole": {
+      id: "whole",
+      predecessor: {
+        projectId: "a",
+        workItemId: "A",
+        scope: "whole",
+      },
+      successor: {
+        projectId: "b",
+        workItemId: "B",
+        scope: "whole",
+      },
+      type: "FS",
+    },
+  },
+}
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/domain/domain/src/connected-step-node.test.ts:216:7)
+(fail) refuses absent and empty slices instead of creating a boundary [0.74ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [26.00ms]

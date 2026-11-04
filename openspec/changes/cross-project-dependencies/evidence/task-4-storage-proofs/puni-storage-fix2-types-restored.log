@@ -1,0 +1,8 @@
+libs/wbs/application/core/src/module/plan-import/plan-import.feature.ts(570,15): error TS2322: Type '{ stepId?: undefined; scope: "whole"; workItemId: string; } | { scope: "descendant-step" | "node"; workItemId: string; stepId: string; }' is not assignable to type 'ScopedDependencyEndpoint'.
+  Type '{ stepId?: undefined; scope: 'whole'; workItemId: string; }' is not assignable to type 'ScopedDependencyEndpoint'.
+    Type '{ stepId?: undefined; scope: 'whole'; workItemId: string; }' is not assignable to type '{ readonly scope: "whole"; readonly workItemId: string; } & { readonly projectId: string; }'.
+      Property 'projectId' is missing in type '{ stepId?: undefined; scope: 'whole'; workItemId: string; }' but required in type '{ readonly projectId: string; }'.
+libs/wbs/application/core/src/module/plan-import/plan-import.feature.ts(571,15): error TS2322: Type '{ stepId?: undefined; scope: "whole"; workItemId: string; } | { scope: "descendant-step" | "node"; workItemId: string; stepId: string; }' is not assignable to type 'ScopedDependencyEndpoint'.
+  Type '{ stepId?: undefined; scope: 'whole'; workItemId: string; }' is not assignable to type 'ScopedDependencyEndpoint'.
+    Type '{ stepId?: undefined; scope: 'whole'; workItemId: string; }' is not assignable to type '{ readonly scope: "whole"; readonly workItemId: string; } & { readonly projectId: string; }'.
+      Property 'projectId' is missing in type '{ stepId?: undefined; scope: 'whole'; workItemId: string; }' but required in type '{ readonly projectId: string; }'.

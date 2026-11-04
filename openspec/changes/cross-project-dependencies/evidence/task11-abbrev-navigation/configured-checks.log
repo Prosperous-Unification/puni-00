@@ -1,0 +1,29 @@
+
+ NX   Running targets typecheck, lint for 2 projects and 2 tasks they depend on:
+
+- wbs-fe-01
+- wbs-be-01
+
+
+✔  nx run wbs-be-01:"typecheck:module"
+✔  nx run wbs-fe-01:"typecheck:module"
+✔  nx run wbs-be-01:typecheck
+✔  nx run wbs-be-01:lint
+✔  nx run wbs-fe-01:typecheck
+✔  nx run wbs-fe-01:lint
+
+
+
+ NX   Successfully ran targets typecheck, lint for 2 projects and 2 tasks they depend on
+
+
+Output of 6 successful tasks were not shown. Run with --verbose or --output-style=static to see it.
+
+  Run duration:      3m 13s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     2m 26s (1 task)
+  Recoverable time:  46.9s (24% of the run)
+
+  Recommendations:
+    - Increase parallelism to recover up to 46.9s → https://nx.dev/docs/concepts/ci-concepts/parallelization-distribution?utm_source=nx-cli&utm_medium=cli&utm_campaign=performance-report&utm_content=parallelization.
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.

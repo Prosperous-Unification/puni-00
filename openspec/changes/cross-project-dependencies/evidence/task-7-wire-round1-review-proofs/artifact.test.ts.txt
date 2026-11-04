@@ -1,0 +1,17 @@
+import {expect,test} from 'bun:test';
+const root='/tmp/puni-cross-solver-wire';
+const source='/tmp/puni-wire-round1-review-probes/local-entry.ts';
+const bundle='/tmp/puni-wire-round1-review-probes/bundled/local-entry.js';
+test('existing local solver revalidator loads directly from source',()=>{
+ const child=Bun.spawnSync(['bun',source],{cwd:root});
+ expect(child.exitCode).toBe(0);
+ expect(child.stdout.toString().trim()).toBe('function');
+});
+test('existing local solver revalidator loads from Bun release-style bundle',()=>{
+ const build=Bun.spawnSync(['bun','build',source,'--target=bun','--outfile='+bundle],{cwd:root});
+ expect(build.exitCode).toBe(0);
+ const child=Bun.spawnSync(['bun',bundle],{cwd:'/tmp/puni-wire-round1-review-probes'});
+ console.log(child.stderr.toString());
+ expect(child.exitCode).toBe(0);
+ expect(child.stdout.toString().trim()).toBe('function');
+});

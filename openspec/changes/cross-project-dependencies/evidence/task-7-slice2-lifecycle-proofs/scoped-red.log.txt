@@ -1,0 +1,65 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/module/optimization/connected-publication.test.ts:
+521 |   const selected = readConnectedOptimizationPair(f.source.db, { questions: f.questions() }).variants.pri;
+522 |   if (selected.kind !== 'ok') throw new Error('expected durable connected success');
+523 |   expect(selected.outcome.decision.chosen).toBe('optimized');
+524 |   expect(selected.outcome.decision.schedule.slices.get(sliceKey('b', null))?.earliestStart).toBe(1);
+525 |   const events = f.source.db.select().from(eventLog).all().map((entry) => ({ subscription: entry.subscription, message: JSON.parse(entry.message) as {type: string; causeProjectId?: string} }));
+526 |   expect(events.filter(({ subscription, message }) => subscription === 'project:C' && message.type === 'elsewhere_changed' && message.causeProjectId === 'B')).toHaveLength(2);
+                                                                                                                                                                     ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 2
+Received length: 0
+
+      at <anonymous> (/tmp/puni-optimizer-lifecycle/apps/wbs/be-01/src/module/optimization/connected-publication.test.ts:526:160)
+(fail) scoped connected selected publication records and delivers foreign component invalidation [234.48ms]
+528 | });
+529 | it('scoped connected generation eviction invalidates foreign component members', async () => {
+530 |   const f = scopedFixture(); await f.admit(); await f.coordinator.drain();
+531 |   const before = f.source.db.select().from(eventLog).all().length;
+532 |   const committed = await f.repository.observeForAdmission(changedQuestion(f), 20);
+533 |   expect(committed.envelopes).toEqual(expect.arrayContaining([expect.objectContaining({ projectId: 'C', event: { type: 'elsewhere_changed', projectId: 'C', causeProjectId: 'B' } })]));
+                                    ^
+error: expect(received).toEqual(expected)
+
+Expected: ExpectArrayContaining {}
+Received: []
+
+      at <anonymous> (/tmp/puni-optimizer-lifecycle/apps/wbs/be-01/src/module/optimization/connected-publication.test.ts:533:31)
+(fail) scoped connected generation eviction invalidates foreign component members [183.38ms]
+535 |   expect(f.source.db.select().from(eventLog).all().slice(before).filter((entry) => entry.subscription === 'project:C')).toHaveLength(1);
+536 | });
+537 | it('scoped connected recipient insert fault rolls back selected outcome and both event sequences', async () => {
+538 |   const f = scopedFixture(); const before = storedSnapshot(f); rejectConnectedRecipient(f);
+539 |   await f.admit(); await f.coordinator.drain();
+540 |   expect(f.errors).toHaveLength(2);
+                         ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 2
+Received length: 0
+
+      at <anonymous> (/tmp/puni-optimizer-lifecycle/apps/wbs/be-01/src/module/optimization/connected-publication.test.ts:540:20)
+(fail) scoped connected recipient insert fault rolls back selected outcome and both event sequences [179.65ms]
+542 | });
+543 | it('scoped connected recipient insert fault rolls back generation eviction and recipient events', async () => {
+544 |   const f = scopedFixture(); await f.admit(); await f.coordinator.drain();
+545 |   const before = storedSnapshot(f); rejectConnectedRecipient(f);
+546 |   const rejected = await f.repository.observeForAdmission(changedQuestion(f), 20).then(() => null, (failure: unknown) => failure);
+547 |   expect(rejected).toBeInstanceOf(Error);
+                         ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: null
+
+      at <anonymous> (/tmp/puni-optimizer-lifecycle/apps/wbs/be-01/src/module/optimization/connected-publication.test.ts:547:20)
+(fail) scoped connected recipient insert fault rolls back generation eviction and recipient events [192.17ms]
+
+ 0 pass
+ 15 filtered out
+ 4 fail
+ 7 expect() calls
+Ran 4 tests across 1 file. [3.10s]

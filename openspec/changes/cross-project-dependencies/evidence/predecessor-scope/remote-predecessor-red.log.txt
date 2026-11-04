@@ -1,0 +1,1606 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-remote-predecessor/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (84 tests | 2 failed | 82 skipped) 837ms
+   × edits persisted remote predecessor scope on desktop 706ms
+   × edits persisted remote predecessor scope on phone 128ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted remote predecessor scope on desktop
+TestingLibraryElementError: Unable to find an accessible element with the role "button" and name "Edit predecessor scope"
+
+Here are the accessible roles:
+
+  toolbar:
+
+  Name "Plan":
+  <div
+    aria-busy="false"
+    aria-label="Plan"
+    class="mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1"
+    data-toolbar="true"
+    role="toolbar"
+  />
+
+  --------------------------------------------------
+  button:
+
+  Name "Freeze #":
+  <button
+    aria-expanded="false"
+    aria-haspopup="menu"
+    aria-label="Freeze #"
+    class="inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"
+    data-hint="Freeze the numbering as it stands, or release every frozen row"
+    type="button"
+  />
+
+  Name "Add work item":
+  <button
+    class="inline-flex shrink-0 items-center justify-center gap-2 border-0 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 h-8 rounded-md px-3 text-xs"
+    data-takes-the-focus=""
+    type="button"
+  />
+
+  Name "Collapse all":
+  <button
+    aria-label="Collapse all"
+    class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
+    data-hint="Close every branch"
+    type="button"
+  />
+
+  Name "Expand all":
+  <button
+    aria-label="Expand all"
+    class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
+    data-hint="Open every branch"
+    type="button"
+  />
+
+  Name "Arrange by schedule":
+  <button
+    aria-label="Arrange by schedule"
+    class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
+    data-hint="Put every sibling in the order its bar starts"
+    type="button"
+  />
+
+  Name "Gantt":
+  <button
+    aria-pressed="false"
+    class="inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"
+    data-hint="Draw the schedule under the plan"
+    type="button"
+  />
+
+  Name "Project settings":
+  <button
+    aria-expanded="false"
+    aria-haspopup="dialog"
+    aria-label="Project settings"
+    class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
+    data-hint="Teams, priorities and steps of this project"
+    data-state="closed"
+    type="button"
+  />
+
+  Name "Save":
+  <button
+    class="inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"
+    data-fact="Nothing is filtered — there is no view to name"
+    disabled=""
+    type="submit"
+  />
+
+  Name "1 unestimated":
+  <button
+    class="inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"
+    data-fact="1 missing Dev, 1 missing QA"
+    data-takes-the-focus=""
+    type="button"
+  />
+
+  Name "Undo":
+  <button
+    aria-label="Undo"
+    class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
+    data-hint="Undo your last change to this plan (Ctrl/⌘ + Z)"
+    disabled=""
+    type="button"
+  />
+
+  Name "Redo":
+  <button
+    aria-label="Redo"
+    class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
+    data-hint="Put back what you last undid (Ctrl/⌘ + Shift + Z)"
+    disabled=""
+    type="button"
+  />
+
+  Name "Keyboard shortcuts":
+  <button
+    aria-label="Keyboard shortcuts"
+    class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
+    data-hint="Keyboard shortcuts (?)"
+    data-takes-the-focus=""
+    type="button"
+  />
+
+  Name "Copy as Markdown":
+  <button
+    class="inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"
+    data-hint="Copy the whole plan as a Markdown table, with a header saying how to read it"
+    type="button"
+  />
+
+  Name "Copy as Mermaid":
+  <button
+    class="inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"
+    data-hint="Copy the chart as a Mermaid gantt, for a Markdown document that draws it"
+    type="button"
+  />
+
+  Name "Download CSV":
+  <button
+    class="inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"
+    data-hint="Download the whole plan as a CSV, with a header saying how to read it"
+    type="button"
+  />
+
+  Name "Download as Markdown":
+  <button
+    class="inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"
+    data-hint="Download the chart as a Mermaid gantt bundled with the Markdown table, with a header saying how to read it"
+    type="button"
+  />
+
+  Name "Download chart as SVG":
+  <button
+    class="inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"
+    data-export-chart-svg="true"
+    data-hint="Download the chart as a standalone .svg — every bar, arrow, hand-off and colour, openable with no app around it"
+    type="button"
+  />
+
+  Name "Download what’s on screen":
+  <button
+    class="inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"
+    data-hint="Download the rows on screen as a Markdown table, with a header saying what was filtered out and what is missing"
+    type="button"
+  />
+
+  Name "Download JSON":
+  <button
+    class="inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"
+    data-hint="Download the complete versioned plan archive as JSON"
+    type="button"
+  />
+
+  Name "Import with AI":
+  <button
+    aria-expanded="false"
+    aria-haspopup="dialog"
+    class="inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"
+    data-hint="Connect an AI client to WBS and import an existing project through it"
+    data-state="closed"
+    type="button"
+  />
+
+  Name "Unfold Dev estimates":
+  <button
+    aria-expanded="false"
+    aria-label="Unfold Dev estimates"
+    data-hint="This step’s days for the work item, from its three points. Steps on one item run in order, so this one waits for the step before it. The mark in a cell’s corner is that step’s reading — hover the cell for it in words, or press ? for every mark. Click to show the three points; the table may scroll sideways."
+    style="font: inherit; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+    type="button"
+  />
+
+  Name "Unfold QA estimates":
+  <button
+    aria-expanded="false"
+    aria-label="Unfold QA estimates"
+    data-hint="This step’s days for the work item, from its three points. Steps on one item run in order, so this one waits for the step before it. The mark in a cell’s corner is that step’s reading — hover the cell for it in words, or press ? for every mark. Click to show the three points; the table may scroll sideways."
+    style="font: inherit; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+    type="button"
+  />
+
+  Name "Reorder 010":
+  <span
+    aria-describedby="strip-word-w1"
+    aria-label="Reorder 010"
+    data-hint="Drag to move this row"
+    draggable="true"
+    role="button"
+    style="cursor: grab;"
+    tabindex="-1"
+  />
+
+  Name "Make 010 wait for something":
+  <button
+    aria-label="Make 010 wait for something"
+    class="shrink-0 border-0 bg-transparent text-xs hover:bg-[color-mix(in_oklab,var(--foreground)_7%,var(--cell-bg))] hover:text-foreground"
+    data-dep-add="w1"
+    data-reference-add=""
+    style="flex-shrink: 0;"
+    tabindex="-1"
+    type="button"
+  />
+
+  Name "Edit dependency: REMOTE.080.s2-dev · Remote development step Captured remote build to 010 Local successor, Finish-to-start. Enter to edit. Delete to remove. Escape to return to dependency search.":
+  <button
+    aria-keyshortcuts="Enter Delete"
+    aria-label="Edit dependency: REMOTE.080.s2-dev · Remote development step Captured remote build to 010 Local successor, Finish-to-start. Enter to edit. Delete to remove. Escape to return to dependency search."
+    class="bg-muted inline-flex max-w-full min-w-0 items-center gap-0.5 rounded px-1 text-xs border-0"
+    data-rest-chip="external"
+    data-typed-dependency-chip=""
+    style="max-width: none; flex-shrink: 0;"
+    tabindex="-1"
+    title="REMOTE.080.s2-dev · Remote development step Captured remote build to 010 Local successor, Finish-to-start. Enter to edit."
+    type="button"
+  />
+
+  Name "Save":
+  <button
+    type="button"
+  />
+
+  Name "Back to dependency picker":
+  <button
+    type="button"
+  />
+
+  Name "Add a tag to 010":
+  <button
+    aria-label="Add a tag to 010"
+    class="shrink-0 border-0 bg-transparent text-xs hover:bg-[color-mix(in_oklab,var(--foreground)_7%,var(--cell-bg))] hover:text-foreground"
+    data-reference-add=""
+    tabindex="-1"
+    type="button"
+  />
+
+  Name "Actions for 010":
+  <button
+    aria-expanded="false"
+    aria-haspopup="menu"
+    aria-label="Actions for 010"
+    data-hint="Row actions"
+    style="font: inherit; padding: 0px 4px;"
+    type="button"
+  />
+
+  --------------------------------------------------
+  textbox:
+
+  Name "Find":
+  <input
+    aria-label="Find"
+    class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex rounded-md border px-3 py-1 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 h-8 w-32 text-xs"
+    data-hint="Show work items whose name contains this, with the rows above and below them"
+    placeholder="Find…"
+    size="14"
+    value=""
+  />
+
+  Name "Name this view":
+  <input
+    aria-label="Name this view"
+    class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-md border px-3 py-1 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 h-8 flex-1 text-xs"
+    placeholder="Name this view…"
+    value=""
+  />
+
+  Name "Name of 010":
+  <textarea
+    aria-label="Name of 010"
+    data-cell="w1::name"
+    data-name-input="w1"
+    data-rendered-at-rest=""
+    rows="1"
+    style="width: 100%; box-sizing: border-box; font: inherit; height: 0px; max-height: none; overflow-y: hidden;"
+  />
+
+  Name "People at once for 010":
+  <input
+    aria-label="People at once for 010"
+    data-cell="w1::in-parallel"
+    data-hint="How many people may work on this item at once. Blank means one at a time."
+    data-in-parallel="w1"
+    inputmode="numeric"
+    style="width: 100%; box-sizing: border-box; font: inherit; background: transparent; border: medium; text-align: right;"
+    value=""
+  />
+
+  Name "Earliest start for 010":
+  <input
+    aria-label="Earliest start for 010"
+    data-cell="w1::not-before"
+    data-fact="Set the project start date first — without one there are no dates to constrain."
+    data-not-before="w1"
+    disabled=""
+    style="width: 100%; box-sizing: border-box; font: inherit; background: transparent; border: medium; cursor: not-allowed;"
+    value="—"
+  />
+
+  --------------------------------------------------
+  group:
+
+  Name "":
+  <details
+    class="relative"
+    data-dismissible=""
+    data-facets="true"
+  />
+
+  Name "State":
+  <fieldset
+    class="mb-2 border-0 p-0"
+    data-facet-group="state"
+  />
+
+  Name "Mismatch":
+  <fieldset
+    class="mb-2 border-0 p-0"
+    data-facet-group="mismatch"
+  />
+
+  Name "":
+  <details
+    class="relative"
+    data-dismissible=""
+    data-saved-views="true"
+  />
+
+  Name "":
+  <details
+    class="relative"
+    data-columns="true"
+    data-dismissible=""
+  />
+
+  Name "Whole plan":
+  <div
+    aria-label="Whole plan"
+    class="ml-auto flex shrink-0 items-center gap-1.5"
+    data-toolbar-end="true"
+    role="group"
+  />
+
+  Name "":
+  <details
+    class="relative"
+    data-dismissible=""
+    data-export="true"
+  />
+
+  Name "Schedule":
+  <div
+    aria-label="Schedule"
+    class="flex shrink-0 items-center gap-1.5"
+    data-schedule="true"
+    role="group"
+  />
+
+  --------------------------------------------------
+  checkbox:
+
+  Name "Unestimated only":
+  <input
+    aria-label="Unestimated only"
+    type="checkbox"
+  />
+
+  Name "Critical path only":
+  <input
+    aria-label="Critical path only"
+    type="checkbox"
+  />
+
+  Name "Built by non-owner only":
+  <input
+    aria-describedby="facet-why-built-by-non-owner-only"
+    aria-label="Built by non-owner only"
+    disabled=""
+    type="checkbox"
+  />
+
+  Name "Assigned outside the team only":
+  <input
+    aria-describedby="facet-why-assigned-outside-the-team-only"
+    aria-label="Assigned outside the team only"
+    disabled=""
+    type="checkbox"
+  />
+
+  Name "Links":
+  <input
+    id="_r_3_-refs"
+    type="checkbox"
+  />
+
+  Name "Status":
+  <input
+    id="_r_3_-status"
+    type="checkbox"
+  />
+
+  Name "Depends on":
+  <input
+    checked=""
+    id="_r_3_-depends"
+    type="checkbox"
+  />
+
+  Name "Priority":
+  <input
+    checked=""
+    id="_r_3_-priority"
+    type="checkbox"
+  />
+
+  Name "Teams":
+  <input
+    id="_r_3_-team"
+    type="checkbox"
+  />
+
+  Name "Tags":
+  <input
+    checked=""
+    id="_r_3_-tag"
+    type="checkbox"
+  />
+
+  Name "Services":
+  <input
+    id="_r_3_-service"
+    type="checkbox"
+  />
+
+  Name "Types":
+  <input
+    id="_r_3_-type"
+    type="checkbox"
+  />
+
+  Name "People at once":
+  <input
+    checked=""
+    id="_r_3_-in-parallel"
+    type="checkbox"
+  />
+
+  Name "Dev":
+  <input
+    checked=""
+    id="_r_3_-step-dev"
+    type="checkbox"
+  />
+
+  Name "QA":
+  <input
+    checked=""
+    id="_r_3_-step-qa"
+    type="checkbox"
+  />
+
+  Name "Days":
+  <input
+    checked=""
+    id="_r_3_-final-total"
+    type="checkbox"
+  />
+
+  Name "Not before":
+  <input
+    checked=""
+    id="_r_3_-not-before"
+    type="checkbox"
+  />
+
+  Name "Deadline":
+  <input
+    id="_r_3_-deadline"
+    type="checkbox"
+  />
+
+  Name "Fact start":
+  <input
+    id="_r_3_-fact-start"
+    type="checkbox"
+  />
+
+  Name "Fact end":
+  <input
+    id="_r_3_-fact-end"
+    type="checkbox"
+  />
+
+  Name "Start":
+  <input
+    checked=""
+    id="_r_3_-start"
+    type="checkbox"
+  />
+
+  Name "End":
+  <input
+    checked=""
+    id="_r_3_-finish"
+    type="checkbox"
+  />
+
+  Name "Slack":
+  <input
+    checked=""
+    id="_r_3_-float"
+    type="checkbox"
+  />
+
+  --------------------------------------------------
+  paragraph:
+
+  Name "":
+  <p
+    class="text-muted-foreground text-xs"
+  />
+
+  Name "":
+  <p />
+
+  --------------------------------------------------
+  separator:
+
+  Name "":
+  <div
+    class="bg-border my-1 h-px shrink-0"
+    role="separator"
+  />
+
+  Name "":
+  <div
+    class="bg-border my-1 h-px shrink-0"
+    role="separator"
+  />
+
+  Name "Resize drag":
+  <span
+    aria-label="Resize drag"
+    aria-orientation="vertical"
+    data-hint="Drag to resize drag"
+    data-resize-handle="drag"
+    role="separator"
+    style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
+  />
+
+  Name "Resize Number":
+  <span
+    aria-label="Resize Number"
+    aria-orientation="vertical"
+    data-hint="Drag to resize Number"
+    data-resize-handle="number"
+    role="separator"
+    style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
+  />
+
+  Name "Resize Name":
+  <span
+    aria-label="Resize Name"
+    aria-orientation="vertical"
+    data-hint="Drag to resize Name"
+    data-resize-handle="name"
+    role="separator"
+    style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
+  />
+
+  Name "Resize Depends on":
+  <span
+    aria-label="Resize Depends on"
+    aria-orientation="vertical"
+    data-hint="Drag to resize Depends on"
+    data-resize-handle="depends"
+    role="separator"
+    style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
+  />
+
+  Name "Resize priority":
+  <span
+    aria-label="Resize priority"
+    aria-orientation="vertical"
+    data-hint="Drag to resize priority"
+    data-resize-handle="priority"
+    role="separator"
+    style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
+  />
+
+  Name "Resize Tags":
+  <span
+    aria-label="Resize Tags"
+    aria-orientation="vertical"
+    data-hint="Drag to resize Tags"
+    data-resize-handle="tag"
+    role="separator"
+    style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
+  />
+
+  Name "Resize People at once":
+  <span
+    aria-label="Resize People at once"
+    aria-orientation="vertical"
+    data-hint="Drag to resize People at once"
+    data-resize-handle="in-parallel"
+    role="separator"
+    style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
+  />
+
+  Name "Resize step-dev-final":
+  <span
+    aria-label="Resize step-dev-final"
+    aria-orientation="vertical"
+    data-hint="Drag to resize step-dev-final"
+    data-resize-handle="step-dev-final"
+    role="separator"
+    style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
+  />
+
+  Name "Resize step-qa-final":
+  <span
+    aria-label="Resize step-qa-final"
+    aria-orientation="vertical"
+    data-hint="Drag to resize step-qa-final"
+    data-resize-handle="step-qa-final"
+    role="separator"
+    style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
+  />
+
+  Name "Resize final-total":
+  <span
+    aria-label="Resize final-total"
+    aria-orientation="vertical"
+    data-hint="Drag to resize final-total"
+    data-resize-handle="final-total"
+    role="separator"
+    style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
+  />
+
+  Name "Resize not-before":
+  <span
+    aria-label="Resize not-before"
+    aria-orientation="vertical"
+    data-hint="Drag to resize not-before"
+    data-resize-handle="not-before"
+    role="separator"
+    style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
+  />
+
+  Name "Resize start":
+  <span
+    aria-label="Resize start"
+    aria-orientation="vertical"
+    data-hint="Drag to resize start"
+    data-resize-handle="start"
+    role="separator"
+    style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
+  />
+
+  Name "Resize finish":
+  <span
+    aria-label="Resize finish"
+    aria-orientation="vertical"
+    data-hint="Drag to resize finish"
+    data-resize-handle="finish"
+    role="separator"
+    style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
+  />
+
+  Name "Resize float":
+  <span
+    aria-label="Resize float"
+    aria-orientation="vertical"
+    data-hint="Drag to resize float"
+    data-resize-handle="float"
+    role="separator"
+    style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
+  />
+
+  Name "Resize actions":
+  <span
+    aria-label="Resize actions"
+    aria-orientation="vertical"
+    data-hint="Drag to resize actions"
+    data-resize-handle="actions"
+    role="separator"
+    style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
+  />
+
+  --------------------------------------------------
+  combobox:
+
+  Name "Mermaid lanes":
+  <select
+    class="border-input bg-background h-8 rounded-md border px-2 text-xs"
+    data-hint="What the two Mermaid exports group their bars into — the plan's outline, the step a bar is estimated under, or whoever is on it"
+  />
+
+  Name "Final estimate":
+  <select
+    aria-label="Final estimate"
+    class="border-input bg-background h-8 rounded-md border px-2 text-sm"
+  />
+
+  Name "Add a dependency to 010":
+  <input
+    aria-autocomplete="list"
+    aria-expanded="false"
+    aria-label="Add a dependency to 010"
+    data-cell="w1::depends"
+    data-depends-input="w1"
+    placeholder=""
+    role="combobox"
+    style="width: 100%; min-width: 0px; box-sizing: border-box; flex: 1 1 0%; padding-inline: 0px; border-inline-width: 0px;"
+    value=""
+  />
+
+  Name "This work item":
+  <select />
+
+  Name "Relationship":
+  <select />
+
+  Name "Priority for 010":
+  <input
+    aria-autocomplete="list"
+    aria-expanded="false"
+    aria-label="Priority for 010"
+    data-cell="w1::priority"
+    data-hint="How important this work is: 1 upward, smaller first. Type a number or a band’s name. Blank means nobody has said."
+    data-priority="w1"
+    inputmode="numeric"
+    role="combobox"
+    style="width: 100%; box-sizing: border-box; font: inherit; background: transparent; border: medium; text-align: right; padding-left: 8px;"
+    value=""
+  />
+
+  Name "Tags for 010":
+  <input
+    aria-autocomplete="list"
+    aria-expanded="false"
+    aria-label="Tags for 010"
+    data-cell="w1::tag"
+    placeholder="search"
+    role="combobox"
+    style="font: inherit; flex: 1 1 0%; min-width: 0px; width: auto;"
+    value=""
+  />
+
+  Name "Dev estimate for 010":
+  <input
+    aria-autocomplete="list"
+    aria-expanded="false"
+    aria-invalid="false"
+    aria-label="Dev estimate for 010"
+    data-cell="w1::step-dev-final"
+    placeholder="o/r/p"
+    role="combobox"
+    style="width: 100%; box-sizing: border-box; font-family: inherit; font-style: inherit; line-height: inherit; flex: 1 1 0%; min-width: 0px; font-size: 10px; font-weight: 400; color: var(--muted-foreground); text-overflow: ellipsis;"
+    value=""
+  />
+
+  Name "QA estimate for 010":
+  <input
+    aria-autocomplete="list"
+    aria-expanded="false"
+    aria-invalid="false"
+    aria-label="QA estimate for 010"
+    data-cell="w1::step-qa-final"
+    placeholder="o/r/p"
+    role="combobox"
+    style="width: 100%; box-sizing: border-box; font-family: inherit; font-style: inherit; line-height: inherit; flex: 1 1 0%; min-width: 0px; font-size: 10px; font-weight: 400; color: var(--muted-foreground); text-overflow: ellipsis;"
+    value=""
+  />
+
+  --------------------------------------------------
+  option:
+
+  Name "outline":
+  <option
+    value="outline"
+  />
+
+  Name "step":
+  <option
+    value="step"
+  />
+
+  Name "assignee":
+  <option
+    value="assignee"
+  />
+
+  Name "PERT":
+  <option
+    value="pert"
+  />
+
+  Name "optimistic":
+  <option
+    value="optimistic"
+  />
+
+  Name "realistic":
+  <option
+    value="realistic"
+  />
+
+  Name "pessimistic":
+  <option
+    value="pessimistic"
+  />
+
+  Name "Whole work item":
+  <option
+    value="[\"p1\",\"w1\",\"whole\",null]"
+  />
+
+  Name "Dev step":
+  <option
+    value="[\"p1\",\"w1\",\"node\",\"step-dev\"]"
+  />
+
+  Name "QA step":
+  <option
+    value="[\"p1\",\"w1\",\"node\",\"step-qa\"]"
+  />
+
+  Name "FS · Finish-to-start":
+  <option
+    value="FS"
+  />
+
+  Name "SS · Start-to-start":
+  <option
+    value="SS"
+  />
+
+  Name "FF · Finish-to-finish":
+  <option
+    value="FF"
+  />
+
+  --------------------------------------------------
+  table:
+
+  Name "":
+  <table
+    aria-rowcount="2"
+    data-grid="true"
+    style="border-collapse: separate; border-spacing: 0px; table-layout: fixed; width: min(100%, 1360px); min-width: 1140px;"
+  />
+
+  --------------------------------------------------
+  rowgroup:
+
+  Name "":
+  <thead />
+
+  Name "":
+  <tbody />
+
+  --------------------------------------------------
+  row:
+
+  Name "ReorderResize drag Number NameResize Name Depends onResize Depends on PriorityResize priority TagsResize Tags People at once ▸ Dev Resize step-dev-final ▸ QA Resize step-qa-final DaysResize final-total Not beforeResize not-before StartResize start EndResize finish SlackResize float Row actionsResize actions":
+  <tr />
+
+  Name "⠿Status: Unknown 010 Local successor + REMOTE.080.s2-dev · Remote development step FS → 010 Captured dependency + 0 — day 0 day 0 ? critical ⋯":
+  <tr
+    aria-rowindex="2"
+    data-frozen="false"
+    data-row-id="w1"
+    data-row-parity="odd"
+    data-row-status="unknown"
+  />
+
+  --------------------------------------------------
+  columnheader:
+
+  Name "ReorderResize drag":
+  <th
+    data-column="drag"
+    data-hint="Drag a row to move it in the outline. Where a row sits decides its number, which parent adds it up, and the team, services and tags it inherits while its own are blank."
+    scope="col"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 4; background: var(--cell-bg, var(--muted)); left: 0px; width: 16px;"
+  />
+
+  Name "Number":
+  <th
+    aria-label="Number"
+    data-column="number"
+    data-hint="This row’s place in the outline. A row indented under another is part of it: the parent’s days and dates are its children’s, added up. A locked number is one the plan was published under and it no longer moves."
+    scope="col"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 4; background: var(--cell-bg, var(--muted)); left: 16px; width: 68px;"
+  />
+
+  Name "NameResize Name":
+  <th
+    data-column="name"
+    data-hint="What this work item is called — what the waiting sentences, the chart and every export call it, and where its notes are typed. It moves no dates."
+    scope="col"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 4; background: var(--cell-bg, var(--muted)); min-width: 200px; left: 84px;"
+  />
+
+  Name "Depends onResize Depends on":
+  <th
+    data-column="depends"
+    data-hint="The rows this one waits for. It starts after each named row’s first estimated step rather than after that row finishes, so pushing a row you depend on pushes this one too. Search by name, or type numbers — 010, 020."
+    scope="col"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
+  />
+
+  Name "PriorityResize priority":
+  <th
+    data-column="priority"
+    data-hint="How important this work is: 1 upward, smaller first. It decides who gets a shared person first — never who skips their dependencies."
+    scope="col"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
+  />
+
+  Name "TagsResize Tags":
+  <th
+    data-column="tag"
+    data-hint="Labels to narrow the plan by — the table, the chart and the cards filter to them together. Blank inherits the tags above. Tags move no dates."
+    scope="col"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
+  />
+
+  Name "People at once":
+  <th
+    aria-label="People at once"
+    data-column="in-parallel"
+    data-hint="How many people may work on this item at once. Blank means one at a time. It compresses the item’s own effort across that many of its team’s people — never past the team’s size, and never where somebody is named on the work."
+    scope="col"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
+  />
+
+  Name "▸ Dev Resize step-dev-final":
+  <th
+    data-column="step-dev-final"
+    data-hint="This step’s days for the work item, from its three points. Steps on one item run in order, so this one waits for the step before it. The mark in a cell’s corner is that step’s reading — hover the cell for it in words, or press ? for every mark."
+    scope="col"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
+  />
+
+  Name "▸ QA Resize step-qa-final":
+  <th
+    data-column="step-qa-final"
+    data-hint="This step’s days for the work item, from its three points. Steps on one item run in order, so this one waits for the step before it. The mark in a cell’s corner is that step’s reading — hover the cell for it in words, or press ? for every mark."
+    scope="col"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
+  />
+
+  Name "DaysResize final-total":
+  <th
+    data-column="final-total"
+    data-hint="Every step’s final figure for this work item, added up — and the length of its bar. Computed: change an estimate, or how many work on it at once, and this moves with it."
+    scope="col"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
+  />
+
+  Name "Not beforeResize not-before":
+  <th
+    data-column="not-before"
+    data-hint="The earliest day this work item may start. It is a floor and not a date: its dependencies and its team can still push it later, never earlier."
+    scope="col"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
+  />
+
+  Name "StartResize start":
+  <th
+    data-column="start"
+    data-hint="Computed, not typed: this work item’s earliest start, worked out from its dependencies, its earliest start and when its team has people free. In days from the start of the plan until the project has a start date."
+    scope="col"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
+  />
+
+  Name "EndResize finish":
+  <th
+    data-column="finish"
+    data-hint="Computed, not typed: this work item’s earliest finish, worked out from its dependencies, its earliest start and when its team has people free. In days from the start of the plan until the project has a start date."
+    scope="col"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
+  />
+
+  Name "SlackResize float":
+  <th
+    data-column="float"
+    data-hint="Days this work item can slip before the plan’s end moves. A row marked critical has none: it is what sets the plan’s finish."
+    scope="col"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
+  />
+
+  Name "Row actionsResize actions":
+  <th
+    data-column="actions"
+    data-hint="Duplicate this row, or delete it and every row under it. A row whose number is locked must be unfrozen before it can be deleted."
+    scope="col"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
+  />
+
+  --------------------------------------------------
+  cell:
+
+  Name "⠿Status: Unknown":
+  <td
+    data-column="drag"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; left: 0px; width: 16px; background: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent)), var(--cell-bg, var(--background)); z-index: 1;"
+  />
+
+  Name "010":
+  <td
+    data-column="number"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; left: 16px; width: 68px; background: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent)), var(--cell-bg, var(--background)); z-index: 1;"
+  />
+
+  Name "Local successor":
+  <td
+    data-column="name"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible; min-width: 200px; position: sticky; left: 84px; background: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent)), var(--cell-bg, var(--background)); z-index: 1;"
+  />
+
+  Name "+ REMOTE.080.s2-dev · Remote development step FS → 010 Captured dependency":
+  <td
+    data-column="depends"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
+  />
+
+  Name "":
+  <td
+    data-column="priority"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
+  />
+
+  Name "+":
+  <td
+    data-column="tag"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
+  />
+
+  Name "":
+  <td
+    data-column="in-parallel"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"
+  />
+
+  Name "":
+  <td
+    data-column="step-dev-final"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
+  />
+
+  Name "":
+  <td
+    data-column="step-qa-final"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
+  />
+
+  Name "0":
+  <td
+    data-column="final-total"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"
+  />
+
+  Name "—":
+  <td
+    data-column="not-before"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
+  />
+
+  Name "day 0":
+  <td
+    data-column="start"
+    data-start-said="Starts with the project — Day 0 of the plan, in workdays. Set Starts in the toolbar to see a date."
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible; cursor: help;"
+    tabindex="0"
+  />
+
+  Name "day 0 ?":
+  <td
+    data-column="finish"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"
+  />
+
+  Name "critical":
+  <td
+    data-column="float"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"
+  />
+
+  Name "⋯":
+  <td
+    data-column="actions"
+    style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
+  />
+
+  --------------------------------------------------
+  dialog:
+
+  Name "Captured dependency":
+  <div
+    aria-label="Captured dependency"
+    class="typed-dependency-editor"
+    role="dialog"
+  />
+
+  --------------------------------------------------
+  link:
+
+  Name "Open REMOTE.080.s2-dev · Remote development step":
+  <a
+    aria-label="Open REMOTE.080.s2-dev · Remote development step"
+    href="/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev"
+  />
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+<body>
+  <div>
+    <section
+      class="flex min-h-0 flex-1 flex-col"
+      data-project-id="p1"
+      data-slice-count="1"
+    >
+      <div
+        aria-busy="false"
+        aria-label="Plan"
+        class="mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1"
+        data-toolbar="true"
+        role="toolbar"
+      >
+        <span
+          style="position: relative; display: inline-block;"
+        >
+          <button
+            aria-expanded="false"
+            aria-haspopup="menu"
+            aria-label="Freeze #"
+            class="inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"
+            data-hint="Freeze the numbering as it stands, or release every frozen row"
+            type="button"
+          >
+            Freeze #
+          </button>
+        </span>
+        <button
+          class="inline-flex shrink-0 items-center justify-center gap-2 border-0 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 h-8 rounded-md px-3 text-xs"
+          data-takes-the-focus=""
+          type="button"
+        >
+          Add work item
+        </button>
+        <button
+          aria-label="Collapse all"
+          class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
+          data-hint="Close every branch"
+          type="button"
+        >
+          <svg
+            aria-hidden="true"
+            fill="none"
+            focusable="false"
+            height="1em"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            viewBox="0 0 24 24"
+            width="1em"
+          >
+            <path
+              d="M7 4l5 5 5-5"
+            />
+            <path
+              d="M7 20l5-5 5 5"
+            />
+          </svg>
+        </button>
+        <button
+          aria-label="Expand all"
+          class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
+          data-hint="Open every branch"
+          type="button"
+        >
+          <svg
+            aria-hidden="true"
+            fill="none"
+            focusable="false"
+            height="1em"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            viewBox="0 0 24 24"
+            width="1em"
+          >
+            <path
+              d="M7 9l5-5 5 5"
+            />
+            <path
+              d="M7 15l5 5 5-5"
+            />
+          </svg>
+        </button>
+        <button
+          aria-label="Arrange by schedule"
+          class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
+          data-hint="Put every sibling in the order its bar starts"
+          type="button"
+        >
+          <svg
+            aria-hidden="true"
+            fill="none"
+            focusable="false"
+            height="1em"
+            stroke="currentColor"
+            stroke-linecap="round"
+    ...
+ ❯ Object.getElementError ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:927:28
+    925|     const { update, row, search, discover } = await mount(phone, undef…
+    926|     fireEvent.click(screen.getByRole('button', { name: phone ? /^Edit …
+    927|     fireEvent.click(screen.getByRole('button', { name: 'Edit predecess…
+       |                            ^
+    928|     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled(…
+    929|     const selector = await screen.findByLabelText('Predecessor scope');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted remote predecessor scope on phone
+TestingLibraryElementError: Unable to find an accessible element with the role "button" and name "Edit predecessor scope"
+
+Here are the accessible roles:
+
+  dialog:
+
+  Name "Depends on for 010 - Local successor":
+  <div
+    aria-describedby="radix-_r_r_"
+    aria-labelledby="radix-_r_q_"
+    class="bg-background text-foreground fixed z-(--layer-modal) flex flex-col gap-4 p-6 inset-x-0 bottom-0 max-h-[85vh] rounded-t-lg border-t shadow-lg min-h-[60vh] overflow-y-hidden"
+    data-modal-surface="bottom"
+    data-state="open"
+    id="radix-_r_p_"
+    role="dialog"
+    style="pointer-events: auto;"
+    tabindex="-1"
+  />
+
+  Name "Captured dependency":
+  <div
+    aria-label="Captured dependency"
+    class="typed-dependency-editor"
+    role="dialog"
+  />
+
+  --------------------------------------------------
+  heading:
+
+  Name "Depends on for 010 - Local successor":
+  <h2
+    class="text-lg leading-none font-semibold tracking-tight"
+    id="radix-_r_q_"
+  />
+
+  --------------------------------------------------
+  paragraph:
+
+  Name "":
+  <p
+    class="text-muted-foreground text-sm"
+    id="radix-_r_r_"
+  />
+
+  Name "":
+  <p />
+
+  Name "":
+  <p
+    class="text-muted-foreground m-0 shrink-0 text-sm"
+    data-card-depends-empty="true"
+  />
+
+  --------------------------------------------------
+  list:
+
+  Name "Waits for, on 010":
+  <ul
+    aria-label="Waits for, on 010"
+    class="flex max-h-56 shrink-0 flex-col gap-1 overflow-y-auto"
+  />
+
+  --------------------------------------------------
+  listitem:
+
+  Name "":
+  <li
+    class="typed-dependency-card-entry flex items-center justify-between gap-2 rounded-md border px-3"
+  />
+
+  --------------------------------------------------
+  link:
+
+  Name "Open REMOTE.080.s2-dev · Remote development step":
+  <a
+    aria-label="Open REMOTE.080.s2-dev · Remote development step"
+    href="/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev"
+  />
+
+  Name "Open REMOTE.080.s2-dev · Remote development step":
+  <a
+    aria-label="Open REMOTE.080.s2-dev · Remote development step"
+    href="/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev"
+  />
+
+  --------------------------------------------------
+  button:
+
+  Name "Edit REMOTE.080.s2-dev · Remote development step Captured remote build to 010 Local successor, Finish-to-start":
+  <button
+    aria-label="Edit REMOTE.080.s2-dev · Remote development step Captured remote build to 010 Local successor, Finish-to-start"
+    class="min-h-11 rounded-md border px-3"
+    type="button"
+  />
+
+  Name "Remove REMOTE.080.s2-dev · Remote development step Captured remote build to 010 Local successor, Finish-to-start":
+  <button
+    aria-label="Remove REMOTE.080.s2-dev · Remote development step Captured remote build to 010 Local successor, Finish-to-start"
+    class="min-h-11 rounded-md border px-3"
+    type="button"
+  />
+
+  Name "Save":
+  <button
+    type="button"
+  />
+
+  Name "Back to dependency picker":
+  <button
+    type="button"
+  />
+
+  Name "Close":
+  <button
+    aria-label="Close"
+    class="ring-offset-background focus-visible:ring-ring absolute top-4 right-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+    type="button"
+  />
+
+  --------------------------------------------------
+  combobox:
+
+  Name "This work item":
+  <select />
+
+  Name "Relationship":
+  <select />
+
+  --------------------------------------------------
+  option:
+
+  Name "Whole work item":
+  <option
+    value="[\"p1\",\"w1\",\"whole\",null]"
+  />
+
+  Name "Dev step":
+  <option
+    value="[\"p1\",\"w1\",\"node\",\"step-dev\"]"
+  />
+
+  Name "QA step":
+  <option
+    value="[\"p1\",\"w1\",\"node\",\"step-qa\"]"
+  />
+
+  Name "FS · Finish-to-start":
+  <option
+    value="FS"
+  />
+
+  Name "SS · Start-to-start":
+  <option
+    value="SS"
+  />
+
+  Name "FF · Finish-to-finish":
+  <option
+    value="FF"
+  />
+
+  --------------------------------------------------
+  textbox:
+
+  Name "Add a dependency to 010":
+  <input
+    aria-label="Add a dependency to 010"
+    class="min-h-11 border-input bg-background box-border w-full rounded-md border p-2 text-base"
+    data-card-depends-input="true"
+    data-cell="w1::depends"
+    placeholder="search by number or name"
+    type="text"
+    value=""
+  />
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+<body
+  data-scroll-locked="1"
+  style="pointer-events: none;"
+>
+  <span
+    aria-hidden="true"
+    data-aria-hidden="true"
+    data-radix-focus-guard=""
+    style="outline: none; opacity: 0; position: fixed; pointer-events: none;"
+    tabindex="0"
+  />
+  <div
+    aria-hidden="true"
+    data-aria-hidden="true"
+  >
+    <section
+      class="flex min-h-0 flex-1 flex-col"
+      data-project-id="p1"
+      data-slice-count="1"
+    >
+      <div
+        class="mb-1.5 flex shrink-0 items-center gap-2"
+        data-toolbar-sheet="true"
+      >
+        <button
+          aria-expanded="false"
+          aria-haspopup="dialog"
+          class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 px-4 py-2 min-h-11"
+          data-state="closed"
+          type="button"
+        >
+          Plan actions
+        </button>
+      </div>
+      <div
+        class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-2"
+        data-grid="true"
+        data-plan-cards="true"
+      >
+        <article
+          aria-label="Work item 010"
+          class="border-border bg-card flex min-w-0 flex-col gap-2 rounded-lg border p-3"
+          data-card="w1"
+          data-frozen="false"
+          style="margin-left: 0px;"
+        >
+          <header
+            class="flex items-center gap-2"
+          >
+            <span
+              class="font-semibold"
+              data-number="true"
+            >
+              010
+            </span>
+            <button
+              aria-expanded="false"
+              aria-haspopup="dialog"
+              aria-label="Priority for 010"
+              class="min-h-11 inline-flex shrink-0 items-center"
+              data-card-priority-field="true"
+              data-hint="How important this work is: 1 upward, smaller first. Nobody has said yet."
+              data-state="closed"
+              type="button"
+            >
+              <span
+                class="text-muted-foreground rounded-full px-2 py-0.5 text-xs opacity-70"
+              >
+                priority…
+              </span>
+            </button>
+            <span
+              class="text-muted-foreground ml-auto text-sm"
+              data-final-total="true"
+            >
+              0
+               d
+            </span>
+            <span
+              style="position: relative; display: inline-block;"
+            >
+              <button
+                aria-expanded="false"
+                aria-haspopup="menu"
+                aria-label="Actions for 010"
+                data-hint="Row actions"
+                style="font: inherit; padding: 0px 4px; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center;"
+                type="button"
+              >
+                ⋯
+              </button>
+            </span>
+          </header>
+          <span
+            style="position: relative; display: block; min-width: 0px;"
+          >
+            <textarea
+              aria-label="Name of 010"
+              class="min-h-11 box-border w-full rounded-md border p-2 text-base"
+              data-cell="w1::name"
+              data-rendered-at-rest=""
+              rows="2"
+              style="height: 0px; max-height: 11.2em; overflow-y: auto;"
+            >
+              Local successor
+            </textarea>
+            <span
+              aria-hidden="true"
+              class="min-h-11 box-border w-full rounded-md border p-2 text-base"
+              data-cell-rendered="w1::name"
+            >
+              Local successor
+            </span>
+          </span>
+          <div
+            class="relative flex min-w-0 items-center gap-2"
+            data-step="step-dev"
+          >
+            <span
+              class="text-muted-foreground w-20 shrink-0 truncate text-sm"
+            >
+              Dev
+            </span>
+            <input
+              aria-autocomplete="list"
+              aria-expanded="false"
+              aria-invalid="false"
+              aria-label="Dev estimate for 010"
+              class="min-h-11 box-border w-28 shrink-0 rounded-md border px-2 text-base font-semibold "
+              data-cell="w1::step-dev-final"
+              inputmode="decimal"
+              placeholder="o/r/p"
+              role="combobox"
+              value=""
+            />
+          </div>
+          <div
+            class="ml-20 flex flex-wrap gap-x-4"
+            data-step-disclosures=[...
+ ❯ Object.getElementError ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:927:28
+    925|     const { update, row, search, discover } = await mount(phone, undef…
+    926|     fireEvent.click(screen.getByRole('button', { name: phone ? /^Edit …
+    927|     fireEvent.click(screen.getByRole('button', { name: 'Edit predecess…
+       |                            ^
+    928|     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled(…
+    929|     const selector = await screen.findByLabelText('Predecessor scope');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 82 skipped (84)
+   Start at  05:24:40
+   Duration  8.29s (import 54%, transform 31%, tests 10%, environment 5%, setup 1%)
+
+  Transform  transforming modules took 2.50s · 31% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns

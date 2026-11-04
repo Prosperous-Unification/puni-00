@@ -10,6 +10,7 @@ import type { DependencyStore } from './dependency-store';
 import type { DirectoryStore } from './directory-store';
 import type { EstimateStore } from './estimate-store';
 import type { EventLogStore } from './event-log-store';
+import type { ExternalDependencyAuthoringSource } from './external-dependency-authoring';
 import type { MeasureEstimateStore } from './measure-estimate-store';
 import type { MeasureStore } from './measure-store';
 import type { OrganizationLimitGauge } from './organization-limits';
@@ -33,6 +34,8 @@ import type { WorkItemStore } from './work-item-store';
 
 /** Every store a command batch may use. Account and history stores are absent. */
 export interface PlanTransactionalStores {
+  /** Required authority, resolved only within the catalog owner's admitted writer lifetime. */
+  readonly externalDependencyAuthoring: ExternalDependencyAuthoringSource;
   /** Optional only for legacy fixture adapters; production SQLite installs it explicitly. */
   livePlans?: LivePlanStore;
   projects: ProjectStore;

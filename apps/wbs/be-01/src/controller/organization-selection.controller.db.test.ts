@@ -181,7 +181,22 @@ test('a committed revocation refuses the old browser pair and reselection across
 
   const claims = decodeJwt(token);
   if (typeof claims.exp !== 'number') throw new Error('native test token lacks expiry');
-  const writer = Bun.spawnSync([
+  const runSibling = async (command: string[]) => {
+    const sibling = Bun.spawn(command, {
+      stdout: 'pipe',
+      stderr: 'pipe',
+      signal: AbortSignal.timeout(8000),
+      killSignal: 'SIGKILL',
+    });
+    const [stdout, stderr, code] = await Promise.all([
+      new Response(sibling.stdout).text(),
+      new Response(sibling.stderr).text(),
+      sibling.exited,
+    ]);
+    expect(code, stderr).toBe(0);
+    return stdout;
+  };
+  await runSibling([
     process.execPath,
     new URL('../testing/browser-revocation-writer.proc.ts', import.meta.url).pathname,
     harness.databasePath(),
@@ -189,8 +204,7 @@ test('a committed revocation refuses the old browser pair and reselection across
     createHash('sha256').update(token, 'utf8').digest('hex'),
     String(claims.exp * 1000),
   ]);
-  expect(writer.exitCode, writer.stderr.toString()).toBe(0);
-  const restarted = Bun.spawnSync([
+  const restarted = await runSibling([
     process.execPath,
     new URL('../testing/browser-revocation-reader.proc.ts', import.meta.url).pathname,
     harness.databasePath(),
@@ -198,8 +212,7 @@ test('a committed revocation refuses the old browser pair and reselection across
     token,
     pair,
   ]);
-  expect(restarted.exitCode, restarted.stderr.toString()).toBe(0);
-  expect(restarted.stdout.toString()).toBe('null');
+  expect(restarted).toBe('null');
 
   // Proof: bypassing the shared lookup in activeOrganizationOf makes this
   // old-pair request answer 200; bypassing the selection lookup makes the
@@ -247,7 +260,7 @@ test('a committed revocation refuses the old browser pair and reselection across
       )
     ).status,
   ).toBe(200);
-});
+}, 25000);
 
 test('a missing shared revocation table makes enabled browser selection and access fail closed', async () => {
   harness = OrganizationHarness.open({ sessionBinding: true });

@@ -41,6 +41,10 @@ jq -s -e '
 rm -f -- "$openspec_report"
 trap - EXIT
 
+# Proof: removing this probe made h2puni-gate.test.sh admit missing and exit-74 bubblewrap fixtures into later Nx work.
+bwrap --die-with-parent --new-session --unshare-all --uid 1000 --gid 1000 \
+  --ro-bind / / --dev /dev --proc /proc /bin/true
+
 bunx nx format:check --all
 # Proof: dropping this exclusion made gate-entrypoints.test.ts lose the exact-once split and fail
 # at `Expected to contain: --exclude=twilight-burokrat`; source lint is invoked below.

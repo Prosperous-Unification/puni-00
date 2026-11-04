@@ -1,0 +1,25 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+1189 |         fixture.journal,
+1190 |         fixture.fake,
+1191 |         () => undefined,
+1192 |         fixture.options,
+1193 |       ),
+1194 |     ).rejects.toThrow('attended compatible recovery');
+                     ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/home/df/.codex/worktrees/3410/puni-00/tools/tool-deploy/src/k8s/controller-release.test.ts:1194:15)
+(fail) mounted successive source boundaries refuse changed store instead of caching success [10708.36ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 0 pass
+ 49 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [10.75s]

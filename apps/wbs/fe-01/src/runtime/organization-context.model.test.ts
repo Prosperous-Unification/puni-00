@@ -1,4 +1,4 @@
-import { createProject, listMembers, listTeams } from '@wbs/contracts';
+import { createProject, listMembers, listTeams, readPasswordSession } from '@wbs/contracts';
 import { afterEach, expect, it, vi } from 'vitest';
 
 import { browserClient } from '@/lib/http';
@@ -157,4 +157,25 @@ it('failed retirement cannot publish the next organization', async () => {
   await owner.open({ ...identity, organization: { kind: 'active', organizationId: 'org-b' } });
   expect(owner.snapshot().status).toBe('fatal');
   expect(opened).toEqual(['org-a']);
+});
+
+it('browser HTTP claims V1 on protected operations while auth stays exempt', async () => {
+  vi.stubGlobal('location', { origin: 'http://wbs.test' });
+  const claims: (string | null)[] = [];
+  vi.stubGlobal('fetch', (_url: string, init: RequestInit) => {
+    claims.push(new Headers(init.headers).get('X-WBS-Dependency-Semantics'));
+    return Promise.resolve(
+      Response.json(
+        { error: 'client_dependency_incompatible', required: 'cross-project-dependencies-v1' },
+        { status: 409 },
+      ),
+    );
+  });
+  const client = browserClient([listTeams, readPasswordSession]);
+  expect(await client.getApiTeams({})).toMatchObject({
+    kind: 'failure',
+    failure: { code: 'dependency_incompatible' },
+  });
+  await client.getApiAuthMe({});
+  expect(claims).toEqual(['cross-project-dependencies-v1', null]);
 });

@@ -1,0 +1,20 @@
+Injected fault: edge
+        contextOf(dependency.successor.projectId),
+      ),
+=>
+        contextOf(dependency.successor.projectId),
+      ).slice(0, 1),
+
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+(pass) MCP descendant-step remote parent constrains local node with slow leaf last [3721.11ms]
+(pass) MCP descendant-step remote parent constrains local node with slow leaf first [5063.51ms]
+
+ 2 pass
+ 60 filtered out
+ 0 fail
+ 42 expect() calls
+Ran 2 tests across 1 file. [11.70s]
+
+Observed exit code: 0

@@ -5,6 +5,7 @@ import type {
   Scheduler,
   ScheduleRead,
 } from '@wbs/core';
+import { scheduleResolved } from '@wbs/domain';
 
 /** Builds a test scheduler whose captured read stays synchronous. */
 export function capturedSchedulerFixture(
@@ -17,5 +18,5 @@ export function capturedSchedulerFixture(
     const observed = readCaptured({ ...ask, mode: 'capture' });
     return ask.mode === 'live' ? Promise.resolve(observed) : observed;
   }
-  return { supports, read };
+  return { supports, read, readResolvedFast: scheduleResolved };
 }

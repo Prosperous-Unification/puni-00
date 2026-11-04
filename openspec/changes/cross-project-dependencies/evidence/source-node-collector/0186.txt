@@ -1,0 +1,85 @@
+from pathlib import Path
+import hashlib,json,os,subprocess,sys
+packet=Path('/tmp/puni-source-node-proofs-8fgbwgoa')
+if len(sys.argv)!=2 or sys.argv[1]!='execute':raise RuntimeError('explicit reviewed execute required')
+sha=lambda body:hashlib.sha256(body).hexdigest()
+packet_bytes=(packet/'packet.json').read_bytes()
+if sha(packet_bytes)!='232b23010a8dc6c244f65a9a6e4cc39f67cec09e7d2f391b44b31c551f70f034':raise RuntimeError('reviewed packet pin differs')
+manifest=json.loads(packet_bytes);root=Path(manifest['root'])
+recipe_bytes=Path('/tmp/puni-source-node-proof-recipes.json').read_bytes()
+if sha(recipe_bytes)!=manifest['controls']['/tmp/puni-source-node-proof-recipes.json']:raise RuntimeError('reviewed recipes differ')
+recipes=json.loads(recipe_bytes)
+if len(recipes)!=37 or len({entry['name'] for entry in recipes})!=37:raise RuntimeError('closed37 recipe cardinality differs')
+rows=[]
+def pins(overrides=None):
+ expected=dict(manifest['pins']);expected.update({} if overrides is None else overrides)
+ for relative,digest in expected.items():
+  if sha((root/relative).read_bytes())!=digest:raise RuntimeError('source pin differs: '+relative)
+ for path,digest in manifest['controls'].items():
+  if sha(Path(path).read_bytes())!=digest:raise RuntimeError('control pin differs: '+path)
+ for relative,digest in manifest['saved'].items():
+  if sha((packet/'baseline'/relative).read_bytes())!=digest:raise RuntimeError('saved baseline pin differs: '+relative)
+ for command,expected_value in [(['git','rev-parse','HEAD'],manifest['head']),(['git','branch','--show-current'],manifest['branch'])]:
+  actual=subprocess.run(command,cwd=root,check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE).stdout.decode().strip()
+  if actual!=expected_value:raise RuntimeError('source Git identity differs')
+def paths(entry,phase):
+ prefix=packet/(entry['name']+'.'+phase)
+ return Path(str(prefix)+'.stdout.log.txt'),Path(str(prefix)+'.stderr.log.txt'),Path(str(prefix)+'.custody.json')
+def joined(entry,phase):
+ stdout_path,stderr_path,custody_path=paths(entry,phase)
+ if not custody_path.is_file():raise RuntimeError('original native custody unproved; retain fault and all original artifacts, no restoration or next mutation')
+ receipt=json.loads(custody_path.read_bytes())
+ expected_keys={'selected','phase','kind','test','childPid','childExit','childSignal','originalExitAndBothEOF','namespaceRequested','namespaceModelReached','stdoutBytes','stderrBytes','stdoutSha256','stderrSha256'}
+ if set(receipt)!=expected_keys:raise RuntimeError('closed fresh original custody schema differs')
+ if receipt['selected']!=entry['name'] or receipt['phase']!=phase or receipt['kind']!=entry['kind'] or receipt['test']!=entry['test']:raise RuntimeError('custody does not belong to this exact selected attempt')
+ if receipt['originalExitAndBothEOF'] is not True or receipt['childSignal'] is not None or type(receipt['childExit']) is not int or receipt['childExit'] not in [0,1] or receipt['namespaceRequested'] is not (entry['kind']=='program') or type(receipt['namespaceModelReached']) is not bool:raise RuntimeError('original native exit/streams/namespace outcome unproved')
+ if type(receipt['childPid']) is not int or receipt['childPid']<=0:raise RuntimeError('original child PID malformed')
+ stdout=stdout_path.read_bytes();stderr=stderr_path.read_bytes()
+ for label,body in [('stdout',stdout),('stderr',stderr)]:
+  count=receipt[label+'Bytes']
+  if type(count) is not int or count<0 or len(body)<count or sha(body[:count])!=receipt[label+'Sha256']:raise RuntimeError('original native output bytes unproved: '+label)
+ return receipt,stdout,stderr
+
+def run(entry,phase,overrides=None):
+ pins(overrides)
+ stdout_path,stderr_path,custody_path=paths(entry,phase)
+ environment=dict(os.environ);environment['SOURCE_NODE_TEST_BINARY']=manifest['localNode'];environment['FORCE_COLOR']='0'
+ with stdout_path.open('xb') as stdout,stderr_path.open('xb') as stderr:
+  completed=subprocess.run([manifest['bun'],'/tmp/puni-source-node-run-case.ts',entry['name'],phase,str(custody_path)],cwd=root,env=environment,stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr)
+ receipt,stdout,stderr=joined(entry,phase)
+ rows.append({'guard':entry['name'],'phase':phase,'runnerExit':completed.returncode,'custody':receipt,'stdoutSha256':sha(stdout),'stderrSha256':sha(stderr)})
+ (packet/'observations.json').write_text(json.dumps(rows,indent=2)+'\n')
+ if completed.returncode!=0:raise RuntimeError('selected raw assertion audit refused: '+entry['name']+' '+phase)
+ if receipt['childExit']!=(1 if phase=='omitted' else 0):raise RuntimeError('selected native outcome differs')
+ if len(stdout)!=receipt['stdoutBytes'] or len(stderr)!=receipt['stderrBytes']:raise RuntimeError('unexpected runner output beyond exact original child bytes')
+ pins(overrides)
+ print(entry['name']+' '+phase+': audited original exit '+str(receipt['childExit'])+' and both original EOF readers',flush=True)
+
+pins()
+# Every future path is absent BEFORE ANY mutation; exclusive custody creation cannot inherit a stale receipt.
+for entry in recipes:
+ for phase in ['omitted','restored']:
+  for path in paths(entry,phase):
+   try:path.lstat()
+   except FileNotFoundError:pass
+   else:raise RuntimeError('preexisting output/custody path refuses before mutation: '+str(path))
+for entry in recipes:
+ relative=entry['file'];path=root/relative;original=(packet/'baseline'/relative).read_bytes()
+ if path.read_bytes()!=original:raise RuntimeError('exact saved source differs before mutation')
+ changed=original.decode()
+ for edit in entry['edits']:
+  if changed.count(edit['before'])!=1:raise RuntimeError('fault anchor not unique: '+entry['name'])
+  changed=changed.replace(edit['before'],edit['after'])
+ changed=changed.encode();path.write_bytes(changed)
+ try:
+  run(entry,'omitted',{relative:sha(changed)})
+ finally:
+  # A fresh, complete matching custody plus original byte hashes is required even on an unexpected semantic outcome.
+  # A missing/unknown/signaled original outcome holds restoration and stops the lane.
+  joined(entry,'omitted')
+  path.write_bytes(original)
+  if path.read_bytes()!=original:raise RuntimeError('exact saved source restoration failed')
+  pins()
+  print(entry['name']+': exact saved bytes restored after fresh original custody',flush=True)
+ run(entry,'restored')
+pins();print('Finite37 pairs completed; every original outcome audited and exact saved source restored.',flush=True)

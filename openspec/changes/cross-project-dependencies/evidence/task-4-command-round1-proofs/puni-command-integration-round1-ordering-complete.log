@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+(pass) ordered restore lets an external create-link batch redo its local successor [444.00ms]
+(pass) ordered restore lets a mounted local create-update batch redo its predecessor [386.59ms]
+(pass) ordered restore lets a mounted local create-update batch redo its predecessor through nested replay [371.14ms]
+(pass) ordered restore replays nested local restoration before an external typed add with exact revisions and identity [297.65ms]
+(pass) ordered restore refuses later-restore in nested external replay without partial effects [282.17ms]
+(pass) ordered restore refuses other-direction in nested external replay without partial effects [308.21ms]
+(pass) ordered restore refuses different-address in nested external replay without partial effects [282.47ms]
+(pass) ordered restore refuses ordinary-reference in nested external replay without partial effects [295.11ms]
+(pass) ordered restore refuses foreign-restore in nested external replay without partial effects [300.59ms]
+(pass) ordered restore refuses missing-step in nested external replay without partial effects [309.93ms]
+(pass) ordered restore refuses shape in nested external replay without partial effects [306.98ms]
+(pass) ordered restore propagates a delivered forbidden instead of exempting it as a missing row [329.53ms]
+(pass) ordered restore propagates a delivered unknown_step instead of exempting it as a missing row [290.30ms]
+(pass) ordered restore never defers a missing remote row even when replay carries a foreign restore [303.14ms]
+
+ 14 pass
+ 64 filtered out
+ 0 fail
+ 199 expect() calls
+Ran 14 tests across 1 file. [6.84s]

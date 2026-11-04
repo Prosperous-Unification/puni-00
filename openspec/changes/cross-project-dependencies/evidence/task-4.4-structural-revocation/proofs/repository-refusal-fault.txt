@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-incident-replay.controller.db.test.ts:
+401 |       const journal = readSelected();
+402 |       const sent = [...pushes];
+403 |       unblock.resolve();
+404 |       await held;
+405 |       const response = await pending;
+406 |       expect(response.status).toBe(403);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 403
+Received: 200
+
+      at <anonymous> (/tmp/puni-incident-revocation/apps/wbs/be-01/src/controller/cross-project-incident-replay.controller.db.test.ts:406:31)
+(fail) mounted compound undo refuses queued structural project edit revocation atomically [1121.75ms]
+401 |       const journal = readSelected();
+402 |       const sent = [...pushes];
+403 |       unblock.resolve();
+404 |       await held;
+405 |       const response = await pending;
+406 |       expect(response.status).toBe(403);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 403
+Received: 200
+
+      at <anonymous> (/tmp/puni-incident-revocation/apps/wbs/be-01/src/controller/cross-project-incident-replay.controller.db.test.ts:406:31)
+(fail) mounted compound redo refuses queued structural project edit revocation atomically [897.64ms]
+
+ 0 pass
+ 2 filtered out
+ 2 fail
+ 46 expect() calls
+Ran 2 tests across 1 file. [5.17s]

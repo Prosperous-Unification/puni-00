@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+383 |   expect(reads).toBe(1);
+384 |   release();
+385 |   expect(pending).toHaveLength(1);
+386 |   for (const read of pending) {
+387 |     const evidence = await observed(read);
+388 |     expect(evidence).toBeInstanceOf(Error);
+                           ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: {
+  ok: false,
+  reason: "not_found",
+}
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:388:22)
+(fail) real SQLite refusal suspended across command observation close cannot escape after await [461.71ms]
+
+ 0 pass
+ 29 filtered out
+ 1 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [3.03s]

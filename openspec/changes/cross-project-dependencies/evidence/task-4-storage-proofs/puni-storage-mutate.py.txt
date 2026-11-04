@@ -1,0 +1,63 @@
+from pathlib import Path
+import subprocess, re, json
+root=Path('/tmp/puni-cross-storage')
+folder=Path('/tmp/puni-storage-mutations');folder.mkdir(exist_ok=True)
+repo='libs/wbs/adapters/store-sqlite/src/typed-dependency.ts'
+migration='apps/wbs/be-01/drizzle/20261022211000_add_external_dependencies/migration.sql'
+down='apps/wbs/be-01/drizzle/20261022211000_add_external_dependencies/down.sql'
+fixture='libs/wbs/adapters/store-memory/src/typed-dependency-fixture.ts'
+external='libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts'
+cases=[]
+def replace(name,path,before,after,tests,pattern):
+ cases.append((name,path,lambda s,b=before,a=after:s.replace(b,a),tests,pattern))
+replace('owner',repo,'row.projectId !== row.successor.projectId','false',[external],'rejects cross-project')
+replace('work-item-evidence',repo,'owner?.projectId !== endpoint.projectId','false',[external],'refuses missing work-item')
+# Exactly the second owner check is the step block in assertEvidence.
+replace('step-evidence',repo,"if (owner?.projectId !== endpoint.projectId) {\n        throw new Error(`typed dependency ${row.id} names step", "if (false) {\n        throw new Error(`typed dependency ${row.id} names step",[external],'refuses missing steps')
+replace('organization-evidence',repo,'predecessor === undefined || successor === undefined || predecessor.organizationId !== successor.organizationId','false',[external],'refuses missing work-item')
+replace('organization-row-evidence',repo,'stored.external && stored.row.organizationId !== organizationId','false',[external],'refuses missing steps')
+replace('duplicate-physical-id',repo,'ids.has(dependency.id) || keys.has(key)','keys.has(key)',[external],'refuses a duplicated physical identity')
+replace('duplicate-physical-key',repo,'ids.has(dependency.id) || keys.has(key)','ids.has(dependency.id)',[external],'refuses duplicate trusted endpoint keys')
+replace('predecessor-delete',repo,'losing.some(stored => stored.external && doomed.has(stored.row.predecessorWorkItemId) && !doomed.has(stored.row.successorWorkItemId))','false',[external],'protects surviving external successors')
+replace('immutable-owner',repo,'prior.dependency.projectId !== row.projectId','false',['libs/wbs/adapters/store-sqlite/src/typed-dependency.db.test.ts'],'refuses moving a typed dependency')
+replace('capture-external','libs/wbs/application/core/src/service/local-typed-dependency.ts','row.predecessor.projectId !== row.projectId || row.successor.projectId !== row.projectId','false',[external],'refuses external rows in')
+replace('history-partial','libs/wbs/application/core/src/service/compensating.ts','isScoped !== hasProject(value.successor)','false',['libs/wbs/application/core/src/service/compensating.test.ts'],'refuses partial scoped history')
+replace('history-successor-owner','libs/wbs/application/core/src/service/compensating.ts','successor.projectId !== value.projectId','false',['libs/wbs/application/core/src/service/compensating.test.ts'],'refuses partial scoped history')
+replace('fixture-owner',fixture,"row.projectId !== row.successor.projectId || typeof row.predecessor.projectId !== 'string'",'false',['libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts'],'refuses successor-owner')
+replace('fixture-immutable-owner',fixture,'rows[index]?.projectId !== row.projectId','false',['libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts'],'refuses successor-owner')
+replace('fixture-predecessor-delete',fixture,'removed.some(row => row.predecessor.projectId !== row.successor.projectId && doomed.has(row.predecessor.workItemId) && !doomed.has(row.successor.workItemId))','false',['libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts'],'protects a surviving external')
+replace('incident-project-boundary','libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts','for (const requestedProjectId of requestedProjectIds) assertProject(requestedProjectId);','',['libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts'],'passes typed links')
+replace('down-external-retention',down,'CASE WHEN EXISTS (SELECT 1 FROM external_dependency) THEN 0 ELSE 1 END','1',[external],'down refuses external')
+# Remove one SQL declaration at a time, preserving the migration consumer and real database path.
+original=(root/migration).read_text()
+for trigger in re.findall(r'CREATE TRIGGER `([^`]+)`',original):
+ cases.append((trigger,migration,lambda s,t=trigger:re.sub(r'CREATE TRIGGER `'+re.escape(t)+r'`.*?END;', '',s,flags=re.S),[external],'duplicates refuse across representations'))
+for line in original.splitlines():
+ if line.strip().startswith('FOREIGN KEY'):
+  name=re.search(r'FOREIGN KEY \(`([^`]+)`',line).group(1)
+  # A trailing comma on the last FK must be repaired when deleting it.
+  cases.append(('foreign-key-'+name,migration,lambda s,l=line:s.replace(l+'\n','').replace('ON DELETE RESTRICT,\n);','ON DELETE RESTRICT\n);'),[external],'enforces endpoint and organization foreign keys'))
+for label,before,after in [
+ ('predecessor-scope',"CHECK (`predecessor_scope` IN ('whole','node','descendant-step'))",''),
+ ('successor-scope',"CHECK (`successor_scope` IN ('whole','node','descendant-step'))",''),
+ ('type',"CHECK (`type` IN ('FS','SS','FF'))",''),
+ ('predecessor-step'," CHECK ((`predecessor_scope` = 'whole') = (`predecessor_step_id` IS NULL)),\n",''),
+ ('successor-step'," CHECK ((`successor_scope` = 'whole') = (`successor_step_id` IS NULL)),\n",''),
+ ('different-projects',' CHECK (`predecessor_project_id` <> `successor_project_id`),\n',''),
+ ('id-null','`id` text PRIMARY KEY NOT NULL','`id` text PRIMARY KEY'),
+]: replace('sql-'+label,migration,before,after,[external],'enforces external discriminants')
+replace('sql-unique-endpoints',migration,re.search(r'CREATE UNIQUE INDEX `external_dependency_endpoints`.*?;',original).group(0),'',[external],'enforces external discriminants')
+observed=[]
+for name,path,mutate,tests,pattern in cases:
+ target=root/path;before=target.read_text();after=mutate(before)
+ if before==after: raise RuntimeError('mutation did not edit '+name)
+ try:
+  target.write_text(after)
+  execution=subprocess.run(['bun','test',*tests,'-t',pattern],cwd=root,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
+  (folder/(name+'.log')).write_text(execution.stdout)
+  summary={'fault':name,'exit':execution.returncode,'command':'bun test '+' '.join(tests)+' -t '+repr(pattern),'observed': [l for l in execution.stdout.splitlines() if '(fail)' in l or 'Received' in l or 'Expected' in l][-5:]}
+  observed.append(summary)
+  print(json.dumps(summary),flush=True)
+ finally: target.write_text(before)
+(folder/'summary.json').write_text(json.dumps(observed,indent=2))
+if any(check['exit']==0 for check in observed):raise RuntimeError('surviving mutation')

@@ -1,0 +1,42 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/compensating.test.ts:
+40 |     {...dependency,predecessor:{...dependency.predecessor,projectId:'remote'}},
+41 |     {...dependency,predecessor:{...dependency.predecessor,projectId:'remote'},successor:{...dependency.successor,projectId:42}},
+42 |     {...dependency,predecessor:{...dependency.predecessor,projectId:'remote'},successor:{...dependency.successor,projectId:'wrong'}},
+43 |     {...dependency,predecessor:{scope:'node',workItemId:'a'}},
+44 |     {...dependency,type:'SF'},
+45 |   ]) expect(() => readCommand({do:'add_typed_dependency',dependency:changed})).toThrow('typed dependency');
+                                                                                    ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "typed dependency"
+
+Received function did not throw
+Received value: {
+  do: "add_typed_dependency",
+  dependency: {
+    id: "d",
+    projectId: "p",
+    predecessor: {
+      scope: "whole",
+      workItemId: "a",
+      projectId: "remote",
+    },
+    successor: {
+      scope: "whole",
+      workItemId: "b",
+      projectId: "wrong",
+    },
+    type: "FS",
+  },
+}
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/application/core/src/service/compensating.test.ts:45:80)
+(fail) refuses partial scoped history and malformed new scoped history [0.56ms]
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [132.00ms]

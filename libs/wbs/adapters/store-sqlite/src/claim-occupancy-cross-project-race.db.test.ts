@@ -6,13 +6,17 @@ import type { ClaimStore, PlanCommand, ResourceUnits, Scope } from '@wbs/core';
 import { clockOf, CREATOR_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
+import { expectCreated } from '@wbs/core/testing/expect-created';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 /**
  * `wbs-shared-occupancy` task 3.2: two claims in projects A and B of one
@@ -34,7 +38,10 @@ beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'claim-occupancy-cross-project-race-'));
   dbPath = join(directory, 'plan.db');
   runMigrations(dbPath, folder);
-  source = openSqliteSource({ dbPath });
+  source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath,
+  });
 });
 
 afterEach(async () => {
@@ -61,6 +68,7 @@ async function seeded(hold: Hold | null, stale: ResourceUnits[] | null = null) {
     clock: clockOf({ now: () => 1_000, newId: () => crypto.randomUUID() }),
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
+    dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
   await source.stores.users.create(
@@ -68,8 +76,8 @@ async function seeded(hold: Hold | null, stale: ResourceUnits[] | null = null) {
     { at: 1, by: F },
   );
   const projects = [
-    (await graph.projects.create('A', F)).project.id,
-    (await graph.projects.create('B', F)).project.id,
+    expectCreated(await graph.projects.create('A', F)).project.id,
+    expectCreated(await graph.projects.create('B', F)).project.id,
   ] as const;
   for (const id of ['claire', 'codex']) {
     await source.stores.directory.addPerson({ id, name: id, kind: 'agent' }, [], { at: 1, by: F });
@@ -107,13 +115,18 @@ async function seeded(hold: Hold | null, stale: ResourceUnits[] | null = null) {
       },
     });
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: options.broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
       servicesOver(
         { ...scope.stores, claims: gated(scope.stores.claims) },
-        { ...options, broadcast: announcements },
+        {
+          ...options,
+          broadcast: announcements,
+          dependencyContext: createLocalDependencyContext(scope.stores),
+        },
       ),
   });
   const leaves: string[] = [];

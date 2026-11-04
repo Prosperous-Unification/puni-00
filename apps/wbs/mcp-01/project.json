@@ -13,12 +13,17 @@
         "command": "bun --watch src/main.ts",
         "cwd": "apps/wbs/mcp-01"
       },
-      "cache": false
+      "cache": false,
+      "dependsOn": ["prepare"]
     },
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bun build apps/wbs/mcp-01/src/main.ts --target=bun --outdir=dist/apps/wbs/mcp-01"
+        "commands": [
+          "bun build apps/wbs/mcp-01/src/main.ts --target=bun --outdir=dist/apps/wbs/mcp-01",
+          "bun apps/wbs/be-01/src/openapi/emit-openapi-cli.ts dist/apps/wbs/mcp-01/openapi.json"
+        ],
+        "parallel": false
       },
       "outputs": ["{workspaceRoot}/dist/apps/wbs/mcp-01"]
     },
@@ -40,7 +45,8 @@
         "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",
         "cwd": "apps/wbs/mcp-01"
       },
-      "outputs": ["{projectRoot}/coverage"]
+      "outputs": ["{projectRoot}/coverage"],
+      "dependsOn": ["prepare"]
     },
     "typecheck": {
       "executor": "nx:run-commands",
@@ -55,7 +61,19 @@
         "command": "bun --watch src/main.ts",
         "cwd": "apps/wbs/mcp-01"
       },
-      "cache": false
+      "cache": false,
+      "dependsOn": ["prepare"]
+    },
+    "prepare": {
+      "executor": "nx:noop",
+      "outputs": ["{projectRoot}/src/openapi.json"],
+      "cache": false,
+      "dependsOn": [
+        {
+          "projects": ["wbs-be-01"],
+          "target": "prepare-mcp-document"
+        }
+      ]
     }
   }
 }

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-lifecycle.test.ts:
+422 |         await Promise.resolve();
+423 |         throw new Error('unexpected call');
+424 |       },
+425 |       authority(),
+426 |     ),
+427 |   ).rejects.toThrow('malformed backup controller');
+                  ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "malformed backup controller"
+Received message: "null is not an object (evaluating 'Object.keys(lifecycle)')"
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-lifecycle.test.ts:427:13)
+(fail) malformed lifecycle object identifies the trusted-state boundary [0.51ms]
+
+ 0 pass
+ 23 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [33.00ms]

@@ -1,0 +1,42 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/wbs-client.test.ts:
+(pass) buildRequest > substitutes path parameters and puts the rest in the query string [0.33ms]
+(pass) buildRequest > splits path from body for a write, and sends only what was given [0.09ms]
+(pass) buildRequest > forwards the caller token as Bearer authentication [0.02ms]
+(pass) buildRequest > adds a basic-auth header only when WBS_BASIC_AUTH is set [0.12ms]
+(pass) buildRequest > escapes a path parameter rather than letting it change the path [0.02ms]
+(pass) buildRequest > treats an explicit undefined as an omitted input, but sends null [0.02ms]
+(pass) buildRequest > models an undeclared input with only its correction details and makes no request [0.83ms]
+(pass) buildRequest > models a missing path input with only its correction details and makes no request [0.13ms]
+(pass) buildRequest > models a non-scalar URL input with only its correction details and makes no request [0.10ms]
+(pass) buildRequest > does not send a body for an operation that declares none [0.02ms]
+(pass) callTool > returns be-01’s JSON body unedited on success [0.16ms]
+(pass) callTool > reports a 204 as no content rather than as a parse failure [0.07ms]
+(pass) callTool > carries be-01’s refusal code verbatim, with the status [0.14ms]
+(pass) callTool > keeps the rest of a refusal body, not only the code [0.06ms]
+(pass) callTool > types a 401 from be-01 as an upstream credential rejection [0.15ms]
+(pass) callTool > separates the deployment gate’s 401 even when its credential is missing [0.16ms]
+(pass) callTool > treats a Bearer challenge as an upstream rejection [0.08ms]
+(pass) callTool > throws an unexpected response failure for a secret-bearing 500 body [0.08ms]
+(pass) callTool > throws when a secret-bearing 2xx body is not JSON rather than returning agent content [0.10ms]
+(pass) callTool > does not call be-01 at all when the request cannot be built [0.15ms]
+310 | });
+311 | 
+312 |  it('claims V1 for protected tools and preserves typed backend incompatibility', async () => {
+313 |   const refused = stub(json(409, {error:'client_dependency_incompatible', required:'cross-project-dependencies-v1'}));
+314 |   const reply = await callTool(READ, {id:'p'}, CONFIG, refused.fetch);
+315 |   expect(refused.calls[0]?.headers['X-WBS-Dependency-Semantics']).toBe('cross-project-dependencies-v1');
+                                                                        ^
+error: expect(received).toBe(expected)
+
+Expected: "cross-project-dependencies-v1"
+Received: undefined
+
+      at <anonymous> (/tmp/puni-v1-clients/apps/wbs/mcp-01/src/wbs-client.test.ts:315:67)
+(fail) claims V1 for protected tools and preserves typed backend incompatibility [0.23ms]
+
+ 20 pass
+ 1 fail
+ 59 expect() calls
+Ran 21 tests across 1 file. [128.00ms]
