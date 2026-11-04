@@ -51,6 +51,7 @@ export type ClaimDispatchReply =
 type ClaimRuns = Pick<
   RunStore,
   | 'readExecutionHistory'
+  | 'readRuntimeScope'
   | 'readManifest'
   | 'stageClaim'
   | 'recordClaimAcceptance'
