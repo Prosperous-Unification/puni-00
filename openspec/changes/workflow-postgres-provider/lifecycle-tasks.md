@@ -112,8 +112,8 @@ export function openPostgresSession(
 
 ## Task 4: Review and publish the private component
 
-- [ ] 4.1 Obtain task-scoped spec/quality reviews and a final whole-branch review; resolve all Critical/Important findings. Preserve exact normal commits, test/negative native streams and fixture cleanup evidence.
-- [ ] 4.2 Update the OpenSpec design/tasks/evidence and WBS honestly; push all new work to the existing draft PR with a title/body matching its final private-lifecycle scope. CI and required exact-source gates remain separate acceptance before merge. No production selection, complete PostgreSQL provider, operator migration or production deployment.
+- [x] 4.1 Obtain task-scoped spec/quality reviews and a final whole-branch review; resolve all Critical/Important findings. Preserve exact normal commits, test/negative native streams and fixture cleanup evidence.
+- [x] 4.2 Update the OpenSpec design/tasks/evidence and WBS honestly; push all new work to the existing draft PR with a title/body matching its final private-lifecycle scope. CI and required exact-source gates remain separate acceptance before merge. No production selection, complete PostgreSQL provider, operator migration or production deployment.
 
 Task 1 was approved after two review fix rounds at `0a1658be27912903d7321b9942ccfa0b609aa016`. The [observer publication record](evidence/postgres-observer-publication.md) records evidence and limits. Task1 alone does not establish session ownership or complete-provider acceptance; the following accepted checkpoints record the later work.
 
