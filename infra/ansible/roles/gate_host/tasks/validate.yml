@@ -123,7 +123,7 @@
   # Proof (2026-11-04): in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py,
   # E8) h4claw's recorded lines passed, `['puni1 docker sudo', 'sudo_rc=1']` and
   # `['puni1 docker', 'sudo_rc=0']` were refused, and h2puni's `['puni1 sudo docker', 'sudo_rc=0']`
-  # skipped under the exception; removing either condition let its line through, and removing
+  # skipped under the exception (recap `skipped=1`); removing either condition let its line through, and removing
   # `when` refused h2puni's.
 
 # An exception that no longer matches the host would be a check that cannot fail (AGENTS.md R5,
@@ -143,7 +143,7 @@
   # Proof (2026-11-04): in the same evaluator (E9) h2puni's recorded `['puni1 sudo docker',
   # 'sudo_rc=0']`, the group alone and the grant alone passed, h4claw's `['puni1 docker',
   # 'sudo: a password is required', 'sudo_rc=1']` was refused as stale, and a host without the
-  # exception skipped; removing the condition let the stale line through, keeping only one
+  # exception skipped (recap `skipped=1`); removing the condition let the stale line through, keeping only one
   # disjunct refused the other's line, and removing `when` refused the strict host.
 
 - name: Read the gate checkouts' state

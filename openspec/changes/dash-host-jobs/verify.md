@@ -2412,7 +2412,8 @@ without sudo" would have failed every apply after it changed the host.
 
 The fix (task 6.3b) is `puni_gate_account_may_sudo`, default false and set only on h2puni in the
 inventory. When it is true, "Require the sudo exception to still match the gate account" replaces
-the no-sudo assertion and refuses a host that no longer escalates, so a stale exception fails.
+the no-sudo assertion and requires the state the strict check would refuse (the `sudo` group or
+`sudo -n` succeeding), so a stale exception fails.
 
 - Controller-image evaluator (`infra/ansible/tests/gate-host-assertions.py`, E8 and E9, recorded
   probe lines through `set_fact` on localhost), with the digest-locked controller:
@@ -2426,3 +2427,20 @@ the no-sudo assertion and refuses a host that no longer escalates, so a stale ex
   carry the flag. Setting the default to true failed it (`Expected: false`, `Received: true`), and
   so did adding the flag to h4claw (`+ "h4claw"`).
 - Not done: no apply. H2-A2 (a gate held the lock) and steps 0 to 1 remain as in `gate-hosts.md`.
+
+### Review fixes (Fable, PR #842)
+
+- M1: a `gate-host` delta (`specs/gate-host/spec.md`) MODIFIES "A gate host converges under
+  Ansible": no sudo grant except where the inventory sets `puni_gate_account_may_sudo`, plus
+  scenarios for a strict escalating host, an excepted escalating host, a stale exception and a
+  string flag.
+- M4: "Require supported host and gate inputs" now requires `puni_gate_account_may_sudo is
+boolean`. A string `false` from `-e key=value` would make `when: not …` skip the strict check.
+  Evaluator E10: `false` and `true` passed, the string `"false"` was refused (rc 2), and with the
+  condition removed the string passed (rc 0).
+- L3: an accepted case now also needs `skipped=0` in the PLAY RECAP and a skip case
+  `skipped=1`, so a skipped assertion no longer counts as accepted. Proof: a copy of the
+  evaluator with E8 "exception skips" marked accepted and E9 "h2puni today" marked skipped
+  printed `FAIL` for both and `{"failures": 2}`, exit 1.
+- Full evaluator after the fixes, digest-locked controller: 74 `ok` lines, `{"failures": 0}`,
+  exit 0.
