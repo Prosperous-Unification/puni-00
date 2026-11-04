@@ -550,6 +550,161 @@ for (const fault of [
     else expectPublicationCount(before, pushes);
   });
 
+function buildMappedTransferRequest(
+  document: unknown,
+  classified: Awaited<ReturnType<typeof exported>>['classified'],
+  remote: Awaited<ReturnType<typeof connectedTransferFixture>>['remote'],
+  unrelated: Awaited<ReturnType<typeof connectedTransferFixture>>['unrelated'],
+  missingNodeStep: boolean,
+): unknown {
+  const mappings = classified.typedDependencies.flatMap(({ predecessor }) => {
+    if (!('kind' in predecessor) || predecessor.kind !== 'external') return [];
+    const identity =
+      predecessor.scope === 'whole'
+        ? {
+            projectId: predecessor.projectId,
+            workItemId: predecessor.workItemId,
+            scope: predecessor.scope,
+          }
+        : {
+            projectId: predecessor.projectId,
+            workItemId: predecessor.workItemId,
+            scope: predecessor.scope,
+            stepId: predecessor.stepId,
+          };
+    return [
+      {
+        source: identity,
+        destination: {
+          ...identity,
+          projectId: unrelated.projectId,
+          workItemId:
+            predecessor.scope === 'descendant-step' ? unrelated.parentId : unrelated.leafId,
+          ...(predecessor.scope === 'whole'
+            ? {}
+            : {
+                stepId:
+                  missingNodeStep &&
+                  predecessor.scope === 'node' &&
+                  predecessor.stepId === remote.stepIds[0]
+                    ? 'absent-mapped-step'
+                    : unrelated.stepIds[predecessor.stepId === remote.stepIds[0] ? 0 : 1],
+              }),
+        },
+      },
+    ];
+  });
+  const unique = mappings.filter(
+    (mapping, index) =>
+      mappings.findIndex(
+        (candidate) => JSON.stringify(candidate.source) === JSON.stringify(mapping.source),
+      ) === index,
+  );
+  const request = structuredClone(document);
+  if (typeof request !== 'object' || request === null) throw new Error('export document absent');
+  Reflect.set(request, 'externalMappings', unique);
+  return request;
+}
+
+// Proof: discarding classified mappings made this mounted case retain original UUIDs
+// and the following invalid-step case return201 instead of400. Exact restoration
+// passed both public-route cases with129 assertions (2026-11-04).
+test('capable mounted import gives explicit whole node and descendant-step mappings precedence over valid original UUIDs', async () => {
+  let pushes = 0;
+  harness = OrganizationHarness.openComposedWith({
+    dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+    pushFetch: () => {
+      pushes += 1;
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    },
+  });
+  expect(() => harness.syntheticImports()).toThrow('synthetic transfer imports are absent');
+  const { remote, source, unrelated } = await connectedTransferFixture(harness);
+  const { document, classified } = await exported(source.projectId);
+  const request = buildMappedTransferRequest(document, classified, remote, unrelated, false);
+  const before = transferSnapshot(harness);
+  const histories = snapshotHistory();
+  pushes = 0;
+  const response = await harness.call('ada', 'POST', '/api/projects/import', request);
+  expect(response.status).toBe(201);
+  const summary = await importSummary.validator['~standard'].validate(response.body);
+  if (summary.issues !== undefined) throw new Error('mounted mapped import summary refused');
+  const incoming = harness.sqlite
+    .query<
+      {
+        predecessor_project_id: string;
+        predecessor_work_item_id: string;
+        predecessor_scope: string;
+        predecessor_step_id: string | null;
+      },
+      [string]
+    >(
+      'SELECT predecessor_project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id FROM external_dependency WHERE successor_project_id=?',
+    )
+    .all(summary.value.projectId);
+  expect(incoming).toHaveLength(5);
+  const expected = harness.sqlite
+    .query<{ predecessor_scope: string; predecessor_step_id: string | null }, [string]>(
+      'SELECT predecessor_scope,predecessor_step_id FROM external_dependency WHERE successor_project_id=?',
+    )
+    .all(source.projectId)
+    .map((edge) =>
+      JSON.stringify({
+        predecessor_project_id: unrelated.projectId,
+        predecessor_work_item_id:
+          edge.predecessor_scope === 'descendant-step' ? unrelated.parentId : unrelated.leafId,
+        predecessor_scope: edge.predecessor_scope,
+        predecessor_step_id:
+          edge.predecessor_step_id === null
+            ? null
+            : unrelated.stepIds[edge.predecessor_step_id === remote.stepIds[0] ? 0 : 1],
+      }),
+    )
+    .sort();
+  expect(incoming.map((edge) => JSON.stringify(edge)).sort()).toEqual(expected);
+  expectOriginalRows(before, summary.value.projectId);
+  expect(snapshotHistory()).toEqual(histories);
+  expectPublicationCount(before, pushes);
+});
+
+test('capable mounted import refuses a missing mapped node step without UUID fallback or effects', async () => {
+  let pushes = 0;
+  harness = OrganizationHarness.openComposedWith({
+    dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+    pushFetch: () => {
+      pushes += 1;
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    },
+  });
+  expect(() => harness.syntheticImports()).toThrow('synthetic transfer imports are absent');
+  const { remote, source, unrelated } = await connectedTransferFixture(harness);
+  const { document, classified } = await exported(source.projectId);
+  const index = classified.typedDependencies.findIndex(
+    ({ predecessor }) =>
+      'kind' in predecessor &&
+      predecessor.kind === 'external' &&
+      predecessor.scope === 'node' &&
+      predecessor.stepId === remote.stepIds[0],
+  );
+  expect(index).toBeGreaterThanOrEqual(0);
+  const request = buildMappedTransferRequest(document, classified, remote, unrelated, true);
+  const before = transferSnapshot(harness);
+  const histories = snapshotHistory();
+  pushes = 0;
+  const response = await harness.call('ada', 'POST', '/api/projects/import', request);
+  expect(response).toEqual({
+    status: 400,
+    body: {
+      error: 'unknown_ref',
+      path: `typedDependencies[${String(index)}].predecessor`,
+      detail: null,
+    },
+  });
+  expect(transferSnapshot(harness)).toEqual(before);
+  expect(snapshotHistory()).toEqual(histories);
+  expect(pushes).toBe(0);
+});
+
 /**
  * Proof: dropping unmapped declarations when any mapping exists passed the old
  * four-leaf assertion; the complete five-endpoint assertion failed (2026-10-23).
