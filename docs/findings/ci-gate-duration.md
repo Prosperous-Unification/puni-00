@@ -129,3 +129,34 @@ scope and a required result. This is a capacity hypothesis until a cold exact-he
 run completes all jobs and the stable `gate` reducer. The approximately four minutes of
 setup observed in this cancelled run and the prior approximately six minutes of non-Nx
 overhead support the finite allowances but do not establish a required duration.
+
+## Twilight allowance, 2026-11-03
+
+PR #787 run [41544558083](https://github.com/Prosperous-Unification/puni-00/actions/runs/41544558083),
+Twilight job [125617033412](https://github.com/Prosperous-Unification/puni-00/actions/runs/41544558083/job/125617033412),
+was cancelled after exhausting its 75-minute allowance. The retained Nx log reports
+2,571 Burokrat tests passing, zero failing, across 104 files in 3719.64 seconds.
+Dash was still running store-directory cleanup tests when the log ended. No failed
+assertion was observed in that captured log, but it has no complete Dash exit or
+successful aggregate verdict; the packed-package phase was skipped. The cancelled
+job is not passing validation.
+
+The original Nx artifact is 13192189566; its downloaded ZIP SHA-256 is
+`8470a9fe7fa4569a396a6cd445e395cb0eabd822b2604ad937a3d1e9df6358cf`.
+The extracted log is retained locally as
+`.superpowers/sdd/runtime-write-delivery-20261101/ci41544558083-twilight-nx-gate.log`.
+
+Twilight now declares a finite 120-minute allowance, matching the workspace job.
+Only its timeout and adjacent explanation changed: selected phases, commands,
+parallelism, cache behavior, resource guards, independent lint and required gate
+semantics remain unchanged. This declaration does not establish that the complete
+gate passes within 120 minutes. Fresh successful final-head hosted checks and
+canonical verification remain required before merge.
+
+The existing focused production-workflow test failed against 75 with
+`Expected: 120 · Received: 75` (native exit 1; 0 pass, 1 fail), then passed against
+120 (native exit 0; 1 pass, 0 fail). The covering workflow suites passed 40 tests
+with zero failures. Original stdout, stderr, native exits and before/after source
+hashes are retained in local capture receipts under
+`.superpowers/sdd/runtime-write-delivery-20261101/ci-allowance-task1-attempt17-*`;
+the implementation report indexes the exact receipts.

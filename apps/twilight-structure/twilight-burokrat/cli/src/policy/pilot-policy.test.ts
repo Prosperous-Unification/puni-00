@@ -494,6 +494,10 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // See openspec/changes/burokrat-workflow-binding-validation/evidence/inventory-repair.json.
     // Proof (2026-10-27): P2 removed only the five BE inputs from the full declaration;
     // production lint emitted fact check.be-01.test authority-selector mismatch.
+    // Proof (2026-10-30): this pilot refused the undeclared R2 checkpoint gzip (59 assertions).
+    // Removing only its exact row from either shipped policy made production classify-candidate
+    // exit 1 naming that archive; restoration emitted exact binary metadata. Both policies still
+    // refused a same-byte unlisted sibling; the configured full pilot passed 24/0 (430 assertions).
     // Proof (2026-11-02): CI run41370408113 failed this pilot on undeclared binary content at
     // apps/website/be-01/src/assets/country/dbip-country-lite-2026-11.mmdb.gz. Both original
     // policies reproduced that refusal through production classify-candidate; removing the exact
