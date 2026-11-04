@@ -264,6 +264,7 @@ export function createWritePermit(
       : {
           async confirmReadonly() {
             if (revocation === undefined) throw new Error('No correlated revocation request');
+            // Proof (real files/elapsed): shortening this window to one iteration fails the stale-ACK grace test near1s; restored behavior refuses after35s. No supervisor process is modeled as running in that test.
             for (let attempt = 0; attempt < acknowledgementSeconds; attempt += 1) {
               const path = join(registryPath, '.authority-readonly');
               try {

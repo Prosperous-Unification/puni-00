@@ -32,8 +32,17 @@ The registry content directory and journal `contents/` directory are mode 0700,
 owned by the dedicated UID. Distribution runs as that UID with all capabilities
 dropped and mounts the journal read-only. The authenticated host authority must
 run the journal CLI as that same UID/GID, via a root-owned fixed-command privilege
-drop wrapper, staged by the separately tagged authority play described below. Neither journal creation nor a permissive fence is part
+drop wrapper, staged by the separately tagged authority play described below. Neither canonical journal creation nor a permissive fence is part
 of storage provisioning. Physical readiness alone is not rollout readiness.
+
+Fresh journal backing also receives root-only `backup-effects/` state outside
+captured `contents/`. It shares the bounded filesystem and whole-volume capacity
+accounting, preserving canonical replacement/failure headroom. Provisioning
+convergence never resets established effect consumption if its state, lock or
+whole directory disappears. Runtime absence refuses; restoring captured contents
+does not repair this authority. See [ADR 0060](../../../../docs/adr/0060-registry-backup-consumption-survives-content-restore.md)
+and the [staged worker contract](../../../systemd/registry-backup/README.md#durable-effect-consumption-staged).
+Production physical admission and installed worker-access proofs remain incomplete.
 
 The private companion is the sole owner of the new PVs, PVCs and guard ConfigMap.
 The public production directory holds the reviewed startup and Deployment patch
@@ -104,3 +113,52 @@ before running it. Remove that exact runtime fixture after the test. Registry,
 journal and scratch loops are 64+32+32 MiB and clean themselves up; no production
 PVC, secret, Service, account or Flux resource is changed. The test bundles the
 actual CLI and exercises the fixed wrapper as UID 59001 and Distribution 2.8.3 by digest.
+
+Pull verification uses a third, separately allocated filesystem. The explicitly
+selected `registry_pulls` tag requires both storage and pull enrollment, static
+UID59001, `puni_registry_pulls_bytes` and `puni_registry_pulls_inodes`; neither
+capacity is defaulted. Measure the representative client envelope before selecting
+production values. `provision-pulls`, `mount-pulls` and `verify-pulls` accept exactly
+one `pulls` volume, with UID0 and an explicit positive inode ceiling. Formatting
+sets that ceiling and verification checks the actual mounted inode count. The
+pool's `contents/` is root:root mode0711; the unprivileged pull client cannot create
+jobs in its parent.
+
+Pull modes first verify `/etc/puni/registry-storage.json`, require the same storage
+directory and refuse a weaker root reserve. The pulls receipt is written to the
+verified journal filesystem at `journal/identities/pulls.receipt`. A missing pull
+or journal mount fails verification before root-backed contents can be used.
+`puni-registry-pulls.service` requires the canonical storage service and mounts and
+verifies the enrolled pull pool at boot, before backup and retirement units.
+Provisioning does not enable maintenance timers or enroll the client artifacts.
+
+Run the non-cached `tool-fleet:test:registry-pulls` target with the same explicit
+root fixture transport/host variables. Its private mount namespace and exclusive
+directory allocate 224 MiB across disposable canonical and pull filesystems. It
+checks byte and inode exhaustion, metadata, cross-mode refusal, canonical storage
+and reserve agreement, trim exclusion, idempotency and missing mounts, then
+verifies removal of its exact mounts, loops and workspace.
+
+The built authority CLI also provides
+`--validate-client-installation <trusted-candidate>` for reviewed client staging.
+It verifies fixed artifacts, exact mode/root group, canonical ordinary/journal and
+enrolled recovery receipts, pull capacity/identity/separation and root:root0711 pool
+metadata. This read-only check accepts a full owned pull pool so recovery tools can
+be installed before cleanup. Runtime custody still controls jobs and download
+admission. Explicit client enrollment requires an eighth `client-worker` bundle
+with the same SHA as the trusted configuration and a supplied Crane source matching
+the fixed x64 pin. All bundle sources must be nonempty and at most16MiB. The role
+installs Crane root:root0755 and the worker root:root0644, verifies canonical/pull
+storage with the fixed helper, then requires the authority's exact `verified`
+acknowledgement before installing the privilege grant. Both commands must succeed.
+Absent/unenrolled clients retain the original seven-artifact staging contract.
+
+The non-cached `tool-fleet:rehearse:registry-client-installation` target executes
+the actual authority and maintenance roles in a private h4 mount namespace, with
+disposable enforced storage and no system controller installation. Supply explicit
+`--output`, `--transport`, `--host`, `--controller-packages`, `--bun`, `--crane` and
+`--registry` paths; `--help` lists refusal cases and controlled guard removals. It
+builds the current twelve CLI artifacts, verifies the staged source manifest and
+closes only its exact owned fixtures. A transfer timeout preserves and reports the
+remote stage for inspection. This installation rehearsal does not establish the
+complete installed maintenance lifecycle or production enrollment.

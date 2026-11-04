@@ -121,3 +121,17 @@ describe('managed publication', () => {
     }
   });
 });
+
+it('managed Dagger caller forwards schema4 ownership into the real HTTP uploader', async () => {
+  const child = Bun.spawn(
+    [process.execPath, new URL('./publish-ownership.fixture.ts', import.meta.url).pathname],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  const [code, output, diagnostic] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+  expect({ code, diagnostic }).toEqual({ code: 0, diagnostic: '' });
+  expect(output).toContain('2 bodies');
+});

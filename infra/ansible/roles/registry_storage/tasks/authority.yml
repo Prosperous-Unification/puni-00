@@ -1,4 +1,5 @@
 ---
+# Proof: a differently hashed functional Bun installed before the fixed-runtime check; wrong-runtime now refuses before host writes.
 - name: Require explicit authority artifact enrollment
   ansible.builtin.assert:
     that:
@@ -6,8 +7,11 @@
       - puni_registry_authority_bun_source is defined
       - puni_registry_authority_bundle_source is defined
       - puni_registry_authority_bun_sha256 is match('^[a-f0-9]{64}$')
+      - puni_registry_authority_bun_sha256 == '10702245766b225e70bbf6235fd6b47214fd94b4760d00ffaed8ab0df57ac235'
       - puni_registry_authority_bundle_sha256 is match('^[a-f0-9]{64}$')
-    fail_msg: Build and hash the exact reviewed authority bundle and pinned Bun before installation.
+      - puni_registry_maintenance_configuration is defined
+      - puni_registry_maintenance_configuration is mapping
+    fail_msg: Supply exact reviewed authority artifacts and their required maintenance configuration before replacing the authority.
 
 - name: Measure enrolled controller artifacts before installing anything
   ansible.builtin.stat:
@@ -23,7 +27,7 @@
     loop_var: registry_authority_source
   register: registry_authority_sources
 
-# Proof: removed-source-assertion host fixture installs files despite the wrong hash; the guarded path writes nothing.
+# Proof: wrong-bundle namespace refusal precedes candidate staging; removing this guard moves failure to candidate validation and fails that boundary test.
 - name: Refuse mismatched controller artifacts before host writes
   ansible.builtin.assert:
     that:
@@ -32,45 +36,148 @@
 
 - name: Create root owned authority installation
   ansible.builtin.file:
-    path: /usr/local/libexec/puni-registry-authority
+    path: '{{ registry_authority_directory }}'
     state: directory
     owner: root
     group: root
     mode: '0755'
-
-- name: Install pinned authority runtime
-  ansible.builtin.copy:
-    src: '{{ puni_registry_authority_bun_source }}'
-    dest: /usr/local/libexec/puni-registry-authority/bun
-    owner: root
-    group: root
-    mode: '0755'
-
-- name: Install reviewed bundled authority
-  ansible.builtin.copy:
-    src: '{{ puni_registry_authority_bundle_source }}'
-    dest: /usr/local/libexec/puni-registry-authority/authority.js
-    owner: root
-    group: root
-    mode: '0644'
-
-- name: Measure installed authority artifacts
-  ansible.builtin.stat:
-    path: '/usr/local/libexec/puni-registry-authority/{{ registry_authority_artifact }}'
-    checksum_algorithm: sha256
-    follow: false
-  loop: [bun, authority.js]
+  loop:
+    - /usr/local/libexec/puni-registry-authority
+    - /etc/puni
   loop_control:
-    loop_var: registry_authority_artifact
-  register: registry_authority_artifacts
+    loop_var: registry_authority_directory
 
-- name: Verify exact trusted authority artifacts
-  ansible.builtin.assert:
-    that:
-      - registry_authority_artifacts.results[0].stat.checksum == puni_registry_authority_bun_sha256
-      - registry_authority_artifacts.results[1].stat.checksum == puni_registry_authority_bundle_sha256
-      - registry_authority_artifacts.results[0].stat.uid == 0
-      - registry_authority_artifacts.results[1].stat.uid == 0
+- name: Create private authority candidate directory
+  ansible.builtin.tempfile:
+    state: directory
+    path: /usr/local/libexec/puni-registry-authority
+    prefix: .stage-
+  register: registry_authority_stage
+
+- name: Validate candidate before replacing working authority
+  vars:
+    registry_authority_candidates:
+      - name: bun
+        source: '{{ puni_registry_authority_bun_source }}'
+        mode: '0755'
+        sha256: '{{ puni_registry_authority_bun_sha256 }}'
+      - name: authority.js
+        source: '{{ puni_registry_authority_bundle_source }}'
+        mode: '0644'
+        sha256: '{{ puni_registry_authority_bundle_sha256 }}'
+  block:
+    - name: Stage authority candidate artifacts
+      ansible.builtin.copy:
+        src: '{{ registry_authority_candidate.source }}'
+        dest: '{{ registry_authority_stage.path }}/{{ registry_authority_candidate.name }}'
+        owner: root
+        group: root
+        mode: '{{ registry_authority_candidate.mode }}'
+      loop: '{{ registry_authority_candidates }}'
+      loop_control:
+        loop_var: registry_authority_candidate
+
+    - name: Measure authority candidate artifacts before executing them
+      ansible.builtin.stat:
+        path: '{{ registry_authority_stage.path }}/{{ registry_authority_candidate.name }}'
+        checksum_algorithm: sha256
+        follow: false
+      loop: '{{ registry_authority_candidates }}'
+      loop_control:
+        loop_var: registry_authority_candidate
+      register: registry_authority_candidate_artifacts
+
+    # Proof: real Ansible stat-fact faults for isreg/uid/gid/nlink/mode/checksum refuse; each predicate removal lets its refusal test fail.
+    - name: Refuse untrusted authority candidate artifacts
+      ansible.builtin.assert:
+        that:
+          - registry_authority_candidate.stat.isreg | default(false)
+          - registry_authority_candidate.stat.uid == 0
+          - registry_authority_candidate.stat.gid == 0
+          - registry_authority_candidate.stat.nlink == 1
+          - registry_authority_candidate.stat.mode == registry_authority_candidate.registry_authority_candidate.mode
+          - registry_authority_candidate.stat.checksum == registry_authority_candidate.registry_authority_candidate.sha256
+      loop: '{{ registry_authority_candidate_artifacts.results }}'
+      loop_control:
+        loop_var: registry_authority_candidate
+
+    - name: Stage candidate nonsecret maintenance enrollment
+      ansible.builtin.copy:
+        content: '{{ puni_registry_maintenance_configuration | to_nice_json }}'
+        dest: '{{ registry_authority_stage.path }}/configuration.json'
+        owner: root
+        group: root
+        mode: '0644'
+
+    # Proof: malformed candidate keeps prior files usable; removing validation admits it in the isolated real-role rehearsal.
+    - name: Validate candidate enrollment with its verified authority
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/env
+          - -i
+          - PATH=/usr/bin:/bin
+          - '{{ registry_authority_stage.path }}/bun'
+          - '{{ registry_authority_stage.path }}/authority.js'
+          - --validate-installation
+          - '{{ registry_authority_stage.path }}/configuration.json'
+      register: registry_authority_validation
+      changed_when: false
+
+    # Proof: injected wrong command acknowledgement refuses; removing this assertion lets the refusal test fail.
+    - name: Require candidate authority validation acknowledgement
+      ansible.builtin.assert:
+        that:
+          - registry_authority_validation.stdout == 'verified'
+
+    - name: Install validated nonsecret maintenance enrollment
+      ansible.builtin.copy:
+        src: '{{ registry_authority_stage.path }}/configuration.json'
+        remote_src: true
+        dest: /etc/puni/registry-maintenance.json
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Install validated authority artifacts
+      ansible.builtin.copy:
+        src: '{{ registry_authority_stage.path }}/{{ registry_authority_candidate.name }}'
+        remote_src: true
+        dest: '/usr/local/libexec/puni-registry-authority/{{ registry_authority_candidate.name }}'
+        owner: root
+        group: root
+        mode: '{{ registry_authority_candidate.mode }}'
+      loop: '{{ registry_authority_candidates }}'
+      loop_control:
+        loop_var: registry_authority_candidate
+
+    - name: Measure installed authority artifacts
+      ansible.builtin.stat:
+        path: '/usr/local/libexec/puni-registry-authority/{{ registry_authority_candidate.name }}'
+        checksum_algorithm: sha256
+        follow: false
+      loop: '{{ registry_authority_candidates }}'
+      loop_control:
+        loop_var: registry_authority_candidate
+      register: registry_authority_artifacts
+
+    - name: Verify exact trusted authority artifacts
+      ansible.builtin.assert:
+        that:
+          - registry_authority_candidate.stat.isreg | default(false)
+          - registry_authority_candidate.stat.uid == 0
+          - registry_authority_candidate.stat.gid == 0
+          - registry_authority_candidate.stat.nlink == 1
+          - registry_authority_candidate.stat.mode == registry_authority_candidate.registry_authority_candidate.mode
+          - registry_authority_candidate.stat.checksum == registry_authority_candidate.registry_authority_candidate.sha256
+      loop: '{{ registry_authority_artifacts.results }}'
+      loop_control:
+        loop_var: registry_authority_candidate
+  # Proof: removing always cleanup leaves the actual candidate directory and fails the namespace installation test.
+  always:
+    - name: Remove private authority candidate directory
+      ansible.builtin.file:
+        path: '{{ registry_authority_stage.path }}'
+        state: absent
 
 - name: Install fixed authenticated SSH authority command
   ansible.builtin.copy:

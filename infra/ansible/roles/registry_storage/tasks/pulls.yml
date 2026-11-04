@@ -1,0 +1,79 @@
+---
+# Proof: removing enrollment, byte or inode assertions makes the real Ansible refusal cases succeed.
+- name: Require explicit bounded pull pool enrollment
+  ansible.builtin.assert:
+    that:
+      - puni_registry_pulls_enrolled | default(false) | bool
+      - puni_registry_storage_enrolled | default(false) | bool
+      - puni_registry_storage_uid == 59001
+      - puni_registry_storage_directory is match('^/[a-zA-Z0-9_./-]+$')
+      - puni_registry_pulls_bytes is defined
+      - puni_registry_pulls_bytes is integer
+      - puni_registry_pulls_bytes >= 33554432
+      - puni_registry_pulls_bytes <= 9007199254740991
+      - puni_registry_pulls_inodes is defined
+      - puni_registry_pulls_inodes is integer
+      - puni_registry_pulls_inodes > 0
+      - puni_registry_pulls_inodes < 4294967296
+      - puni_registry_storage_root_reserve_bytes is integer
+      - puni_registry_storage_root_reserve_bytes >= 21474836480
+    fail_msg: Enroll exact reviewed pull byte/inode bounds after measuring representative client capacity; no default pool or identity is invented.
+
+- name: Install bounded storage command for pulls
+  ansible.builtin.copy:
+    src: storage.sh
+    dest: /usr/local/libexec/puni-registry-storage/storage.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Verify canonical storage before provisioning pulls
+  ansible.builtin.command:
+    argv:
+      - /usr/local/libexec/puni-registry-storage/storage.sh
+      - verify
+      - /etc/puni/registry-storage.json
+  register: registry_pulls_canonical
+  changed_when: registry_pulls_canonical.stdout == 'changed'
+  # Proof: removing status/output checks admits failed or unacknowledged canonical verification.
+  failed_when: registry_pulls_canonical.rc != 0 or registry_pulls_canonical.stdout not in ['changed', 'unchanged']
+
+- name: Install exact pull storage enrollment
+  ansible.builtin.template:
+    src: pulls.json.j2
+    dest: /etc/puni/registry-pulls.json
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Exclude pull backing filesystem from scheduled discard
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^{{ puni_registry_storage_directory | regex_escape }}/pulls\.ext4\s'
+    line: '{{ puni_registry_storage_directory }}/pulls.ext4 {{ puni_registry_storage_directory }}/pulls ext4 loop,noauto,nodiscard,nodev,nosuid,noexec,X-fstrim.notrim 0 0'
+
+- name: Provision and verify bounded pull filesystem
+  ansible.builtin.command:
+    argv:
+      - /usr/local/libexec/puni-registry-storage/storage.sh
+      - provision-pulls
+      - /etc/puni/registry-pulls.json
+  register: registry_pulls_convergence
+  changed_when: registry_pulls_convergence.stdout == 'changed'
+  # Proof: removing status/output checks admits failed or unacknowledged provisioning before boot grant.
+  failed_when: registry_pulls_convergence.rc != 0 or registry_pulls_convergence.stdout not in ['changed', 'unchanged']
+
+- name: Install pull storage boot guard
+  ansible.builtin.template:
+    src: puni-registry-pulls.service.j2
+    dest: /etc/systemd/system/puni-registry-pulls.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Enable pull storage verification on host boot
+  ansible.builtin.systemd_service:
+    name: puni-registry-pulls.service
+    enabled: true
+    state: started
+    daemon_reload: true

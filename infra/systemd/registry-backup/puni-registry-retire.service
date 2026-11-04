@@ -1,0 +1,24 @@
+[Unit]
+Description=Verified registry retirement and offline garbage collection
+Wants=network-online.target
+After=network-online.target k3s.service puni-registry-storage.service
+Requires=puni-registry-storage.service
+
+[Service]
+Type=oneshot
+User=puni-registry-authority
+Group=puni-registry-authority
+UMask=0077
+Environment=PATH=/usr/bin:/bin
+ExecStart=/usr/local/libexec/puni-registry-authority/bun /usr/local/libexec/puni-registry-maintenance/retire.js
+TimeoutStartSec=130min
+TimeoutStopSec=5min
+KillMode=mixed
+# Only the fixed root helper is granted sudo; no provider credentials enter this UID.
+NoNewPrivileges=no
+PrivateTmp=yes
+ProtectSystem=full
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes

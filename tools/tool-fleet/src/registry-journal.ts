@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { type FileHandle, lstat, open, readdir, rename, unlink } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
@@ -6,8 +6,34 @@ import { isAbsolute, join } from 'node:path';
 import { type } from 'arktype';
 import { dlopen } from 'bun:ffi';
 
+import {
+  prepareRegistryBackupAttempt,
+  type RegistryBackupAction,
+  type RegistryBackupAttempt,
+  RegistryBackupGuardian,
+} from './registry-backup-attempt';
+import { RegistryBackupLockRecovery } from './registry-backup-locks';
 import type { RegistryWritePermit } from './registry-capacity';
+import {
+  type RegistryClientCompletion,
+  requireRegistryClientCompletion,
+} from './registry-client-completion';
+import {
+  requireRegistryClientPlan,
+  requireRegistryClientRestoration,
+  validateRegistryClientEvidence,
+} from './registry-client-evidence';
+import type { RegistryClientPullPlan } from './registry-client-plan';
 import { registryHistorySha256 } from './registry-history';
+import type { RegistryRetirementPlan } from './registry-inventory';
+import {
+  RegistryBackupReceipt,
+  RegistryMaintenanceEvidence,
+  RegistryRecoveryPreparation,
+  RegistryRecoveryReceipt,
+  RegistryRetirementReceipt,
+  requireRegistryRecoveryReceipt,
+} from './registry-maintenance-state';
 import {
   admitPublication,
   type ImageProtection,
@@ -15,6 +41,18 @@ import {
   type RegistryCapacity,
   type ReleaseBundle,
 } from './registry-policy';
+import {
+  RegistryContentDeclaration,
+  RegistryPublicationEvidence,
+  RegistryPublicationWrite,
+  validateRegistryDeclaration,
+  validateRegistryPublicationEvidence,
+} from './registry-publication-evidence';
+import {
+  RegistryReclamationMeasurement,
+  requireRegistryReclamation,
+  validateRegistryReclamation,
+} from './registry-reclamation';
 
 const Count = type('number.integer >= 0').narrow(Number.isSafeInteger);
 const Positive = Count.narrow((count) => count > 0);
@@ -173,7 +211,7 @@ const Deployment = type({
   finishedAt: Timestamp.or('null'),
   '+': 'reject',
 });
-const Journal = type({
+const VersionThreeJournal = type({
   ...journalShape,
   schemaVersion: '3',
   fenceReason: Identity.or('null'),
@@ -183,12 +221,22 @@ const Journal = type({
   consumers: Consumer.array(),
   deployments: Deployment.array(),
 });
+const VersionFourJournal = VersionThreeJournal.merge({
+  schemaVersion: '4',
+  maintenanceEvidence: RegistryMaintenanceEvidence.or('null'),
+  lastVerifiedBackup: RegistryBackupReceipt.or('null'),
+  retirements: RegistryRetirementReceipt.array().atMostLength(2048),
+  publicationEvidence: RegistryPublicationEvidence.array().atMostLength(2048),
+  '+': 'reject',
+});
+const Journal = type.or(VersionThreeJournal, VersionFourJournal);
 const mutation = { expectedRevision: Count, operationId: Identity, owner: Identity };
 const existing = { ...mutation, token: Token };
 const Command = type.or(
   { command: "'initialize'", enrollment: Enrollment, '+': 'reject' },
   { command: "'read'", '+': 'reject' },
   { command: "'upgrade'", '+': 'reject' },
+  { command: "'upgrade-maintenance'", '+': 'reject' },
   { command: "'check-capacity'", '+': 'reject' },
   { command: "'reopen'", ...mutation, '+': 'reject' },
   {
@@ -230,6 +278,13 @@ const Command = type.or(
     ...images,
     product: Identity,
     envelope: Envelope,
+    'contents?': RegistryContentDeclaration.array().atLeastLength(1).atMostLength(2048),
+    '+': 'reject',
+  },
+  {
+    command: "'record-publication-write'",
+    ...existing,
+    write: RegistryPublicationWrite,
     '+': 'reject',
   },
   {
@@ -298,14 +353,31 @@ export interface RegistryJournalPorts {
     revision: number,
     enrollment: RegistryEnrollment,
   ) => Promise<unknown>;
+  /** Trusted server adapter verifies configured new mounts, matching offline journal and all current obligations before rebind. */
+  prepareRegistryRecovery?: (
+    journal: RegistryMaintenanceJournal,
+    authorityDescriptor: number,
+    session: RegistryMaintenanceSession,
+  ) => Promise<RegistryRecoveryPreparation>;
+  recoverRegistry?: (
+    journal: RegistryMaintenanceJournal,
+    authorityDescriptor: number,
+    session: RegistryMaintenanceSession,
+  ) => Promise<RegistryRecoveryReceipt>;
+  /** Fixed server observes the authenticated root peer and installed backup configuration before action dispatch. */
+  describeBackupGuardian?: (
+    pid: number,
+  ) => Promise<{ guardian: RegistryBackupGuardian; configurationSha256: string }>;
   now?: () => string;
   sync?: (descriptor: FileHandle) => Promise<void>;
   permit?: RegistryWritePermit;
 }
 
 const maximumRequestBytes = 64 * 1024;
-const maximumJournalBytes = 16 * 1024 * 1024;
-const failureHeadroom = 64 * 1024;
+/** Canonical serialized journal ceiling also reserved by backup-effect persistence. */
+export const maximumJournalBytes = 16 * 1024 * 1024;
+/** Ordinary writes preserve this growth for a canonical failure receipt. */
+export const failureHeadroom = 64 * 1024;
 
 function requireSchema<T>(
   schema: (input: unknown) => T | type.errors,
@@ -387,6 +459,13 @@ async function readJournal(path: string, upgrade = false): Promise<RegistryJourn
   }
 }
 
+/** Read one complete atomic canonical snapshot using the same bounded parser/invariants as commands, without taking authority, reconciling replacements or granting any effects. Concurrent replacement can return the prior complete revision; callers must bind other observations to this snapshot. */
+export async function readRegistryJournalSnapshot(directory: string): Promise<RegistryJournal> {
+  await requireDirectory(directory);
+  // Proof: adding command-style flock here created authority.lock in the no-lock-file status negative; actual held-maintenance status also reads without mutation.
+  return readJournal(join(directory, 'journal.json'));
+}
+
 function requireUnique(identities: readonly string[], boundary: string): void {
   // Proof: duplicate-root and malformed-trusted-ownership negatives fail when uniqueness is bypassed.
   if (new Set(identities).size !== identities.length) throw new Error(`Duplicate ${boundary}`);
@@ -408,6 +487,152 @@ function requireConsistentState(journal: RegistryJournal): void {
     (journal.fenced && journal.fenceReason === null)
   )
     throw new Error('Inconsistent fence reason');
+  if (journal.schemaVersion === 4) {
+    requireUnique(
+      journal.publicationEvidence.map((evidence) => evidence.operationId),
+      'publication evidence owner',
+    );
+    for (const evidence of journal.publicationEvidence) {
+      const bundle = journal.bundles.find((bundle) => bundle.operationId === evidence.operationId);
+      if (bundle === undefined) throw new Error('Publication evidence has no original bundle');
+      validateRegistryPublicationEvidence(
+        evidence,
+        bundle.references,
+        bundle.receipt,
+        journal.updatedAt,
+      );
+    }
+    // Proof: removing canonical validation admits the altered plan-hash journal through the actual read command.
+    validateRegistryReclamation(journal);
+    validateRegistryClientEvidence(journal);
+    const evidence = journal.maintenanceEvidence;
+    // Proof: changing only the persisted evidence operation ID fails schema4 read before recovery can act.
+    if (
+      journal.maintenance !== null
+        ? evidence?.operationId !== journal.maintenance.operationId
+        : evidence !== null && !journal.closedOperations.includes(evidence.operationId)
+    )
+      throw new Error('Invalid maintenance evidence ownership');
+    if (evidence !== null) {
+      requireUnique(
+        evidence.backupAttempts.map((attempt) => attempt.id),
+        'backup attempt nonce',
+      );
+      requireUnique(
+        evidence.backupAttempts.map((attempt) => backupGuardianKey(attempt.guardian)),
+        'backup attempt guardian',
+      );
+      for (const attempt of evidence.backupAttempts) {
+        if (
+          attempt.operationId !== evidence.operationId ||
+          attempt.snapshotHost !== journal.enrollment.registryId ||
+          attempt.utsHostname !== `prb-${attempt.id}` ||
+          attempt.journalRevision > journal.revision ||
+          !Timestamp.allows(attempt.createdAt) ||
+          // Proof: removing only createdAt ordering made the canonical backup ordinary-lineage negative resolve in registry-chronology.test.
+          Date.parse(attempt.createdAt) > Date.parse(journal.updatedAt) ||
+          (attempt.state === 'prepared'
+            ? attempt.settlementSha256 !== null
+            : attempt.settlementSha256 === null) ||
+          (journal.maintenance === null && attempt.state === 'prepared')
+        )
+          throw new Error('Inconsistent durable backup attempt lineage');
+      }
+      const acknowledged = new Set<string>();
+      for (const receipt of evidence.backupReconciliations) {
+        const digest = createHash('sha256').update(JSON.stringify(receipt)).digest('hex');
+        if (receipt.operationId !== evidence.operationId)
+          throw new Error('Foreign backup reconciliation operation');
+        for (const id of receipt.attemptIds) {
+          const attempt = evidence.backupAttempts.find((attempt) => attempt.id === id);
+          // Proof: canonical read accepted missing/foreign/duplicate/altered reconciliation receipts before this full linkage.
+          if (
+            acknowledged.has(id) ||
+            attempt?.state !== 'reconciled' ||
+            attempt.configurationSha256 !== receipt.configurationSha256 ||
+            attempt.settlementSha256 !== digest
+          )
+            throw new Error('Inconsistent exact backup reconciliation lineage');
+          acknowledged.add(id);
+        }
+      }
+      if (
+        evidence.backupAttempts.some(
+          (attempt) => attempt.state === 'reconciled' && !acknowledged.has(attempt.id),
+        )
+      )
+        throw new Error('Missing exact backup reconciliation receipt');
+      const reservation = evidence.backupReconciliation;
+      if (reservation !== null) {
+        const pending = evidence.backupAttempts.filter((attempt) => attempt.state === 'prepared');
+        if (
+          reservation.operationId !== evidence.operationId ||
+          reservation.journalRevision > journal.revision ||
+          pending.length === 0 ||
+          pending.some(
+            (attempt) => attempt.configurationSha256 !== reservation.configurationSha256,
+          ) ||
+          JSON.stringify(reservation.attemptIds) !==
+            JSON.stringify(pending.map((attempt) => attempt.id))
+        )
+          throw new Error('Inconsistent backup reconciliation reservation');
+      }
+    }
+    requireUnique(
+      journal.retirements.map((receipt) => receipt.operationId),
+      'retirement operation',
+    );
+    for (const receipt of journal.retirements) {
+      requireUnique(receipt.operations, 'retired bundle in receipt');
+      requireUnique(receipt.retireBlobs, 'retired blob in receipt');
+      requireUnique(
+        receipt.neverUploaded.map(
+          (reference) => `${reference.operationId}:${reference.repository}@${reference.digest}`,
+        ),
+        'never-uploaded reference',
+      );
+      for (const reference of receipt.neverUploaded) {
+        const evidence = journal.publicationEvidence.find(
+          (evidence) => evidence.operationId === reference.operationId,
+        );
+        const bundle = journal.bundles.find(
+          (bundle) => bundle.operationId === reference.operationId,
+        );
+        if (
+          !receipt.operations.includes(reference.operationId) ||
+          bundle?.receipt.state !== 'abandoned' ||
+          !bundle.references.some(
+            (root) => root.repository === reference.repository && root.digest === reference.digest,
+          ) ||
+          evidence === undefined ||
+          evidence.writes.some(
+            (write) =>
+              write.repository === reference.repository && write.digest === reference.digest,
+          )
+        )
+          throw new Error('Retirement invented never-uploaded content');
+      }
+      if (
+        receipt.operationId !== journal.maintenance?.operationId &&
+        !journal.closedOperations.includes(receipt.operationId)
+      )
+        throw new Error('Unowned retirement receipt');
+      for (const operationId of receipt.operations) {
+        const bundle = journal.bundles.find((bundle) => bundle.operationId === operationId);
+        if (
+          bundle === undefined ||
+          bundle.receipt.state === 'unfinished' ||
+          // Proof: removing only receipt ordering made the canonical retirement expanded-boundary negative resolve in registry-chronology.test.
+          Date.parse(receipt.at) < Date.parse(bundle.receipt.at)
+        )
+          throw new Error('Invalid retired publication provenance');
+      }
+      requireUnique(
+        receipt.deletions.map((reference) => `${reference.repository}@${reference.digest}`),
+        'retired revision',
+      );
+    }
+  }
   requireUnique(
     journal.environments.map((environment) => environment.environment),
     'environment',
@@ -451,7 +676,9 @@ function requireConsistentState(journal: RegistryJournal): void {
       deployment.events[0].at !== deployment.startedAt ||
       deployment.events.at(-1)?.phase !== deployment.phase ||
       deployment.events.some(
-        (event, index) => index > 0 && event.at < deployment.events[index - 1].at,
+        // Proof: removing only event ordering made the canonical deployment expanded-boundary negative resolve in registry-chronology.test.
+        (event, index) =>
+          index > 0 && Date.parse(event.at) < Date.parse(deployment.events[index - 1].at),
       )
     )
       // Proof: removing this refusal accepts corrupted durable events in registry-deployment.test.
@@ -640,7 +867,7 @@ async function reconcileReplacements(
   if (replacements.length > 0) await syncDirectory(directory, ports);
 }
 
-async function withLock<T>(directory: string, run: () => Promise<T>): Promise<T> {
+async function withLock<T>(directory: string, run: (descriptor: number) => Promise<T>): Promise<T> {
   await requireDirectory(directory);
   if (process.platform !== 'linux' && process.platform !== 'darwin')
     throw new Error('Registry flock unsupported on this platform');
@@ -658,7 +885,7 @@ async function withLock<T>(directory: string, run: () => Promise<T>): Promise<T>
     // Proof: interprocess lock holder negative fails when this kernel lock call is bypassed.
     if (library.symbols.flock(descriptor.fd, 2 | 4) !== 0)
       throw new Error('Registry operation authority is busy');
-    return await run();
+    return await run(descriptor.fd);
   } finally {
     await descriptor.close();
     library.close();
@@ -673,9 +900,16 @@ async function persistJournal(
   initialize: boolean,
   reopen = false,
   checkOnly = false,
+  reservedBytes = 0,
 ): Promise<void> {
   const serialized = `${JSON.stringify(journal)}\n`;
-  const replacementBytes = Buffer.byteLength(serialized);
+  if (
+    !Number.isSafeInteger(reservedBytes) ||
+    reservedBytes < 0 ||
+    (reservedBytes > 0 && !checkOnly)
+  )
+    throw new Error('Invalid internal journal replacement reservation');
+  const replacementBytes = Buffer.byteLength(serialized) + reservedBytes;
   // Proof: near-limit journal admission failed reserves-failure-growth when this growth reserve was removed.
   if (replacementBytes + (recovery ? 0 : failureHeadroom) > maximumJournalBytes)
     throw new Error('Registry journal exceeds write bound');
@@ -967,7 +1201,7 @@ async function mutateJournal(
   journal: RegistryJournal,
   request: Exclude<
     RegistryCommand,
-    { command: 'read' | 'initialize' | 'upgrade' | 'check-capacity' }
+    { command: 'read' | 'initialize' | 'upgrade' | 'upgrade-maintenance' | 'check-capacity' }
   >,
   ports: RegistryJournalPorts,
 ): Promise<string | undefined> {
@@ -1348,6 +1582,12 @@ async function mutateJournal(
     }
     case 'reserve-publication': {
       if (journal.fenced) throw new Error('Registry writes are fenced');
+      if (journal.schemaVersion === 4) {
+        if (request.contents === undefined)
+          throw new Error('schema4 publication requires pre-write content declaration');
+        validateRegistryDeclaration(request.contents, request.references);
+      } else if (request.contents !== undefined)
+        throw new Error('Content declaration requires explicit schema4 upgrade');
       requireImages(request.roots, request.references);
       const capacity = await ports.measureRegistry(journal.enrollment);
       journal.measurement = { at: journal.updatedAt, ...capacity };
@@ -1373,6 +1613,13 @@ async function mutateJournal(
         receipt: { state: 'unfinished', at: journal.updatedAt },
       };
       journal.bundles.push({ ...bundle, owner: request.owner, references: request.references });
+      if (journal.schemaVersion === 4)
+        journal.publicationEvidence.push({
+          operationId: request.operationId,
+          declaredAt: journal.updatedAt,
+          contents: validateRegistryDeclaration(request.contents, request.references),
+          writes: [],
+        });
       journal.publication = {
         operationId: request.operationId,
         owner: request.owner,
@@ -1380,6 +1627,39 @@ async function mutateJournal(
         phase: 'uploading',
       };
       return token;
+    }
+    case 'record-publication-write': {
+      if (journal.schemaVersion !== 4)
+        throw new Error('Publication write evidence requires schema4');
+      requireOwnership(journal.publication, request);
+      if (journal.fenced || journal.publication.phase !== 'uploading')
+        throw new Error('Publication no longer owns writable admission');
+      const evidence = journal.publicationEvidence.find(
+        (evidence) => evidence.operationId === request.operationId,
+      );
+      if (evidence === undefined) throw new Error('Missing original publication declaration');
+      const declared = evidence.contents.find(
+        (content) =>
+          content.repository === request.write.repository &&
+          content.digest === request.write.digest,
+      );
+      // Proof: blob/manifest/undeclared ownership negatives in registry-publication-authority.test.ts reject before intent/revision changes; the persisted validator is independently tested.
+      if (declared?.isManifest !== (request.write.uploadId === null))
+        throw new Error('Upload ownership differs from declaration');
+      const previous = evidence.writes.find(
+        (write) =>
+          write.repository === request.write.repository && write.digest === request.write.digest,
+      );
+      if (request.write.phase === 'writing') {
+        if (previous !== undefined) throw new Error('Publication write intent already exists');
+        evidence.writes.push({ ...request.write, at: journal.updatedAt });
+      } else {
+        if (previous === undefined) throw new Error('Stored content requires durable write intent');
+        if (previous.uploadId !== request.write.uploadId || previous.phase !== 'writing')
+          throw new Error('Stored content differs from upload ownership');
+        previous.phase = 'stored';
+      }
+      return undefined;
     }
     case 'finish-publication': {
       requireOwnership(journal.publication, request);
@@ -1400,6 +1680,22 @@ async function mutateJournal(
         (candidate) => candidate.operationId === request.operationId,
       );
       if (bundle === undefined) throw new Error('Missing publication bundle');
+      if (journal.schemaVersion === 4 && request.outcome === 'completed') {
+        const evidence = journal.publicationEvidence.find(
+          (evidence) => evidence.operationId === request.operationId,
+        );
+        if (evidence === undefined)
+          throw new Error('Completed schema4 publication lacks original content declaration');
+        validateRegistryPublicationEvidence(
+          evidence,
+          bundle.references,
+          { state: 'completed', at: journal.updatedAt },
+          journal.updatedAt,
+        );
+        if (ports.verifyImages === undefined)
+          throw new Error('Completed publication lacks server image verifier');
+        await ports.verifyImages(journal.enrollment, bundle.references);
+      }
       bundle.receipt = { state: request.outcome, at: journal.updatedAt };
       journal.reservations = [];
       journal.publication = null;
@@ -1483,17 +1779,21 @@ class RegistryMeasurementFailure extends Error {}
  * until this function succeeds, and must reconcile state after any lost acknowledgement.
  * Valid canonical state authorizes reclaiming owned replacement orphans under the same lock;
  * initialization preserves preexisting replacement evidence instead of adopting or deleting it.
+ * Deferred host ports load only after strict request validation and before lock or journal effects;
+ * a bootstrap failure propagates without consulting or mutating trusted journal state.
  */
 export async function executeRegistryCommand(
   directory: string,
   input: unknown,
-  ports: RegistryJournalPorts,
+  authority: RegistryJournalPorts | (() => Promise<RegistryJournalPorts>),
 ): Promise<RegistryCommandResponse> {
   const encoded = JSON.stringify(input);
   // Proof: oversized valid publication failed bounds-valid-oversized-command-and-journal-inputs with this bound removed.
   if (typeof encoded !== 'string' || Buffer.byteLength(encoded) > maximumRequestBytes)
     throw new Error('Registry request exceeds read bound');
   const request = requireSchema(Command, input, 'registry command');
+  // Proof: eager bootstrap masks malformed commands; loading inside the lock leaves authority.lock on bootstrap failure.
+  let ports = typeof authority === 'function' ? await authority() : authority;
   const nativeMeasure = ports.measureRegistry;
   ports = {
     ...ports,
@@ -1554,6 +1854,40 @@ export async function executeRegistryCommand(
         await persistJournal(directory, state, ports, true, false);
         return { state };
       }
+      if (request.command === 'upgrade-maintenance') {
+        // Proof: active legacy maintenance is refused instead of inventing its missing barrier/backup evidence.
+        if (state.schemaVersion !== 3 || state.maintenance !== null)
+          throw new Error('Maintenance upgrade requires schema3 without active legacy maintenance');
+        const upgraded = requireSchema(
+          VersionFourJournal,
+          {
+            ...state,
+            schemaVersion: 4,
+            fenced: true,
+            fenceReason: 'maintenance-upgrade',
+            maintenanceVerified: false,
+            maintenanceEvidence: null,
+            lastVerifiedBackup: null,
+            retirements: [],
+            publicationEvidence: [],
+          },
+          'maintenance upgrade',
+        );
+        incrementRevision(upgraded);
+        // The independent journal may persist the fence even when registry ENOSPC prevents a derived acknowledgement.
+        await persistJournal(directory, upgraded, ports, false, false);
+        return { state: upgraded };
+      }
+      // Proof: schema4 phase-only commands cannot bypass the evidence-verifying session.
+      if (
+        state.schemaVersion === 4 &&
+        ['begin-maintenance', 'advance-maintenance', 'recover-maintenance'].includes(
+          request.command,
+        )
+      )
+        throw new RegistryRequestRefusal(
+          'Schema4 maintenance requires the verified maintenance session',
+        );
       if (request.command === 'check-capacity') {
         // Proof: removing this independent headroom check lets a ninety-percent journal renew pressure permission.
         await persistJournal(
@@ -1579,7 +1913,9 @@ export async function executeRegistryCommand(
             (ports.now ?? (() => new Date().toISOString()))(),
             'pressure receipt time',
           );
-          if (at < state.updatedAt) throw new Error('Server receipt clock moved backwards');
+          // Proof: removing only this guard made the pressure expanded-boundary reversal negative resolve in registry-chronology.test.
+          if (Date.parse(at) < Date.parse(state.updatedAt))
+            throw new Error('Server receipt clock moved backwards');
           state.updatedAt = at;
           state.measurement = { at, ...capacity };
           state.fenced = true;
@@ -1609,8 +1945,9 @@ export async function executeRegistryCommand(
         (ports.now ?? (() => new Date().toISOString()))(),
         'server receipt time',
       );
-      // Proof: removing monotonic receipt time failed clock-reversal command negative.
-      if (at < state.updatedAt) throw new Error('Server receipt clock moved backwards');
+      // Proof: removing only this guard made the publication expanded-boundary reversal negative resolve in registry-chronology.test.
+      if (Date.parse(at) < Date.parse(state.updatedAt))
+        throw new Error('Server receipt clock moved backwards');
       state.updatedAt = at;
       let token: string | undefined;
       try {
@@ -1758,4 +2095,662 @@ export async function reconcileRegistryConsumers(
     }
   }
   return reports;
+}
+
+export type RegistryMaintenanceJournal = typeof VersionFourJournal.infer;
+function backupGuardianKey(guardian: RegistryBackupGuardian): string {
+  return `${guardian.machineId}:${guardian.bootId}:${guardian.pidNamespace}:${String(guardian.pid)}:${guardian.startTicks}`;
+}
+
+export interface RegistryMaintenanceSession {
+  /** Native effects inherit this SAME open-file-description as FD3; they keep exclusion after parent death. */
+  readonly authorityDescriptor: number;
+  read(): RegistryMaintenanceJournal;
+  record(evidence: RegistryMaintenanceEvidence): Promise<void>;
+  /** Persist only after authenticated root terminal acknowledgement, process exit, diagnostic drain and channel EOF, against the independently observed parent plan. */
+  settleClient(receipt: RegistryClientCompletion, plan: RegistryClientPullPlan): Promise<void>;
+  /** Persist fresh measured usage before planning and after GC/retained verification; only the authority observes and acknowledges these receipts. */
+  measureReclamation(stage: 'before' | 'after'): Promise<RegistryCapacity>;
+  /** Bind one new backup nonce to this already authenticated root guardian before sending its action. */
+  prepareBackup(action: RegistryBackupAction, guardianPid: number): Promise<RegistryBackupAttempt>;
+  /** Called only after the authenticated root peer and all effects have returned a matching terminal receipt. */
+  settleBackup(attemptId: string, receipt: string): Promise<void>;
+  /** Reserve the bounded exact-version terminal receipt and failure replacement before any provider deletion. */
+  prepareBackupReconciliation(): Promise<void>;
+  /** Only the authenticated root terminal completion can acknowledge these exact reserved pending attempts. */
+  reconcileBackups(receipt: RegistryBackupLockRecovery): Promise<void>;
+  advance(phase: typeof Phase.infer): Promise<void>;
+  /** Admit the eventual retirement and failure replacement footprint before any external unlink. */
+  prepareRetirement(plan: RegistryRetirementPlan): Promise<void>;
+  /** Preserve immutable history while acknowledging only this plan's reconciled removals. */
+  retire(plan: RegistryRetirementPlan): Promise<void>;
+  /** No target/path arguments: only the configured server verifier can authorize registry rebind. */
+  restore(): Promise<void>;
+  /** Leave durable ownership active after verified restore until coordinated desired-state activation. */
+  deferActivation(): Promise<void>;
+}
+
+/**
+ * Trusted internal maintenance runner under the existing canonical authority flock for its
+ * entire lifetime. JSON requests cannot supply callbacks. Persist ownership/fence before
+ * external work; a throw or process death never releases durable ownership or reopens writes.
+ * A full registry may prevent its derived acknowledgement: this session requires the runtime
+ * adapter to independently stop/prove writer absence before any backup or deletion.
+ */
+export async function runRegistryMaintenance<T>(
+  directory: string,
+  input: {
+    operationId: string;
+    owner: string;
+    kind: 'backup' | 'retirement' | 'restore';
+    recover: boolean;
+  },
+  ports: RegistryJournalPorts,
+  run: (session: RegistryMaintenanceSession) => Promise<T>,
+): Promise<T> {
+  return withLock(directory, async (authorityDescriptor) => {
+    let state = requireSchema(
+      VersionFourJournal,
+      await readJournal(join(directory, 'journal.json')),
+      'schema4 maintenance journal',
+    );
+    await reconcileReplacements(directory, ports);
+    const persist = async (next: RegistryMaintenanceJournal, recovery = false) => {
+      const stamp = requireSchema(
+        Timestamp,
+        (ports.now ?? (() => new Date().toISOString()))(),
+        'maintenance receipt time',
+      );
+      // Proof: removing only this guard entered the callback instead of clock refusal in the maintenance expanded-boundary negative in registry-chronology.test.
+      if (Date.parse(stamp) < Date.parse(state.updatedAt))
+        throw new Error('Server receipt clock moved backwards');
+      next.updatedAt = stamp;
+      incrementRevision(next);
+      requireConsistentState(next);
+      await persistJournal(directory, next, ports, recovery, false);
+      state = next;
+    };
+    const next = structuredClone(state);
+    if (input.recover) {
+      const owned = next.maintenance;
+      if (
+        owned?.operationId !== input.operationId ||
+        owned.owner !== input.owner ||
+        owned.kind !== input.kind ||
+        next.maintenanceEvidence?.operationId !== input.operationId
+      )
+        throw new Error('Recovery requires exact existing maintenance ownership and evidence');
+      await mutateJournal(
+        next,
+        { command: 'recover-maintenance', ...owned, expectedRevision: next.revision },
+        ports,
+      );
+    } else {
+      await mutateJournal(
+        next,
+        {
+          command: 'begin-maintenance',
+          kind: input.kind,
+          operationId: input.operationId,
+          owner: input.owner,
+          expectedRevision: next.revision,
+        },
+        ports,
+      );
+      next.maintenanceEvidence = {
+        operationId: input.operationId,
+        runtime: null,
+        plan: null,
+        backup: null,
+        backupCensusSha256: null,
+        backupAttempts: [],
+        backupReconciliation: null,
+        backupReconciliations: [],
+        uploadsVerified: null,
+        retained: [],
+        deletions: [],
+        recovery: null,
+      };
+    }
+    // Proof: session ENOSPC negative has a failing derived acknowledgement; ownership still persists without requesting it.
+    await persist(next);
+    const retirementReceipt = (plan: RegistryRetirementPlan) => {
+      const evidence = state.maintenanceEvidence;
+      if (
+        evidence?.backup === null ||
+        evidence?.backup === undefined ||
+        evidence.plan !== JSON.stringify(plan)
+      )
+        throw new Error('Retirement receipt requires exact persisted plan and backup');
+      return RegistryRetirementReceipt.assert({
+        operationId: evidence.operationId,
+        operations: [...plan.policy.retireOperations],
+        planSha256: createHash('sha256').update(evidence.plan).digest('hex'),
+        retireBlobs: [...plan.retireBlobs],
+        neverUploaded: [...plan.neverUploaded],
+        uploadsSha256: createHash('sha256')
+          .update(JSON.stringify(plan.retireUploads))
+          .digest('hex'),
+        snapshotId: evidence.backup.snapshotId,
+        at: (ports.now ?? (() => new Date().toISOString()))(),
+        deletions: evidence.deletions.map(({ repository, digest, tags }) => ({
+          repository,
+          digest,
+          tags,
+        })),
+      });
+    };
+    const lifetime = { awaitingActivation: false };
+    const session: RegistryMaintenanceSession = {
+      authorityDescriptor,
+      read: () => structuredClone(state),
+      async prepareBackup(action, guardianPid) {
+        const owned = state.maintenance;
+        if (owned === null || ports.describeBackupGuardian === undefined)
+          throw new Error('Missing active backup ownership or trusted guardian observer');
+        const evidence = state.maintenanceEvidence;
+        if (
+          evidence === null ||
+          evidence.backupAttempts.some((attempt) => attempt.state === 'prepared')
+        )
+          throw new Error('Backup has an unsettled prior attempt');
+        if (evidence.backupAttempts.length >= 32)
+          throw new Error('Backup attempt evidence bound exhausted');
+        const described = requireSchema(
+          type({
+            guardian: RegistryBackupGuardian,
+            configurationSha256: /^[a-f0-9]{64}$/,
+            '+': 'reject',
+          }),
+          await ports.describeBackupGuardian(guardianPid),
+          'trusted backup guardian observation',
+        );
+        if (described.guardian.pid !== guardianPid)
+          throw new Error('Backup guardian differs from authenticated root peer');
+        if (
+          evidence.backupAttempts.some(
+            (attempt) =>
+              backupGuardianKey(attempt.guardian) === backupGuardianKey(described.guardian),
+          )
+        )
+          throw new Error('Backup guardian already owns an attempt');
+        const attempt = prepareRegistryBackupAttempt({
+          operationId: owned.operationId,
+          token: owned.token,
+          action,
+          configurationSha256: described.configurationSha256,
+          guardian: described.guardian,
+          registryId: state.enrollment.registryId,
+          journalRevision: state.revision + 1,
+          now: (ports.now ?? (() => new Date().toISOString()))(),
+        });
+        const prepared = structuredClone(state);
+        if (prepared.maintenanceEvidence === null) throw new Error('Missing backup evidence');
+        prepared.maintenanceEvidence.backupAttempts.push(attempt);
+        // Proof: the session test observed an empty on-disk attempt array before this durable persistence.
+        await persist(prepared);
+        return structuredClone(attempt);
+      },
+      async prepareBackupReconciliation() {
+        const evidence = state.maintenanceEvidence;
+        const pending = evidence?.backupAttempts.filter((attempt) => attempt.state === 'prepared');
+        const configurationSha256 = pending?.[0]?.configurationSha256;
+        if (
+          state.maintenance === null ||
+          evidence === null ||
+          pending === undefined ||
+          pending.length === 0 ||
+          configurationSha256 === undefined ||
+          pending.some((attempt) => attempt.configurationSha256 !== configurationSha256)
+        )
+          throw new Error('Missing consistent pending backup attempts');
+        if (
+          evidence.backupReconciliations.length >= 8 ||
+          Buffer.byteLength(JSON.stringify(evidence)) + 16384 > maximumRequestBytes
+        )
+          throw new Error('Backup reconciliation evidence bound exhausted');
+        const prepared = structuredClone(state);
+        if (prepared.maintenanceEvidence === null) throw new Error('Missing maintenance evidence');
+        prepared.maintenanceEvidence.backupReconciliation = {
+          operationId: state.maintenance.operationId,
+          configurationSha256,
+          attemptIds: pending.map((attempt) => attempt.id),
+          journalRevision: state.revision + 1,
+        };
+        // Proof: removing the16KiB reservation reaches the destructive callback with only112KiB modeled journal usability.
+        // Reserve a complete maximum terminal receipt plus settled hashes, in addition to independent failure headroom.
+        await persistJournal(directory, prepared, ports, false, false, false, true, 16384);
+        await persist(prepared);
+      },
+      async reconcileBackups(input) {
+        const receipt = RegistryBackupLockRecovery.assert(input);
+        const evidence = state.maintenanceEvidence;
+        const pending = evidence?.backupAttempts.filter((attempt) => attempt.state === 'prepared');
+        const reservation = evidence?.backupReconciliation;
+        if (
+          evidence === null ||
+          pending === undefined ||
+          pending.length === 0 ||
+          reservation === null ||
+          reservation === undefined ||
+          receipt.operationId !== state.maintenance?.operationId ||
+          receipt.configurationSha256 !== reservation.configurationSha256 ||
+          reservation.journalRevision !== state.revision ||
+          JSON.stringify(receipt.attemptIds) !==
+            JSON.stringify(pending.map((attempt) => attempt.id)) ||
+          JSON.stringify(receipt.attemptIds) !== JSON.stringify(reservation.attemptIds) ||
+          Buffer.byteLength(JSON.stringify(receipt)) > 14000
+        )
+          throw new Error('Backup reconciliation differs from reserved pending attempts');
+        const next = structuredClone(state);
+        if (next.maintenanceEvidence === null) throw new Error('Missing maintenance evidence');
+        const digest = createHash('sha256').update(JSON.stringify(receipt)).digest('hex');
+        for (const attempt of next.maintenanceEvidence.backupAttempts)
+          if (receipt.attemptIds.includes(attempt.id)) {
+            attempt.state = 'reconciled';
+            attempt.settlementSha256 = digest;
+          }
+        next.maintenanceEvidence.backupReconciliation = null;
+        next.maintenanceEvidence.backupReconciliations.push(structuredClone(receipt));
+        await persist(next);
+      },
+      async settleBackup(attemptId, receipt) {
+        const next = structuredClone(state);
+        const attempt = next.maintenanceEvidence?.backupAttempts.find(
+          (attempt) => attempt.id === attemptId,
+        );
+        if (attempt?.state !== 'prepared' || attempt.settlementSha256 !== null)
+          throw new Error('Missing pending backup attempt');
+        if (Buffer.byteLength(receipt) === 0 || Buffer.byteLength(receipt) > 16384)
+          throw new Error('Backup terminal receipt exceeds bound');
+        attempt.state = 'settled';
+        attempt.settlementSha256 = createHash('sha256').update(receipt).digest('hex');
+        await persist(next);
+      },
+      async measureReclamation(stage) {
+        const owned = state.maintenance;
+        const evidence = state.maintenanceEvidence;
+        // Proof: removing this phase boundary acknowledges a final measurement before offline collection in the real held session.
+        if (
+          owned?.kind !== 'retirement' ||
+          evidence?.backup == null ||
+          owned.phase !== (stage === 'before' ? 'backed-up' : 'collected')
+        )
+          throw new Error('Reclamation measurement requires the exact retirement phase and backup');
+        const prior = evidence.reclamation;
+        // Proof: removing baseline ownership acknowledges the second baseline request before plan creation.
+        if (
+          stage === 'before' ? prior !== undefined : prior?.after !== null || evidence.plan === null
+        )
+          throw new Error('Reclamation measurement has no matching incomplete baseline');
+        const at = requireSchema(
+          Timestamp,
+          (ports.now ?? (() => new Date().toISOString()))(),
+          'reclamation observation time',
+        );
+        const capacity = await ports.measureRegistry(state.enrollment);
+        // Proof: bypassing this parser persists NaN as null and breaks the actual measurement-failure canonical-read negative.
+        const measurement = RegistryReclamationMeasurement.assert({
+          ...capacity,
+          at,
+          journalRevision: state.revision + 1,
+        });
+        const completedAt = requireSchema(
+          Timestamp,
+          (ports.now ?? (() => new Date().toISOString()))(),
+          'reclamation completion time',
+        );
+        // Proof: removing observation-age validation accepts a pre-plan measurement delayed beyond sixty seconds.
+        if (
+          Date.parse(completedAt) - Date.parse(at) < 0 ||
+          Date.parse(completedAt) - Date.parse(at) > 60000 ||
+          measurement.maximumBytes !== state.enrollment.maximumBytes
+        )
+          throw new Error('Reclamation observation is stale or belongs to a different capacity');
+        const next = structuredClone(state);
+        if (next.maintenanceEvidence === null) throw new Error('Missing reclamation owner');
+        if (stage === 'before') {
+          next.maintenanceEvidence.reclamation = {
+            operationId: owned.operationId,
+            storageId: state.enrollment.storageId,
+            registryPath: state.enrollment.registryPath,
+            snapshotId: evidence.backup.snapshotId,
+            before: measurement,
+            after: null,
+            planSha256: null,
+            reclaimedBytes: null,
+            reclaimedInodes: null,
+          };
+        } else {
+          if (prior === undefined || evidence.plan === null)
+            throw new Error('Missing reclamation baseline or plan');
+          next.maintenanceEvidence.reclamation = {
+            ...prior,
+            after: measurement,
+            planSha256: createHash('sha256').update(evidence.plan).digest('hex'),
+            reclaimedBytes: prior.before.usedBytes - measurement.usedBytes,
+            reclaimedInodes: prior.before.usedInodes - measurement.usedInodes,
+          };
+        }
+        // Proof: omitting acknowledgement leaves the actual GC callback without its durable baseline; invented byte/inode deltas also fail this caller.
+        await persist(next);
+        return capacity;
+      },
+      async settleClient(input, plan) {
+        requireRegistryClientPlan(state, plan, input.scope);
+        const evidence = state.maintenanceEvidence;
+        const owned = state.maintenance;
+        if (evidence?.backup === null || evidence === null || owned === null)
+          throw new Error('Missing client completion owner or backup');
+        const receipt = requireRegistryClientCompletion(input, {
+          plan,
+          owner: {
+            operationId: owned.operationId,
+            registryId: state.enrollment.registryId,
+            snapshotId: evidence.backup.snapshotId,
+            scope: input.scope,
+          },
+          now: (ports.now ?? (() => new Date().toISOString()))(),
+        });
+        const next = structuredClone(state);
+        if (next.maintenanceEvidence === null) throw new Error('Missing client evidence');
+        next.maintenanceEvidence.client = receipt;
+        await persist(next);
+      },
+      async record(input) {
+        const evidence = requireSchema(RegistryMaintenanceEvidence, input, 'maintenance evidence');
+        // Proof: removing this refusal acknowledges erasure or changes to an authority-measured baseline via generic record.
+        if (
+          JSON.stringify(evidence.reclamation) !==
+          JSON.stringify(state.maintenanceEvidence?.reclamation)
+        )
+          throw new Error('Generic record cannot change measured reclamation');
+        // Proof: generic record invents, erases or replaces client evidence in actual session negatives when this refusal is removed.
+        if (JSON.stringify(evidence.client) !== JSON.stringify(state.maintenanceEvidence?.client))
+          throw new Error('Generic record cannot change client completion');
+        // Evidence shares the existing command-size bound, leaving ordinary failure-receipt headroom intact.
+        if (Buffer.byteLength(JSON.stringify(evidence)) > maximumRequestBytes)
+          throw new Error('Maintenance evidence exceeds request bound');
+        if (evidence.operationId !== state.maintenance?.operationId)
+          throw new Error('Foreign maintenance evidence');
+        // Proof: generic record could invent/erase/replace attempt ownership before this refusal.
+        if (
+          JSON.stringify([
+            evidence.backupAttempts,
+            evidence.backupReconciliation,
+            evidence.backupReconciliations,
+          ]) !==
+          JSON.stringify([
+            state.maintenanceEvidence?.backupAttempts,
+            state.maintenanceEvidence?.backupReconciliation,
+            state.maintenanceEvidence?.backupReconciliations,
+          ])
+        )
+          throw new Error('Generic record cannot change backup attempt evidence');
+        const previousBackup = state.maintenanceEvidence?.backup;
+        // Proof: clear/replace negatives cannot erase the operation's verified snapshot lineage.
+        if (
+          previousBackup !== undefined &&
+          previousBackup !== null &&
+          JSON.stringify(previousBackup) !== JSON.stringify(evidence.backup)
+        )
+          throw new Error('Cannot replace verified maintenance backup');
+        const next = structuredClone(state);
+        next.maintenanceEvidence = structuredClone(evidence);
+        if (evidence.backup !== null) {
+          if (
+            (previousBackup === undefined || previousBackup === null) &&
+            (evidence.backup.registryId !== state.enrollment.registryId ||
+              evidence.backup.storageId !== state.enrollment.storageId ||
+              evidence.backup.registryPath !== state.enrollment.registryPath ||
+              evidence.backup.journalPath !== directory ||
+              evidence.backup.journalRevision > state.revision)
+          )
+            throw new Error('Backup identity differs from current authority');
+          next.lastVerifiedBackup = structuredClone(evidence.backup);
+        }
+        await persist(next);
+      },
+      async deferActivation() {
+        requireRegistryClientRestoration(state, (ports.now ?? (() => new Date().toISOString()))());
+        requireRegistryRecoveryReceipt(state, directory);
+        if (state.maintenance?.phase === 'verified') await session.advance('restored');
+        else if (state.maintenance?.phase !== 'restored')
+          throw new Error('Activation handoff requires verified restored store');
+        lifetime.awaitingActivation = true;
+      },
+      async restore() {
+        // Proof: caller-only rebind without the trusted server verifier fails before changing enrollment.
+        if (ports.recoverRegistry === undefined)
+          throw new Error('Missing trusted server recovery verifier');
+        const backup = state.maintenanceEvidence?.backup;
+        const owned = state.maintenance;
+        if (
+          owned === null ||
+          backup === null ||
+          backup === undefined ||
+          !['backed-up', 'deleting', 'collected', 'verified', 'restored'].includes(owned.phase)
+        )
+          throw new Error('Recovery requires existing verified backup and durable operation');
+        if (state.maintenanceEvidence?.recovery === null) {
+          if (ports.prepareRegistryRecovery === undefined)
+            throw new Error('Missing trusted server recovery preparation');
+          const preparation = RegistryRecoveryPreparation.assert(
+            await ports.prepareRegistryRecovery(
+              structuredClone(state),
+              authorityDescriptor,
+              session,
+            ),
+          );
+          if (
+            preparation.operationId !== owned.operationId ||
+            preparation.snapshotId !== backup.snapshotId ||
+            preparation.previousStorageId !== state.enrollment.storageId ||
+            preparation.previousRegistryPath !== state.enrollment.registryPath ||
+            preparation.canonicalJournalPath !== directory
+          )
+            throw new Error('Recovery preparation differs from current authority');
+          const prepared = structuredClone(state);
+          if (prepared.maintenanceEvidence === null) throw new Error('Missing recovery evidence');
+          prepared.maintenanceEvidence.recovery = JSON.stringify(preparation);
+          await persist(prepared);
+        }
+        const receipt = RegistryRecoveryReceipt.assert(
+          await ports.recoverRegistry(structuredClone(state), authorityDescriptor, session),
+        );
+        if (
+          receipt.operationId !== owned.operationId ||
+          receipt.snapshotId !== backup.snapshotId ||
+          receipt.previousStorageId !== state.enrollment.storageId ||
+          receipt.previousRegistryPath !== state.enrollment.registryPath ||
+          receipt.storageId === state.enrollment.storageId ||
+          receipt.registryPath === state.enrollment.registryPath ||
+          !isAbsolute(receipt.registryPath) ||
+          !isAbsolute(receipt.stagedJournalPath) ||
+          receipt.canonicalJournalPath !== directory ||
+          [directory, receipt.registryPath, state.enrollment.registryPath].includes(
+            receipt.stagedJournalPath,
+          ) ||
+          receipt.stagedJournalRevision !== backup.journalRevision ||
+          receipt.stagedJournalSha256 !== backup.journalSha256 ||
+          receipt.currentJournalRevision !== state.revision
+        )
+          throw new Error(
+            'Server recovery receipt differs from current authority and matching backup',
+          );
+        const next = projectRegistryRecovery(state, receipt);
+        if (next.maintenance === null || next.maintenanceEvidence === null)
+          throw new Error('Missing restored maintenance ownership');
+        next.maintenanceEvidence.recovery = JSON.stringify(receipt);
+        requireRegistryClientRestoration(next, (ports.now ?? (() => new Date().toISOString()))());
+        next.maintenance.phase = 'verified';
+        next.maintenance.resumePhase = 'verified';
+        await persist(next);
+      },
+      async prepareRetirement(plan) {
+        if (state.maintenance?.kind !== 'retirement' || state.maintenance.phase !== 'backed-up')
+          throw new Error('Retirement preparation requires backed-up ownership');
+        if (plan.policy.retireOperations.length === 0) return;
+        const trial = structuredClone(state);
+        const receipt = retirementReceipt(plan);
+        trial.retirements.push(receipt);
+        trial.updatedAt = receipt.at;
+        incrementRevision(trial);
+        requireConsistentState(trial);
+        // Proof: removing this preflight reaches the destructive callback under insufficient future receipt capacity (task8-receipt-capacity-removal.log).
+        // Same flock excludes journal competitors while reserving the larger eventual retirement/failure replacement.
+        await persistJournal(directory, trial, ports, false, false, false, true);
+      },
+      async retire(plan) {
+        const evidence = state.maintenanceEvidence;
+        // Proof: an acquired operation cannot create a retirement receipt before exact reconciled deletion.
+        if (
+          state.maintenance?.kind !== 'retirement' ||
+          state.maintenance.phase !== 'deleting' ||
+          evidence?.backup === null ||
+          evidence?.backup === undefined ||
+          evidence.plan === null ||
+          evidence.deletions.some((deletion) => deletion.state !== 'verified')
+        )
+          throw new Error('Retirement receipt requires reconciled deletion and verified backup');
+        if (
+          evidence.uploadsVerified !==
+            createHash('sha256').update(JSON.stringify(plan.retireUploads)).digest('hex') ||
+          evidence.plan !== JSON.stringify(plan) ||
+          JSON.stringify(
+            evidence.deletions.map(({ repository, digest }) => ({ repository, digest })),
+          ) !== JSON.stringify(plan.retireRevisions)
+        )
+          throw new Error('Retirement receipt differs from exact persisted plan');
+        if (plan.policy.retireOperations.length === 0) {
+          if (plan.retireRevisions.length !== 0) throw new Error('Deletion has no eligible owner');
+          return;
+        }
+        const next = structuredClone(state);
+        next.retirements.push(retirementReceipt(plan));
+        await persist(next);
+      },
+      async advance(phase) {
+        const owned = state.maintenance;
+        const evidence = state.maintenanceEvidence;
+        if (owned === null || evidence === null)
+          throw new Error('Missing active maintenance evidence');
+        // Proof: session phase omission test refuses before any trusted runtime receipt exists.
+        if (phase === 'reconciled' && evidence.runtime === null)
+          throw new Error('Missing maintenance runtime evidence');
+        if (
+          ['backed-up', 'deleting', 'collected', 'verified', 'restored', 'completed'].includes(
+            phase,
+          ) &&
+          evidence.backup === null
+        )
+          throw new Error('Missing verified maintenance backup');
+        if (phase === 'deleting' && evidence.plan === null)
+          throw new Error('Missing exact retirement plan');
+        // Proof: unverified recovery text cannot bypass pending deletion reconciliation.
+        if (
+          phase === 'collected' &&
+          evidence.deletions.some((deletion) => deletion.state !== 'verified')
+        )
+          throw new Error('Incomplete manifest deletion reconciliation');
+        // Proof: removing this gate advances a sixty-second-expired measurement to verified before the later restoration gate refuses it.
+        if (owned.kind === 'retirement' && phase === 'verified')
+          requireRegistryReclamation(state, (ports.now ?? (() => new Date().toISOString()))());
+        // Proof: removing this phase gate advances the actual backed-up session without any saved client completion.
+        if (['verified', 'restored', 'completed'].includes(phase))
+          requireRegistryClientRestoration(
+            state,
+            (ports.now ?? (() => new Date().toISOString()))(),
+          );
+        const next = structuredClone(state);
+        await mutateJournal(
+          next,
+          {
+            command: 'advance-maintenance',
+            operationId: owned.operationId,
+            owner: owned.owner,
+            token: owned.token,
+            expectedRevision: next.revision,
+            phase,
+          },
+          ports,
+        );
+        await persist(next, phase === 'completed');
+      },
+    };
+    try {
+      const completed = await run(session);
+      if (state.maintenance !== null && !lifetime.awaitingActivation)
+        throw new Error('Maintenance callback left an unfinished operation');
+      return completed;
+    } catch (cause) {
+      // Proof: journal-reread rollback drops the operation Error/null/undefined when the real canonical file is absent, unreadable, malformed or wrong-schema in registry-maintenance-failure.test.ts.
+      try {
+        // Reread canonical state: fsync may have failed after rename. Never invent success from the in-memory phase.
+        const failed = requireSchema(
+          VersionFourJournal,
+          await readJournal(join(directory, 'journal.json')),
+          'failed maintenance journal',
+        );
+        if (
+          failed.maintenance?.operationId !== input.operationId ||
+          failed.maintenance.owner !== input.owner
+        )
+          // The recovery refusal is secondary: this outer boundary aggregates the original operation separately.
+          // eslint-disable-next-line preserve-caught-error
+          throw new Error(
+            'Maintenance failed after ownership changed; inspect canonical recovery receipt',
+          );
+        failed.maintenance.resumePhase =
+          failed.maintenance.phase === 'failed'
+            ? failed.maintenance.resumePhase
+            : failed.maintenance.phase;
+        failed.maintenance.phase = 'failed';
+        failed.maintenance.failure =
+          'Maintenance failed; recover this exact operation from its verified backup and runtime evidence';
+        failed.fenced = true;
+        failed.maintenanceVerified = false;
+        await persist(failed, true);
+      } catch (failure) {
+        throw new AggregateError(
+          [cause, failure],
+          'Maintenance failed; durable failure receipt could not be acknowledged',
+          // The operation is the causal boundary; the rejected recovery remains the second aggregate member.
+          // eslint-disable-next-line preserve-caught-error
+          { cause },
+        );
+      }
+      throw cause;
+    }
+  });
+}
+
+/** Preserve current authority obligations/history; only this snapshot lineage's retirement marks can be undone by verified restoration. */
+export function projectRegistryRecovery(
+  journal: RegistryMaintenanceJournal,
+  target: Pick<RegistryRecoveryReceipt, 'storageId' | 'registryPath' | 'maximumBytes'>,
+): RegistryMaintenanceJournal {
+  const backup = journal.maintenanceEvidence?.backup;
+  const owned = journal.maintenance;
+  if (owned === null || backup === null || backup === undefined)
+    throw new Error('Missing verified recovery lineage');
+  const restored = structuredClone(journal);
+  restored.enrollment.storageId = target.storageId;
+  restored.enrollment.registryPath = target.registryPath;
+  restored.enrollment.maximumBytes = target.maximumBytes;
+  const client = restored.maintenanceEvidence?.client;
+  // Proof: prior-client=true recovery failed its actual inventory census while the candidate retained the old-store completion. The canonical source remains unchanged.
+  if (
+    client !== undefined &&
+    (client.storageId !== target.storageId || client.registryPath !== target.registryPath)
+  ) {
+    if (restored.maintenanceEvidence === null) throw new Error('Missing projected client evidence');
+    delete restored.maintenanceEvidence.client;
+  }
+
+  restored.retirements = restored.retirements.filter(
+    (receipt) =>
+      receipt.operationId !== owned.operationId || receipt.snapshotId !== backup.snapshotId,
+  );
+  return restored;
 }

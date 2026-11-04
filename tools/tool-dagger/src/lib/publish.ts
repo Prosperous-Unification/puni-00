@@ -130,8 +130,9 @@ export async function publishManagedRelease(
       enrollment,
       artifacts,
       connectRegistryAuthority(enrollment),
-      async (artifact) => {
-        await uploadArtifact(endpoint, artifact);
+      async (artifact, ownership) => {
+        // Proof: dropping ownership makes the real HTTP caller fixture reject its first body (409, no durable write intent).
+        await uploadArtifact(endpoint, artifact, ownership);
       },
     );
     const record: ReleaseRecord = {};

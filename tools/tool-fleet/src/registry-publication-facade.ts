@@ -37,6 +37,7 @@ export {
   type PublicationEnrollment,
   publishArtifacts,
   type RegistryAuthority,
+  type RegistryUploadOwnership,
 } from './registry-publication';
 export { managedImageReferences, runRegistryReader, serveRegistryReader } from './registry-reader';
 export { readRegistryOwnerFile, readRegistrySource } from './registry-source';

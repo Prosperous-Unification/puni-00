@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily fenced registry retirement after verified backup
+
+[Timer]
+OnCalendar=*-*-* 03:37:00 UTC
+Persistent=true
+Unit=puni-registry-retire.service
+
+[Install]
+WantedBy=timers.target

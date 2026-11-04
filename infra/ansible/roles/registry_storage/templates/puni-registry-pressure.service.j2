@@ -7,10 +7,14 @@ After=puni-registry-storage.service k3s.service
 Type=simple
 User=puni-registry-authority
 Group=puni-registry-authority
+# Proof: removing this runtime directory contract fails the staged unit test; no installed/systemd activation proof is claimed.
+RuntimeDirectory=puni-registry-pressure
+RuntimeDirectoryMode=0700
+UMask=0077
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/puni-registry/journal/contents
+ReadWritePaths=/var/lib/puni-registry/journal/contents /run/puni-registry-pressure /var/lib/puni-registry-monitoring/source
 ExecStart=/usr/local/libexec/puni-registry-authority/bun /usr/local/libexec/puni-registry-authority/authority.js /var/lib/puni-registry/journal/contents --monitor
 Restart=on-failure
 RestartSec=10s

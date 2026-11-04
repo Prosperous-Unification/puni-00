@@ -26,7 +26,7 @@ const Reservation = type({ operationId: Identity, bytes: Count, inodes: Count })
 const Bundle = type({
   operationId: Identity,
   product: Identity,
-  roots: Digest.array().atLeastLength(1),
+  roots: Digest.array(),
   receipt: {
     state: "'promoted'|'completed'|'abandoned'|'unfinished'",
     at: Timestamp,
@@ -68,6 +68,15 @@ const Inventory = type({
   protections: Protection.array(),
   registeredEnvironments: Identity.array(),
   histories: History.array(),
+  'retiredOperations?': Identity.array(),
+  'partialOperations?': Identity.array(),
+  'staging?': type({ operationId: Identity, bytes: Count, inodes: Count }).array(),
+  'unreferencedContent?': type({
+    digest: Digest,
+    bytes: Count,
+    inodes: Count,
+    operations: Identity.array().atLeastLength(1),
+  }).array(),
 });
 
 /** Allocated filesystem measurements, including staging; root reserve is on the host filesystem. */
@@ -240,6 +249,34 @@ function requireInventory(inventory: RetirementInput): Map<string, RegistryGraph
     inventory.histories.map((history) => history.environment),
     'environment history',
   );
+  const partial = new Set(inventory.partialOperations ?? []);
+  requireUnique(inventory.partialOperations ?? [], 'partial operation');
+  if (
+    [...partial].some(
+      (operationId) =>
+        !inventory.bundles.some(
+          (bundle) => bundle.operationId === operationId && bundle.receipt.state === 'abandoned',
+        ),
+    )
+  )
+    throw new Error('Partial content lacks reconciled abandonment');
+  const retired = new Set(inventory.retiredOperations ?? []);
+  requireUnique(inventory.retiredOperations ?? [], 'retired operation');
+  if (
+    [...retired].some(
+      (operationId) =>
+        !inventory.bundles.some(
+          (bundle) => bundle.operationId === operationId && bundle.receipt.state !== 'unfinished',
+        ),
+    ) ||
+    inventory.bundles.some(
+      (bundle) =>
+        bundle.roots.length === 0 &&
+        !retired.has(bundle.operationId) &&
+        !partial.has(bundle.operationId),
+    )
+  )
+    throw new Error('Unknown retired operation or empty required roots');
   const nodes = new Map(inventory.graph.nodes.map((node) => [node.digest, node]));
   const owned = collectClosure(
     [
@@ -252,6 +289,27 @@ function requireInventory(inventory: RetirementInput): Map<string, RegistryGraph
     // Proof: removing owner refusal failed throws-for-unknown-owner.
     if (!owned.has(node.digest)) throw new Error(`Unknown owner of ${node.digest}`);
   }
+  const unreferenced = inventory.unreferencedContent ?? [];
+  requireUnique(
+    unreferenced.map((content) => content.digest),
+    'unreferenced content',
+  );
+  for (const content of unreferenced) {
+    requireUnique(content.operations, 'content owner');
+    if (
+      nodes.has(content.digest) ||
+      content.operations.some(
+        (operationId) => !inventory.bundles.some((bundle) => bundle.operationId === operationId),
+      )
+    )
+      throw new Error('Invalid unreferenced physical content ownership');
+  }
+  if (
+    (inventory.staging ?? []).some(
+      (upload) => !inventory.bundles.some((bundle) => bundle.operationId === upload.operationId),
+    )
+  )
+    throw new Error('Unowned staged content');
   const currentTime = Date.parse(inventory.now);
   for (const bundle of inventory.bundles) {
     // Proof: accepting future publication receipts failed the future-publication retirement negative.
@@ -287,6 +345,11 @@ function retainBundles(
   nodes: ReadonlyMap<string, RegistryGraphNode>,
 ): Map<string, string[]> {
   const reasons = new Map<string, string[]>();
+  const protections = inventory.protections.map((protection) => ({
+    ...protection,
+    closure: collectClosure(protection.roots, nodes),
+  }));
+  const protectedImages = new Set(protections.flatMap((protection) => [...protection.closure]));
   const retain = (operationId: string, reason: string) => {
     const previous = reasons.get(operationId);
     if (previous === undefined) reasons.set(operationId, [reason]);
@@ -305,11 +368,17 @@ function retainBundles(
   for (const history of inventory.histories) {
     if (history.state === 'successful') {
       // Proof: retaining only current plus one prior failed preserves-older-environment-rollback.
+      // Proof: the fourteen-promotion history test substitutes current-consumer-only roots3/14; reducing this cutoff to one wrongly retires prior releases1/2 outside newest5–14. Native deployment protections are independently retained.
       for (const operationId of history.releases.slice(0, 3))
         retain(operationId, `environment:${history.environment}`);
     }
   }
   for (const bundle of inventory.bundles) {
+    if (inventory.retiredOperations?.includes(bundle.operationId)) {
+      if (reasons.has(bundle.operationId))
+        throw new Error('Retired bundle remains required by release history');
+      continue;
+    }
     // Proof: skipping unfinished retention failed retains-unfinished-work-regardless-of-age.
     if (bundle.receipt.state === 'unfinished') retain(bundle.operationId, 'unfinished');
     // Proof: reducing grace to six days failed waits-seven-days-after-abandonment.
@@ -318,12 +387,11 @@ function retainBundles(
       Date.parse(inventory.now) - Date.parse(bundle.receipt.at) < abandonmentDelay
     )
       retain(bundle.operationId, 'seven-day-grace');
-    const closure = collectClosure(bundle.roots, nodes);
-    for (const protection of inventory.protections) {
-      // Proof: ignoring protection roots failed preserves-protected-transitive-dependencies.
-      if (protection.roots.some((root) => closure.has(root)))
-        retain(bundle.operationId, `protection:${protection.owner}:${protection.reason}`);
-    }
+    // Proof: old any-shared-digest retention failed the fourteen-release/current-consumer regression; exact deployment/recovery/consumer roots still survive.
+    if (bundle.roots.length > 0 && bundle.roots.every((root) => protectedImages.has(root)))
+      for (const protection of protections)
+        if (bundle.roots.some((root) => protection.closure.has(root)))
+          retain(bundle.operationId, `protection:${protection.owner}:${protection.reason}`);
   }
   return reasons;
 }
@@ -354,14 +422,25 @@ export function planRetirement(input: unknown): RetirementPlan {
   const isActive = inventory.mode === 'nightly' || pressure === 'retire' || pressure === 'fenced';
   // Proof: selecting protected operations failed all-protected-exhaustion retirement.
   const eligible = inventory.bundles
-    .filter((bundle) => !reasons.has(bundle.operationId))
+    .filter(
+      (bundle) =>
+        !reasons.has(bundle.operationId) &&
+        !inventory.retiredOperations?.includes(bundle.operationId),
+    )
     .sort(compareReceipts);
   const retired = isActive ? eligible : [];
   const candidateDigests = collectClosure(
     retired.flatMap((bundle) => bundle.roots),
     nodes,
   );
-  const retireDigests = [...candidateDigests]
+  const released = new Set([
+    ...retired.map((bundle) => bundle.operationId),
+    ...(inventory.retiredOperations ?? []),
+  ]);
+  const orphanRetirements = (inventory.unreferencedContent ?? []).filter((content) =>
+    content.operations.every((operationId) => released.has(operationId)),
+  );
+  const retireDigests = [...candidateDigests, ...orphanRetirements.map((content) => content.digest)]
     // Proof: ignoring retained reverse references failed shared-blob retirement accounting.
     .filter((digest) => !protectedDigests.has(digest))
     .sort();
@@ -374,6 +453,18 @@ export function planRetirement(input: unknown): RetirementPlan {
       estimatedReclaimableBytes += node.bytes;
       estimatedReclaimableInodes += node.inodes;
     }
+  }
+  for (const content of inventory.unreferencedContent ?? []) {
+    if (retireDigests.includes(content.digest)) {
+      estimatedReclaimableBytes += content.bytes;
+      estimatedReclaimableInodes += content.inodes;
+    } else protectedBytes += content.bytes;
+  }
+  for (const upload of inventory.staging ?? []) {
+    if (released.has(upload.operationId)) {
+      estimatedReclaimableBytes += upload.bytes;
+      estimatedReclaimableInodes += upload.inodes;
+    } else protectedBytes += upload.bytes;
   }
   // Proof: changing byte target to 80% failed all-protected exhaustion's unmet-capacity assertion.
   const unmetBytes = Math.max(

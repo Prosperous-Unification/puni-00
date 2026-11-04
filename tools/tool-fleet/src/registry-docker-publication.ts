@@ -112,9 +112,14 @@ export async function publishNativeDockerBundle(
       },
       run: (args) => runRegistryProcess([executable, ...args], cwd, 180000),
       publish: (artifacts) =>
-        publishArtifacts(enrollment, artifacts, ports.authority(enrollment), async (artifact) => {
-          await uploadArtifact(endpoint, artifact);
-        }),
+        publishArtifacts(
+          enrollment,
+          artifacts,
+          ports.authority(enrollment),
+          async (artifact, ownership) => {
+            await uploadArtifact(endpoint, artifact, ownership);
+          },
+        ),
     }),
   );
 }

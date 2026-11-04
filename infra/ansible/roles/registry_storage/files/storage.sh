@@ -49,6 +49,59 @@ def durable_write(path, content, mode=0o644):
     return True
 
 
+
+def ensure_backup_effects(mount, owner, fresh):
+    parent = mount.lstat()
+    require(stat.S_ISDIR(parent.st_mode) and parent.st_uid == owner and
+            not stat.S_IMODE(parent.st_mode) & 0o022, 'Untrusted backup effect mount parent')
+    directory = mount / 'backup-effects'
+    changed = False
+    if not directory.exists():
+        # Proof: freshness removal recreated the lost established directory in the ordinary production-function enrollment test.
+        require(fresh and not directory.is_symlink(), 'Missing established backup effect directory')
+        directory.mkdir(mode=0o700)
+        state = {'schemaVersion': 1, 'scope': 'effect-lineage-only', 'generation': 0,
+                 'binding': None, 'snapshot': None, 'inspection': False,
+                 'attempts': [], 'effects': [], 'closedOperationId': None}
+        for name, content in [('state.json', json.dumps(state) + '\n'), ('state.lock', '')]:
+            descriptor = os.open(directory / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            with os.fdopen(descriptor, 'w') as stream:
+                stream.write(content)
+                stream.flush()
+                os.fsync(stream.fileno())
+        for path in (directory, mount):
+            descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+        changed = True
+    status = directory.lstat()
+    # Proof: predicate removal accepted public-directory drift in the ordinary production-function enrollment test.
+    require(stat.S_ISDIR(status.st_mode) and status.st_uid == owner and
+            status.st_dev == parent.st_dev and stat.S_IMODE(status.st_mode) == 0o700,
+            'Untrusted backup effect directory')
+    # Proof: entry-set removal accepted unresolved state.pending in the ordinary production-function enrollment test.
+    require({path.name for path in directory.iterdir()} == {'state.json', 'state.lock'},
+            'Missing established backup effect state or unresolved replacement')
+    for name in ('state.json', 'state.lock'):
+        descriptor = os.open(directory / name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            status = os.fstat(descriptor)
+            # Proof: metadata removal accepted an outside-directory hardlink in the ordinary production-function enrollment test.
+            require(stat.S_ISREG(status.st_mode) and status.st_uid == owner and
+                    status.st_nlink == 1 and stat.S_IMODE(status.st_mode) == 0o600 and
+                    status.st_size <= 1024**2, 'Untrusted backup effect file')
+            if name == 'state.json':
+                with os.fdopen(os.dup(descriptor), 'r') as stream:
+                    state = json.load(stream)
+                require(type(state) is dict and state.get('schemaVersion') == 1 and
+                        state.get('scope') == 'effect-lineage-only', 'Malformed backup effect state')
+        finally:
+            os.close(descriptor)
+    return changed
+
+
 def allocated(image, limit):
     status = image.lstat()
     # Proof: sparse backing fault in registry-storage-rehearsal.sh refuses before mounting.
@@ -71,14 +124,7 @@ def inspect_mount(mount):
     return mounts[0]
 
 
-def main():
-    require(os.geteuid() == 0, 'Storage enrollment requires root')
-    require(len(sys.argv) == 3 and sys.argv[1] in ('provision', 'mount', 'verify', 'provision-scratch', 'mount-scratch', 'verify-scratch'),
-            'Usage: storage.sh provision|mount|verify[-scratch] <configuration.json>')
-    is_scratch = sys.argv[1].endswith('-scratch')
-    command = sys.argv[1].removesuffix('-scratch')
-    config_path = Path(sys.argv[2])
-    config = json.loads(config_path.read_text())
+def converge(config, command, is_scratch=False, is_pulls=False):
     require(set(config) == {'directory', 'rootReserveBytes', 'volumes', 'fstab'}, 'Invalid configuration keys')
     directory = Path(config['directory'])
     reserve = config['rootReserveBytes']
@@ -88,17 +134,24 @@ def main():
     require(directory.stat().st_uid == 0 and directory.stat().st_mode & 0o022 == 0,
             'Storage directory is not root owned')
     volumes = config['volumes']
-    expected_names = {'scratch'} if is_scratch else {'registry', 'journal'}
+    expected_names = {'pulls'} if is_pulls else {'scratch'} if is_scratch else {'registry', 'journal'}
     # Proof: removing this check let registry mode create scratch backing before the cross-mode negative failed.
     require(isinstance(volumes, list) and len(volumes) == len(expected_names) and
             {volume['name'] for volume in volumes} == expected_names, 'Volume set differs from storage mode')
     for volume in volumes:
-        require(set(volume) == {'name', 'bytes', 'uid'}, 'Invalid volume keys')
-        ceiling = 1024**3 if volume['name'] == 'journal' else 50 * 1024**3
+        expected_keys = {'name', 'bytes', 'uid', 'inodes'} if is_pulls else {'name', 'bytes', 'uid'}
+        # Proof: the unknown-volume-key negative fails when this check is removed (pulls native rehearsal).
+        require(set(volume) == expected_keys, 'Invalid volume keys')
+        ceiling = 2**53 - 1 if is_pulls else 1024**3 if volume['name'] == 'journal' else 50 * 1024**3
         require(type(volume['bytes']) is int and 32 * 1024**2 <= volume['bytes'] <= ceiling,
                 'Invalid fixed capacity')
-        require(type(volume['uid']) is int and 1 <= volume['uid'] < 61184 and
-                volume['uid'] == volumes[0]['uid'], 'Invalid volume owner')
+        if is_pulls:
+            # Proof: removing the owner/inode predicates admits UID 59001 and zero inodes before allocation.
+            require(type(volume['uid']) is int and volume['uid'] == 0, 'Pull pool requires root ownership')
+            require(type(volume['inodes']) is int and 0 < volume['inodes'] < 2**32, 'Invalid pull inode ceiling')
+        else:
+            require(type(volume['uid']) is int and 1 <= volume['uid'] < 61184 and
+                    volume['uid'] == volumes[0]['uid'], 'Invalid volume owner')
     table = Path(config['fstab']).read_text()
     for volume in volumes:
         name = volume['name']
@@ -108,16 +161,27 @@ def main():
                               entries[0][2] == 'ext4' and {'noauto', 'nodiscard', 'X-fstrim.notrim'}.issubset(set(entries[0][3].split(','))))
         # Proof: removing the fstab notrim option refuses startup; removing this guard admits it.
         require(has_trim_exclusion, 'Missing exact scheduled-trim exclusion')
+    canonical_changed = False
+    if is_pulls:
+        canonical = json.loads(Path('/etc/puni/registry-storage.json').read_text())
+        # Proof: removing this predicate admits a different, valid canonical pair in the native rehearsal.
+        require(canonical['directory'] == str(directory), 'Pull pool differs from canonical storage directory')
+        # Proof: removing this predicate admits a pool reserve below the canonical reserve.
+        require(type(canonical['rootReserveBytes']) is int and reserve >= canonical['rootReserveBytes'],
+                'Pull pool weakens canonical root reserve')
+        # Proof: removing canonical verification admits an unmounted journal in the native rehearsal.
+        canonical_changed = converge(canonical, 'verify')
     with (directory / 'storage.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        changed = False
+        changed = canonical_changed
         receipts = {}
         for volume in volumes:
             name, limit = volume['name'], volume['bytes']
             image = directory / (name + '.ext4')
             mount = directory / name
             identity_path = directory / (name + '.identity.json')
-            if not image.exists():
+            fresh_backing = not image.exists()
+            if fresh_backing:
                 require(command == 'provision' and not identity_path.exists(),
                         'Missing enrolled backing file')
                 root = os.statvfs('/')
@@ -130,7 +194,11 @@ def main():
                 run('fallocate', '--length', str(limit), str(image))
                 # Proof: lazy-init mutation loses 2,088,960 reserved bytes despite nodiscard;
                 # eager initialization retains allocation after metadata churn and remount.
-                run('mkfs.ext4', '-q', '-F', '-m', '0', '-E', 'nodiscard,lazy_itable_init=0,lazy_journal_init=0', str(image))
+                arguments = ['mkfs.ext4', '-q', '-F', '-m', '0', '-E', 'nodiscard,lazy_itable_init=0,lazy_journal_init=0']
+                if is_pulls:
+                    # Proof: removing -N makes the native 1024-inode enrollment fail its physical ceiling.
+                    arguments.extend(['-N', str(volume['inodes'])])
+                run(*arguments, str(image))
                 status = allocated(image, limit)
                 identity = {'inode': status.st_ino, 'device': status.st_dev, 'bytes': limit,
                             'uuid': run('blkid', '-s', 'UUID', '-o', 'value', str(image))}
@@ -175,15 +243,24 @@ def main():
                     and 'discard' not in mounted['options'].split(','), 'Wrong mounted filesystem')
             capacity = os.statvfs(mount)
             require(0 < capacity.f_blocks * capacity.f_frsize <= limit, 'Filesystem exceeds capacity')
+            if is_pulls:
+                # Proof: removing this check admits a profile below the mounted inode count.
+                require(0 < capacity.f_files <= volume['inodes'], 'Pull filesystem exceeds inode ceiling')
             allocated(image, limit)
             contents = mount / 'contents'
+            contents_mode = 0o711 if is_pulls else 0o700
             if command == 'provision' and not contents.exists():
-                contents.mkdir(mode=0o700)
+                contents.mkdir(mode=contents_mode)
+                os.chmod(contents, contents_mode)
                 os.chown(contents, volume['uid'], volume['uid'])
                 changed = True
+            # Proof: removing this check makes the pool-mode negative fail; UID/GID/symlink faults also refuse.
             require(contents.is_dir() and not contents.is_symlink() and
                     contents.stat().st_uid == volume['uid'] and
-                    stat.S_IMODE(contents.stat().st_mode) == 0o700, 'Invalid contents ownership')
+                    (not is_pulls or contents.stat().st_gid == 0) and
+                    stat.S_IMODE(contents.stat().st_mode) == contents_mode, 'Invalid contents ownership')
+            if name == 'journal':
+                changed = ensure_backup_effects(mount, 0, fresh_backing) or changed
             receipt = f"{mounted['maj:min']} {limit} {identity['uuid']} {run('stat', '-f', '-c', '%i', str(mount))}\n"
             receipts[name] = receipt
         identities = directory / 'identities' if is_scratch else directory / 'journal' / 'identities'
@@ -195,7 +272,20 @@ def main():
                 'Invalid physical identity directory')
         for name, receipt in receipts.items():
             changed = durable_write(identities / (name + '.receipt'), receipt) or changed
-        print('changed' if changed else 'unchanged')
+        return changed
+
+
+def main():
+    require(os.geteuid() == 0, 'Storage enrollment requires root')
+    commands = {command + suffix for command in ['provision', 'mount', 'verify'] for suffix in ['', '-scratch', '-pulls']}
+    require(len(sys.argv) == 3 and sys.argv[1] in commands,
+            'Usage: storage.sh provision|mount|verify[-scratch|-pulls] <configuration.json>')
+    is_scratch = sys.argv[1].endswith('-scratch')
+    is_pulls = sys.argv[1].endswith('-pulls')
+    command = sys.argv[1].removesuffix('-scratch').removesuffix('-pulls')
+    config = json.loads(Path(sys.argv[2]).read_text())
+    changed = converge(config, command, is_scratch, is_pulls)
+    print('changed' if changed else 'unchanged')
 
 
 main()

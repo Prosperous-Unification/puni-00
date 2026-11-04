@@ -1,12 +1,13 @@
 import { createHash } from 'node:crypto';
-import { chmod, cp, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { beforeAll, expect, it } from 'bun:test';
 import { parse, stringify } from 'yaml';
 
 import { scratchAsync } from '../../../tools/test/scratch';
+import { createRegistryInstallation } from '../../../tools/tool-fleet/src/registry-installation.fixture';
 
 const repository = join(import.meta.dir, '../../..');
 const controller = process.env['REGISTRY_TEST_ANSIBLE'] ?? 'ansible-playbook';
@@ -62,6 +63,14 @@ async function fixture(
       join(root, 'roles', role, 'tasks/authority.yml'),
       join(root, 'roles', role, 'tasks/main.yml'),
     );
+  if (fault?.startsWith('pulls')) {
+    await cp(
+      join(root, 'roles', role, 'tasks/pulls.yml'),
+      join(root, 'roles', role, 'tasks/main.yml'),
+    );
+    await mkdir(root + '/usr/local/libexec/puni-registry-storage', { recursive: true });
+    await mkdir(root + '/etc/puni', { recursive: true });
+  }
   const targets = ['/etc/systemd/system', '/etc/rancher/k3s', '/usr/local/sbin'];
   for (const target of targets) await mkdir(root + target, { recursive: true });
   await writeFile(root + '/etc/hosts', '127.0.0.1 localhost\n');
@@ -144,9 +153,11 @@ async function fixture(
           argv: [
             '/bin/sh',
             '-c',
-            ['Enable private registry socket', 'Enable storage verification on host boot'].includes(
-              task.name ?? '',
-            )
+            [
+              'Enable private registry socket',
+              'Enable storage verification on host boot',
+              'Enable pull storage verification on host boot',
+            ].includes(task.name ?? '')
               ? ':'
               : 'printf "%s\\n" "$1" >> "$2"',
             'service-fixture',
@@ -155,9 +166,11 @@ async function fixture(
           ],
         };
         if (
-          ['Enable private registry socket', 'Enable storage verification on host boot'].includes(
-            task.name ?? '',
-          )
+          [
+            'Enable private registry socket',
+            'Enable storage verification on host boot',
+            'Enable pull storage verification on host boot',
+          ].includes(task.name ?? '')
         )
           task.changed_when = false;
         delete task['ansible.builtin.systemd_service'];
@@ -188,6 +201,22 @@ async function fixture(
         delete task['ansible.builtin.user'];
         task['ansible.builtin.command'] = { argv: ['/bin/true'] };
         task.changed_when = false;
+      }
+      if (
+        [
+          'Verify canonical storage before provisioning pulls',
+          'Provision and verify bounded pull filesystem',
+        ].includes(task.name ?? '')
+      ) {
+        // Actual ext4/loop behavior is exercised by registry-pulls.test.ts; this port models that verified base.
+        const canonical = task.name === 'Verify canonical storage before provisioning pulls';
+        const unknown = canonical ? fault === 'pulls-canonical-output' : fault === 'pulls-output';
+        const failed = canonical ? fault === 'pulls-canonical' : fault === 'pulls-command';
+        task['ansible.builtin.command'] = {
+          argv: failed
+            ? ['/usr/bin/python3', '-c', 'import sys; print("unchanged"); sys.exit(1)']
+            : ['/bin/sh', '-c', unknown ? 'printf unexpected' : 'printf unchanged'],
+        };
       }
       if (task.name === 'Provision and verify both bounded filesystems') {
         // Native block operations are proven separately by registry-storage.test.ts.
@@ -580,40 +609,148 @@ it('refuses a foreign authority UID before any persistent enrollment', async () 
   expect(await Bun.file(unguarded.root + '/etc/puni/registry-storage.json').exists()).toBe(true);
 }, 60000);
 
-it('stages fixed authority artifacts and refuses mismatched source hashes before host writes', async () => {
+it('stages the actual pinned authority and preserves prior installation on source or enrollment refusal', async () => {
   const sources = await scratchAsync('registry-authority-artifacts-');
-  const runtime = '#!/bin/sh\nexit 0\n';
-  const bundle = 'export {};\n';
-  await writeFile(join(sources, 'bun'), runtime);
-  await writeFile(join(sources, 'authority.js'), bundle);
-  const enrollment = {
-    puni_registry_authority_enrolled: true,
-    puni_registry_authority_bun_source: join(sources, 'bun'),
-    puni_registry_authority_bundle_source: join(sources, 'authority.js'),
-    puni_registry_authority_bun_sha256: createHash('sha256').update(runtime).digest('hex'),
-    puni_registry_authority_bundle_sha256: createHash('sha256').update(bundle).digest('hex'),
-  };
-  const staged = await fixture('registry_storage', enrollment, undefined, 'authority');
-  const applied = await staged.apply();
-  expect(applied.code, applied.output).toBe(0);
-  expect(await readFile(staged.root + '/usr/local/sbin/puni-registry-authority', 'utf8')).toContain(
-    '--reuid=59001 --regid=59001',
-  );
-  expect(await Bun.file(staged.serviceLog).exists()).toBe(false);
-  const incorrect = { ...enrollment, puni_registry_authority_bundle_sha256: '0'.repeat(64) };
-  const refused = await fixture('registry_storage', incorrect, undefined, 'authority');
-  expect((await refused.apply()).code).not.toBe(0);
+  const runtime = await realpath(process.execPath);
   expect(
-    await Bun.file(refused.root + '/usr/local/libexec/puni-registry-authority/bun').exists(),
-  ).toBe(false);
-  const removed = await fixture(
+    createHash('sha256')
+      .update(await readFile(runtime))
+      .digest('hex'),
+  ).toBe('10702245766b225e70bbf6235fd6b47214fd94b4760d00ffaed8ab0df57ac235');
+  const bundle = join(sources, 'authority.js');
+  const built = await run(runtime, [
+    'build',
+    join(repository, 'tools/tool-fleet/src/registry-journal-cli.ts'),
+    '--target=bun',
+    '--outfile',
+    bundle,
+  ]);
+  expect(built.code, built.output).toBe(0);
+  const enrollment = join(sources, 'enrollment.json');
+  await writeFile(enrollment, JSON.stringify(createRegistryInstallation()));
+  const executable = Bun.which(controller);
+  if (executable === null) throw new Error('Pinned Ansible controller is required');
+  const ansible = await realpath(executable);
+  const python = join(dirname(ansible), 'python3');
+  const rehearsal = join(repository, 'tools/tool-fleet/src/registry-installation.native.py');
+  for (const name of ['valid', 'wrong-bundle', 'malformed']) {
+    const output = join(sources, name);
+    const observed = await run(python, [
+      rehearsal,
+      '--root',
+      repository,
+      '--python',
+      python,
+      '--ansible-playbook',
+      ansible,
+      '--bun',
+      runtime,
+      '--bundle',
+      bundle,
+      '--enrollment',
+      enrollment,
+      '--case',
+      name,
+      '--output',
+      output,
+    ]);
+    expect(observed.code, observed.output).toBe(0);
+    const receipt = (await Bun.file(join(output, 'receipt.json')).json()) as {
+      passed: boolean;
+      observation: {
+        ansibleExitCode: number;
+        previousStillUsable: boolean;
+        stagingDirectories: string[];
+      };
+    };
+    expect(receipt.passed).toBe(true);
+    expect(receipt.observation.stagingDirectories).toEqual([]);
+    if (name === 'valid') expect(receipt.observation.ansibleExitCode).toBe(0);
+    else expect(receipt.observation.previousStillUsable).toBe(true);
+  }
+}, 240000);
+
+it('renders explicit bounded pulls and converges its boot guard without restarting endpoints', async () => {
+  const host = await fixture(
     'registry_storage',
-    incorrect,
-    'Refuse mismatched controller artifacts before host writes',
-    'authority',
+    {
+      puni_registry_pulls_enrolled: true,
+      puni_registry_pulls_bytes: 67108864,
+      puni_registry_pulls_inodes: 1024,
+    },
+    undefined,
+    'pulls',
   );
-  expect((await removed.apply()).code).not.toBe(0);
-  expect(
-    await Bun.file(removed.root + '/usr/local/libexec/puni-registry-authority/bun').exists(),
-  ).toBe(true);
+  const first = await host.apply();
+  expect({ code: first.code, failed: first.output.includes('failed=0') }).toEqual({
+    code: 0,
+    failed: true,
+  });
+  const configuration = JSON.parse(
+    await readFile(host.root + '/etc/puni/registry-pulls.json', 'utf8'),
+  ) as { directory: string; volumes: unknown[] };
+  expect(configuration.directory).toBe(host.root + '/volumes');
+  expect(configuration.volumes).toEqual([{ name: 'pulls', bytes: 67108864, uid: 0, inodes: 1024 }]);
+  expect((await stat(host.root + '/etc/puni/registry-pulls.json')).mode & 0o777).toBe(0o600);
+  expect(await readFile(host.root + '/etc/fstab', 'utf8')).toContain(
+    '/pulls ext4 loop,noauto,nodiscard,nodev,nosuid,noexec,X-fstrim.notrim',
+  );
+  const unit = await readFile(
+    host.root + '/etc/systemd/system/puni-registry-pulls.service',
+    'utf8',
+  );
+  expect(unit).toContain('Requires=puni-registry-storage.service');
+  expect(unit).toContain('After=puni-registry-storage.service');
+  expect(unit).toContain('storage.sh mount-pulls /etc/puni/registry-pulls.json');
+  expect((await host.apply()).output).toMatch(/changed=0/);
+  expect(await Bun.file(host.serviceLog).exists()).toBe(false);
 }, 120000);
+
+for (const fault of ['unenrolled', 'bytes', 'inodes', 'canonical'] as const)
+  it(
+    'refuses pull storage before configuration or boot writes: ' + fault,
+    async () => {
+      const host = await fixture(
+        'registry_storage',
+        {
+          puni_registry_pulls_enrolled: fault !== 'unenrolled',
+          puni_registry_pulls_bytes: fault === 'bytes' ? '67108864' : 67108864,
+          puni_registry_pulls_inodes: fault === 'inodes' ? 0 : 1024,
+        },
+        undefined,
+        fault === 'canonical' ? 'pulls-canonical' : 'pulls',
+      );
+      expect((await host.apply()).code).not.toBe(0);
+      expect(await Bun.file(host.root + '/etc/puni/registry-pulls.json').exists()).toBe(false);
+      expect(
+        await Bun.file(host.root + '/etc/systemd/system/puni-registry-pulls.service').exists(),
+      ).toBe(false);
+      expect(await readFile(host.root + '/etc/fstab', 'utf8')).toBe('# fixture\n');
+    },
+    120000,
+  );
+
+for (const fault of ['pulls-canonical-output', 'pulls-output', 'pulls-command'] as const)
+  it(
+    'refuses unacknowledged physical pull storage before boot grant: ' + fault,
+    async () => {
+      const host = await fixture(
+        'registry_storage',
+        {
+          puni_registry_pulls_enrolled: true,
+          puni_registry_pulls_bytes: 67108864,
+          puni_registry_pulls_inodes: 1024,
+        },
+        undefined,
+        fault,
+      );
+      expect((await host.apply()).code).not.toBe(0);
+      expect(
+        await Bun.file(host.root + '/etc/systemd/system/puni-registry-pulls.service').exists(),
+      ).toBe(false);
+      if (fault === 'pulls-canonical-output')
+        expect(await Bun.file(host.root + '/etc/puni/registry-pulls.json').exists()).toBe(false);
+      expect(await Bun.file(host.serviceLog).exists()).toBe(false);
+    },
+    120000,
+  );

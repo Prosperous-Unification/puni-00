@@ -51,9 +51,10 @@ spec:
             - { name: REGISTRY_AUTH, value: htpasswd }
             - { name: REGISTRY_AUTH_HTPASSWD_REALM, value: puni-registry }
             - { name: REGISTRY_AUTH_HTPASSWD_PATH, value: /auth/htpasswd }
-            - { name: REGISTRY_STORAGE_DELETE_ENABLED, value: 'true' }
-            # Garbage collection flips this to true, restarts, collects, then restores false;
-            # docs/infra/platform.md has the procedure.
+            # Proof: pinned native DELETE returns 405; enabling deletion removes the protected manifest.
+            - { name: REGISTRY_STORAGE_DELETE_ENABLED, value: 'false' }
+            # Proof: pinned native config starts no purger; removing this object override arms it.
+            - { name: REGISTRY_STORAGE_MAINTENANCE_UPLOADPURGING, value: '{"enabled": false}' }
             - { name: REGISTRY_STORAGE_MAINTENANCE_READONLY, value: '{"enabled": false}' }
           ports:
             - { name: registry, containerPort: 5000 }

@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { type } from 'arktype';
+
 import { inspectOciArchive, type RegistryArtifact, verifyContent } from './registry-artifact';
 import {
   admitExportScratch,
@@ -9,7 +11,7 @@ import {
   connectRegistryAuthority,
   readPublicationEnrollment,
 } from './registry-enrollment';
-import { publishArtifacts } from './registry-publication';
+import { publishArtifacts, type RegistryUploadOwnership } from './registry-publication';
 import { consumeRegistryStream, readRegistryBytes } from './registry-stream';
 
 /** One Distribution v2 registry reached with optional basic auth and a private CA. */
@@ -190,6 +192,35 @@ export async function requestRegistry(
   return response;
 }
 
+/** A blob-only repository has no manifest namespace. The caller must prove that physical/owned condition; only the pinned exact NAME_UNKNOWN response is accepted, never arbitrary 404/null/error. */
+export async function requireRegistryUnknownRepository(
+  endpoint: RegistryEndpoint,
+  repository: string,
+): Promise<void> {
+  const response = await request(endpoint, `/v2/${repository}/tags/list?n=100`, {
+    redirect: 'error',
+  });
+  const bytes = await readRegistryBytes(response.body, 65536, 'Registry absent manifest namespace');
+  const absence = type({
+    errors: type({
+      code: "'NAME_UNKNOWN'",
+      message: "'repository name not known to registry'",
+      detail: { name: 'string', '+': 'reject' },
+      '+': 'reject',
+    })
+      .array()
+      .exactlyLength(1),
+    '+': 'reject',
+  }).assert(JSON.parse(new TextDecoder().decode(bytes)));
+  // Proof: independent status/name removals admitted HTTP200 and foreign-repository responses (task8-removal-repository-{status,name}.log).
+  if (
+    response.status !== 404 ||
+    response.headers.has('link') ||
+    absence.errors[0]?.detail.name !== repository
+  )
+    throw new Error('Unproven absent registry manifest namespace');
+}
+
 /**
  * Stage source closure inside enforced scratch before target writes. Manifest streams are
  * cancelled above 4 MiB before decoding or traversing them; Content-Length is not trusted.
@@ -308,8 +339,8 @@ export async function copyImages(
       enrollment,
       artifacts,
       connectRegistryAuthority(enrollment),
-      async (artifact) => {
-        uploads.set(artifact.repository, await uploadArtifact(target, artifact));
+      async (artifact, ownership) => {
+        uploads.set(artifact.repository, await uploadArtifact(target, artifact, ownership));
       },
     );
     return artifacts.map((artifact) => {
@@ -344,12 +375,19 @@ export async function copyImage(
 export async function uploadArtifact(
   target: RegistryEndpoint,
   artifact: RegistryArtifact,
+  ownership?: RegistryUploadOwnership,
 ): Promise<number> {
   let uploadedBlobs = 0;
   for (const content of artifact.contents) {
     const bytes = await verifyContent(content);
     if (content.isManifest) {
       const reference = content.digest === artifact.digest ? artifact.reference : content.digest;
+      await ownership?.({
+        repository: artifact.repository,
+        digest: content.digest,
+        uploadId: null,
+        phase: 'writing',
+      });
       const stored = await requireOk(
         await requestRegistry(target, `/v2/${artifact.repository}/manifests/${reference}`, {
           method: 'PUT',
@@ -361,6 +399,14 @@ export async function uploadArtifact(
       if (stored.headers.get('docker-content-digest') !== content.digest)
         // Proof: removing this refusal accepted the rewritten manifest receipt fixture.
         throw new Error('Target manifest differs from admitted digest');
+      if (ownership !== undefined && stored.status !== 201)
+        throw new Error('Manifest write did not confirm stored content');
+      await ownership?.({
+        repository: artifact.repository,
+        digest: content.digest,
+        uploadId: null,
+        phase: 'stored',
+      });
     } else {
       const upload = await requireOk(
         await requestRegistry(target, `/v2/${artifact.repository}/blobs/uploads/`, {
@@ -374,8 +420,25 @@ export async function uploadArtifact(
       if (url.origin !== new URL(target.url).origin)
         // Proof: removing this refusal sent content to the foreign upload continuation fixture.
         throw new Error('Registry upload redirected outside enrolled authority');
+      const uploadId = upload.headers.get('docker-upload-uuid');
+      if (ownership !== undefined) {
+        // Proof: failed durable UUID acknowledgement and UUID/Location mismatch both prevent the actual HTTP body in registry-upload-ownership.test.ts.
+        if (
+          upload.status !== 202 ||
+          uploadId === null ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(uploadId) ||
+          url.pathname !== `/v2/${artifact.repository}/blobs/uploads/${uploadId}`
+        )
+          throw new Error('Registry upload UUID does not match exact continuation');
+        await ownership({
+          repository: artifact.repository,
+          digest: content.digest,
+          uploadId,
+          phase: 'writing',
+        });
+      }
       url.searchParams.set('digest', content.digest);
-      await requireOk(
+      const completed = await requireOk(
         await requestRegistry(target, url.toString(), {
           method: 'PUT',
           body: bytes,
@@ -383,6 +446,20 @@ export async function uploadArtifact(
         }),
         'Completing admitted blob upload',
       );
+      if (ownership !== undefined) {
+        if (
+          completed.status !== 201 ||
+          completed.headers.get('docker-content-digest') !== content.digest ||
+          uploadId === null
+        )
+          throw new Error('Blob write did not confirm admitted stored content');
+        await ownership({
+          repository: artifact.repository,
+          digest: content.digest,
+          uploadId,
+          phase: 'stored',
+        });
+      }
       uploadedBlobs += 1;
     }
   }

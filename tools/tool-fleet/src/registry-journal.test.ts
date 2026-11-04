@@ -1,4 +1,4 @@
-import { chmod, readFile, statfs, writeFile } from 'node:fs/promises';
+import { chmod, readdir, readFile, statfs, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
@@ -790,7 +790,7 @@ it('removes its replacement after repeated fsync failures while preserving canon
       }),
       'injected replacement fsync',
     );
-    expect(await readdir(directory)).toEqual(['authority.lock', 'journal.json']);
+    expect((await readdir(directory)).sort()).toEqual(['authority.lock', 'journal.json']);
     expect(await readFile(join(directory, 'journal.json'), 'utf8')).toBe(before);
   }
 });
@@ -818,7 +818,7 @@ it('reclaims a crashed pre-rename replacement only after validating canonical st
   await writeFile(join(directory, 'journal.json'), before);
   const recovered = await read(directory);
   expect(recovered.state.revision).toBe(0);
-  expect(await readdir(directory)).toEqual(['authority.lock', 'journal.json']);
+  expect((await readdir(directory)).sort()).toEqual(['authority.lock', 'journal.json']);
   await executeRegistryCommand(directory, publication(), ports());
   expect((await read(directory)).state.reservations).toHaveLength(1);
 });
@@ -875,10 +875,9 @@ it('cleans replacement files after a real write failure on a broken descriptor',
   );
   expect(failed.exitCode).not.toBe(0);
   expect(failed.stderr).toContain('EBADF');
-  expect(await import('node:fs/promises').then(({ readdir }) => readdir(directory))).toEqual([
-    'authority.lock',
-    'journal.json',
-  ]);
+  expect(
+    (await import('node:fs/promises').then(({ readdir }) => readdir(directory))).sort(),
+  ).toEqual(['authority.lock', 'journal.json']);
   expect(await readFile(join(directory, 'journal.json'), 'utf8')).toBe(before);
 });
 
@@ -917,7 +916,7 @@ it('propagates replacement cleanup failure and reclaims the orphan after permiss
     (await readdir(directory)).filter((name) => /^journal\..+\.json$/.test(name)),
   ).toHaveLength(1);
   await read(directory);
-  expect(await readdir(directory)).toEqual(['authority.lock', 'journal.json']);
+  expect((await readdir(directory)).sort()).toEqual(['authority.lock', 'journal.json']);
 });
 
 it('propagates orphan directory fsync failure without acknowledging the read command', async () => {
@@ -1035,4 +1034,55 @@ it('refuses inconsistent legacy recovery state before schema upgrade', async () 
     executeRegistryCommand(directory, { command: 'upgrade' }, ports()),
     'Unfenced recovery',
   );
+});
+
+it('loads deferred host ports once after validation for an actual journal command', async () => {
+  const directory = await scratchAsync('registry-deferred-authority-');
+  await chmod(directory, 0o700);
+  let loaded = 0;
+  const initialized = await executeRegistryCommand(
+    directory,
+    { command: 'initialize', enrollment },
+    () => {
+      loaded++;
+      return Promise.resolve(ports());
+    },
+  );
+  expect(loaded).toBe(1);
+  expect(initialized.state.enrollment).toEqual(enrollment);
+  expect((await read(directory)).state).toEqual(initialized.state);
+});
+
+it('rejects malformed commands before deferred host bootstrap or journal effects', async () => {
+  const directory = await scratchAsync('registry-invalid-before-bootstrap-');
+  await chmod(directory, 0o700);
+  let loaded = 0;
+  await requireRefusal(
+    executeRegistryCommand(
+      directory,
+      { command: 'finish-publication', outcome: 'promoted' },
+      () => {
+        loaded++;
+        return Promise.reject(new Error('Host installation must not be consulted'));
+      },
+    ),
+    'Malformed registry command',
+  );
+  expect(loaded).toBe(0);
+  expect(await readdir(directory)).toEqual([]);
+});
+
+it('preserves deferred bootstrap failure before acquiring a lock or touching trusted state', async () => {
+  const directory = await scratchAsync('registry-bootstrap-failure-');
+  await chmod(directory, 0o700);
+  const failure = new Error('Unavailable fixed installation');
+  let refused = false;
+  try {
+    await executeRegistryCommand(directory, { command: 'read' }, () => Promise.reject(failure));
+  } catch (cause) {
+    expect(cause).toBe(failure);
+    refused = true;
+  }
+  expect(refused).toBe(true);
+  expect(await readdir(directory)).toEqual([]);
 });

@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 3,
+  "enrollment": {
+    "registryId": "prior-writer",
+    "storageId": "volume",
+    "owners": ["operator"],
+    "registryPath": "/registry",
+    "rootPath": "/",
+    "maximumBytes": 53687091200,
+    "journalMaximumBytes": 1073741824
+  },
+  "revision": 3,
+  "updatedAt": "2026-10-25T00:00:00.000Z",
+  "fenced": false,
+  "fenceReason": null,
+  "maintenanceVerified": false,
+  "measurement": {
+    "at": "2026-10-25T00:00:00.000Z",
+    "maximumBytes": 53687091200,
+    "usableBytes": 53687091200,
+    "usedBytes": 1073741824,
+    "totalInodes": 10000,
+    "usedInodes": 10,
+    "rootFreeBytes": 32212254720
+  },
+  "protections": [
+    {
+      "owner": "operator",
+      "reason": "unresolved recovery",
+      "roots": ["sha256:1111111111111111111111111111111111111111111111111111111111111111"],
+      "operationId": "prior-protection",
+      "references": [
+        {
+          "repository": "proof/image",
+          "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ],
+      "token": "6d68d784-330a-4b6d-86ae-ebe395278543"
+    }
+  ],
+  "bundles": [
+    {
+      "operationId": "prior-publication",
+      "product": "proof",
+      "roots": ["sha256:1111111111111111111111111111111111111111111111111111111111111111"],
+      "receipt": {
+        "state": "completed",
+        "at": "2026-10-25T00:00:00.000Z"
+      },
+      "owner": "operator",
+      "references": [
+        {
+          "repository": "proof/image",
+          "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    }
+  ],
+  "reservations": [],
+  "publication": null,
+  "maintenance": null,
+  "closedOperations": [],
+  "environments": [],
+  "consumers": [],
+  "deployments": []
+}

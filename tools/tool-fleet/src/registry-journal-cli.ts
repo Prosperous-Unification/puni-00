@@ -1,17 +1,20 @@
-import { dirname, join } from 'node:path';
-
-import {
-  createWritePermit,
-  measureFilesystem,
-  measureVerifiedFilesystem,
-  registryRenewalSeconds,
-  requireFreshCapacity,
-} from './registry-capacity';
+import { captureRegistryPressureAlert, readRegistryAlertContext } from './registry-alert-store';
+import { createRegistryAuthorityPorts } from './registry-authority-host';
+import { registryRenewalSeconds } from './registry-capacity';
+import { verifyRegistryClientInstallation } from './registry-client-installation';
 import { readTrustedEnrollment } from './registry-enrollment';
-import { verifyStoredImages } from './registry-image-availability';
-import type { RegistryEnrollment } from './registry-journal';
-import { assertConsumerUniverse, executeRegistryCommand } from './registry-journal';
-import { collectRegistryConsumers } from './registry-reader';
+import { executeRegistryCommand, type RegistryJournalPorts } from './registry-journal';
+import {
+  parseRegistryMaintenanceInstallation,
+  readRegistryMaintenanceInstallation,
+} from './registry-maintenance-installation';
+import type { RegistryPressureDelivery } from './registry-pressure-report';
+import {
+  createRegistryPressureReporter,
+  readRegistryPressureIdentity,
+  registryPressureDirectory,
+  type RegistryPressureIdentity,
+} from './registry-pressure-report';
 
 /** Read at most 64 KiB from the authenticated SSH command's stdin before parsing any request. */
 async function readRequest(): Promise<unknown> {
@@ -36,10 +39,26 @@ async function readRequest(): Promise<unknown> {
 /**
  * Owner-only host CLI, invoked over authenticated SSH with one journal directory argument and
  * JSON stdin. Paths and limits come from explicit trusted enrollment, never capacity claims in
- * ordinary requests. statfs measures real filesystems; verified mount identity is added by the
+ * ordinary requests. Installer-only --validate-installation checks a trusted candidate's schema
+ * without opening a journal or loading host ports. --validate-client-installation additionally
+ * verifies fixed tools and the physical client profile, still without journal effects or grants.
+ * Neither mode establishes live runtime readiness. statfs measures real filesystems; verified mount identity is added by the
  * storage adapter. No command starts an upload, deletes content or changes a live service.
  */
 async function main(): Promise<void> {
+  const validation = process.argv.at(2);
+  if (validation === '--validate-installation' || validation === '--validate-client-installation') {
+    const path = process.argv.at(3);
+    // Proof: removing the argument-count check fails the additional-arguments CLI test before trusted state can be opened.
+    if (process.argv.length !== 4 || path === undefined)
+      throw new Error('Usage: registry-journal-cli.ts ' + validation + ' <trusted-candidate>');
+    const installed = parseRegistryMaintenanceInstallation(await readTrustedEnrollment(path));
+    // Proof: omitting this call makes the actual h4 changed-worker negative accept schema-only verification.
+    if (validation === '--validate-client-installation')
+      await verifyRegistryClientInstallation(installed);
+    process.stdout.write('verified\n');
+    return;
+  }
   const directory = process.argv.at(2);
   // Proof: --locked CLI negative fails if unknown arguments can bypass this boundary.
   const monitor = process.argv.at(3) === '--monitor';
@@ -48,93 +67,50 @@ async function main(): Promise<void> {
     (process.argv.length !== 3 && !(monitor && process.argv.length === 4))
   )
     throw new Error('Usage: registry-journal-cli.ts <owner-only-journal-directory>');
-  const request = monitor ? { command: 'check-capacity' } : await readRequest();
-  const identities = join(dirname(directory), 'identities');
-  const registryPath = join(dirname(dirname(directory)), 'registry', 'contents');
-  const measureRegistry = async (enrollment: RegistryEnrollment) => {
-    if (enrollment.registryPath !== registryPath || enrollment.rootPath !== '/')
-      throw new Error('Enrollment paths differ from fixed authority layout');
-    const measuredAt = Date.now();
-    const [registry, root] = await Promise.all([
-      measureVerifiedFilesystem(registryPath, join(identities, 'registry.receipt')),
-      measureFilesystem('/'),
-    ]);
-    if (
-      enrollment.storageId !== registry.identity ||
-      enrollment.maximumBytes !== registry.maximumBytes
-    )
-      throw new Error('Registry enrollment identity or capacity differs from verified storage');
-    return requireFreshCapacity(
-      {
-        measuredAt,
-        capacity: {
-          maximumBytes: enrollment.maximumBytes,
-          usableBytes: registry.usableBytes,
-          usedBytes: registry.usedBytes,
-          totalInodes: registry.totalInodes,
-          usedInodes: registry.usedInodes,
-          rootFreeBytes: root.availableBytes,
-        },
-      },
-      Date.now(),
+  if (monitor) {
+    const installed = await readRegistryMaintenanceInstallation();
+    if (directory !== installed.journalPath)
+      throw new Error('Authority directory differs from fixed canonical journal');
+    // Proof: removing this production dispatch fails the staged wiring contract; the ordinary process test also runs this same ten-second monitor loop.
+    const alerts = await readRegistryAlertContext();
+    await monitorRegistryPressure(
+      directory,
+      createRegistryAuthorityPorts(installed),
+      registryPressureDirectory,
+      await readRegistryPressureIdentity(installed.machineId),
+      { state: 'required', capture: (report) => captureRegistryPressureAlert(alerts, report) },
     );
+  }
+  const request = await readRequest();
+  let ports: ReturnType<typeof createRegistryAuthorityPorts> | undefined;
+  const loadPorts = async () => {
+    if (ports !== undefined) return ports;
+    const installed = await readRegistryMaintenanceInstallation();
+    if (directory !== installed.journalPath)
+      throw new Error('Authority directory differs from fixed canonical journal');
+    ports = createRegistryAuthorityPorts(installed);
+    return ports;
   };
-  let current: RegistryEnrollment | undefined;
-  const permit = createWritePermit(
-    directory,
-    async () => {
-      if (current === undefined) throw new Error('Missing measured enrollment');
-      return measureRegistry(current);
-    },
-    registryPath,
-  );
-  do {
-    const response = await executeRegistryCommand(directory, request, {
-      permit,
-      verifyConsumers: async (sources, registryId) => {
-        assertConsumerUniverse(
-          await readTrustedEnrollment('/etc/puni/registry-consumers.json'),
-          sources,
-          registryId,
-        );
-      },
-      verifyImages: async (enrollment, references) => {
-        const registry = await measureVerifiedFilesystem(
-          registryPath,
-          join(identities, 'registry.receipt'),
-        );
-        if (enrollment.registryPath !== registryPath || registry.identity !== enrollment.storageId)
-          throw new Error('Registry image reader storage identity mismatch');
-        await verifyStoredImages(registryPath, references);
-      },
-      collectConsumers: (sources, revision, enrollment) =>
-        collectRegistryConsumers(sources, revision, enrollment.registryId),
-      measureJournal: async (enrollment) => {
-        current = enrollment;
-        const measured = await measureVerifiedFilesystem(
-          directory,
-          join(identities, 'journal.receipt'),
-        );
-        if (enrollment.journalMaximumBytes !== measured.maximumBytes)
-          throw new Error('Journal enrollment capacity differs from verified storage');
-        return {
-          usableBytes: measured.usableBytes,
-          allocationUnitBytes: measured.allocationUnitBytes,
-          usedBytes: measured.usedBytes,
-          totalInodes: measured.totalInodes,
-          usedInodes: measured.usedInodes,
-        };
-      },
-      measureRegistry: async (enrollment) => {
-        current = enrollment;
-        return measureRegistry(enrollment);
-      },
-    });
+  const response = await executeRegistryCommand(directory, request, loadPorts);
+  process.stdout.write(`${JSON.stringify(response)}\n`);
+}
+
+/** Existing ten-second authority renewal owns each actual check. The volatile report is written after command completion; report failures escape and cannot fabricate permission or notification success. */
+export async function monitorRegistryPressure(
+  directory: string,
+  ports: RegistryJournalPorts,
+  reports: string,
+  identity: RegistryPressureIdentity,
+  delivery: RegistryPressureDelivery,
+): Promise<never> {
+  const report = createRegistryPressureReporter(identity, delivery);
+  for (;;) {
+    const response = await report(directory, ports, reports);
     process.stdout.write(
-      `${JSON.stringify(monitor ? { revision: response.state.revision, fenced: response.state.fenced, reason: response.state.fenceReason } : response)}\n`,
+      `${JSON.stringify({ revision: response.state.revision, fenced: response.state.fenced, reason: response.state.fenceReason })}\n`,
     );
-    if (monitor) await Bun.sleep(registryRenewalSeconds * 1000);
-  } while (monitor);
+    await Bun.sleep(registryRenewalSeconds * 1000);
+  }
 }
 
 if (import.meta.main) {

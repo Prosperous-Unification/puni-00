@@ -1,0 +1,17 @@
+---
+- name: Measure pinned client source
+  ansible.builtin.stat:
+    path: '{{ puni_registry_maintenance_crane_source }}'
+    checksum_algorithm: sha256
+    follow: true
+  delegate_to: localhost
+  become: false
+  register: registry_client_source
+
+# Proof: h4 source-kind (modeled stat) and bad-crane refuse here; removing each
+# predicate fails the original boundary observer, even when a later check refuses.
+- name: Refuse another client build before installation
+  ansible.builtin.assert:
+    that:
+      - registry_client_source.stat.isreg | default(false)
+      - registry_client_source.stat.checksum == '8e75c326adb43b053cfd78b9b987663f8f4fe4557f4d3915905643f25c730992'

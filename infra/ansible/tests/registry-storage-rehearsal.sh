@@ -239,9 +239,12 @@ try:
     startup(script=removed)
     receipt.write_text(saved)
     print('PASS capacity guard removal admits oversized physical filesystem', flush=True)
+    # Remount convergence can select another free loop after the reuse fault.
+    # Resolve its current source before unmounting rather than detaching the stale snapshot.
+    sparse_device = execute('findmnt', '-n', '-o', 'SOURCE', '--mountpoint', str(root / 'registry'))
     # Sparse punched hole preserves logical size but destroys real root reservation.
     execute('umount', str(root / 'registry'))
-    execute('losetup', '--detach', devices['registry'])
+    execute('losetup', '--detach', sparse_device)
     execute('fallocate', '--punch-hole', '--offset', str(60 * 1024**2), '--length', str(1024**2), str(root / 'registry.ext4'))
     execute('sh', str(helper), 'provision', str(configuration), succeeds=False)
     altered_helper.write_text(helper.read_text().replace('status.st_blocks * 512 >= limit', 'True'))

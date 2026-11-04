@@ -440,3 +440,48 @@ describe('retirement planning', () => {
     ).toThrow();
   });
 });
+
+it('current consumer shared tier preserves its image while oldest four unique tiers retire', () => {
+  const bundles = Array.from({ length: 14 }, (_, index) => ({
+    ...bundle(index + 1),
+    roots: [digest(100), digest(index + 1)],
+  }));
+  const plan = planRetirement({
+    ...inventory(),
+    graph: { complete: true, nodes: [node(100), ...bundles.map((_, index) => node(index + 1))] },
+    bundles,
+    histories: [
+      {
+        environment: 'prod',
+        state: 'successful',
+        complete: true,
+        releases: [...bundles].reverse().map((bundle) => bundle.operationId),
+      },
+    ],
+    protections: [{ owner: 'compose-prod', reason: 'consumer', roots: [digest(100), digest(14)] }],
+  });
+  expect(plan.retireOperations).toEqual(['release-1', 'release-2', 'release-3', 'release-4']);
+  expect(plan.retireDigests).toEqual([digest(1), digest(2), digest(3), digest(4)]);
+  expect(plan.estimatedReclaimableBytes).toBe(4 * GiB);
+});
+it.each(['deployment', 'recovery', 'consumer'])(
+  'exact %s roots remain protected across different owners without retaining unrelated old roots',
+  (reason) => {
+    const input = {
+      ...inventory(),
+      bundles: [
+        {
+          ...bundle(1),
+          roots: [digest(1), digest(2)],
+          receipt: { state: 'completed', at: '2026-10-01T00:00:00.000Z' },
+        },
+      ],
+      graph: { complete: true, nodes: [node(1), node(2)] },
+      protections: [{ owner: 'first', reason, roots: [digest(1)] }],
+    };
+    expect(planRetirement(input).retireDigests).toEqual([digest(2)]);
+    input.protections.push({ owner: 'second', reason, roots: [digest(2)] });
+    expect(planRetirement(input).retireOperations).toEqual([]);
+    expect(planRetirement(input).retireDigests).toEqual([]);
+  },
+);

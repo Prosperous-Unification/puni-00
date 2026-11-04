@@ -27,7 +27,7 @@
   tags: [gate_host]
   ansible.builtin.apt:
     # python3-packaging is what ansible.builtin.pip imports on the host.
-    name: [git, jq, perl, python3-packaging, python3-venv, shellcheck, unzip]
+    name: [gcc, git, jq, libc6-dev, perl, python3-packaging, python3-venv, shellcheck, unzip]
     state: present
     update_cache: true
     cache_valid_time: 3600

@@ -1,22 +1,21 @@
 [Unit]
-Description=Encrypted consistent PUNI registry filesystem snapshot
+Description=Verified matching registry and journal snapshot
 Wants=network-online.target
-After=network-online.target k3s.service
+After=network-online.target k3s.service puni-registry-storage.service
+Requires=puni-registry-storage.service
 
 [Service]
 Type=oneshot
-User=root
-Group=root
+User=puni-registry-authority
+Group=puni-registry-authority
 UMask=0077
-EnvironmentFile=/root/.puni/registry/backup.env
-Environment=KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-Environment=RESTIC_CACHE_DIR=/root/.puni/registry/cache
-Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-ExecStart=/home/puni1/.bun-1.4.4/bin/bun /root/.puni/registry/backup-registry.ts
+Environment=PATH=/usr/bin:/bin
+ExecStart=/usr/local/libexec/puni-registry-authority/bun /usr/local/libexec/puni-registry-maintenance/backup.js
 TimeoutStartSec=130min
 TimeoutStopSec=5min
 KillMode=mixed
-NoNewPrivileges=yes
+# Only the fixed root helper is granted sudo; no provider credentials enter this UID.
+NoNewPrivileges=no
 PrivateTmp=yes
 ProtectSystem=full
 ProtectKernelTunables=yes

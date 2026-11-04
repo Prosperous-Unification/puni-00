@@ -1,0 +1,252 @@
+---
+# Proof: h4 extra-key, worker-binding and missing-crane refuse before host writes;
+# removing each enrollment predicate fails its original refusal-boundary observer.
+- name: Require explicit reviewed maintenance enrollment
+  ansible.builtin.assert:
+    that:
+      - puni_registry_maintenance_enrolled | default(false) | bool
+      - puni_registry_storage_uid == 59001
+      - puni_registry_authority_bundle_sha256 is defined
+      - puni_registry_authority_bundle_sha256 is match('^[a-f0-9]{64}$')
+      - puni_registry_maintenance_configuration is defined
+      - puni_registry_maintenance_artifacts is mapping
+      - (puni_registry_maintenance_artifacts.keys() | sort) == ((['activate', 'backup', 'backup-worker', 'host', 'recover', 'retire', 'status'] + (['client-worker'] if puni_registry_maintenance_configuration.get('client', {}).get('state') == 'enrolled' else [])) | sort)
+      - puni_registry_maintenance_distribution_source is defined
+      - puni_registry_maintenance_configuration.backupWorker.path == '/usr/local/libexec/puni-registry-maintenance/backup-worker.js'
+      - puni_registry_maintenance_configuration.backupWorker.sha256 == puni_registry_maintenance_artifacts['backup-worker'].sha256
+      - puni_registry_maintenance_configuration.get('client', {}).get('state') != 'enrolled' or puni_registry_maintenance_crane_source is defined
+      - puni_registry_maintenance_configuration.get('client', {}).get('state') != 'enrolled' or puni_registry_maintenance_configuration.client.worker.sha256 == puni_registry_maintenance_artifacts['client-worker'].sha256
+    fail_msg: Supply the exact reviewed bundles and actual installed resource/configuration pins; this task never invents recovery identities.
+
+- name: Measure fixed privilege and namespace executables
+  ansible.builtin.stat:
+    path: '{{ registry_maintenance_sudo.path }}'
+    checksum_algorithm: sha256
+    follow: false
+  loop:
+    - path: /usr/bin/sudo.ws
+      mode: '4755'
+      sha256: e53ac5247a956620a066ae8fcf5393138695fac109efb3ea15b6ae97e6d32442
+    - path: /usr/sbin/visudo.ws
+      mode: '0755'
+      sha256: 72b677b54c9b95b6590f344986c31336c913027d7d9851b81073a08587590619
+    - path: /usr/bin/unshare
+      mode: '0755'
+      sha256: 41c65e55107cbbb1a1f6994784a938dd7dbbe255d1fea6b7a58ec96eabe382ef
+  loop_control:
+    loop_var: registry_maintenance_sudo
+  register: registry_maintenance_sudo_artifacts
+
+- name: Resolve fixed sudo artifact paths
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/realpath
+      - -e
+      - '{{ registry_maintenance_sudo.registry_maintenance_sudo.path }}'
+  loop: '{{ registry_maintenance_sudo_artifacts.results }}'
+  loop_control:
+    loop_var: registry_maintenance_sudo
+  register: registry_maintenance_sudo_paths
+  changed_when: false
+
+# Proof: the installer contract test fails when the fixed measurements/grant ordering are absent.
+# Runtime production negatives separately reject missing, unreadable, aliased and changed sudo bytes/metadata.
+- name: Refuse unverified fixed privilege and namespace executables
+  ansible.builtin.assert:
+    that:
+      - registry_maintenance_sudo.registry_maintenance_sudo.stat.isreg | default(false)
+      - registry_maintenance_sudo.registry_maintenance_sudo.stat.uid == 0
+      - registry_maintenance_sudo.registry_maintenance_sudo.stat.gid == 0
+      - registry_maintenance_sudo.registry_maintenance_sudo.stat.nlink == 1
+      - registry_maintenance_sudo.registry_maintenance_sudo.stat.mode == registry_maintenance_sudo.registry_maintenance_sudo.registry_maintenance_sudo.mode
+      - registry_maintenance_sudo.registry_maintenance_sudo.stat.checksum == registry_maintenance_sudo.registry_maintenance_sudo.registry_maintenance_sudo.sha256
+      - registry_maintenance_sudo.stdout == registry_maintenance_sudo.registry_maintenance_sudo.registry_maintenance_sudo.path
+  loop: '{{ registry_maintenance_sudo_paths.results }}'
+  loop_control:
+    loop_var: registry_maintenance_sudo
+
+- name: Require validated authority configuration
+  ansible.builtin.include_tasks: installed-authority.yml
+
+- name: Verify enrolled client source before host writes
+  ansible.builtin.include_tasks: client-source.yml
+  when: puni_registry_maintenance_configuration.get('client', {}).get('state') == 'enrolled'
+
+- name: Measure exact controller bundle sources
+  ansible.builtin.stat:
+    path: '{{ registry_maintenance_bundle.value.source }}'
+    checksum_algorithm: sha256
+    follow: true
+  delegate_to: localhost
+  become: false
+  loop: '{{ puni_registry_maintenance_artifacts | dict2items }}'
+  loop_control:
+    loop_var: registry_maintenance_bundle
+    label: '{{ registry_maintenance_bundle.key }}'
+  register: registry_maintenance_sources
+
+# Proof: h4 oversized-worker and empty-worker refuse before installation; removing
+# the upper or lower size guard grants the bad bundle and fails the same observer.
+- name: Refuse mismatched maintenance bundles before installation
+  ansible.builtin.assert:
+    that:
+      - registry_maintenance_source.stat.isreg | default(false)
+      - registry_maintenance_source.stat.size > 0 and registry_maintenance_source.stat.size <= 16777216
+      - registry_maintenance_source.stat.checksum == registry_maintenance_source.registry_maintenance_bundle.value.sha256
+  loop: '{{ registry_maintenance_sources.results }}'
+  loop_control:
+    loop_var: registry_maintenance_source
+    label: '{{ registry_maintenance_source.registry_maintenance_bundle.key }}'
+
+- name: Measure pinned Distribution source
+  ansible.builtin.stat:
+    path: '{{ puni_registry_maintenance_distribution_source }}'
+    checksum_algorithm: sha256
+    follow: true
+  delegate_to: localhost
+  become: false
+  register: registry_maintenance_distribution
+
+- name: Refuse another Distribution build before installation
+  ansible.builtin.assert:
+    that:
+      - registry_maintenance_distribution.stat.checksum == '8be11cd37a7d43b87e2a2ad11eb5d14dc64d15a040a37485e7e1cbb4c6c9dd37'
+
+- name: Create root-owned fixed maintenance installation
+  ansible.builtin.file:
+    path: /usr/local/libexec/puni-registry-maintenance
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install exact reviewed maintenance bundles
+  ansible.builtin.copy:
+    src: '{{ registry_maintenance_bundle.value.source }}'
+    dest: '/usr/local/libexec/puni-registry-maintenance/{{ registry_maintenance_bundle.key }}.js'
+    owner: root
+    group: root
+    mode: '0644'
+  loop: '{{ puni_registry_maintenance_artifacts | dict2items }}'
+  loop_control:
+    loop_var: registry_maintenance_bundle
+    label: '{{ registry_maintenance_bundle.key }}'
+
+- name: Install pinned isolated registry executable
+  ansible.builtin.copy:
+    src: '{{ puni_registry_maintenance_distribution_source }}'
+    dest: /usr/local/libexec/puni-registry-maintenance/registry
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Measure installed maintenance bundles
+  ansible.builtin.stat:
+    path: '/usr/local/libexec/puni-registry-maintenance/{{ registry_maintenance_bundle.key }}.js'
+    checksum_algorithm: sha256
+    follow: false
+  loop: '{{ puni_registry_maintenance_artifacts | dict2items }}'
+  loop_control:
+    loop_var: registry_maintenance_bundle
+    label: '{{ registry_maintenance_bundle.key }}'
+  register: registry_maintenance_installed_bundles
+
+# Proof: absent final installed measurement fails registry-maintenance-units.test.ts;
+# actual root installation and altered installed artifact refusal remain the installed drill.
+- name: Refuse changed installed maintenance bundles
+  ansible.builtin.assert:
+    that:
+      - registry_maintenance_installed.stat.isreg | default(false)
+      - registry_maintenance_installed.stat.uid == 0
+      - registry_maintenance_installed.stat.mode == '0644'
+      - registry_maintenance_installed.stat.checksum == registry_maintenance_installed.registry_maintenance_bundle.value.sha256
+  loop: '{{ registry_maintenance_installed_bundles.results }}'
+  loop_control:
+    loop_var: registry_maintenance_installed
+    label: '{{ registry_maintenance_installed.registry_maintenance_bundle.key }}'
+
+- name: Measure installed pinned Distribution
+  ansible.builtin.stat:
+    path: /usr/local/libexec/puni-registry-maintenance/registry
+    checksum_algorithm: sha256
+    follow: false
+  register: registry_maintenance_installed_distribution
+
+- name: Refuse changed installed Distribution
+  ansible.builtin.assert:
+    that:
+      - registry_maintenance_installed_distribution.stat.isreg | default(false)
+      - registry_maintenance_installed_distribution.stat.uid == 0
+      - registry_maintenance_installed_distribution.stat.mode == '0755'
+      - registry_maintenance_installed_distribution.stat.checksum == '8be11cd37a7d43b87e2a2ad11eb5d14dc64d15a040a37485e7e1cbb4c6c9dd37'
+
+- name: Verify enrolled client installation before privilege grant
+  ansible.builtin.include_tasks: client-installation.yml
+  when: puni_registry_maintenance_configuration.get('client', {}).get('state') == 'enrolled'
+
+- name: Install no-argument root helper wrapper
+  ansible.builtin.copy:
+    src: maintenance-host.sh
+    dest: /usr/local/libexec/puni-registry-maintenance-host
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Validate narrow policy with the default sudo parser before granting it
+  ansible.builtin.copy:
+    src: maintenance.sudoers
+    dest: /etc/puni/registry-maintenance.sudoers
+    owner: root
+    group: root
+    mode: '0440'
+    validate: /usr/sbin/visudo -cf %s
+
+- name: Install narrowly scoped descriptor-transfer sudo rule
+  ansible.builtin.copy:
+    src: /etc/puni/registry-maintenance.sudoers
+    remote_src: true
+    dest: /etc/sudoers.d/puni-registry-maintenance
+    owner: root
+    group: root
+    mode: '0440'
+    validate: /usr/sbin/visudo.ws -cf %s
+
+- name: Install root-owned ephemeral authentication directory policy
+  ansible.builtin.copy:
+    src: maintenance.tmpfiles
+    dest: /etc/tmpfiles.d/puni-registry-maintenance.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create exact ephemeral authentication directory
+  ansible.builtin.file:
+    path: /run/puni-registry-maintenance
+    state: directory
+    owner: root
+    group: puni-registry-authority
+    mode: '0750'
+
+- name: Stage maintenance units without enabling or starting them
+  ansible.builtin.copy:
+    src: '{{ playbook_dir }}/../../systemd/registry-backup/{{ registry_maintenance_unit }}'
+    dest: '/etc/systemd/system/{{ registry_maintenance_unit }}'
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+    - puni-registry-backup.service
+    - puni-registry-backup.timer
+    - puni-registry-retire.service
+    - puni-registry-retire.timer
+  loop_control:
+    loop_var: registry_maintenance_unit
+
+- name: Verify staged service syntax
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/systemd-analyze
+      - verify
+      - /etc/systemd/system/puni-registry-backup.service
+      - /etc/systemd/system/puni-registry-retire.service
+  changed_when: false

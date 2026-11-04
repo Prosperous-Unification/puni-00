@@ -150,3 +150,33 @@ it('requires the current revocation nonce instance and boot acknowledgement', as
   );
   expect(stale).toBeInstanceOf(Error);
 });
+
+it('stale supervisor ACK exhausts the real lease, polling and startup grace before refusing', async () => {
+  const { createWritePermit } = await import('./registry-capacity');
+  const { readFile, writeFile } = await import('node:fs/promises');
+  const directory = await scratchAsync('registry-ack-elapsed-journal-');
+  const registry = await scratchAsync('registry-ack-elapsed-store-');
+  const boot = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
+  const instance = crypto.randomUUID() + ' ' + boot;
+  await writeFile(registry + '/.authority-instance', instance + '\n', { mode: 0o600, flag: 'wx' });
+  const permit = createWritePermit(
+    directory,
+    () => Promise.reject(new Error('Revocation must not request a capacity reading')),
+    registry,
+  );
+  await permit.revoke();
+  const stale = crypto.randomUUID() + ' ' + instance + '\n';
+  await writeFile(registry + '/.authority-readonly', stale, { mode: 0o600, flag: 'wx' });
+  if (permit.confirmReadonly === undefined) throw new Error('Missing ordinary-supervisor verifier');
+  const started = performance.now();
+  const failure = await permit.confirmReadonly().then(
+    () => undefined,
+    (cause: unknown) => cause,
+  );
+  expect(failure).toBeInstanceOf(Error);
+  expect((failure as Error).message).toContain('supervisor acknowledgement missing');
+  const elapsed = performance.now() - started;
+  expect(elapsed).toBeGreaterThanOrEqual(34000);
+  expect(elapsed).toBeLessThan(45000);
+  expect(await readFile(registry + '/.authority-readonly', 'utf8')).toBe(stale);
+}, 45000);

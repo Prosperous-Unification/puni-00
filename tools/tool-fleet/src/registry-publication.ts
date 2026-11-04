@@ -2,6 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 import type { RegistryArtifact } from './registry-artifact';
 import type { RegistryCommand, RegistryCommandResponse } from './registry-journal';
+import type { RegistryPublicationWrite } from './registry-publication-evidence';
+
+/** Managed schema4 uploaders acknowledge exact write/session ownership before sending bodies; schema3 has no such evidence capability. */
+export type RegistryUploadOwnership = (write: RegistryPublicationWrite) => Promise<void>;
 
 export interface PublicationEnrollment {
   readonly registryId: string;
@@ -42,7 +46,10 @@ export async function publishArtifacts(
   enrollment: PublicationEnrollment,
   artifacts: readonly RegistryArtifact[],
   invoke: RegistryAuthority,
-  upload: (artifact: RegistryArtifact) => Promise<void>,
+  upload: (
+    artifact: RegistryArtifact,
+    ownership: RegistryUploadOwnership | undefined,
+  ) => Promise<void>,
 ) {
   const repositories = artifacts.map((artifact) => artifact.repository);
   if (
@@ -61,6 +68,16 @@ export async function publishArtifacts(
   const operationId = randomUUID();
   const roots = [...new Set(artifacts.map((artifact) => artifact.digest))];
   const references = artifacts.map(({ repository, digest }) => ({ repository, digest }));
+  const contents = artifacts.flatMap((artifact) =>
+    artifact.contents.map((content) => ({
+      repository: artifact.repository,
+      digest: content.digest,
+      size: content.size,
+      mediaType: content.mediaType,
+      isManifest: content.isManifest,
+      dependencies: [...content.dependencies],
+    })),
+  );
   const admission = await invoke({
     command: 'reserve-publication',
     expectedRevision: initial.state.revision,
@@ -70,6 +87,7 @@ export async function publishArtifacts(
     roots,
     references,
     envelope,
+    ...(initial.state.schemaVersion === 4 ? { contents } : {}),
   });
   const token = admission.token;
   if (token === undefined) throw new Error('Authority omitted publication capability');
@@ -89,14 +107,53 @@ export async function publishArtifacts(
       reservation.inodes !== envelope.inodes
     )
       throw new Error('Publication no longer owns its admitted capacity');
+    if (
+      initial.state.schemaVersion === 4 &&
+      (response.state.schemaVersion !== 4 ||
+        JSON.stringify(
+          response.state.publicationEvidence.find(
+            (evidence) => evidence.operationId === operationId,
+          )?.contents,
+        ) !== JSON.stringify(contents))
+    )
+      throw new Error('Publication lost its exact original content declaration');
   };
+  const ownership: RegistryUploadOwnership | undefined =
+    initial.state.schemaVersion === 4
+      ? async (write) => {
+          const fresh = await invoke({ command: 'check-capacity' });
+          assertOwned(fresh);
+          const acknowledged = await invoke({
+            command: 'record-publication-write',
+            expectedRevision: fresh.state.revision,
+            operationId,
+            owner: enrollment.owner,
+            token,
+            write,
+          });
+          assertOwned(acknowledged);
+          if (
+            acknowledged.state.schemaVersion !== 4 ||
+            !acknowledged.state.publicationEvidence
+              .find((evidence) => evidence.operationId === operationId)
+              ?.writes.some(
+                (recorded) =>
+                  recorded.repository === write.repository &&
+                  recorded.digest === write.digest &&
+                  recorded.uploadId === write.uploadId &&
+                  recorded.phase === write.phase,
+              )
+          )
+            throw new Error('Authority omitted exact durable upload ownership');
+        }
+      : undefined;
   try {
     assertOwned(admission);
     for (const artifact of artifacts) {
       const fresh = await invoke({ command: 'check-capacity' });
       // Proof: removing boundary ownership checks continued uploads after actual pressure fenced the authority.
       assertOwned(fresh);
-      await upload(artifact);
+      await upload(artifact, ownership);
     }
     const fresh = await invoke({ command: 'check-capacity' });
     assertOwned(fresh);

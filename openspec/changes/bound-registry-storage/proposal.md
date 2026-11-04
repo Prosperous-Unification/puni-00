@@ -18,6 +18,8 @@ its record changed during the sample; transient file replacement must never bypa
 Default policy: 50 GiB maximum registry storage; warning at 70%, cleanup at 80%,
 publication cutoff at 90%; newest ten successful release bundles per product and
 seven days for unpromoted artifacts. Image protections override age and count.
+The separate 100 GiB backup budget counts stored file/object sizes, including
+versions and uploaded parts; provider billing overhead is outside this measure.
 
 Implementation and staged activation are authorized. Runtime readiness remains
 unverified until the implementation, failure proofs and activation checks pass.

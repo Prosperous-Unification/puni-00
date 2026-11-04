@@ -31,9 +31,11 @@ second, configured by `infra/ansible/playbooks/gate-host.yml` (WBS 070.05) and l
   is what a non-interactive `ssh … CMD` needs.
 - **Gate tree.** `~/puni-00-gate-tbf` is a full clone of the GitHub repository, with one frozen
   install. Ansible never moves its head; the gate does.
-- **Packages.** It installs `git`, `jq`, `perl`, `python3-packaging`, `python3-venv`,
-  `shellcheck` and `unzip`. Docker must already be running. The role does not change Docker,
-  k3s, the firewall or the network.
+- **Packages.** It installs `gcc`, `git`, `jq`, `libc6-dev`, `perl`, `python3-packaging`,
+  `python3-venv`, `shellcheck` and `unzip`. The compiler and libc headers build the fixed
+  pthread fixture used by the registry writer tests; an unavailable compiler fails those tests.
+  See the [observed compiler bootstrap and kernel proof](../../openspec/changes/bound-registry-storage/verify.md#2026-10-30-native-writer-completion-and-compiler).
+  Docker must already be running. The role does not change Docker, k3s, the firewall or the network.
 
 The last tasks are read-only probes run as `puni1` through its `~/.bashrc`:
 
@@ -72,6 +74,16 @@ fleet_ansible --limit h4claw --extra-vars @"$OPS/gate.json" playbooks/gate-host.
 ssh puni1@<h4claw public address> \
   'cd ~/puni-00-gate-tbf && git fetch -q origin && bin/h2puni-gate.sh <sha>' > gate-<sha8>.log 2>&1
 ```
+
+A transient system service running as `puni1` must receive the existing user-manager
+connection explicitly. Derive its UID with `id -u puni1`, verify the owned runtime
+folder and bus, and pass both `--setenv=XDG_RUNTIME_DIR=/run/user/<uid>` and
+`--setenv=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus` to `systemd-run`.
+The solver orphan-process smoke uses that persistent user manager to arm its deadline
+timer. Missing bus variables make that proof fail; retain the failure and rerun the
+complete canonical gate after correcting the launch environment. SSH login and
+background system-service environments are separate launch paths. See the
+[observed failure and correction](../../openspec/changes/bound-registry-storage/verify.md#monitoring-gate-launcher-environment-and-populated-cgroup-preparation--2026-10-30).
 
 The [Gate](../../AGENTS.md#gate) rules are the same as on h2puni:
 

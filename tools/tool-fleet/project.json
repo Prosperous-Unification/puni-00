@@ -201,9 +201,30 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bun build tools/tool-fleet/src/registry-journal-cli.ts tools/tool-fleet/src/registry-flux-reader.ts tools/tool-fleet/src/registry-lifecycle-cli.ts tools/tool-fleet/src/registry-reader-host.ts --target=bun --outdir dist/tool-fleet"
+        "command": "bun build tools/tool-fleet/src/registry-journal-cli.ts tools/tool-fleet/src/registry-flux-reader.ts tools/tool-fleet/src/registry-lifecycle-cli.ts tools/tool-fleet/src/registry-reader-host.ts tools/tool-fleet/src/registry-maintenance-host-cli.ts tools/tool-fleet/src/registry-backup-worker-cli.ts tools/tool-fleet/src/registry-client-worker-cli.ts tools/tool-fleet/src/backup-registry.ts tools/tool-fleet/src/retire-registry.ts tools/tool-fleet/src/recover-registry.ts tools/tool-fleet/src/activate-registry.ts tools/tool-fleet/src/registry-maintenance-status.ts tools/tool-fleet/src/registry-alert-send-cli.ts --target=bun --outdir dist/tool-fleet"
       },
       "outputs": ["{workspaceRoot}/dist/tool-fleet"]
+    },
+    "rehearse:registry-installer": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "python3 tools/tool-fleet/src/registry-installation.native.py"
+      }
+    },
+    "test:registry-pulls": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun test ./infra/ansible/tests/registry-pulls.test.ts --timeout=180000"
+      }
+    },
+    "rehearse:registry-client-installation": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "python3 tools/tool-fleet/src/registry-client-installation-role.native.py"
+      }
     }
   }
 }

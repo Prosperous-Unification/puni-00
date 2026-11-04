@@ -18,6 +18,49 @@ filesystem boundary, capacity admission, release-aware retention, protected
 rollback/recovery images and coordinated maintenance. Their thresholds and
 retention counts are proposed policy, not current runtime behavior.
 
+The staged public Deployment disables ordinary manifest/blob DELETE and Distribution's
+age-only upload purger. Deletion belongs to an isolated maintenance instance after
+verified backup and writer exclusion. The purger uses the object override
+`REGISTRY_STORAGE_MAINTENANCE_UPLOADPURGING='{"enabled": false}'`; the nested
+`_ENABLED` form is not the tested Distribution2.8.3 contract. These source changes
+do not advance the installed source pin or activate the new maintenance lifecycle.
+
+The local native configuration proof requires the binary extracted from the pinned
+registry image and verifies its checksum before starting any process:
+
+```sh
+bun tools/tool-fleet/src/registry-maintenance-config.native.ts /path/to/pinned/registry
+```
+
+It exercises actual HTTP DELETE refusal and the deletion-enabled removal witness,
+and observes default purger scheduling when the override is removed. It does not
+claim to have waited for an age-purge cycle. Its loopback-only fixture uses no live
+credentials or storage and removes its exact owned directory after stopping its process.
+
+### Staged write-permission checks
+
+The bounded-storage startup guard checks permission on both sides of a journal
+checksum. Both samples must pass the existing owner/mode/link, bounded complete
+record, boot and expiry checks; the second uses current uptime after hashing.
+A valid final permission that names the measured checksum allows writes even
+when the first record differs. Only a changed, valid final record that does not
+name that checksum triggers a complete reread, with at most three attempts.
+Stable mismatch, failed checksum, unknown or revoked permission, expiry, or three
+unproved attempts select read-only mode. A record read before revocation cannot
+replace the final permission. These checks do not alter the pressure fence or its
+explicit authority-owned reopening protocol.
+
+The local coherence regression uses actual journal/flock/fsync/permit updates and
+the extracted production guard, with modeled capacity and UID/GID translation:
+
+```sh
+bun test tools/tool-fleet/src/registry-permit-coherence.test.ts
+```
+
+This check does not replace the pinned-binary root/container permission negatives
+or the corrected-revision installed startup and checker-death proofs. Staged source
+changes remain inactive until the coordinated installation and verification gate.
+
 ## Reconcile the endpoint and clients
 
 Use `infra/ansible/playbooks/registry.yml` with an owner-only inventory/vars file. The two inventory groups are `registry_endpoints` and `registry_clients`; the matching tags are `registry_endpoint` and `registry_client`. Both plays serialize hosts.
@@ -193,3 +236,19 @@ owned revision, runs offline GC, then verifies remaining content and cleanup. Fa
 fixtures retain their evidence and print their exact path. Consumer sources and
 capacity inputs are synthetic; this proof does not certify installed readers,
 production storage, publication admission, backup or destructive maintenance.
+
+### Pull verification storage (staged)
+
+The `registry_pulls` play provisions an independently bounded pull pool only after
+canonical registry/journal storage verifies. Set explicit reviewed byte and inode
+ceilings with `puni_registry_pulls_bytes` and `puni_registry_pulls_inodes`, plus
+`puni_registry_pulls_enrolled=true`; see the
+[storage role contract](../../infra/ansible/roles/registry_storage/README.md).
+The root:root mode0711 pool has a root-owned identity receipt on the journal
+filesystem. Its boot unit depends on canonical storage verification. The uncached
+`tool-fleet:test:registry-pulls` rehearsal uses disposable filesystems only.
+Client-worker/Crane installation and physical profile preflight are implemented
+and rehearsed through the actual maintenance role; the linked role contract names
+the uncached installation target. Complete installed lifecycle validation and the
+exact-SHA gate remain required before live enrollment. This provisioning code has
+not been applied to production.

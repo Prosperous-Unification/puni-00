@@ -5,7 +5,11 @@ import { join } from 'node:path';
 
 import { type } from 'arktype';
 
-import { type RegistryEndpoint, requestRegistry } from './platform-registry';
+import {
+  type RegistryEndpoint,
+  requestRegistry,
+  requireRegistryUnknownRepository,
+} from './platform-registry';
 import {
   parseRegistryCommandResponse,
   reconcileRegistryConsumers,
@@ -19,6 +23,7 @@ import {
   type RetirementPlan,
 } from './registry-policy';
 import { readRegistryBytes } from './registry-stream';
+import { readRegistryUpload, type RegistryUploadCensus } from './registry-upload-census';
 
 const pinnedDistribution =
   'sha256:46faa9a1ae6813194b53921a370f2f4f8c5e1aae228a89bceafef5847a6a3278';
@@ -102,8 +107,10 @@ interface StoredCensus {
   readonly layers: Set<string>;
   readonly tags: Map<string, Map<string, string>>;
   readonly repositories: string[];
+  readonly manifestRepositories: string[];
   readonly fingerprint: string;
   readonly filesystem: string;
+  readonly uploads: RegistryUploadCensus[];
 }
 /** Constructed only by the complete API/physical census; serializing this object loses its verification capability. */
 export interface RegistryInventory {
@@ -111,7 +118,17 @@ export interface RegistryInventory {
   readonly journal: RegistryJournal;
   readonly graph: { complete: true; nodes: RegistryGraphNode[] };
   readonly revisions: readonly RegistryRevision[];
+  readonly tags: readonly { repository: string; tag: string; digest: string }[];
+  readonly uploads: readonly RegistryUploadCensus[];
   readonly orphanBlobs: readonly string[];
+  readonly unreferencedContent: readonly {
+    digest: string;
+    bytes: number;
+    inodes: number;
+    operations: string[];
+  }[];
+  readonly partialOperations: readonly string[];
+  readonly neverUploaded: readonly { operationId: string; repository: string; digest: string }[];
   readonly protections: RetirementInput['protections'];
   readonly consumerReferences: readonly RegistryRevision[];
   readonly binding: {
@@ -127,7 +144,9 @@ export interface RegistryRetirementPlan {
   readonly binding: RegistryInventory['binding'];
   readonly options: Pick<RetirementInput, 'now' | 'mode' | 'capacity'>;
   readonly retireRevisions: readonly RegistryRevision[];
+  readonly retireUploads: readonly RegistryUploadCensus[];
   readonly retireBlobs: readonly string[];
+  readonly neverUploaded: RegistryInventory['neverUploaded'];
   readonly policy: RetirementPlan;
 }
 const verifiedInventories = new WeakMap<RegistryInventory, string>();
@@ -139,7 +158,9 @@ const same = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.st
 async function readFileContent(
   path: string,
   maximum?: number,
-): Promise<{ digest: string; size: number; bytes: number; text: string }> {
+  signal?: AbortSignal,
+): Promise<{ digest: string; size: number; bytes: number; text: string; encoded: Buffer }> {
+  signal?.throwIfAborted();
   const descriptor = await open(
     path,
     constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
@@ -154,6 +175,7 @@ async function readFileContent(
     const buffer = Buffer.alloc(65536);
     let size = 0;
     for (;;) {
+      signal?.throwIfAborted();
       const read = await descriptor.read(buffer);
       if (read.bytesRead === 0) break;
       size += read.bytesRead;
@@ -169,18 +191,27 @@ async function readFileContent(
       before.ctimeMs !== after.ctimeMs
     )
       throw new Error('Registry file changed during census');
+    signal?.throwIfAborted();
+    const encoded = Buffer.concat(chunks);
     return {
       digest: `sha256:${hash.digest('hex')}`,
       size,
       bytes: before.blocks * 512,
-      text: Buffer.concat(chunks).toString('utf8'),
+      text: encoded.toString('utf8'),
+      encoded,
     };
   } finally {
     await descriptor.close();
   }
 }
 
-async function readStorage(directory: string): Promise<StoredCensus> {
+async function readStorage(
+  journal: RegistryJournal,
+  signal?: AbortSignal,
+  uploadMode: 'inspect' | 'reject' = 'inspect',
+): Promise<StoredCensus> {
+  signal?.throwIfAborted();
+  const directory = journal.enrollment.registryPath;
   const base = join(directory, 'docker/registry/v2');
   for (const prefix of ['', 'docker', 'docker/registry', 'docker/registry/v2']) {
     // Proof: bypassing this boundary admitted the symlinked-layout-ancestor fixture.
@@ -190,6 +221,7 @@ async function readStorage(directory: string): Promise<StoredCensus> {
   const files = new Map<string, string>();
   const directories: string[] = [];
   const walk = async (relative: string): Promise<void> => {
+    signal?.throwIfAborted();
     const path = join(base, relative);
     const status = await lstat(path);
     // Proof: chmod(000) on the physical revision tree refuses before API reconciliation.
@@ -208,16 +240,41 @@ async function readStorage(directory: string): Promise<StoredCensus> {
   await walk('');
   for (const path of ['blobs', 'blobs/sha256', 'repositories'])
     if (!directories.includes(path)) throw new Error(`Missing registry census tree: ${path}`);
+  const uploads: RegistryUploadCensus[] = [];
+  const staged = new Set<string>();
+  for (const path of files.keys()) {
+    const match = new RegExp(`^repositories/(${repositoryPattern})/_uploads/([^/]+)/`).exec(path);
+    if (match === null) continue;
+    // Proof: staging-prehash removal opens the real unreadable owned body instead of refusing staging first.
+    if (uploadMode === 'reject')
+      throw new Error('Client planning requires upload-free retained storage');
+    const identity = `${match[1]}@${match[2]}`;
+    if (staged.has(identity)) continue;
+    const upload = await readRegistryUpload(journal, match[1], match[2]);
+    uploads.push(upload);
+    staged.add(identity);
+    for (const file of upload.files)
+      files.set(
+        `repositories/${match[1]}/_uploads/${match[2]}/${file.name}`,
+        `${file.sha256}:${String(file.size)}`,
+      );
+  }
   const blobs = new Map<string, StoredContent>();
   const revisions: RegistryRevision[] = [];
   const layers = new Set<string>();
   const tags = new Map<string, Map<string, string>>();
   const repositories = new Set<string>();
   for (const path of files.keys()) {
+    if (
+      uploads.some((upload) =>
+        path.startsWith(`repositories/${upload.repository}/_uploads/${upload.uploadId}/`),
+      )
+    )
+      continue;
     const blob = blobPattern.exec(path);
     if (blob !== null) {
       const digest = `sha256:${blob[2]}`;
-      const content = await readFileContent(join(base, path));
+      const content = await readFileContent(join(base, path), undefined, signal);
       // Proof: removing this comparison made "refuses same-length physical layer corruption"
       // return an inventory with altered 12-byte content.
       if (blob[1] !== blob[2].slice(0, 2) || content.digest !== digest)
@@ -237,7 +294,7 @@ async function readStorage(directory: string): Promise<StoredCensus> {
     // Proof: ignoring unrecognized upload files admitted unresolved staging in the production census.
     if (revision === null && layer === null && tag === null)
       throw new Error(`Unknown registry storage or unresolved upload: ${path}`);
-    const content = await readFileContent(join(base, path), 71);
+    const content = await readFileContent(join(base, path), 71, signal);
     const digest = content.text;
     if (Digest(digest) instanceof type.errors) throw new Error(`Malformed registry link: ${path}`);
     const match = revision ?? layer ?? tag;
@@ -277,7 +334,7 @@ async function readStorage(directory: string): Promise<StoredCensus> {
     // Native DELETE/GC leave empty revision and shard containers; required links remain mandatory.
     if (
       new RegExp(
-        `^repositories/(${repositoryPattern})/(?:_uploads|_manifests/(?:revisions(?:/sha256)?|tags)|_layers(?:/sha256)?)$`,
+        `^repositories/(${repositoryPattern})/(?:_uploads|_manifests(?:/(?:revisions(?:/sha256)?|tags))?|_layers(?:/sha256)?)$`,
       ).test(directory)
     )
       continue;
@@ -285,6 +342,7 @@ async function readStorage(directory: string): Promise<StoredCensus> {
     throw new Error(`Unknown or incomplete registry storage directory: ${directory}`);
   }
   const revisionKeys = new Set(revisions.map(referenceKey));
+  // Proof: removing this dangling-tag guard makes the actual partial-unlink caller contact the API eight times instead of refusing before any request.
   for (const [repository, current] of tags)
     for (const digest of current.values())
       if (!revisionKeys.has(`${repository}@${digest}`))
@@ -297,8 +355,51 @@ async function readStorage(directory: string): Promise<StoredCensus> {
     layers,
     tags,
     repositories: [...repositories].sort(),
+    manifestRepositories: directories.flatMap((directory) => {
+      const match = new RegExp(`^repositories/(${repositoryPattern})/_manifests$`).exec(directory);
+      return match === null ? [] : [match[1]];
+    }),
     fingerprint: sha256(JSON.stringify([...files])),
     filesystem: `${String(status.dev)}:${String(status.ino)}`,
+    uploads,
+  };
+}
+
+/**
+ * Read the complete physical CAS and repository revision/link census without executing consumer
+ * adapters or contacting HTTP. Only the canonical root action supplies the already validated
+ * journal. Metadata reads remain bounded, hash/size checked, fatal-UTF8 JSON; assertUnchanged
+ * rehashes the full physical census before the plan is acknowledged. This grants no deletion,
+ * client execution, journal completion or service-restoration authority.
+ */
+export async function collectRegistryStoredContent(journal: RegistryJournal, signal: AbortSignal) {
+  const stored = await readStorage(journal, signal, 'reject');
+  const blobs: ReadonlyMap<string, StoredContent> = stored.blobs;
+  const layers: ReadonlySet<string> = stored.layers;
+  return {
+    fingerprint: stored.fingerprint,
+    filesystem: stored.filesystem,
+    revisions: stored.revisions,
+    blobs,
+    layers,
+    readMetadata: async (digest: string): Promise<unknown> => {
+      const content = stored.blobs.get(digest);
+      if (content === undefined) throw new Error('Missing physical metadata blob');
+      // Proof: metadata-cap-corrected raises this cap and acknowledges a valid config over4MiB.
+      const current = await readFileContent(content.path, 4 * 1024 ** 2, signal);
+      if (current.digest !== digest || current.size !== content.size)
+        throw new Error('Physical metadata changed during client planning');
+      // Proof: utf8 removal acknowledges an invalid byte in an opaque config comment after lossy decoding.
+      const decoded: unknown = JSON.parse(
+        new TextDecoder('utf-8', { fatal: true }).decode(current.encoded),
+      );
+      return decoded;
+    },
+    assertUnchanged: async () => {
+      const current = await readStorage(journal, signal, 'reject');
+      if (current.fingerprint !== stored.fingerprint || current.filesystem !== stored.filesystem)
+        throw new Error('Physical census changed during client planning');
+    },
   };
 }
 
@@ -368,14 +469,33 @@ export async function collectRegistryInventory(input: {
   )
     throw new Error('Registry inventory identity mismatch');
   const reports = await reconcileRegistryConsumers(journal, input.consumers);
-  const stored = await readStorage(journal.enrollment.registryPath);
+  const stored = await readStorage(journal);
   // Proof: removing catalog equality admitted the omitted-repository API page.
   if (!same(await readPages(input.endpoint), stored.repositories))
     throw new Error('Incomplete registry catalog census');
   for (const repository of stored.repositories) {
     const tags = stored.tags.get(repository) ?? new Map<string, string>();
     // Proof: removing tag equality admitted truncated tags; native proxy truncation also refuses.
-    if (!same(await readPages(input.endpoint, repository), [...tags.keys()].sort()))
+    let observedTags: string[];
+    if (!stored.manifestRepositories.includes(repository)) {
+      const evidence = journal.schemaVersion === 4 ? journal.publicationEvidence : [];
+      const layerLinks = [...stored.layers].filter((key) => key.startsWith(`${repository}@`));
+      if (
+        layerLinks.length === 0 ||
+        layerLinks.some(
+          (key) =>
+            !evidence.some((publication) =>
+              publication.writes.some(
+                (write) => referenceKey(write) === key && write.phase === 'stored',
+              ),
+            ),
+        )
+      )
+        throw new Error('Unowned blob-only registry repository');
+      await requireRegistryUnknownRepository(input.endpoint, repository);
+      observedTags = [];
+    } else observedTags = await readPages(input.endpoint, repository);
+    if (!same(observedTags, [...tags.keys()].sort()))
       throw new Error('Incomplete registry tag census');
     for (const [tag, digest] of tags) {
       const response = await requestRegistry(input.endpoint, `/v2/${repository}/manifests/${tag}`, {
@@ -515,8 +635,91 @@ export async function collectRegistryInventory(input: {
           new Set([...ancestors, key]),
         );
   };
+  const retirements = journal.schemaVersion === 4 ? journal.retirements : [];
+  const declarations = journal.schemaVersion === 4 ? journal.publicationEvidence : [];
+  const partialOperations: string[] = [];
+  const neverUploaded: { operationId: string; repository: string; digest: string }[] = [];
+  for (const evidence of declarations) {
+    for (const declaration of evidence.contents) {
+      const physical = stored.blobs.get(declaration.digest);
+      const acknowledged = evidence.writes.some(
+        (write) => referenceKey(write) === referenceKey(declaration) && write.phase === 'stored',
+      );
+      const retired = retirements.filter((receipt) =>
+        receipt.operations.includes(evidence.operationId),
+      );
+      if (
+        acknowledged &&
+        (declaration.isManifest
+          ? !manifests.has(referenceKey(declaration)) &&
+            !retired.some((receipt) =>
+              receipt.deletions.some(
+                (reference) => referenceKey(reference) === referenceKey(declaration),
+              ),
+            )
+          : physical === undefined &&
+            !retired.some((receipt) => receipt.retireBlobs.includes(declaration.digest)))
+      )
+        throw new Error('Missing acknowledged stored publication content');
+      const manifest = manifests.get(referenceKey(declaration));
+      if (
+        physical !== undefined &&
+        (physical.size !== declaration.size ||
+          (mediaTypes.has(declaration.digest) &&
+            mediaTypes.get(declaration.digest) !== declaration.mediaType) ||
+          (manifest !== undefined &&
+            !same(
+              manifest.dependencies.map((dependency) => dependency.digest),
+              declaration.dependencies,
+            )))
+      )
+        throw new Error('Publication declaration differs from present content');
+    }
+  }
+  // Only exact retirement evidence or declared, never-written abandoned roots excuse absence.
+  // Consumer/protection roots below never use either exception.
+  for (const bundle of journal.bundles) {
+    const declaration = declarations.find(
+      (evidence) => evidence.operationId === bundle.operationId,
+    );
+    const partial = bundle.receipt.state === 'abandoned' && declaration !== undefined;
+    if (partial) partialOperations.push(bundle.operationId);
+    const retired = retirements.filter((receipt) =>
+      receipt.operations.includes(bundle.operationId),
+    );
+    for (const reference of bundle.references) {
+      if (!manifests.has(referenceKey(reference))) {
+        if (
+          retired.some((receipt) =>
+            receipt.deletions.some(
+              (deletion) => referenceKey(deletion) === referenceKey(reference),
+            ),
+          )
+        )
+          continue;
+        if (
+          partial &&
+          !declaration.writes.some((write) => referenceKey(write) === referenceKey(reference))
+        ) {
+          neverUploaded.push({ operationId: bundle.operationId, ...reference });
+          continue;
+        }
+      }
+      visit(reference);
+    }
+    if (partial)
+      for (const content of declaration.contents)
+        if (
+          content.isManifest &&
+          manifests.has(referenceKey(content)) &&
+          declaration.writes.some((write) => referenceKey(write) === referenceKey(content))
+        )
+          visit(content);
+  }
+  for (const receipt of retirements)
+    for (const reference of receipt.deletions)
+      if (manifests.has(referenceKey(reference))) visit(reference);
   for (const reference of [
-    ...journal.bundles.flatMap((bundle) => bundle.references),
     ...journal.protections.flatMap((protection) => protection.references),
     ...reports.flatMap((report) => report.references),
   ])
@@ -525,7 +728,7 @@ export async function collectRegistryInventory(input: {
   for (const revision of stored.revisions)
     if (!owned.has(referenceKey(revision)))
       throw new Error(`Unknown stored revision: ${referenceKey(revision)}`);
-  const after = await readStorage(journal.enrollment.registryPath);
+  const after = await readStorage(journal);
   // Proof: removing this refusal admitted a global blob added between the independent physical passes.
   if (stored.fingerprint !== after.fingerprint || stored.filesystem !== after.filesystem)
     throw new Error('Registry storage changed during census');
@@ -547,7 +750,35 @@ export async function collectRegistryInventory(input: {
       nodes: [...nodes.values()].sort((a, b) => a.digest.localeCompare(b.digest)),
     },
     revisions: stored.revisions,
+    uploads: stored.uploads,
+    tags: [...stored.tags].flatMap(([repository, tags]) =>
+      [...tags].map(([tag, digest]) => ({ repository, tag, digest })),
+    ),
     orphanBlobs: [...stored.blobs.keys()].filter((digest) => !nodes.has(digest)).sort(),
+    unreferencedContent: [...stored.blobs.values()]
+      .filter((content) => !nodes.has(content.digest))
+      .sort((a, b) => a.digest.localeCompare(b.digest))
+      .map((content) => ({
+        digest: content.digest,
+        bytes: content.bytes,
+        inodes: 1,
+        operations: [
+          ...new Set([
+            ...declarations
+              .filter((evidence) =>
+                evidence.writes.some(
+                  (write) => write.digest === content.digest && write.phase === 'stored',
+                ),
+              )
+              .map((evidence) => evidence.operationId),
+            ...retirements
+              .filter((receipt) => receipt.retireBlobs.includes(content.digest))
+              .flatMap((receipt) => receipt.operations),
+          ]),
+        ],
+      })),
+    partialOperations,
+    neverUploaded,
     protections: structuredClone(protections),
     consumerReferences: structuredClone(reports.flatMap((report) => report.references)),
     binding: {
@@ -561,6 +792,8 @@ export async function collectRegistryInventory(input: {
           reports,
           reservations: journal.reservations,
           publication: journal.publication,
+          retirements,
+          declarations,
         }),
       ),
       censusSha256: stored.fingerprint,
@@ -583,10 +816,64 @@ export function planRegistryRetirement(
   const active = inventory.journal.environments.filter(
     (environment) => environment.retiredAt === null,
   );
+  const receipts = inventory.journal.schemaVersion === 4 ? inventory.journal.retirements : [];
+  const retiredOperations = [...new Set(receipts.flatMap((receipt) => receipt.operations))];
+  const current = new Set(inventory.revisions.map(referenceKey));
+  const declarations =
+    inventory.journal.schemaVersion === 4 ? inventory.journal.publicationEvidence : [];
+  const references = (bundle: RegistryJournal['bundles'][number]): RegistryRevision[] => {
+    if (
+      !retiredOperations.includes(bundle.operationId) &&
+      !inventory.partialOperations.includes(bundle.operationId)
+    )
+      return bundle.references;
+    return [
+      ...new Map(
+        [
+          ...bundle.references,
+          ...receipts
+            .filter((receipt) => receipt.operations.includes(bundle.operationId))
+            .flatMap((receipt) => receipt.deletions),
+          ...declarations
+            .filter((evidence) => evidence.operationId === bundle.operationId)
+            .flatMap((evidence) =>
+              evidence.contents.filter(
+                (content) =>
+                  content.isManifest &&
+                  evidence.writes.some((write) => referenceKey(write) === referenceKey(content)),
+              ),
+            ),
+        ]
+          .filter((reference) => current.has(referenceKey(reference)))
+          .map((reference) => [
+            referenceKey(reference),
+            { repository: reference.repository, digest: reference.digest },
+          ]),
+      ).values(),
+    ];
+  };
+  const bundles = inventory.journal.bundles.map((bundle) => ({
+    ...bundle,
+    roots: [...new Set(references(bundle).map((reference) => reference.digest))],
+  }));
+  if (inventory.unreferencedContent.some((content) => content.operations.length === 0))
+    throw new Error('Unowned orphan content prevents offline GC');
   const policy = planRetirement({
     ...options,
     graph: inventory.graph,
-    bundles: inventory.journal.bundles,
+    bundles,
+    // Proof: restoring blanket prior-receipt exclusion strands newly unprotected revisions (task8-removal-residual-eligibility.log).
+    retiredOperations: retiredOperations.filter(
+      (operationId) =>
+        bundles.find((bundle) => bundle.operationId === operationId)?.roots.length === 0,
+    ),
+    staging: inventory.uploads.map((upload) => ({
+      operationId: upload.operationId,
+      bytes: upload.bytes,
+      inodes: upload.inodes,
+    })),
+    partialOperations: inventory.partialOperations,
+    unreferencedContent: inventory.unreferencedContent,
     protections: inventory.protections,
     registeredEnvironments: active.map((environment) => environment.environment),
     histories: active.map((environment) => ({
@@ -596,6 +883,10 @@ export function planRegistryRetirement(
         : { state: 'successful', complete: true, releases: environment.releases }),
     })),
   });
+  if (inventory.orphanBlobs.some((digest) => !policy.retireDigests.includes(digest)))
+    throw new Error('Unreleased orphan content prevents offline GC');
+  if (inventory.uploads.some((upload) => !policy.retireOperations.includes(upload.operationId)))
+    throw new Error('Unreleased staging prevents offline GC');
   const revisionKeys = new Set(inventory.revisions.map(referenceKey));
   const nodes = new Map(inventory.graph.nodes.map((node) => [node.digest, node]));
   const closure = (roots: readonly RegistryRevision[]) => {
@@ -616,14 +907,18 @@ export function planRegistryRetirement(
   const candidates = closure(
     inventory.journal.bundles
       .filter((bundle) => policy.retireOperations.includes(bundle.operationId))
-      .flatMap((bundle) => bundle.references),
+      .flatMap(references),
   );
   const retained = closure([
     ...inventory.consumerReferences,
     ...inventory.journal.protections.flatMap((protection) => protection.references),
     ...inventory.journal.bundles
-      .filter((bundle) => !policy.retireOperations.includes(bundle.operationId))
-      .flatMap((bundle) => bundle.references),
+      .filter(
+        (bundle) =>
+          !policy.retireOperations.includes(bundle.operationId) &&
+          !retiredOperations.includes(bundle.operationId),
+      )
+      .flatMap(references),
   ]);
   return {
     schemaVersion: 1,
@@ -633,6 +928,10 @@ export function planRegistryRetirement(
       (revision) => candidates.has(referenceKey(revision)) && !retained.has(referenceKey(revision)),
     ),
     retireBlobs: policy.retireDigests,
+    retireUploads: inventory.uploads,
+    neverUploaded: inventory.neverUploaded.filter((reference) =>
+      policy.retireOperations.includes(reference.operationId),
+    ),
     policy,
   };
 }

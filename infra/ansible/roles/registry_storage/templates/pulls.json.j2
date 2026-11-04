@@ -1,0 +1,1 @@
+{{ {'fstab': '/etc/fstab', 'directory': puni_registry_storage_directory, 'rootReserveBytes': puni_registry_storage_root_reserve_bytes | int, 'volumes': [{'name': 'pulls', 'bytes': puni_registry_pulls_bytes | int, 'uid': 0, 'inodes': puni_registry_pulls_inodes | int}]} | to_nice_json }}

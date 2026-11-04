@@ -209,21 +209,118 @@ availability improvement needs its own verified writer-exclusion mechanism.
 
 ### Backups and monitoring
 
+File/object accounting and transport: [backup accounting research](../../../docs/findings/registry-backup-accounting.md).
+Source/new-content and prune resource envelopes: [source and workspace bounds](../../../docs/findings/registry-backup-workspace.md).
+
 Live storage reclamation does not reclaim older restic snapshots. Use seven daily
 and four weekly snapshots, with the last verified snapshot and explicit recovery
 pins retained regardless of age. Treat those counts as minimum recovery coverage:
 if they do not fit, block and alert rather than silently weakening the policy.
-Proposed initial backup budget is 100 GiB, configured separately from C. Before a
+The initial backup budget is 100 GiB (107374182400 bytes), configured separately
+from C. Per the user's 2026-11-04 clarification, this bounds stored file/object
+sizes, not provider billing. Sum the listed sizes of every object version and
+uploaded multipart part within the repository prefix. Restic pack, index, snapshot
+and lock files count by their stored size. Delete markers add no file payload;
+provider metadata charges, minimum billable sizes and billing rounding are excluded.
+A Hetzner billing contract is not an admission prerequisite. Before a
 backup, reserve a conservative upper bound for new unique content, repository
 metadata and prune/repack workspace. If that envelope does not fit, first prune
 only already-eligible snapshots while preserving required coverage. If still short,
 block backup and destructive retirement and report the capacity decision required.
 
+Retention groups by the stable registry identity across storage-path changes. Select
+the latest exact snapshot per represented UTC calendar day (seven newest day
+buckets) and Monday-based UTC calendar week (four newest week buckets), then union
+the last verified snapshot and explicit recovery pins. Preserve sub-millisecond
+timestamp ordering. Missing daily/weekly coverage is explicit: preserve every
+existing snapshot and offer no deletion candidates until both minima exist;
+separately admitted backup creation may build coverage. Counts describe represented
+recovery periods, not an assertion that missed backups occurred.
+
+Root-only, hash-pinned backup configuration stores the explicit full recovery-pin
+IDs, including an explicit empty list. Pins are bound to its immutable repository
+identity; absence is not an empty-list default. A retention read verifies every
+pin and last-verified identity against the complete authenticated snapshot set.
+List the entire restic repository without host/path filters, reject foreign or
+unreadable records, and match it to stable complete S3 snapshot-version bookends.
+Normal restic locking itself writes provider content, so retention inspection
+requires prior physical admission/reservation. It grants no permission to prune.
+Prune remains a distinct owned, budgeted effect after repository/raw-lock checks
+and durable exact-ID retention evidence; repeated admission callbacks never prune.
+
+Source capacity bytes are not a logical or metadata envelope. Distinguish
+repository inspection admission (normal-lock writes only) from snapshot admission,
+which additionally requires a bounded contents-metadata census. Preflight precedes
+the writer fence and cannot assume stable source metadata. Observe both contents
+roots only at the stopped snapshot boundary, bind operation/registry/storage,
+journal revision/census and exact root identities, then revalidate source and held
+authority after admission immediately before backup. Independent writer exclusion
+remains mandatory throughout the copy; repeated observation alone cannot replace it.
+
+Required root-only source limits independently bound per-root logical bytes,
+entries, depth, fanout and raw metadata. Traverse incrementally without following
+symlinks; count every hardlink path, preserve raw names/targets/attribute bytes,
+and refuse missing/unreadable/changed/cross-filesystem/unsupported entries. Read
+complete caller-visible xattrs within the remaining metadata allowance, never
+turning failed observation into an empty list. Linux enumeration may omit
+inaccessible namespaces; independently proved full reader visibility is still
+required before complete encoding/physical admission. Ignore observer-induced atime drift, which the
+fixed backup command does not preserve. Deterministic source hashes cover the
+observed metadata, not an inferred physical bound. Source observations explicitly
+exclude still-unproved restic ancestor/account-name/serialized-tree/encryption/retry and
+workspace envelopes; those must compose with complete object-size accounting before admission
+can open. No caller-supplied capacity sum represents maximum new physical bytes.
+
+Durable effect consumption is separate from physical admission. Bind one operation
+to repository/scope, root configuration/profile and canonical attempt lineage; an
+inspection binding contains no stopped-source hash, and its one snapshot transition
+additionally binds the exact immutable observation/revision/census. Canonical recovery
+rotates the operation token: bind token hashes to exact current attempt/reconciliation
+lineage, while stable operation/repository/configuration/profile identity persists.
+A strictly newer validated canonical attempt may use the rotated token; an existing
+attempt with token drift and all stale ports refuse. Repeated admission or token
+rotation cannot refresh slots, replace a source binding or refund liabilities.
+The current provider adapter remains closed until complete physical evidence exists.
+
+Store bounded effect state in a root-only `backup-effects/` sibling of `contents/`
+on the existing journal filesystem; see [ADR 0060](../../../docs/adr/0060-registry-backup-consumption-survives-content-restore.md).
+Only explicit enrollment of fresh backing creates the vacant state exclusively
+and durably. Runtime and provisioning convergence both refuse loss of established
+state, lock or the entire sidecar directory; absence never proves first enrollment. Enforce a 1 MiB serialized record and 1,024 effect-entry cap,
+old/replacement coexistence and canonical journal replacement/failure headroom
+from fresh whole-volume byte/inode observations. No automatic history truncation,
+time release, host-root spool or recreation from restored backup contents.
+
+Each fixed restic call site and exact-version recovery deletion requires a
+one-use ticket bound to the current canonical attempt/reconciliation and exact
+effect identity. Under the held common authority, a short sidecar lock serializes
+read/compare/persist even across callers sharing an inherited authority descriptor.
+Persist consumption and sync file plus directory after final source reobservation
+and before spawn/DELETE. A post-consumption failure or absent terminal acknowledgement
+leaves uncertainty and cannot replay/refund the ticket. Pre-publication failures
+prove no launch and either durable cleanup or refusal on unresolved replacement;
+they are not falsely described as a published spent ticket. Terminal success
+requires child/output/cleanup completion and exact matching settlement, without
+crediting provider writes or changing captured contents.
+
+Root-only sibling provisioning is staged. This work must not weaken restricted
+worker exposure or substitute modeled access for installed/native proof. The
+exact-lock recovery path retains its existing dead-origin, full-census and exact
+disappearance requirements and gains its own durable deletion consumption; it
+never authorizes normal lock-writing commands, forget or prune. Re-inspection of
+surviving locks binds exact version plus deterministic validated current-census
+hash: a changed view consumes another bounded slot, while identical-view replay
+remains spent. A new operation
+cannot recycle outstanding/uncertain liabilities; physical release still requires
+the missing complete post-operation reconciliation evidence.
+
 Measure repository objects, applicable noncurrent object versions and unfinished
-multipart uploads. Configure any bucket lifecycle only after proving it preserves
-restic references and other backup prefixes. A logical restic size is not proof of
-billable S3 usage. The 100 GiB admission budget is not an S3 provider hard quota;
-unknown accounting blocks new backup admission. Bounded local backup caches and
+multipart uploads using their listed payload sizes. Configure any bucket lifecycle
+only after proving it preserves restic references and other backup prefixes. A
+logical restic snapshot size is not the stored repository file total. The 100 GiB
+admission budget is an application limit on that total, not a provider hard quota
+or billing cap. Incomplete object/part listings or unknown additions still block
+new backup admission; missing billing-overhead rules do not. Bounded local backup caches and
 scratch directories must be budgeted separately; do not spool a second full registry
 copy onto host root. Failed backups preserve the prior verified success receipt.
 
@@ -234,6 +331,100 @@ capacity). Test warning, cutoff, failed cleanup and backup failures through the 
 notification destination. An independent monitor alerts after five minutes without
 pressure reports. A systemd failure alone is not verified alert delivery. Existing
 suspended platform alert stages remain suspended until their separate activation.
+
+### Fresh local pressure reporting prerequisite
+
+Preserve the ten-second authority renewal and unchanged healthy canonical journal.
+Capture the actual successful check's capacity through its measurement port, without
+changing the authenticated command response. Publish a validated bounded observation
+on startup, pressure/fence transitions and at least once per minute. Bind identity,
+boot, observation time, sequence and canonical semantic snapshot hash; no cached
+measurement may acquire a new measurement time.
+
+The first integrated status slice uses a volatile cache at
+`/run/puni-registry-pressure/report.json`, provisioned by the existing pressure unit's
+owner-only RuntimeDirectory. Two fixed files hold at most 16 KiB each, with validated
+allocation and inode headroom; unknown entries and unresolved replacement refuse.
+An installed directory missing or unreadable is an error. A valid empty runtime
+directory is explicitly never-reported. This cache is not durable notification state.
+It stays outside both captured roots and introduces no journal sibling.
+
+Status reads one bounded, fully validated atomic canonical snapshot without taking
+the command flock or gaining mutation authority. It joins a report only on matching
+identity, revision and semantic hash. Old, previous-boot or mismatched observations
+remain stale/unavailable. Physical protected/eligible bytes, physical backup usage
+and absent completion evidence remain explicit unavailable dimensions. Existing
+verified backup timestamps retain their original age.
+
+Reservation status contains count, byte/inode totals and entries from the fully
+validated canonical state; its enforced zero-or-one reservation invariant preserves
+safe-integer arithmetic. Backup verification retains original registry/storage/path
+identities beside the current/historical classification. Report ordering and future
+refusal compare epoch time, including expanded-year canonical ISO timestamps.
+
+Canonical publication, pressure and maintenance receipts use the same chronological
+rule. Persisted backup, retirement, deployment and reclamation provenance compare
+accepted instants numerically; wire strings and each existing schema remain unchanged.
+This restores existing chronology guarantees without narrowing accepted year formats.
+
+Installed durable delivery spooling, the actual configured destination, independently
+hosted five-minute missing-check delivery, cleanup/backup notification outcomes and live
+receipts remain required before Task 5.1 completion. Local status and process tests
+cannot satisfy destination delivery. No unit activation is part of this prerequisite.
+
+### Source alert capture and delivery prerequisite
+
+The local source pipeline connects actual pressure and maintenance entrypoints to
+a persistent outbox and sender CLI. Capture precedes replaceable report publication
+and retry clearing durable failure. Periodic sender ticks recover uncaptured durable canonical failures before deciding
+delivery is idle, without requiring another maintenance invocation or repeating its
+effects. Network IO stays outside the authority renewal loop. Critical incidents retain their first evidence through healthy samples,
+restarts and uncertain requests. Owner scope, omitted counts and unavailable physical
+census remain explicit; local receiver tests cannot satisfy real destination proof.
+
+A pressure episode ends only at an observed normal, unfenced state. Moving between
+warning and cleanup pressure cannot rearm an acknowledged warning; each threshold's
+first occurrence remains distinct, and ending an episode does not erase undelivered alerts.
+
+The candidate store has 32 event slots of at most 4 KiB each, including one reserved
+critical slot. Current/pending snapshots are at most 256 KiB each, fault records
+4 KiB each. Fixed state/send locks separate short state transactions from the
+request lifetime. Runtime requires explicit immutable pre-enrollment, stable lock
+identity, strict fixed-file/schema bounds and actual filesystem accounting. The
+selected dedicated profile caps the filesystem at 16 MiB and 4,096 inodes and
+retains replacement, allocation and 64 KiB metadata/failure headroom. No root-filesystem
+fallback or missing-state genesis is permitted. Native provisioning/format/ownership
+proof remains required before activation; modeled test counters do not establish it.
+
+Snapshot replacement retains pre-existing refusal evidence through every
+commit-critical IO operation. After syncing and renaming the new JSON, the vacated
+`pending.json` slot becomes a second bounded marker while `fault.pending` still
+protects the transaction. Its content, directory entry and descriptor are settled
+before removing `fault.pending`; the existing final directory sync occurs while
+`pending.json` still blocks readers. Publication descriptors close before the last
+marker is released. Final `pending.json` unlink must succeed, but persistence of
+that cleanup is not a commit requirement: the snapshot is already durable, and a
+marker reappearing after a crash causes conservative refusal. There is no required
+unprotected sync after that last unlink. Regaining directory write permission
+alone cannot resolve an uncertain replacement. This uses the same six file names
+and allocation bounds; it does not rely on allocating recovery evidence after IO
+has already failed.
+
+One explicitly configured conditional Slack incoming-webhook adapter is staged,
+without claiming that it matches the installed destination. Three persisted attempts
+and a ten-minute horizon survive restart. Requests have a ten-second deadline,
+8 KiB request and 4 KiB response limits, no redirects and at least one-second spacing.
+Exact HTTP 200/body `ok` is protocol acknowledgement. Valid Retry-After is respected
+within the remaining horizon; correctable rejection and uncertain network/ack outcomes
+retain bounded failure state. Credential/destination changes cannot reuse stale success.
+Only the sender receives the selected secret reference; no URL enters logs or state.
+
+Actual destination, independent-host acquisition and observer remain unselected.
+The installed status CLI's UID59001 requirement does not create remote authentication.
+The full five-minute independent path, real warning/cutoff/cleanup/backup receipts,
+complete protected-owner evidence and host/native checks remain Task 5.1 obligations.
+This local prerequisite adds no remote/root route, root helper verb, platform stage
+activation or product migration.
 
 ## Risks / Trade-offs
 
@@ -382,3 +573,291 @@ the registered configuration-file identity from its independently pinned owning
 Git directory. Both identities and both configuration hashes must match before a
 report can join the complete consumer inventory. The concrete fields and installer
 requirements are in the registry consumer runbook.
+
+### Authority installation ordering
+
+The authority installer owns the nonsecret maintenance enrollment required by its
+ordinary CLI. It stages and hashes the candidate runtime/bundle in a private root
+directory and asks that candidate to validate the trusted enrollment's schema
+before changing active files. After validation, configuration precedes runtime and
+bundle publication. Maintenance staging requires matching installed configuration
+and authority bytes and cannot replace that enrollment. Candidate validation has
+no journal or host-port effects; full physical/resource readiness remains required
+by the separate installed activation drill. A noncached namespace rehearsal runs
+the actual Ansible role and its configuration preflight with explicit fault/removal
+cases, without treating synthetic resource pins as live ownership evidence.
+
+### Maintenance privilege transport
+
+The fixed UID59001 authority invokes hash/metadata-verified `/usr/bin/sudo.ws` and
+one no-argument root helper. A private per-invocation Unix socketpair on standard
+FD0 transfers the same already-held canonical flock description using SCM_RIGHTS.
+A nonsecret nonce and exactly one descriptor precede any operation token; the helper
+verifies the canonical held lock and current sender credentials, then acknowledges
+with a fresh challenge and current kernel-authenticated root credentials. Only then
+does the authority send its typed action/owner/operation/token. Every packet uses
+SO_PASSCRED/SCM_CREDENTIALS; socket creation credentials cannot establish post-sudo
+identity. Root maps its received descriptor to FD3 for native descendants, owns
+independent deadlines and kill/reap cleanup, and closes without LOCK_UN.
+
+Shared sudo policy must parse with both installed classic and default sudo-rs tools.
+It contains no incompatible closefrom/logging settings; PTY or input-log interposition
+must fail authentication before receiving a token or causing effects. No pathname,
+listener, daemon, reopened lock or second authority is introduced. The rejected
+classic-only fragment and transport trade-off are recorded in [ADR0058](../../../docs/adr/0058-registry-maintenance-transfers-the-held-authority-descriptor.md).
+Native isolated and final installed privilege/descriptor/cleanup proofs are required
+before this contract is considered operationally verified.
+
+### Backup attempt and repository lock recovery
+
+A root guardian's kernel-authenticated ACK PID is an internal capability. Before
+sending its single action request, the existing authority durably binds that exact
+fresh root PID/start/machine/boot/PID-namespace identity, installed backup config
+hash and one-use nonce. The guardian rereads the current canonical revision before
+any backup effect. A fixed pinned unshare invocation creates a private UTS namespace
+before starting the fixed Bun worker; the worker verifies that namespace and sets
+the nonce hostname. Restic's lock hostname identifies the attempt, while explicit
+backup `--host` remains the stable registry identity across store rebinds.
+
+The same authority description survives through the worker and non-detached restic
+children. Root supervises their one process group; SIGINT has a fixed five-second
+restic grace before forced group cleanup. The worker independently observes pipe
+EOF and deadline. Failed or unacknowledged effects retain pending lineage and the
+write fence. Reconciliation must settle old attempts before new nonces can start.
+
+Fixed backup-reconcile derives all pending identities from canonical state and
+requires pre-effect journal/failure-receipt capacity. A mandatory provider port
+supplies complete bounded raw visible/history versions, hashes and exact-version
+deletion. Hidden history is preserved, every represented key has exactly one visible
+latest object/delete marker, and unrelated history consumes census capacity rather
+than mutation receipt capacity. Bounds are65,536versions/64MiB metadata with bounded
+mutation receipts. Unknown, malformed, unreadable, changed or foreign objects refuse.
+Fixed read-only no-lock cat lock/config inspection binds decrypted metadata and
+immutable repository ID to unchanged raw versions; all effect commands keep locks.
+
+Independent origin exclusion requires matching machine/boot/PID namespace and proc
+mount view, then exact guardian/effect process absence. A different origin or boot
+cannot be inferred dead from local proc/network observations. Exact deletion and
+complete recensus preserve other versions and refuse foreign content exposed by a
+version removal. Terminal root cleanup precedes canonical reconciliation receipts;
+partial effects remain failed/fenced. The root S3 adapter uses the exact pinned
+official client-s3 SDK with explicit endpoint, scope, region and static credentials;
+ambient credential/configuration discovery, retries and redirect following are
+disabled. Each signed request rechecks the inherited canonical authority. Strict
+XML validation precedes SDK scalar normalization. Pagination consumes supplied
+opaque cursors without requiring them to identify a returned entry; scope, echo,
+direction, cycle, duplicate and finite count/byte/request checks remain mandatory.
+One census cycle shares its cancellation deadline across all lock reads and full
+metadata bookends. Exact GET/DELETE identities and terminal cleanup are verified.
+Payload totals explicitly exclude provider metadata/minima and cannot admit the
+physical budget. The budget port remains closed until that independent bound and
+retention/prune/restore proofs exist. Controlled SDK transport fixtures establish
+local behavior only; live provider compatibility remains unverified.
+The explicit owned-local native adapter proves mechanism only. See
+[ADR0059](../../../docs/adr/0059-registry-backup-locks-identify-their-owning-attempt.md)
+for alternatives and pinned restic behavior; final installed and independent-host
+proofs remain activation prerequisites.
+
+### Actual client pull verification: implementation continuation
+
+HTTP closure/digest verification remains necessary but is insufficient to acknowledge
+an uncached client pull. Use the pinned Crane v0.22.1 client to retrieve OCI image
+layouts, keeping the shared Docker daemon and its image/cache state outside the
+maintenance operation. Its [documented pull command](https://github.com/google/go-containerregistry/blob/v0.22.1/cmd/crane/doc/crane_pull.md)
+supports platform selection and OCI layout output. The [pinned implementation](https://github.com/google/go-containerregistry/blob/v0.22.1/cmd/crane/cmd/pull.go)
+selects an image when a platform is supplied. The [layout writer](https://github.com/google/go-containerregistry/blob/v0.22.1/pkg/v1/layout/write.go)
+can reuse existing blob files, so every verification must have a newly created,
+independently empty output directory and no reusable layer cache. A successful
+exit alone is insufficient: inspect and hash the produced layout against its
+expected selected manifest, configuration, platform and complete blob closure.
+
+This is the implementation choice for the existing required pull proof, not a new
+success criterion or proof that the production path is already wired. Replacing
+the standalone client is reversible; no ADR or product migration is needed.
+
+The coherent production action follows these boundaries:
+
+1. Complete the existing retained census and HTTP digest checks, then close and
+   reap that readonly server before the native pull action starts. One new fixed
+   root action runs the existing stopped-writer/controller/mount audit and owns
+   a fresh readonly Distribution child, the actual clients, temporary credentials
+   and scratch through terminal cleanup. Keep the same inherited authority FD3.
+   Do not adopt another helper's listener, omit writer exclusion to accommodate a
+   concurrent server, or extend the control channel into concurrent work routing.
+2. Derive repository-qualified retained platform coverage from verified physical
+   manifests, indexes and configuration blobs. Reuse the physical revision/closure
+   checks without executing user-owned consumer readers as root. Bind the canonical
+   plan and source census to the parent inventory and current operation/store/
+   authority revision. Include untagged children. Reject missing, contradictory,
+   ambiguous or unsupported platform metadata instead of choosing a host default.
+   The [client platform matching source](https://github.com/google/go-containerregistry/blob/v0.22.1/pkg/v1/remote/index.go)
+   assumes amd64/linux for a missing index-child platform; this must not silently
+   decide registry verification coverage.
+   `collectRegistryStoredContent` reuses the complete physical census without
+   executing consumer readers or HTTP. Client planning rejects upload staging before
+   opening bodies and rehashes the final census. `planRegistryClientPulls` covers
+   every repository-qualified revision, including direct leaves and each index
+   platform. The final requested selector must select the expected child at every
+   nested edge; features cannot disambiguate Crane's os/arch/variant/os.version flag.
+   Scratch envelopes use the measured allocation unit, two allocated copies of
+   each unique output blob, 32 metadata blocks/inodes and8MiBmetadata workspace.
+3. Supply a private, newly empty cache/output for each planned pull. Pin and verify
+   the executable's canonical root-owned artifact metadata/hash, and keep credentials
+   out of argv, diagnostics and returned receipts. Put server and clients together
+   in private mount/network/PID namespaces with fresh procfs, only loopback connectivity
+   and a readonly source bind. The worker requires `/proc/self` to resolve to PID1;
+   a private PID namespace with inherited host procfs does not satisfy isolation.
+   The outside root launcher inherits FD3 before creating the mount namespace, then
+   uses a finite systemd scope. Its kept input pipe carries a bounded namespace-origin
+   line followed by the existing fixed authority request and cancellation protocol.
+   Identify each visible mount through its descriptor identity; hidden kernel mount entries
+   are covered only by a proven different mount outside their parent lineage. Avoid
+   root self-binds that create an inactive writable root mount. Before returning root
+   completion, the launcher independently compares physical plans and requires the
+   owned child groups, pipes and systemd scope to be terminal. Clear proxy/helper/cache environment inputs. Missing tools, namespace
+   setup or resource limits refuse instead of falling back to a host cache/listener.
+   The pull pool is root-owned mode0711. Root setup holds job/pool directory
+   descriptors and uses their anchored paths; the unprivileged client inherits the
+   held job as FD4 alongside the authority lock at FD3. Output, credentials and
+   temporary paths resolve through its FD4. Verification opens output relative to
+   the same held job, and no-follow descriptor-based cleanup closes both handles.
+   A writable ancestor must not redirect setup or client writes outside the bound.
+4. Establish real byte/inode scratch bounds before downloading. Production capacity
+   must accommodate the declared representative-image closure plus temporary files,
+   metadata and cleanup workspace, or refuse with writes still fenced. A dedicated
+   bounded filesystem is required; a regular directory on host root and a 64MiB test
+   filesystem do not establish production capacity. Preserve the root reserve and
+   all existing registry/journal/recovery bounds. Admit any backing allocation before
+   it is written; use the installed fixed profile and inspect its actual identity.
+5. Verify the produced identities and full expected coverage, not merely a zero
+   exit or platform counter. Remove and verify each output before the next pull.
+   Await/reap the client, readonly server and any namespace worker, and verify
+   credential, scratch, mount and process cleanup on every success/failure path.
+   Preserve both operation and cleanup failures. Owner death/cancellation/deadline
+   must retain the shared authority until owned effects are dead.
+6. Only authenticated root terminal completion after cleanup may settle the durable
+   pull receipt. Generic session.record must not invent, erase or replace it. Bind
+   it to operation, actual store, census/plan, current obligation revision and exact
+   platform coverage; require fresh completed evidence before verified phase and
+   root service restoration. Apply the same rule to staged recovery and coordinated
+   activation using their reconciled target census. Keep the measured reclamation
+   sample after client work and before restoration. Legacy journals may remain
+   readable without granting the new success gate.
+
+Shared-Docker pulls would reuse cache and host state; concurrent helper/listener
+adoption would add cancellation and ownership ambiguities. One sequential root
+operation keeps exclusion, process custody and the completion boundary together.
+The independent review recommended this path. Installer artifacts/configuration,
+protocol action validation, phase/session ownership, ordinary/recovery callers and
+native failure proofs must all be implemented and checked before this finding can
+be resolved. The successful throwaway probe below establishes tool compatibility,
+not any of these production guarantees.
+
+### Durable client attempt and interrupted scratch custody
+
+The outside root launcher publishes one root-private `.client-attempt.json` in
+its dedicated bounded pull pool before creating a systemd scope. This is scratch
+custody metadata, separate from canonical journal completion: writing it does not
+change the inventory's journal revision. The pool is root:root0711; the record is
+root:root0600, a regular file with one link, at most8192bytes, on the held pool's
+filesystem. Its validated identity binds the operation, registry, snapshot, scope,
+source plan/revision/store, installed tool and scratch profile, hashed capability,
+actual guardian and pool device/inode. No credential or capability token is stored.
+The parent mints a UUIDv4 and derives its exact systemd scope name.
+
+Publication uses Linux `O_TMPFILE`, a complete write and file fsync, followed by
+`linkat` into the held directory and directory fsync. There is no named-partial
+fallback. An owner killed before publication leaves only an anonymous inode that
+the kernel reclaims; no native effect starts until publication is acknowledged.
+See the Linux contracts for [open](https://man7.org/linux/man-pages/man2/open.2.html)
+and [linkat](https://man7.org/linux/man-pages/man2/link.2.html). Metadata admission
+and a fresh stopped-writer/target audit precede allocation. Scratch identity and
+bounds must still match the fixed profile and held directory; root reserve stays
+at least20GiB. A normal directory on root is not an accepted scratch fallback.
+
+The worker independently derives the plan/profile/token facts, reads the exact
+protected record and checks its actual cgroup, boot, machine and nonfuture
+one-hour attempt window before starting its readonly server. Empty scratch means
+only the ownership record may remain. Successful terminal cleanup requires an
+empty pool and the exact scope to be not-found/inactive with no control group
+before removing and syncing the record.
+
+A fenced retry may reconcile an interrupted record only for the same operation,
+registry, snapshot, scratch filesystem and machine. It first proves that exact
+recorded scope terminal, then audits and removes only anchored `pull-UUIDv4` job
+roots belonging to the dedicated pool. Recovery handles root setup interrupted
+between chown/chmod stages. Unknown entries, missing ownership with nonempty
+scratch, unsafe metadata, symlinks, hardlinks or special files refuse and retain
+uncertain state. A held pool descriptor prevents renamed ancestors from redirecting
+cleanup. Recovery has its own60second deadline. The retry reruns current admission
+and target checks, then publishes a fresh nonce; it never reuses the old unit.
+Operation and cleanup failures remain observable together. Canonical client
+completion is still settled only after authenticated root terminal cleanup.
+
+### Pull storage provisioning continuation
+
+The existing client scratch requirement is installed through an explicit
+`registry_pulls` Ansible play, separate from canonical storage and maintenance
+artifact enrollment. Byte and inode limits have no production defaults. Dedicated
+`provision-pulls`, `mount-pulls` and `verify-pulls` modes create or verify one fully
+allocated ext4 backing file, set an explicit format-time inode ceiling, and check
+actual bytes/inodes and root:root mode0711 pool metadata. The canonical registry
+and journal must verify first; storage directory and root reserve must agree.
+The journal owns the pull identity receipt. The pull boot unit requires canonical
+storage and precedes backup/retirement. Source pins, installed client/tool profile
+verification and the complete lifecycle gate still precede client enrollment.
+
+### Read-only client installation preflight
+
+The authority CLI offers `--validate-client-installation <trusted-candidate>` for
+explicit client enrollment. It parses the same root-owned candidate and verifies
+all fixed client artifacts with exact mode/root group on their hashed descriptor,
+canonical storage receipts, the separate pull filesystem and root:root0711 pool.
+Enrolled recovery stores are included. The zero download envelope permits a full
+owned pool during recovery-tool installation while retaining physical identity,
+byte/inode bounds and separation checks. Validation opens no journal or client job.
+The existing `--validate-installation` remains schema-only for authority staging;
+legacy absent/unenrolled client manifests remain readable and grant no client action.
+
+The maintenance role installs the eighth client-worker bundle and pinned Crane for
+explicitly enrolled clients. Before its privilege grant it runs the storage
+helper's canonical/pull verification and the new authority CLI, which remeasures
+the configured host-specific tool pins. Successful status and exact acknowledgements
+are required. Controller source checks precede host copies; legacy seven-bundle
+staging remains explicit. The uncached client installation role rehearsal covers
+refusal boundaries and idempotency on disposable enforced storage. The complete
+installed lifecycle rehearsal and production enrollment remain pending.
+
+### Restricted process views during writer exclusion
+
+Linux exposes mount tables relative to each process root. OpenSSH authentication
+processes can therefore return a valid empty table while alive. Treating every
+empty read as malformed makes the maintenance barrier intermittently unavailable;
+treating it as unconditional absence can hide writable roots or other tasks.
+[readRegistryWriters](../../../tools/tool-fleet/src/registry-maintenance-writers.ts)
+owns the isolation conditions and refuses visibility it cannot prove safe. Its
+native chroot cases exercise actual filesystem state and writes, including hidden
+access through another live task. This keeps the complete writer exclusion
+requirement; it does not add an acknowledgement or a bypass for process names.
+
+Storage mount selection must use the held storage descriptor's kernel mount ID,
+not pathname ordering: covered and visible mounts can share the same pathname.
+For a restricted process, root/cwd device and inode equality alone does not prove
+path equality across bind mounts. The accepted privilege profile must also rule
+out filesystem-changing capability and privilege regain that could invalidate
+confinement. The alias and retained-capability native negatives remain pending;
+the existing ten-mode rehearsal does not cover either condition. These are
+required writer-exclusion proofs before activation.
+
+Held root/cwd descriptors now establish path identity through exact kernel mount
+IDs. The current process profile requires nonzero real/effective/saved/filesystem
+UIDs, empty effective/permitted/ambient capability masks and NoNewPrivs. Initial
+and final samples are independently validated; bounding/inheritable fields may
+retain bits under that profile. NoNewPrivs covers exec privilege gain, not all
+retained authority. Empty-view descriptors are therefore classified before storage
+filtering, with namespace, anonymous-inode and PID filesystem classes refused.
+The current kernel's PIDFS differs from the legacy anonymous-inode representation.
+This conservative classification can refuse benign anonymous descriptors; it
+never treats unknown authority as safe because it has no current storage FD.
+The complete descriptor-authority review and native proof remain pending, and
+these source corrections alone do not establish installed readiness.

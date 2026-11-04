@@ -128,6 +128,22 @@ and recovery receipt.
 - **WHEN** maintenance terminates after manifest deletion but before verification
 - **THEN** restart and reconciliation preserve the write fence until recovery verifies the store
 
+#### Scenario: Reclamation timestamps contradict durable chronology
+
+- **WHEN** a persisted reclamation baseline is after the canonical update, its final measurement precedes the baseline, or its final measurement is after the canonical update
+- **THEN** canonical read refuses the inconsistent receipt using chronological instants for every accepted ISO representation, and a fresh final age cannot redeem reversed lineage
+
+#### Scenario: An unrelated restricted process exposes no mount rows
+
+- **WHEN** a successfully read process mount table is empty because an unrelated process uses a restricted root
+- **THEN** maintenance can continue only after proving that process has no hidden registry access through its filesystem root, current directory, directory descriptors or other live tasks
+- **AND** regular descriptors and shared mappings still receive the complete writer audit
+
+#### Scenario: A restricted process hides access to registry storage
+
+- **WHEN** a process with an empty visible mount table can reach registry storage through its root, current directory, a directory descriptor, a proc magic link or another live task
+- **THEN** the writer census refuses before destructive effects and the maintenance fence remains closed
+
 ### Requirement: Bounded backup lifecycle
 
 Backups SHALL keep seven daily and four weekly recovery points, the last verified
@@ -140,6 +156,16 @@ deleting the last verified recovery point.
 
 - **WHEN** protected snapshots plus required workspace exhaust the configured backup budget
 - **THEN** the last verified snapshot survives, no retirement begins, and the capacity failure is reported
+
+#### Scenario: Backup recovery coverage is incomplete
+
+- **WHEN** fewer than seven represented daily or four represented weekly recovery periods exist
+- **THEN** retention reports the missing coverage, preserves every existing snapshot and offers no deletion candidates, while only separately budgeted backup creation may build coverage
+
+#### Scenario: Backup storage paths change
+
+- **WHEN** a registry has snapshots from both its previous and current storage paths
+- **THEN** retention groups them by stable registry identity and preserves the last verified snapshot and explicit recovery pins by full snapshot ID regardless of path or age
 
 ### Requirement: Proven monitoring and adoption
 
@@ -155,17 +181,173 @@ pass for the exact deployed revision.
 - **WHEN** the registry pressure check stops reporting for five minutes
 - **THEN** the independent monitoring path delivers an alert and publication admission independently rejects stale measurements
 
-### Requirement: Physical backup accounting
+#### Scenario: Healthy pressure observation leaves canonical history unchanged
 
-Backup admission SHALL count repository objects, applicable noncurrent versions
-and unfinished multipart uploads. Missing accounting or prune workspace bounds
-MUST prevent admission. Logical snapshot size alone MUST NOT establish available
-backup capacity.
+- **WHEN** a successful pressure check measures changed capacity without requiring a canonical fence transition
+- **THEN** the local report contains that invocation's actual observation while canonical bytes and revision remain unchanged and the ten-second write-permission renewal continues
+
+#### Scenario: Local status cannot refresh an old observation
+
+- **WHEN** status reads an old pressure report, a previous-boot report or a report that does not bind the current canonical snapshot
+- **THEN** it exposes the observation as stale or unavailable, never refreshes its measurement time, and does not invent physical content or backup usage
+
+#### Scenario: Maintenance holds the canonical command lock
+
+- **WHEN** maintenance holds canonical authority while an operator requests status
+- **THEN** status may read a fully validated atomic canonical snapshot without acquiring command authority or writing state, and reports missing or stale pressure observations explicitly
+
+#### Scenario: Future observations use chronological ordering
+
+- **WHEN** a report has a future measurement or emission, or its measurement occurs after emission, including canonical ISO timestamps with expanded years
+- **THEN** the reader or status consumer rejects the invalid chronology and never exposes fresh pressure with a negative age
+
+#### Scenario: Reservation totals remain separate from physical usage
+
+- **WHEN** an operator requests status for empty or populated canonical reservations
+- **THEN** status exposes their count and exact byte/inode totals separately from physical usage, while missing physical census remains explicitly unavailable
+
+#### Scenario: Historical backup verification retains its origin
+
+- **WHEN** status reports a verified backup from the current or a previous registry storage lineage
+- **THEN** it exposes the receipt's original registry identity, storage identity, path and verification time alongside its age and lineage classification, and a failed backup does not refresh that receipt
+
+### Requirement: Durable bounded alert delivery
+
+Required incidents SHALL enter bounded durable state before replaceable reports or
+retry can erase them. Sender attempts SHALL bind event, payload, destination and
+persisted allowance. Missing established state and uncertain acknowledgements MUST
+NOT become success or reset attempts.
+
+#### Scenario: Healthy reports follow an undelivered cutoff
+
+- **WHEN** a captured warning or cutoff remains unacknowledged while subsequent pressure returns to normal or the producer restarts
+- **THEN** durable delivery preserves the incident's original evidence and identity until an exact acknowledgement or explicit resolution
+
+#### Scenario: Pressure moves between thresholds without normal recovery
+
+- **WHEN** an acknowledged warning is followed by cleanup pressure and then warning pressure without an intervening normal, unfenced observation
+- **THEN** the same episode does not reissue its warning, distinct cleanup/cutoff occurrences remain capturable, and older unacknowledged incidents remain retained
+
+#### Scenario: Sender recovers a failure missed before enqueue
+
+- **WHEN** maintenance leaves a durable canonical failure and stops before capturing its alert, with no later maintenance invocation
+- **THEN** the periodic sender recovers the original failure into the bounded outbox before deciding that delivery is idle, preserving operation and backup lineage without repeating maintenance effects
+
+#### Scenario: Sender stops after possible submission
+
+- **WHEN** a sender stops after its persisted request attempt but before durable acknowledgement
+- **THEN** retry retains the event and destination binding, consumes its existing finite allowance and exposes uncertain delivery without claiming exactly once
+
+#### Scenario: Notification response is not the selected protocol acknowledgement
+
+- **WHEN** the destination rejects a request, redirects it or returns a response outside the explicitly selected acknowledgement contract
+- **THEN** delivery remains unconfirmed, retry respects persisted limits and no stale success clears the outstanding event
+
+#### Scenario: Established alert state disappears
+
+- **WHEN** an enrolled alert store loses its current state, permanent lock or entire directory, or becomes unreadable or malformed
+- **THEN** runtime refuses without recreating enrollment, clearing incidents or resetting the attempt budget
+
+#### Scenario: Directory access recovers after uncertain alert finalization
+
+- **WHEN** required replacement finalization fails after publication while the alert directory temporarily cannot create recovery files
+- **THEN** restoring directory permissions alone does not resolve uncertainty: a fresh consumer refuses reuse until explicit recovery, preserving incidents and consumed attempt allowance
+
+#### Scenario: Alert spool is full
+
+- **WHEN** normal events fill their allowed slots or a critical event reaches the bounded store's limit
+- **THEN** ordinary warnings cannot consume the reserved critical slot, existing critical incidents survive, and exhausted admission returns a visible bounded failure rather than success
+
+#### Scenario: Retry would clear a maintenance failure
+
+- **WHEN** backup or retirement failure is about to be cleared by retry
+- **THEN** capture first preserves its operation identity, original verified-backup lineage and truthful capacity/protected-owner context, without inventing complete census evidence
+
+#### Scenario: Alert storage profile is not established
+
+- **WHEN** the selected store cannot prove its enrolled filesystem identity, physical bounds or reserved write/failure headroom
+- **THEN** runtime refuses capture or sending rather than writing into an unbounded fallback filesystem
+
+### Requirement: Backup budget measure
+
+The registry backup budget SHALL be 100 GiB (107374182400 bytes), summing listed
+stored sizes of backup objects, noncurrent versions and uploaded multipart parts.
+Restic metadata files SHALL count by stored size. Provider metadata charges,
+minimum billable sizes and billing rounding SHALL NOT count or require a billing
+contract.
+
+#### Scenario: File budget does not depend on billing overhead
+
+- **WHEN** a complete repository file/part census and reserved additions fit the 100 GiB budget and the other admission requirements pass, but provider billing overhead is unknown
+- **THEN** the budget check uses stored file sizes without requiring provider billing evidence or adding minimum billable sizes
 
 #### Scenario: Logical backups fit but retained object versions do not
 
-- **WHEN** noncurrent versions make physical usage exceed the configured budget
+- **WHEN** noncurrent object versions make the sum of stored file sizes exceed the configured budget
 - **THEN** backup admission refuses despite a smaller reported logical snapshot size
+
+### Requirement: Backup budget reservations
+
+Admission SHALL reserve additions before writes, including old/new file
+coexistence during backup/prune. Existing stored sizes plus outstanding reserved
+additions MUST fit the configured backup budget before storage-adding effects.
+
+#### Scenario: New backup files exceed the remaining budget
+
+- **WHEN** existing stored file sizes plus reserved additions and temporary coexistence exceed 107374182400 bytes
+- **THEN** admission refuses before creating new backup files, even if existing files alone fit
+
+### Requirement: Physical backup accounting
+
+Admission SHALL use complete object/part listings and bounded prune workspace.
+Snapshot grants SHALL bind bounded logical-byte and metadata observations of
+both stopped roots to canonical operation/revision and source identity. Missing,
+unreadable, changed or over-limit sources MUST refuse. Inspection grants MUST NOT
+authorize snapshots.
+
+#### Scenario: Sparse or metadata-heavy source exceeds its envelope
+
+- **WHEN** source allocated bytes fit but logical bytes, directory entries or metadata exceed their independently configured observation limits
+- **THEN** snapshot admission refuses before restic backup starts and preserves the prior verified receipt
+
+#### Scenario: Source changes after snapshot admission
+
+- **WHEN** source metadata or root identity changes between the stopped-source observation and the backup effect
+- **THEN** the source binding refuses the new snapshot before launch, and an earlier repository inspection grant cannot substitute for snapshot admission
+
+### Requirement: Durable backup effect consumption
+
+Every backup command and exact-version recovery deletion SHALL consume a durable,
+operation-bound ticket before launch. Repeated admission MUST NOT refill spent
+allowance; uncertain effects MUST NOT replay. Effect state SHALL share enforced
+journal storage outside captured contents and preserve canonical failure headroom.
+Missing, unreadable, changed or unproven physical authorization MUST prevent
+storage-adding effects.
+
+#### Scenario: Worker dies after consumption
+
+- **WHEN** a backup command or exact-version deletion was durably consumed but its terminal completion is unknown
+- **THEN** retry refuses the spent ticket and retains its liabilities without refreshing allowance through admission
+
+#### Scenario: Repeated preparation cannot mint another reservation
+
+- **WHEN** one operation repeats preparation, catalogue inspection or snapshot admission
+- **THEN** its existing phase binding and bounded slots are reused; configuration, profile or snapshot-source drift refuses before effects
+
+#### Scenario: Effect state would spend canonical failure headroom
+
+- **WHEN** a sidecar replacement fits its own record cap but would consume canonical journal replacement or failure headroom
+- **THEN** the effect refuses before launch while canonical maintenance can still persist its bounded failure receipt
+
+#### Scenario: Effect ledger disappears after enrollment
+
+- **WHEN** established effect state, its permanent lock or its entire directory is absent during runtime or provisioning convergence
+- **THEN** the operation refuses; only explicit fresh-backing enrollment may initialize vacant state, and convergence never resets consumption
+
+#### Scenario: Canonical recovery rotates the token
+
+- **WHEN** canonical recovery rotates the token and a strictly newer validated action attempt uses an existing funded operation reservation
+- **THEN** that attempt may consume unused slots through its current lineage, while changed tokens on existing attempts and stale ports refuse without replacing source binding or refunding spent allowance
 
 ### Requirement: Early pressure response
 
@@ -203,6 +385,16 @@ fences. Missing or corrupt journal state MUST prevent writes and deletion.
 - **WHEN** registry writes fail for lack of space
 - **THEN** the independent journal records the failure and subsequent restarts preserve the write fence
 
+#### Scenario: Canonical receipt clock moves backwards
+
+- **WHEN** a publication, pressure-fence or maintenance receipt clock is chronologically earlier than the last durable receipt, including across accepted expanded-year ISO representations
+- **THEN** authority refuses before granting a reservation, entering maintenance work or changing the canonical fence receipt
+
+#### Scenario: Canonical receipt clock advances across year formats
+
+- **WHEN** a canonical receipt clock advances across the four-digit/expanded-year boundary or between accepted negative expanded years
+- **THEN** authority recognizes the chronological advancement without misclassifying it as clock reversal
+
 ### Requirement: Mandatory installed selection and compatible artifacts
 
 Every installed publishing, copy or consumer-mutating entrypoint SHALL require the
@@ -227,6 +419,11 @@ only for an already-promoted matching existing operation and SHALL never mutate 
 
 - **WHEN** the authority is promoted and the owning source still has pending history
 - **THEN** new ownership and retirement refuse while authenticated resume repairs the original receipt without deployment effects or authority mutation
+
+#### Scenario: Durable evidence crosses accepted ISO year formats
+
+- **WHEN** backup-attempt lineage, retirement/publication provenance or deployment-event history contains timestamps accepted by their respective schemas across ISO year representations
+- **THEN** canonical validation rejects chronological contradictions and admits supported chronological advancement without changing stored timestamp representations
 
 ### Requirement: Registry-wide Docker coverage and environment ownership
 

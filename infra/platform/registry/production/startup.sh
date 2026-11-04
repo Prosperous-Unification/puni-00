@@ -39,35 +39,57 @@ verify_mount journal "$journal"
 permits_writes() {
   permission="$journal/contents/writable.permit"
   canonical="$journal/contents/journal.json"
-  metadata=$(stat -c '%f:%u:%g:%h' "$permission" 2>/dev/null) || return 1
-  test "$metadata" = '8180:59001:59001:1' || return 1
-  metadata=$(stat -c '%f:%u:%g:%h' "$canonical" 2>/dev/null) || return 1
-  test "$metadata" = '8180:59001:59001:1' || return 1
-  {
-    size=$(stat -L -c '%s' /proc/self/fd/3) || return 1
-    test "$size" -le 256 || return 1
-    IFS= read -r record <&3 || return 1
-    # Proof: trailing text/blank-line HTTP405 negatives become HTTP202 when this check is removed.
-    test "${#record}" -eq "$((size - 1))" || return 1
-  # Proof: failed-open HTTP405 becomes stale-record HTTP202 when propagation is removed.
-  } 3< "$permission" || return 1
-  read -r version boot issued expires first second extra <<RECORD
+  read_permission() {
+    # Proof: removing this metadata comparison admits final mode0644 in registry-permit-coherence.test.ts.
+    metadata=$(stat -c '%f:%u:%g:%h' "$permission" 2>/dev/null) || return 1
+    test "$metadata" = '8180:59001:59001:1' || return 1
+    metadata=$(stat -c '%f:%u:%g:%h' "$canonical" 2>/dev/null) || return 1
+    test "$metadata" = '8180:59001:59001:1' || return 1
+    {
+      size=$(stat -L -c '%s' /proc/self/fd/3) || return 1
+      test "$size" -le 256 || return 1
+      IFS= read -r record <&3 || return 1
+      # Proof: trailing text/blank-line HTTP405 negatives become HTTP202 when this check is removed.
+      test "${#record}" -eq "$((size - 1))" || return 1
+    # Proof: failed-open HTTP405 becomes stale-record HTTP202 when propagation is removed.
+    } 3< "$permission" || return 1
+    read -r version boot issued expires first second extra <<RECORD
 $record
 RECORD
-  test -z "$extra" || return 1
-  # Proof: the double-space HTTP405 negative becomes HTTP202 without canonical record comparison.
-  test "$record" = "1 $boot $issued $expires $first $second" || return 1
-  actual_boot=$(cat /proc/sys/kernel/random/boot_id) || return 1
-  test "$boot" = "$actual_boot" || return 1
-  uptime=$(cut -d ' ' -f 1 /proc/uptime) || return 1
-  # Proof: removing expiry admits an actual upload after the real thirty-second checker-death fence.
-  printf '%s %s %s %s %s %s\n' "$version" "$issued" "$expires" "$first" "$second" "$uptime" |
-    awk 'NF == 6 && $1 == 1 && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ &&
-      length($4) == 64 && $4 !~ /[^0-9a-f]/ && length($5) == 64 && $5 !~ /[^0-9a-f]/ &&
-      $2 <= $6 && $3 > $6 && $3 - $2 == 30 { valid = 1 } END { exit !valid }' || return 1
-  checksum=$(sha256sum "$canonical") || return 1
-  checksum=${checksum%% *}
-  test "$checksum" = "$first" || test "$checksum" = "$second"
+    test -z "$extra" || return 1
+    # Proof: the double-space HTTP405 negative becomes HTTP202 without canonical record comparison.
+    test "$record" = "1 $boot $issued $expires $first $second" || return 1
+    actual_boot=$(cat /proc/sys/kernel/random/boot_id) || return 1
+    test "$boot" = "$actual_boot" || return 1
+    uptime=$(cut -d ' ' -f 1 /proc/uptime) || return 1
+    # Proof: removing expiry admits an actual upload after the real thirty-second no-renewal fence (native21; not a killed-checker proof).
+    printf '%s %s %s %s %s %s\n' "$version" "$issued" "$expires" "$first" "$second" "$uptime" |
+      awk 'NF == 6 && $1 == 1 && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ &&
+        length($4) == 64 && $4 !~ /[^0-9a-f]/ && length($5) == 64 && $5 !~ /[^0-9a-f]/ &&
+        $2 <= $6 && $3 > $6 && $3 - $2 == 30 { valid = 1 } END { exit !valid }' || return 1
+  }
+  # A fresh final permission can authorize the checksum across a compatible update.
+  # Retry only changed valid grants that do not authorize it; unknown state refuses.
+  permission_attempt=0
+  # Proof: a fourth allowed attempt accepts quiet permission after three actual after-checksum disjoint grants; the cap negative fails.
+  while test "$permission_attempt" -lt 3; do
+    permission_attempt=$((permission_attempt + 1))
+    read_permission || return 1
+    permission_before=$record
+    # Proof: removing status propagation admits an actual matching digest printed by the injected failed checksum tool.
+    checksum=$(sha256sum "$canonical") || return 1
+    checksum=${checksum%% *}
+    # Proof: removed final read/failure propagation accepts revoked permission; final malformed/boot/expiry negatives cover revalidation.
+    read_permission || return 1
+    # Proof: stale-A fallback accepts an old checksum after an actual disjoint final grant; removing final matching admits stable mismatch.
+    if test "$checksum" = "$first" || test "$checksum" = "$second"; then
+      return 0
+    fi
+    # Proof: unconditional retry hashes stable mismatch three times; removed retry refuses quiet convergence after one disjoint grant.
+    if test "$permission_before" != "$record"; then continue; fi
+    return 1
+  done
+  return 1
 }
 umask 077
 instance=$(cat /proc/sys/kernel/random/uuid)

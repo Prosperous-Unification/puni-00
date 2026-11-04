@@ -13,6 +13,8 @@
   in [parked ideas](docs/assistant/ideas.md).
 - [PUNI website funnel](docs/website/CONTEXT.md): visitor intake, prospect
   scoping, and proposal requests for Prosperous Unification's services.
+- [Registry storage operations](docs/infra/CONTEXT.md): bounded image storage,
+  pressure observations and required operational notifications.
 - [Design system](libs/shared/adapters/ui-core-01/CONTEXT.md): one token vocabulary
   and the numbered kits that give each product surface its look.
 
@@ -43,3 +45,7 @@
   conversion and measured usage returns as a progress receipt. The contract is in
   the [control-plane design](openspec/changes/twilight-control-plane/design.md#planning-knowledge-and-client-portability)
   and proven by Tasks 2 and 9 of its plan.
+
+- **Registry storage operations → image publishers and consumers**: defines their
+  storage, protection and operational-notification language; particular product
+  adoption remains separate from the infrastructure contract.
