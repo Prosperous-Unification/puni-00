@@ -1383,4 +1383,4 @@ constructor qualification while correcting ordinary discovery.
 - [x] N2 Move only the private preparation and three callbacks to the explicit acceptance entry, preserving all other bodies/hooks and helper pins; include the entry in configured types and both lint commands.
 - [x] N3 Add exact canonical/rest exclusions and harmless actual-routing coverage that retains similarly named ordinary markers and all Graph receipt requirements.
 - [x] N4 Observe separate omitted-exclusion and widened-exclusion failures, restore exact source, and rerun the same tests; record scoped statics and OpenSpec validation.
-- [ ] N5 Publish the reviewed source split and distinguish ordinary CI from mandatory constructor/native and full-goal/release acceptance; do not execute or qualify the relocated native entry under historical packets.
+- [x] N5 Publish the reviewed source split and distinguish ordinary CI from mandatory constructor/native and full-goal/release acceptance; do not execute or qualify the relocated native entry under historical packets.

@@ -69,3 +69,12 @@ The full hook file includes source-extracted modeled Graph child fixtures;
 Root's82-test result covers those finite models, not actual Graph qualification.
 The full ordinary owning storage suite, real acceptance entry, native recipes,
 whole-repository CI and exact-SHA h2 gate have not been run for this split.
+
+## Publication
+
+Source commit `b544358f7` passed normal pre-commit, prepare-commit-msg and
+commit-msg hooks and was freshly pushed. Draft PR
+[#854](https://github.com/Prosperous-Unification/puni-00/pull/854) is stacked on
+[#851](https://github.com/Prosperous-Unification/puni-00/pull/851); it has no main
+merge or deployment. This final documentation reconciliation is a follow-up
+commit on the same PR. Both source implementation leases remain released.
