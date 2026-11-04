@@ -1243,3 +1243,76 @@ The durable baseline producer SHALL create a fixed8GiB raw artifact only after s
 - **THEN** a competing worker refuses before creating its raw file or reaching allocation readiness
 - **AND** completion, refusal or process termination releases that ownership for a later fresh attempt
 - **AND** missing, unreadable or replaced staging state cannot become an unlocked successful attempt
+
+### Requirement: Seed production preserves exact bytes and native ownership
+
+The durable seed adapter SHALL produce only the exact six reviewed root members within its fixed resource profile. It SHALL preserve original artifact ownership, bounded verification, durable evidence and independent native acceptance.
+
+#### Scenario: Seed preparation uses the fixed finite profile
+
+- **WHEN** any native seed attempt is admitted
+- **THEN** member inputs total at most64MiB and the ISO at most80MiB, with256MiB service memory, swap0,1CPU,64PIDs,60seconds runtime,5seconds stop,1GiB address space and80MiB file size
+- **AND** initial physical admission requires3.875GiB available memory,2GiB live/final reserve, unchanged50/40GiB disk floors and10GiB allocated staging, with finite metadata/client bounds
+- **AND** the accepted raw artifact is charged once as an existing artifact
+
+#### Scenario: An original worker produces a verified seed
+
+- **WHEN** reviewed source/input and provenance hashes, historical accepted raw receipt/artifact identity, fresh capacity, exclusive original-directory staging ownership, effective native worker bounds and original output descriptor join before independent parent admission
+- **THEN** the worker may write only its original ISO descriptor and retain it through generation and verification
+- **AND** PVD, ISO9660, Joliet and Rock Ridge namespaces, regular-file types and exact member bytes must match the six declared aliases
+- **AND** changed identity, duplicate/extra/hostile names, unsafe types, short writes, oversized output or failed synchronization refuse acceptance
+
+#### Scenario: Historical producer completion survives a consumer source update
+
+- **WHEN** a new reviewed seed implementation consumes the pinned accepted raw receipt and original artifact
+- **THEN** its fresh artifact identity/allocation checks join the receipt's historical producer provenance without pretending the original PID remains live
+- **AND** updating the current producer implementation does not require rerunning or overwriting that completed raw attempt
+- **AND** missing, unaccepted, substituted or incoherent historical evidence still refuses
+
+#### Scenario: Seed acceptance requires durable native completion
+
+- **WHEN** the still-live original worker sends bounded counters and artifact evidence after tool reap and the coordinator fsyncs them before durability ACK
+- **THEN** fresh terminal/empty-group observations, original identities, unchanged effective bounds, current floors and actual client exit0 must all pass
+- **AND** OOM, failed client, cancellation, stale/missing/foreign evidence or uncertain cleanup remains unaccepted
+- **AND** seed integrity grants no guest startup, full-rehearsal or live-cutover authority
+
+### Requirement: Artifact prerequisite evidence remains distinct from configured guest status
+
+The reusable Debian/Docker adapter SHALL bind exact selected archive/control fields and dependency versions/architectures to independently reviewed immutable signed-index and image-inventory provenance. It SHALL evaluate Depends/Pre-Depends alternatives and conflicts with native package semantics, under bounded input, process and output limits. Public reports SHALL explicitly leave configured guest installation and runtime authority false.
+
+#### Scenario: A dependency report can be consumed without inventing provenance
+
+- **WHEN** every required artifact dependency edge is supported by the selected exact metadata and no matching conflict remains
+- **THEN** a bounded report may certify artifact prerequisite metadata and retain exact input bindings
+- **AND** a seed request can consume that independently reviewed hash-pinned report only when its archive/image bindings and closed completeness fields match
+- **AND** missing/unreadable/malformed/substituted state, unsupported grammar, unknown virtual providers, incompatible versions/architecture, unresolved alternatives or conflicting inputs refuse
+
+### Requirement: Offline guest observation cannot mutate the host or claim host cleanup
+
+The fixed serial-only guest payload SHALL contain no SSH key material, authorized keys or credentials, bind its NoCloud instance/source identity, and require the expected isolated guest machine, read-only seed and8GiB root disk before mutation. It SHALL install only the selected offline packages within the declared bounded installer/service policy, verify actual configured prerequisites and installed status, and never fall back to network installation.
+
+#### Scenario: Guest installation and actual capabilities are fenced
+
+- **WHEN** actual guest identity and immutable seed inputs match, the bounded installer succeeds and the observed merged service/socket policies match the fixed profile
+- **THEN** safe actual Docker capability queries may proceed through the selected Unix socket/API
+- **AND** unit InvocationID/MainPID/start/cgroup and socket identity must remain stable across each query and the measured interval
+- **AND** unsupported/ambiguous stores, unknown or changed identities, capability mismatch, incomplete installation, duplicate JSON keys and noninteger or nonzero workload counts refuse
+- **AND** source-only image inventory or authored configuration cannot replace those runtime observations
+
+#### Scenario: Serial success remains provisional until native host acceptance
+
+- **WHEN** a real60second steady window with at least two endpoints completes and the bounded shutdown request returns0
+- **THEN** nonce/source-bound measured and final frames may report guest observations, with host cleanup and full-rehearsal authority still false
+- **AND** the host must read through EOF and actual QEMU exit, rejecting extra/missing/failure frames including any failure after measurement
+- **AND** a failed shutdown request, malformed projection, shortened/stale interval or uncertain native completion cannot be accepted
+
+### Requirement: Baseline source CLIs preserve machine-readable output
+
+The raw-allocation, raw-preparation and seed-preparation source CLIs SHALL emit literal machine-readable projections and fixed refusal categories independent of console presentation settings.
+
+#### Scenario: CI colors do not alter protocol bytes
+
+- **WHEN** a source CLI runs with CI color settings such as FORCE_COLOR
+- **THEN** successful stdout remains one valid JSON projection without console formatting escapes
+- **AND** refusal stderr retains its fixed category and excludes supplied private paths or raw child causes
+- **AND** focused regressions expose restoration of console formatting on the protocol stream

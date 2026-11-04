@@ -343,3 +343,19 @@ test('production API excludes dependency failures from inspectable refusal cause
   expect(refusal.inspection).not.toContain(directory);
   expect(refusal.inspection).not.toContain('/PRIVATE-INPUT-PATH/');
 });
+
+test('source CLI preserves canonical JSON and private diagnostics under forced color', async () => {
+  const environment: typeof process.env = { ...process.env, FORCE_COLOR: '1', CI: 'true' };
+  delete environment['NO_COLOR'];
+  const { path } = await createRaw();
+  const positive = inspectCli(path, '2097152', [], environment);
+  expect(positive.exitCode).toBe(0);
+  expect(positive.stderr.toString()).toBe('');
+  const receipt = JSON.parse(positive.stdout.toString()) as RawAllocation;
+  expect(positive.stdout.toString()).toBe(`${JSON.stringify(receipt)}\n`);
+  const refusal = inspectCli('/PRIVATE-FORMAT-INPUT', '2097152', [], environment);
+  expect(refusal.exitCode).toBe(1);
+  expect(refusal.stdout.toString()).toBe('');
+  expect(refusal.stderr.toString()).toBe('raw allocation: input-absent\n');
+  expect(refusal.stderr.toString()).not.toContain('PRIVATE-FORMAT-INPUT');
+});

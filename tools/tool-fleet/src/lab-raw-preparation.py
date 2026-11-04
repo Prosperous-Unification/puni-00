@@ -14,6 +14,7 @@ import stat
 import subprocess
 import sys
 import time
+import types
 
 RAW_BYTES = 8 * 1024**3
 STAGING_BYTES = 10 * 1024**3
@@ -324,18 +325,22 @@ def check_service_limits(limits):
     require(limits == SERVICE_LIMITS, 'raw-service-limits')
 
 
-def observe_service_limits(unit):
+def observe_service_limits(unit, expected=SERVICE_LIMITS):
     payload = run_bounded(['/usr/bin/systemctl', '--user', 'show', unit,
-                           '--property=' + ','.join(SERVICE_LIMITS)], 3)
+                           '--property=' + ','.join(expected)], 3)
     limits = {}
     for line in payload.decode().splitlines():
         name, separator, value = line.partition('=')
         require(separator and name not in limits, 'raw-service-limits')
         limits[name] = value
-    check_service_limits(limits)
+    if expected is SERVICE_LIMITS:
+        check_service_limits(limits)
+    else:
+        # Proof: seed native controls accept unknown effective limits when this fixed-adapter comparison is removed.
+        require(limits == expected, 'raw-service-limits')
 
 
-def observe_active(unit, pid):
+def observe_active(unit, pid, expected_caps=CAPS, expected_limits=SERVICE_LIMITS):
     native = observe_unit(unit)
     cgroup = process_cgroup(pid)
     # Proof: native boundary substitutes each observed unit fact; native-unit guard removal accepts it.
@@ -344,8 +349,15 @@ def observe_active(unit, pid):
             and re.fullmatch('[0-9a-f]{32}', native['InvocationID'])
             and native['ControlGroup'] == cgroup and cgroup.endswith('/' + unit), 'raw-unit-binding')
     caps = read_caps(cgroup)
-    check_caps(caps)
-    observe_service_limits(unit)
+    if expected_caps is CAPS:
+        check_caps(caps)
+    else:
+        # Proof: seed native controls accept max in each effective controller when this comparison is removed.
+        require(caps == expected_caps, 'raw-native-caps')
+    if expected_limits is SERVICE_LIMITS:
+        observe_service_limits(unit)
+    else:
+        observe_service_limits(unit, expected_limits)
     return {'pid': pid, 'start': process_start(pid), 'unit': unit,
             'invocation': native['InvocationID'], 'cgroup': cgroup, 'caps': caps}
 
@@ -364,15 +376,16 @@ def parse_pairs(text):
     return pairs
 
 
-def check_counter(record, binding, ready_ns, now):
+def check_counter(record, binding, ready_ns, now, expected_caps=CAPS, completion=('converted', 'compared')):
     """Counter interval ends while original worker lives; terminal cleanup is observed separately."""
     # Proof: counter boundary injects foreign/stale/future/partial/OOM/caps/content failures.
+    # Seed counter controls also fail when expected_caps is bypassed for the seed completion flags.
     require(isinstance(record, dict) and set(record) == {'binding', 'startedNs', 'finishedNs', 'caps',
-                                                       'counters', 'converted', 'compared'}
-            and record['binding'] == binding and record['converted'] is True and record['compared'] is True
+                                                       'counters', *completion}
+            and record['binding'] == binding and all(record[name] is True for name in completion)
             and type(record['startedNs']) is int and type(record['finishedNs']) is int
             and ready_ns <= record['startedNs'] <= record['finishedNs'] <= now
-            and now - record['finishedNs'] <= 10 * 10**9 and record['caps'] == CAPS
+            and now - record['finishedNs'] <= 10 * 10**9 and record['caps'] == expected_caps
             and isinstance(record['counters'], dict) and set(record['counters']) == set(COUNTERS),
             'raw-counter-invalid')
     counters = record['counters']
@@ -445,8 +458,8 @@ def check_creator(binding, directory, directory_fd):
         raise PreparationRefusal('raw-creator-invalid') from None
 
 
-def confine_writer(raw_fd, executable_fd):
-    """Linux Landlock ABI>=3 grants WRITE/TRUNCATE on one file and EXECUTE on one tool.
+def confine_writer(raw_fd, executable_fd, additional_executables=()):
+    """Linux Landlock ABI>=3 grants WRITE/TRUNCATE on one file and EXECUTE on exact tool FDs.
 
     No directory write, create, rename or remove is granted. Preopened stdout/stderr
     must be pipes; evidence is bounded and fsynced by the coordinator, not this writer.
@@ -469,7 +482,10 @@ def confine_writer(raw_fd, executable_fd):
     require(ruleset_fd >= 0, 'raw-sandbox-refused')
     try:
         loader_fd = os.open('/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2', os.O_PATH | os.O_CLOEXEC)
-        grants = ((raw_fd, (1 << 1) | (1 << 14)), (executable_fd, 1), (loader_fd, 1))
+        # Proof: seed sandbox controls execute both granted leaf FDs; omitting the second denies it.
+        # Removing WRITE/TRUNCATE or EXECUTE handling admits foreign writes or execution and fails the same control.
+        grants = ((raw_fd, (1 << 1) | (1 << 14)), (executable_fd, 1), (loader_fd, 1)) + tuple(
+            (descriptor, 1) for descriptor in additional_executables)
         for descriptor, rights in grants:
             path_fd = os.open(f'/proc/self/fd/{descriptor}', os.O_PATH | os.O_CLOEXEC)
             try:
@@ -799,16 +815,30 @@ def stop_owned(binding):
 
 
 def coordinator(request, request_path, request_digest):
+    """Fixed raw policy wrapper over the shared bounded pipe/persistence lifecycle."""
+    callbacks = {name: globals()[name] for name in (
+        'verify_inputs', 'observe_capacity', 'observe_unit', 'launch_service', 'check_ready',
+        'check_counter', 'observe_active', 'check_creator', 'check_input_descriptors', 'stop_owned')}
+    adapter = types.SimpleNamespace(**callbacks, prefix='raw', caps=CAPS, seconds=910, decode_frame=json.loads,
+        completion_fields={'phase', 'record', 'allocationBefore', 'allocationAfter'},
+        measurement_phase='after-converter-before-worker-exit', final_cleanup=False,
+        persist_artifact=lambda frame, publish: publish('allocation.json',
+            {'before': frame['allocationBefore'], 'after': frame['allocationAfter']}),
+        receipt_fields=lambda record: {'rawBytes': RAW_BYTES})
+    return coordinate_attempt(request, request_path, request_digest, adapter)
+
+
+def coordinate_attempt(request, request_path, request_digest, adapter):
     """Own one exclusive attempt, independently ACK admission and fsync live-worker records."""
-    source = verify_inputs(request)
+    source = adapter.verify_inputs(request)
     state_fd = open_private(request['state'], directory=True)
     os.close(state_fd)
-    initial = observe_capacity(request['state'], initial=True)
-    unit = 'puni-raw-' + request['nonce'] + '.service'
-    absent = observe_unit(unit)
+    initial = adapter.observe_capacity(request['state'], initial=True)
+    unit = 'puni-' + adapter.prefix + '-' + request['nonce'] + '.service'
+    absent = adapter.observe_unit(unit)
     require(absent['LoadState'] == 'not-found' and absent['MainPID'] == '0'
             and absent['InvocationID'] == '' and absent['ControlGroup'] == '', 'raw-unit-occupied')
-    directory = request['state'] + '/raw-' + request['nonce']
+    directory = request['state'] + '/' + adapter.prefix + '-' + request['nonce']
     try:
         os.mkdir(directory, 0o700)
     except FileExistsError:
@@ -823,14 +853,14 @@ def coordinator(request, request_path, request_digest):
         persist(directory, name, record, directory_fd=directory_fd)
     publish('request-binding.json', {'requestDigest': request_digest, 'sourceDigest': source,
                                                'initial': initial, 'unitBefore': absent})
-    client = launch_service(request, request_path, request_digest)
+    client = adapter.launch_service(request, request_path, request_digest)
     selector = selectors.DefaultSelector()
     selector.register(client.stdout, selectors.EVENT_READ, 'stdout')
     selector.register(client.stderr, selectors.EVENT_READ, 'stderr')
     pending = bytearray()
     stderr_bytes = 0
     total_bytes = 0
-    deadline = time.monotonic() + 910
+    deadline = time.monotonic() + adapter.seconds
     ready_deadline = time.monotonic() + 15
     binding = None
     record = None
@@ -841,9 +871,9 @@ def coordinator(request, request_path, request_digest):
             require(time.monotonic() < deadline, 'raw-service-timeout')
             require(binding is not None or time.monotonic() < ready_deadline, 'raw-ready-timeout')
             if time.monotonic() >= next_observation:
-                observe_capacity(request['state'], after_allocation=binding is not None)
+                adapter.observe_capacity(request['state'], after_allocation=binding is not None)
                 if binding is not None and record is None:
-                    require(read_caps(binding['cgroup']) == CAPS, 'raw-native-caps')
+                    require(read_caps(binding['cgroup']) == adapter.caps, 'raw-native-caps')
                 next_observation = time.monotonic() + 1
             for event, _ in selector.select(.2):
                 chunk = os.read(event.fd, 4096)
@@ -861,58 +891,60 @@ def coordinator(request, request_path, request_digest):
                     payload, _, remainder = pending.partition(b'\n')
                     pending = bytearray(remainder)
                     require(len(payload) < RECORD_BYTES, 'raw-record-bound')
-                    frame = json.loads(payload)
+                    frame = adapter.decode_frame(payload)
                     if binding is None:
-                        binding = check_ready(frame, request, request_digest, source, directory, directory_fd)
+                        binding = adapter.check_ready(frame, request, request_digest, source, directory, directory_fd)
                         ready_ns = frame['observedNs']
                         publish('worker-ready.json', frame)
                         send_frame(client.stdin.fileno(), {'bindingDigest': digest_json(binding), 'request': request_digest})
                     else:
                         require(record is None and isinstance(frame, dict)
-                                and set(frame) == {'phase', 'record', 'allocationBefore', 'allocationAfter'}
+                                and set(frame) == adapter.completion_fields
                                 and frame['phase'] == 'complete', 'raw-protocol-invalid')
                         record = frame['record']
                         # Proof: coordinator-counter omission accepts the lifecycle OOM record.
-                        check_counter(record, binding, ready_ns, time.time_ns())
-                        native = observe_active(unit, binding['pid'])
+                        adapter.check_counter(record, binding, ready_ns, time.time_ns())
+                        native = adapter.observe_active(unit, binding['pid'])
                         require(all(native[name] == binding[name] for name in ('pid', 'start', 'unit', 'invocation', 'cgroup')),
                                 'raw-counter-invalid')
-                        check_creator(binding, directory, directory_fd)
-                        check_input_descriptors(binding, request)
-                        observe_capacity(request['state'], after_allocation=True)
+                        adapter.check_creator(binding, directory, directory_fd)
+                        adapter.check_input_descriptors(binding, request)
+                        adapter.observe_capacity(request['state'], after_allocation=True)
                         # These are the original bounded bytes received from the still-live worker.
                         publish('worker-counter.json', record)
-                        publish('allocation.json', {'before': frame['allocationBefore'], 'after': frame['allocationAfter']})
+                        adapter.persist_artifact(frame, publish)
                         require(process_start(binding['pid']) == binding['start'], 'raw-counter-invalid')
                         send_frame(client.stdin.fileno(), {'durableDigest': digest_json(record)})
                 require(len(pending) < RECORD_BYTES, 'raw-record-bound')
         client.wait(timeout=max(.01, deadline-time.monotonic()))
         require(binding is not None and record is not None and not pending, 'raw-protocol-incomplete')
-        check_counter(record, binding, ready_ns, time.time_ns())
-        terminal = observe_unit(unit)
+        adapter.check_counter(record, binding, ready_ns, time.time_ns())
+        terminal = adapter.observe_unit(unit)
         events = group_events(binding['cgroup'])
         # Proof: coordinator-client omission accepts a nonzero actual lifecycle client exit.
         check_terminal(terminal, events, client.returncode)
         require(terminal['LoadState'] == 'not-found' or terminal['InvocationID'] == binding['invocation'],
                 'raw-terminal-invalid')
-        final = observe_capacity(request['state'], after_allocation=True)
-        receipt = {'schemaVersion': 1, 'scope': 'raw-preparation', 'accepted': True,
+        if adapter.final_cleanup:
+            adapter.stop_owned(binding)
+        final = adapter.observe_capacity(request['state'], after_allocation=True)
+        receipt = {'schemaVersion': 1, 'scope': adapter.prefix + '-preparation', 'accepted': True,
                    'guestAuthority': False, 'fullRehearsalAuthority': False,
                    'requestDigest': request_digest, 'sourceDigest': source, 'binding': binding,
-                   'counterDigest': digest_json(record), 'measurementPhase': 'after-converter-before-worker-exit',
+                   'counterDigest': digest_json(record), 'measurementPhase': adapter.measurement_phase,
                    'counterPersistence': 'coordinator-fsync-before-worker-durability-ack',
                    'terminal': terminal, 'groupEvents': events, 'finalCapacity': final,
-                   'finishedNs': time.time_ns(), 'rawBytes': RAW_BYTES,
+                   'finishedNs': time.time_ns(), **adapter.receipt_fields(record),
                    'trust': 'independently-selected-content-pins; signatures remain separate input provenance'}
         publish('receipt.json', receipt)
-        return {'schemaVersion': 1, 'scope': 'raw-preparation', 'accepted': True, 'nonce': request['nonce'],
+        return {'schemaVersion': 1, 'scope': adapter.prefix + '-preparation', 'accepted': True, 'nonce': request['nonce'],
                 'receiptDigest': digest_json(receipt), 'guestAuthority': False, 'fullRehearsalAuthority': False}
     except BaseException as failure:
         cleanup = 'unknown'
         cleanup_failed = False
         if binding is not None:
             try:
-                stop_owned(binding)
+                adapter.stop_owned(binding)
                 cleanup = 'verified-original-unit-empty'
             except (PreparationRefusal, OSError, ValueError):
                 # Failed owned cleanup is a modeled unaccepted outcome; persist it before rethrowing.

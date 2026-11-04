@@ -7,12 +7,14 @@ try {
   if (requestPath === undefined || requestDigest === undefined || arguments_.length !== 2) {
     throw new RawPreparationRefusal('invalid-arguments');
   }
-  console.log(JSON.stringify(prepareRaw(requestPath, requestDigest)));
+  await Bun.write(Bun.stdout, JSON.stringify(prepareRaw(requestPath, requestDigest)) + '\n');
 } catch (failure) {
-  console.error(
-    failure instanceof RawPreparationRefusal
+  // Proof: forced-color source CLI tests fail if terminal console formatting is restored.
+  await Bun.write(
+    Bun.stderr,
+    (failure instanceof RawPreparationRefusal
       ? failure.message
-      : 'raw preparation: producer-refused',
+      : 'raw preparation: producer-refused') + '\n',
   );
   process.exitCode = 1;
 }

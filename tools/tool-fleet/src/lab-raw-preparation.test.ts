@@ -3,6 +3,34 @@ import { join } from 'node:path';
 import { expect, test } from 'bun:test';
 
 const helper = join(import.meta.dir, 'lab-raw-preparation.py');
+/** Logical provider fixture only: the supported3.12 path names the current process's real inode.
+ * This models the fixed provider after native admission; it does not qualify the host interpreter.
+ */
+const providerStat = String.raw`
+_modeled_stat = os.stat
+def stat_provider_python(path,*arguments,**keywords):
+    return _modeled_stat('/proc/self/exe' if path=='/usr/bin/python3.12' else path,*arguments,**keywords)
+os.stat=stat_provider_python
+`;
+
+const absentPython312 = String.raw`
+import os
+_host_stat = os.stat
+def stat_without_python312(path,*arguments,**keywords):
+    if path=='/usr/bin/python3.12':raise FileNotFoundError('controlled absent provider interpreter')
+    return _host_stat(path,*arguments,**keywords)
+os.stat=stat_without_python312
+`;
+
+/** Remove the provider path from logical fixture observations, including their owned children. */
+function hidePython312(source: string): string {
+  const children = source.replace(
+    /(child_source\s*=\s*r''')/gu,
+    (opening) => `${opening}\n${absentPython312}\n`,
+  );
+  return `${absentPython312}\n${children}`;
+}
+
 const boundary = String.raw`
 import importlib.util, json, os, stat, sys, tempfile, time
 spec = importlib.util.spec_from_file_location('producer', sys.argv[1])
@@ -261,10 +289,12 @@ for (const case_ of [
 const lifecycle = String.raw`
 import importlib.util, json, os, subprocess, sys, tempfile, time, types
 spec = importlib.util.spec_from_file_location('producer',sys.argv[1]); producer = importlib.util.module_from_spec(spec); spec.loader.exec_module(producer)
+${providerStat}
 fault = sys.argv[2]
 child_source = r'''
 import importlib.util,json,os,sys,time
 spec=importlib.util.spec_from_file_location('producer',sys.argv[1]); p=importlib.util.module_from_spec(spec); spec.loader.exec_module(p)
+${providerStat}
 state,nonce,digest,source,fault=sys.argv[2:]
 directory=state+'/raw-'+nonce
 creator=os.open(directory,os.O_RDONLY|os.O_DIRECTORY)
@@ -373,6 +403,7 @@ import importlib.util,json,os,subprocess,sys,tempfile
 child_source=r'''
 import importlib.util,json,os,sys
 spec=importlib.util.spec_from_file_location('producer',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+${providerStat}
 state,nonce,fault=sys.argv[2:];source='c'*64;digest='b'*64;calls=0
 request={'state':state,'nonce':nonce,'image':state+'/inputs/source.img'}
 def verified(request):
@@ -467,12 +498,15 @@ test('raw preparation source CLI refuses malformed arguments and keeps trusted-s
     expect(String(failure)).not.toContain('PRIVATE_REQUEST');
   }
   const cli = join(import.meta.dir, 'lab-raw-preparation-cli.ts');
+  const environment: typeof process.env = { ...process.env, FORCE_COLOR: '1', CI: 'true' };
+  delete environment['NO_COLOR'];
   for (const arguments_ of [
     [],
     ['/private/PRIVATE_REQUEST', 'foreign'],
     ['/private/PRIVATE_REQUEST', 'a'.repeat(64), 'extra'],
   ]) {
     const invocation = Bun.spawnSync([process.execPath, cli, ...arguments_], {
+      env: environment,
       timeout: 3000,
       maxBuffer: 65536,
     });
@@ -524,9 +558,11 @@ test('raw producer original staging lock refuses occupation and releases read-on
 const competition = String.raw`
 import importlib.util,json,os,subprocess,sys,tempfile,types
 spec=importlib.util.spec_from_file_location('producer',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+${providerStat}
 child_source=r'''
 import importlib.util,os,sys,types
 spec=importlib.util.spec_from_file_location('producer',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+${providerStat}
 state,nonce,mode=sys.argv[2:]
 request={'state':state,'nonce':nonce,'image':state+'/inputs/source.img'}
 p.verify_inputs=lambda request:'c'*64
@@ -633,3 +669,58 @@ print('verified native capacity whitespace and strict fields')
     'verified native capacity whitespace and strict fields\n',
   );
 });
+
+for (const [label, script, fault] of [
+  ['lifecycle', lifecycle, 'success'],
+  ['mutation', mutation, 'valid'],
+  ['mismatch', mutation, 'python'],
+  ['competition', competition, ''],
+] as const) {
+  test(`logical raw ${label} works without host Python3.12`, () => {
+    const invocation = Bun.spawnSync(
+      ['/usr/bin/python3', '-I', '-B', '-c', hidePython312(script), helper, fault],
+      { timeout: 10000, maxBuffer: 65536 },
+    );
+    expect(invocation.stderr.toString()).toBe('');
+    expect(invocation.exitCode).toBe(0);
+  });
+}
+
+for (const scope of ['raw', 'seed']) {
+  test(`production ${scope} provider still refuses unsupported and absent Python3.12`, () => {
+    const provider = join(import.meta.dir, `lab-${scope}-preparation.py`);
+    const script = String.raw`
+import importlib.util,os,sys
+spec=importlib.util.spec_from_file_location('provider',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+native=p.raw if hasattr(p,'raw') else p
+root=str(p.HELPER.parents[3]);state=root+'/.puni/fleet-labs/observability-baseline';image=state+'/inputs/source.img'
+required=[str(p.HELPER),str(p.HELPER.with_suffix('.ts')),str(p.HELPER.with_name('lab-'+sys.argv[2]+'-preparation-cli.ts')),str(p.HELPER.with_name('lab-raw-preparation.py')),str(p.HELPER.with_name('lab-raw-allocation.py')),root+'/infra/local/qemu-lab.lock.json',image,state+'/tools-root/usr/bin/qemu-img',state+'/tools-root/usr/bin/genisoimage',state+'/tools-root/usr/bin/isoinfo','/usr/bin/python3.12','/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2']
+request={'root':root,'state':state,'image':image,'pins':[{'path':path} for path in required]}
+original_realpath=os.path.realpath
+os.path.realpath=lambda path:'/usr/bin/python3.14' if path=='/usr/bin/python3' else original_realpath(path)
+try:p.verify_inputs(request)
+except native.PreparationRefusal as failure:assert str(failure)==sys.argv[2]+'-python-binding'
+else:raise AssertionError('unsupported interpreter qualified by production provider')
+os.path.realpath=original_realpath
+binding={'pid':os.getpid(),'python':native.stable_identity(os.stat('/proc/self/exe'))}
+original_stat=os.stat
+def missing_provider(path,*arguments,**keywords):
+    if path=='/usr/bin/python3.12':raise FileNotFoundError('controlled absent supported interpreter')
+    return original_stat(path,*arguments,**keywords)
+os.stat=missing_provider
+try:p.check_input_descriptors(binding,{})
+except FileNotFoundError:pass
+else:raise AssertionError('absent supported interpreter qualified by production provider')
+print('verified production provider refuses unsupported and absent3.12')
+`;
+    const invocation = Bun.spawnSync(
+      ['/usr/bin/python3', '-I', '-B', '-c', script, provider, scope],
+      { timeout: 5000, maxBuffer: 65536 },
+    );
+    expect(invocation.exitCode).toBe(0);
+    expect(invocation.stderr.toString()).toBe('');
+    expect(invocation.stdout.toString()).toBe(
+      'verified production provider refuses unsupported and absent3.12\n',
+    );
+  });
+}

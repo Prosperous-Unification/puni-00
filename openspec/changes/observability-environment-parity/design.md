@@ -781,3 +781,15 @@ A worker takes a nonblocking exclusive lock on the original private staging-dire
 ### Seed and guest successors
 
 The [bounded baseline continuation](baseline.md) records the existing reusable seams, exact selected inputs, artifact dependency evidence, proposed finite successor policies and ordered TDD slices. It distinguishes known surviving limits from newly proposed caps; old lost helper/receipt equivalence is never claimed. Review each implemented slice before execution. The accepted raw component does not grant seed/guest or full-rehearsal authority.
+
+### Seed, dependency and guest source boundaries
+
+The seed adapter consumes exactly six hash-bound input files; the separate guest renderer supplies the three real NoCloud files and fixed tracked bootstrap. The seed's ISO integrity authority does not certify the bootstrap's runtime behavior. Share only the existing bounded lifecycle/FD/persistence primitives through internal fixed adapter callbacks; external requests cannot select or relax a resource profile. Preserve the raw wrapper's behavior and its completed historical receipt when extracting those primitives.
+
+A reusable bounded dependency adapter replaces the temporary checker as source, while retaining explicit installed-host and independently reviewed signed-provenance boundaries. Seed consumption binds the selected report to its exact image/archive inputs and completeness fields; no new signature chain, metadata-mode repair or default virtual provider is invented. Configured status remains an actual guest prerequisite.
+
+Before any guest mutation, the concrete QEMU/Linux payload checks the fixed SMBIOS product `Puni bounded baseline`, nonce-derived UUID, NoCloud instance identity, read-only selected seed and8GiB root disk. The future QEMU supervisor must supply those exact adapter flags and no NIC. The payload exposes bounded native capability and protocol observations; the host reuses the existing Docker capability contract and independently establishes native cleanup. Those concrete markers stay outside shared observation models.
+
+The fixed guest collector runs in its own observed128MiB/32Task unit, with750seconds runtime,30seconds stop and64KiB file-size limit before bootstrap mutation. Only the installer models the exact two known policy-rc.d101 diagnostics from the selected package/helper contract; other stderr, nonzero exits, unknown or duplicated lines and exceeded bounds still refuse. Authored journald targets remain distinct from measured native usage and effective configuration, including active-file exceptions.
+
+Logical lifecycle fixtures model the supported interpreter binding through a controlled current-process identity seam, so a runner with another Python minor can test the protocol without qualifying that runtime. Actual native admission retains its fixed Python3.12/provider checks. Baseline source CLIs write literal stdout/stderr bytes, avoiding presentation escapes under CI color settings; no runner or gate policy changes are needed for these portability corrections.
