@@ -16,6 +16,7 @@ Results and the fault table are in openspec/changes/dash-host-jobs/verify.md, Sl
 import copy
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -97,6 +98,29 @@ def drop_that(index):
     return mutate
 
 
+def keep_disjunct(index, disjunct):
+    def mutate(tasks):
+        for t in tasks:
+            if "ansible.builtin.assert" in t:
+                that = t["ansible.builtin.assert"]["that"]
+                that[index] = that[index].split(" or ")[disjunct]
+                return
+        raise SystemExit("no assert to mutate")
+    mutate.label = f"assert condition {index} reduced to its disjunct {disjunct}"
+    return mutate
+
+
+def drop_condition(text):
+    def mutate(tasks):
+        for t in tasks:
+            if "ansible.builtin.assert" in t:
+                t["ansible.builtin.assert"]["that"].remove(text)
+                return
+        raise SystemExit("no assert to mutate")
+    mutate.label = f"assert condition {text!r} removed"
+    return mutate
+
+
 def drop_key(key, task_name=None):
     def mutate(tasks):
         for t in tasks:
@@ -122,12 +146,13 @@ def refused(message):
 
 
 ACCEPTED = ("accepted", None)
+SKIPPED = ("skipped-task", None)
 
 inputs = [task("host-pool.yml", "Require the host pool inputs of an enrolled host")]
 REFUSAL = "An enrolled gate host needs puni_gate_host_pool"
 family("E1 enrolled host pool inputs", inputs, [
     ("valid", {"puni_gate_host_pool_enroll": True, "puni_gate_host_pool": POOL}, None, None, ACCEPTED),
-    ("unenrolled skips", {"puni_gate_host_pool_enroll": False}, None, None, ACCEPTED),
+    ("unenrolled skips", {"puni_gate_host_pool_enroll": False}, None, None, SKIPPED),
     ("undefined", {"puni_gate_host_pool_enroll": True}, None, None, refused(REFUSAL)),
     ("not a mapping", {"puni_gate_host_pool_enroll": True, "puni_gate_host_pool": "x"}, None, None,
      refused(REFUSAL)),
@@ -191,7 +216,7 @@ def state(config, ledger):
 STATE = "puni_gate_host_pool_enroll is false, but the configuration exists"
 family("E4 no pool state on an unenrolled host", unenrolled, [
     ("clean", {"puni_gate_host_pool_enroll": False}, state(False, False), None, ACCEPTED),
-    ("enrolled skips", {"puni_gate_host_pool_enroll": True}, state(True, True), None, ACCEPTED),
+    ("enrolled skips", {"puni_gate_host_pool_enroll": True}, state(True, True), None, SKIPPED),
     ("configuration left", {"puni_gate_host_pool_enroll": False}, state(True, False), None,
      refused(STATE)),
     ("ledger left", {"puni_gate_host_pool_enroll": False}, state(False, True), None, refused(STATE)),
@@ -209,7 +234,7 @@ family("E5 user units enabled", enabled, [
     ("both enabled", {"puni_gate_host_pool_enroll": True}, None, systemctl(["enabled", "enabled"], 0),
      ACCEPTED),
     ("unenrolled skips", {"puni_gate_host_pool_enroll": False}, None,
-     systemctl(["disabled", "disabled"], 1), ACCEPTED),
+     systemctl(["disabled", "disabled"], 1), SKIPPED),
     ("timer static", {"puni_gate_host_pool_enroll": True}, None, systemctl(["enabled", "static"], 0),
      refused("Read whether the Dash user units are enabled")),
 ], [(drop_key("failed_when"), "timer static"), (drop_key("when"), "unenrolled skips")])
@@ -257,11 +282,65 @@ family("E7 pinned fields unchanged", pinned, [
 ], [(drop_that(0), "memory moved"), (drop_that(0), "unreadable live file")])
 
 
+def probe(*lines):
+    return {"puni_gate_sudo_probe": {"stdout_lines": list(lines)}}
+
+
+SUDOER = probe("puni1 sudo docker", "sudo_rc=0")
+GROUP_ONLY = probe("puni1 docker sudo", "sudo_rc=1")
+GRANT_ONLY = probe("puni1 docker", "sudo_rc=0")
+NO_SUDO = probe("puni1 docker", "sudo: a password is required", "sudo_rc=1")
+STRICT = {"puni_gate_account_may_sudo": False}
+EXCEPTED = {"puni_gate_account_may_sudo": True}
+
+no_sudo = [task("validate.yml", "Require the gate account without sudo")]
+family("E8 gate account without sudo", no_sudo, [
+    ("no escalation", STRICT, NO_SUDO, None, ACCEPTED),
+    ("sudo group", STRICT, GROUP_ONLY, None, refused("it must not escalate")),
+    ("sudoers grant", STRICT, GRANT_ONLY, None, refused("it must not escalate")),
+    ("exception skips", EXCEPTED, SUDOER, None, SKIPPED),
+], [(drop_that(0), "sudo group"), (drop_that(1), "sudoers grant"),
+    (drop_key("when"), "exception skips")])
+
+exception = [task("validate.yml", "Require the sudo exception to still match the gate account")]
+STALE = "the puni_gate_account_may_sudo exception is stale"
+family("E9 sudo exception still matches", exception, [
+    ("h2puni today", EXCEPTED, SUDOER, None, ACCEPTED),
+    ("group only", EXCEPTED, GROUP_ONLY, None, ACCEPTED),
+    ("grant only", EXCEPTED, GRANT_ONLY, None, ACCEPTED),
+    ("stale", EXCEPTED, NO_SUDO, None, refused(STALE)),
+    ("strict skips", STRICT, NO_SUDO, None, SKIPPED),
+], [(drop_that(0), "stale"), (keep_disjunct(0, 1), "group only"),
+    (keep_disjunct(0, 0), "grant only"), (drop_key("when"), "strict skips")])
+
+gate_inputs = [task("main.yml", "Require supported host and gate inputs")]
+LOCK = {"version": "1.4.4", "sha256": "0" * 64}
+HOST = {"ansible_distribution": "Ubuntu", "ansible_distribution_version": "26.04",
+        "ansible_architecture": "x86_64", "puni_gate_user": "puni1",
+        "puni_gate_bun_version": "1.4.4", "puni_gate_bun_lock": LOCK, "puni_gate_node_lock": LOCK,
+        "puni_gate_gh_lock": LOCK, "puni_gate_authorized_keys": ["ssh-ed25519 AAAA test"],
+        "puni_gate_host_pool_enroll": False}
+INPUTS = "A gate host needs Ubuntu on amd64"
+family("E10 sudo exception is a boolean", gate_inputs, [
+    ("boolean false", {**HOST, "puni_gate_account_may_sudo": False}, None, None, ACCEPTED),
+    ("boolean true", {**HOST, "puni_gate_account_may_sudo": True}, None, None, ACCEPTED),
+    ("string false", {**HOST, "puni_gate_account_may_sudo": "false"}, None, None, refused(INPUTS)),
+], [(drop_condition("puni_gate_account_may_sudo is boolean"), "string false")])
+
+
+def recap(output, field):
+    """One counter of localhost's PLAY RECAP line; None when the recap is missing."""
+    found = re.search(r"^localhost\s*:.*\b" + field + r"=(\d+)", output, re.M)
+    return int(found.group(1)) if found else None
+
+
 def judge(expectation, rc, output):
     kind, detail = expectation
     log = WORK + "/bun.log"
     if kind == "accepted":
-        return rc == 0
+        return rc == 0 and recap(output, "skipped") == 0
+    if kind == "skipped-task":
+        return rc == 0 and recap(output, "skipped") == 1
     if kind == "refused":
         return rc != 0 and detail in output
     if kind == "ran":

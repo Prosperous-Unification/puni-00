@@ -114,11 +114,37 @@
       - "'sudo' not in puni_gate_sudo_probe.stdout_lines[0].split(' ')"
       - puni_gate_sudo_probe.stdout_lines[-1] != 'sudo_rc=0'
     fail_msg: 'The gate account reports {{ puni_gate_sudo_probe.stdout_lines }}; it must not escalate'
+  when: not puni_gate_account_may_sudo
   # Proof (2026-10-21): the assertion, fed recorded probe outputs through the controller image
   # (set_fact, localhost), passed `['puni1 docker', 'sudo_rc=1']` and failed both
   # `['puni1 docker sudo', 'sudo_rc=1']` and `['puni1 docker', 'sudo_rc=0']`. Live on h4claw the
   # probe printed `puni1 docker`, sudo's refusal line and `sudo_rc=1`; a sudoer gate account was
   # not created to watch the probe itself produce the failing lines.
+  # Proof (2026-11-04): in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py,
+  # E8) h4claw's recorded lines passed, `['puni1 docker sudo', 'sudo_rc=1']` and
+  # `['puni1 docker', 'sudo_rc=0']` were refused, and h2puni's `['puni1 sudo docker', 'sudo_rc=0']`
+  # skipped under the exception (recap `skipped=1`); removing either condition let its line through, and removing
+  # `when` refused h2puni's.
+
+# An exception that no longer matches the host would be a check that cannot fail (AGENTS.md R5,
+# docs/findings/checks-that-cannot-fail.md): once the escalation is gone, the flag must go too,
+# or a later sudo grant would pass unnoticed.
+- name: Require the sudo exception to still match the gate account
+  ansible.builtin.assert:
+    that:
+      - >-
+        'sudo' in puni_gate_sudo_probe.stdout_lines[0].split(' ')
+        or puni_gate_sudo_probe.stdout_lines[-1] == 'sudo_rc=0'
+    fail_msg: >-
+      The gate account reports {{ puni_gate_sudo_probe.stdout_lines }}: it no longer escalates, so
+      the puni_gate_account_may_sudo exception is stale. Remove it from this host's inventory
+      entry (docs/infra/gate-hosts.md, step 0)
+  when: puni_gate_account_may_sudo
+  # Proof (2026-11-04): in the same evaluator (E9) h2puni's recorded `['puni1 sudo docker',
+  # 'sudo_rc=0']`, the group alone and the grant alone passed, h4claw's `['puni1 docker',
+  # 'sudo: a password is required', 'sudo_rc=1']` was refused as stale, and a host without the
+  # exception skipped (recap `skipped=1`); removing the condition let the stale line through, keeping only one
+  # disjunct refused the other's line, and removing `when` refused the strict host.
 
 - name: Read the gate checkouts' state
   become_user: '{{ puni_gate_user }}'

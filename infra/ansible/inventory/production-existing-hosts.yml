@@ -78,3 +78,5 @@ all:
         h4claw: {}
         h2puni:
           ansible_host: 10.1.0.3
+          # puni1 still escalates for the dev poller (docs/infra/gate-hosts.md, step 0).
+          puni_gate_account_may_sudo: true

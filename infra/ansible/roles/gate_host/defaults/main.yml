@@ -6,6 +6,16 @@
 # has its own lock: the path is per host, so h4claw's gates queue only behind h4claw's.
 puni_gate_user: puni1
 puni_gate_home: /home/puni1
+# For a host whose gate account is also its operator and dev account and still escalates (h2puni's
+# `puni1`, whose dev poller and monitoring scripts call sudo). The gate-host isolation property
+# does not hold there: a gate payload can become root. Set it per host in the inventory, never
+# here: a boolean extra-var would reach every host in the run, and only `--limit` would guard the
+# others. Validate then requires the state the strict check would refuse (the `sudo` group or
+# `sudo -n` succeeding), so a stale exception fails too. The probe is a heuristic: a
+# command-limited NOPASSWD grant makes `sudo -n true` exit 1, so the strict check cannot see it.
+# It is debt until the dev poller and those scripts leave `puni1` (docs/infra/gate-hosts.md,
+# step 0).
+puni_gate_account_may_sudo: false
 # Distinct from h2puni's lane trees; one tree per host, owned by the gate account.
 puni_gate_checkout: /home/puni1/puni-00-gate-tbf
 puni_gate_repository_url: https://github.com/Prosperous-Unification/puni-00.git
