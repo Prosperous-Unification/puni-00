@@ -170,7 +170,9 @@
         `sudo -n` succeeding), so a stale
         exception fails. Debt: the gate-host isolation property does not hold on h2puni until
         those callers leave `puni1` and the flag is removed (verify.md, "2026-11-04 h2puni
-        apply, blocked").
+        apply, blocked"). The delta MODIFIES the `gate-host` requirement that only the
+        unarchived `gate-host-role` change defines, so archive `gate-host-role` before this
+        change or the archive refuses the delta.
 - [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
       `Restart=on-failure` and `KillMode=process` (beside the observation units of 4.2). It
       lands before 6.4, because observe mode needs a running `watch` (review H1 of #818). A host
