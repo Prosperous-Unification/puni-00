@@ -109,9 +109,9 @@ claiming portability. Neither prerequisite alone closes S0 or S7a.
       versions, restart after working-tree edits, explicit revocation and provenance-aware re-pinning.
       Retained recovery is expanded in [binding recovery tasks](binding-recovery-tasks.md);
       that internal slice does not close revocation or provenance-aware re-pinning.
-- [ ] 6a.4 Red/green: native CTT 0.12 materialize/prepare adapter over legacy step chains,
-      independent `createWorkSession({ completedWork })`, `advance()` work tickets,
-      accepted-WBS-only `completeWork` (`accepted`/`alreadyAccepted`) and callback-free summary.
+- [ ] 6a.4 Red/green: native CTT 0.13 materialize/prepare adapter over legacy step chains,
+      independent `createExternalWorkSession({ acceptedCompletedWorkVertexIds })`, `runUntilWorkBoundary()` work tickets,
+      accepted-WBS-only `acceptCompletedWork` (`accepted`/`alreadyAccepted`) and callback-free summary.
       Require complete disconnected topology validation and preserve distinct W/C milestones.
       Filter current WBS eligibility and durable waits/running/retry state before atomic
       RunStore admission; admission never completes work. Reconstruct independent sessions

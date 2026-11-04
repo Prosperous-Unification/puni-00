@@ -136,9 +136,9 @@ SHALL pass current revision and state checks even when their facts match an olde
 
 ### Requirement: Coordination uses the unified hints API
 
-The coordinator SHALL use CTT 0.12 native materialization, preparation and independent
-`createWorkSession({ completedWork })` sessions seeded only from accepted completion in versioned WBS facts.
-It SHALL use `advance()` work tickets and accepted-WBS-only `completeWork(ticket)` with
+The coordinator SHALL use CTT 0.13 native materialization, preparation and independent
+`createExternalWorkSession({ acceptedCompletedWorkVertexIds })` sessions seeded only from accepted completion in versioned WBS facts.
+It SHALL use `runUntilWorkBoundary()` work tickets and accepted-WBS-only `acceptCompletedWork(ticket)` with
 `accepted`/`alreadyAccepted` receipts, without a second public graph format or interpreter.
 Complete declared topology, including disconnected components, SHALL be validated before
 admission. Unfinished work SHALL NOT satisfy dependencies; W/C milestones SHALL stay distinct.

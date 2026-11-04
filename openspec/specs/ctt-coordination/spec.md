@@ -10,12 +10,12 @@ Traversal readiness supplies neither remote claim authority nor business complet
 
 ### Requirement: The published dependency supplies coordination
 
-PUNI SHALL pin `configurable-tree-traversal` to 0.12.0, retain its locked dependency identities, and execute its supported native exports under the repository's pinned Bun and TypeScript. The production integration SHALL use native materialization, preparation and independent work sessions rather than reproduce removed 0.11 APIs or maintain a second graph interpreter.
+PUNI SHALL pin `configurable-tree-traversal` to 0.13.0, retain its locked dependency identities, and execute its supported native exports under the repository's pinned Bun and TypeScript. The production integration SHALL use native materialization, preparation and independent work sessions rather than reproduce removed 0.11 APIs or maintain a second graph interpreter.
 
 #### Scenario: Real package consumer
 
 - **WHEN** the production coordination adapter runs under the normal Dash test and typecheck targets
-- **THEN** it imports the installed 0.12.0 package, obtains actual work tickets and observes accepted/duplicate completion receipts
+- **THEN** it imports the installed 0.13.0 package, obtains actual work settlement tickets and observes accepted/duplicate completion receipts
 - **AND** package and toolchain pin checks reject an unintended version change
 
 ### Requirement: Complete topology precedes admission
