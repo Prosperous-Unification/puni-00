@@ -4,6 +4,7 @@ import { type ReservedSQL, SQL } from 'bun';
 import { describe, expect, test } from 'bun:test';
 
 import { closeFixtures } from '../testing/close-fixtures';
+import { awaitCompletion } from './deadline';
 import { createPostgresObserver, type PostgresWriter, readPostgresWriter } from './observer';
 
 const testUrl = process.env['TWILIGHT_POSTGRES_TEST_URL'];
@@ -129,6 +130,23 @@ async function findProbe(connection: ReservedSQL): Promise<string> {
   return statement;
 }
 
+interface WorkerIdentity {
+  readonly pid: number;
+  readonly startedAt: string;
+}
+
+function readWorkerIdentity(fields: { pid: unknown; startedAt: unknown }): WorkerIdentity {
+  if (
+    typeof fields.pid !== 'number' ||
+    !Number.isSafeInteger(fields.pid) ||
+    fields.pid <= 0 ||
+    typeof fields.startedAt !== 'string' ||
+    !/^\d+(\.\d+)?$/.test(fields.startedAt)
+  )
+    throw new Error('missing parallel-worker identity visibility');
+  return { pid: fields.pid, startedAt: fields.startedAt };
+}
+
 async function withParallelWriter(
   shouldRegisterWriter: boolean,
   inspect: (fixture: {
@@ -138,6 +156,8 @@ async function withParallelWriter(
     statement: string;
     running: Promise<unknown>;
     readonly cancelWriter: () => Promise<void>;
+    readonly countWorkers: () => Promise<number>;
+    readonly waitForWorkersToExit: () => Promise<void>;
   }) => Promise<void>,
 ): Promise<void> {
   const bundle = await openBundle();
@@ -161,8 +181,15 @@ async function withParallelWriter(
       AbortSignal.timeout(2000),
     );
     const administratorConnection = administrator.connection;
+    let cancelled = false;
     cancelWriter = async () => {
-      await administratorConnection`SELECT pg_cancel_backend(${writer.pid})`;
+      if (cancelled) return;
+      const cancellations = await administratorConnection<{ accepted: unknown }[]>`
+        SELECT pg_cancel_backend(${writer.pid}) AS accepted
+      `;
+      if (cancellations.length !== 1 || cancellations[0]?.accepted !== true)
+        throw new Error('PostgreSQL parallel query cancellation was not accepted');
+      cancelled = true;
     };
     if (shouldRegisterWriter) await observer.register(writer, AbortSignal.timeout(2000));
     const statement = await findProbe(bundle.observer.connection);
@@ -172,22 +199,57 @@ async function withParallelWriter(
       ),
     );
     void running.catch(() => undefined);
-    const started = performance.now();
-    let parallelReady = false;
-    while (!parallelReady) {
-      const workers = await administrator.connection<{ count: number }[]>`
-        SELECT count(*)::integer AS count FROM pg_catalog.pg_stat_activity
-        WHERE leader_pid = ${writer.pid} AND application_name = ${bundle.writerName}
-          AND backend_start IS NOT NULL AND state = 'active' AND backend_type = 'parallel worker'
-      `;
-      const count = workers.at(0)?.count;
-      if (count === undefined) throw new Error('missing parallel-worker catalogue');
-      parallelReady = count === 2;
-      if (!parallelReady && performance.now() - started > 2000)
-        throw new Error('real PostgreSQL parallel workers not observed');
-      await Bun.sleep(5);
+    const readiness = AbortSignal.timeout(2000);
+    let workers: WorkerIdentity[];
+    do {
+      const visible = await awaitCompletion(
+        administratorConnection<{ pid: unknown; startedAt: unknown }[]>`
+          SELECT pid, EXTRACT(EPOCH FROM backend_start)::text AS "startedAt"
+          FROM pg_catalog.pg_stat_activity
+          WHERE leader_pid = ${writer.pid} AND application_name = ${bundle.writerName}
+            AND state = 'active' AND backend_type = 'parallel worker'
+        `,
+        readiness,
+      );
+      workers = visible.map(readWorkerIdentity);
+      if (new Set(workers.map((worker) => worker.pid)).size !== workers.length)
+        throw new Error('duplicate parallel-worker identity');
+      if (workers.length !== 2) await awaitCompletion(Bun.sleep(5), readiness);
+    } while (workers.length !== 2);
+    async function countWorkers(deadline = AbortSignal.timeout(2000)): Promise<number> {
+      const visible = await awaitCompletion(
+        administratorConnection.unsafe<{ pid: unknown; startedAt: unknown }[]>(
+          `SELECT pid, EXTRACT(EPOCH FROM backend_start)::text AS "startedAt"
+           FROM pg_catalog.pg_stat_activity
+           WHERE pid IN (${workers.map((_, index) => '$' + String(index + 1)).join(', ')})`,
+          workers.map((worker) => worker.pid),
+        ),
+        deadline,
+      );
+      return visible
+        .map(readWorkerIdentity)
+        .filter((identity) =>
+          workers.some(
+            (worker) => worker.pid === identity.pid && worker.startedAt === identity.startedAt,
+          ),
+        ).length;
     }
-    await inspect({ bundle, observer, writer, statement, running, cancelWriter });
+    async function waitForWorkersToExit(): Promise<void> {
+      const deadline = AbortSignal.timeout(2000);
+      while ((await countWorkers(deadline)) > 0) {
+        await awaitCompletion(Bun.sleep(5), deadline);
+      }
+    }
+    await inspect({
+      bundle,
+      observer,
+      writer,
+      statement,
+      running,
+      cancelWriter,
+      countWorkers,
+      waitForWorkersToExit,
+    });
   } finally {
     if (cancelWriter !== undefined) await cancelWriter();
     if (running !== undefined) await Promise.allSettled([running]);
@@ -354,7 +416,15 @@ databaseTests('private PostgreSQL observer (requires explicitly owned fixture)',
   test('includes real untagged parallel descendants when the leader is excluded', async () => {
     await withParallelWriter(
       true,
-      async ({ bundle, observer, statement, running, cancelWriter }) => {
+      async ({
+        bundle,
+        observer,
+        statement,
+        running,
+        cancelWriter,
+        countWorkers,
+        waitForWorkersToExit,
+      }) => {
         const parallelProbe = statement
           .replace(
             'FROM pg_catalog.pg_stat_activity) AS activities',
@@ -368,10 +438,15 @@ databaseTests('private PostgreSQL observer (requires explicitly owned fixture)',
         await bundle.observer.connection.unsafe(
           parallelProbe.replace("'leaderPid', leader_pid", "'leaderPid', NULL"),
         );
+        // Proof: O10 removed the null-link guard; this real-worker test lost its expected rejection.
         await rejects(observer.waitForWriters(AbortSignal.timeout(2000)), /ambiguous/);
         await bundle.observer.connection`DEALLOCATE twilight_observer_probe`;
         await bundle.observer.connection.unsafe(parallelProbe);
-        const pending = observer.waitForWriters(AbortSignal.timeout(2000));
+        const observation = new AbortController();
+        const stop = new Error('live parallel-worker observation complete');
+        const pending = observer.waitForWriters(
+          AbortSignal.any([observation.signal, AbortSignal.timeout(2000)]),
+        );
         let settled = false;
         void pending.then(
           () => {
@@ -382,13 +457,36 @@ databaseTests('private PostgreSQL observer (requires explicitly owned fixture)',
           },
         );
         await Bun.sleep(40);
+        // Proof: O9 removed descendant traversal; this live-worker test observed premature settlement.
         expect(settled).toBe(false);
+        expect(await countWorkers()).toBe(2);
+        observation.abort(stop);
+        await rejects(pending, (cause: unknown) => cause === stop);
+
         await cancelWriter();
         await rejects(running);
         await bundle.writer.close();
-        await pending;
+        await waitForWorkersToExit();
+
+        // Reserved-connection ordering drains any EXECUTE issued before the controlled abort.
+        await bundle.observer.connection`SELECT 1`;
+        await bundle.observer.connection`DEALLOCATE twilight_observer_probe`;
+        await bundle.observer.connection.unsafe(statement);
+        await observer.waitForWriters(AbortSignal.timeout(2000));
       },
     );
+  });
+
+  test('does not certify captured parallel worker exit while they are live', async () => {
+    await withParallelWriter(true, async ({ countWorkers, waitForWorkersToExit }) => {
+      expect(await countWorkers()).toBe(2);
+      // Proof: F3 returned early from this barrier; this held-worker test lost its expected timeout rejection.
+      await rejects(
+        waitForWorkersToExit(),
+        (cause: unknown) => cause instanceof DOMException && cause.name === 'TimeoutError',
+      );
+      expect(await countWorkers()).toBe(2);
+    });
   });
 
   test('rejects unresolved non-null parallel ancestry with an unregistered hidden leader', async () => {
