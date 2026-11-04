@@ -836,3 +836,109 @@ test('shared-person peer discovery retains exact project-local resource occupanc
     { claim_id: 'remote-claim', resource_id: 'machine', units: 7 },
   ]);
 });
+
+test('remote FS completion exposes organization capacity before a shared claim can start', async () => {
+  setMode('shared');
+  const created = await harness.call('ada', 'POST', '/api/projects', { name: 'Capacity peer' });
+  expect(created.status).toBe(200);
+  const peer = created.body as { project: { id: string }; steps: { id: string }[] };
+  const peerStep = peer.steps.at(0);
+  if (peerStep === undefined) throw new Error('capacity peer step missing');
+  harness.sqlite.run(
+    "INSERT INTO work_item(id,project_id,position,name,readiness) VALUES ('resource-peer',?,0,'Resource peer','ready')",
+    [peer.project.id],
+  );
+  harness.sqlite.run(
+    "INSERT INTO assignment(work_item_id,step_id,person_id) VALUES ('target-leaf',?,'executor'),('resource-peer',?,'executor')",
+    [targetStep, peerStep.id],
+  );
+  harness.sqlite.run(
+    "INSERT INTO resource(id,name,kind,unit_label) VALUES ('machine','Machine','divisible','slots')",
+  );
+  harness.sqlite.run(
+    "INSERT INTO resource_organization(resource_id,organization_id,name) VALUES ('machine','execution-org','Machine')",
+  );
+  harness.sqlite.run(
+    "INSERT INTO project_resource_capacity(project_id,resource_id,units) VALUES (?,'machine',2),(?,'machine',7)",
+    [target, peer.project.id],
+  );
+  harness.sqlite.run(
+    "INSERT INTO resource_directory_capacity(resource_id,units) VALUES ('machine',7)",
+  );
+  harness.sqlite.run(
+    "INSERT INTO work_item_resource_demand(work_item_id,resource_id,units) VALUES ('target-leaf','machine',2),('resource-peer','machine',7)",
+  );
+  harness.sqlite.run(
+    "INSERT INTO claim(id,work_item_id,step_id,person_id,run_id,created_at,created_by) VALUES ('remote-claim','resource-peer',?,'executor','remote-run',1,?)",
+    [peerStep.id, harness.userId('ada')],
+  );
+  harness.sqlite.run(
+    "INSERT INTO claim_occupancy(claim_id,resource_id,units) VALUES ('remote-claim','machine',7)",
+  );
+
+  const blocked = await startable();
+  expect(blocked.status).toBe(200);
+  expect(blocked.body).toMatchObject({ leaves: [], doesNotFit: [] });
+  expect(
+    (blocked.body as StartableWork).prerequisites.find(
+      (step) => step.workItemId === 'target-leaf' && step.stepId === targetStep,
+    ),
+  ).toMatchObject({ canStart: false });
+  expect((await assertRefusal(() => claim())).body).toMatchObject({
+    error: 'prerequisites_unmet',
+    at: 0,
+    kind: 'claimWorkItem',
+    stepIds: [targetStep],
+  });
+
+  recordCompletion();
+  const exhausted = await startable();
+  expect(exhausted.status).toBe(200);
+  expect(exhausted.body).toMatchObject({
+    occupancyScope: 'project',
+    resources: [{ resourceId: 'machine', capacity: 2, occupied: 0, free: 2 }],
+    leaves: [],
+    doesNotFit: [
+      {
+        workItemId: 'target-leaf',
+        fits: false,
+        exhausted: {
+          resourceId: 'machine',
+          asked: 2,
+          free: 0,
+          shortfall: 2,
+          scope: 'organization',
+        },
+      },
+    ],
+  });
+  expect((await assertRefusal(() => claim())).body).toMatchObject({
+    error: 'resources_exhausted',
+    scope: 'organization',
+    free: 0,
+    asked: 2,
+  });
+
+  harness.sqlite.run("DELETE FROM claim_occupancy WHERE claim_id='remote-claim'");
+  harness.sqlite.run("DELETE FROM claim WHERE id='remote-claim'");
+  expect((await startable()).body).toMatchObject({
+    occupancyScope: 'project',
+    resources: [{ resourceId: 'machine', capacity: 2, occupied: 0, free: 2 }],
+    leaves: [{ workItemId: 'target-leaf', stepIds: [targetStep], fits: true }],
+    doesNotFit: [],
+  });
+  await assertAcceptedClaim();
+  expect((await startable()).body).toMatchObject({
+    occupancyScope: 'project',
+    resources: [{ resourceId: 'machine', capacity: 2, occupied: 2, free: 0 }],
+    claimed: [{ workItemId: 'target-leaf', stepId: targetStep }],
+  });
+  expect(harness.sqlite.query('SELECT resource_id,units FROM claim_occupancy').all()).toEqual([
+    { resource_id: 'machine', units: 2 },
+  ]);
+  expect(
+    harness.sqlite
+      .query('SELECT resource_id,SUM(units) AS occupied FROM claim_occupancy GROUP BY resource_id')
+      .all(),
+  ).toEqual([{ resource_id: 'machine', occupied: 2 }]);
+});

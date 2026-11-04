@@ -67,3 +67,41 @@ Repository-required `openspec validate --all --json` passed: 329/329 entries
 exited 1 on 49 warnings and no errors, including legacy delta-section headings and
 long requirement text. Strict validation is not claimed passing; those warnings
 remain visible follow-up work. This does not narrow the required repository check.
+
+## Mounted prerequisite and organization-capacity composition
+
+A single mounted HTTP/SQLite acceptance case now combines the two contracts
+reconciled in the main integration. An unfinished remote FS prerequisite refuses
+the claim without changing persisted state or publications. Completing the
+predecessor exposes an organization-capacity refusal while the project-local
+resource summary remains capacity2/occupied0/free2. Removing the peer fixture
+claim then permits the target claim; project-local and organization occupancy
+both become2. The existing local-only peer-occupancy test is unchanged.
+
+Observed checks:
+
+- Exact named new case plus existing local-only control: **2 passed, 0 failed,
+  36 filtered, 34 assertions**, exit0. These are normal mounted product cases
+  using an isolated local SQLite fixture and in-memory HTTP calls, with explicit
+  empty preloads and controlled environment. No UC2 helper, host gate or producer ran.
+- R5: returning `directoryCapacities: []` only from `readExecutionIn`'s observation
+  falsely advertised a fitting target after its remote prerequisite completed. The
+  unchanged named acceptance case failed its exhausted-response assertion at the
+  intended semantic mismatch, exit1; setup and prerequisite refusal had succeeded.
+  Exact production source bytes were restored in `finally` and hash-verified.
+- After restoration, the same two cases passed again: **2 passed, 0 failed,
+  36 filtered, 34 assertions**, exit0. Fault source and captured logs are retained
+  privately; the fault is absent from the committed source.
+- Configured `wbs-be-01:typecheck --skip-nx-cache` passed, including module
+  typechecking. Subsequent production-reader edits are JSDoc and the observed
+  adjacent Proof comment only; runtime wiring remains the restored source.
+
+This closes the bounded composition check, not full feature delivery or native
+cleanup acceptance. CI and the exact-SHA host gate remain separate gates.
+Progress notes continue in WBS010.12 (`b97553a9-a8e2-4c18-8015-d8a951944cdc`);
+the original delivery note retains its history and the continuation reference.
+
+Normal lint required replacing an untyped asymmetric prerequisite matcher with a
+typed lookup and the same assertion. The capacity assertion observed in the fault
+run is unchanged. Both focused cases (34 assertions) and the configured backend
+typecheck passed again after this matcher correction.

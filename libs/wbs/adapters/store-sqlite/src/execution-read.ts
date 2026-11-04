@@ -23,7 +23,7 @@ import { WorkItemRepository } from './work-item';
 
 type ExecutionRead = Awaited<ReturnType<LivePlanStore['readExecution']>>;
 
-/** Captures execution and target-only claim/resource facts in the caller's observation; never schedules. */
+/** Captures prerequisites, project-local occupancy and organization capacity in the caller's observation; never schedules. */
 export async function readExecutionIn(
   db: Drizzle,
   projectId: string,
@@ -165,6 +165,9 @@ export async function readExecutionIn(
       teamId,
       capacities,
       demands,
+      // Proof: returning no directory capacities here made the mounted remote-FS/capacity
+      // case advertise the target as fitting while a peer held all seven directory units.
+      // Exact restoration passed it and the local-occupancy control (2026-11-04).
       directoryCapacities,
       organizationOccupied,
       occupancy: await read(claims.occupancyOf(projectId)),
