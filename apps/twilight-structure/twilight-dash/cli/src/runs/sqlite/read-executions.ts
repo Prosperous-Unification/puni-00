@@ -3,6 +3,7 @@ import type { Database } from 'bun:sqlite';
 import { equalRecords } from '../record-codecs';
 import type { Attempt, Run } from '../records';
 import { readHistory } from './read-history';
+import { CURRENT_FORMAT } from './schema';
 
 /** Delegates target provenance to the single complete snapshot owner. Supplied identities cannot substitute another run or reset a retained projection. */
 export function validateAttempt(database: Database, run: Run, attempt: Attempt) {
@@ -24,8 +25,8 @@ export function validateAttempt(database: Database, run: Run, attempt: Attempt) 
 /** Store-wide indexed command lookup must still exist in the complete independently reconstructed history. */
 export function findExecution(database: Database, commandId: string) {
   const indexed = database
-    .query('SELECT command_id FROM run_execution WHERE command_id=?')
-    .get(commandId);
+    .query(`SELECT command_id FROM ${CURRENT_FORMAT.family.execution} WHERE command_id=?`)
+    .get(CURRENT_FORMAT.encode(commandId));
   const snapshot = readHistory(database);
   const execution = snapshot.catalog.executions.find(
     (entry) => entry.command.commandId === commandId,

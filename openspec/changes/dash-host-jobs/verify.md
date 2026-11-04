@@ -2401,3 +2401,46 @@ line. Nothing on the host was deleted. The records as reported in PR #819's body
   not run for that SHA; the 5061911cf run above covers them.
 - Earlier on the same day, slice 6a's gate on `af8cdd003` had exited 1 only on the recorded
   `wbs-be-01` budget flake, which passed alone (see "Slice 6a").
+
+## 2026-11-04 h2puni apply, blocked (task 6.3, operator half)
+
+The first apply of `gate_host` to h2puni stopped at preflight, before any change (private
+`puni-plan` evidence `2026-11-04-h2puni-gate-host-apply.md`). **H2-A1:** `puni1` is in `sudo`
+and `sudo -n true` exits 0; its dev poller and monitoring scripts call `sudo docker` and
+`sudo openssl` as `puni1`, so the sudo cannot be removed yet. Validate's "Require the gate account
+without sudo" would have failed every apply after it changed the host.
+
+The fix (task 6.3b) is `puni_gate_account_may_sudo`, default false and set only on h2puni in the
+inventory. When it is true, "Require the sudo exception to still match the gate account" replaces
+the no-sudo assertion and requires the state the strict check would refuse (the `sudo` group or
+`sudo -n` succeeding), so a stale exception fails.
+
+- Controller-image evaluator (`infra/ansible/tests/gate-host-assertions.py`, E8 and E9, recorded
+  probe lines through `set_fact` on localhost), with the digest-locked controller:
+  `{"failures": 0}`, 70 `ok` lines, exit 0. E8 passed h4claw's lines, refused the group alone and
+  the grant alone, and skipped under the exception. Removing either condition let its line
+  through, and removing `when` refused h2puni's lines. E9 passed h2puni's
+  `['puni1 sudo docker', 'sudo_rc=0']`, the group alone and the grant alone. It refused h4claw's
+  lines as stale and skipped a strict host. Removing the condition let the stale line through,
+  keeping one disjunct refused the other's line, and removing `when` refused the strict host.
+- `ansible.test.ts` "configures a gate host…" now requires the default false and only h2puni to
+  carry the flag. Setting the default to true failed it (`Expected: false`, `Received: true`), and
+  so did adding the flag to h4claw (`+ "h4claw"`).
+- Not done: no apply. H2-A2 (a gate held the lock) and steps 0 to 1 remain as in `gate-hosts.md`.
+
+### Review fixes (Fable, PR #842)
+
+- M1: a `gate-host` delta (`specs/gate-host/spec.md`) MODIFIES "A gate host converges under
+  Ansible": no sudo grant except where the inventory sets `puni_gate_account_may_sudo`, plus
+  scenarios for a strict escalating host, an excepted escalating host, a stale exception and a
+  string flag.
+- M4: "Require supported host and gate inputs" now requires `puni_gate_account_may_sudo is
+boolean`. A string `false` from `-e key=value` would make `when: not …` skip the strict check.
+  Evaluator E10: `false` and `true` passed, the string `"false"` was refused (rc 2), and with the
+  condition removed the string passed (rc 0).
+- L3: an accepted case now also needs `skipped=0` in the PLAY RECAP and a skip case
+  `skipped=1`, so a skipped assertion no longer counts as accepted. Proof: a copy of the
+  evaluator with E8 "exception skips" marked accepted and E9 "h2puni today" marked skipped
+  printed `FAIL` for both and `{"failures": 2}`, exit 1.
+- Full evaluator after the fixes, digest-locked controller: 74 `ok` lines, `{"failures": 0}`,
+  exit 0.

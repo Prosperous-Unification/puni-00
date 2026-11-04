@@ -340,6 +340,15 @@ The bounded [receipt design](runtime-receipt-design.md) shares complete content 
 
 [Runtime limits integration](limits-integration-design.md) reconciles the existing receiver with current main's separately owned organization limits; no new limit policy or coordinator behavior is proposed.
 
+### Logical request recovery
+
+The owner approved [logical authority and claim recovery](recovery-design.md) on
+2026-10-28 for implementation, tests and review, including preserving populated stores,
+incremental authority/claim-first delivery and documented legacy artifact/clock exceptions.
+[ADR 0066](../../../docs/adr/0066-uncertain-runtime-requests-use-journaled-recovery.md)
+records the alternatives. The user subsequently authorized normal commit, push and merge: “you can commit and push it and than merge”. Normal hooks, independent review, applicable CI and the exact-SHA canonical gate remain required. The exact import-policy scope was approved on 2026-11-02; [execution evidence](../runtime-write-delivery/verify.md) records its verification. Operator-store migration and production remain excluded. Full write and physical
+recovery remain separate requirements of the parent coordinator.
+
 ### Pending renames
 
 Vocabulary ahead: per the 2026-10-24 decisions (`wbs-work-packages`, `wbs-permissions`, drafts

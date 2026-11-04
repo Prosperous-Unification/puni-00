@@ -23,7 +23,7 @@ import {
 } from './fixtures';
 import { authorityReceipt, authorityRequest } from './runtime-history-contract';
 
-type Prepared = Awaited<ReturnType<typeof prepareSession>>;
+type Prepared = Awaited<ReturnType<typeof prepareSession<RunStore>>>;
 type Setup = Prepared & {
   input: Parameters<typeof claimActivity>[4];
   guard: Parameters<typeof claimActivity>[3];
