@@ -527,3 +527,15 @@ from `import.meta.dir`, and validation needs actual Git exports and generator fi
 only an executable or receipt cannot replace that validation. The operator may use an isolated
 implementation checkout on the managed host where the existing read identity/trust reside;
 this source portion creates no credential, publication, checkout or remote execution itself.
+
+## Raw disk allocation evidence
+
+For the observability baseline, inspect an existing private, fully allocated Linux raw file from a source checkout:
+
+```sh
+bun tools/tool-fleet/src/lab-raw-allocation-cli.ts /absolute/path/to/disk.raw 8589934592
+```
+
+The CLI consumes `inspectRawAllocation` in [the Linux adapter](../../tools/tool-fleet/src/lab-raw-allocation.ts). It reads file allocation metadata without disk contents or filesystem synchronization; sparse, unsafe or unstable files refuse evidence. Keep the adjacent `lab-raw-allocation.py` when distributing a built CLI, and provide Python3. A successful inspection establishes allocation only. Creation, conversion, resource admission, guest boot and full platform readiness remain separate operations.
+
+Keep baseline inputs and native receipts under the owner-only ignored `.puni/fleet-labs/observability-baseline` directory so a reboot does not erase them. Missing old receipts never become successful acceptance. The existing platform/fleet profile admission remains unchanged; the separately approved small-component budgets do not establish full-stack sizing.

@@ -1189,3 +1189,26 @@ Raw-disk preparation and the private-Docker guest baseline SHALL use their own f
 - **THEN** the corresponding production boundary refuses admission or acceptance
 - **AND** negative proofs expose removal of each changed memory guard while preserving positive controls
 - **AND** existing disk, staging, device, identity, resource caps and cleanup requirements still apply
+
+### Requirement: Baseline preparation survives loss of temporary state
+
+Baseline helper source and tests SHALL be retained in the repository, and new native inputs and evidence SHALL use persistent owner-only state. Lost temporary receipts SHALL NOT be recreated as successful acceptance or silently reused.
+
+#### Scenario: Fixed raw allocation exceeds one mapping page
+
+- **WHEN** the read-only Linux adapter inspects a private owned raw file whose complete allocation requires more than512 extents
+- **THEN** bounded FIEMAP pagination validates contiguous complete coverage and native completion while allowing at most1MiB of filesystem allocation metadata
+- **AND** exact file ownership, regular-file type, mode, link count, descriptor/path identity, stable observations and finite mapping limits remain required
+- **AND** the source CLI returns allocation evidence without authorizing conversion, guest boot, full rehearsal or live migration
+
+#### Scenario: Incomplete or unsafe allocation cannot certify a disk
+
+- **WHEN** mapping contains a gap, overlap, unknown/shared/delayed flags, missing native completion, exceeded page/metadata limits, changed identity or unavailable/malformed input
+- **THEN** the production inspector refuses evidence
+- **AND** focused negative proofs expose removal of the corresponding safety guards
+
+#### Scenario: Malformed helper diagnostics remain private
+
+- **WHEN** a missing dependency or malformed child projection rejects through the exported API or source CLI
+- **THEN** the public refusal retains its fixed category without preserving child output or supplied private paths as raw error causes
+- **AND** direct API regressions and a cause-restoration fault prove this boundary independently of CLI rendering
