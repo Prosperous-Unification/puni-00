@@ -283,8 +283,8 @@ follow, but surviving-worker/uncertain-effect safety is mandatory in S7a already
 
 The shared planning project is
 [Agentic workflows — WBS, CTT and portable persistence](https://dev.wbs.bulletpoints.club/?project=eeb8e50a-6ee6-49e4-a533-e10b1e29939d).
-The [native CTT integration](../ctt-work-session-integration/design.md) pins published
-CTT 0.13.0 and connects complete prepared topology and independent work sessions to actual
+The [native CTT integration](../ctt-work-session-integration/design.md) pinned published
+CTT 0.12.0, since moved to 0.13.0 (current pin in [ctt-coordination](../../specs/ctt-coordination/spec.md)), and connects complete prepared topology and independent work sessions to actual
 local RunStore admission. Accepted WBS facts control completion; current eligibility and
 durable attempt state filter readiness. This bounded component does not complete exact
 remote claim, admission/launch intent ordering or coordinator CLI composition; parent
@@ -314,14 +314,14 @@ The runbook (`docs/runbook-agentic-workflows.md`) names the commands and the ref
 
 ## Risks and the spikes that retire them
 
-| Risk                                                     | Spike                           | Fallback                                                                                                                                                        |
-| -------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HarnessAgent` or a local sandbox does not run under Bun | 0.1                             | Claude Agent SDK direct behind the same port                                                                                                                    |
-| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2                             | plain tool calling for `plan`                                                                                                                                   |
-| Harness packages break between 1.0.x releases            | 0.3                             | exact pins, one renovate lane, the port absorbs                                                                                                                 |
-| ACP attempts report no usage                             | modelled                        | `Usage.unknown`, shown, never defaulted                                                                                                                         |
-| Concurrent owners or workers surviving coordinator death | S7a recovery proof              | fence local and receiver authority, retain the claim and capacity while work may survive, inspect workers/effects by retained identity; unresolved blocks retry |
-| CTT minor releases change the hints API                  | exact pin0.12.0 and conformance | the compatibility adapter absorbs                                                                                                                               |
+| Risk                                                     | Spike                            | Fallback                                                                                                                                                        |
+| -------------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HarnessAgent` or a local sandbox does not run under Bun | 0.1                              | Claude Agent SDK direct behind the same port                                                                                                                    |
+| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2                              | plain tool calling for `plan`                                                                                                                                   |
+| Harness packages break between 1.0.x releases            | 0.3                              | exact pins, one renovate lane, the port absorbs                                                                                                                 |
+| ACP attempts report no usage                             | modelled                         | `Usage.unknown`, shown, never defaulted                                                                                                                         |
+| Concurrent owners or workers surviving coordinator death | S7a recovery proof               | fence local and receiver authority, retain the claim and capacity while work may survive, inspect workers/effects by retained identity; unresolved blocks retry |
+| CTT minor releases change the hints API                  | exact pin 0.13.0 and conformance | the compatibility adapter absorbs                                                                                                                               |
 
 ## Conditional WBS runtime receiver
 
