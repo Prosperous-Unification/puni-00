@@ -94,8 +94,8 @@ export async function readPostgresWriter(
  * The owner must fence future writer creation, drain admitted work, and close
  * writer reservations/pools before waitForWriters can certify disappearance.
  * This does not determine unanswered COMMIT outcomes or prove process reaping.
- * Registered roots survive absence; a visible replacement backend-start removes
- * the previous PID from ancestry roots. Untagged parallel ancestry must resolve
+ * Registered roots survive absence; a visible replacement backend-start permanently
+ * supersedes the previous registered identity as an ancestry root. Untagged parallel ancestry must resolve
  * to an identified root; missing links or cycles reject observation.
  * The owner also disposes this read-only reservation after observation ends.
  */
@@ -148,6 +148,7 @@ export async function createPostgresObserver(
     signal,
   );
   const writers: PostgresWriter[] = [];
+  const supersededWriters = new Set<PostgresWriter>();
 
   async function inspect(deadline: AbortSignal): Promise<PostgresActivity[]> {
     deadline.throwIfAborted();
@@ -192,10 +193,15 @@ export async function createPostgresObserver(
     );
     const leaders = new Set<number>();
     for (const writer of writers) {
+      // Proof: O17 removed this persistent-state guard; the two-stage replacement test resurrected old PID ownership and rejected with timeout instead of ancestry ambiguity.
+      if (supersededWriters.has(writer)) continue;
       const current = visible.get(writer.pid);
       // Proof: O13 removed PID/start reconciliation; the real-worker replacement test waited for unrelated descendants and hit its deadline.
-      if (current !== undefined && readIdentity(current.fields).startedAt !== writer.startedAt)
+      if (current !== undefined && readIdentity(current.fields).startedAt !== writer.startedAt) {
+        // Proof: O16 removed supersession retention; hiding the previously observed replacement made the two-stage ancestry rejection become a timeout.
+        supersededWriters.add(writer);
         continue;
+      }
       leaders.add(writer.pid);
     }
     const owned = new Set<number>();
