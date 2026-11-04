@@ -1,0 +1,87 @@
+diff --git a/tools/tool-remote-scripts/src/lib/dependency-activation-storage.test.ts b/tools/tool-remote-scripts/src/lib/dependency-activation-storage.test.ts
+index b91b388c976ff3063549eef8efd806f99e6637ed..9e623b431e1b530396dda4ddbfaa6a6b80cd6b70 100644
+--- a/tools/tool-remote-scripts/src/lib/dependency-activation-storage.test.ts
++++ b/tools/tool-remote-scripts/src/lib/dependency-activation-storage.test.ts
+@@ -1497,6 +1497,9 @@ async function observePrehelperRefusal(
+     | 'diagnostic-short'
+     | 'diagnostic-throw'
+     | 'diagnostic-unsupported'
++    | 'diagnostic-undefined'
++    | 'diagnostic-negative'
++    | 'diagnostic-fractional'
+     | 'diagnostic-promise'
+     | 'diagnostic-unknown-setup'
+     | 'diagnostic-projection',
+@@ -1573,7 +1576,10 @@ function modeledDiagnosticWriteSync(descriptor,buffer,offset,length,position){
+     reportPendingAtEntry=true;markReady();return reportReturned;
+   }
+   reportReturned=mode==='diagnostic-short'?length-1:
+-    mode==='diagnostic-unsupported'?length+1:length;
++    mode==='diagnostic-unsupported'?length+1:
++    mode==='diagnostic-undefined'?undefined:
++    mode==='diagnostic-negative'?-1:
++    mode==='diagnostic-fractional'?0.5:length;
+   return reportReturned;
+ }
+ function readKernelTick(){ return 1n; }
+@@ -2057,6 +2063,60 @@ test('UC2 pre-helper unsupported diagnostic count retains timers', async () => {
+   assertPrehelperHold(observed, 'UC2_PREFLIGHT_UNSUPPORTED_REPORT_RETIRED');
+ });
+ 
++test('UC2 pre-helper undefined diagnostic return retains timers', async () => {
++  const observed = await observePrehelperRefusal('diagnostic-undefined');
++  expect(observed.reportCalls).toHaveLength(1);
++  const record = prehelperReportRecord(observed);
++  expect(record.setupCause).toBe(observed.setupFailure);
++  expect(record.writer).toBe(observed.reportWriter);
++  expect(observed.reportCalls[0]?.writer).toBe(record.writer);
++  expect(observed.reportCalls[0]?.reportAtEntry).toBe(record);
++  expect(observed.reportCalls[0]?.stateAtEntry).toBe('entered');
++  expect(record.state).toBe('returned');
++  expect(record.returned).toBe(observed.reportReturned);
++  expect(record.returned).toBe(undefined);
++  assertPrehelperOriginals(observed);
++  expect(observed.operations[0]?.observer).toBe(observed.originalObservers[0]);
++  expect(observed.operations[1]?.observer).toBe(observed.originalObservers[1]);
++  assertPrehelperHold(observed, 'UC2_PREFLIGHT_UNDEFINED_REPORT_RETIRED');
++});
++
++test('UC2 pre-helper negative diagnostic return retains timers', async () => {
++  const observed = await observePrehelperRefusal('diagnostic-negative');
++  expect(observed.reportCalls).toHaveLength(1);
++  const record = prehelperReportRecord(observed);
++  expect(record.setupCause).toBe(observed.setupFailure);
++  expect(record.writer).toBe(observed.reportWriter);
++  expect(observed.reportCalls[0]?.writer).toBe(record.writer);
++  expect(observed.reportCalls[0]?.reportAtEntry).toBe(record);
++  expect(observed.reportCalls[0]?.stateAtEntry).toBe('entered');
++  expect(record.state).toBe('returned');
++  expect(record.returned).toBe(observed.reportReturned);
++  expect(record.returned).toBe(-1);
++  assertPrehelperOriginals(observed);
++  expect(observed.operations[0]?.observer).toBe(observed.originalObservers[0]);
++  expect(observed.operations[1]?.observer).toBe(observed.originalObservers[1]);
++  assertPrehelperHold(observed, 'UC2_PREFLIGHT_NEGATIVE_REPORT_RETIRED');
++});
++
++test('UC2 pre-helper fractional diagnostic return retains timers', async () => {
++  const observed = await observePrehelperRefusal('diagnostic-fractional');
++  expect(observed.reportCalls).toHaveLength(1);
++  const record = prehelperReportRecord(observed);
++  expect(record.setupCause).toBe(observed.setupFailure);
++  expect(record.writer).toBe(observed.reportWriter);
++  expect(observed.reportCalls[0]?.writer).toBe(record.writer);
++  expect(observed.reportCalls[0]?.reportAtEntry).toBe(record);
++  expect(observed.reportCalls[0]?.stateAtEntry).toBe('entered');
++  expect(record.state).toBe('returned');
++  expect(record.returned).toBe(observed.reportReturned);
++  expect(record.returned).toBe(0.5);
++  assertPrehelperOriginals(observed);
++  expect(observed.operations[0]?.observer).toBe(observed.originalObservers[0]);
++  expect(observed.operations[1]?.observer).toBe(observed.originalObservers[1]);
++  assertPrehelperHold(observed, 'UC2_PREFLIGHT_FRACTIONAL_REPORT_RETIRED');
++});
++
+ test('UC2 pre-helper Promise diagnostic return retains timers', async () => {
+   const observed = await observePrehelperRefusal('diagnostic-promise');
+   expect(observed.reportCalls).toHaveLength(1);

@@ -387,3 +387,28 @@ Actual receipt `/tmp/puni-vite-r4-watcher-inert-20261104/actual-receipt.json` SH
 [Owner custody patch](owner-custody.patch), its [six unexecuted cases](owner-custody-cases.md), [private lifecycle text patch](vite-lifecycle.patch) and [exact provenance](owner-custody.json) retain the prepared source without applying it. The final ownership proposal adds original enrollment, cleanup-only custody, sticky work revocation, joins before runtime/outer release, and the actual SQLite identity predicate through its existing approved database entrypoint. Four initial lifetime findings were corrected before source review; genuine baseline/HOLD acceptance was not substituted by a model.
 
 The four exact candidates pass disposable-copy configured forced uncached types (b69486/97090→290665,exit0), populated55-node four-file lint (adc7c4/75836→99fa13,4entries0errors0warnings) and formatting (5707e3,exit0). Earlier25-error/2-warning and1-error epochs remain retained; checks followed actual source changes. Static receiptce6559cc03bb690d1ae331b43e545b3b874648af56aad9adeec68fd49e9f54f5 and independent final review2427de93c7f614a079f43a2e7f55787205899f1cd912463752b9344b7a96e9aa qualify source/static DATA only. Actual managed production files, owning tests, held attempts and shared dependencies remain unchanged. No owning callback, genuine RED/HOLD, native/full-runtime/full-gate acceptance, main merge or deployment follows from these artifacts.
+
+### First parent STOP context preparation — 2026-11-04
+
+The previous turn produced durable unapplied proposals and accepted static evidence. Fresh same-handle pollscc3cd9/e5ad56 still return original sessions75398/58787. [First parent STOP intent](parent-stop-intent.md) addresses the source-proven missing parent failure site without another native attempt. At this preparation point no new helper implementation, failing consumer, new reporter outcome or native result has been observed. Sol will prepare the actual-old-source inert assertion first; old source must run and fail the intended context assertion before code changes. Existing held epochs and the reviewed owner/Vite proposals remain preserved.
+
+Parent STOP PS1 actual model RED: original7c5081 returnedexit1 in0.435675817s. The one named inert callback failed at its intended ninth matcher, driver131: old generic STOP supplies no structured frame, so snapshot is undefined. The eight earlier STOP provenance assertions were reached without failure; no printed total expectation census is invented. No hash/cut/parser/compiler/export/setup failure was accepted. Root source/cut/tool/config checks passed, actual helper58e42 and owning549f matched afterward, and scratch was empty.
+
+Raw captures and the corrected closed-environment equals-config/no-env-file command are retained in `/tmp/puni-uc2-parent-stop-pure-red-preparation-20261104-r2/actual-one-shot`; actual receiptd7d72ef831ea248d641067e3fbf99b2e615d6dcea79c21b2957228efe771fb0e and independent review8b88b26bbf7ebb52de8e6db398c5ff953fdfe941eee3e8baf40111c90128277c accept only this extracted-current-parent model RED. The frozen preparation's split-config/PATH-only argv was not executed; Root's separately enforced launch.json corrects it. No real timer, stream, child, helper import, Graph or native provider ran. This is not the missing genuine constructor baseline or current held-run cause. Helper implementation and the finite unchanged-consumer GREEN remain pending at this record.
+
+## Parent STOP draft checkpoint — 2026-11-04
+
+The corrected parent STOP source retains its first failure site, bounds the parent
+projection, and keeps permanent HOLD when projection or diagnostic writing fails.
+The owning test now carries the finite five-mode matrix. Three pre-existing source
+extraction selectors were mechanically updated for the STOP signature.
+
+After formatting, the reviewed isolated extraction ran with explicit empty preload
+configuration and a closed environment: **2 passed, 0 failed, 183 assertions**, exit 0.
+Only actual parent declarations and STOP were evaluated with inert timer/writer ports;
+no full helper import, constructor diagnostic, native acceptance, host gate or deploy ran.
+
+Earlier pure RED was observed in the original command transcript. Its old temporary
+raw files are now absent; they must not be represented as currently retained evidence.
+The current source driver and GREEN logs remain in ignored worktree evidence storage.
+Full module/native compatibility and full CI remain open. This is a draft checkpoint.

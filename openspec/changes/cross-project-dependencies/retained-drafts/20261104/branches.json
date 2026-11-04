@@ -1,0 +1,791 @@
+{
+  "integratedHead": "6db648edf5336ebddcbc12ca324e2475f63363a4",
+  "branches": [
+    {
+      "branch": "chore/cross-project-evidence-whitespace",
+      "head": "747df0be358b895207f1acc8d2949a2d1ff1b9fe",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 1,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-abbrev-api",
+      "head": "27582606826738ba1a796d9f22be1ba87a90a2bd",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 2,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-abbrev-storage",
+      "head": "057968a928ab8f73c1be3f52b86fdae13e7925df",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 2,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-address-grammar",
+      "head": "b06bf6595018875bd550ba3aef08148f54c5947e",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-address-search",
+      "head": "1b89328d5f74d68eefaa76c1855a42799c5a4360",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 2,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-autocomplete",
+      "head": "09ebd88643b0c9c79cc45b2e64f70906c09091d1",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 3,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-browser-fixtures",
+      "head": "16a3238d5ca49a1fdfd4b44acdfc1400d4b26f33",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 1,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-capture",
+      "head": "ed5b19b6f9ec4fdc2a7578642c9013264206c097",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 2,
+      "additionalPatchShapes": ["467ad3f1294886584951b798746c96ad3e1cab69"]
+    },
+    {
+      "branch": "feat/cross-project-capture-integration",
+      "head": "dd7456145b7a3740647d7b03211e52e508cda4fe",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-command-authority",
+      "head": "26c83632611f14d364f8b1cc885f0610b4ec91ea",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 2,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-command-integration",
+      "head": "02c8fdc6558ec02920dfdcc1dea9646e34e5a497",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 2,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-dependencies",
+      "head": "a3eb493a52e71dfe03949bc60f826f7b50de2b33",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-dependencies-main-reconcile",
+      "head": "cfca1f5bc29fe0b3e6fb437c79a9cf133b372f9b",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-dependency-storage",
+      "head": "8d6083056d1cf8e7fb36cf657d2dc0defcf81803",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 3,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-fast-calendar",
+      "head": "802c376582194c6de71926a50d1074ab968dc1b4",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 2,
+      "additionalPatchShapes": ["2f40cd06d0ba2bd36285ddb775b95bd9f56b6656"]
+    },
+    {
+      "branch": "feat/cross-project-graph",
+      "head": "cb6f4c45acf7ab0ca933caa59453ffb32994b1db",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 3,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-graph-closure",
+      "head": "0f21112685b373071e972c67c566b2e455acd9ef",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 1,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-incident-lifecycle",
+      "head": "81316a58bd670ed12ce397b9a7a9fc6be4dae751",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-live-readiness",
+      "head": "e9c22a3ca421f83232101026131128b9b3f12134",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 1,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-lookup-integration",
+      "head": "3451ca740586201b7be031cb1603d031e7926a0d",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-mcp-equivalence",
+      "head": "234aa2cdd51ca9cd584ec51c442a05afbeeebaac",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 1,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-publication",
+      "head": "bc9ca9b0dc769a72613500fe6d32f693dc1df152",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-resolved-schedule",
+      "head": "a905e98d899ec32dd4a14803704df9e23294af33",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 2,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-settings",
+      "head": "dbc57b2d57d084bbfbf9a54d3a491a426062dbe7",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-solver-backend",
+      "head": "38ca5cc37e83294ea4f9bfb781ea94e63bbc95ed",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 2,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-solver-wire",
+      "head": "9c1264fa9846c5497a18afd9f14c691ad7e1f780",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 3,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "feat/cross-project-stage-identity",
+      "head": "4332ca115c39a940a03845ac694a3789b666fe3a",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 2,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "fix/cross-project-devsync-inventory",
+      "head": "d9fa366db0be748b7fe05c9536661921f256ba7c",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 1,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/compiled-traversal-sharing-20261027-r17",
+      "head": "64963ac904853379bc13b4aad0f0915f1b11331b",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-active-runtime-20261101",
+      "head": "5f4b8d1994e4be07f8fcf88aac14f68c29545a8d",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-b2-20261027-r16",
+      "head": "64963ac904853379bc13b4aad0f0915f1b11331b",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-backend-ready-20261028",
+      "head": "a394bae81f22094f2e4581f5e2ca8fc4e0604333",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-bounded-preparation-20261101",
+      "head": "0573451cb7cf31192b06a57acbbef09eb046d5cb",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-ci-document-index-20261101",
+      "head": "fac53629fa79af47a237ebdc892034aeabbfe475",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-ci-fixtures-20261026-r7",
+      "head": "687ac6e6a87b927a48cb5a0831614b5cc4bdd47a",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-ci-held-trace-20261102",
+      "head": "d6d075ce5a898b35f9eee8653bafd076164094a5",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-ci-model-split-20261029",
+      "head": "175e8ae83895a9df8b798c65a307191531eee319",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-ci-reader-fixtures-20261101",
+      "head": "9f024d10bd97590c1bddd2ce9b44d831a40516ff",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-ci-source-preparation-20261029",
+      "head": "1da108de6ed986ce5786a7a33aef41be8d532884",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-ci-workspace-repair-20261029",
+      "head": "df016c119f147304c9c5cc5ad86d5d08490cf08a",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-composed-20261102",
+      "head": "035b751a3a49c0c6dd16a67446510174575d7626",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-first-reader-20261031",
+      "head": "c78b5d3980aabe5fecca389f690a34613ca18034",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-fresh-main-6783-20261104",
+      "head": "6db648edf5336ebddcbc12ca324e2475f63363a4",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-frontend-cleanup-20261102",
+      "head": "fa7008159996fe3961152843363175296b0f2d42",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-frontend-wire-20261029",
+      "head": "51ceaf24afa212646dfea25831b2f6600e18fcdf",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-gate-repairs-20261026-r11",
+      "head": "355cad8a0281634dea764c66970254397ec8c3a1",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-gate-repairs-20261026-r12",
+      "head": "8dac0b287cfd06c9a09c1dfbcc5b90f65ad280ec",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-gateway-ready-20261029",
+      "head": "fe8b9c16e0098a00df93dc6c04d43b1b8b9fd2c5",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-graph-close-settlement-20261101",
+      "head": "99f07d931e02cc73f319de9040e1d054f872b84f",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-initial-graph-apis-20261101",
+      "head": "1048166f5fdc356cf83b4505adaa730ef52ad351",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-initializer-origin-20261030",
+      "head": "f2bfc62a279dae72124630cc2b724825a6d989e7",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-k8s-source-20261029",
+      "head": "0a99b1f9834b88477a81bd1fb8f022fa57c3a828",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-main-20261025",
+      "head": "684a1d2a92810dbb8fe0388290f9f1f6076015fe",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-main-20261025-r2",
+      "head": "cbe9d63b961e3fc0b780282f89ba5f9fe393e7af",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-main-20261025-r3",
+      "head": "b78d7c2995908f31032021e14fa31265cf120029",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-main-20261026-r10",
+      "head": "a3ae40b5b21a57a01fb9536c6c10bf554283734f",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-main-20261026-r13",
+      "head": "8e15504ea0171b796fdb325f6c3277fb3d7081e7",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-main-20261026-r4",
+      "head": "e1601c92e29030b87899922524aac22958228500",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-main-20261026-r5",
+      "head": "21f1fe9545733fb9e800daa43acc7840c779ffb4",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-main-20261026-r6",
+      "head": "7e035f18359354cc731fb90e9353f54a68f3b266",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-main-20261026-r8",
+      "head": "2c342873acd698e57cad0bf7762108d3df297167",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-main-20261027-r14",
+      "head": "e9adf3e0cbc40715dcd4b5d669e67ea48756023c",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-main-20261027-r15",
+      "head": "5ccf807186a7bb5e4d75e6ee8ebebbd4bc229f4b",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-main-20261027-r18",
+      "head": "cfc67b0e902255a02dad610158bf01546aed5f83",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-main-20261029-r19",
+      "head": "1da108de6ed986ce5786a7a33aef41be8d532884",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-main-20261029-r20",
+      "head": "4c19e41bbd1888c65c7206e82023cc8e99cbbf45",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-main-20261029-r20-union",
+      "head": "4c19e41bbd1888c65c7206e82023cc8e99cbbf45",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-main-20261029-r21",
+      "head": "ee9a402e1fce24714697f0a5e7c966f92f8f6230",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-main-e056-20261101",
+      "head": "a66448b20f099c1d97863fa9ebaf49841d4c7c9f",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-main186-20261031",
+      "head": "b6463337dde50fccf828b7cd07f8c24ecd816449",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-main4fec-20261030",
+      "head": "7789ddc55a1361ba66b179639ad2d04f72da95d0",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-mcp-swarm-recovery-check-20261029",
+      "head": "0a0e9653f4e98949082e523ae21007bae1ea5c8b",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-measure-budgets",
+      "head": "a3eb493a52e71dfe03949bc60f826f7b50de2b33",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-memory-20261026-r14",
+      "head": "8e15504ea0171b796fdb325f6c3277fb3d7081e7",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-memory-20261026-r15",
+      "head": "8e15504ea0171b796fdb325f6c3277fb3d7081e7",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-original-archive-20261101",
+      "head": "80227688850f0dcd3fc3257b4204ea1c4f1bae55",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-original-custody-20261101",
+      "head": "2801e0d333f7d218febd782e3f76218b543ea384",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 1,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-original-intents-20261101",
+      "head": "959439a105259828ad17b4fe29e79f5f532b09c7",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-original-prerequisites-20261101",
+      "head": "1c89723188958b9254d93b14576c6ab45c5f9246",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-original-records-20261101",
+      "head": "7305969d119462256839025d52f579e7d68fc6b8",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-owner-custody-draft-20261104",
+      "head": "6db648edf5336ebddcbc12ca324e2475f63363a4",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-participant-policy-handoff-20261030",
+      "head": "947f44515913864be3bb7a489a13e4361ed5d851",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-policy-source-union-20261031",
+      "head": "5b2c255ce52925bedf3d7a318fe06ae136521c18",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-rank-fixture-20261026-r9",
+      "head": "571beeed8d8119efd2d727a56d5714a981a63a24",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 2,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-reader-history-20261101",
+      "head": "17cce118975535400ba477c0396548ebb10fb0d9",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-root-browser-20261026",
+      "head": "5feadad4281401ef096c781edf357347fe49cd14",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-solver-first-20261028",
+      "head": "d38325120468cedc2ddfc71d04fb8d02840bca7e",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": ["d38325120468cedc2ddfc71d04fb8d02840bca7e"]
+    },
+    {
+      "branch": "integration/dependencies-source-collector-20261029",
+      "head": "d25af42bba1257dec1066ba8df902662dda940fc",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-source-frontend-epoch-20261101",
+      "head": "1c89723188958b9254d93b14576c6ab45c5f9246",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-source-frontend-http-20261029",
+      "head": "5dc0c0156505d378008a13671818e4e41b496bcf",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-source-frontend-profile-20261029",
+      "head": "62d824dd41b1b826db90c4748b30ce834cd7812d",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-source-http-composition-20261029",
+      "head": "7b49d10b9c649118e180a3a7e2941255a5538998",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-source-observer-20261029",
+      "head": "a85f46c1395a80766a1698ed20821b43dd07a764",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-source-readiness-union-20261029",
+      "head": "ad41fd64c5f64f7240c0f7ccc75ebb24641aacc1",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-source-restoration-20261030",
+      "head": "947f44515913864be3bb7a489a13e4361ed5d851",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-source-restoration-ci-20261030",
+      "head": "947f44515913864be3bb7a489a13e4361ed5d851",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-source-start-dev-opener-20261029",
+      "head": "6d2b86ee19c41b10c68c9d5c5e97aaa7445c82f6",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-source-start-union-20261030-r22",
+      "head": "70ca6403b3eec0ecdeeda9c72500f5cf1422bc1f",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-uc2-loader-fix-20261102",
+      "head": "2bfef17998e482794d94472ed934f094e14253a7",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-uc2-original-controls-20261103",
+      "head": "c7a721b106ab687f83d6cf64522b4c97f155a657",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-uc2-report-controls-20261103",
+      "head": "4f321687186944734ffb11454b29dc79070517d2",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-uc2-setup-refusal-20261102",
+      "head": "54f377139358c4639fad5490311ded3b2e59d599",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/dependencies-uc2-successor-prepare-20261103",
+      "head": "4f321687186944734ffb11454b29dc79070517d2",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/source-stageb-constructor-20261026",
+      "head": "7e035f18359354cc731fb90e9353f54a68f3b266",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "integration/source-stageb-provider-20261025",
+      "head": "2f6a426237b38d03974e06cf08e0b36db8ae1374",
+      "reachableFromIntegratedHead": true,
+      "patchEquivalentNonMergeCommits": 0,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "proof/ci-cross-project-browser",
+      "head": "54534cb80abb83e4d5bfb9baf0bec9677b65291e",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 2,
+      "additionalPatchShapes": ["fb94ffcc74442a814eb5c896097e087f641ad5b8"]
+    },
+    {
+      "branch": "proof/phone-cross-project-authoring",
+      "head": "534e4da306eb6c2898ced271cc76bd636dd0fa0c",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 1,
+      "additionalPatchShapes": []
+    },
+    {
+      "branch": "reconcile-cross-project-http-mcp",
+      "head": "0e056cff0f3213024dd620e05b7ef36351b012a1",
+      "reachableFromIntegratedHead": false,
+      "patchEquivalentNonMergeCommits": 1,
+      "additionalPatchShapes": []
+    }
+  ],
+  "additionalCommits": [
+    {
+      "commit": "2f40cd06d0ba2bd36285ddb775b95bd9f56b6656",
+      "patch": "2f40cd06d0ba.patch",
+      "sha256": "adfaa00865495476b7dd287946687eacd600967aaa84c4d2f161136bdaf6c8c7",
+      "bytes": 1476,
+      "status": "Historical patch shape preserved; semantic inclusion not inferred from git cherry"
+    },
+    {
+      "commit": "467ad3f1294886584951b798746c96ad3e1cab69",
+      "patch": "467ad3f12948.patch",
+      "sha256": "42ab663cf6a1bf69e14c3819e3d4e1dd86bef836bb1afd7511b13086810ea7fb",
+      "bytes": 108333,
+      "status": "Historical patch shape preserved; semantic inclusion not inferred from git cherry"
+    },
+    {
+      "commit": "d38325120468cedc2ddfc71d04fb8d02840bca7e",
+      "patch": "d38325120468.patch",
+      "sha256": "999141288ff1f60eb1e1be2e92bd901b96512f30330e3eba89b19a1cd52aac52",
+      "bytes": 41639,
+      "status": "Historical patch shape preserved; semantic inclusion not inferred from git cherry"
+    },
+    {
+      "commit": "fb94ffcc74442a814eb5c896097e087f641ad5b8",
+      "patch": "fb94ffcc7444.patch",
+      "sha256": "04ed68d8cf04643a4902a90eb05c920323a2f33bb5a59adf6184ca7d6318109f",
+      "bytes": 24363,
+      "status": "Historical patch shape preserved; semantic inclusion not inferred from git cherry"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+From 2f40cd06d0ba2bd36285ddb775b95bd9f56b6656 Mon Sep 17 00:00:00 2001
+From: Dany Fedorov <fedorov.dda@gmail.com>
+Date: Thu, 22 Oct 2026 02:31:21 +0300
+Subject: [PATCH] chore(wbs): seed accepted connected capture value for core
+ lane
+
+---
+ .../core/src/service/connected-plan-values.ts  | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+ create mode 100644 libs/wbs/application/core/src/service/connected-plan-values.ts
+
+diff --git a/libs/wbs/application/core/src/service/connected-plan-values.ts b/libs/wbs/application/core/src/service/connected-plan-values.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..a4c54b1b39b2a16634797166a5f8fc4e158f3d8b
+--- /dev/null
++++ b/libs/wbs/application/core/src/service/connected-plan-values.ts
+@@ -0,0 +1,18 @@
++import type { CapacityMode } from '@wbs/domain';
++
++import type { PlanInputReads } from '../ports/saved-plan-capture-values';
++import type { StoredTypedDependency } from '../ports/typed-dependency-store';
++
++/** Detached complete component evidence; the requested projection is deliberately separate. */
++export interface ConnectedPlanCapture {
++  readonly kind: 'connected';
++  readonly organizationId: string;
++  readonly mode: CapacityMode;
++  readonly projects: readonly {
++    readonly projectId: string;
++    readonly abbreviation: string;
++    readonly rank: number;
++    readonly reads: PlanInputReads;
++  }[];
++  readonly relationships: readonly StoredTypedDependency[];
++}
+-- 
+2.43.0
+
