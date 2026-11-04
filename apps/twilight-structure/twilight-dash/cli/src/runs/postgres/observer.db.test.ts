@@ -3,7 +3,8 @@ import { rejects } from 'node:assert/strict';
 import { type ReservedSQL, SQL } from 'bun';
 import { describe, expect, test } from 'bun:test';
 
-import { createPostgresObserver, readPostgresWriter } from './observer';
+import { closeFixtures } from '../testing/close-fixtures';
+import { createPostgresObserver, type PostgresWriter, readPostgresWriter } from './observer';
 
 const testUrl = process.env['TWILIGHT_POSTGRES_TEST_URL'];
 const testOwner = process.env['TWILIGHT_POSTGRES_TEST_OWNER'];
@@ -18,6 +19,24 @@ if (configured) {
   }
 }
 
+async function closeConnection(pool: SQL, connection: ReservedSQL | undefined): Promise<void> {
+  const failures: unknown[] = [];
+  if (connection !== undefined) {
+    try {
+      connection.release();
+    } catch (cause) {
+      failures.push(cause);
+    }
+  }
+  try {
+    await pool.close({ timeout: 0 });
+  } catch (cause) {
+    failures.push(cause);
+  }
+  if (failures.length > 0)
+    throw new AggregateError(failures, 'PostgreSQL fixture connection cleanup failed');
+}
+
 async function openConnection(applicationName: string, username?: string) {
   if (testUrl === undefined || testOwner === undefined)
     throw new Error('missing PostgreSQL fixture');
@@ -26,29 +45,36 @@ async function openConnection(applicationName: string, username?: string) {
     username,
     connection: { application_name: applicationName },
   });
-  const connection = await pool.reserve();
+  let reservation: ReservedSQL | undefined;
   try {
+    const connection = await pool.reserve();
+    reservation = connection;
     const owners = await connection<
       { owner: unknown }[]
     >`SELECT current_setting('puni_test.owner') AS owner`;
-    if (owners.length !== 1 || owners[0]?.owner !== testOwner) {
+    if (owners.length !== 1 || owners[0]?.owner !== testOwner)
       throw new Error('PostgreSQL fixture owner does not match');
-    }
+    let closed = false;
+    return {
+      connection,
+      async close() {
+        if (closed) return;
+        closed = true;
+        await closeConnection(pool, connection);
+      },
+    };
   } catch (cause) {
-    connection.release();
-    await pool.close();
+    try {
+      await closeConnection(pool, reservation);
+    } catch (cleanup) {
+      throw new AggregateError(
+        [cause, cleanup],
+        'PostgreSQL fixture acquisition and cleanup failed',
+        { cause: cleanup },
+      );
+    }
     throw cause;
   }
-  let closed = false;
-  return {
-    connection,
-    async close() {
-      if (closed) return;
-      closed = true;
-      connection.release();
-      await pool.close({ timeout: 0 });
-    },
-  };
 }
 
 async function openBundle(username?: string) {
@@ -56,7 +82,18 @@ async function openBundle(username?: string) {
   const writerName = `writer_${suffix}`;
   const observerName = `observer_${suffix}`;
   const writer = await openConnection(writerName, username);
-  const observer = await openConnection(observerName, username);
+  const observer = await openConnection(observerName, username).catch(async (cause: unknown) => {
+    try {
+      await writer.close();
+    } catch (cleanup) {
+      throw new AggregateError(
+        [cause, cleanup],
+        'PostgreSQL fixture bundle acquisition and cleanup failed',
+        { cause: cleanup },
+      );
+    }
+    throw cause;
+  });
   return {
     writer,
     observer,
@@ -74,7 +111,7 @@ async function openBundle(username?: string) {
       );
     },
     async close() {
-      await Promise.all([writer.close(), observer.close()]);
+      await closeFixtures([writer, observer]);
     },
   };
 }
@@ -90,6 +127,72 @@ async function findProbe(connection: ReservedSQL): Promise<string> {
   const statement = statements[0]?.statement;
   if (typeof statement !== 'string') throw new Error('missing prepared SQL');
   return statement;
+}
+
+async function withParallelWriter(
+  shouldRegisterWriter: boolean,
+  inspect: (fixture: {
+    bundle: Awaited<ReturnType<typeof openBundle>>;
+    observer: Awaited<ReturnType<typeof createPostgresObserver>>;
+    writer: PostgresWriter;
+    statement: string;
+  }) => Promise<void>,
+): Promise<void> {
+  const bundle = await openBundle();
+  let administrator: Awaited<ReturnType<typeof openConnection>> | undefined;
+  const table = `parallel_${crypto.randomUUID().replaceAll('-', '')}`;
+  let running: Promise<unknown> | undefined;
+  let writerPid: number | undefined;
+  try {
+    administrator = await openConnection(`admin_${crypto.randomUUID().replaceAll('-', '')}`);
+    await administrator.connection.unsafe(
+      `CREATE UNLOGGED TABLE ${table} AS SELECT generate_series(1, 20000) AS n`,
+    );
+    await administrator.connection.unsafe(`ALTER TABLE ${table} SET (parallel_workers = 2)`);
+    await bundle.writer.connection`SET min_parallel_table_scan_size = 0`;
+    await bundle.writer.connection`SET parallel_setup_cost = 0`;
+    await bundle.writer.connection`SET parallel_tuple_cost = 0`;
+    const observer = await bundle.create();
+    const writer = await readPostgresWriter(
+      bundle.writer.connection,
+      bundle.writerName,
+      AbortSignal.timeout(2000),
+    );
+    writerPid = writer.pid;
+    if (shouldRegisterWriter) await observer.register(writer, AbortSignal.timeout(2000));
+    const statement = await findProbe(bundle.observer.connection);
+    running = Promise.resolve(
+      bundle.writer.connection.unsafe(
+        `SELECT count(*) FROM ${table} WHERE pg_sleep(0.001) IS NULL`,
+      ),
+    );
+    void running.catch(() => undefined);
+    const started = performance.now();
+    let parallelReady = false;
+    while (!parallelReady) {
+      const workers = await administrator.connection<{ count: number }[]>`
+        SELECT count(*)::integer AS count FROM pg_catalog.pg_stat_activity
+        WHERE leader_pid = ${writer.pid} AND application_name = ${bundle.writerName}
+          AND backend_start IS NOT NULL AND state = 'active' AND backend_type = 'parallel worker'
+      `;
+      const count = workers.at(0)?.count;
+      if (count === undefined) throw new Error('missing parallel-worker catalogue');
+      parallelReady = count === 2;
+      if (!parallelReady && performance.now() - started > 2000)
+        throw new Error('real PostgreSQL parallel workers not observed');
+      await Bun.sleep(5);
+    }
+    await inspect({ bundle, observer, writer, statement });
+  } finally {
+    if (administrator !== undefined && writerPid !== undefined)
+      await administrator.connection`SELECT pg_cancel_backend(${writerPid})`;
+    if (running !== undefined) await Promise.allSettled([running]);
+    await bundle.close();
+    if (administrator !== undefined) {
+      await administrator.connection.unsafe(`DROP TABLE IF EXISTS ${table}`);
+      await administrator.close();
+    }
+  }
 }
 
 const databaseTests = configured ? describe : describe.skip;
@@ -328,6 +431,115 @@ databaseTests('private PostgreSQL observer (requires explicitly owned fixture)',
       if (running !== undefined) await Promise.allSettled([running]);
       await bundle.close();
       await administrator.connection.unsafe(`DROP TABLE IF EXISTS ${table}`);
+      await administrator.close();
+    }
+  });
+
+  test('rejects unresolved non-null parallel ancestry with an unregistered hidden leader', async () => {
+    await withParallelWriter(false, async ({ bundle, observer, statement }) => {
+      const danglingProbe = statement
+        .replace(
+          'FROM pg_catalog.pg_stat_activity) AS activities',
+          `FROM pg_catalog.pg_stat_activity WHERE application_name <> '${bundle.writerName}' OR backend_type = 'parallel worker') AS activities`,
+        )
+        .replace(
+          "'applicationName', application_name, 'leaderPid'",
+          "'applicationName', CASE WHEN backend_type = 'parallel worker' THEN '' ELSE application_name END, 'leaderPid'",
+        );
+      await bundle.observer.connection`DEALLOCATE twilight_observer_probe`;
+      await bundle.observer.connection.unsafe(danglingProbe);
+      await rejects(observer.waitForWriters(AbortSignal.timeout(2000)), /ambiguous.*ancestry/);
+    });
+  });
+
+  test('rejects cyclic parallel ancestry rather than treating workers as unrelated', async () => {
+    await withParallelWriter(false, async ({ bundle, observer, statement }) => {
+      const cyclicProbe = statement
+        .replace(
+          'FROM pg_catalog.pg_stat_activity) AS activities',
+          `FROM pg_catalog.pg_stat_activity WHERE application_name <> '${bundle.writerName}' OR backend_type = 'parallel worker') AS activities`,
+        )
+        .replace(
+          "'applicationName', application_name, 'leaderPid', leader_pid",
+          "'applicationName', CASE WHEN backend_type = 'parallel worker' THEN '' ELSE application_name END, 'leaderPid', CASE WHEN backend_type = 'parallel worker' THEN pid ELSE leader_pid END",
+        );
+      await bundle.observer.connection`DEALLOCATE twilight_observer_probe`;
+      await bundle.observer.connection.unsafe(cyclicProbe);
+      await rejects(observer.waitForWriters(AbortSignal.timeout(2000)), /ambiguous.*ancestry/);
+    });
+  });
+
+  test('rejects parallel ancestry that crosses role or database identities', async () => {
+    for (const { name, expression } of [
+      { name: "'roleOid'", expression: 'usesysid::text' },
+      { name: "'databaseOid'", expression: 'datid::text' },
+    ]) {
+      await withParallelWriter(false, async ({ bundle, observer, writer, statement }) => {
+        const coordinate = `${name}, ${expression}`;
+        const foreignProbe = statement
+          .replaceAll(
+            coordinate,
+            `${name}, CASE WHEN pid = ${String(writer.pid)} THEN '1' ELSE ${expression} END`,
+          )
+          .replace(
+            "'applicationName', application_name, 'leaderPid'",
+            `'applicationName', CASE WHEN pid = ${String(writer.pid)} THEN 'unrelated_foreign_root' WHEN backend_type = 'parallel worker' THEN '' ELSE application_name END, 'leaderPid'`,
+          );
+        await bundle.observer.connection`DEALLOCATE twilight_observer_probe`;
+        await bundle.observer.connection.unsafe(foreignProbe);
+        await rejects(
+          observer.waitForWriters(AbortSignal.timeout(2000)),
+          /parallel writer identity/,
+        );
+      });
+    }
+  });
+
+  test('excludes unrelated parallel descendants after a registered PID has a new backend start', async () => {
+    await withParallelWriter(true, async ({ bundle, observer, writer, statement }) => {
+      const replacedProbe = statement
+        .replaceAll(
+          "'startedAt', EXTRACT(EPOCH FROM backend_start)::text",
+          `'startedAt', CASE WHEN pid = ${String(writer.pid)} THEN '0' ELSE EXTRACT(EPOCH FROM backend_start)::text END`,
+        )
+        .replace(
+          "'applicationName', application_name, 'leaderPid'",
+          `'applicationName', CASE WHEN pid = ${String(writer.pid)} THEN 'unrelated_replacement' WHEN backend_type = 'parallel worker' THEN '' ELSE application_name END, 'leaderPid'`,
+        );
+      await bundle.observer.connection`DEALLOCATE twilight_observer_probe`;
+      await bundle.observer.connection.unsafe(replacedProbe);
+      await observer.waitForWriters(AbortSignal.timeout(2000));
+    });
+  });
+
+  test('closes the writer after failed observer fixture acquisition', async () => {
+    const administrator = await openConnection(`admin_${crypto.randomUUID().replaceAll('-', '')}`);
+    const role = `limited_${crypto.randomUUID().replaceAll('-', '')}`;
+    let reopened: Awaited<ReturnType<typeof openConnection>> | undefined;
+    try {
+      await administrator.connection.unsafe(`CREATE ROLE ${role} LOGIN CONNECTION LIMIT 1`);
+      await rejects(openBundle(role), /too many connections for role/);
+      const deadline = AbortSignal.timeout(2000);
+      let remaining = true;
+      while (remaining) {
+        deadline.throwIfAborted();
+        const backends = await administrator.connection<{ count: number }[]>`
+          SELECT count(*)::integer AS count FROM pg_catalog.pg_stat_activity WHERE usename = ${role}
+        `;
+        const count = backends.at(0)?.count;
+        if (count === undefined) throw new Error('missing fixture acquisition catalogue');
+        remaining = count > 0;
+        await Bun.sleep(5);
+      }
+      reopened = await openConnection(`reopened_${crypto.randomUUID().replaceAll('-', '')}`, role);
+    } finally {
+      if (reopened !== undefined) await reopened.close();
+      const backends = await administrator.connection<{ pid: number }[]>`
+        SELECT pid FROM pg_catalog.pg_stat_activity WHERE usename = ${role}
+      `;
+      for (const backend of backends)
+        await administrator.connection`SELECT pg_terminate_backend(${backend.pid})`;
+      await administrator.connection.unsafe(`DROP ROLE IF EXISTS ${role}`);
       await administrator.close();
     }
   });

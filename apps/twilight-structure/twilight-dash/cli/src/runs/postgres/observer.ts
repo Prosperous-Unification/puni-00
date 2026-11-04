@@ -94,6 +94,9 @@ export async function readPostgresWriter(
  * The owner must fence future writer creation, drain admitted work, and close
  * writer reservations/pools before waitForWriters can certify disappearance.
  * This does not determine unanswered COMMIT outcomes or prove process reaping.
+ * Registered roots survive absence; a visible replacement backend-start removes
+ * the previous PID from ancestry roots. Untagged parallel ancestry must resolve
+ * to an identified root; missing links or cycles reject observation.
  * The owner also disposes this read-only reservation after observation ends.
  */
 export async function createPostgresObserver(
@@ -184,7 +187,17 @@ export async function createPostgresObserver(
   }
 
   function ownedActivities(activities: readonly PostgresActivity[]): PostgresWriter[] {
-    const leaders = new Set(writers.map((writer) => writer.pid));
+    const visible = new Map<number, PostgresActivity>(
+      activities.map((activity) => [activity.pid, activity]),
+    );
+    const leaders = new Set<number>();
+    for (const writer of writers) {
+      const current = visible.get(writer.pid);
+      // Proof: O13 removed PID/start reconciliation; the real-worker replacement test waited for unrelated descendants and hit its deadline.
+      if (current !== undefined && readIdentity(current.fields).startedAt !== writer.startedAt)
+        continue;
+      leaders.add(writer.pid);
+    }
     const owned = new Set<number>();
     for (const activity of activities) {
       const fields = activity.fields;
@@ -235,6 +248,35 @@ export async function createPostgresObserver(
           leaders.add(activity.pid);
           expanded = true;
         }
+      }
+    }
+    for (const activity of activities) {
+      if (
+        owned.has(activity.pid) ||
+        activity.leaderPid === null ||
+        activity.fields['databaseOid'] !== observer.databaseOid ||
+        activity.fields['roleOid'] !== observer.roleOid
+      )
+        continue;
+      const ancestry = new Set<number>();
+      let ancestor = activity;
+      while (ancestor.leaderPid !== null) {
+        // Proof: O14 removed cycle rejection; real workers with self-referential catalog links no longer produced the expected ancestry error.
+        if (ancestry.has(ancestor.pid))
+          throw new Error('ambiguous PostgreSQL parallel writer ancestry');
+        ancestry.add(ancestor.pid);
+        const leader = visible.get(ancestor.leaderPid);
+        // Proof: O12 skipped unresolved non-null links; real workers with an unregistered hidden leader falsely completed observation.
+        if (leader === undefined) throw new Error('ambiguous PostgreSQL parallel writer ancestry');
+        const identity = readIdentity(leader.fields);
+        // Proof: O15 removed ancestry scope validation; real workers with a foreign-role/database root lost their expected identity rejection.
+        if (
+          identity.databaseOid !== observer.databaseOid ||
+          identity.roleOid !== observer.roleOid
+        ) {
+          throw new Error('PostgreSQL parallel writer identity changed');
+        }
+        ancestor = leader;
       }
     }
     return activities
