@@ -12,10 +12,6 @@ import * as migrationSets from '@wbs/store-sqlite/migration-set';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
-import {
-  dependencyOwnerCustodyCases,
-  prepareDependencyOwnerCustody,
-} from '../fixtures/dependency-owner-custody';
 import { participantActivationFixture } from '../fixtures/dependency-participant-restoration';
 import { roots } from '../fixtures/source-startup';
 import {
@@ -38,8 +34,6 @@ import * as initialGraph from './initial-handoff-graph';
 import * as managedCohort from './managed-cohort';
 import * as migrationCapture from './migration-capture-file';
 import * as sourceExclusion from './source-dev-exclusion';
-
-const dependencyCustodyObservations = await prepareDependencyOwnerCustody();
 
 async function database() {
   const root = scratchSync('activation-storage-');
@@ -1396,17 +1390,6 @@ for (const disposition of ['drop', 'release'] as const)
       if (cleanupFailures.length > 0)
         throw new AggregateError(cleanupFailures, 'UC2 fixture cleanup failure');
     }, 180000);
-
-for (const row of dependencyOwnerCustodyCases)
-  test(
-    row.title,
-    () => {
-      const observed = dependencyCustodyObservations.get(row.variant);
-      if (observed === undefined) throw new Error('UC2 known original helper observation absent');
-      if (!observed.pass) throw new Error(observed.oracle);
-    },
-    10000,
-  );
 
 interface PrehelperReportModel {
   setupCause: unknown;

@@ -1373,3 +1373,14 @@ SC4 closure, 2026-11-03: independent final six-path review5fc488025a53befb882ad0
 - [x] PS1. Add the finite actual-current-source extracted consumer first. Observe its structured first-site/context assertion fail on the existing generic STOP, with inert writer/descriptor/interval ports and no subject import, preflight or live resource.
 - [ ] PS2. Implement only fixed STOP sites and one private bounded first-context report through the existing descriptor; retain unchanged HOLD, original cause, timers, caps and terminal pre-helper contract. Run the SAME consumer plus the finite full/short/throw/unsupported write controls, first-context retention and safe projection checks. Record only observed proof scope.
 - [ ] PS3. Review exact source and actual finite evidence; run configured scoped static checks, format and OpenSpec; checkpoint privately with WBS notes. Current native originals and all full-goal gates remain OPEN.
+
+### Bounded ordinary/constructor test ownership — 2026-11-05
+
+[Intent](test-ownership-intent.md) and the design amendment preserve mandatory
+constructor qualification while correcting ordinary discovery.
+
+- [x] N1 Freeze and test the ordinary callback census and the exact three constructor cases; observe current ownership fail before source extraction.
+- [x] N2 Move only the private preparation and three callbacks to the explicit acceptance entry, preserving all other bodies/hooks and helper pins; include the entry in configured types and both lint commands.
+- [x] N3 Add exact canonical/rest exclusions and harmless actual-routing coverage that retains similarly named ordinary markers and all Graph receipt requirements.
+- [x] N4 Observe separate omitted-exclusion and widened-exclusion failures, restore exact source, and rerun the same tests; record scoped statics and OpenSpec validation.
+- [ ] N5 Publish the reviewed source split and distinguish ordinary CI from mandatory constructor/native and full-goal/release acceptance; do not execute or qualify the relocated native entry under historical packets.

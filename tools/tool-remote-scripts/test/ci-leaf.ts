@@ -7,6 +7,7 @@ import { CommandFailure, runGraphTests } from './run-tests';
 
 const PROJECT = 'tools/tool-remote-scripts';
 const GRAPH_FILE = 'src/lib/initial-handoff-graph.test.ts';
+const NATIVE_CUSTODY_FILE = 'acceptance/dependency-owner-custody.test.ts';
 const MODEL = 'src/lib/dependency-product-process-model.test.ts';
 const CONTINUATION = 'src/lib/dependency-participant-continuation-model.test.ts';
 const RESTORATION = 'src/lib/dependency-source-restoration.test.ts';
@@ -233,6 +234,9 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
                   // test's complement exclusion assertion; restored passed (2026-11-02).
                   `--path-ignore-patterns=${COMPLETE}`,
                   `--path-ignore-patterns=${GRAPH_FILE}`,
+                  // Proof: omitting this literal ran the native custody marker;
+                  // widening to acceptance/* hid the ordinary marker and failed census.
+                  `--path-ignore-patterns=${NATIVE_CUSTODY_FILE}`,
                 ];
 }
 

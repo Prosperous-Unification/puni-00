@@ -85,13 +85,13 @@
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint tools/tool-remote-scripts/src tools/tool-remote-scripts/caddy tools/tool-remote-scripts/test"
+        "command": "bunx eslint tools/tool-remote-scripts/src tools/tool-remote-scripts/acceptance/dependency-owner-custody.test.ts tools/tool-remote-scripts/caddy tools/tool-remote-scripts/test"
       }
     },
     "lint:fast": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint tools/tool-remote-scripts/src tools/tool-remote-scripts/caddy tools/tool-remote-scripts/test --cache --cache-location .nx/eslintcache-tool-remote-scripts"
+        "command": "bunx eslint tools/tool-remote-scripts/src tools/tool-remote-scripts/acceptance/dependency-owner-custody.test.ts tools/tool-remote-scripts/caddy tools/tool-remote-scripts/test --cache --cache-location .nx/eslintcache-tool-remote-scripts"
       }
     },
     "typecheck": {

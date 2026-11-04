@@ -4,5 +4,11 @@
     "outDir": "../../dist/out-tsc",
     "types": ["bun-types"]
   },
-  "include": ["src/**/*.test.ts", "src/**/*.spec.ts", "caddy/**/*.ts", "test/**/*.ts"]
+  "include": [
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+    "acceptance/dependency-owner-custody.test.ts",
+    "caddy/**/*.ts",
+    "test/**/*.ts"
+  ]
 }
