@@ -42,6 +42,9 @@ FUTURE_GUEST = 33619968
 FIXTURE_LIMIT = 2 * 1024**2
 METADATA_LIMIT = 1024**2
 OUTPUT_LIMIT = 65536
+SOURCE_LIMIT = 98304
+PURPOSE = 'primitives'
+STAGING_ENTRY = RELATIVE.replace('repair-native-control.py', 'staging-native-control.py')
 WORKER_REFUSALS = frozenset(('raw-staging-occupied raw-staging-changed raw-state-absent '
     'raw-state-unreadable raw-state-unsafe raw-child-timeout raw-child-output-bound raw-child-failed '
     'raw-unit-malformed raw-unit-binding raw-native-caps raw-service-limits raw-ack-missing '
@@ -66,14 +69,14 @@ try:
         # Proof: worker-bootstrap unsafe-mode fault intercepts first payload read.
         if not (stat.S_ISREG(before.st_mode) and before.st_uid == os.geteuid()
                 and stat.S_IMODE(before.st_mode) == 0o644 and before.st_nlink == 1
-                and 0 < before.st_size <= 65536): raise ValueError('worker-source-refused')
+                and 0 < before.st_size <= 98304): raise ValueError('worker-source-refused')
         mark = lambda entry: (entry.st_dev, entry.st_ino, entry.st_uid, entry.st_mode,
             entry.st_nlink, entry.st_size, entry.st_mtime_ns, entry.st_ctime_ns)
-        payload = os.read(descriptor, 65537)
+        payload = os.read(descriptor, 98305)
         valid = (os.path.isabs(root) and os.path.normpath(root) == root
             and stat.S_ISREG(before.st_mode) and before.st_uid == os.geteuid()
             and stat.S_IMODE(before.st_mode) == 0o644 and before.st_nlink == 1
-            and 0 < before.st_size == len(payload) <= 65536
+            and 0 < before.st_size == len(payload) <= 98304
             and mark(before) == mark(os.fstat(descriptor)) == mark(os.lstat(path))
             and hashlib.sha256(payload).hexdigest() == expected)
         # Proof: worker-bootstrap hash/path faults; removed valid guard executes bad metadata.
@@ -105,7 +108,9 @@ def helper_refusals(raw):
     except raw.PreparationRefusal as failure:
         # Proof: modeled/unknown helper faults preserve only fixed codes.
         category = str(failure)
-        raise Refusal(category if category in WORKER_REFUSALS else 'helper-refused-unavailable') from None
+        raise Refusal(category if category in WORKER_REFUSALS or PURPOSE == 'staging-channel'
+                      and category in ('raw-counter-invalid', 'raw-cleanup-uncertain')
+                      else 'helper-refused-unavailable') from None
 
 
 def cancel(_number, _frame):
@@ -193,13 +198,43 @@ def is_runtime_path(path):
         '/etc/python3.12/sitecustomize.py', '/usr/lib/python3/dist-packages/apport_python_hook.py')
 
 
+@contextmanager
+def select_purpose(purpose):
+    """A trusted entry selects one fixed source/request contract for its lexical scope."""
+    global PURPOSE
+    # Proof: staging purpose vectors reject arbitrary selectors before request/source access.
+    require(purpose in ('primitives', 'staging-channel'), 'control-purpose')
+    previous, PURPOSE = PURPOSE, purpose
+    try:
+        yield
+    finally:
+        PURPOSE = previous
+
+
+def select_sources():
+    return SOURCES + ((STAGING_ENTRY,) if PURPOSE == 'staging-channel' else ())
+
+
 def check_request(request, nonce, root=ROOT):
     """No caller command, fixture, bounds, policy or executable selection is accepted."""
     # Proof: selfcheck schema, nonce, paths, pins, kernel and inventory faults exercise this entry.
-    closed(request, 'schemaVersion root state outside packet nonce commit pins runtimePins kernel inventory ledger',
-           'request-schema')
-    require(request['schemaVersion'] == 1 and type(request['schemaVersion']) is int,
-            'request-schema')
+    fields = 'schemaVersion root state outside packet nonce commit pins runtimePins kernel inventory ledger'
+    closed(request, fields + (' purpose fixtures' if PURPOSE == 'staging-channel' else ''), 'request-schema')
+    # Proof: staging v1/v2 purpose mismatch vectors reach launch only on watched guard removal.
+    require(request['schemaVersion'] == (2 if PURPOSE == 'staging-channel' else 1)
+            and type(request['schemaVersion']) is int, 'request-schema')
+    if PURPOSE == 'staging-channel':
+        # Proof: metadata purpose and 11 fixture vectors reach launch only on watched omission.
+        require(request['purpose'] == PURPOSE, 'request-purpose')
+        closed(request['fixtures'], 'live dead', 'fixture-schema')
+        for label, fixture in request['fixtures'].items():
+            closed(fixture, 'path device inode owner mode', 'fixture-schema')
+            require(fixture['path'] == str(root / PLAN / 'repair-native-controls'
+                    / ('staging-' + nonce + '-' + label))
+                    and all(type(fixture[key]) is str and re.fullmatch(r'0|[1-9][0-9]{0,19}', fixture[key])
+                            and int(fixture[key]) < 2**64 for key in ('device', 'inode'))
+                    and type(fixture['owner']) is int
+                    and fixture['owner'] == os.geteuid() and fixture['mode'] == '0700', 'fixture-schema')
     require(type(nonce) is str and re.fullmatch('[a-f0-9]{32}', nonce)
             and request['nonce'] == nonce, 'request-nonce')
     require(request['root'] == str(root)
@@ -208,7 +243,7 @@ def check_request(request, nonce, root=ROOT):
             and request['packet'] == str(root / PLAN / 'repair-native-controls'), 'request-paths')
     require(type(request['commit']) is str and re.fullmatch('[a-f0-9]{40}', request['commit']),
             'source-commit')
-    expected = [str(root / relative) for relative in SOURCES] + list(TOOLS)
+    expected = [str(root / relative) for relative in select_sources()] + list(TOOLS)
     require(type(request['pins']) is list and len(request['pins']) == len(expected), 'pin-set')
     for pin, path in zip(request['pins'], expected):
         check_pin(pin, path)
@@ -343,7 +378,7 @@ def fixed_git(arguments, deadline):
 def verify_environment(request, deadline):
     assert_deadline(deadline)
     loaded = verify_runtime_pins(request, deadline)
-    repository = {str(ROOT / relative) for relative in SOURCES}
+    repository = {str(ROOT / relative) for relative in select_sources()}
     verified = {pin['path']: verify_file(pin, capture=pin['path'] in repository, deadline=deadline)
                 for pin in request['pins'] + [pin for pin in request['runtimePins'] if pin['path'] in loaded]}
     require(sys.version_info[:2] == (3, 12) and sys.flags.isolated == 1
@@ -354,9 +389,9 @@ def verify_environment(request, deadline):
                                   'machine': native.machine}, 'kernel-binding')
     require(fixed_git(['rev-parse', '--verify', 'HEAD'], deadline).decode().strip() == request['commit'],
             'source-commit')
-    tree = fixed_git(['ls-tree', '-z', request['commit'], '--', *SOURCES], deadline)
+    tree = fixed_git(['ls-tree', '-z', request['commit'], '--', *select_sources()], deadline)
     expected = {('100644 blob ' + verified[str(ROOT / relative)][0] + '\t' + relative).encode()
-                for relative in SOURCES}
+                for relative in select_sources()}
     require(set(tree.removesuffix(b'\0').split(b'\0')) == expected, 'source-commit')
     assert_deadline(deadline)
     return digest(request['pins'] + request['runtimePins']), types.MappingProxyType(
@@ -370,7 +405,7 @@ def runtime_paths():
     attest that bytecode. The root-installed system runtime remains a trusted boundary.
     No dependency scan, subprocess or request-selected path is used to discover this set.
     """
-    covered = {str((ROOT / relative).resolve()) for relative in SOURCES}
+    covered = {str((ROOT / relative).resolve()) for relative in select_sources()}
     covered.update(str(Path(path).resolve()) for path in TOOLS)
     mappings = set()
     with open('/proc/self/maps', encoding='ascii') as stream:
@@ -417,7 +452,7 @@ def repository_loader(verified):
     """
     snapshot = types.MappingProxyType(dict(verified))
     # Proof: source-cache missing-buffer/unselected-sibling guard removal admits unsafe metadata.
-    require(set(snapshot) == {str(ROOT / relative) for relative in SOURCES}
+    require(set(snapshot) == {str(ROOT / relative) for relative in select_sources()}
             and all(type(payload) is bytes for payload in snapshot.values()), 'source-buffer-set')
     original = importlib.util.spec_from_file_location
     class SourceBytes:
@@ -458,6 +493,14 @@ def load_helpers():
         helpers[name].raw = helpers['raw']
         helpers[name].require = helpers['raw'].require
     return helpers
+
+
+def load_staging():
+    specification = importlib.util.spec_from_file_location('staging_control', ROOT / STAGING_ENTRY)
+    require(specification is not None and specification.loader is not None, 'source-import')
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
 
 
 def check_directory(path, private=False):
@@ -974,6 +1017,8 @@ def collect_counter(raw, binding, ready_ns, started_ns):
 
 
 def worker_control(request, request_sha, helpers, source, deadline):
+    if PURPOSE == 'staging-channel':
+        return load_staging().run_worker(sys.modules[__name__], request, request_sha, helpers, source, deadline)
     raw = helpers['raw']
     unit = 'puni-repair-primitives-' + request['nonce'] + '.service'
     assert_deadline(deadline)
@@ -1080,6 +1125,8 @@ def run_control(request, path, request_sha, nonce):
 
 
 def coordinate_controls(request, path, request_sha, nonce, source, helpers, started, deadline, probe_cutoff):
+    if PURPOSE == 'staging-channel':
+        return load_staging().coordinate_staging(sys.modules[__name__], request, path, request_sha, nonce, source, helpers, started, deadline, probe_cutoff)
     raw = helpers['raw']
     check_loaded_runtime(request, deadline)
     check_directory(request['packet'], private=True)
@@ -1091,7 +1138,7 @@ def coordinate_controls(request, path, request_sha, nonce, source, helpers, star
     source_pin = next(pin for pin in request['pins'] if pin['path'] == str(ROOT / RELATIVE))
     # Proof: worker-bootstrap source cap fault reaches intercepted launch when this guard is removed.
     require(source_pin['mode'] == 0o644 and source_pin['uid'] == os.geteuid()
-            and source_pin['bytes'] <= OUTPUT_LIMIT, 'worker-source-pin')
+            and source_pin['bytes'] <= SOURCE_LIMIT, 'worker-source-pin')
     # Proof: actual controller interceptor rejects either omitted service locale assignment.
     command = ['/usr/bin/systemd-run', '--user', '--quiet', '--pipe', '--wait', '--collect',
                '--setenv=LANG=C', '--setenv=LC_ALL=C', '--service-type=exec', '--unit=' + unit, *('--property=' + value for value in PROPERTIES),

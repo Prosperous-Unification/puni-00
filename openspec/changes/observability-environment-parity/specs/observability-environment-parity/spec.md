@@ -1663,3 +1663,24 @@ A future failed-reservation drainer SHALL receive the same already-locked stagin
 
 - **WHEN** ordinary process tests establish transfer and cleanup semantics
 - **THEN** actual systemd stdio handoff, physical/transient budget qualification and the separate drain/publication/cleanup certificate remain required before any debt credit
+
+### Requirement: Staging handoff is qualified through the selected service transport
+
+The native qualification adapter SHALL reuse fixed request/source/runtime/capacity and lifecycle helpers and run only two bounded original-owned staging cases through the actual selected service stdin transport. It SHALL preserve all existing primitive qualification semantics and physical floors. No handoff result grants drain, repair, guest, settlement or full-rehearsal authority.
+
+#### Scenario: Native worker retains live-sender ownership
+
+- **WHEN** the actual factory prequeues a private-directory lock and the native service consumes it through its original stdin socket
+- **THEN** kernel message credentials and independently observed native/process limits identify the original worker
+- **AND** closing the coordinator lock copy still excludes a competitor until worker ownership closes
+
+#### Scenario: Queued native ownership survives dead sender
+
+- **WHEN** the exact owned sender exits before native receipt
+- **THEN** the queued reference still excludes a competitor through startup
+- **AND** receipt refuses the dead original sender, closes every acquired right and grants no adoption authority
+
+#### Scenario: Source preparation cannot certify native passage
+
+- **WHEN** copied-fixture tests pass but the selected service has not completed both cases with authentic counters, durable ACK and repeated owned cleanup
+- **THEN** native qualification remains unaccepted and old debt stays pending

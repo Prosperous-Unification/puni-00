@@ -598,7 +598,7 @@ elif case=='worker-bootstrap':
     class LaunchReached(Exception):pass
     def launch(*arguments,**keywords):launches.append(True);raise LaunchReached()
     control.subprocess.Popen=launch
-    pin=dict(source_pin,bytes=65537)
+    pin=dict(source_pin,bytes=98305)
     started=control.time.monotonic()
     helpers={'raw':types.SimpleNamespace(observe_unit=lambda _:{'LoadState':'not-found'},client_limits=lambda:None)}
     invoke=lambda:control.coordinate_controls({'packet':'/synthetic','pins':[pin]},'/request','sha','a'*32,'source',helpers,
@@ -610,7 +610,7 @@ elif case=='worker-bootstrap':
     except LaunchReached:pass
     else:raise AssertionError('worker source pin fault not observed')
     assert launches==[True]
-    print('watched worker-source pin guard removed: RED reached launch sentinel above64KiB source cap')
+    print('watched worker-source pin guard removed: RED reached launch sentinel above96KiB source cap')
 elif case=='runtime-closure':
     import io
     s,r=control.sys,control.Path.resolve;p='/usr/lib/python3.12/encodings/ascii.py';m={'b':types.SimpleNamespace(__file__=p+'x')}
