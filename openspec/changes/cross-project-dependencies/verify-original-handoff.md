@@ -473,3 +473,12 @@ PR866 was closed without merge. No parent UC2 or FEP8 checkbox is completed.
 The [runtime ledger verification](verify-ordinary-runtime-custody-20261105.md)
 records the exact generated-code guard triplets, cleanup-only review fix,
 corrected107test whole-owner run and remaining qualification/proof limits.
+
+## Owned child/migration source successor — 2026-11-05
+
+[Child/migration source evidence](verify-ordinary-child-migration-20261105.md)
+records the17-row55-cut28-port source, inert proof limits and corrected123case
+regression. [Current CI fixture repairs](verify-ci-prehelper-extraction-20261105.md)
+record the unchanged workspace oracle and one actual invalid SDK consumer after
+historical image equivalence. These do not complete native/controller/HOLD,
+coupled enrollment or full delivery gates.

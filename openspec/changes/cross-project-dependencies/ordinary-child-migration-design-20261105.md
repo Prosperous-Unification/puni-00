@@ -65,3 +65,41 @@ Parse the actual emitted JavaScript using the installed TypeScript parser as tex
 Test-first source wave: same generated import-free transport with controlled ReadableStreams/deferred exited Promises proves original/read/closed identity, concurrent drainage, refusal with no fabricated EOF, limits and no kill/cancel calls; those are inert transport tests, not real child proof. Fixed source tests reconstruct all four unchanged programs and exact replacement counts, readwrite pre-initializer placement,17th migration pin/cuts and exact caps. Actual child/native controls and full genuine known composition wait for the independently reviewed final image/closure/retirement protocol. No fake successful packet or wrapper-only native claim substitutes for them.
 
 Current ledger source review takes priority when Sol freezes. All next-wave reads were immutable Git objects or unchanged modules; no read overlapped Sol's mutable fixture/owner-test source.
+
+## Materialized source amendment and subsequent clarification
+
+This bounds implementation to the existing custody fixture and owner test. The
+storage extraction compatibility repair is separately leased to its existing
+storage test; the owner test's inert path spelling repair is serialized within
+the child writer's lease. No production adapter, transport, workflow or project
+configuration file is writable under this amendment.
+
+The shared transport belongs inside the existing import-free generated ledger,
+with the same sticky STOP and separate child/read/pump/exit/closed records rather
+than charging8192reads to the generic256operation budget. Fixed ports capture
+real Bun.spawn functions privately. Already captured drains/joins remain callable
+after STOP; new child acquisitions are refused.
+
+The32MiB bound is maximum accepted retained output prefix, not a hard process
+memory guarantee: a first oversized delivered chunk stays rooted through its
+actual original read Promise. On byte overflow, mark sticky UNKNOWN, retain the
+actual obligations and issue no further reads. Do not cancel/release/kill,
+report EOF, complete the join or claim bounded successful drainage. Exhausting
+the8192read-record budget similarly stops before the next read and retains
+UNKNOWN. A future finite controller/keeper must contain these states before
+runtime execution. This slice does not introduce a rolling original-retirement
+protocol. Controlled inert tests settle only their test-owned stream/exit
+providers; a genuinely parked transport is never declared joined.
+
+Seven Bun.write callsites mean seven lexical labels, not seven runtime calls.
+They use the existing shared256setup-operation admission bound. Preserve the
+old16-row epoch's recorded evidence; current source acceptance becomes only
+`ordinary-febb-custody-v1` with17literal rows. No dual-epoch fallback.
+
+Source clarification authority:
+`afdf0d22407267cf82c05e28e91374c5ab7f3f4092ab359e61713e94dafbd585`.
+
+Collector stderr is judged from retained raw bytes after known joining: any
+nonempty byte sequence, including a sole UTF-8 BOM, refuses. Git, namespace and
+emitter retain their ordinary Response.text replacement/BOM behavior. Collector
+stdout alone uses fatal UTF-8 decoding after the same actual transport joins.

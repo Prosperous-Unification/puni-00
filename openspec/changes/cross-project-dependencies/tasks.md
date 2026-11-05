@@ -1411,3 +1411,16 @@ or executable HOLD push precedes accepted ordinary finite containment.
 - [ ] UC2D. Independently prepare/qualify the distinct ordinary finite protocol in the existing fixture. Migrate both throwing-close cases, missing-evidence fallback and every affected case; preserve private builder/pins/three constructor cases. Freeze literal expanded census and materialize its separate routing/receipt exception before editing. Accepted containment must accompany executable publication.
 - [ ] UC2E. Review/observe distinct physical negatives for enrollment/association, owner-backed resources, direct/inherited attribution, original Promise binding/observation, pending-cleanup exclusion, post-await revocation, composition slot, evidence transfer, both guards, owner joins, keeper and expiry/drop cleanup. Retain exact restores/original resources/streams; ungranted constructor predicates remain pending.
 - [ ] UC2F. After accepted finite routing, qualify actual owning ordinary files, unchanged complete39, configured statics/OpenSpec and independent source review, then publish fresh combined source and qualify storage/rest/peers/aggregate and exact-SHA canonical h2 gate. UC3, broader provenance, native grants, architecture adoption and deployment retain separate obligations.
+
+## Ordinary child/migration image source wave — 2026-11-05
+
+[Intent](ordinary-child-migration-intent-20261105.md),
+[design](ordinary-child-migration-design-20261105.md),
+[verification](verify-ordinary-child-migration-20261105.md).
+Keep UC2A–F and the complete feature obligations open.
+
+- [ ] CMT1. Observe same-consumer source/epoch and pre-initializer/staging reservation RED, then implement the explicit17-row custody epoch with literal migrate.ts pin, exact writable-constructor/migration-fs/call and seven lexical Bun.write cuts. Preserve historical95701bytes and unchanged program bodies.
+- [ ] CMT2. Observe actual generated import-free transport RED with controlled streams/deferred exits, then implement fixed child registration, original exit/read/closed/pump/join custody, concurrent known EOF and one-shot lock release with separate caps and shared STOP. No callback registry, proxy child or native execution.
+- [ ] CMT3. Prove missing/rejected/pending reads/closed/exit, nonzero/stderr semantic refusals, deadline and exact admission/byte/read caps. Overflow retains UNKNOWN with no new read/cancel/kill/retry/fake EOF; all test-owned providers retire explicitly. Keep native runtime keeper/containment unqualified.
+- [ ] CMT4. Freeze and review new safety checks; observe distinct unchanged-consumer before/fault/restored0/1/0 where granted in inert generated code, retain raw/source identities and add adjacent Proof comments only for actual observed scopes. Record every remaining guard obligation.
+- [ ] CMT5. Independently review frozen source/census, run the complete owning regression and configured types/populated lint/format/OpenSpec, then a separately reviewed single compile-only qualification. Preserve all runtime/source/data-closure/native/HOLD/coupled-enrollment/CI/host-gate/main/deployment obligations and publish fresh reviewable source/evidence.
