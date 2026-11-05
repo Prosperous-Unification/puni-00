@@ -3104,7 +3104,13 @@ tests in `ops/outbox-drop.test.ts`.
   `synchronize` now finds the row it would mark published gone (`changes !== 1`) and throws
   `resource outbox event … changed while it was published`. It no longer silently publishes the
   renumbered next event under the sequence WBS just took. That state needs a hand repair, and the
-  docs say so.
+  docs say so. The stored row is the only evidence WBS still refuses the event: a `watch` that
+  crashes between WBS accepting it and the publish mark leaves a stale `400` row, and a drop then
+  renumbers the next event onto a sequence WBS holds (`409` for good). The docs tell the operator
+  to check the row is recent and repeating; re-sending for a fresh `400` is task 6.8b. In
+  concurrent mode with the guard on, the drop refuses 64 while the guard's holder is live (review
+  of #878 F1). The holder can outlive a stopped `watch`, and observe mode and a released guard
+  give no such signal.
 - **S6G-A6 Attribution and visibility.** "Who" is `--operator` plus the Dash account (`deps.user`),
   as `switch-mode`'s mode records do. The journal record holds the stored bytes and their SHA-256,
   the refusal, the next event and the renumbered count. No `ops outbox` listing command:
@@ -3151,8 +3157,40 @@ Fresh on 2026-11-05/06 on the workstation, from the worktree root, `CLAUDECODE` 
 
 The 53 skips are the real-scope cases (`systemd-run --user --scope`: `Failed to connect to bus`)
 and the PostgreSQL fixtures, as on `main`. No WBS change, so no be-01 run; no migration lint
-(no SQL migration). `docs/infra/heavy-job-launchers.md` lists no `ops` commands, so it is
-unchanged.
+(no SQL migration). `docs/infra/heavy-job-launchers.md` lists no operator repair commands
+(it names `ops job run` and `ops pool switch-mode` only), so it is unchanged.
 
 Not done: no host apply, no enrollment, no h2puni gate, no drop against a composed be-01 (the
 fake WBS in the tests applies be-01's sequence adjacency rule).
+
+### Review fixes (Fable, #878)
+
+Verdict "merge after fixes". Applied:
+
+- **F2 ghost refusal row.** `recordRefusal` now writes only while the exact event bytes are
+  still unpublished at their sequence. A `400` answered after a concurrent drop records nothing.
+  `dropRefusedEvent` deletes every refusal row whose event no longer waits, the dropped event's
+  own row included.
+- **F1.** (a) The crash window is in `docs/resources.md` and S6G-A5. (b) In concurrent mode with
+  the guard on, a live guard holder refuses the drop 64. (c) Follow-up 6.8b re-sends the event
+  for a fresh `400`.
+- **F3.** `--operator` takes the same non-blank pattern as `--reason`, and the journal shape
+  requires both to be non-blank.
+- **F4.** The docs name `dash-resources-watch.service` and state the worktree-use hazard.
+- **F5.** The heavy-job-launchers wording above is corrected.
+- **F6.** The migration line names its steps, e.g. `from version 2 to 3 (outbox refusals and
+drop journal)`.
+- **F7.** `--event` and `ops job admission --job` both take a UUID shape.
+- **F8.** The docs separate the ledger's `user_version` from the configuration's `schemaVersion`.
+
+| Fault injected                                | Test that went red (file result)                                                   | Observed                                                 |
+| --------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| presence check before `recordRefusal` removed | `a refusal answered after a drop records no ghost row` (7 pass 1 fail)             | a row for the dropped event id, `refusals: 1`            |
+| purge in `dropRefusedEvent` made `SELECT 1`   | the purge, happy-path and ghost-row tests (5 pass 3 fail)                          | the stale and the dropped event's rows kept              |
+| guard check removed                           | `a live singleton guard refuses the drop` (host-pool-mode.test.ts, 44 pass 1 fail) | stderr `… is not in the outbox of authority runtime-one` |
+| `--event` back to `/^[0-9a-f-]{36}$/u`        | `the grammar takes an event id, an operator and a reason` (7 pass 1 fail)          | 36 hyphens parsed                                        |
+| `--job` back to `/^[0-9a-f-]{36}$/u`          | `the grammar takes only a job id` (admission.test.ts, 1 fail)                      | 36 hyphens parsed                                        |
+| `--operator` as `flagValue('NAME')`           | `the grammar takes an event id, an operator and a reason` (7 pass 1 fail)          | blank operator parsed                                    |
+
+Every earlier fault (A to I) was rerun against this code and still turns its test red. The ghost-row
+test also goes red when renumbering is skipped (the head stays at sequence 3).

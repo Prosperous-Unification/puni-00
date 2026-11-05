@@ -510,6 +510,9 @@ const ModeRecordShape = type({
   evidence: 'string[]',
 }).onUndeclaredKey('reject');
 
+/** Text with at least one non-space character: a drop's operator and reason. */
+const NonBlank = /\S/;
+
 /**
  * The last WBS refusal of one host-job outbox event (task 6.8a), kept durably beside the S5-A20
  * retry bound: which bytes (`digest`, the SHA-256 of the stored event), the status and message,
@@ -549,9 +552,9 @@ export interface OutboxDrop {
 }
 const OutboxDropShape = type({
   at: 'number',
-  operator: 'string > 0',
+  operator: NonBlank,
   account: 'string > 0',
-  reason: 'string > 0',
+  reason: NonBlank,
   eventId: 'string > 0',
   eventSequence: 'number.integer > 0',
   useId: 'string > 0',
@@ -714,6 +717,8 @@ const LEDGER_V1_TABLES = [
   'sqlite_sequence',
   'uses',
 ];
+/** What each version step adds, by the version it starts from; the migration line names them. */
+const LEDGER_STEPS = ['host pool', 'mode lifecycle', 'outbox refusals and drop journal'];
 const LEDGER_V2_TABLES = [...LEDGER_V1_TABLES, 'host_pool_mode_records'].sort();
 /**
  * Version 3 (`dash-host-jobs` task 6.8a): the last WBS refusal of each host-job outbox event
@@ -1787,7 +1792,7 @@ export class ResourceRuntime {
     // `open` has no report sink and this happens once per ledger: say it on stderr.
     if (migrated !== null)
       process.stderr.write(
-        `resources: migrated ledger ${join(configuration.root, '.dash', 'resources.sqlite')} from version ${String(migrated)} to ${String(LEDGER_VERSION)} (host pool)\n`,
+        `resources: migrated ledger ${join(configuration.root, '.dash', 'resources.sqlite')} from version ${String(migrated)} to ${String(LEDGER_VERSION)} (${LEDGER_STEPS.slice(migrated).join(', ')})\n`,
       );
   }
   /** Close this connection without altering durable obligations. */
@@ -2761,8 +2766,19 @@ export class ResourceRuntime {
    * stored bytes; a refusal of other bytes under the same id starts the record again.
    */
   private recordRefusal(event: ResourceEvent, cause: ResourceWbsRefusal, at: number): void {
-    const digest = createHash('sha256').update(JSON.stringify(event)).digest('hex');
+    const bytes = JSON.stringify(event);
+    const digest = createHash('sha256').update(bytes).digest('hex');
     this.transaction(() => {
+      // An operator's drop may have removed or renumbered the event while WBS answered: a row
+      // for it then names nothing, or the sequence the next event now holds (review of #878 F2).
+      // Proof: without it `a refusal answered after a drop records no ghost row`
+      // (outbox-drop.test.ts) kept a row for the dropped event (2026-11-06, Slice 6g review).
+      const present = this.db
+        .query<{ sequence: number }, [number, string]>(
+          'SELECT sequence FROM events WHERE sequence=? AND event=? AND published=0',
+        )
+        .get(event.sequence, bytes);
+      if (present === null) return;
       this.db
         .query(
           'INSERT INTO event_refusals VALUES (?,?,?,?,?,?,?,1) ON CONFLICT(event_id) DO UPDATE SET sequence=excluded.sequence, status=excluded.status, error=excluded.error, last_refused_at=excluded.last_refused_at, first_refused_at=CASE WHEN digest=excluded.digest THEN first_refused_at ELSE excluded.first_refused_at END, refusals=CASE WHEN digest=excluded.digest THEN refusals+1 ELSE 1 END, digest=excluded.digest',
@@ -2818,7 +2834,8 @@ export class ResourceRuntime {
    * left it.
    * @throws OutboxDropRefusal, changing nothing, when the event is not in the outbox, is not its
    * head, is not a host job's, has no recorded `400` of its current bytes, or a later outbox
-   * event of the same use waits behind it (that one's revision would never be accepted).
+   * event of the same use waits behind it (that one's revision would never be accepted), or,
+   * in concurrent mode with the guard on, while the singleton guard's holder is live.
    * @throws Error when a published event follows the head: only this class writes the ledger.
    */
   dropRefusedEvent(
@@ -2826,6 +2843,15 @@ export class ResourceRuntime {
     attribution: { operator: string; account: string; reason: string },
   ): OutboxDrop {
     return this.transaction(() => {
+      const pool = this.poolRow();
+      // The guard's holder lives while `watch` serves demand in concurrent mode; observe mode and
+      // a released guard have no such signal (review of #878 F1).
+      // Proof: without it `a live singleton guard refuses the drop` (host-pool-mode.test.ts)
+      // went past the guard to `is not in the outbox` (2026-11-06, Slice 6g review).
+      if (pool.mode === 'concurrent' && pool.guard === 'on' && this.guardHeld(pool.guardHolder))
+        throw new OutboxDropRefusal(
+          `the singleton guard's holder (pid ${String(pool.guardHolder?.pid)}) is live in concurrent mode, so resources watch may be publishing; stop dash-resources-watch.service, end that holder if it outlives watch, and retry`,
+        );
       const authority = this.configuration.authorityId;
       const target = this.db
         .query<{ sequence: number; event: string; published: number }, [string]>(
@@ -2889,7 +2915,15 @@ export class ResourceRuntime {
           .query('UPDATE events SET sequence=?, event=? WHERE sequence=?')
           .run(renumbered.sequence, JSON.stringify(renumbered), later.sequence);
       }
-      this.db.query('DELETE FROM event_refusals WHERE event_id=?').run(eventId);
+      // Also any row a refusal left for an event no longer waiting (review of #878 F2).
+      // It is the only delete here, the dropped event's own row included. Proof: without it
+      // `a drop purges refusal rows of events no longer waiting` and the happy-path test
+      // (outbox-drop.test.ts) kept rows (2026-11-06, Slice 6g review).
+      this.db
+        .query(
+          "DELETE FROM event_refusals WHERE event_id NOT IN (SELECT json_extract(event,'$.eventId') FROM events WHERE published=0)",
+        )
+        .run();
       const following = pending.at(1);
       const record: Omit<OutboxDrop, 'sequence'> = {
         at: this.clock.read(),

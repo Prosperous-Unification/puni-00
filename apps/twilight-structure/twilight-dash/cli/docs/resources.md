@@ -86,7 +86,10 @@ schema version 2 had no host pool and is refused naming the five fields to add. 
 accepted only on loopback for an explicit tunnel or test server; other endpoints require HTTPS
 and redirects are refused. `watch` keeps retrying while WBS does not answer, answers `429` or
 mcp-01 leaves a call uncompleted (`rate_limited`, `server_error`, …); a refused credential
-(`machine_credential_refused`) or any other refusal stops it.
+(`machine_credential_refused`) or any other refusal stops it. A worktree-use event WBS refuses
+`400` for good therefore stops `watch` on every start, with no refusal row and no command that
+removes it: only a hand repair of the ledger clears it (`ops outbox drop` takes host-job events
+only, task 6.8a).
 
 Commands below abbreviate the source entrypoint as `dash`:
 
@@ -97,10 +100,10 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts resources init -
 The sole ledger is `<root>/.dash/resources.sqlite`, with FULL-synchronous SQLite transactions,
 WAL, history and publication outbox. It pins root device/inode, machine identity, authority,
 epoch, provider, disk scale, budget policy and the host pool's budgets, headroom, units and
-enrollment identity. Its schema is `user_version` 3 (1 added the host pool, 2 the mode
-lifecycle, 3 the outbox refusals and drop journal). A ledger written before the host pool
-(`user_version` 0) is migrated forward in one transaction the first time a schema-3
-configuration opens it, only when its pinned binding is exactly that configuration's earlier
+enrollment identity. The ledger's own schema is SQLite `user_version` 3 (1 added the host pool,
+2 the mode lifecycle, 3 the outbox refusals and drop journal), which is unrelated to the
+configuration's `schemaVersion` 3. A ledger written before the host pool (`user_version` 0) is
+migrated forward in one transaction the first time a configuration of `schemaVersion` 3 opens it, only when its pinned binding is exactly that configuration's earlier
 fields; versions 1 and 2 step forward only when their tables are exactly theirs; any other
 version is refused, since nothing here can step a newer schema back. The
 migration prints one line naming the ledger and the step. A Dash of the earlier version already
@@ -387,12 +390,12 @@ re-shaped), `watch` retries for 30 minutes, exits, restarts and starts the bound
 every later event of the authority, worktree uses included, waits behind it. The remedy:
 
 ```sh
-systemctl --user stop <the watch unit>     # nothing publishes while the outbox changes
-journalctl --user -u <the watch unit> | grep 'WBS refused host-job event'   # the event id
+systemctl --user stop dash-resources-watch.service     # nothing publishes while the outbox changes
+journalctl --user -u dash-resources-watch.service | grep 'WBS refused host-job event'   # the event id
 bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops outbox drop \
   --config /path/to/host-pool.json --event <eventId> --operator dany \
   --reason 'slice-5 evidence a newer be-01 refuses (S6F-A4)'
-systemctl --user start <the watch unit>
+systemctl --user start dash-resources-watch.service
 ```
 
 It prints one line naming the dropped event and the next in line:
@@ -426,7 +429,17 @@ It refuses 64, changing nothing, unless the event:
 
 A pool it cannot open refuses 70. WBS never sees the dropped event, so it keeps the host job as
 its last accepted event left it (a dropped `release_verified` leaves it `registered` there; the
-host pool itself has released it). Stop `watch` first: a publication of the same event that WBS
+host pool itself has released it). The only evidence that WBS still refuses the event is the stored refusal row, which only the
+publication that WBS accepts deletes, in the transaction that marks the event published. A
+`watch` that crashes after WBS accepted the event and before that mark leaves a stale `400` row:
+dropping that event would renumber the next one onto a sequence WBS already holds, and it would
+then be refused `409` for good. Before dropping, check that the refusal is recent and repeating
+(the `refusals` count and `lastRefusedAt` in `event_refusals`, and `watch`'s refusal lines after
+its last restart). A re-send that requires a fresh `400` before the drop is follow-up work (task
+6.8a). In concurrent mode with the guard on, the drop also refuses 64 while the singleton guard's
+holder is live, since `watch` may then be publishing. The holder can outlive a stopped `watch`
+while jobs still ran; end it (its pid is in the refusal) once `watch` is stopped. Observe mode and
+a released guard have no such signal. Stop `watch` first: a publication of the same event that WBS
 accepts while the drop commits finds its row gone and stops with `resource outbox event … changed
 while it was published`, and the authority then needs a hand repair, because WBS holds the
 sequence the next event was renumbered to.

@@ -436,6 +436,12 @@ const dispatchedCommands = [
   resourcesNamespace,
 ] as const;
 
+/** A `randomUUID` as Dash writes host job and host-job event ids. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
+/** A flag value that is not the next flag and holds a non-space character. */
+const nonBlank = (metavar: 'NAME' | 'TEXT') =>
+  string({ metavar, pattern: /^(?!--)\s*\S[\s\S]*$/u });
+
 /** `--config`, the owner-only host pool configuration every `ops` command names. */
 const poolConfig = () =>
   option('--config', flagValue('PATH'), {
@@ -622,8 +628,9 @@ const opsNamespace = command(
           {
             config: poolConfig(),
             // Proof: with `flagValue('NAME')` here `the grammar takes only a job id`
-            // (admission.test.ts) parsed `--job gate` (2026-11-05, verify.md Slice 6e).
-            job: option('--job', string({ metavar: 'ID', pattern: /^[0-9a-f-]{36}$/u }), {
+            // (admission.test.ts) parsed `--job gate` (2026-11-05, verify.md Slice 6e); with
+            // `/^[0-9a-f-]{36}$/u` it parsed 36 hyphens (2026-11-06, Slice 6g review F7).
+            job: option('--job', string({ metavar: 'ID', pattern: UUID }), {
               description: message`The host job id, as DASH_JOB_ID carries it.`,
             }),
           },
@@ -703,21 +710,21 @@ const opsNamespace = command(
         'Drop the host-job event WBS refuses 400 from the head of the authority outbox, journalled; the next event publishes.',
         {
           config: poolConfig(),
-          event: option('--event', string({ metavar: 'ID', pattern: /^[0-9a-f-]{36}$/u }), {
+          // Proof: with `/^[0-9a-f-]{36}$/u` here `the grammar takes an event id, an operator and
+          // a reason` (outbox-drop.test.ts) parsed 36 hyphens (2026-11-06, Slice 6g review F7).
+          event: option('--event', string({ metavar: 'ID', pattern: UUID }), {
             description: message`The refused event's id, as watch's refusal line names it.`,
           }),
-          operator: option('--operator', flagValue('NAME'), {
+          // Proof: with `flagValue('NAME')` here the same test parsed a blank operator
+          // (2026-11-06, Slice 6g review F3).
+          operator: option('--operator', nonBlank('NAME'), {
             description: message`Who drops it; the drop record names them beside the account.`,
           }),
           // Proof: with `flagValue('NAME')` here `the grammar takes an event id, an operator and
           // a reason` (outbox-drop.test.ts) parsed a blank reason (2026-11-05, Slice 6g).
-          reason: option(
-            '--reason',
-            string({ metavar: 'TEXT', pattern: /^(?!--)\s*\S[\s\S]*$/u }),
-            {
-              description: message`Why it is dropped, kept in the drop record.`,
-            },
-          ),
+          reason: option('--reason', nonBlank('TEXT'), {
+            description: message`Why it is dropped, kept in the drop record.`,
+          }),
         },
       ),
       { brief: message`Repair the authority outbox.` },

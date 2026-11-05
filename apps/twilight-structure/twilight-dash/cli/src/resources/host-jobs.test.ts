@@ -1138,7 +1138,7 @@ if (insideLinuxNamespace(import.meta.path)) {
         process.stderr.write = write;
       }
       expect(lines).toEqual([
-        `resources: migrated ledger ${ledger} from version 0 to 3 (host pool)\n`,
+        `resources: migrated ledger ${ledger} from version 0 to 3 (host pool, mode lifecycle, outbox refusals and drop journal)\n`,
       ]);
     });
   });

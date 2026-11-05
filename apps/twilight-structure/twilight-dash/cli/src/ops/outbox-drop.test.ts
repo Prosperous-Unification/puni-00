@@ -1,6 +1,8 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 
 import { type } from '@shared/validation';
+import { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import { parseDashCommand } from '../cli-parser';
@@ -318,6 +320,49 @@ if (insideOpsNamespace(import.meta.path))
       );
     });
 
+    test('a refusal answered after a drop records no ghost row', async () => {
+      const { runtime, config } = pool();
+      const blocked = withdrawn(runtime, 'gate:ghost');
+      withdrawn(runtime, 'gate:after');
+      const refused = (event: { useId: string; kind: string }) =>
+        event.useId === blocked && event.kind === 'release_verified';
+      const first = wbs(refused);
+      expect(await outcomeOf(runtime.synchronize(first))).toBeInstanceOf(ResourceWbsUnavailable);
+      const head = runtime.outbox().at(0);
+      if (head === undefined) throw new Error('nothing in the outbox');
+      // A watch tick sends the head again; the operator drops it while WBS's 400 is in flight.
+      const drops: Promise<{ code: number }>[] = [];
+      const racing = scriptedTools((call: ToolCall): ToolAnswer => {
+        if (call.name === EVENT_TOOL && call.input['eventId'] === head.eventId) {
+          drops.push(drop(config, head.eventId));
+          return { kind: 'refused', status: 400, error: 'invalid_body', body: {} };
+        }
+        throw new Error(`unexpected call ${call.name}`);
+      });
+      expect(await outcomeOf(runtime.synchronize(racing))).toBeInstanceOf(ResourceWbsUnavailable);
+      expect(await Promise.all(drops)).toMatchObject([{ code: 0 }]);
+      expect(runtime.outboxRefusals()).toEqual([]);
+      expect(runtime.outbox().at(0)?.sequence).toBe(2);
+    });
+
+    test('a drop purges refusal rows of events no longer waiting', async () => {
+      const { runtime, config, root } = pool();
+      const blocked = withdrawn(runtime, 'gate:purge');
+      const tools = wbs((event) => event.useId === blocked && event.kind === 'release_verified');
+      expect(await outcomeOf(runtime.synchronize(tools))).toBeInstanceOf(ResourceWbsUnavailable);
+      const head = runtime.outbox().at(0);
+      if (head === undefined) throw new Error('nothing in the outbox');
+      // A row a refusal left for an event that no longer waits, as F2's race could leave one.
+      const ledger = new Database(join(root, '.dash', 'resources.sqlite'));
+      ledger
+        .query('INSERT INTO event_refusals VALUES (?,?,?,?,?,?,?,1)')
+        .run(randomUUID(), 3, 'e'.repeat(64), 400, 'stale', now, now);
+      ledger.close();
+      expect(runtime.outboxRefusals()).toHaveLength(2);
+      expect((await drop(config, head.eventId)).code).toBe(0);
+      expect(runtime.outboxRefusals()).toEqual([]);
+    });
+
     test('the grammar takes an event id, an operator and a reason', () => {
       const id = '0f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0';
       const line = ['ops', 'outbox', 'drop', '--config', '/c', '--event', id, '--operator', 'dany'];
@@ -328,6 +373,12 @@ if (insideOpsNamespace(import.meta.path))
         reason: 'refused for good',
       });
       expect(() => parseDashCommand([...line, '--reason', '  '])).toThrow();
+      expect(() =>
+        parseDashCommand([...line.slice(0, 8), '  ', '--reason', 'refused for good']),
+      ).toThrow();
+      expect(() =>
+        parseDashCommand([...line.slice(0, 6), '-'.repeat(36), ...line.slice(7), '--reason', 'r']),
+      ).toThrow();
       expect(() => parseDashCommand(line)).toThrow();
       expect(() =>
         parseDashCommand([...line.slice(0, 6), 'gate', ...line.slice(7), '--reason', 'r']),

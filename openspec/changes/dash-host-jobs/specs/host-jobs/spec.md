@@ -291,7 +291,8 @@ SHALL be refused, changing nothing.
 #### Scenario: An event WBS has not refused is not dropped
 
 - **WHEN** the operator names an event that is not in the outbox, was published, is not the
-  head, carries no recorded `400` of its current bytes, or is followed by an event of its own use
+  head, carries no recorded `400` of its current bytes, or is followed by an event of its own use,
+  or the pool is concurrent with the guard on and the guard's holder is live
 - **THEN** `ops outbox drop` exits 64 naming why, and the outbox and the journal are unchanged
 
 ### Requirement: Each reservation entry settles with its own terminal evidence

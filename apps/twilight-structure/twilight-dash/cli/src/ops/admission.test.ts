@@ -185,6 +185,9 @@ if (insideOpsNamespace(import.meta.path))
       expect(() =>
         parseDashCommand(['ops', 'job', 'admission', '--config', '/c', '--job', 'gate']),
       ).toThrow();
+      expect(() =>
+        parseDashCommand(['ops', 'job', 'admission', '--config', '/c', '--job', '-'.repeat(36)]),
+      ).toThrow();
       expect(
         parseDashCommand([
           'ops',
