@@ -1,4 +1,4 @@
-# Producer P original hosted execution — pending
+# Producer P hosted proof — source contrast accepted
 
 The [reviewed protocol](verify-producer-p-prepared-20261105.md) began after its
 publication in PR865. This is a live-at-observation status record, not a completed
@@ -102,3 +102,74 @@ The required fresh whole Source7 restored positive and new workflow terminal
 state remain unobserved. Final producer-P necessity, closure of this never-merge
 PR and broader FEP8 remain pending; exact source restoration alone is not proof
 of a successful restored execution.
+
+## Exact restored Source7 positive accepted
+
+Restored head `1c7715e9ffba2cf1a1089ba972b02b17873a0c54` produced source job
+127126408482 in run41992019181. Actual synthetic checkout
+`56cde838548f65c098b3b0693c78dd12943e08f3` has parents0962b42b/1c7715e9
+and tree `52bb47b6eea0de560cc0de8c8b82b45f4fd86907`, identical to the
+original baseline and restored head. The unchanged source consumer passed
+**189/0/1391assertions,7files**,2279.31s. Its receipt is fresh:true,
+189tests/7files/exit0; actual uncached Nx command exited0, phase2290s below4500.
+The real pinned Vite producer positive passed1914.11ms. Both predicted collateral
+provenance cases also passed. Console records Node24.20.0; a separate successful
+child-version/HTTP artifact was not uploaded and is not claimed.
+
+Server artifact13399559617 ZIP SHA256
+`f3ac15ce9012e0c8864a1d3ea50a9859cdd0ccf2cfb011b675decc999431ad2e`
+was independently matched to its server digest and console. Full extracted log
+186227bytes/SHA256
+`879ea9ff2fda8207146d12b5389526a8505a546c2107da8a5a30b844fa13e10f`;
+complete console224180bytes/SHA256
+`10cd2fcc654ee5f28bf5fd2b72ddbc68db437350d61aa04b37904ca954138c9c`.
+Immutable captures remain in8877's ignored producer-p/restored-positive directory.
+Independent final review SHA256
+`5d8d5438855341b3f5a78e1b84333b13286866412bd02f6b4d57f8bd019ef55f` accepts necessity of
+producer P's fourth admission member through baseline189/0, exact eleven-line
+omission186/3 and exact restored189/0. It does not prove each package/lock
+predicate, every reversal/intermediate guard or all FEP8, which remains open.
+
+At this observation the overall restored workflow is still live on twilight;
+workspace and storage already failed. Do not close never-merge PR866 until all
+jobs are terminal and complete outputs are retained. Source proof success is
+not full CI acceptance. No workflow was restarted or superseded.
+
+The independent review's narrow Proof wording is now adjacent to the fourth
+producer admission member. Removing exactly that four-line comment reconstructs
+the original20738-byte producer SHA256e97d58108a9f88282c41fbfba84cf0549a5aa9193d27a5bf712250e13c9eb2c3.
+No executable producer byte or generated child program changes. The isolated
+proof worktree and its baseline/mutant/restored commits are untouched.
+
+## Restored workflow terminal; proof PR closed without merge
+
+The same run41992019181 is now completed/failure, all26jobs terminal with
+no cancellation or timeout. Source, complete-activation, remote, twilight,
+backend/frontend and all8pixel shards succeeded. Workspace and storage failed;
+the aggregate correctly failed. This remains narrow source-proof acceptance,
+not full gate acceptance.
+
+Root retained complete workflow consoles plus **all21artifacts**, including
+all8pixel archives, and verified each archive against its server SHA256 digest.
+Private immutable capture is8877's producer-p/restored-terminal directory.
+Receipt SHA256
+`7dd8d6dc539216e99cecd7169206156d497671a7297382f345e8ed1d74669097`;
+whole-run console ZIP SHA256
+`328d36695c0b591c0d411ecd03deaeae7972c2544da8297bab290a851a7c62d9`.
+Every ZIP passed its integrity check; no archive was blindly extracted.
+
+After retention and fresh verification of exact restored head1c7715e9, base0962,
+clean proof tree and absent auto-merge, Root closed never-merge PR866.
+Readback: stateCLOSED, mergedAt:null, original head preserved, closed at
+2026-11-05T09:43:27Z. No branch deletion, merge, restart or superseding run occurred.
+The original mutant and restored captures remain separate. FEP8 and parent
+feature/CI/gate/native/architecture/deployment obligations remain open.
+
+Full retained failure logs identify the baseline ADR-number collision and its
+three document-target consequences (4workspace failures), already mechanically
+repaired in the separate PR867 stack. Storage reports67pass/2fail: the existing
+`UC2 original drop live` and `UC2 original drop expired` consumers fail the
+actual-closed assertion at1454. These remain evidence for the required coupled
+owner/storage/complete enrollment, not failures fixed by this producer proof.
+Twilight's actual uncached command returnedexit0 after4630017ms; it was not
+cancelled or timed out.

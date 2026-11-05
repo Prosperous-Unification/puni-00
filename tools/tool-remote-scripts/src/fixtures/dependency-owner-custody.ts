@@ -2453,6 +2453,42 @@ function ordinaryHoldConcreteCutsV1(
       return [
         fs('owner.fs', 'owner-fs'),
         cut(
+          'owner.observation-import',
+          "import { createHash, randomUUID } from 'node:crypto';",
+          "import { createHash, randomUUID } from 'node:crypto';\nimport { captureSettlement, captureOperation, captureRuntimeEntry, captureKeeper, captureOriginal, captureHold } from 'ordinary-hold-v1:ledger';",
+        ),
+        cut(
+          'owner.settlement-observer',
+          '  settlement.observer = observer;',
+          '  settlement.observer = observer;\n  captureSettlement(record, settlement, original, observer);',
+        ),
+        cut(
+          'owner.operation-observer',
+          '  observed.observer = observer;',
+          '  observed.observer = observer;\n  captureOperation(operation, observed, original, observer);',
+        ),
+        cut(
+          'owner.runtime-entry',
+          '  entry.observer = observer;',
+          '  entry.observer = observer;\n  captureRuntimeEntry(owner, ownership, entry, original, observer);',
+        ),
+        cut(
+          'owner.keeper',
+          '  ownership.keeper = keeper;',
+          '  ownership.keeper = keeper;\n  captureKeeper(owner, ownership, keeper);',
+        ),
+        cut(
+          'owner.original',
+          '  record.originals.add(observed);',
+          '  record.originals.add(observed);\n  captureOriginal(preparation, original, observed);',
+        ),
+        cut(
+          'owner.hold',
+          '  await keeper.pending;',
+          '  captureHold(owner, ownership, keeper);\n  await keeper.pending;',
+        ),
+
+        cut(
           'owner.timer-import',
           "import { createHash, randomUUID } from 'node:crypto';",
           "import { createHash, randomUUID } from 'node:crypto';\nimport { ordinaryHoldSetInterval, ordinaryHoldClearInterval } from 'ordinary-hold-v1:owner-timer';",
@@ -2516,7 +2552,7 @@ function ordinaryHoldConcreteCutsV1(
         cut(
           'database.readonly-enter-return',
           'const client = new Database(dbPath, { readonly: true, create: false });',
-          'const client = ordinaryHoldOpenReadonly(Database, dbPath);',
+          'const client = ordinaryHoldOpenReadonly(dbPath);',
         ),
       ];
     case 'libs/wbs/adapters/store-sqlite/src/backup.ts':
@@ -2597,33 +2633,155 @@ function ordinaryHoldPortSourcesV1(sourceRoot: string): ReadonlyMap<string, stri
     `ordinary-hold-v1:${name}`,
     source,
   ];
-  const nativeFs = (label: string) =>
-    `import * as native from 'node:fs';\nimport { observeSync } from 'ordinary-hold-v1:ledger';\n` +
-    `export type { BigIntStats, Dir } from 'node:fs';\nexport const constants=native.constants;\n` +
-    ORDINARY_HOLD_FS_NAMES.map(
-      (name) =>
-        `export const ${name}=(...args)=>observeSync('${label}.${name}',native.${name},native,args);`,
-    ).join('\n');
+  const fixedSync =
+    "const invoke=(label,original,receiver,args)=>{const record=reserveOperation(label,'sync',receiver,args);try{return returnOperation(record,Reflect.apply(original,receiver,args));}catch(cause){throwOperation(record,cause);throw cause;}};";
+  const fixedPromise =
+    "const invoke=(label,original,receiver,args)=>{const record=reserveOperation(label,'promise',receiver,args);try{return attachPromise(record,Reflect.apply(original,receiver,args));}catch(cause){throwOperation(record,cause);throw cause;}};";
+  const ledgerImports =
+    "import {inspectLedger,linkWrapper,reserveNative,attachNative,throwNative,retainNativeClose,retainNativeIdentity,beginClose,returnClose,throwClose,reserveOperation,returnOperation,throwOperation,attachPromise} from 'ordinary-hold-v1:ledger';\n";
+  const nativeFs = (label: string) => {
+    const functions = ORDINARY_HOLD_FS_NAMES.map((name) => {
+      if (name === 'openSync')
+        return `export const openSync=(...args)=>{const record=reserveNative('${label}.openSync','fd',args,native);try{const descriptor=attachNative(record,Reflect.apply(native.openSync,native,args));retainNativeClose(record,native.closeSync,native,[descriptor]);retainNativeIdentity(record,Reflect.apply(native.fstatSync,native,[descriptor,{bigint:true}]));return descriptor;}catch(cause){throwNative(record,cause);throw cause;}};`;
+      if (name === 'closeSync')
+        return `export const closeSync=(...args)=>{const record=beginClose(args[0],'production');try{const returned=Reflect.apply(native.closeSync,native,args);returnClose(record);return returned;}catch(cause){throwClose(record,cause);throw cause;}};`;
+      if (name === 'opendirSync' && label === 'graph')
+        return `export const opendirSync=(...args)=>{const record=reserveNative('graph.opendirSync','dir',args,native);try{const directory=attachNative(record,Reflect.apply(native.opendirSync,native,args));const savedClose=directory.closeSync;retainNativeClose(record,savedClose,directory,[]);directory.closeSync=function(...closeArgs){beginClose(directory,'production');try{const returned=Reflect.apply(savedClose,this,closeArgs);returnClose(record);return returned;}catch(cause){throwClose(record,cause);throw cause;}};return directory;}catch(cause){throwNative(record,cause);throw cause;}};`;
+      return `export const ${name}=(...args)=>invoke('${label}.${name}',native.${name},native,args);`;
+    });
+    return `import * as native from 'node:fs';\n${ledgerImports}${fixedSync}\nexport type { BigIntStats, Dir } from 'node:fs';\nexport const constants=native.constants;\n${functions.join('\n')}`;
+  };
   const promiseFs = (label: string) =>
-    `import * as native from 'node:fs/promises';\nimport { observePromise } from 'ordinary-hold-v1:ledger';\n` +
+    `import * as native from 'node:fs/promises';\n${ledgerImports}${fixedPromise}\n` +
     ORDINARY_HOLD_ASYNC_FS_NAMES.map(
       (name) =>
-        `export const ${name}=(...args)=>observePromise('${label}.${name}',native.${name},native,args);`,
+        `export const ${name}=(...args)=>invoke('${label}.${name}',native.${name},native,args);`,
     ).join('\n');
-  const ledger = `export const ordinaryHoldOriginals=[];
-export function observeSync(label,original,receiver,args){
-  if(ordinaryHoldOriginals.length>=8192)throw Error('ordinary HOLD runtime operation cap exceeded');
-  const record={label,kind:'sync',original,receiver,args,state:'entered',returned:undefined,cause:undefined};ordinaryHoldOriginals.push(record);
-  try{const returned=Reflect.apply(original,receiver,args);record.returned=returned;record.state='returned';return returned;}
-  catch(cause){record.cause=cause;record.state='threw';throw cause;}
+  const operationLabels = [
+    ...(['owner', 'storage', 'lock', 'graph', 'backup'] as const).flatMap((label) =>
+      ORDINARY_HOLD_FS_NAMES.map((name) => `${label}.${name}`),
+    ),
+    ...(
+      ['participant', 'complete', 'startup', 'database', 'frontend', 'namespace'] as const
+    ).flatMap((label) => ORDINARY_HOLD_ASYNC_FS_NAMES.map((name) => `setup.${label}.${name}`)),
+    'owner.interval',
+    'owner.clear',
+    'storage.database.connection',
+    'storage.database.database',
+    'storage.graph',
+    'complete.storage',
+    'complete.scanner',
+  ];
+  const ledger =
+    `const custody={natives:[],operations:[],owners:[],events:[],stopped:false,failures:[],generation:0,fatalObservation:undefined};
+const records=new WeakMap(),nativeAliases=new Map(),wrappers=new Map();
+const nativeLabels=new Set(['owner.openSync','storage.openSync','lock.openSync','graph.openSync','backup.openSync','graph.opendirSync','graph.relative','database.readonly']);
+const operationLabels=new Set(__OPERATION_LABELS__);
+// Proof: removing snapshot freezing let the inspection consumer manufacture native completion (exit 1; restored).
+function snapshot(record){return Object.freeze({...record,args:record.args===undefined?undefined:Object.freeze([...record.args]),aliases:record.aliases===undefined?undefined:Object.freeze([...record.aliases])});}
+export function inspectLedger(){return Object.freeze({stopped:custody.stopped,fatalObservation:custody.fatalObservation===undefined?undefined:Object.freeze({...custody.fatalObservation}),natives:Object.freeze(custody.natives.map(snapshot)),operations:Object.freeze(custody.operations.map(snapshot)),owners:Object.freeze(custody.owners.map(frame=>Object.freeze({...frame,observations:Object.freeze(frame.observations.map(snapshot))}))),events:Object.freeze(custody.events.map(event=>Object.freeze({kind:event.kind,record:snapshot(event.record)}))),failures:Object.freeze([...custody.failures])});}
+function requireRecord(ticket,kind){const record=records.get(ticket);if(record===undefined||record.family!==kind)fail('ordinary HOLD ticket differs');return record;}
+export function inspectNative(ticket){return snapshot(requireRecord(ticket,'native'));}
+export function inspectOperation(ticket){return snapshot(requireRecord(ticket,'operation'));}
+function fail(message){const cause=new Error(message);custody.stopped=true;custody.failures.push(cause);throw cause;}
+function event(kind,record){if(custody.events.length>=8192)fail('ordinary HOLD event cap exceeded');custody.events.push({kind,record});}
+function admit(){if(custody.stopped)fail('ordinary HOLD ledger stopped');if(custody.events.length>=8192)fail('ordinary HOLD event cap exceeded');}
+function createTicket(record){const ticket=Object.freeze({});records.set(ticket,record);record.ticket=ticket;return ticket;}
+export function reserveNative(label,kind,args,receiver){
+  admit();
+  // Proof: admitting storage.openSync-near failed the unknown-boundary inert consumer (exit 1; restored).
+  if(!nativeLabels.has(label)||!['fd','dir','sqlite'].includes(kind)||kind==='dir'&&label!=='graph.opendirSync'||kind==='sqlite'&&label!=='database.readonly'||kind==='fd'&&(label==='graph.opendirSync'||label==='database.readonly'))fail('ordinary HOLD native boundary differs');
+  // Proof: removing this bound admits the 513th inert acquisition in the generated ledger cap negative.
+  if(custody.natives.length>=512||kind==='sqlite'&&custody.natives.filter(record=>record.kind==='sqlite').length>=64||kind==='dir'&&custody.natives.filter(record=>record.kind==='dir').length>=32)fail('ordinary HOLD native cap exceeded');
+  const record={family:'native',generation:++custody.generation,label,kind,args,receiver,phase:'entered',original:undefined,acquisitionCause:undefined,nativePhase:'not-entered',productionAttempts:0,fixtureAttempts:0,nativeEntries:0,nativeReturns:0,closeCause:undefined,closeOrigin:undefined,aliases:[]};
+  // Proof: removing native reservation failed the generation consumer before sentinel entry (exit 1; restored).
+  const ticket=createTicket(record);custody.natives.push(record);event('native-enter',record);return ticket;
 }
-export function observePromise(label,original,receiver,args){
-  if(ordinaryHoldOriginals.length>=8192)throw Error('ordinary HOLD runtime operation cap exceeded');
-  const record={label,kind:'promise',original,receiver,args,state:'entered',returned:undefined,observer:undefined,cause:undefined};ordinaryHoldOriginals.push(record);
-  try{const returned=Reflect.apply(original,receiver,args);record.returned=returned;record.state='pending';
-    record.observer=returned.then(value=>{record.value=value;record.state='fulfilled';},cause=>{record.cause=cause;record.state='rejected';});return returned;}
-  catch(cause){record.cause=cause;record.state='threw';throw cause;}
-}`;
+export function attachNative(ticket,original){
+  const record=requireRecord(ticket,'native');
+  if(record.phase!=='entered')fail('ordinary HOLD native attachment differs');
+  const prior=nativeAliases.get(original);record.original=original;record.phase='returned';record.aliases.push(original);
+  if(prior!==undefined&&requireRecord(prior,'native').nativePhase!=='returned')fail('ordinary HOLD active native alias duplicate');
+  nativeAliases.set(original,ticket);return original;
+}
+export function retainNativeClose(ticket,savedClose,receiver,args){const record=requireRecord(ticket,'native');record.savedClose=savedClose;record.closeReceiver=receiver;record.closeArgs=[...args];}
+export function retainNativeIdentity(ticket,identity){requireRecord(ticket,'native').identity=identity;}
+export function throwNative(ticket,cause){const record=requireRecord(ticket,'native');record.acquisitionCause=cause;record.phase='unknown';custody.stopped=true;custody.failures.push(cause);}
+export function aliasNative(ticket,alias){
+  const record=requireRecord(ticket,'native');
+  if(record.phase!=='returned'||nativeAliases.has(alias)&&nativeAliases.get(alias)!==ticket)fail('ordinary HOLD native alias differs');
+  // Proof: omitting alias linkage failed the same native-generation/alias consumer (exit 1; restored).
+  nativeAliases.set(alias,ticket);record.aliases.push(alias);return alias;
+}
+export function linkWrapper(wrapper,tickets,kind){if(!['connection','graph','scanner'].includes(kind)||tickets.length===0||tickets.some(ticket=>records.get(ticket)?.family!=='native')||kind==='connection'&&tickets.length!==1)fail('ordinary HOLD wrapper association differs');wrappers.set(wrapper,Object.freeze({kind,tickets:Object.freeze([...tickets])}));if(tickets.length===1)aliasNative(tickets[0],wrapper);return wrapper;}
+// Proof: both independent-cleanup consumers failed at B after A UNKNOWN or event-cap STOP; removing acquisition admission restored both (exit 0).
+export function attemptClose(original,origin){
+  const ticket=nativeAliases.get(original);
+  if(ticket===undefined||!['production','fixture'].includes(origin))fail('ordinary HOLD close original absent');
+  const record=requireRecord(ticket,'native');
+  // Proof: the 8193rd attempt passed before this bound and failed the cleanup-accounting consumer; fixed consumer passes.
+  if(record.productionAttempts+record.fixtureAttempts>=8192)fail('ordinary HOLD close attempt cap exceeded');
+  if(origin==='production')record.productionAttempts++;else record.fixtureAttempts++;
+  return ticket;
+}
+export function enterClose(ticket,origin){
+  const record=requireRecord(ticket,'native');
+  // Proof: removing this guard failed the returned/unknown no-retry consumer (exit 1; restored).
+  if(record.nativePhase!=='not-entered')fail('ordinary HOLD native close re-entry');
+  record.nativePhase='entered';record.nativeEntries++;record.closeOrigin=origin;return ticket;
+}
+export function beginClose(original,origin){return enterClose(attemptClose(original,origin),origin);}
+export function returnClose(ticket,returned){const record=requireRecord(ticket,'native');if(record.nativePhase!=='entered')fail('ordinary HOLD native return without entry');record.nativePhase='returned';record.nativeReturns++;record.closeReturned=returned;}
+export function throwClose(ticket,cause){const record=requireRecord(ticket,'native');record.nativePhase='unknown';record.closeCause=cause;custody.stopped=true;custody.failures.push(cause);}
+export function reserveOperation(label,kind,receiver,args){
+  admit();if(!operationLabels.has(label)||!['sync','promise'].includes(kind))fail('ordinary HOLD operation boundary differs');
+  // Proof: raising the 256-Promise cap failed the exact census consumer (exit 1; restored).
+  if(kind==='promise'&&custody.operations.filter(record=>record.kind==='promise').length>=256)fail('ordinary HOLD Promise cap exceeded');
+  const record={family:'operation',label,kind,receiver,args,phase:'entered',returned:undefined,original:undefined,observer:undefined,observerSettled:false,joined:false,cause:undefined};
+  const ticket=createTicket(record);custody.operations.push(record);event('operation-enter',record);return ticket;
+}
+export function returnOperation(ticket,returned){const record=requireRecord(ticket,'operation');record.returned=returned;record.phase='returned';return returned;}
+export function throwOperation(ticket,cause){const record=requireRecord(ticket,'operation');record.cause=cause;if(record.phase!=='unknown')record.phase='threw';}
+export function attachPromise(ticket,original){
+  const record=requireRecord(ticket,'operation');if(record.phase!=='entered')fail('ordinary HOLD Promise already attached');
+  record.returned=original;record.original=original;record.phase='pending';
+  try{record.observer=original.then(value=>{record.value=value;record.phase='fulfilled';record.observerSettled=true;},cause=>{record.cause=cause;record.phase='rejected';record.observerSettled=true;});}
+  catch(cause){record.phase='unknown';record.cause=cause;custody.stopped=true;custody.failures.push(cause);throw cause;}
+  // Proof: returning a .then projection failed the exact-original consumer (exit 1; restored).
+  return original;
+}
+export async function joinOperation(ticket){
+  const record=requireRecord(ticket,'operation');if(record.original===undefined||record.observer===undefined)fail('ordinary HOLD original observation absent');
+  await Promise.allSettled([record.original,record.observer]);
+  if(!record.observerSettled||!['fulfilled','rejected'].includes(record.phase))fail('ordinary HOLD original observation incomplete');record.joined=true;
+}
+function tap(kind,owner,ownership,record,original,observer,extra){
+  const observation={kind,owner,ownership,record,original,observer,...extra};
+  try{
+    let frame=custody.owners.find(frame=>frame.owner===owner);
+    // Proof: admitting owner nine failed the fixed owner-graph census consumer (exit 1; restored).
+    if(frame===undefined){if(custody.owners.length>=8)throw Error('ordinary HOLD owner frame cap exceeded');frame={owner,ownership,observations:[]};custody.owners.push(frame);}
+    if(custody.stopped||custody.events.length>=8192)throw Error('ordinary HOLD owner observation stopped or capped');
+    frame.observations.push(observation);event('owner-'+kind,observation);
+  }catch(cause){custody.fatalObservation=observation;custody.stopped=true;custody.failures.push(cause);}
+}
+export function captureSettlement(record,settlement,original,observer){try{
+  const kind=settlement===record.composition?'composition':settlement===record.projection?'projection':settlement===record.runtimeAction?'runtime-action':'unassociated';
+  tap(kind,record.owner,record.ownership,record,original,observer,{settlement});
+  if(kind==='unassociated'){custody.stopped=true;custody.fatalObservation={record,settlement,original,observer};}
+}catch(cause){custody.stopped=true;custody.fatalObservation={kind:'captureSettlement',references:[record,settlement,original,observer]};custody.failures.push(cause);}}
+export function captureOperation(operation,observed,original,observer){try{tap('operation',observed.preparation.owner,observed.preparation.ownership,observed,original,observer,{operation});}catch(cause){custody.stopped=true;custody.fatalObservation={kind:'captureOperation',references:[operation,observed,original,observer]};custody.failures.push(cause);}}
+export function captureRuntimeEntry(owner,ownership,entry,original,observer){try{tap('runtime-entry',owner,ownership,entry,original,observer,{});}catch(cause){custody.stopped=true;custody.fatalObservation={kind:'captureRuntimeEntry',references:[owner,ownership,entry,original,observer]};custody.failures.push(cause);}}
+// Proof: omitting timer identity matching failed the missing-keeper consumer (exit 1; restored).
+export function captureKeeper(owner,ownership,keeper){try{tap('keeper',owner,ownership,keeper,keeper.pending,undefined,{interval:keeper.interval});if(custody.operations.filter(record=>record.label==='owner.interval'&&record.returned===keeper.interval).length!==1){custody.stopped=true;custody.fatalObservation={owner,ownership,record:keeper,original:keeper.pending};}}catch(cause){custody.stopped=true;custody.fatalObservation={kind:'captureKeeper',references:[owner,ownership,keeper]};custody.failures.push(cause);}}
+export function captureOriginal(preparation,original,observed){try{
+  const acquisition=observed.acquisition;const acquired=acquisition.kind==='descriptor'?acquisition.descriptor:acquisition.kind==='database'?acquisition.database:acquisition.kind==='connection'?acquisition.connection:acquisition.kind==='graph'?acquisition.graph:acquisition.scanner;
+  const ticket=nativeAliases.get(acquired);const wrapper=wrappers.get(acquired);
+  tap('original',observed.preparation.owner,observed.preparation.ownership,observed,original,undefined,{preparation,acquisition,ticket,wrapper});
+  if(ticket===undefined&&wrapper===undefined){custody.stopped=true;custody.fatalObservation={preparation,original,observed,acquired};}
+}catch(cause){custody.stopped=true;custody.fatalObservation={kind:'captureOriginal',references:[preparation,original,observed]};custody.failures.push(cause);}}
+export function captureHold(owner,ownership,keeper){try{tap('hold',owner,ownership,keeper,keeper.pending,undefined,{interval:keeper.interval});}catch(cause){custody.stopped=true;custody.fatalObservation={kind:'captureHold',references:[owner,ownership,keeper]};custody.failures.push(cause);}}
+`.replace('__OPERATION_LABELS__', JSON.stringify(operationLabels));
   const storage = `${root}/tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts`;
   const graph = `${root}/tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts`;
   const db = `${root}/libs/wbs/adapters/store-sqlite/src/db.ts`;
@@ -2639,31 +2797,31 @@ export function observePromise(label,original,receiver,args){
     ),
     port(
       'owner-timer',
-      `import { observeSync } from 'ordinary-hold-v1:ledger';\nexport const ordinaryHoldSetInterval=(...args)=>observeSync('owner.interval',setInterval,undefined,args);\nexport const ordinaryHoldClearInterval=(...args)=>observeSync('owner.clear',clearInterval,undefined,args);`,
+      `${ledgerImports}${fixedSync}\nexport const ordinaryHoldSetInterval=(...args)=>invoke('owner.interval',setInterval,undefined,args);\nexport const ordinaryHoldClearInterval=(...args)=>invoke('owner.clear',clearInterval,undefined,args);`,
     ),
     port(
       'storage-database',
-      `import { openReadOnlyConnection as connection, openReadOnlyDatabase as database } from ${JSON.stringify(db)};\nimport { observeSync } from 'ordinary-hold-v1:ledger';\nexport const openReadOnlyConnection=(...args)=>observeSync('storage.database.connection',connection,undefined,args);\nexport const openReadOnlyDatabase=(...args)=>observeSync('storage.database.database',database,undefined,args);`,
+      `import { openReadOnlyConnection as connection, openReadOnlyDatabase as database } from ${JSON.stringify(db)};\n${ledgerImports}${fixedSync}\nexport const openReadOnlyConnection=(...args)=>{const before=inspectLedger().natives.length;const returned=invoke('storage.database.connection',connection,undefined,args);const acquired=inspectLedger().natives.slice(before).filter(record=>record.label==='database.readonly');return linkWrapper(returned,acquired.map(record=>record.ticket),'connection');};\nexport const openReadOnlyDatabase=(...args)=>invoke('storage.database.database',database,undefined,args);`,
     ),
     port(
       'storage-graph',
-      `import { captureInitialHandoffArtifacts as original } from ${JSON.stringify(graph)};\nimport { observeSync } from 'ordinary-hold-v1:ledger';\nexport const captureInitialHandoffArtifacts=(...args)=>observeSync('storage.graph',original,undefined,args);`,
+      `import { captureInitialHandoffArtifacts as original } from ${JSON.stringify(graph)};\n${ledgerImports}${fixedSync}\nexport const captureInitialHandoffArtifacts=(...args)=>{const before=inspectLedger().natives.length;const returned=invoke('storage.graph',original,undefined,args);const acquired=inspectLedger().natives.slice(before).filter(record=>record.label.startsWith('graph.'));return linkWrapper(returned,acquired.map(record=>record.ticket),'graph');};`,
     ),
     port(
       'complete-storage',
-      `import { activateDependencyStores as original, hashActivationBytes } from ${JSON.stringify(storage)};\nimport { observePromise } from 'ordinary-hold-v1:ledger';\nexport { hashActivationBytes };\nexport const activateDependencyStores=(...args)=>observePromise('complete.storage',original,undefined,args);`,
+      `import { activateDependencyStores as original, hashActivationBytes } from ${JSON.stringify(storage)};\n${ledgerImports}${fixedPromise}\nexport { hashActivationBytes };\nexport const activateDependencyStores=(...args)=>invoke('complete.storage',original,undefined,args);`,
     ),
     port(
       'complete-scanner',
-      `import { scanMigrationArtifact as original } from ${JSON.stringify(scanner)};\nimport { observePromise } from 'ordinary-hold-v1:ledger';\nexport const scanMigrationArtifact=(...args)=>observePromise('complete.scanner',original,undefined,args);`,
+      `import { scanMigrationArtifact as original } from ${JSON.stringify(scanner)};\n${ledgerImports}${fixedPromise}\nexport const scanMigrationArtifact=(...args)=>invoke('complete.scanner',original,undefined,args);`,
     ),
     port(
       'graph-relative',
-      `import { openDirectoryFile as original } from ${JSON.stringify(relative)};\nimport { observeSync } from 'ordinary-hold-v1:ledger';\nexport const openDirectoryFile=(...args)=>observeSync('graph.relative',original,undefined,args);`,
+      `import { openDirectoryFile as original } from ${JSON.stringify(relative)};\nimport { closeSync as nativeClose, fstatSync as nativeFstat } from 'node:fs';\n${ledgerImports}${fixedSync}\nexport const openDirectoryFile=(...args)=>{const ticket=reserveNative('graph.relative','fd',args,undefined);try{const descriptor=attachNative(ticket,Reflect.apply(original,undefined,args));retainNativeClose(ticket,nativeClose,undefined,[descriptor]);retainNativeIdentity(ticket,nativeFstat(descriptor,{bigint:true}));return descriptor;}catch(cause){throwNative(ticket,cause);throw cause;}};`,
     ),
     port(
       'database-readonly',
-      `import { observeSync } from 'ordinary-hold-v1:ledger';\nexport const ordinaryHoldOpenReadonly=(Database,dbPath)=>observeSync('database.readonly',()=>new Database(dbPath,{readonly:true,create:false}),undefined,[]);`,
+      `import { Database } from 'bun:sqlite';\n${ledgerImports}export const ordinaryHoldOpenReadonly=(dbPath)=>{const record=reserveNative('database.readonly','sqlite',[dbPath,{readonly:true,create:false}],Database);try{const client=attachNative(record,new Database(dbPath,{readonly:true,create:false}));const savedClose=client.close;retainNativeClose(record,savedClose,client,[]);client.close=function(...args){beginClose(client,'production');try{const returned=Reflect.apply(savedClose,this,args);returnClose(record);return returned;}catch(cause){throwClose(record,cause);throw cause;}};return client;}catch(cause){throwNative(record,cause);throw cause;}};`,
     ),
   ]);
 }
@@ -2716,8 +2874,10 @@ export function resolveOrdinaryHoldPortImportV1(
         allowed = [];
         break;
       case 'owner-timer':
-      case 'database-readonly':
         allowed = [ledger];
+        break;
+      case 'database-readonly':
+        allowed = [ledger, 'bun:sqlite'];
         break;
       case 'storage-database':
         allowed = [database, ledger];
@@ -2732,7 +2892,7 @@ export function resolveOrdinaryHoldPortImportV1(
         allowed = [scanner, ledger];
         break;
       case 'graph-relative':
-        allowed = [relative, ledger];
+        allowed = [relative, ledger, 'node:fs'];
         break;
       default:
         throw new Error('ordinary HOLD importer port absent');
@@ -3344,7 +3504,8 @@ async function buildOrdinaryHoldImageBodyV1(
       setupOperations: Object.freeze(operations),
       provenance,
       unqualified: Object.freeze([
-        'runtime owner observer and keeper taps',
+        'runtime owner observer and keeper tap execution',
+        'fixed runtime native-generation and Promise ledger qualification',
         'complete body/projection/acceptance taps',
         'setup Bun.write, migrations and four child-reader taps',
         'transitive source closure',

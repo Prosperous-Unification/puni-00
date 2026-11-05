@@ -456,3 +456,20 @@ The builder remains unqualified and unwired. Actual successful compilation,
 controller and coupled enrollment remain required. The separate producer-P
 record now includes the terminal mutant workflow, exact restoration push and
 new restored workflow; restored-positive acceptance remains pending.
+
+## Ordinary image compilation and runtime instrumentation — 2026-11-05
+
+The [actual image build record](verify-ordinary-image-build-20261105.md) now
+includes a normal second compile with44joined operations and an unexecuted
+1110085-byte bundle. The
+[fixed runtime ledger/owner-tap decision](ordinary-runtime-custody-design-20261105.md)
+defines the next actual instrumentation slice, preserving separate child-reader,
+readwrite-migration, closure and finite native/HOLD qualification. Coupled
+storage/complete enrollment remains unpublished until its migrated controls are
+contained. The [producer proof](verify-producer-p-execution-20261105.md) has its
+exact restored Source7 positive and terminal21-artifact retention; its temporary
+PR866 was closed without merge. No parent UC2 or FEP8 checkbox is completed.
+
+The [runtime ledger verification](verify-ordinary-runtime-custody-20261105.md)
+records the exact generated-code guard triplets, cleanup-only review fix,
+corrected107test whole-owner run and remaining qualification/proof limits.
