@@ -1947,6 +1947,28 @@ Original-context handoff remains proposed for main. Its implementation intent, f
 | before-ctt | 4885 / bf45a6e5f8f806d2762dfb22af77375a9ad55d806781a34812812de31f07eb74 | 533044 / bf54a6c6202a5d8f54f9bb8fe7e76935a8f4c667c660da720db3fd5f16391383 |
 | ctt-0.12.0 | 4930 / 74ba36c471df0f1dd7ca4221a49f1dd9bab2c7feb7d022a5ff6be39a3aff0e8a | 533521 / e3e915704bce2282142eae1f2374cd6217f408d1fed38ae116579a4f6fb1025d |
 
+The existing `fresh-main-20261104` pair is4992 bytes /
+`6482624ce19f7d9ea6cd919328f839e3bb7bb8c48ae120a4f5c3104e9a87c381`
+and534113 bytes /
+`129512f0a0fc719b814e7998353190f8827d96085f99000c418c6988ebbbb728`.
+The proposed fourth pair `fresh-main-20261105-ctt-0.13.0` is4992 bytes /
+`0b635ebde6513e9bce36d000bbd04fc3cc817ff49074af8e5e3219910a97f131`
+and534113 bytes /
+`48b5cea4e2ac740d300f4e41cc705dfb5213210c4db378f8cdf65640fb695adb`.
+Measure those exact identities after resolving the private main union before
+materializing admission constants. Keep all four pairs literal and coupled in
+all three existing admission owners; no runtime-derived expected identity.
+
+The test current-epoch branch must select the fourth epoch explicitly. Both
+historical reconstruction consumers verify the actual fourth pair, reverse one
+exact package0.13 hunk and both exact lock0.13 hunks including integrity, and
+verify the complete20261104 intermediate before the existing reversals. Missing,
+duplicate or changed hunks and intermediate identity mismatches refuse before
+producer work. Preserve the ctt0.12 and before-ctt intermediate assertions and
+all historical negatives. HTTP captured-input expectations use the actual new
+current pair; common16 and complete-response inspectors remain unchanged.
+Physical necessity and actual hosted response evidence remain separate.
+
 Admission is common16 AND one entire pair, never independent per-file alternatives. Preserve file kind, complete size/hash, namespace ambiguity/root/ancestor/link checks and forty-link ceiling. No shared exported expected-pin service, runtime expected hashes, source-root override or automatic discovery supplies expectations. Production lookup remains manifest-only, returning no readiness/startup permission. The materializer retains the pair together and copies those same validated actual bytes; current inputs produce current manifests, not historical replacements.
 
 Exactly five source paths may change under tools/tool-remote-scripts/src: lib/source-frontend-profile.ts, fixtures/source-frontend-profile.ts, fixtures/source-frontend-producer.ts, lib/source-frontend-profile.test.ts and lib/source-frontend-http.test.ts. No new source module/schema/dependency, inspector/response/program change, CI change or Source6 edit is included. Tests retain independently literal expected pairs and all old cases.

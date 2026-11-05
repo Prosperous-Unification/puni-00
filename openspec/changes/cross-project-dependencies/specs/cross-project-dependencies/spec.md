@@ -1765,7 +1765,16 @@ Pure source frontend HTTP inspectors SHALL require status 200, the observed role
 
 ### Requirement: Original source restart inputs retain one supported frontend profile
 
-Source restart-input capture SHALL select the frontend response profile only from its original decoded canonical manifest using sixteen fixed common public file size/hash tuples plus one complete reviewed package.json/bun.lock pair (before-ctt or ctt-0.12.0), for eighteen selected files. Independent per-file alternatives SHALL NOT admit a mixed epoch. Selection SHALL follow declared relative links in the source/dependencies/git namespace without live filesystem lookup or fallback. Unsupported inputs SHALL refuse. The frozen retained profile literal SHALL grant neither readiness nor startup authority.
+Source restart-input capture SHALL select the frontend response profile only from its original decoded canonical manifest using sixteen fixed common public file size/hash tuples plus one complete reviewed package.json/bun.lock pair (before-ctt, ctt-0.12.0, fresh-main-20261104 or fresh-main-20261105-ctt-0.13.0), for eighteen selected files. Independent per-file alternatives SHALL NOT admit a mixed epoch. Selection SHALL follow declared relative links in the source/dependencies/git namespace without live filesystem lookup or fallback. Unsupported inputs SHALL refuse. The frozen retained profile literal SHALL grant neither readiness nor startup authority.
+
+#### Scenario: Fourth current frontend input epoch preserves historical coupling
+
+- **WHEN** the original canonical manifest contains the complete reviewed fourth package/lock pair and unchanged sixteen common tuples
+- **THEN** the selector, materializer and producer admit that same original pair without replacing it with historical bytes
+- **AND** every old complete pair remains supported, while cross-epoch pairs in either direction, unknown tuples and missing required inputs refuse
+- **AND** historical reconstruction verifies the complete current identity, uniquely reverses the exact0.13 package/lock hunks, and verifies the20261104 and ctt0.12 intermediate identities before producing before-ctt bytes
+- **AND** missing, duplicate or changed reversal hunks and mismatched intermediate identities refuse before producer work
+- **AND** this admission earns no current-response qualification until actual current Node/Vite output, captured inputs, an independent canonical manifest and both unchanged inspectors compose successfully on this source epoch
 
 #### Scenario: Supported inputs belong to another source commit
 

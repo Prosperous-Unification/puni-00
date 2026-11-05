@@ -133,3 +133,22 @@ The closeServer SAME consumers observed original async exit1 at the final reject
 The closeServer images bind frozen R2 original SHA256 `f64038f08022030b77efee87b6baa81933a7b77d820aaa64bc3262fda44d80b0` and patched `b65f4ac75138244f4e8bbd7fb63023ad5771a6b0ea1c9b2ec5ac91962b2ebfbd`; fixture manifest SHA256 `51d33e1faa3f322eaf7f21d6e91ded0643a0550dc6285d78b23c1006d8eed540`. The correction comparison binds frozen R2 patched and R3 patched `f59fb0d4215678ca9ddf9213bf64d02d7966458536295130194973ac4007ae98`, with fixture manifest SHA256 `3d9a6643bb8762b7557d102bb4e88c1ebb5ff2a48a59adb80eabab2ad95e7a5d`. All nine postflight source/test/config/Bun pins matched and their separate scratch directories were empty. The first closeServer preparation's ambiguous source anchor was corrected before subject execution; its first plain `--config` CLI attempt remained unqualified, followed by a separately granted single `--config=` token sequence. The first correction fixture was held because it expected R2's defect; the successor used the same corrected consumer on both images.
 
 These nine are separate from the older inert18 diagnostic pairs and FRC cleanup proofs. They do not establish historical known non-invocation, per-statement R5 necessity, real installed Vite or producer closure, socket/inner-owner retirement, nonempty optimizer behavior, or constructor/session75398 ownership. Installed `node_modules`, production selector and frontend producer were unchanged. Full dependency adoption, current CI/gates, architectural main and deployment remain held.
+
+## Prospective fourth epoch — 2026-11-05
+
+Fresh main ef860787320c888c1e308ba64c19c6636b21d01b updates CTT0.13 with its
+callers. The private combined source e5786ec32fe4b9be7ea6693b20cb2c423eff2bfb
+still has the prior three-pair admission. Astra's private-union decision and
+five-path scope are at `/tmp/puni-main-union-architecture-review-20261105.md`;
+Sol's read-only union preparation is at
+`/tmp/puni-main-union-preparation-20261105.md`. These local reports are not
+portable committed evidence. Their proposed merged package/lock identities
+must be measured before materialization. No fourth-epoch source or runtime
+acceptance is claimed by this R4 amendment.
+
+FEP6–FEP9 above require actual frozen-install/CTT compatibility, bounded literal
+admission and mixed-pair consumers, distinct physical admission/reversal proofs,
+configured checks, independent source review and fresh publication. Record exact
+commands/hashes and every skipped/unobserved boundary here when they occur.
+Current response qualification remains the separate hosted actual-producer
+obligation; no closed Source4/native campaign or consumed private grant is reused.

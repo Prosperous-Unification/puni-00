@@ -1384,3 +1384,16 @@ constructor qualification while correcting ordinary discovery.
 - [x] N3 Add exact canonical/rest exclusions and harmless actual-routing coverage that retains similarly named ordinary markers and all Graph receipt requirements.
 - [x] N4 Observe separate omitted-exclusion and widened-exclusion failures, restore exact source, and rerun the same tests; record scoped statics and OpenSpec validation.
 - [x] N5 Publish the reviewed source split and distinguish ordinary CI from mandatory constructor/native and full-goal/release acceptance; do not execute or qualify the relocated native entry under historical packets.
+
+## Fresh-main CTT0.13 frontend compatibility — 2026-11-05
+
+[Intent](frontend-input-epochs-intent.md#ctt013-compatibility--2026-11-05),
+[design](design.md#current-frontend-input-epochs),
+[evidence](verify-source-frontend-current-epoch.md).
+Only the existing five frontend profile/producer/test paths may change. This is
+separate from UC2 and does not adopt architecture on main.
+
+- [ ] FEP6. Resolve the independently reviewed private main union, preserving both wiki-policy declaration sets and feature rules, the @ark/schema patch and main's exact CTT0.13 caller/lock migration. Verify actual proposed package/lock identities, then use an owned frozen install; never install through the borrowed node_modules symlink. Qualify actual CTT resolution, affected coordination/topology and wiki-policy consumers.
+- [ ] FEP7. Add the fourth exact paired epoch to all three existing admission owners after genuine finite selector/mixed-pair RED. Preserve all old pairs and negatives, common16 and response constants; update the current-epoch test branch, exact current HTTP literals, unique reverse hunks and independently checked historical intermediate identities. Missing/duplicated/changed reversals must refuse before producer work.
+- [ ] FEP8. Review exact finite consumers and observe distinct fourth-pair admission and reversal/intermediate necessity negatives, with exact restoration before the next pair. Preserve historical proof scope, configured checks and explicit unobserved producer boundaries; do not substitute selector success for producer admission. Publish independently reviewed source/evidence with fresh pushes.
+- [ ] FEP9. Require actual exact-source current Node/Vite producer/captured bytes/canonical manifest and both unchanged inspectors through the hosted source lane. A response difference stops this slice for separate design. Final storage69/rest/peers/aggregate, canonical h2 gate, native grants, architectural main adoption and deployment remain separate obligations.
