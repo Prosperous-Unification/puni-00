@@ -123,17 +123,6 @@ const PAIRS = [
       sha256: '129512f0a0fc719b814e7998353190f8827d96085f99000c418c6988ebbbb728',
     },
   },
-  {
-    epoch: 'fresh-main-20261105-ctt-0.13.0',
-    'package.json': {
-      bytes: 4992,
-      sha256: '0b635ebde6513e9bce36d000bbd04fc3cc817ff49074af8e5e3219910a97f131',
-    },
-    'bun.lock': {
-      bytes: 534113,
-      sha256: '48b5cea4e2ac740d300f4e41cc705dfb5213210c4db378f8cdf65640fb695adb',
-    },
-  },
 ];
 
 const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
