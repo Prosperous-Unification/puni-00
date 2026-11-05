@@ -3194,3 +3194,11 @@ drop journal)`.
 
 Every earlier fault (A to I) was rerun against this code and still turns its test red. The ghost-row
 test also goes red when renumbering is skipped (the head stays at sequence 3).
+
+Commands after the fixes, fresh on 2026-11-06 against `b1e7df052` (`CLAUDECODE` and
+`CLAUDE_CODE_ENTRYPOINT` unset): targeted outbox-drop (8 pass), admission, host-jobs,
+host-pool-mode (45 pass), cli, host-job-publication and report-capacity.host-pool, 0 fail;
+`bunx nx run twilight-dash:test --skip-nx-cache` 5720 pass, 53 skip, 0 fail,
+`Ran 5773 tests across 185 files. [3064.86s]`, exit 0; `bunx nx affected -t lint typecheck
+--base=origin/main --parallel=2` 7 projects, exit 0; `bunx nx format:check --all` exit 0;
+`bunx openspec validate --all --json` 328 passed; Burokrat `check-indexes` exit 0.
