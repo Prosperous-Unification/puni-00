@@ -213,8 +213,8 @@ with its ordered implementation slices in [storage tasks](storage-tasks.md).
 
 ### One hints API
 
-Use CTT 0.12.0's native `materializeDagInputFromRecords` and `prepareDag`, then
-`createWorkSession({ completedWork })`, `advance()` and its work tickets. A compatibility
+Use CTT 0.13.0's native `materializeMultiEntryDagInputFromRecordCatalog` and `discoverValidateAndCaptureDag`, then
+`createExternalWorkSession({ acceptedCompletedWorkVertexIds })`, `runUntilWorkBoundary()` and its work tickets. A compatibility
 adapter maps ordered steps into explicit work prerequisites; the later type-workflow
 adapter supplies pinned DAG instances through the same native materialized input. There
 is no second public graph format or traversal interpreter. Prepare the full declared graph
@@ -224,7 +224,7 @@ Work (W) completion and subgraph (C) completion remain distinct native milestone
 Unfinished tickets do not satisfy dependencies. Filter native ready tickets against current
 WBS eligibility and durable running/wait/retry state before atomic RunStore admission.
 Admission does not complete work. Only current WBS-accepted business completion authorizes
-`completeWork(ticket)`; native receipts distinguish `accepted` and `alreadyAccepted`.
+`acceptCompletedWork(ticket)`; native receipts distinguish `accepted` and `alreadyAccepted`.
 Reject foreign, retargeted and pre-rebuild tickets without releasing successors. Rebuild
 independent sessions from accepted WBS facts and durable attempt history, never serialized
 queues or tickets. Callback-free `summary()` inspects local session state and does not
@@ -283,8 +283,8 @@ follow, but surviving-worker/uncertain-effect safety is mandatory in S7a already
 
 The shared planning project is
 [Agentic workflows — WBS, CTT and portable persistence](https://dev.wbs.bulletpoints.club/?project=eeb8e50a-6ee6-49e4-a533-e10b1e29939d).
-The [native CTT integration](../ctt-work-session-integration/design.md) pins published
-CTT 0.12.0 and connects complete prepared topology and independent work sessions to actual
+The [native CTT integration](../ctt-work-session-integration/design.md) pinned published
+CTT 0.12.0, since moved to 0.13.0 (current pin in [ctt-coordination](../../specs/ctt-coordination/spec.md)), and connects complete prepared topology and independent work sessions to actual
 local RunStore admission. Accepted WBS facts control completion; current eligibility and
 durable attempt state filter readiness. This bounded component does not complete exact
 remote claim, admission/launch intent ordering or coordinator CLI composition; parent
@@ -314,14 +314,14 @@ The runbook (`docs/runbook-agentic-workflows.md`) names the commands and the ref
 
 ## Risks and the spikes that retire them
 
-| Risk                                                     | Spike                           | Fallback                                                                                                                                                        |
-| -------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HarnessAgent` or a local sandbox does not run under Bun | 0.1                             | Claude Agent SDK direct behind the same port                                                                                                                    |
-| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2                             | plain tool calling for `plan`                                                                                                                                   |
-| Harness packages break between 1.0.x releases            | 0.3                             | exact pins, one renovate lane, the port absorbs                                                                                                                 |
-| ACP attempts report no usage                             | modelled                        | `Usage.unknown`, shown, never defaulted                                                                                                                         |
-| Concurrent owners or workers surviving coordinator death | S7a recovery proof              | fence local and receiver authority, retain the claim and capacity while work may survive, inspect workers/effects by retained identity; unresolved blocks retry |
-| CTT minor releases change the hints API                  | exact pin0.12.0 and conformance | the compatibility adapter absorbs                                                                                                                               |
+| Risk                                                     | Spike                            | Fallback                                                                                                                                                        |
+| -------------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HarnessAgent` or a local sandbox does not run under Bun | 0.1                              | Claude Agent SDK direct behind the same port                                                                                                                    |
+| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2                              | plain tool calling for `plan`                                                                                                                                   |
+| Harness packages break between 1.0.x releases            | 0.3                              | exact pins, one renovate lane, the port absorbs                                                                                                                 |
+| ACP attempts report no usage                             | modelled                         | `Usage.unknown`, shown, never defaulted                                                                                                                         |
+| Concurrent owners or workers surviving coordinator death | S7a recovery proof               | fence local and receiver authority, retain the claim and capacity while work may survive, inspect workers/effects by retained identity; unresolved blocks retry |
+| CTT minor releases change the hints API                  | exact pin 0.13.0 and conformance | the compatibility adapter absorbs                                                                                                                               |
 
 ## Conditional WBS runtime receiver
 
