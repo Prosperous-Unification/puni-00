@@ -760,6 +760,31 @@ def check_original(descriptor, path, original):
             'repair-original-changed')
 
 
+def open_live_original(path, reservation):
+    """Sample only the admitted private original; worker mutation may move timestamps/allocation."""
+    # Proof: live reservation-invalid reaches forbidden raw open when reservation validation is omitted.
+    check_reservation(reservation)
+    snapshot = reservation['originalSnapshot']
+    original = [unsigned(snapshot['device']), unsigned(snapshot['inode']),
+                snapshot['owner'], int(snapshot['mode'], 8)]
+    before = os.lstat(path)
+    # Proof: live pre-inode/device/owner/mode/unreadable/links/type/symlink/size/allocation reach forbidden raw open on omission.
+    require(raw.identity(before) == original and stat.S_ISREG(before.st_mode)
+            and before.st_size == raw.RAW_BYTES and before.st_nlink == 1
+            and before.st_blocks * 512 <= raw.RAW_BYTES + 1048576,
+            'repair-live-original-unsafe')
+    # Proof: live readonly/nofollow/nonblock/cloexec flag omissions fail at the protected actual open boundary.
+    descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        # Proof: live during-inode/post-stat-failure and post-inode/device/owner/mode/links/type/symlink/size/allocation reach profile on omission.
+        check_original(descriptor, path, original)
+        return descriptor
+    except BaseException:
+        # Proof: live post-inode leaks the actual acquired FD when this failure close is omitted.
+        os.close(descriptor)
+        raise
+
+
 def preallocate(descriptor, path, ranges, admit):
     """Allocate canonical original holes once in <=256-call batches, sync and freshly reobserve."""
     blocks = (offset for start, length in ranges for offset in range(start, start + length, 4096))
@@ -1169,7 +1194,7 @@ class RepairCoordinator:
                     and facts['retainedInodeBytes'] + raw.RESERVE_BYTES <= raw.STAGING_BYTES,
                     'repair-preliminary-capacity')
             return {**facts, 'admissionAuthorized': False}
-        descriptor = raw.open_private(self.path)
+        descriptor = open_live_original(self.path, self.reservation)
         try:
             profile = observe_profile(self.request, descriptor)
             check_capacity(facts, profile, self.reservation, read_reservations(state),

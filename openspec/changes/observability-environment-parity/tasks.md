@@ -448,7 +448,7 @@ Run only new/changed input selections and necessary ordinary-input/service compa
 
 ### Task 106: Sample the admitted original raw inode during mutation
 
-- [ ] Fix only the admitted `RepairCoordinator.observe_capacity` raw-open path in `tools/tool-fleet/src/lab-raw-repair.py`, extending `lab-raw-repair-live.test.ts` from its proven scratch RED. Root owns OpenSpec/ledger/commits/push. Preserve shared immutable opener/readers, initial exact snapshot, final/release artifact joins, existing `check_original`/native writer bodies, limits and debt semantics. No live/native retry, drain, release or altered prior evidence.
+- [x] Fix only the admitted `RepairCoordinator.observe_capacity` raw-open path in `tools/tool-fleet/src/lab-raw-repair.py`, extending `lab-raw-repair-live.test.ts` from its proven scratch RED. Root owns OpenSpec/ledger/commits/push. Preserve shared immutable opener/readers, initial exact snapshot, final/release artifact joins, existing `check_original`/native writer bodies, limits and debt semantics. No live/native retry, drain, release or altered prior evidence.
 
 The investigation /tmp/puni-live-open106-investigation.md proves the actual callback's same-inode os.open-boundary timestamp update fails with callback1172→raw.open_private77→raw-state-changed. Baseline test2pass/1fail uses copied6helpers, real callback/ledger/capacity and a logical8GiB sparse file with zero allocated blocks, raw payload reads forbidden and sampleFDclosure proved. Native a2f category/time/partial allocation are consistent, not a uniquely captured stack attribution.
 
