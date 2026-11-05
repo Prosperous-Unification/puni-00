@@ -1,0 +1,18 @@
+{
+  "file": "postgres-component-integration-20261104.json.gz",
+  "sha256": "9e5cc772570cb7e7a582d04a8f7915adff78ae9a19b0987239d5626baac95786",
+  "bytes": 72548,
+  "originalFiles": 46,
+  "originalBytes": 396422,
+  "integratedCodeHead": "438243f5fc918455dd90197f44626bf7852b6629",
+  "tree": "2790a147f70281de4f4dbf7d2adfb8e4d3176365",
+  "incomingMain": "89b2c2ebf9d12721315c87a37ab39fc1da8190a2",
+  "entriesCompared": 12921,
+  "featurePaths": 37,
+  "incomingPaths": 198,
+  "overlap": [],
+  "privateTests": 54,
+  "localChecks": ["private", "typecheck", "lint", "format-all", "openspec"],
+  "allReadbackHashesVerified": true,
+  "scope": "Current-main code composition and local verification plus pending root-owned documentation; documentation-only publication commit follows. No full project tests/build, hosted CI, host-gate, complete-provider or deployment acceptance."
+}
