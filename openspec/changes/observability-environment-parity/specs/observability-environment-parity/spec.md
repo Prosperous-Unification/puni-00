@@ -1684,3 +1684,29 @@ The native qualification adapter SHALL reuse fixed request/source/runtime/capaci
 
 - **WHEN** copied-fixture tests pass but the selected service has not completed both cases with authentic counters, durable ACK and repeated owned cleanup
 - **THEN** native qualification remains unaccepted and old debt stays pending
+
+### Requirement: Bounded one-attempt staging operator preparation
+
+The staging operator SHALL preserve original admission-lock ownership across preparation, observation and publication, execute only the exact reviewed captured builder bytes, and bound required bootstrap and subprocess I/O. These controls SHALL precede any retained request or native invocation and SHALL not weaken existing physical floors, source roles or service limits.
+
+#### Scenario: State pathname changes under the original operator lock
+
+- **GIVEN** the operator holds the original state FD and its flock
+- **WHEN** the state pathname is replaced before or during a ledger, inventory, capacity or retained-write boundary
+- **THEN** it refuses further authority using the original FD/path/flock join, without acquiring a replacement lock or releasing old reservation debt.
+
+#### Scenario: Builder path changes after executable capture
+
+- **GIVEN** one bounded private builder buffer has its reviewed SHA verified
+- **WHEN** the pathname changes after capture
+- **THEN** only the captured buffer may execute, its same SHA binds preparation and review, and conflicting later provenance refuses.
+
+#### Scenario: Bootstrap or child output exceeds its bound
+
+- **WHEN** required bootstrap I/O times out or Git/CLI output exceeds the live joint byte bound
+- **THEN** the operator refuses within its declared wall plus bounded original-owned cleanup allowance, including original child reap and closure of owned pipes/selectors.
+
+#### Scenario: Setup fails immediately after spawn
+
+- **WHEN** setup or observation fails after successful original CLI spawn
+- **THEN** cleanup already owns that exact child and every opened channel, preserves primary and cleanup failures, and cannot leave it running or grant retry authority.

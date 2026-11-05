@@ -1,4 +1,4 @@
-Publication status: unexecuted operator draft. The source review in [staging service review](staging-service-review-20261105.md) requires three corrections before any preparation or native execution. The preserved builder is [staging-native-prepare-draft.py](evidence/staging-native-prepare-draft.py); its commit/hash placeholders intentionally prevent use. This publication changes repository inventory, so every future request needs a fresh inventory and metadata calculation. Historical draft figures and source hashes are not launch authority.
+Publication status: unexecuted operator draft. The three original source findings are closed by the [scoped source fix review](staging-service-fix-review-20261105.md); the separate [operator review](staging-service-operator-review-20261105.md) requires four draft corrections before preparation or native execution. The preserved builder is [staging-native-prepare-draft.py](evidence/staging-native-prepare-draft.py); its commit/hash placeholders intentionally prevent use. This publication changes repository inventory, so every future request needs a fresh inventory and metadata calculation. Historical draft figures and source hashes are not launch authority.
 
 # Task110 one-attempt operator recipe — DRAFT, NOT RUN
 
@@ -160,3 +160,7 @@ with preparation. Copying it into retained roots needs its own additional charge
 Record native outcome separately, normal commit and freshly push all work.
 Service-handoff qualification alone leaves failed-settlement producer/reader,
 old-inode drain, Task97 and canonical runtime acceptance4/11 outstanding.
+
+## Operator review prerequisites
+
+The [2026-11-05 operator review](staging-service-operator-review-20261105.md) requires four corrections before real preparation: preserve original admission-lock/path identity through builder observations; protect the original CLI immediately after spawn, including outer timeout cleanup; bind the exact reviewed executable builder buffer; and start wall/output bounds before bootstrap I/O. No preparation, request creation or native execution is authorized by this draft. Its source remains deliberately placeholder-blocked. The early metadata projection must be remeasured rather than copied from historical figures.

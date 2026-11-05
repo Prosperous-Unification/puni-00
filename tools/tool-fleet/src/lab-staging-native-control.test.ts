@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { expect, test } from 'bun:test';
@@ -20,6 +21,11 @@ test('finite staging entry compiles before importing its native helpers', () => 
   expect(child.exitCode).toBe(0);
   expect(new TextDecoder().decode(child.stdout)).toBe('staging-native-control: AST-valid\n');
 });
+
+const coldWorker = readFileSync(
+  new URL('./lab-staging-native-cold-fixture.py', import.meta.url),
+  'utf8',
+);
 
 const fixture = String.raw`
 import array, builtins, copy, ctypes, encodings.ascii, hashlib, importlib.util, io, json, os
@@ -294,13 +300,15 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
         else:real_setrlimit(kind,limits)
     resource.setrlimit=set_limits
     resource.getrlimit=lambda kind: ((lambda pair:(pair[0],pair[0]))(real_getrlimit(kind)) if os.getpid()==fixture_parent and kind in (resource.RLIMIT_AS,resource.RLIMIT_FSIZE) else real_getrlimit(kind))
+    replaced=False
+    broken_competition=[]
     global_fds = []
     global_checks = []
     global_probe = []
     global_holder = None
     root_identity = (state.stat().st_dev,state.stat().st_ino,os.geteuid(),0o700)
     def watch_global(boundary):
-        if os.getpid()!=fixture_parent:return
+        if os.getpid()!=fixture_parent or replaced:return
         try:competing=global_probe[0](str(state))
         except Exception as failure:assert str(failure)=='raw-staging-occupied',str(failure)
         else:
@@ -316,7 +324,11 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
     original_capacity=control.observe_capacity
     def observe_locked(*arguments,**keywords):
         watch_global('capacity')
-        return original_capacity(*arguments,**keywords)
+        facts=original_capacity(*arguments,**keywords)
+        if replaced:
+            assert facts['ledger']==request['ledger'] and not staging.is_occupied(control,helpers['raw'],str(state))
+            raise AssertionError('unlocked later capacity')
+        return facts
     control.observe_capacity=observe_locked
     native_close_authorities=control.close_authorities
     def close_inherited(target):
@@ -335,6 +347,7 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
     def helpers_with_provider():
         helpers = native_load_helpers()
         raw = helpers['raw']
+        if mode=='state-replaced' and omit:helpers['repair'].check_lock=lambda *_:None
         original_acquire=raw.acquire_staging
         if not global_probe:global_probe.append(original_acquire)
         def acquire_staging(path):
@@ -343,6 +356,8 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
             if path==str(state) and os.getpid()==fixture_parent:
                 held=os.fstat(descriptor)
                 global_fds.append((descriptor,(held.st_dev,held.st_ino,held.st_uid,stat.S_IMODE(held.st_mode))))
+                if mode=='global-dependency':
+                    competing=original_acquire(path);os.close(competing);broken_competition.append(True)
             return descriptor
         raw.acquire_staging=acquire_staging
         original_text = raw.read_text
@@ -419,6 +434,97 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
         request_sha = write_request()
         # Request timestamps are excluded; padding fixes allocated size before the final digest join.
         assert request['inventory'] == control.inventory_roots(request)
+        if mode=='dead-start-cleanup':
+            import ast
+            def inspect_cleanup(factory,expected):
+                descriptors=[];owned=[];pair=socket.socketpair;pipe=os.pipe2;fork=os.fork;start=helpers['raw'].process_start
+                def open_pair(*args):
+                    endpoints=pair(*args);descriptors.extend(endpoint.fileno() for endpoint in endpoints);return endpoints
+                def open_pipe(*args):
+                    opened=pipe(*args);descriptors.extend(opened);return opened
+                def launch_owned():
+                    pid=fork()
+                    if pid:owned.append(pid)
+                    return pid
+                def fail_start(pid):
+                    if os.getpid()==fixture_parent and pid in owned:raise OSError('parent-proc-fault')
+                    return start(pid)
+                socket.socketpair=open_pair;os.pipe2=open_pipe;os.fork=launch_owned;helpers['raw'].process_start=fail_start
+                try:
+                    try:factory(control,helpers,fixtures['dead']['path'],nonce,request_sha,time.monotonic()+2)
+                    except OSError as failure:assert str(failure)=='parent-proc-fault'
+                    else:raise AssertionError('parent observation fault suppressed')
+                finally:socket.socketpair=pair;os.pipe2=pipe;os.fork=fork;helpers['raw'].process_start=start
+                try:
+                    ended,status=os.waitpid(owned[0],os.WNOHANG);reaped=False
+                    if not ended:os.kill(owned[0],signal.SIGKILL);os.waitpid(owned[0],0)
+                except ChildProcessError:reaped=True
+                closed=True
+                for descriptor in descriptors:
+                    try:os.fstat(descriptor)
+                    except OSError as failure:assert failure.errno==9
+                    else:closed=False;os.close(descriptor)
+                assert (reaped and closed)==expected,('unreaped child or leaked parent channel/pipe',reaped,closed)
+            inspect_cleanup(staging.create_dead_channel,True)
+            node=next(node for node in ast.parse((root/relatives[1]).read_bytes()).body if isinstance(node,ast.FunctionDef) and node.name=='create_dead_channel')
+            scope=next(node for node in node.body if isinstance(node,ast.Try));observation=scope.body.pop(1)
+            assert isinstance(observation,ast.Assign) and observation.targets[0].id=='child_start'
+            node.body.insert(node.body.index(scope),observation);module=ast.Module(body=[node],type_ignores=[]);ast.fix_missing_locations(module)
+            namespace=dict(staging.__dict__);exec(compile(module,'<removed-child-scope>','exec'),namespace)
+            inspect_cleanup(namespace['create_dead_channel'],False)
+            print('dead-start-cleanup GREEN original child reaped/all parent FDs closed; watched scope omission RED leaked child/FDs')
+            sys.exit(0)
+        if mode=='cold-runtime':
+            bootstrap=control.WORKER_BOOTSTRAP.replace('evidence/repair-native-control.py','evidence/staging-native-control.py').replace('98304','65536').replace('98305','65537')
+            bootstrap=bootstrap.replace('root, expected, request, request_sha, nonce = sys.argv[1:]','root, expected, request, request_sha, nonce, coordinator_pid, coordinator_start = sys.argv[1:]')
+            bootstrap=bootstrap.replace("sys.argv = [path, 'worker', request, request_sha, nonce]","sys.argv = [path, 'worker', request, request_sha, nonce, coordinator_pid, coordinator_start]")
+            def service_limits():
+                os.umask(0o077)
+                for kind,value in ((resource.RLIMIT_AS,256*1024**2),(resource.RLIMIT_FSIZE,2*1024**2),(resource.RLIMIT_NOFILE,64),(resource.RLIMIT_CORE,0)):real_setrlimit(kind,(value,value))
+                assert ctypes.CDLL(None).prctl(38,1,0,0,0)==0
+            def cold(phase,omitted,endpoint=None,mapped='-'):
+                arguments=[str(root),str(request_path),request_sha,nonce,phase,'yes' if omitted else 'no',mapped,bootstrap,str(root),request['pins'][7]['sha256'],str(request_path),request_sha,nonce,str(os.getpid()),helpers['raw'].process_start(os.getpid())]
+                return real_popen(['/usr/bin/python3','-I','-B','-c',sys.argv[3],*arguments],stdin=subprocess.DEVNULL if endpoint is None else endpoint,stdout=subprocess.PIPE,stderr=subprocess.PIPE,bufsize=0,preexec_fn=service_limits)
+            capture=cold('capture',False);output,errors=capture.communicate(timeout=3)
+            assert capture.returncode==0 and errors==b'',errors
+            closure=json.loads(output);platform_path='/usr/lib/python3.12/platform.py'
+            assert platform_path not in closure['initial'] and platform_path in closure['complete']
+            runtime_pins=[pin(path) for path in closure['complete']]
+            copied_runtime=root/'changed-platform.py';original_runtime=Path(platform_path).read_bytes()
+            copied_runtime.write_bytes(bytes([original_runtime[0]^1])+original_runtime[1:]);copied_runtime.chmod(stat.S_IMODE(Path(platform_path).stat().st_mode))
+            for fault in ('baseline','unexpected','changed'):
+                request['runtimePins']=copy.deepcopy(runtime_pins)
+                if fault=='unexpected':request['runtimePins']=[entry for entry in request['runtimePins'] if entry['path']!=platform_path]
+                request_sha=write_request()
+                for omitted in ((False,) if fault=='baseline' else (False,True)):
+                    channel=helpers['repair'].open_staging_channel(fixtures['live']['path'],nonce,request_sha)
+                    channel.control.setsockopt(socket.SOL_SOCKET,socket.SO_PASSCRED,1)
+                    child=cold('worker',omitted,channel.recipient,str(copied_runtime) if fault=='changed' else '-')
+                    channel.close_recipient()
+                    try:
+                        assert select.select([child.stdout],[],[],3)[0]
+                        marker=child.stdout.read(1)
+                        if fault=='baseline' or omitted:
+                            assert marker==b'!',(fault,omitted,marker)
+                            frame,credentials,width=staging.receive_packet(control,channel.control,time.monotonic()+1,65536)
+                            assert frame['phase']=='started' and credentials==(child.pid,os.geteuid(),os.getegid())
+                            os.kill(child.pid,signal.SIGUSR2);output,errors=child.communicate(timeout=3)
+                            assert child.returncode==0 and output==b'',errors
+                            print('cold runtime '+fault+(': watched omission RED reached actual started' if omitted else ': GREEN complete runtime reached started'))
+                        else:
+                            assert marker!=b'!',('unexpected cold helper runtime reached started',fault)
+                            output,errors=child.communicate(timeout=3)
+                            assert child.returncode==1 and ('guard:'+('runtime-pin-set' if fault=='unexpected' else 'pin-hash')).encode() in errors,(fault,child.returncode,errors)
+                            assert json.loads(marker+output)['phase']=='refused'
+                            try:assert channel.control.recv(65536)==b''
+                            except ConnectionResetError as failure:assert failure.errno==104
+                            print('cold runtime '+fault+': GREEN refused before started')
+                    finally:
+                        if child.poll() is None:child.kill();child.wait(timeout=1)
+                        channel.close()
+                    assert not staging.is_occupied(control,helpers['raw'],fixtures['live']['path'])
+            print('cold-runtime grouped regression and watched omissions')
+            sys.exit(0)
         class Child:
             def __init__(self,pid,out,err):
                 self.pid,self.stdout,self.stderr,self.returncode=pid,os.fdopen(out,'rb',buffering=0),os.fdopen(err,'rb',buffering=0),None
@@ -491,6 +597,7 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
         subprocess.Popen=launch
         original_persist=control.persist_projection
         def persist(packet,nonce,projection,budget,deadline):
+            global replaced
             watch_global('publish:'+projection['phase'])
             if mode=='persistence' and projection['phase'].endswith('-durable'):
                 original_fsync=os.fsync
@@ -500,6 +607,9 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
                 os.fsync=fail_fsync
             width=original_persist(packet,nonce,projection,budget,deadline)
             persisted.append(projection['phase'])
+            if mode=='state-replaced' and projection['phase']=='live-terminal':
+                state.rename(state.parent/'held-original');state.mkdir(mode=0o700);replaced=True
+                assert control.digest(helpers['repair'].read_reservations(str(state)))==request['ledger']['digest']
             return width
         control.persist_projection=persist
         native_staging_loader=control.load_staging
@@ -563,7 +673,7 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
             return module
         control.load_staging=staging_with_faults
         if omit:
-            category={'request-purpose':'request-purpose','request-version':'request-schema',
+            category={'state-replaced':'repair-lock-invalid','request-purpose':'request-purpose','request-version':'request-schema',
                 'request-fixture':'staging-fixture-binding','fixture-nonempty':'staging-fixture-binding','stale-ready':'staging-ready-binding',
                 'case-outcome':'staging-case-binding','complete-phase':'staging-complete-binding',
                 'stale-controller':'staging-startup-signal','wrong-controller':'staging-startup-signal',
@@ -588,10 +698,10 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
             for child in launched:
                 if child.poll() is not None and not child.stderr.closed: print(child.stderr.read().decode())
             if mode=='global-dependency':
-                assert isinstance(failure,AssertionError) and str(failure)=='global staging lock absent:capacity'
+                assert str(failure)=='helper-refused-unavailable' and broken_competition==[True]
                 assert not launched and not persisted and len(global_fds)==1
-                print('watched broken global acquire admitted real competition at capacity boundary')
-            expected={'global-holder':'raw-staging-occupied','request-purpose':'request-purpose','request-version':'request-schema','request-role':'pin-set',
+                print('watched broken global acquire admitted real competition; original-lock join refused before capacity')
+            expected={'state-replaced':'unlocked later capacity' if omit else 'helper-refused-unavailable','global-holder':'raw-staging-occupied','request-purpose':'request-purpose','request-version':'request-schema','request-role':'pin-set',
                 'request-fixture':'staging-fixture-binding','fixture-nonempty':'staging-fixture-binding','identity':'raw-unit-binding','caps':'raw-native-caps',
                 'forged-pid':'staging-ready-binding','forged-start':'staging-ready-native','stale-ready':'staging-ready-binding',
                 'pidfd-start':'staging-signal-binding','case-outcome':'staging-case-binding','complete-phase':'staging-complete-binding',
@@ -605,8 +715,9 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
                 assert isinstance(failure,(ConnectionResetError,control.Refusal)),(mode,type(failure).__name__,str(failure))
             elif mode=='persistence':assert isinstance(failure,OSError)
             else:raise
-            if omit:raise AssertionError('watched omitted guard still refused: '+mode)
-            assert not (packet/('observation-'+nonce+'-live-terminal.json')).exists() or mode in ('cleanup','dead-foreign-enoent')
+            if omit and mode=='state-replaced':print('watched omission accepted unsafe dependency: state-replaced')
+            if omit and mode!='state-replaced':raise AssertionError('watched omitted guard still refused: '+mode)
+            assert not (packet/('observation-'+nonce+'-live-terminal.json')).exists() or mode in ('cleanup','dead-foreign-enoent','state-replaced')
             if mode=='persistence':assert len(acks)==1
             print('bounded actual-path negative:',mode,'ACKs',len(acks))
         else:
@@ -642,6 +753,10 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
 `;
 
 for (const mode of [
+  'state-replaced',
+  'omit-state-replaced',
+  'dead-start-cleanup',
+  'cold-runtime',
   'global-lifetime',
   'global-holder',
   'global-dependency',
@@ -693,12 +808,15 @@ for (const mode of [
   'omit-dead-foreign-enoent',
 ]) {
   test(`native staging source ${mode} uses bounded ordinary ownership`, () => {
-    const child = Bun.spawnSync(['/usr/bin/python3', '-I', '-B', '-c', fixture, source, mode], {
-      stdin: 'ignore',
-      stdout: 'pipe',
-      stderr: 'pipe',
-      timeout: 20000,
-    });
+    const child = Bun.spawnSync(
+      ['/usr/bin/python3', '-I', '-B', '-c', fixture, source, mode, coldWorker],
+      {
+        stdin: 'ignore',
+        stdout: 'pipe',
+        stderr: 'pipe',
+        timeout: 20000,
+      },
+    );
     expect(new TextDecoder().decode(child.stderr)).toBe('');
     expect(child.exitCode).toBe(0);
     const report = new TextDecoder().decode(child.stdout);
@@ -708,7 +826,9 @@ for (const mode of [
       );
     } else if (mode.startsWith('omit-')) {
       expect(report).toContain('watched omission accepted unsafe dependency:');
-    } else if (['startup', 'metadata', 'packets'].includes(mode)) {
+    } else if (
+      ['startup', 'metadata', 'packets', 'cold-runtime', 'dead-start-cleanup'].includes(mode)
+    ) {
       expect(report).toContain('watched');
     } else {
       expect(report).toContain(`bounded actual-path negative: ${mode}`);

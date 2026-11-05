@@ -171,10 +171,11 @@ def create_dead_channel(control, helpers, path, nonce, request_sha, deadline):
             os._exit(0)
         except BaseException:
             os._exit(1)
-    os.close(writer)
-    child_start = raw.process_start(pid)
     reaped = False
     try:
+        os.close(writer)
+        # Proof: dead-start-cleanup parent /proc fault reaps the original child and closes all parent FDs.
+        child_start = raw.process_start(pid)
         sender = control.receive_frame(raw, reader, min(deadline, time.monotonic() + 1))
         while True:
             control.assert_deadline(deadline)
@@ -239,6 +240,8 @@ def release_worker(control, raw, binding, deadline):
 
 def run_worker(control, request, request_sha, helpers, source, deadline):
     raw, repair = helpers['raw'], helpers['repair']
+    # Proof: cold-runtime late platform omission/changed bytes refuse before started; omitted check reaches it.
+    control.check_loaded_runtime(request, deadline)
     control.check_process_limits(worker=True)
     group = raw.process_cgroup(os.getpid())
     labels = [label for label in LABELS if group.endswith('/' + name_unit(request['nonce'], label))]
@@ -301,11 +304,15 @@ def run_worker(control, request, request_sha, helpers, source, deadline):
 def coordinate_staging(control, request, request_path, request_sha, nonce, source, helpers, started, deadline, probe_cutoff):
     """Compose the established admission, observers, counters and durability around two tiny real handoffs."""
     raw, repair = helpers['raw'], helpers['repair']
-    # Proof: global-holder refuses before admission; broken acquire admits real competing flock at capacity.
+    # Proof: global-holder refuses before admission; broken acquire admits competition; original-lock join refuses before capacity.
     staging = raw.acquire_staging(request['state'])
     try:
+        staging_binding = dict(pid=os.getpid(), start=raw.process_start(os.getpid()),
+                               stagingFd=staging, staging=raw.identity(os.fstat(staging)))
+        # Proof: state-replaced keeps the ledger; omitted original-lock join admits unlocked later capacity.
         control.check_loaded_runtime(request, deadline)
         control.check_directory(request['packet'], private=True)
+        repair.check_lock(staging_binding, request['state'])
         control.observe_capacity(request, helpers, deadline, initial=True, exact=True)
         for label in LABELS:
             check_fixture(control, request, label)
@@ -314,6 +321,7 @@ def coordinate_staging(control, request, request_path, request_sha, nonce, sourc
         total_output = 0
         for label in LABELS:
             control.assert_deadline(deadline)
+            repair.check_lock(staging_binding, request['state'])
             control.observe_capacity(request, helpers, deadline, initial=label == 'live', exact=label == 'live')
             path = check_fixture(control, request, label)
             if label == 'live':
@@ -341,6 +349,7 @@ def coordinate_staging(control, request, request_path, request_sha, nonce, sourc
                     *('--property=' + value for value in control.PROPERTIES), '/usr/bin/python3.12', '-I', '-B', '-c',
                     bootstrap, str(control.ROOT), pin['sha256'], str(request_path), request_sha, nonce, *coordinator]
                 control.assert_deadline(deadline)
+                repair.check_lock(staging_binding, request['state'])
                 invocation = subprocess.Popen(command, stdin=channel.recipient, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     env=control.fixed_environment(), preexec_fn=raw.client_limits)
                 channel.close_recipient()
@@ -350,6 +359,7 @@ def coordinate_staging(control, request, request_path, request_sha, nonce, sourc
                 control.require(launched['sender'] == sender and launched['outcome'] == 'queued'
                                 and is_occupied(control, raw, path), 'staging-startup-exclusion')
                 stage = 'started-queued'
+                repair.check_lock(staging_binding, request['state'])
                 release_worker(control, raw, binding, deadline)
                 ready, credentials, width = receive_packet(control, channel.control, deadline, control.OUTPUT_LIMIT-total_output)
                 total_output += width
@@ -365,7 +375,9 @@ def coordinate_staging(control, request, request_path, request_sha, nonce, sourc
                 # Proof: early unlock / leaked dead right are detected by real competing flock acquisitions.
                 control.require(is_occupied(control, raw, path) == (label == 'live'), 'staging-adoption-exclusion')
                 control.require(control.verify_environment(request, deadline)[0] == source, 'source-binding')
+                repair.check_lock(staging_binding, request['state'])
                 control.observe_capacity(request, helpers, deadline)
+                repair.check_lock(staging_binding, request['state'])
                 send_packet(control, channel.control, {'bindingDigest': raw.digest_json(binding), 'request': request_sha}, deadline)
                 complete, final_credentials, width = receive_packet(control, channel.control, deadline, control.OUTPUT_LIMIT-total_output)
                 total_output += width
@@ -377,11 +389,13 @@ def coordinate_staging(control, request, request_path, request_sha, nonce, sourc
                 native = raw.observe_active(binding['unit'], binding['pid'], control.CAPS, control.LIMITS)
                 control.require(all(binding[key] == value for key, value in native.items()), 'staging-complete-native')
                 control.require(is_occupied(control, raw, path) == (label == 'live'), 'staging-preack-exclusion')
+                repair.check_lock(staging_binding, request['state'])
                 published += control.persist_projection(request['packet'], nonce,
                     {'phase': label + '-durable', 'request': request_sha, 'source': source, 'ready': ready,
                      'started': launched, 'complete': complete, 'command': command, 'socketpairSeam': label == 'dead'}, control.OUTPUT_LIMIT-published, deadline)
                 stage = 'durable'
                 # Proof: publication fsync failure prevents this ACK and closes the owned service/client.
+                repair.check_lock(staging_binding, request['state'])
                 send_packet(control, channel.control, {'bindingDigest': raw.digest_json(binding), 'request': request_sha}, deadline)
                 control.read_service(invocation, streams, deadline, drain=True)
                 control.require(invocation.wait(timeout=min(2, control.remaining_time(deadline))) == 0, 'service-client-exit')
@@ -400,7 +414,9 @@ def coordinate_staging(control, request, request_path, request_sha, nonce, sourc
                 raw.stop_owned(binding)
                 channel.close()
                 control.require(not is_occupied(control, raw, path), 'staging-terminal-exclusion')
+                repair.check_lock(staging_binding, request['state'])
                 final_capacity = control.observe_capacity(request, helpers, deadline)
+                repair.check_lock(staging_binding, request['state'])
                 published += control.persist_projection(request['packet'], nonce,
                     {'phase': label + '-terminal', 'request': request_sha, 'binding': binding, 'terminal': terminal,
                      'events': events, 'repeated': repeated, 'repeatedEvents': repeated_events,

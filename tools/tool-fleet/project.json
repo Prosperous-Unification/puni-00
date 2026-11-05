@@ -30,7 +30,9 @@
         "default",
         "^production",
         "{workspaceRoot}/infra/**/*",
-        "{workspaceRoot}/deploy/k8s/**/*"
+        "{workspaceRoot}/deploy/k8s/**/*",
+        "{workspaceRoot}/openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
+        "{workspaceRoot}/openspec/changes/observability-environment-parity/evidence/staging-native-control.py"
       ]
     },
     "lint": {
