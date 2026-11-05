@@ -3,16 +3,18 @@
   "scope": "Task100 finite native-control source preparation",
   "sourcePins": [
     {
-      "bytes": 58636,
-      "mode": "0644",
       "path": "openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
-      "sha256": "75393bd253e9896831e49f617b9fd4e6cdea1a48d471a246185d00546c10d74e"
+      "sha256": "8ec522139750bbeaba46af0fbe84170e0a7e72cb923680b82ead4760839b23cd",
+      "bytes": 59331,
+      "mode": "0644",
+      "uid": 1000
     },
     {
-      "bytes": 40863,
-      "mode": "0644",
       "path": "tools/tool-fleet/src/lab-repair-native-control.test.ts",
-      "sha256": "cc808735733432da591ef55f3ea94f8182d2f540bb01554c87dd5c5ce0f00868"
+      "sha256": "77ada4be4c5b26ed7d8a8176885d9ba8f43631ebaa8652f9bf16a860d1f37c09",
+      "bytes": 43994,
+      "mode": "0644",
+      "uid": 1000
     }
   ],
   "records": [
@@ -76,7 +78,8 @@
     "projectedBeforeRootReviewAndExtras": 491520,
     "maximum": 524288,
     "rootFixReviewAllocated": 12288,
-    "remainingForRootExtras": 20480
+    "remainingForRootExtras": 0,
+    "currentProjectedIncludingOriginalPad": 524288
   },
   "nativeExecuted": false,
   "requestGenerated": false,
@@ -114,5 +117,36 @@
     "installedProbe": "Before any request/service: original host probe rejected two undeclared root-owned startup hooks. Sandbox C-locale classifier accepted 67 runtime roles then correctly refused hooks reported UID65534; original host UID0/70-path observation is separate. Fresh final host binding remains required.",
     "locale": "LANG=C LC_ALL=C for request, controller and worker",
     "nativeExecuted": false
+  },
+  "hostPreparation": {
+    "scope": "C-locale verified-source helper imports and metadata request preparation only",
+    "runtimePaths": 69,
+    "allRuntimeRootOwnedSafeRegularSingleLink": true,
+    "availableMemoryKiB": 18897812,
+    "freeBytes": 215141982208,
+    "automaticReview": "first attempt timed out without execution; permitted single retry completed0",
+    "initialInventoryRefusal": "directory-identity:440directories,113owned0775historicaldirectories;zeroother-writable. No mode changes or omitted entries.",
+    "unfinalizedPad": {
+      "nonce": "dfe12909a3573a492d0ceac5ad1bd11c",
+      "sha256": "0beca823b527427c6f6abccba22309ee6137100421b0037578e4521d5f2b7302",
+      "dev": "66307",
+      "inode": "18891397",
+      "bytes": 65536,
+      "allocatedBytes": 65536,
+      "uid": 1000,
+      "mode": "0600"
+    },
+    "nativeUnitStarted": false,
+    "requestAuthorized": false,
+    "stagingLockClosedOnRefusal": true
+  },
+  "passiveInventoryCorrection": {
+    "sourceBase": "f38c6faed79347c138f4056f109744cc627f9dee",
+    "reportSha256": "39a6fab37231c4eddec0063b8928eedc513659e72a9f7a92919d8e46032f0d99",
+    "reportBytes": 4046,
+    "red": "separate authentic0775 root and descendant refusals before fix",
+    "green": "one focused inventory case,4Bun assertions,8filtered; internal owner/type/read/search/world-write/stability/active-mode and no-follow vectors with watched guard faults",
+    "review": "independent scoped read-only approval: frozen pins/modes/allocations/diff and unrelated AST equivalence; no findings, replay or writes",
+    "remainingMetadataDiagnostic": "6241 actual metadata rows; no other owner/kind/owner-read failures. No payload reads or native authority."
   }
 }

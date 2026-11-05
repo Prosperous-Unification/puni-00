@@ -1505,3 +1505,14 @@ The Kubernetes preflight adapter SHALL query core workloads and only supported c
 - **THEN** preflight queries core workloads plus only those fixed custom types justified by the observed CRD inventory and records the missing definitions
 - **AND** native query errors for a type observed as present still refuse rather than becoming empty or absent state
 - **AND** missing required controllers/resources continue to block cutover; inventory completion grants no runtime or migration acceptance
+
+### Requirement: Passive inventory preserves evidence permissions
+
+Finite native qualification SHALL account for retained evidence without changing its permissions or granting payload authority. Passive directory inventory SHALL require owned readable/searchable directory shape and complete stable modification identities. Active staging and control-packet directories SHALL retain private ownership/mode checks.
+
+#### Scenario: Historical directory permissions do not imply active authority
+
+- **WHEN** retained owned evidence contains a readable/searchable group-writable directory
+- **THEN** inventory records its exact mode and every allocated entry without changing it
+- **AND** foreign ownership, world-writable or unreadable/unsearchable directories, symlink traversal and changed metadata still refuse
+- **AND** group-writable active staging or control-packet directories still refuse

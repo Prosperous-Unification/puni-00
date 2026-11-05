@@ -705,7 +705,7 @@ spec=importlib.util.spec_from_file_location('provider',sys.argv[1]);p=importlib.
 native=p.raw if hasattr(p,'raw') else p
 root=str(p.HELPER.parents[3]);state=root+'/.puni/fleet-labs/observability-baseline';image=state+'/inputs/source.img'
 required=[str(p.HELPER),str(p.HELPER.with_suffix('.ts')),str(p.HELPER.with_name('lab-'+sys.argv[2]+'-preparation-cli.ts')),str(p.HELPER.with_name('lab-raw-preparation.py')),str(p.HELPER.with_name('lab-raw-allocation.py')),root+'/infra/local/qemu-lab.lock.json',image,state+'/tools-root/usr/bin/qemu-img',state+'/tools-root/usr/bin/genisoimage',state+'/tools-root/usr/bin/isoinfo','/usr/bin/python3.12','/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2']
-request={'root':root,'state':state,'image':image,'pins':[{'path':path} for path in required]}
+request={'schemaVersion':1,'root':root,'state':state,'image':image,'pins':[{'path':path} for path in required]}
 original_realpath=os.path.realpath
 os.path.realpath=lambda path:'/usr/bin/python3.14' if path=='/usr/bin/python3' else original_realpath(path)
 try:p.verify_inputs(request)

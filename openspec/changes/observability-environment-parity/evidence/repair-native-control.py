@@ -446,6 +446,17 @@ def check_directory(path, private=False):
     return observation
 
 
+def check_inventory_directory(path):
+    """Record passive owned evidence without granting active directory authority."""
+    observation = os.lstat(path)
+    # Proof: inventory0775 vectors retain exact modes; owner/type/read/search/other-write
+    # faults refuse, and removing this guard admits them. Active0775 remains refused.
+    require(stat.S_ISDIR(observation.st_mode) and observation.st_uid == os.geteuid()
+            and bool(observation.st_mode & 0o400) and bool(observation.st_mode & 0o100)
+            and not observation.st_mode & 0o002, 'inventory-directory-identity')
+    return observation
+
+
 def inventory_roots(request, deadline=None):
     """Complete metadata-only two-root inventory; never opens retained file payloads.
 
@@ -459,11 +470,12 @@ def inventory_roots(request, deadline=None):
     observed = {}
     count = 0
     for index, root_path in enumerate((request['state'], request['outside'])):
-        root_before = check_directory(root_path, private=index == 0)
+        root_before = (check_directory(root_path, private=True) if index == 0
+                       else check_inventory_directory(root_path))
         def refuse_walk(_failure):
             raise Refusal('inventory-unreadable')
         for directory, directories, files in os.walk(root_path, followlinks=False, onerror=refuse_walk):
-            check_directory(directory)
+            check_inventory_directory(directory)
             directories.sort()
             files.sort()
             for name in ['.'] + directories + files:

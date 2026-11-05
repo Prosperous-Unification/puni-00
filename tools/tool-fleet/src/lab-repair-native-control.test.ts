@@ -356,8 +356,56 @@ elif case=='inventory':
         nonce='a'*32
         request_path=packet/('request-'+nonce+'.json')
         request_path.write_bytes(b'X'*65536);request_path.chmod(0o600)
-        unrelated=state/'owned';unrelated.write_bytes(b'A'*4096);unrelated.chmod(0o600)
+        legacy=state/'legacy';legacy.mkdir(mode=0o700);legacy.chmod(0o775);outside.chmod(0o775)
+        unrelated=legacy/'owned';unrelated.write_bytes(b'A'*4096);unrelated.chmod(0o600)
         request={'state':str(state),'outside':str(outside),'packet':str(packet),'nonce':nonce}
+        assert stat.S_IMODE(legacy.stat().st_mode)==stat.S_IMODE(outside.stat().st_mode)==0o775
+        before=control.inventory_roots(request)
+        for active in (state,packet):
+            control.check_directory(active,private=True)
+            active.chmod(0o775)
+            refused(lambda:control.check_directory(active,private=True),'directory-identity')
+            active.chmod(0o700)
+        original_require=control.require
+        def omit(code):
+            control.require=lambda predicate,category:original_require(predicate,category) if category!=code else None
+        for mode in (0o400,0o100,0o777):
+            legacy.chmod(mode)
+            refused(lambda:control.check_inventory_directory(legacy),'inventory-directory-identity')
+            omit('inventory-directory-identity');control.check_inventory_directory(legacy);control.require=original_require
+        legacy.chmod(0o775)
+        excluded=root/'excluded';excluded.mkdir();hidden=excluded/'entry';hidden.write_bytes(b'A')
+        alias=legacy/'alias';alias.symlink_to(excluded,target_is_directory=True)
+        for wrong in (unrelated,alias):
+            refused(lambda:control.check_inventory_directory(wrong),'inventory-directory-identity')
+            omit('inventory-directory-identity');control.check_inventory_directory(wrong);control.require=original_require
+        actual_lstat=os.lstat
+        def copy_stat(observation):
+            return types.SimpleNamespace(**{name:getattr(observation,name) for name in (
+                'st_dev','st_ino','st_uid','st_mode','st_nlink','st_size','st_blocks','st_mtime_ns','st_ctime_ns')})
+        def foreign(path,*arguments,**keywords):
+            observation=copy_stat(actual_lstat(path,*arguments,**keywords));observation.st_uid+=1;return observation
+        os.lstat=foreign
+        try:
+            refused(lambda:control.check_inventory_directory(legacy),'inventory-directory-identity')
+            omit('inventory-directory-identity');control.check_inventory_directory(legacy)
+        finally:os.lstat=actual_lstat;control.require=original_require
+        first=control.inventory_roots(request);hidden.write_bytes(b'B')
+        assert control.inventory_roots(request)==first
+        legacy.chmod(0o755);assert control.inventory_roots(request)['digest']!=first['digest'];legacy.chmod(0o775)
+        count=[0]
+        def changed(path,*arguments,**keywords):
+            observation=actual_lstat(path,*arguments,**keywords)
+            if str(path)==str(legacy):
+                count[0]+=1
+                if count[0]>1:observation=copy_stat(observation);observation.st_mtime_ns+=1
+            return observation
+        os.lstat=changed
+        try:
+            refused(lambda:control.inventory_roots(request),'inventory-changed')
+            count[0]=0;omit('inventory-changed');control.inventory_roots(request)
+        finally:os.lstat=actual_lstat;control.require=original_require
+        print('watched passive shape/identity guards removed: RED accepted bad metadata; active0775 refused')
         before=control.inventory_roots(request)
         identity=os.stat(unrelated)
         unrelated.write_bytes(b'B'*4096)
