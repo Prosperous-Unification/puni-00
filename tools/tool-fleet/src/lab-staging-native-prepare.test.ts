@@ -252,6 +252,10 @@ def composed_bindings(scratch):
         module,control,helpers,staging,pins,debt,put,lock,profiles,close=composition(directory,
             omit_category(category) if category else None)
         calls=[]
+        # Proof: absent host manager variables reproduced omit-prepared before the forbidden CLI.
+        manager_environment={'XDG_RUNTIME_DIR':str(directory/'manager'),'DBUS_SESSION_BUS_ADDRESS':'unix:path='+str(directory/'manager/bus')}
+        inherited={name:os.environ.get(name) for name in manager_environment}
+        os.environ.update(manager_environment)
         try:
             module.prepare(control,staging,helpers,pins,'e'*64)
             module.review(control,staging,helpers)
@@ -304,7 +308,9 @@ def composed_bindings(scratch):
                     if path.exists() and observed.st_ino==path.stat().st_ino:raise OSError('marker sync failed')
                     return original_fsync(descriptor)
                 os.fsync=failed_marker_sync
-            def forbidden_child(*arguments,**keywords):
+            def forbidden_child(command,environment,*arguments,**keywords):
+                assert command[0]=='/usr/bin/python3.12'
+                assert all(environment[name]==value for name,value in manager_environment.items())
                 calls.append(True);raise RuntimeError('forbidden original CLI boundary reached')
             module.capture_child=forbidden_child
             profiles.clear();refused=False
@@ -322,7 +328,11 @@ def composed_bindings(scratch):
                 assert not calls,'bad binding/marker launched original CLI: '+fault
                 if fault.startswith('prepared-'):assert not profiles,'bad prepared binding crossed profile boundary'
             if fault=='marker-replay':assert pathlib.Path(module.LAUNCHED).read_bytes()==b'original-marker'
-        finally:close()
+        finally:
+            for name,value in inherited.items():
+                if value is None:os.environ.pop(name,None)
+                else:os.environ[name]=value
+            close()
     print('real prepared/review/approval/request-inode/marker refusals before CLI, with watched binding omissions')
 
 with tempfile.TemporaryDirectory(prefix='puni-operator-component-') as temporary:

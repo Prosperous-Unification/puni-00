@@ -22,12 +22,49 @@ test('finite staging entry compiles before importing its native helpers', () => 
   expect(new TextDecoder().decode(child.stdout)).toBe('staging-native-control: AST-valid\n');
 });
 
-const coldWorker = readFileSync(
-  new URL('./lab-staging-native-cold-fixture.py', import.meta.url),
-  'utf8',
-);
+const runtimeProvider = String.raw`
+import io, os, sys, types
+from pathlib import Path
+# Proof: missing3.12 RED; runtime-provider preserves native guards over current interpreter bytes.
+physical_stdlib=str(Path(os.__file__).parent)
+physical_executable=str(Path(sys.executable).resolve())
+runtime_aliases=[('/usr/bin/python3.12',physical_executable),('/usr/lib/python3.12/',physical_stdlib+'/')]
+with open('/proc/self/maps',encoding='ascii') as stream:
+    for row in stream:
+        fields=row.split(maxsplit=5)
+        if len(fields)==6:
+            physical=fields[5].strip()
+            if physical.startswith(sys.base_prefix+'/lib/libpython'):
+                alias=('/usr/lib/x86_64-linux-gnu/'+Path(physical).name,physical)
+                if alias not in runtime_aliases:runtime_aliases.append(alias)
+def map_runtime_path(path,physical=False):
+    if not isinstance(path,(str,os.PathLike)):return path
+    selected=str(path)
+    for modeled,installed in runtime_aliases:
+        before,after=(modeled,installed) if physical else (installed,modeled)
+        if selected==before or before.endswith('/') and selected.startswith(before):
+            return after+selected[len(before):]
+    return selected
+def runtime_observation(observed,path):
+    if map_runtime_path(path)!=str(path) or map_runtime_path(path,True)!=str(path):
+        fields={name:getattr(observed,name) for name in dir(observed) if name.startswith('st_')}
+        fields['st_uid']=0;fields['st_mode'] &= ~0o022
+        return types.SimpleNamespace(**fields)
+    return observed
+installed_lstat,installed_stat,installed_fstat,installed_open,installed_io_open,installed_resolve=os.lstat,os.stat,os.fstat,os.open,io.open,Path.resolve
+os.lstat=lambda path,*args,**kwargs:runtime_observation(installed_lstat(map_runtime_path(path,True),*args,**kwargs),path)
+os.stat=lambda path,*args,**kwargs:runtime_observation(installed_stat(map_runtime_path(path,True),*args,**kwargs),path)
+os.fstat=lambda descriptor:runtime_observation(installed_fstat(descriptor),os.readlink('/proc/self/fd/'+str(descriptor)))
+os.open=lambda path,*args,**kwargs:installed_open(map_runtime_path(path,True),*args,**kwargs)
+io.open=lambda path,*args,**kwargs:installed_io_open(map_runtime_path(path,True),*args,**kwargs)
+Path.resolve=lambda path,*args,**kwargs:Path(map_runtime_path(installed_resolve(Path(map_runtime_path(path,True)),*args,**kwargs)))
+`;
 
-const fixture = String.raw`
+const coldWorker =
+  runtimeProvider +
+  readFileSync(new URL('./lab-staging-native-cold-fixture.py', import.meta.url), 'utf8');
+
+const fixture = String.raw`${runtimeProvider}
 import array, builtins, copy, ctypes, encodings.ascii, hashlib, importlib.util, io, json, os
 from pathlib import Path
 import fcntl, resource, select, shutil, signal, socket, stat, subprocess, sys, tempfile, time, types
@@ -263,6 +300,7 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
         sys.exit(0)
     # Native provider: sandbox-installed system files expose remapped owners; source/request owners stay real.
     def provider_stat(observed, path):
+        path=map_runtime_path(path)
         if str(path).startswith(('/usr/', '/etc/python3.12/')):
             values = {name:getattr(observed,name) for name in dir(observed) if name.startswith('st_')}
             values['st_uid'] = 0
@@ -473,6 +511,30 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
             namespace=dict(staging.__dict__);exec(compile(module,'<removed-child-scope>','exec'),namespace)
             inspect_cleanup(namespace['create_dead_channel'],False)
             print('dead-start-cleanup GREEN original child reaped/all parent FDs closed; watched scope omission RED leaked child/FDs')
+            sys.exit(0)
+        if mode=='runtime-provider':
+            native_pin=request['pins'][8]
+            assert native_pin['path']=='/usr/bin/python3.12' and native_pin['uid']==0
+            assert native_pin['sha256']==hashlib.sha256(Path(physical_executable).read_bytes()).hexdigest()
+            modeled_version=control.sys.version_info;modeled_samefile=control.os.path.samefile
+            original_require=control.require;original_pin=copy.deepcopy(native_pin)
+            for fault,category in (('version','runtime-binding'),('executable','runtime-binding'),('hash','pin-hash'),('owner','pin-identity')):
+                try:
+                    if fault=='version':control.sys.version_info=(3,14,0)
+                    elif fault=='executable':control.os.path.samefile=lambda *_:False
+                    elif fault=='hash':native_pin['sha256']='f'*64
+                    else:native_pin['uid']=1
+                    try:control.verify_environment(request,time.monotonic()+3)
+                    except control.Refusal as failure:assert str(failure)==category,(fault,str(failure))
+                    else:raise AssertionError('unsafe modeled native provider admitted: '+fault)
+                    control.require=lambda predicate,code:original_require(predicate,code) if code!=category else None
+                    _,captured=control.verify_environment(request,time.monotonic()+3)
+                    assert set(captured)=={str(root/relative) for relative in control.select_sources()}
+                    print('watched native provider guard omission reached source capture:',fault)
+                finally:
+                    control.require=original_require;control.sys.version_info=modeled_version;control.os.path.samefile=modeled_samefile
+                    native_pin.clear();native_pin.update(original_pin)
+            print('runtime-provider modeled3.12 uses actual current bytes and guarded source capture')
             sys.exit(0)
         if mode=='cold-runtime':
             bootstrap=control.WORKER_BOOTSTRAP.replace('evidence/repair-native-control.py','evidence/staging-native-control.py').replace('98304','65536').replace('98305','65537')
@@ -757,6 +819,7 @@ for (const mode of [
   'omit-state-replaced',
   'dead-start-cleanup',
   'cold-runtime',
+  'runtime-provider',
   'global-lifetime',
   'global-holder',
   'global-dependency',
@@ -827,7 +890,14 @@ for (const mode of [
     } else if (mode.startsWith('omit-')) {
       expect(report).toContain('watched omission accepted unsafe dependency:');
     } else if (
-      ['startup', 'metadata', 'packets', 'cold-runtime', 'dead-start-cleanup'].includes(mode)
+      [
+        'startup',
+        'metadata',
+        'packets',
+        'cold-runtime',
+        'runtime-provider',
+        'dead-start-cleanup',
+      ].includes(mode)
     ) {
       expect(report).toContain('watched');
     } else {

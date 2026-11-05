@@ -545,6 +545,138 @@ def read_record(path):
         os.close(descriptor)
 
 
+_SETTLEMENT_NAMES = frozenset('settlement-' + role + '.json' for role in
+                              ('request', 'execution', 'ready', 'counter', 'drain',
+                               'barrier', 'certificate', 'receipt', 'failure'))
+
+
+def publish_settlement_record(directory, directory_fd, name, record):
+    """Publish one fixed private record, interleaving direct blocks with initialized FIEMAP.
+
+    Borrows the original directory FD; the caller supplies staging exclusion and all
+    ownership, capacity and filesystem qualification. This primitive grants no authority.
+    Every syscall is attempted once. Failed partial files remain; close uncertainty is
+    never retried and cleanup failures retain the primary exception. The writer's same
+    O_DIRECT description survives shrinking, content verification and final file sync.
+    """
+    # Proof: platform-os/platform-machine omissions publish under a foreign Linux/x86_64 adapter identity.
+    require(platform.system() == 'Linux' and platform.machine() == 'x86_64', 'settlement-platform')
+    # Proof: foreign-name/traversal omissions publish outside the fixed namespace.
+    require(type(name) is str and name in _SETTLEMENT_NAMES, 'settlement-name')
+    # Proof: empty/list/scalar omissions publish empty or non-object records.
+    require(type(record) is dict and bool(record), 'settlement-record')
+    payload = raw.encode_json(record)
+    padded_bytes = (len(payload) + 4095) // 4096 * 4096
+    original_parent = raw.identity(os.fstat(directory_fd))
+
+    def check_parent():
+        opened, named = os.fstat(directory_fd), os.lstat(directory)
+        # Proof: parent omission admits a foreign, nonprivate, symlink or replaced directory before creation/mutation.
+        require(raw.identity(opened) == raw.identity(named) == original_parent
+                and stat.S_ISDIR(opened.st_mode) and stat.S_ISDIR(named.st_mode)
+                and opened.st_uid == os.geteuid() and stat.S_IMODE(opened.st_mode) == 0o700,
+                'settlement-parent')
+
+    check_parent()
+    descriptor = None
+    mapping = None
+    failure = None
+    original_file = None
+    flags = os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_DIRECT | os.O_DSYNC
+
+    def check_file(expected_bytes):
+        check_parent()
+        opened = os.fstat(descriptor)
+        relative = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+        named = os.lstat(Path(directory) / name)
+        # Proof: file omission admits changed path/FD inode, owner, mode, links, type or size before the next allocation.
+        require(raw.identity(opened) == raw.identity(relative) == raw.identity(named) == original_file
+                and all(stat.S_ISREG(entry.st_mode) and entry.st_nlink == 1
+                        and entry.st_size == expected_bytes for entry in (opened, relative, named))
+                and opened.st_uid == os.geteuid() and stat.S_IMODE(opened.st_mode) == 0o600,
+                'settlement-file')
+        # Proof: direct omission permits cleared O_DIRECT/DSYNC, access or CLOEXEC state at the next mutation.
+        require(fcntl.fcntl(descriptor, fcntl.F_GETFL) & (os.O_ACCMODE | os.O_DIRECT | os.O_DSYNC)
+                == os.O_RDWR | os.O_DIRECT | os.O_DSYNC
+                and fcntl.fcntl(descriptor, fcntl.F_GETFD) & fcntl.FD_CLOEXEC,
+                'settlement-direct')
+
+    try:
+        # Proof: open fault/flag controls witness one exclusive nonfollowing direct openat and no replacement/retry.
+        opened_descriptor = writer.native_call(257, ctypes.c_int(directory_fd), ctypes.c_char_p(name.encode()),
+                                               ctypes.c_int(flags), ctypes.c_uint(0o600))
+        require(opened_descriptor >= 0, 'settlement-open')
+        descriptor = opened_descriptor
+        original_file = raw.identity(os.fstat(descriptor))
+        check_file(0)
+        mapping = writer.mmap.mmap(-1, padded_bytes,
+                                  flags=writer.mmap.MAP_PRIVATE | writer.mmap.MAP_ANONYMOUS)
+        address = ctypes.addressof(ctypes.c_char.from_buffer(mapping))
+        # Proof: alignment omission reaches a native write with a deliberately shifted actual buffer address.
+        require(address % 4096 == 0, 'settlement-alignment')
+        mapping[:len(payload)] = payload
+        inspector = raw.load_inspector()
+        for offset in range(0, padded_bytes, 4096):
+            check_file(offset)
+            writer.allocate_block(descriptor, offset)
+            check_file(offset + 4096)
+            # Proof: short/EINTR/error write controls refuse after one actual DSYNC pwrite without a later allocation.
+            require(writer.native_call(18, ctypes.c_int(descriptor), ctypes.c_void_p(address + offset),
+                                       ctypes.c_size_t(4096), ctypes.c_longlong(offset)) == 4096,
+                    'settlement-write')
+            check_file(offset + 4096)
+            # Proof: prefix omission with an actual unwritten/hole/extra FIEMAP fault reaches the next allocation.
+            inspector.inspect_file(Path(directory) / name, offset + 4096, require_initialized=True)
+            check_file(offset + 4096)
+        if len(payload) != padded_bytes:
+            check_file(padded_bytes)
+            # Proof: truncate-error/eintr controls publish when the native return check is omitted.
+            require(writer.native_call(77, ctypes.c_int(descriptor), ctypes.c_longlong(len(payload))) == 0,
+                    'settlement-truncate')
+        check_file(len(payload))
+        final_file = raw.stable_identity(os.fstat(descriptor))
+        # Proof: read/content controls refuse short, failed or substituted final canonical bytes without retry.
+        require(writer.native_call(17, ctypes.c_int(descriptor), ctypes.c_void_p(address),
+                                   ctypes.c_size_t(padded_bytes), ctypes.c_longlong(0)) == len(payload)
+                and mapping[:len(payload)] == payload, 'settlement-content')
+        check_file(len(payload))
+        # Proof: file-sync fault/omission refuses before success and preserves file-close/directory-sync ordering.
+        require(writer.native_call(74, ctypes.c_int(descriptor)) == 0, 'settlement-file-sync')
+        check_file(len(payload))
+        mapping_to_close, mapping = mapping, None
+        # Proof: success-close-map omission leaves the real anonymous mapping open after publication.
+        mapping_to_close.close()
+        descriptor_to_close, descriptor = descriptor, None
+        # Proof: close-file fault is never retried; success-close-fd omission leaks the actual original FD.
+        os.close(descriptor_to_close)
+        check_parent()
+        # Proof: directory-sync fault/omission refuses after exactly one original file close.
+        require(writer.native_call(74, ctypes.c_int(directory_fd)) == 0, 'settlement-directory-sync')
+        check_parent()
+        # Proof: completion/content-during-sync omissions admit post-read content or post-close path substitution.
+        require(raw.stable_identity(os.lstat(Path(directory) / name)) == final_file,
+                'settlement-completion')
+    except BaseException as caught:
+        failure = caught
+    # Proof: cleanup-primary omission turns a failed real write into success.
+    failures = [] if failure is None else [failure]
+    # Proof: cleanup omissions leak the actual mapping/FD; compound faults retain primary and every cleanup cause.
+    for resource in (mapping, descriptor):
+        if resource is not None:
+            try:
+                if isinstance(resource, int):
+                    os.close(resource)
+                else:
+                    resource.close()
+            except BaseException as cleanup_failure:
+                # Proof: cleanup-causes omission loses both actual map-close and file-close failures.
+                failures.append(cleanup_failure)
+    if len(failures) == 1:
+        raise failures[0]
+    if failures:
+        raise BaseExceptionGroup('settlement publication cleanup failed', failures)
+
+
 class PendingAttempt:
     """Original coordinator FD borrowed until publication, never an external admission token.
 

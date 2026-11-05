@@ -1710,3 +1710,22 @@ The staging operator SHALL preserve original admission-lock ownership across pre
 
 - **WHEN** setup or observation fails after successful original CLI spawn
 - **THEN** cleanup already owns that exact child and every opened channel, preserves primary and cleanup failures, and cannot leave it running or grant retry authority.
+
+### Requirement: Settlement record publication preserves the finite allocation protocol
+
+Internal failed-settlement records SHALL use the fixed nine-name namespace and original private directory. Publication SHALL allocate, directly write and verify each initialized4096-byte prefix before allocating another block. Failures SHALL refuse without retry or replacement. Primitive publication SHALL NOT grant settlement, repair, guest or deployment authority.
+
+#### Scenario: Bounded canonical record is durably published
+
+- **WHEN** a supported fixed record is published through the internal primitive in an owned disposable directory
+- **THEN** its exact canonical bytes are retained after initialized-prefix verification and ordered file and directory durability
+- **AND** the original borrowed directory FD remains open
+- **AND** exclusive creation retains the same original writer open-file description with O_DIRECT through final close
+- **AND** only a partial final padded block may shrink, without a buffered rewrite
+- **AND** file synchronization, original file close and original directory synchronization complete in that order before successful return
+
+#### Scenario: A publication prerequisite fails
+
+- **WHEN** a name or parent is foreign, a name already exists, direct flags or path/FD identity change, a write is short, a prefix is uninitialized, or synchronization or close fails
+- **THEN** publication throws without retry, replacement, deletion, a later allocation or a success envelope
+- **AND** any partial file remains visible while all owned resources receive exactly one cleanup attempt and primary plus cleanup failures remain inspectable

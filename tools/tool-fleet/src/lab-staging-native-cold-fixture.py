@@ -8,6 +8,7 @@ native_samefile=os.path.samefile
 sys.version_info=(3,12,0)
 os.path.samefile=lambda left,right:True if (left,right)==('/proc/self/exe','/usr/bin/python3.12') else native_samefile(left,right)
 def observed(observation,path):
+    path=map_runtime_path(path)
     if str(path).startswith('/usr/') or str(path).startswith('/etc/python3.12/'):
         fields={name:getattr(observation,name) for name in dir(observation) if name.startswith('st_')};fields['st_uid']=0
         return types.SimpleNamespace(**fields)
