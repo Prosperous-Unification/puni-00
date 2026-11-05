@@ -1592,7 +1592,7 @@ A fresh qualification SHALL fully charge retained provenance and future request/
 
 ### Requirement: Repair executes the admitted repository source
 
-The production repair coordinator SHALL verify the bounded private request and capture the fixed repository Python source set from original SHA-verified descriptors before importing any repository helper. Initial, transitive and lazy repository imports SHALL compile only those immutable captured bytes. Owner-controlled bytecode caches and later path replacements SHALL NOT supply executable bytes. Root-installed Python runtime/stdlib remain the explicit system trust boundary; the coordinator's directly executed entry and existing Bun launcher remain the trusted entry boundary. The worker SHALL verify and capture its pinned entry before executing it and SHALL enforce the same helper-source admission.
+The repair coordinator and worker SHALL execute only fixed repository source bytes captured through original SHA-verified descriptors before helper imports. Initial, transitive and lazy imports SHALL use those immutable buffers; repository bytecode and later path reads SHALL NOT supply executable bytes.
 
 #### Scenario: A valid source pin accompanies a substituted cache
 
@@ -1613,3 +1613,10 @@ The production repair coordinator SHALL verify the bounded private request and c
 - **AND** worker startup cannot execute an unverified replacement of its own entry
 
 The existing request/envelope versions, fixed source roles, service/process and physical capacity floors, history, reservation/release and native writer functions SHALL remain unchanged. Each captured Python source is at most131072bytes; the six fixed Python sources together are at most786432bytes, within the existing coordinator/service limits. These are source-capture bounds, not larger runtime or evidence allowances. Component source verification grants no retained-disk repair, new guest or full observability acceptance.
+
+#### Scenario: Trusted launchers and fixed bounds remain explicit
+
+- **WHEN** production source admission succeeds
+- **THEN** the existing direct coordinator/Bun launcher and root-installed Python runtime/stdlib retain their explicit trust boundaries
+- **AND** the worker entry verifies before execution, each of six Python sources is at most131072bytes and their sum is at most786432bytes
+- **AND** source capture grants no mutation, release, guest or full observability acceptance and preserves the existing runtime/capacity/history contracts

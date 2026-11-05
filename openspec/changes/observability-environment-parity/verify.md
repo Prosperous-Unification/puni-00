@@ -7106,3 +7106,5 @@ Publication checks: installed `bun node_modules/.bin/openspec validate observabi
 ## Task104 source execution plan — 2026-11-05 UTC
 
 The confirmed scratch reproduction justifies a bounded repair-producer fix before any real repair. Existing-file stdlib admission plus captured-buffer loader and pinned worker bootstrap is selected; the separate shared bootstrap role is unnecessary. This is authorized corrective work within the autonomous goal. Prior publication was progress: all investigation bytes and prior source were freshly pushed and remote-verified. No production fix or green regression is claimed yet; source/native/full-runtime evidence remain separate.
+
+Plan validation correction: the first strict validation refused the new requirement prose length (>500characters). Its shell wrapper continued to the normal documentation commit despite that nonzero result; no implementation was dispatched and no validation success was claimed. Requirement prose is now concise with trust/bound details in scenarios; a fresh strict validation must pass before dispatch.
