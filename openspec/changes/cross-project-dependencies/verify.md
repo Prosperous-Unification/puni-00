@@ -7864,3 +7864,5 @@ Actual component tests keep their original epochs: harmless80, real Graph202/11/
 2026-11-05: [fresh-main ADR identity repair](verify-adr-identities-20261105.md) preserves decision bytes and the existing numbering guard. The [hosted follow-up](verify-ci-hosted-followup-20261105.md#actual-hosted-vite-qualification) now records actual Vite producer success, separately from the failing workspace gate.
 
 2026-11-05: [restoration store-observer lifetime repair](verify-restoration-readback-20261105.md) records the new hosted failure, unchanged reproduction, exact-restored private diagnosis and reviewed ordinary/initial-handoff proof boundaries.
+
+2026-11-05: [ordinary initial-handoff fixture layout correction](verify-initial-fixture-layouts-20261105.md) records the independent canonical-provider binding, original callback preservation, actual guard/restoration negatives and focused restored checks. Full storage/CI/host and private acceptance remain separate.
