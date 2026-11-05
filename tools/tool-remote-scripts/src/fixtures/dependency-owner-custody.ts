@@ -1514,6 +1514,7 @@ export type OrdinaryHoldSourceMappingV1 =
     };
 export interface OrdinaryHoldImageV1 {
   readonly format: 'dependency-owner-ordinary-hold-image';
+  readonly sourceEpoch: 'ordinary-febb-custody-v1';
   readonly version: 1;
   readonly sourceRoot: string;
   readonly sourceIdentity: string;
@@ -1576,6 +1577,7 @@ export function decodeOrdinaryHoldImageV1(value: unknown): OrdinaryHoldImageV1 {
     [
       'format',
       'version',
+      'sourceEpoch',
       'sourceRoot',
       'sourceIdentity',
       'sourcePins',
@@ -1585,7 +1587,11 @@ export function decodeOrdinaryHoldImageV1(value: unknown): OrdinaryHoldImageV1 {
     ],
     'ordinary HOLD image',
   );
-  if (image['format'] !== 'dependency-owner-ordinary-hold-image' || image['version'] !== 1)
+  if (
+    image['format'] !== 'dependency-owner-ordinary-hold-image' ||
+    image['version'] !== 1 ||
+    image['sourceEpoch'] !== 'ordinary-febb-custody-v1'
+  )
     throw new Error('ordinary HOLD image version differs');
   const sourceRoot = ordinaryHoldAbsolute(image['sourceRoot'], 'ordinary HOLD source root');
   const sourceIdentity = image['sourceIdentity'];
@@ -1702,6 +1708,7 @@ export function decodeOrdinaryHoldImageV1(value: unknown): OrdinaryHoldImageV1 {
     throw new Error('ordinary HOLD title roster digest differs');
   return Object.freeze({
     format: 'dependency-owner-ordinary-hold-image',
+    sourceEpoch: 'ordinary-febb-custody-v1',
     version: 1,
     sourceRoot,
     sourceIdentity,
@@ -1818,6 +1825,7 @@ export const ordinaryHoldModuleModesV1 = [
     relative: 'libs/wbs/adapters/store-sqlite/src/sqlite-cleanup.ts',
     mode: 'pinned-pass-through',
   },
+  { relative: 'libs/wbs/adapters/store-sqlite/src/migrate.ts', mode: 'transform' },
 ] as const;
 
 /** Closed ordinary case metadata only; registration and helper execution are later work. */
@@ -2312,7 +2320,7 @@ export function decodeOrdinaryHoldObservationV1(value: unknown): OrdinaryHoldObs
 }
 
 /** Fixed source bytes for the ordinary image compiler epoch at published febb1c244. */
-export const ordinaryHoldSourceEpochV1 = Object.freeze({
+export const ordinaryHoldHistoricalSourceEpochV1 = Object.freeze({
   sourceIdentity: 'febb1c24427b2d368aa2d6446d6000dc1faabdb3',
   pins: Object.freeze([
     Object.freeze({
@@ -2394,6 +2402,20 @@ export const ordinaryHoldSourceEpochV1 = Object.freeze({
       relative: 'libs/wbs/adapters/store-sqlite/src/sqlite-cleanup.ts',
       bytes: 2479,
       sha256: '83785f02655bf81514328255fe45e047b4b79a5374fdebb3a269d2d2687ac74b',
+    }),
+  ]),
+});
+
+/** Current custody epoch adds the exact migration implementation to historical source identities. */
+export const ordinaryHoldSourceEpochV1 = Object.freeze({
+  sourceEpoch: 'ordinary-febb-custody-v1' as const,
+  sourceIdentity: ordinaryHoldHistoricalSourceEpochV1.sourceIdentity,
+  pins: Object.freeze([
+    ...ordinaryHoldHistoricalSourceEpochV1.pins,
+    Object.freeze({
+      relative: 'libs/wbs/adapters/store-sqlite/src/migrate.ts',
+      bytes: 8962,
+      sha256: '029cd9f29f1b555175c4fe6d758e2921c2d6abe320210b9b5f7cd079cace9f8f',
     }),
   ]),
 });
@@ -2550,6 +2572,16 @@ function ordinaryHoldConcreteCutsV1(
           "import { Database, SQLiteError } from 'bun:sqlite';\nimport { ordinaryHoldOpenReadonly } from 'ordinary-hold-v1:database-readonly';",
         ),
         cut(
+          'database.readwrite-import',
+          "import { Database, SQLiteError } from 'bun:sqlite';",
+          "import { Database, SQLiteError } from 'bun:sqlite';\nimport { ordinaryHoldOpenReadwrite } from 'ordinary-hold-v1:database-readwrite';",
+        ),
+        cut(
+          'database.readwrite-enter-return',
+          'const db = new Database(dbPath, { create: isCreateAllowed, readwrite: true });',
+          'const db = ordinaryHoldOpenReadwrite(dbPath, isCreateAllowed);',
+        ),
+        cut(
           'database.readonly-enter-return',
           'const client = new Database(dbPath, { readonly: true, create: false });',
           'const client = ordinaryHoldOpenReadonly(dbPath);',
@@ -2557,11 +2589,65 @@ function ordinaryHoldConcreteCutsV1(
       ];
     case 'libs/wbs/adapters/store-sqlite/src/backup.ts':
       return [fs('backup.fs', 'backup-fs')];
+    case 'libs/wbs/adapters/store-sqlite/src/migrate.ts':
+      return [fs('migration.fs', 'migration-fs')];
     case 'tools/tool-remote-scripts/src/fixtures/dependency-participant-restoration.ts':
-      return [asyncFs('setup.participant.fs', 'setup-participant-fs')];
+      return [
+        asyncFs('setup.participant.fs', 'setup-participant-fs'),
+        cut(
+          'child.emitter.import',
+          "from 'ordinary-hold-v1:setup-participant-fs';",
+          "from 'ordinary-hold-v1:setup-participant-fs';\nimport { spawnOrdinaryEmitter, joinOrdinaryChild } from 'ordinary-hold-v1:child-emitter';",
+        ),
+        cut(
+          'child.emitter.spawn',
+          "      const child = Bun.spawn(\n        [\n          process.execPath,\n          '--no-env-file',\n          'run',\n          'apps/wbs/be-01/src/openapi/emit-openapi-cli.ts',\n        ],\n        {\n          cwd: fixture.sourceRoot,\n          env: { PATH: process.env['PATH'], BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0' },\n          stdout: 'pipe',\n          stderr: 'pipe',\n        },\n      );\n",
+          '      const child = spawnOrdinaryEmitter(fixture.sourceRoot);\n',
+        ),
+        cut(
+          'child.emitter.join',
+          "      const cancel = () => {\n        child.kill('SIGKILL');\n      };\n      signal?.addEventListener('abort', cancel, { once: true });\n      try {\n        const [stdout, stderr, code] = await Promise.all([\n          new Response(child.stdout).text(),\n          new Response(child.stderr).text(),\n          child.exited,\n        ]);\n        if (code !== 0 || stderr !== '') throw new Error('native fixture source emitter failed');\n        return stdout;\n      } finally {\n        signal?.removeEventListener('abort', cancel);\n      }\n",
+          "      const [stdout, stderr, code] = await joinOrdinaryChild(child);\n      if (code !== 0 || stderr !== '') throw new Error('native fixture source emitter failed');\n      return stdout;\n",
+        ),
+      ];
     case 'tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts':
       return [
         asyncFs('setup.complete.fs', 'setup-complete-fs'),
+        cut(
+          'child.collector.transport',
+          "from '../lib/installed-authority-transport';",
+          "from 'ordinary-hold-v1:child-collector';",
+        ),
+        cut(
+          'child.collector.import',
+          "import { readAuthorityCollector } from 'ordinary-hold-v1:child-collector';",
+          "import { readAuthorityCollector, spawnOrdinaryCollector } from 'ordinary-hold-v1:child-collector';",
+        ),
+        cut(
+          'child.collector.spawn',
+          "Bun.spawn(['/usr/bin/python3', '-I', '-'], {\n        stdin: new TextEncoder().encode(program),\n        stdout: 'pipe',\n        stderr: 'pipe',\n      })",
+          'spawnOrdinaryCollector(program, deadline)',
+        ),
+        cut(
+          'setup.complete.migrations',
+          "from '@wbs/store-sqlite/migrate';",
+          "from 'ordinary-hold-v1:migration-call';",
+        ),
+        cut(
+          'setup.complete.write-import',
+          "from 'ordinary-hold-v1:setup-complete-fs';",
+          "from 'ordinary-hold-v1:setup-complete-fs';\nimport { writeOrdinaryComplete } from 'ordinary-hold-v1:setup-complete-write';",
+        ),
+        cut(
+          'setup.complete.write.prod',
+          "Bun.write(base.prodPath, '')",
+          "writeOrdinaryComplete('complete.write.prod', base.prodPath, '')",
+        ),
+        cut(
+          'setup.complete.write.dev',
+          "Bun.write(base.devPath, '')",
+          "writeOrdinaryComplete('complete.write.dev', base.devPath, '')",
+        ),
         cut(
           'setup.migration-root',
           "const migrationsDirectory = new URL('../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;",
@@ -2569,7 +2655,24 @@ function ordinaryHoldConcreteCutsV1(
         ),
       ];
     case 'tools/tool-remote-scripts/src/fixtures/source-startup.ts':
-      return [asyncFs('setup.startup.fs', 'setup-startup-fs')];
+      return [
+        asyncFs('setup.startup.fs', 'setup-startup-fs'),
+        cut(
+          'child.git.import',
+          "import { createHash } from 'node:crypto';",
+          "import { createHash } from 'node:crypto';\nimport { spawnOrdinaryGit, joinOrdinaryChild } from 'ordinary-hold-v1:child-git';",
+        ),
+        cut(
+          'child.git.spawn',
+          "  const child = Bun.spawn(['git', '--no-optional-locks', '-C', root, ...args], {\n    stdout: 'pipe',\n    stderr: 'pipe',\n    env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' },\n  });\n",
+          '  const child = spawnOrdinaryGit(root, args);\n',
+        ),
+        cut(
+          'child.git.join',
+          '  const [stdout, stderr, code] = await Promise.all([\n    new Response(child.stdout).text(),\n    new Response(child.stderr).text(),\n    child.exited,\n  ]);\n',
+          '  const [stdout, stderr, code] = await joinOrdinaryChild(child);\n',
+        ),
+      ];
     case 'tools/tool-remote-scripts/src/fixtures/source-database-binding.ts':
       return [asyncFs('setup.database.fs', 'setup-database-fs')];
     case 'tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts':
@@ -2582,7 +2685,54 @@ function ordinaryHoldConcreteCutsV1(
         ),
       ];
     case 'tools/tool-remote-scripts/src/fixtures/namespace-audit.ts':
-      return [asyncFs('setup.namespace.fs', 'setup-namespace-fs')];
+      return [
+        asyncFs('setup.namespace.fs', 'setup-namespace-fs'),
+        cut(
+          'child.namespace.import',
+          "from 'ordinary-hold-v1:setup-namespace-fs';",
+          "from 'ordinary-hold-v1:setup-namespace-fs';\nimport { spawnOrdinaryNamespace, joinOrdinaryChild } from 'ordinary-hold-v1:child-namespace';",
+        ),
+        cut(
+          'child.namespace.spawn',
+          "    const child = Bun.spawn(\n      [\n        ...credentials,\n        '/usr/bin/busybox',\n        'sh',\n        '-c',\n        emitted,\n        '--',\n        nonce,\n        ...argumentsForProgram,\n      ],\n      { stdout: 'pipe', stderr: 'pipe' },\n    );\n",
+          '    const child = spawnOrdinaryNamespace(credentials, emitted, nonce, argumentsForProgram);\n',
+        ),
+        cut(
+          'child.namespace.join',
+          '    const [stdout, stderr, code] = await Promise.all([\n      new Response(child.stdout).text(),\n      new Response(child.stderr).text(),\n      child.exited,\n    ]);\n',
+          '    const [stdout, stderr, code] = await joinOrdinaryChild(child);\n',
+        ),
+        cut(
+          'setup.namespace.write.0',
+          "Bun.write(`${database}${suffix}`, 'family')",
+          "writeOrdinaryNamespace('namespace.write.0', `${database}${suffix}`, 'family')",
+        ),
+        cut(
+          'setup.namespace.write.1',
+          "Bun.write(`${namespace}${destination}/nested/ordinary`, 'ordinary')",
+          "writeOrdinaryNamespace('namespace.write.1', `${namespace}${destination}/nested/ordinary`, 'ordinary')",
+        ),
+        cut(
+          'setup.namespace.write.2',
+          "Bun.write(`${namespace}/data/wbs.db${suffix}`, 'wrong inode')",
+          "writeOrdinaryNamespace('namespace.write.2', `${namespace}/data/wbs.db${suffix}`, 'wrong inode')",
+        ),
+        cut(
+          'setup.namespace.write.3',
+          "Bun.write(mountinfo, fault === 'mountinfo-malformed' ? 'malformed' : lines.join('\\n'))",
+          "writeOrdinaryNamespace('namespace.write.3', mountinfo, fault === 'mountinfo-malformed' ? 'malformed' : lines.join('\\n'))",
+        ),
+        cut(
+          'setup.namespace.write.4',
+          "Bun.write(database, 'replacement')",
+          "writeOrdinaryNamespace('namespace.write.4', database, 'replacement')",
+        ),
+        cut(
+          'setup.namespace.write-import',
+          "from 'ordinary-hold-v1:setup-namespace-fs';",
+          "from 'ordinary-hold-v1:setup-namespace-fs';\nimport { writeOrdinaryNamespace } from 'ordinary-hold-v1:setup-namespace-write';",
+        ),
+      ];
     default:
       throw new Error('ordinary HOLD fixed transform recipe absent');
   }
@@ -2671,11 +2821,113 @@ function ordinaryHoldPortSourcesV1(sourceRoot: string): ReadonlyMap<string, stri
     'storage.graph',
     'complete.storage',
     'complete.scanner',
+    'setup.runMigrations',
+    'complete.write.prod',
+    'complete.write.dev',
+    ...Array.from({ length: 5 }, (_, index) => `namespace.write.${index.toString()}`),
   ];
   const ledger =
     `const custody={natives:[],operations:[],owners:[],events:[],stopped:false,failures:[],generation:0,fatalObservation:undefined};
 const records=new WeakMap(),nativeAliases=new Map(),wrappers=new Map();
-const nativeLabels=new Set(['owner.openSync','storage.openSync','lock.openSync','graph.openSync','backup.openSync','graph.opendirSync','graph.relative','database.readonly']);
+const migrationCalls=[],migrationRoots=[],migrationTickets=new WeakMap();
+const migrationLimits=Object.freeze({mkdtempSync:2,cpSync:210,rmSync:2,readdirSync:2,existsSync:214,readFileSync:214});
+export function reserveMigrationFs(name,args){
+ if(!Object.hasOwn(migrationLimits,name))fail('ordinary HOLD migration boundary differs');
+ let root;
+ if(name==='rmSync'){
+  root=migrationRoots.find(root=>root.path===args[0]);
+// Proof: omitting the one-shot removal guard failed the RETURNED-removal branch; UNKNOWN has ordinary coverage only (triplet 0/1/0).
+  if(root===undefined||root.removalPhase!=='not-entered')fail('ordinary HOLD migration removal differs');
+ }else admit();
+// Proof: widening the filesystem cap failed the first mkdtemp2 branch; later constants lack separate physical credit (triplet 0/1/0).
+ if(migrationCalls.filter(call=>call.name===name).length>=migrationLimits[name])fail('ordinary HOLD migration call cap exceeded');
+ const ticket=Object.freeze({});const call={ticket,name,args:[...args],phase:'entered',root};
+// Proof: omitting call reservation failed the staging-before-entry consumer; finite triplet 0/1/0.
+ if(root!==undefined)root.removalPhase='entered';migrationTickets.set(ticket,call);migrationCalls.push(call);return ticket;
+}
+export function returnMigrationFs(ticket,returned){const call=migrationTickets.get(ticket);if(call===undefined||call.phase!=='entered')fail('ordinary HOLD migration ticket differs');call.returned=returned;call.phase='returned';if(call.name==='mkdtempSync'){const root={path:returned,acquisition:ticket,removalPhase:'not-entered'};migrationRoots.push(root);call.root=root;}if(call.name==='rmSync')call.root.removalPhase='returned';return returned;}
+export function throwMigrationFs(ticket,cause){const call=migrationTickets.get(ticket);if(call===undefined)fail('ordinary HOLD migration ticket differs');call.phase='unknown';call.cause=cause;if(call.name==='rmSync')call.root.removalPhase='unknown';custody.stopped=true;custody.failures.push(cause);}
+export function inspectMigrationStaging(){return Object.freeze({limits:migrationLimits,calls:Object.freeze(migrationCalls.map(call=>Object.freeze({...call,args:Object.freeze([...call.args]),root:call.root===undefined?undefined:Object.freeze({...call.root})}))),roots:Object.freeze(migrationRoots.map(root=>Object.freeze({...root})))});}
+
+const childRecords=new WeakMap(),children=[],childByOriginal=new WeakMap();
+const childLimits=Object.freeze({git:8,namespace:16,emitter:2,collector:6});
+let childReadCount=0,childDeliveredBytes=0,childAcceptedBytes=0,childReadsStopped=false;
+const unknownChildPending=new Promise(()=>{});
+function stopChild(record,cause){record.phase='unknown';record.cause=cause;custody.stopped=true;custody.failures.push(cause);}
+function observeChildPromise(record,key,original){
+ record[key]=original;record[key+'State']='pending';
+ const observer=original.then(value=>{record[key+'State']='fulfilled';record[key+'Value']=value;},cause=>{record[key+'State']='rejected';record[key+'Cause']=cause;stopChild(record,cause);});
+ record[key+'Observer']=observer;return observer;
+}
+export function reserveChild(label,args){
+ admit();if(!Object.hasOwn(childLimits,label))fail('ordinary HOLD child boundary differs');
+// Proof: widening the family cap failed the first Git8 branch; other family constants lack separate physical credit (triplet 0/1/0).
+ if(children.length>=32||children.filter(record=>record.label===label).length>=childLimits[label])fail('ordinary HOLD child cap exceeded');
+ const ticket=Object.freeze({});const record={ticket,label,args:[...args],phase:'entered',streams:[],joined:false};childRecords.set(ticket,record);// Proof: omitting child reservation failed the same generated reservation consumer; finite triplet 0/1/0.
+children.push(record);return ticket;
+}
+export function throwChild(ticket,cause){const record=childRecords.get(ticket);if(record===undefined)fail('ordinary HOLD child ticket differs');stopChild(record,cause);}
+function childStreamSnapshot(stream){return Object.freeze({...stream,reads:Object.freeze(stream.reads.map(read=>Object.freeze({...read}))),chunks:Object.freeze([...stream.chunks])});}
+export function inspectChildren(){return Object.freeze(children.map(record=>Object.freeze({...record,args:Object.freeze([...record.args]),streams:Object.freeze(record.streams.map(childStreamSnapshot))})));}
+function captureChildStream(record,name,stream){
+ const captured={name,stream,reads:[],chunks:[],eof:false,releasePhase:'not-entered'};record.streams.push(captured);
+ if(stream===undefined||stream===null)throw Error('ordinary HOLD child stream absent');
+// Proof: substituting ready closed failed the retained-reader identity consumer; finite triplet 0/1/0.
+ captured.reader=stream.getReader();observeChildPromise(captured,'closed',captured.reader.closed);return captured;
+}
+async function pumpChild(record,stream){
+ for(;;){
+  if(childReadsStopped)return await unknownChildPending;
+// Proof: omitting read refusal failed the finite 8193-chunk UNKNOWN consumer; triplet 0/1/0.
+  if(childReadCount>=8192){childReadsStopped=true;stopChild(record,Error('ordinary HOLD child read cap exceeded'));return await unknownChildPending;}
+  const read={phase:'entered'};childReadCount++;stream.reads.push(read);
+  let chunk;
+  try{const original=stream.reader.read();observeChildPromise(read,'original',original);chunk=await original;await read.originalObserver;read.phase='returned';read.chunk=chunk;}
+  catch(cause){read.phase='unknown';read.cause=cause;stopChild(record,cause);return await unknownChildPending;}
+  if(chunk.done){stream.eof=true;return;}
+  childDeliveredBytes+=chunk.value.byteLength;
+ // Proof: omitting byte refusal failed the finite oversized-read UNKNOWN consumer; triplet 0/1/0.
+ if(childDeliveredBytes>33554432){childReadsStopped=true;stopChild(record,Error('ordinary HOLD child byte cap exceeded'));return await unknownChildPending;}
+  childAcceptedBytes+=chunk.value.byteLength;stream.chunks.push(chunk.value);
+ }
+}
+export function attachChild(ticket,child){
+ const record=childRecords.get(ticket);if(record===undefined||record.phase!=='entered')fail('ordinary HOLD child attachment differs');
+ record.original=child;record.phase='returned';childByOriginal.set(child,record);
+ try{
+  // Proof: substituting an exit projection failed the original-identity consumer; finite triplet 0/1/0.
+observeChildPromise(record,'exited',child.exited);
+  record.stdout=child.stdout;record.stderr=child.stderr;
+  const stdout=captureChildStream(record,'stdout',record.stdout),stderr=captureChildStream(record,'stderr',record.stderr);
+  observeChildPromise(stdout,'pump',pumpChild(record,stdout));observeChildPromise(stderr,'pump',pumpChild(record,stderr));
+  return child;
+ }catch(cause){stopChild(record,cause);throw cause;}
+}
+function decodeChildStream(stream,fatal){const length=stream.chunks.reduce((sum,chunk)=>sum+chunk.byteLength,0);const bytes=new Uint8Array(length);let offset=0;for(const chunk of stream.chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}return new TextDecoder('utf-8',{fatal}).decode(bytes);}
+// Proof: omitting actual releaseLock failed the known-join consumer's unlocked-stream oracle; finite triplet 0/1/0.
+async function joinChildBody(record){
+ const waits=[record.exited,record.exitedObserver];
+ for(const stream of record.streams)waits.push(stream.pump,stream.pumpObserver,stream.closed,stream.closedObserver);
+ await Promise.allSettled(waits);
+ if(record.phase==='unknown'||record.streams.length!==2||record.exitedState!=='fulfilled'||record.streams.some(stream=>!stream.eof||stream.closedState!=='fulfilled'||stream.pumpState!=='fulfilled'||stream.reads.some(read=>read.originalState!=='fulfilled')))return await unknownChildPending;
+ for(const stream of record.streams){
+  if(stream.releasePhase!=='not-entered'){stopChild(record,Error('ordinary HOLD child reader release re-entry'));return await unknownChildPending;}
+  stream.releasePhase='entered';try{stream.releaseReturned=stream.reader.releaseLock();stream.releasePhase='returned';}catch(cause){stream.releasePhase='unknown';stopChild(record,cause);return await unknownChildPending;}
+ }
+ record.joined=true;return Object.freeze([decodeChildStream(record.streams[0],false),decodeChildStream(record.streams[1],false),record.exitedValue]);
+}
+// Proof: returning a join projection failed exact original join identity; finite triplet 0/1/0.
+export function joinOrdinaryChild(child){const record=childByOriginal.get(child);if(record===undefined)fail('ordinary HOLD child original absent');if(record.join!==undefined)return record.join;const original=joinChildBody(record);observeChildPromise(record,'join',original);return original;}
+export function inspectChildLimits(){return Object.freeze({children:32,readers:64,reads:8192,bytes:33554432,families:childLimits,readCount:childReadCount,deliveredBytes:childDeliveredBytes,acceptedBytes:childAcceptedBytes});}
+export function refuseChildSemantic(child,cause){const record=childByOriginal.get(child);if(record===undefined)fail('ordinary HOLD child original absent');record.semanticCause=cause;custody.stopped=true;custody.failures.push(cause);throw cause;}
+export function assertChildDeadline(deadline){admit();if(!Number.isFinite(deadline)||performance.now()>=deadline)fail('ordinary HOLD child deadline exceeded');}
+// Proof: removing fatal decoding failed the invalid-UTF8 collector consumer after known joins; finite triplet 0/1/0.
+export function decodeCollectorChild(child){const record=childByOriginal.get(child);if(record===undefined||!record.joined)fail('ordinary HOLD collector join absent');try{return decodeChildStream(record.streams[0],true);}catch(cause){return refuseChildSemantic(child,cause);}}
+// Proof: omitting raw-stderr refusal accepted BOM-only stderr after known joins; same consumer triplet 0/1/0.
+function collectorStderrByteLength(child){return childByOriginal.get(child).streams[1].chunks.reduce((bytes,chunk)=>bytes+chunk.byteLength,0);}
+export async function readAuthorityCollector(child,deadline){const [stdout,stderr,code]=await joinOrdinaryChild(child);if(performance.now()>=deadline)return refuseChildSemantic(child,Error('authority collector deadline exceeded'));if(collectorStderrByteLength(child)>0)return refuseChildSemantic(child,Error('authority collector reported failure'));if(code!==0)return refuseChildSemantic(child,Error('authority collector exited unsuccessfully'));return decodeCollectorChild(child);}
+
+const nativeLabels=new Set(['owner.openSync','storage.openSync','lock.openSync','graph.openSync','backup.openSync','graph.opendirSync','graph.relative','database.readonly','database.readwrite']);
 const operationLabels=new Set(__OPERATION_LABELS__);
 // Proof: removing snapshot freezing let the inspection consumer manufacture native completion (exit 1; restored).
 function snapshot(record){return Object.freeze({...record,args:record.args===undefined?undefined:Object.freeze([...record.args]),aliases:record.aliases===undefined?undefined:Object.freeze([...record.aliases])});}
@@ -2690,7 +2942,7 @@ function createTicket(record){const ticket=Object.freeze({});records.set(ticket,
 export function reserveNative(label,kind,args,receiver){
   admit();
   // Proof: admitting storage.openSync-near failed the unknown-boundary inert consumer (exit 1; restored).
-  if(!nativeLabels.has(label)||!['fd','dir','sqlite'].includes(kind)||kind==='dir'&&label!=='graph.opendirSync'||kind==='sqlite'&&label!=='database.readonly'||kind==='fd'&&(label==='graph.opendirSync'||label==='database.readonly'))fail('ordinary HOLD native boundary differs');
+  if(!nativeLabels.has(label)||!['fd','dir','sqlite'].includes(kind)||kind==='dir'&&label!=='graph.opendirSync'||kind==='sqlite'&&!['database.readonly','database.readwrite'].includes(label)||kind==='fd'&&(label==='graph.opendirSync'||['database.readonly','database.readwrite'].includes(label)))fail('ordinary HOLD native boundary differs');
   // Proof: removing this bound admits the 513th inert acquisition in the generated ledger cap negative.
   if(custody.natives.length>=512||kind==='sqlite'&&custody.natives.filter(record=>record.kind==='sqlite').length>=64||kind==='dir'&&custody.natives.filter(record=>record.kind==='dir').length>=32)fail('ordinary HOLD native cap exceeded');
   const record={family:'native',generation:++custody.generation,label,kind,args,receiver,phase:'entered',original:undefined,acquisitionCause:undefined,nativePhase:'not-entered',productionAttempts:0,fixtureAttempts:0,nativeEntries:0,nativeReturns:0,closeCause:undefined,closeOrigin:undefined,aliases:[]};
@@ -2819,6 +3071,62 @@ export function captureHold(owner,ownership,keeper){try{tap('hold',owner,ownersh
       'graph-relative',
       `import { openDirectoryFile as original } from ${JSON.stringify(relative)};\nimport { closeSync as nativeClose, fstatSync as nativeFstat } from 'node:fs';\n${ledgerImports}${fixedSync}\nexport const openDirectoryFile=(...args)=>{const ticket=reserveNative('graph.relative','fd',args,undefined);try{const descriptor=attachNative(ticket,Reflect.apply(original,undefined,args));retainNativeClose(ticket,nativeClose,undefined,[descriptor]);retainNativeIdentity(ticket,nativeFstat(descriptor,{bigint:true}));return descriptor;}catch(cause){throwNative(ticket,cause);throw cause;}};`,
     ),
+
+    port(
+      'child-git',
+      `import {reserveChild,attachChild,throwChild,joinOrdinaryChild} from 'ordinary-hold-v1:ledger';
+const spawn=Bun.spawn;
+export {joinOrdinaryChild};
+export function spawnOrdinaryGit(root,args){const argv=['git','--no-optional-locks','-C',root,...args];const options={stdout:'pipe',stderr:'pipe',env:{...process.env,GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1'}};const ticket=reserveChild('git',[argv,options]);try{return attachChild(ticket,Reflect.apply(spawn,Bun,[argv,options]));}catch(cause){throwChild(ticket,cause);throw cause;}}`,
+    ),
+    port(
+      'child-namespace',
+      `import {reserveChild,attachChild,throwChild,joinOrdinaryChild} from 'ordinary-hold-v1:ledger';
+const spawn=Bun.spawn;
+export {joinOrdinaryChild};
+export function spawnOrdinaryNamespace(credentials,emitted,nonce,argumentsForProgram){if(!(credentials.length===0||credentials.length===2&&credentials[0]==='/usr/bin/setpriv'&&credentials[1]==='--bounding-set=-dac_override,-dac_read_search'))throw Error('ordinary HOLD namespace credentials differ');const argv=[...credentials,'/usr/bin/busybox','sh','-c',emitted,'--',nonce,...argumentsForProgram];const options={stdout:'pipe',stderr:'pipe'};const ticket=reserveChild('namespace',[argv,options]);try{return attachChild(ticket,Reflect.apply(spawn,Bun,[argv,options]));}catch(cause){throwChild(ticket,cause);throw cause;}}`,
+    ),
+    port(
+      'child-emitter',
+      `import {reserveChild,attachChild,throwChild,joinOrdinaryChild} from 'ordinary-hold-v1:ledger';
+const spawn=Bun.spawn;
+export {joinOrdinaryChild};
+export function spawnOrdinaryEmitter(sourceRoot){const argv=[process.execPath,'--no-env-file','run','apps/wbs/be-01/src/openapi/emit-openapi-cli.ts'];const options={cwd:sourceRoot,env:{PATH:process.env['PATH'],BUN_RUNTIME_TRANSPILER_CACHE_PATH:'0'},stdout:'pipe',stderr:'pipe'};const ticket=reserveChild('emitter',[argv,options]);try{return attachChild(ticket,Reflect.apply(spawn,Bun,[argv,options]));}catch(cause){throwChild(ticket,cause);throw cause;}}`,
+    ),
+    port(
+      'child-collector',
+      `import {reserveChild,attachChild,throwChild,joinOrdinaryChild,assertChildDeadline,refuseChildSemantic,decodeCollectorChild,readAuthorityCollector} from 'ordinary-hold-v1:ledger';
+const spawn=Bun.spawn;
+export function spawnOrdinaryCollector(program,deadline){assertChildDeadline(deadline);const argv=['/usr/bin/python3','-I','-'];const options={stdin:new TextEncoder().encode(program),stdout:'pipe',stderr:'pipe'};const ticket=reserveChild('collector',[argv,options]);try{return attachChild(ticket,Reflect.apply(spawn,Bun,[argv,options]));}catch(cause){throwChild(ticket,cause);throw cause;}}
+export {readAuthorityCollector};`,
+    ),
+    port(
+      'migration-fs',
+      `import * as native from 'node:fs';
+import {reserveMigrationFs,returnMigrationFs,throwMigrationFs} from 'ordinary-hold-v1:ledger';
+const originals=Object.freeze({cpSync:native.cpSync,existsSync:native.existsSync,mkdtempSync:native.mkdtempSync,readdirSync:native.readdirSync,readFileSync:native.readFileSync,rmSync:native.rmSync});
+${['cpSync', 'existsSync', 'mkdtempSync', 'readdirSync', 'readFileSync', 'rmSync'].map((name) => `export function ${name}(...args){const ticket=reserveMigrationFs('${name}',args);try{return returnMigrationFs(ticket,Reflect.apply(originals.${name},native,args));}catch(cause){throwMigrationFs(ticket,cause);throw cause;}}`).join('\n')}`,
+    ),
+    port(
+      'migration-call',
+      `import {runMigrations as original} from ${JSON.stringify(`${root}/libs/wbs/adapters/store-sqlite/src/migrate.ts`)};
+${ledgerImports}${fixedSync}
+export const runMigrations=(...args)=>invoke('setup.runMigrations',original,undefined,args);`,
+    ),
+    port(
+      'setup-complete-write',
+      `${ledgerImports}${fixedPromise}
+const original=Bun.write;export function writeOrdinaryComplete(label,...args){if(!['complete.write.prod','complete.write.dev'].includes(label))throw Error('ordinary HOLD complete write label differs');return invoke(label,original,Bun,args);}`,
+    ),
+    port(
+      'setup-namespace-write',
+      `${ledgerImports}${fixedPromise}
+const original=Bun.write;export function writeOrdinaryNamespace(label,...args){if(!['namespace.write.0','namespace.write.1','namespace.write.2','namespace.write.3','namespace.write.4'].includes(label))throw Error('ordinary HOLD namespace write label differs');return invoke(label,original,Bun,args);}`,
+    ),
+    port(
+      'database-readwrite',
+      `import { Database } from 'bun:sqlite';\n${ledgerImports}export const ordinaryHoldOpenReadwrite=(dbPath,isCreateAllowed)=>{const record=reserveNative('database.readwrite','sqlite',[dbPath,{create:isCreateAllowed,readwrite:true}],Database);try{const client=attachNative(record,new Database(dbPath,{create:isCreateAllowed,readwrite:true}));const savedClose=client.close;retainNativeClose(record,savedClose,client,[]);client.close=function(...args){beginClose(client,'production');try{const returned=Reflect.apply(savedClose,this,args);returnClose(record);return returned;}catch(cause){throwClose(record,cause);throw cause;}};return client;}catch(cause){throwNative(record,cause);throw cause;}};`,
+    ),
     port(
       'database-readonly',
       `import { Database } from 'bun:sqlite';\n${ledgerImports}export const ordinaryHoldOpenReadonly=(dbPath)=>{const record=reserveNative('database.readonly','sqlite',[dbPath,{readonly:true,create:false}],Database);try{const client=attachNative(record,new Database(dbPath,{readonly:true,create:false}));const savedClose=client.close;retainNativeClose(record,savedClose,client,[]);client.close=function(...args){beginClose(client,'production');try{const returned=Reflect.apply(savedClose,this,args);returnClose(record);return returned;}catch(cause){throwClose(record,cause);throw cause;}};return client;}catch(cause){throwNative(record,cause);throw cause;}};`,
@@ -2870,12 +3178,27 @@ export function resolveOrdinaryHoldPortImportV1(
     allowed = ['node:fs/promises', ledger];
   else {
     switch (importerId) {
+      case 'child-git':
+      case 'child-namespace':
+      case 'child-emitter':
+      case 'child-collector':
+      case 'setup-complete-write':
+      case 'setup-namespace-write':
+        allowed = [ledger];
+        break;
+      case 'migration-call':
+        allowed = [ledger, `${root}/libs/wbs/adapters/store-sqlite/src/migrate.ts`];
+        break;
+      case 'migration-fs':
+        allowed = [ledger, 'node:fs'];
+        break;
       case 'ledger':
         allowed = [];
         break;
       case 'owner-timer':
         allowed = [ledger];
         break;
+      case 'database-readwrite':
       case 'database-readonly':
         allowed = [ledger, 'bun:sqlite'];
         break;
@@ -2967,6 +3290,7 @@ export function planOrdinaryHoldBuildV1(
   });
   const image = decodeOrdinaryHoldImageV1({
     format: 'dependency-owner-ordinary-hold-image',
+    sourceEpoch: 'ordinary-febb-custody-v1',
     version: 1,
     sourceRoot: root,
     sourceIdentity: ordinaryHoldSourceEpochV1.sourceIdentity,
@@ -2987,7 +3311,7 @@ export interface OrdinaryHoldBuildOnlyRequestV1 {
   readonly version: 1;
   readonly mode: 'build-only';
   readonly sourceRoot: string;
-  readonly sourceEpoch: 'ordinary-febb-image-v1';
+  readonly sourceEpoch: 'ordinary-febb-custody-v1';
 }
 interface OrdinaryHoldSetupRecordV1 {
   readonly label: string;
@@ -3050,7 +3374,7 @@ export interface OrdinaryHoldBuiltImageV1 {
   readonly format: 'dependency-owner-ordinary-image-build';
   readonly version: 1;
   readonly status: 'built-unqualified';
-  readonly sourceEpoch: 'ordinary-febb-image-v1';
+  readonly sourceEpoch: 'ordinary-febb-custody-v1';
   readonly imageDigest: string;
   readonly titleDigest: string;
   readonly entryPath: string;
@@ -3073,14 +3397,14 @@ function ordinaryHoldBuildRequestV1(value: unknown): OrdinaryHoldBuildOnlyReques
   if (
     request['version'] !== 1 ||
     request['mode'] !== 'build-only' ||
-    request['sourceEpoch'] !== 'ordinary-febb-image-v1'
+    request['sourceEpoch'] !== 'ordinary-febb-custody-v1'
   )
     throw new Error('ordinary HOLD build-only epoch differs');
   return {
     version: 1,
     mode: 'build-only',
     sourceRoot: ordinaryHoldAbsolute(request['sourceRoot'], 'ordinary HOLD build root'),
-    sourceEpoch: 'ordinary-febb-image-v1',
+    sourceEpoch: 'ordinary-febb-custody-v1',
   };
 }
 
@@ -3160,6 +3484,7 @@ function ordinaryHoldEntryV1(sourceRoot: string): string {
     ['frontendSetup', 'tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts'],
     ['namespaceSetup', 'tools/tool-remote-scripts/src/fixtures/namespace-audit.ts'],
     ['directoryFile', 'tools/tool-remote-scripts/src/lib/directory-file.ts'],
+    ['migrations', 'libs/wbs/adapters/store-sqlite/src/migrate.ts'],
   ] as const;
   return (
     exports
@@ -3507,7 +3832,7 @@ async function buildOrdinaryHoldImageBodyV1(
         'runtime owner observer and keeper tap execution',
         'fixed runtime native-generation and Promise ledger qualification',
         'complete body/projection/acceptance taps',
-        'setup Bun.write, migrations and four child-reader taps',
+        'setup Bun.write, migrations and four child-reader tap execution',
         'transitive source closure',
         'scanner serialized-function equivalence',
         'actual native custody and finite HOLD retirement',

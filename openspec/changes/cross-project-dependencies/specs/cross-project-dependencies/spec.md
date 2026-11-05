@@ -2779,3 +2779,45 @@ The original owner SHALL enroll preparation before acquisition, retaining actual
 - **THEN** accepted finite containment and exact required census updates accompany publication before automatic PR CI executes those cases
 - **AND** draft state, skipped tests, fixture native-return knowledge and consumed constructor grants cannot discharge production UNKNOWN
 - **AND** an intermediate unapplied patch may be preserved for review while executable bytes remain at the prior runnable epoch
+
+### Requirement: Ordinary owned-image helpers retain actual child and migration originals
+
+The ordinary fixture image SHALL use an explicitly selected17-row
+`ordinary-febb-custody-v1` source epoch and fixed generated ports for its four
+owned child routes, writable SQLite constructor, migration staging and seven
+lexical Bun.write sites. It SHALL preserve actual child/program/argument/native
+identities and exact original Promise/observer relationships. The historical
+private constructor prefix and old16-row evidence SHALL remain unchanged;
+current execution acceptance SHALL NOT fall back between epochs.
+
+#### Scenario: Original child and both readers join
+
+- **GIVEN** a child returned by one admitted fixed spawn port
+- **WHEN** its original exited Promise, concurrent stdout/stderr pumps, every actual read and both original reader.closed observations become known
+- **THEN** the transport returns its actual joined tuple only after EOF and one-shot known reader-lock release
+- **AND** native child/Promise/reader identities and separate observers remain distinguishable without a proxy child, Response.text replacement, cancel or kill
+
+#### Scenario: Byte or read-record overflow retains unknown originals
+
+- **WHEN** delivered child bytes exceed the32MiB accepted-prefix bound or no record remains before the next actual read
+- **THEN** sticky STOP refuses new acquisitions and further reads while retaining actual original obligations as UNKNOWN
+- **AND** no EOF, successful truncation, joined transport or retirement is fabricated
+- **AND** an oversized delivered chunk is explicitly outside any hard32MiB process-memory guarantee
+
+#### Scenario: Writable initialization and migration staging stay accounted
+
+- **WHEN** the real writable Database constructor returns before initialization or a migration staging directory is created before copying
+- **THEN** the exact original is retained before the next fallible step and its real close/removal attempt and outcome remain observable
+- **AND** wrapper failure alone never proves native closure, and a delegated throwing close/removal is never retried as cleanup
+
+#### Scenario: Inert qualification grants no runtime success
+
+- **WHEN** generated-source tests exercise controlled streams and deferred exited Promises or the fixed image compiles
+- **THEN** evidence is limited to that boundary and does not mint a prepared/context packet, qualify native custody, execute the image or complete ordinary HOLD containment
+
+#### Scenario: Collector BOM-only stderr remains a failure
+
+- **GIVEN** a known-joined collector emits EF BB BF on stderr and valid stdout with exit0
+- **WHEN** transport semantics are evaluated after both readers and child have joined
+- **THEN** the nonempty raw stderr refuses even though ordinary text decoding would produce an empty string
+- **AND** ordinary Git, namespace and emitter text behavior remains unchanged

@@ -2441,12 +2441,8 @@ function prepareActualPrehelperBuild(): Promise<ActualPrehelperBuild> {
   return actualPrehelperBuild;
 }
 
-/** Extracts current private custody cuts; acquires no subject constructor, plugin or child. */
-async function observeActualPrehelperBuild(): Promise<ActualPrehelperBuild> {
-  const source = await readFile(
-    new URL('../fixtures/dependency-owner-custody.ts', import.meta.url),
-    'utf8',
-  );
+/** Compiles the historical custody cuts as text without importing or executing the fixture. */
+function compileActualPrehelperImage(source: string): string {
   function between(start: string, end: string): string {
     if (source.split(start).length !== 2 || source.split(end).length !== 2)
       throw new Error('UC2 actual build source boundary differs');
@@ -2459,7 +2455,19 @@ async function observeActualPrehelperBuild(): Promise<ActualPrehelperBuild> {
     '  } catch (cause) {\n    if (parent.stopped || parent.originals.some((original) => !original.known))';
   if (source.split(catchStart).length !== 2)
     throw new Error('UC2 actual build catch boundary differs');
-  const catchFinally = source.slice(source.indexOf(catchStart)).trimEnd();
+  const ordinaryStart = "\nimport { realpath as ordinaryHoldRealpath } from 'node:fs/promises';";
+  // Proof: physical omission failed the same inert compiler consumer's missing-boundary
+  // assertion; restoring this check passed (2026-11-05).
+  if (source.split(ordinaryStart).length !== 2)
+    throw new Error('UC2 actual build ordinary boundary differs');
+  const catchBegin = source.indexOf(catchStart);
+  const ordinaryBegin = source.indexOf(ordinaryStart);
+  // Proof: physical omission failed the same inert compiler consumer's moved-boundary assertion;
+  // restoring this check passed (2026-11-05).
+  if (ordinaryBegin <= catchBegin) throw new Error('UC2 actual build source order differs');
+  const catchFinally = source.slice(catchBegin, ordinaryBegin).trimEnd();
+  // Proof: physical omission failed the same inert compiler consumer's missing-terminal-brace
+  // assertion; restoring this check passed (2026-11-05).
   if (!catchFinally.endsWith('\n}')) throw new Error('UC2 actual build tail differs');
   const image = [
     `import {readFileSync,writeSync} from 'node:fs';
@@ -2515,7 +2523,16 @@ mkdtempAPI:mkdtemp,writeAPI:writeFile,buildAPI:Bun.build,reportAPI:writeSync,
 descriptor:process.stderr.fd,buildConfig};
 }`,
   ].join('\n');
-  const emitted = new Bun.Transpiler({ loader: 'ts', target: 'bun' }).transformSync(image);
+  return new Bun.Transpiler({ loader: 'ts', target: 'bun' }).transformSync(image);
+}
+
+/** Extracts current private custody cuts; acquires no subject constructor, plugin or child. */
+async function observeActualPrehelperBuild(): Promise<ActualPrehelperBuild> {
+  const source = await readFile(
+    new URL('../fixtures/dependency-owner-custody.ts', import.meta.url),
+    'utf8',
+  );
+  const emitted = compileActualPrehelperImage(source);
   const namespace: unknown = await import(
     'data:text/javascript;base64,' + Buffer.from(emitted).toString('base64')
   );
@@ -2537,6 +2554,24 @@ const actualPrehelperExpectedDiagnostic = Buffer.from(
 );
 
 test('UC2 actual invalid build retires pre-helper parent after original rejection and complete diagnostic', async () => {
+  const source = await readFile(
+    new URL('../fixtures/dependency-owner-custody.ts', import.meta.url),
+    'utf8',
+  );
+  expect(() => compileActualPrehelperImage(source)).not.toThrow();
+  const ordinaryStart = "\nimport { realpath as ordinaryHoldRealpath } from 'node:fs/promises';";
+  expect(() => compileActualPrehelperImage(source.replace(ordinaryStart, ''))).toThrow(
+    'UC2 actual build ordinary boundary differs',
+  );
+  expect(() => compileActualPrehelperImage(source + ordinaryStart)).toThrow(
+    'UC2 actual build ordinary boundary differs',
+  );
+  expect(() =>
+    compileActualPrehelperImage(ordinaryStart + source.replace(ordinaryStart, '')),
+  ).toThrow('UC2 actual build source order differs');
+  expect(() =>
+    compileActualPrehelperImage(source.replace('\n}' + ordinaryStart, ordinaryStart)),
+  ).toThrow('UC2 actual build tail differs');
   const preparation = prepareActualPrehelperBuild();
   const observed = await preparation;
   expect(prepareActualPrehelperBuild()).toBe(preparation);

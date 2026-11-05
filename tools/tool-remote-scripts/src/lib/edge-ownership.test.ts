@@ -1444,6 +1444,7 @@ function makeOrdinaryHoldImage(
   ];
   const image = {
     format: 'dependency-owner-ordinary-hold-image',
+    sourceEpoch: 'ordinary-febb-custody-v1',
     version: 1,
     sourceRoot: '/ordinary-hold',
     sourceIdentity: 'c'.repeat(40),
@@ -1851,10 +1852,10 @@ test('UC2 ordinary HOLD V1 fixed source epoch pins actual compiler inputs', asyn
   const { ordinaryHoldSourceEpochV1, ordinaryHoldModuleModesV1 } =
     await import('../fixtures/dependency-owner-custody');
   expect(ordinaryHoldSourceEpochV1.sourceIdentity).toBe('febb1c24427b2d368aa2d6446d6000dc1faabdb3');
-  expect(ordinaryHoldSourceEpochV1.pins).toHaveLength(16);
+  expect(ordinaryHoldSourceEpochV1.pins).toHaveLength(17);
   expect(
     createHash('sha256').update(JSON.stringify(ordinaryHoldSourceEpochV1.pins)).digest('hex'),
-  ).toBe('48bbb9090b0efbfc28a2589fd34d994e640e5d80bc8c6a2328af9a6b94622c84');
+  ).toBe('214a79bb76c1f85f0411b550a72f4c8b98963953eb0a1f055324a56fb5aa1325');
   expect(ordinaryHoldSourceEpochV1.pins.map((pin) => pin.relative)).toEqual(
     ordinaryHoldModuleModesV1.map((entry) => entry.relative),
   );
@@ -1923,9 +1924,9 @@ test('UC2 ordinary HOLD V1 concrete compiler plan transforms pinned production m
     supplied.set(`${sourceRoot}/${pin.relative}`, await readFile(new URL(pin.relative, rootUrl)));
   const planned = planOrdinaryHoldBuildV1(sourceRoot, supplied);
   expect(planned.image.sourceIdentity).toBe(ordinaryHoldSourceEpochV1.sourceIdentity);
-  expect(planned.image.mappings).toHaveLength(16);
+  expect(planned.image.mappings).toHaveLength(17);
   expect(planned.appliedCuts.length).toBeGreaterThan(13);
-  expect(planned.materialized.size).toBe(16);
+  expect(planned.materialized.size).toBe(17);
   for (const mapping of planned.image.mappings) {
     const original = supplied.get(mapping.path);
     const transformed = planned.materialized.get(mapping.path);
@@ -1975,7 +1976,7 @@ test('UC2 ordinary HOLD V1 probe-backed port and compiler metadata identities', 
   const root = '/ordinary-hold';
   const scanner = `${root}/tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts`;
   const database = `${root}/libs/wbs/adapters/store-sqlite/src/db.ts`;
-  expect(identifyOrdinaryHoldMetafilePathV1(root, '/work/repo', '../../../../tmp/entry.ts')).toBe(
+  expect(identifyOrdinaryHoldMetafilePathV1(root, '/work/repo', '../../tmp/entry.ts')).toBe(
     '/tmp/entry.ts',
   );
   expect(identifyOrdinaryHoldMetafilePathV1(root, '/work/repo', 'ordinary-hold-v1:ledger')).toBe(
@@ -2400,4 +2401,535 @@ test('UC2 generated ledger bounds cleanup attempt accounting without native entr
   expect(() => ledger.attemptClose(7, 'production')).toThrow('close attempt cap');
   expect(ledger.inspectNative(ticket).productionAttempts).toBe(8192);
   expect(ledger.inspectNative(ticket).nativeEntries).toBe(0);
+});
+
+async function ordinaryChildTransport() {
+  const { planOrdinaryHoldBuildV1, ordinaryHoldSourceEpochV1 } =
+    await import('../fixtures/dependency-owner-custody');
+  const rootUrl = new URL('../../../../', import.meta.url);
+  const sourceRoot = rootUrl.pathname.replace(/\/$/, '');
+  const supplied = new Map<string, Uint8Array>();
+  for (const pin of ordinaryHoldSourceEpochV1.pins)
+    supplied.set(`${sourceRoot}/${pin.relative}`, await readFile(new URL(pin.relative, rootUrl)));
+  const source = planOrdinaryHoldBuildV1(sourceRoot, supplied).portSources.get(
+    'ordinary-hold-v1:ledger',
+  );
+  if (source === undefined) throw new Error('generated child transport absent');
+  expect(source).not.toMatch(/\bimport\b/);
+  return runInNewContext(
+    `${source.replaceAll('export ', '')}\n({reserveChild,inspectChildren,reserveMigrationFs,inspectMigrationStaging,returnMigrationFs,throwMigrationFs,attachChild,throwChild,joinOrdinaryChild,inspectChildLimits,inspectLedger,reserveNative,attachNative,throwNative,assertChildDeadline,refuseChildSemantic,decodeCollectorChild,readAuthorityCollector})`,
+    { TextDecoder, performance },
+  ) as {
+    returnMigrationFs(ticket: object, returned: unknown): unknown;
+    throwMigrationFs(ticket: object, cause: unknown): void;
+    attachChild(ticket: object, child: ControlledChild): ControlledChild;
+    throwChild(ticket: object, cause: unknown): void;
+    joinOrdinaryChild(child: ControlledChild): Promise<readonly [string, string, number]>;
+    inspectChildLimits(): {
+      readonly reads: number;
+      readonly readCount: number;
+      readonly deliveredBytes: number;
+      readonly acceptedBytes: number;
+      readonly families: Readonly<Record<string, number>>;
+    };
+    inspectLedger(): { readonly stopped: boolean; readonly operations: readonly unknown[] };
+    reserveNative(label: string, kind: string, args: readonly unknown[]): object;
+    attachNative(ticket: object, original: unknown): unknown;
+    throwNative(ticket: object, cause: unknown): void;
+    assertChildDeadline(deadline: number): void;
+    refuseChildSemantic(child: ControlledChild, cause: unknown): never;
+    decodeCollectorChild(child: ControlledChild): string;
+    readAuthorityCollector(child: ControlledChild, deadline: number): Promise<string>;
+    reserveMigrationFs(name: string, args: readonly unknown[]): object;
+    inspectMigrationStaging(): {
+      readonly calls: readonly { readonly ticket: object; readonly phase: string }[];
+      readonly roots: readonly unknown[];
+    };
+    reserveChild(label: string, args: readonly unknown[]): object;
+    inspectChildren(): readonly ChildSnapshot[];
+  };
+}
+
+test('UC2 generated child transport reserves before actual spawn entry', async () => {
+  const transport = await ordinaryChildTransport();
+  const args = ['/authority', ['status']];
+  const ticket = transport.reserveChild('git', args);
+  expect(transport.inspectChildren()).toHaveLength(1);
+  expect(transport.inspectChildren()[0]?.ticket).toBe(ticket);
+  expect(transport.inspectChildren()[0]?.phase).toBe('entered');
+  expect(transport.inspectChildren()[0]?.args).toEqual(args);
+});
+
+test('UC2 custody epoch owns writable migration staging and four fixed child routes', async () => {
+  const { planOrdinaryHoldBuildV1, ordinaryHoldSourceEpochV1 } =
+    await import('../fixtures/dependency-owner-custody');
+  expect(ordinaryHoldSourceEpochV1.pins).toHaveLength(17);
+  const rootUrl = new URL('../../../../', import.meta.url);
+  const sourceRoot = rootUrl.pathname.replace(/\/$/, '');
+  const supplied = new Map<string, Uint8Array>();
+  for (const pin of ordinaryHoldSourceEpochV1.pins)
+    supplied.set(`${sourceRoot}/${pin.relative}`, await readFile(new URL(pin.relative, rootUrl)));
+  const plan = planOrdinaryHoldBuildV1(sourceRoot, supplied);
+  for (const id of [
+    'database.readwrite-enter-return',
+    'migration.fs',
+    'setup.complete.migrations',
+    'child.git.spawn',
+    'child.git.join',
+    'child.namespace.spawn',
+    'child.namespace.join',
+    'child.emitter.spawn',
+    'child.emitter.join',
+    'child.collector.spawn',
+    'child.collector.transport',
+  ])
+    expect(plan.appliedCuts.some((cut) => cut.id === id && cut.count === 1)).toBe(true);
+});
+
+test('UC2 generated migration staging reserves before filesystem entry', async () => {
+  const transport = await ordinaryChildTransport();
+  const ticket = transport.reserveMigrationFs('mkdtempSync', ['/scratch/wbs-migrate-staged-']);
+  expect(transport.inspectMigrationStaging().calls).toHaveLength(1);
+  expect(transport.inspectMigrationStaging().calls[0]?.ticket).toBe(ticket);
+  expect(transport.inspectMigrationStaging().calls[0]?.phase).toBe('entered');
+});
+
+interface ControlledChild {
+  readonly stdout: ReadableStream<Uint8Array>;
+  readonly stderr: ReadableStream<Uint8Array>;
+  readonly exited: Promise<number>;
+}
+interface ChildStreamSnapshot {
+  readonly stream: ReadableStream<Uint8Array>;
+  readonly reader: ReadableStreamDefaultReader<Uint8Array>;
+  readonly closed: Promise<void>;
+  readonly closedObserver: Promise<unknown>;
+  readonly pump: Promise<unknown>;
+  readonly pumpObserver: Promise<unknown>;
+  readonly eof: boolean;
+  readonly releasePhase: string;
+  readonly reads: readonly {
+    readonly original: Promise<ReadableStreamReadResult<Uint8Array>>;
+    readonly originalObserver: Promise<unknown>;
+    readonly chunk: ReadableStreamReadResult<Uint8Array>;
+    readonly phase: string;
+  }[];
+}
+interface ChildSnapshot {
+  readonly ticket: object;
+  readonly phase: string;
+  readonly args: readonly unknown[];
+  readonly original: ControlledChild;
+  readonly exited: Promise<number>;
+  readonly exitedObserver: Promise<unknown>;
+  readonly join: Promise<readonly [string, string, number]>;
+  readonly joinObserver: Promise<unknown>;
+  readonly joined: boolean;
+  readonly streams: readonly ChildStreamSnapshot[];
+}
+function controlledChild() {
+  let stdoutController: ReadableStreamDefaultController<Uint8Array> | undefined;
+  let stderrController: ReadableStreamDefaultController<Uint8Array> | undefined;
+  let fulfillExit: ((code: number) => void) | undefined;
+  let rejectExit: ((cause: unknown) => void) | undefined;
+  let cancellations = 0;
+  const stdout = new ReadableStream<Uint8Array>({
+    start(controller) {
+      stdoutController = controller;
+    },
+    cancel() {
+      cancellations++;
+    },
+  });
+  const stderr = new ReadableStream<Uint8Array>({
+    start(controller) {
+      stderrController = controller;
+    },
+    cancel() {
+      cancellations++;
+    },
+  });
+  const exited = new Promise<number>((resolve, reject) => {
+    fulfillExit = resolve;
+    rejectExit = reject;
+  });
+  if (
+    stdoutController === undefined ||
+    stderrController === undefined ||
+    fulfillExit === undefined ||
+    rejectExit === undefined
+  )
+    throw new Error('controlled child provider absent');
+  return {
+    child: { stdout, stderr, exited },
+    stdout: stdoutController,
+    stderr: stderrController,
+    exit: fulfillExit,
+    failExit: rejectExit,
+    cancellations: () => cancellations,
+  };
+}
+async function flushChildObservations() {
+  for (let turn = 0; turn < 20; turn++) await Promise.resolve();
+}
+
+test('UC2 generated child transport retains original readers promises and concurrent drains', async () => {
+  const transport = await ordinaryChildTransport();
+  const controlled = controlledChild();
+  const ticket = transport.reserveChild('git', []);
+  expect(transport.attachChild(ticket, controlled.child)).toBe(controlled.child);
+  const captured = transport.inspectChildren().at(0);
+  if (captured === undefined) throw new Error('child absent');
+  expect(captured.original).toBe(controlled.child);
+  expect(captured.exited).toBe(controlled.child.exited);
+  expect(captured.exitedObserver).not.toBe(controlled.child.exited);
+  for (const stream of captured.streams) {
+    expect(stream.closed).toBe(stream.reader.closed);
+    expect(stream.closedObserver).not.toBe(stream.closed);
+    expect(stream.reads).toHaveLength(1);
+    expect(stream.reads[0]?.originalObserver).not.toBe(stream.reads[0]?.original);
+    expect(stream.pumpObserver).not.toBe(stream.pump);
+  }
+  expect(captured.streams.map((stream) => stream.stream)).toEqual([
+    controlled.child.stdout,
+    controlled.child.stderr,
+  ]);
+  const joined = transport.joinOrdinaryChild(controlled.child);
+  expect(transport.joinOrdinaryChild(controlled.child)).toBe(joined);
+  expect(transport.inspectChildren()[0]?.join).toBe(joined);
+  expect(transport.inspectChildren()[0]?.joinObserver).not.toBe(joined);
+  let returned = false;
+  void joined.then(() => {
+    returned = true;
+  });
+  controlled.stdout.enqueue(new TextEncoder().encode('stdout'));
+  controlled.stderr.enqueue(new TextEncoder().encode('stderr'));
+  controlled.stdout.close();
+  controlled.stderr.close();
+  await flushChildObservations();
+  expect(returned).toBe(false);
+  expect(transport.inspectChildren()[0]?.joined).toBe(false);
+  controlled.exit(7);
+  expect(await joined).toEqual(['stdout', 'stderr', 7]);
+  for (const stream of transport.inspectChildren()[0]?.streams ?? []) {
+    expect(stream.eof).toBe(true);
+    expect(stream.releasePhase).toBe('returned');
+    expect(stream.reads.at(-1)?.chunk.done).toBe(true);
+  }
+  expect(controlled.child.stdout.locked).toBe(false);
+  expect(controlled.child.stderr.locked).toBe(false);
+  expect(controlled.cancellations()).toBe(0);
+  expect(transport.inspectLedger().operations).toHaveLength(0);
+});
+
+test('UC2 generated child transport drains captured originals after unrelated STOP', async () => {
+  const transport = await ordinaryChildTransport();
+  const controlled = controlledChild();
+  transport.attachChild(transport.reserveChild('git', []), controlled.child);
+  const joined = transport.joinOrdinaryChild(controlled.child);
+  const native = transport.reserveNative('storage.openSync', 'fd', []);
+  transport.attachNative(native, 7);
+  transport.throwNative(native, new Error('inert unrelated native refusal'));
+  expect(() => transport.reserveChild('git', [])).toThrow('stopped');
+  controlled.stdout.enqueue(new TextEncoder().encode('retained'));
+  controlled.stdout.close();
+  controlled.stderr.close();
+  controlled.exit(0);
+  expect(await joined).toEqual(['retained', '', 0]);
+  expect(controlled.cancellations()).toBe(0);
+});
+
+test('UC2 generated child transport byte overflow retains UNKNOWN without EOF release or extra reads', async () => {
+  const transport = await ordinaryChildTransport();
+  const controlled = controlledChild();
+  transport.attachChild(transport.reserveChild('collector', []), controlled.child);
+  const joined = transport.joinOrdinaryChild(controlled.child);
+  let settled = false;
+  void joined.then(() => {
+    settled = true;
+  });
+  const oversized = new Uint8Array(33554433);
+  controlled.stdout.enqueue(oversized);
+  await flushChildObservations();
+  const captured = transport.inspectChildren().at(0);
+  controlled.stdout.close();
+  controlled.stderr.close();
+  controlled.exit(0);
+  await flushChildObservations();
+  expect(captured?.phase).toBe('unknown');
+  expect(captured?.streams[0]?.reads).toHaveLength(1);
+  expect(captured?.streams[0]?.reads[0]?.chunk.value).toBe(oversized);
+  expect(captured?.streams[0]?.eof).toBe(false);
+  expect(captured?.streams[0]?.releasePhase).toBe('not-entered');
+  expect(settled).toBe(false);
+  expect(transport.inspectChildLimits().deliveredBytes).toBe(33554433);
+  expect(transport.inspectChildLimits().acceptedBytes).toBe(0);
+  expect(() => transport.reserveChild('git', [])).toThrow('stopped');
+  expect(settled).toBe(false);
+  expect(controlled.cancellations()).toBe(0);
+});
+
+test('UC2 generated child transport rejected read and exit preserve UNKNOWN causes', async () => {
+  for (const fault of ['read', 'exit'] as const) {
+    const transport = await ordinaryChildTransport();
+    const controlled = controlledChild();
+    transport.attachChild(transport.reserveChild('git', []), controlled.child);
+    let settled = false;
+    void transport.joinOrdinaryChild(controlled.child).then(() => {
+      settled = true;
+    });
+    const cause = new Error(fault);
+    if (fault === 'read') {
+      controlled.stdout.error(cause);
+      controlled.stderr.close();
+      controlled.exit(0);
+    } else {
+      controlled.stdout.close();
+      controlled.stderr.close();
+      controlled.failExit(cause);
+    }
+    await flushChildObservations();
+    expect(transport.inspectChildren()[0]?.phase).toBe('unknown');
+    expect(transport.inspectLedger().stopped).toBe(true);
+    expect(settled).toBe(false);
+    expect(controlled.cancellations()).toBe(0);
+  }
+});
+
+test('UC2 generated child transport fixed caps and deadline refuse before entry', async () => {
+  for (const [family, cap] of Object.entries({ git: 8, namespace: 16, emitter: 2, collector: 6 })) {
+    const transport = await ordinaryChildTransport();
+    for (let count = 0; count < cap; count++) transport.reserveChild(family, []);
+    expect(() => transport.reserveChild(family, [])).toThrow('cap');
+    expect(transport.inspectChildren()).toHaveLength(cap);
+  }
+  const transport = await ordinaryChildTransport();
+  expect(() => transport.reserveChild('git-near', [])).toThrow('boundary');
+  const deadline = await ordinaryChildTransport();
+  expect(() => {
+    deadline.assertChildDeadline(performance.now() - 1);
+  }).toThrow('deadline');
+  expect(deadline.inspectChildren()).toHaveLength(0);
+});
+
+test('UC2 generated migration staging retains returned roots and one cleanup after STOP', async () => {
+  const transport = await ordinaryChildTransport();
+  const ticket = transport.reserveMigrationFs('mkdtempSync', ['/scratch/wbs-migrate-staged-']);
+  expect(transport.returnMigrationFs(ticket, '/scratch/wbs-migrate-staged-real')).toBe(
+    '/scratch/wbs-migrate-staged-real',
+  );
+  expect(transport.inspectMigrationStaging().roots).toHaveLength(1);
+  const copy = transport.reserveMigrationFs('cpSync', [
+    '/source',
+    '/scratch/wbs-migrate-staged-real/one',
+  ]);
+  const cause = new Error('copy failed');
+  transport.throwMigrationFs(copy, cause);
+  expect(() => transport.reserveMigrationFs('cpSync', [])).toThrow('stopped');
+  const remove = transport.reserveMigrationFs('rmSync', [
+    '/scratch/wbs-migrate-staged-real',
+    { recursive: true, force: true },
+  ]);
+  transport.returnMigrationFs(remove, undefined);
+  expect(() =>
+    transport.reserveMigrationFs('rmSync', ['/scratch/wbs-migrate-staged-real']),
+  ).toThrow('removal');
+});
+
+test('UC2 generated child transport read cap parks without an unrecorded read', async () => {
+  const transport = await ordinaryChildTransport();
+  let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
+  let suppliedReads = 0;
+  const stdout = new ReadableStream<Uint8Array>({
+    start(opened) {
+      controller = opened;
+    },
+    pull(opened) {
+      if (suppliedReads < 8193) {
+        suppliedReads++;
+        opened.enqueue(new Uint8Array(0));
+      } else opened.close();
+    },
+  });
+  const controlled = controlledChild();
+  const child = { ...controlled.child, stdout };
+  transport.attachChild(transport.reserveChild('collector', []), child);
+  let settled = false;
+  void transport.joinOrdinaryChild(child).then(() => {
+    settled = true;
+  });
+  for (let turn = 0; turn < 100000 && !transport.inspectLedger().stopped; turn++)
+    await Promise.resolve();
+  await flushChildObservations();
+  const captured = transport.inspectChildren().at(0);
+  if (controller === undefined) throw new Error('controlled read-cap provider absent');
+  if (!captured?.streams[0]?.eof) controller.close();
+  controlled.stdout.close();
+  controlled.stderr.close();
+  controlled.exit(0);
+  await flushChildObservations();
+  expect(transport.inspectLedger().stopped).toBe(true);
+  expect(transport.inspectChildLimits().readCount).toBe(8192);
+  expect(captured?.phase).toBe('unknown');
+  expect(captured?.streams.reduce((count, stream) => count + stream.reads.length, 0)).toBe(8192);
+  expect(captured?.streams[0]?.eof).toBe(false);
+  expect(captured?.streams[0]?.releasePhase).toBe('not-entered');
+  expect(settled).toBe(false);
+  expect(settled).toBe(false);
+  expect(controlled.cancellations()).toBe(0);
+});
+
+test('UC2 generated child transport missing stream retains child and original exit', async () => {
+  const transport = await ordinaryChildTransport();
+  const controlled = controlledChild();
+  const child = { ...controlled.child, stderr: undefined } as unknown as ControlledChild;
+  expect(() => transport.attachChild(transport.reserveChild('git', []), child)).toThrow(
+    'stream absent',
+  );
+  expect(transport.inspectChildren()[0]?.original).toBe(child);
+  expect(transport.inspectChildren()[0]?.exited).toBe(child.exited);
+  expect(transport.inspectChildren()[0]?.phase).toBe('unknown');
+  expect(() => transport.reserveChild('git', [])).toThrow('stopped');
+  controlled.stdout.close();
+  controlled.stderr.close();
+  controlled.exit(0);
+  await flushChildObservations();
+  expect(controlled.cancellations()).toBe(0);
+});
+
+test('UC2 generated migration staging exact call caps refuse before entry', async () => {
+  for (const [name, cap] of Object.entries({
+    mkdtempSync: 2,
+    cpSync: 210,
+    readdirSync: 2,
+    existsSync: 214,
+    readFileSync: 214,
+  })) {
+    const transport = await ordinaryChildTransport();
+    for (let count = 0; count < cap; count++) transport.reserveMigrationFs(name, []);
+    expect(() => transport.reserveMigrationFs(name, [])).toThrow('cap');
+    expect(transport.inspectMigrationStaging().calls).toHaveLength(cap);
+  }
+  const transport = await ordinaryChildTransport();
+  const ticket = transport.reserveMigrationFs('mkdtempSync', []);
+  transport.returnMigrationFs(ticket, '/staged');
+  const remove = transport.reserveMigrationFs('rmSync', ['/staged']);
+  const cause = new Error('native removal unknown');
+  transport.throwMigrationFs(remove, cause);
+  expect(() => transport.reserveMigrationFs('rmSync', ['/staged'])).toThrow('removal');
+});
+
+test('UC2 custody source cuts reconstruct every original program and reject historical epoch', async () => {
+  const { planOrdinaryHoldBuildV1, ordinaryHoldSourceEpochV1, decodeOrdinaryHoldImageV1 } =
+    await import('../fixtures/dependency-owner-custody');
+  const rootUrl = new URL('../../../../', import.meta.url);
+  const sourceRoot = rootUrl.pathname.replace(/\/$/, '');
+  const supplied = new Map<string, Uint8Array>();
+  for (const pin of ordinaryHoldSourceEpochV1.pins)
+    supplied.set(`${sourceRoot}/${pin.relative}`, await readFile(new URL(pin.relative, rootUrl)));
+  const plan = planOrdinaryHoldBuildV1(sourceRoot, supplied);
+  expect(plan.image.sourceEpoch).toBe('ordinary-febb-custody-v1');
+  expect(() =>
+    decodeOrdinaryHoldImageV1({ ...plan.image, sourceEpoch: 'ordinary-febb-image-v1' }),
+  ).toThrow('version');
+  for (const mapping of plan.image.mappings) {
+    if (mapping.mode !== 'transform') continue;
+    let reconstructed = new TextDecoder().decode(plan.materialized.get(mapping.path));
+    for (const cut of [...mapping.cuts].reverse()) {
+      expect(reconstructed.split(cut.after).length - 1).toBe(cut.count);
+      reconstructed = reconstructed.replaceAll(cut.after, () => cut.before);
+    }
+    expect(reconstructed).toBe(new TextDecoder().decode(supplied.get(mapping.path)));
+  }
+  expect(
+    plan.appliedCuts.filter((cut) => /^setup\.(complete|namespace)\.write\./.test(cut.id)),
+  ).toHaveLength(7);
+  const dbPath = `${sourceRoot}/libs/wbs/adapters/store-sqlite/src/db.ts`;
+  const database = new TextDecoder().decode(plan.materialized.get(dbPath));
+  expect(database).toContain(
+    'const db = ordinaryHoldOpenReadwrite(dbPath, isCreateAllowed);\n  return initializeDatabase(db,',
+  );
+  const collector = plan.portSources.get('ordinary-hold-v1:child-collector');
+  expect(collector).toContain('new TextEncoder().encode(program)');
+  expect(collector).not.toContain('installed-authority-transport');
+  expect(plan.portSources.get('ordinary-hold-v1:ledger')).toContain(
+    'if(collectorStderrByteLength(child)>0)',
+  );
+  expect(plan.portSources.get('ordinary-hold-v1:ledger')).toContain('if(code!==0)');
+  for (const family of ['git', 'namespace', 'emitter', 'collector']) {
+    const port = plan.portSources.get(`ordinary-hold-v1:child-${family}`);
+    expect(port).not.toMatch(/\.kill\(|\.cancel\(|setTimeout|setInterval/);
+    expect(port).toContain('const spawn=Bun.spawn');
+  }
+});
+
+test('UC2 generated collector decodes strictly only after genuine joins while other families replace', async () => {
+  for (const family of ['git', 'namespace', 'emitter', 'collector']) {
+    const transport = await ordinaryChildTransport();
+    const controlled = controlledChild();
+    transport.attachChild(transport.reserveChild(family, []), controlled.child);
+    controlled.stdout.enqueue(new Uint8Array([0xff]));
+    controlled.stdout.close();
+    controlled.stderr.close();
+    controlled.exit(0);
+    if (family === 'collector')
+      expect(
+        await transport.readAuthorityCollector(controlled.child, performance.now() + 10000).then(
+          () => false,
+          () => true,
+        ),
+      ).toBe(true);
+    else expect(await transport.joinOrdinaryChild(controlled.child)).toEqual(['\ufffd', '', 0]);
+    expect(transport.inspectChildren()[0]?.joined).toBe(true);
+    expect(controlled.child.stdout.locked).toBe(false);
+    expect(controlled.child.stderr.locked).toBe(false);
+    expect(controlled.cancellations()).toBe(0);
+  }
+});
+
+test('UC2 generated collector semantic refusals retain known joined transport', async () => {
+  for (const fault of ['stderr', 'exit', 'deadline'] as const) {
+    const transport = await ordinaryChildTransport();
+    const controlled = controlledChild();
+    transport.attachChild(transport.reserveChild('collector', []), controlled.child);
+    if (fault === 'stderr') controlled.stderr.enqueue(new TextEncoder().encode('failure'));
+    controlled.stdout.close();
+    controlled.stderr.close();
+    controlled.exit(fault === 'exit' ? 1 : 0);
+    expect(
+      await transport
+        .readAuthorityCollector(
+          controlled.child,
+          fault === 'deadline' ? performance.now() - 1 : performance.now() + 10000,
+        )
+        .then(
+          () => false,
+          () => true,
+        ),
+    ).toBe(true);
+    expect(transport.inspectChildren()[0]?.joined).toBe(true);
+    expect(transport.inspectLedger().stopped).toBe(true);
+    expect(controlled.cancellations()).toBe(0);
+  }
+});
+
+test('UC2 generated collector refuses BOM-only raw stderr after known transport join', async () => {
+  const transport = await ordinaryChildTransport();
+  const controlled = controlledChild();
+  transport.attachChild(transport.reserveChild('collector', []), controlled.child);
+  controlled.stderr.enqueue(new Uint8Array([0xef, 0xbb, 0xbf]));
+  controlled.stdout.close();
+  controlled.stderr.close();
+  controlled.exit(0);
+  const refused = await transport
+    .readAuthorityCollector(controlled.child, performance.now() + 10000)
+    .then(
+      () => false,
+      () => true,
+    );
+  expect(transport.inspectChildren().at(0)?.joined).toBe(true);
+  expect(controlled.child.stdout.locked).toBe(false);
+  expect(controlled.child.stderr.locked).toBe(false);
+  expect(controlled.cancellations()).toBe(0);
+  expect(refused).toBe(true);
 });
