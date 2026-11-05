@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "scope": "Current native-control source; historical verification retained in immutable Git and private packets",
+  "scope": "Current native-control source and accepted tiny primitive qualification; full observability remains open",
   "sourcePins": [
     {
       "path": "openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
@@ -33,16 +33,9 @@
     "verification": "../verify.md",
     "nativeExecuted": false
   },
-  "actualAttempt": {
-    "evidence": "native-primitive-attempt-20261105.json",
-    "state": "failed-before-admission-readiness-unavailable",
-    "requestSha256": "2a0bc82b930bdb5bf075fcb81eefc1ab445f9e29c7243ced13613253ef6e30b3",
-    "counter": "unavailable",
-    "retryPerformed": false
-  },
   "nativeExecuted": true,
   "requestGenerated": true,
-  "nativeQualified": false,
+  "nativeQualified": true,
   "limits": {
     "metadataBytes": 1048576,
     "fixtureBytes": 2097152,
@@ -57,26 +50,45 @@
     "testMaximumBytes": 57344
   },
   "retainedBudgetPreparation": {
-    "state": "1MiB source approved; actual new request independently reviewed and attempted once, retained refusal before fixtures; proc-padding source fix pending",
+    "state": "Complete1MiBsource and fresh actualtiny qualification; original plaintext retained, no archival utility shipped",
     "reason": "Correct archival tooling/proofs exceed apparent savings; preserve original plaintext history and avoid new delivery bottleneck",
     "extraReservedDiskBytes": 524288,
     "archivalExecuted": false,
     "draftCapsuleSha256": "56e85ca57e158878867ef5baae78896f90245c7908ba44225e49ec7fbc5488bb",
     "draftCapsuleBytes": 14061,
-    "next": "Charge complete larger future reserve and all actual retained provenance; unchanged physical/resource floors; fresh source-bound independent admission before one new nonce",
+    "next": "Fresh separate actualrepair/seed/guest and complete full-rehearsal admission/execution remain; no repeat of qualified tiny source/kernel",
     "debtCredit": false,
     "sourceTests": "3pass/14assertions/8filtered/201ms; literal boundary and4old/smaller-reserve watched launch faults",
     "review": "SpecPASS/QualityPASS; final owning tsc0/named statics0",
     "capsuleSha256": "2697ae3fbc71726f9821712254883522126ee22896a9b207fbcc6791e56a1d56",
     "capsuleBytes": 4713
   },
-  "latestAttempt": "native-primitive-attempt-20261105-57240.json",
+  "latestAttempt": "native-primitive-attempt-20261105-6f7d.json",
   "procLimitPadding": {
-    "state": "source fixed/reviewed, no new runtime acceptance",
+    "state": "Fixed/reviewed and exercised by accepted6f7d actualworker; fullobservability remains open",
     "scope": "only trailing same-line spaces/tabs after required unit; exact values/status/bounds unchanged",
     "tests": "1pass/3assert/11filtered;60.15ms test/86ms total; originalpaddedRED andwatchedwrongsoft omission",
     "review": "SpecPASS/QualityPASS; final owning tsc0/named statics0",
     "capsuleSha256": "54d8de51c2ffa51101007ca67e75e76089c12af83a4541d801d7a32632d69f58",
     "capsuleBytes": 6944
+  },
+  "qualificationScope": "tiny-primitives-only",
+  "fullObservabilityAccepted": false,
+  "repairAccepted": false,
+  "historicalFirstAttempt": {
+    "evidence": "native-primitive-attempt-20261105.json",
+    "state": "failed-before-admission-readiness-unavailable",
+    "requestSha256": "2a0bc82b930bdb5bf075fcb81eefc1ab445f9e29c7243ced13613253ef6e30b3",
+    "counter": "unavailable",
+    "retryPerformed": false
+  },
+  "nativeQualification": {
+    "evidence": "native-primitive-attempt-20261105-6f7d.json",
+    "elapsedMilliseconds": 3198,
+    "durableSha256": "601f218300b84fe8f6a3e04e1730fdb4a299739216c63bde56dbb36730bd0523",
+    "terminalSha256": "045244a7f3dc26940fe92e3f24e5d787ccd120b9a612ace82fda4cd9faef3dbc",
+    "review": "independent runtime audit approved tiny scope",
+    "fixtureBytes": 1544192,
+    "metadataAtReceiptAuditBytes": 626688
   }
 }
