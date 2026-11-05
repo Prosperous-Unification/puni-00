@@ -546,7 +546,7 @@ const OWNER_PACKAGES = {
   'di-bag': '0.5.2',
   'application-exception': '0.9.0',
   'caught-object-report-json': '15.0.0',
-  'configurable-tree-traversal': '0.12.0',
+  'configurable-tree-traversal': '0.13.0',
 } as const;
 
 // Proof: `"di-bag": "^0.4.0"` failed `are pinned to exact versions in the root manifest` on the
@@ -600,7 +600,7 @@ describe('the owner-maintained libraries', () => {
     });
     // Proof: changing only CTT's locked identity to @0.11.0 failed this assertion
     // with expected @0.12.0 and received @0.11.0 (2026-10-31).
-    expect(copies).toEqual(['configurable-tree-traversal@0.12.0']);
+    expect(copies).toEqual(['configurable-tree-traversal@0.13.0']);
   });
 
   it('installs the coordination library at the pinned version', () => {

@@ -1,6 +1,9 @@
 import { formatStepNodeId, type StepNodeRef } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
-import { type DagWorkSession, materializeDagInputFromRecords } from 'configurable-tree-traversal';
+import {
+  type DagExternalWorkSession,
+  materializeMultiEntryDagInputFromRecordCatalog,
+} from 'configurable-tree-traversal';
 
 import { materializeOrderedSteps, prepareCoordination } from './topology';
 
@@ -10,22 +13,25 @@ const SECOND_STEP = '00000000-0000-4000-8000-000000000002';
 const FIRST_NODE = 'sn1.0f8fad5b-d9cb-469f-a165-70867728950e.00000000-0000-4000-8000-000000000001';
 const SECOND_NODE = 'sn1.0f8fad5b-d9cb-469f-a165-70867728950e.00000000-0000-4000-8000-000000000002';
 
-function advanceTickets(session: DagWorkSession<string>) {
-  const boundary = session.advance();
+function advanceTickets(session: DagExternalWorkSession<string>) {
+  const boundary = session.runUntilWorkBoundary();
   expect(boundary.kind).toBe('awaitingSettlement');
   if (boundary.kind !== 'awaitingSettlement') throw new Error('Expected native work tickets');
-  return boundary.workTickets;
+  return boundary.workSettlementTickets;
 }
 
 function materializeCatalog(
   steps: readonly StepNodeRef[],
   dependencies: {
-    children?: (step: StepNodeRef) => readonly string[];
-    dependsOnWork?: (step: StepNodeRef) => readonly string[];
-    dependsOnSubgraphCompletion?: (step: StepNodeRef) => readonly string[];
+    selectStructuralChildVertexIds?: (step: StepNodeRef) => readonly string[];
+    selectWorkPrerequisiteVertexIds?: (step: StepNodeRef) => readonly string[];
+    selectSubgraphCompletionPrerequisiteVertexIds?: (step: StepNodeRef) => readonly string[];
   } = {},
 ) {
-  return materializeDagInputFromRecords(steps, { id: formatStepNodeId, ...dependencies });
+  return materializeMultiEntryDagInputFromRecordCatalog(steps, {
+    selectVertexId: formatStepNodeId,
+    ...dependencies,
+  });
 }
 
 describe('ordered coordination topology', () => {
@@ -35,12 +41,12 @@ describe('ordered coordination topology', () => {
         { id: SECOND_STEP, position: 20 },
         { id: FIRST_STEP, position: 10 },
       ]),
-    ).createWorkSession();
+    ).createExternalWorkSession();
     const tickets = advanceTickets(session);
     expect(tickets.map((ticket) => ticket.vertexId)).toEqual([FIRST_NODE]);
     expect(advanceTickets(session).map((ticket) => ticket.vertexId)).toEqual([FIRST_NODE]);
-    expect(session.completeWork(tickets[0])).toEqual({ kind: 'accepted' });
-    expect(session.completeWork(tickets[0])).toEqual({ kind: 'alreadyAccepted' });
+    expect(session.acceptCompletedWork(tickets[0])).toEqual({ kind: 'accepted' });
+    expect(session.acceptCompletedWork(tickets[0])).toEqual({ kind: 'alreadyAccepted' });
     expect(advanceTickets(session).map((ticket) => ticket.vertexId)).toEqual([SECOND_NODE]);
   });
 
@@ -52,7 +58,7 @@ describe('ordered coordination topology', () => {
     ];
     const dag = prepareCoordination(materializeOrderedSteps('leaf', steps));
     expect(
-      dag.liveVertexSummaries.map((vertex) => [vertex.vertexId, vertex.dependsOnWork]),
+      dag.liveVertexSummaries.map((vertex) => [vertex.vertexId, vertex.workWaitsForWorkOf]),
     ).toEqual([
       ['sn1.leaf.Z', []],
       ['sn1.leaf.a', ['sn1.leaf.Z']],
@@ -87,16 +93,20 @@ describe('ordered coordination topology', () => {
         { id: SECOND_STEP, position: 20 },
       ]),
     );
-    const reconstructed = dag.createWorkSession({ completedWork: new Set([FIRST_NODE]) });
+    const reconstructed = dag.createExternalWorkSession({
+      acceptedCompletedWorkVertexIds: new Set([FIRST_NODE]),
+    });
     expect(advanceTickets(reconstructed).map((ticket) => ticket.vertexId)).toEqual([SECOND_NODE]);
-    expect(advanceTickets(dag.createWorkSession()).map((ticket) => ticket.vertexId)).toEqual([
-      FIRST_NODE,
-    ]);
+    expect(
+      advanceTickets(dag.createExternalWorkSession()).map((ticket) => ticket.vertexId),
+    ).toEqual([FIRST_NODE]);
   });
 
   it('finishes an empty step catalog without inventing a work-item step', () => {
-    const session = prepareCoordination(materializeOrderedSteps(WORK_ITEM, [])).createWorkSession();
-    expect(session.advance()).toEqual({ kind: 'finished' });
+    const session = prepareCoordination(
+      materializeOrderedSteps(WORK_ITEM, []),
+    ).createExternalWorkSession();
+    expect(session.runUntilWorkBoundary()).toEqual({ kind: 'finished' });
   });
 });
 
@@ -108,13 +118,16 @@ describe('complete native coordination topology', () => {
   it('keeps a parallel join blocked until both prerequisite work milestones are accepted', () => {
     const dag = prepareCoordination(
       materializeCatalog([backend, frontend, review], {
-        dependsOnWork: (step) => (step === review ? ['sn1.leaf.backend', 'sn1.leaf.frontend'] : []),
+        selectWorkPrerequisiteVertexIds: (step) =>
+          step === review ? ['sn1.leaf.backend', 'sn1.leaf.frontend'] : [],
       }),
     );
-    const session = dag.createWorkSession({ completedWork: new Set(['sn1.leaf.backend']) });
+    const session = dag.createExternalWorkSession({
+      acceptedCompletedWorkVertexIds: new Set(['sn1.leaf.backend']),
+    });
     const tickets = advanceTickets(session);
     expect(tickets.map((ticket) => ticket.vertexId)).toEqual(['sn1.leaf.frontend']);
-    session.completeWork(tickets[0]);
+    session.acceptCompletedWork(tickets[0]);
     expect(advanceTickets(session).map((ticket) => ticket.vertexId)).toEqual(['sn1.leaf.review']);
   });
 
@@ -122,18 +135,21 @@ describe('complete native coordination topology', () => {
     const child = { workItemId: 'leaf', stepId: 'child' };
     const dag = prepareCoordination(
       materializeCatalog([backend, child, frontend, review], {
-        children: (step) => (step === backend ? ['sn1.leaf.child'] : []),
-        dependsOnWork: (step) => (step === frontend ? ['sn1.leaf.backend'] : []),
-        dependsOnSubgraphCompletion: (step) => (step === review ? ['sn1.leaf.backend'] : []),
+        selectStructuralChildVertexIds: (step) => (step === backend ? ['sn1.leaf.child'] : []),
+        selectWorkPrerequisiteVertexIds: (step) => (step === frontend ? ['sn1.leaf.backend'] : []),
+        selectSubgraphCompletionPrerequisiteVertexIds: (step) =>
+          step === review ? ['sn1.leaf.backend'] : [],
       }),
     );
-    const session = dag.createWorkSession({ completedWork: new Set(['sn1.leaf.backend']) });
+    const session = dag.createExternalWorkSession({
+      acceptedCompletedWorkVertexIds: new Set(['sn1.leaf.backend']),
+    });
     const tickets = advanceTickets(session);
     expect(tickets.map((ticket) => ticket.vertexId)).toEqual([
       'sn1.leaf.child',
       'sn1.leaf.frontend',
     ]);
-    session.completeWork(tickets[0]);
+    session.acceptCompletedWork(tickets[0]);
     expect(advanceTickets(session).map((ticket) => ticket.vertexId)).toEqual([
       'sn1.leaf.frontend',
       'sn1.leaf.review',
@@ -142,7 +158,7 @@ describe('complete native coordination topology', () => {
 
   it('refuses a disconnected cycle before exposing any executable topology', () => {
     const input = materializeCatalog([review, backend, frontend], {
-      dependsOnWork: (step) =>
+      selectWorkPrerequisiteVertexIds: (step) =>
         step === backend ? ['sn1.leaf.frontend'] : step === frontend ? ['sn1.leaf.backend'] : [],
     });
     expect(() => prepareCoordination(input)).toThrow('Invalid coordination topology');
@@ -150,15 +166,16 @@ describe('complete native coordination topology', () => {
 
   it('refuses an absent prerequisite before exposing any executable topology', () => {
     const input = materializeCatalog([review, backend], {
-      dependsOnWork: (step) => (step === backend ? ['sn1.leaf.absent'] : []),
+      selectWorkPrerequisiteVertexIds: (step) => (step === backend ? ['sn1.leaf.absent'] : []),
     });
     expect(() => prepareCoordination(input)).toThrow('Invalid coordination topology');
   });
 
   it('refuses a milestone cycle even when structural discovery is acyclic', () => {
     const input = materializeCatalog([backend, frontend], {
-      children: (step) => (step === backend ? ['sn1.leaf.frontend'] : []),
-      dependsOnSubgraphCompletion: (step) => (step === backend ? ['sn1.leaf.backend'] : []),
+      selectStructuralChildVertexIds: (step) => (step === backend ? ['sn1.leaf.frontend'] : []),
+      selectSubgraphCompletionPrerequisiteVertexIds: (step) =>
+        step === backend ? ['sn1.leaf.backend'] : [],
     });
     expect(() => prepareCoordination(input)).toThrow('Invalid coordination topology');
   });
@@ -166,7 +183,7 @@ describe('complete native coordination topology', () => {
   it('preserves the exact source exception instead of treating unreadable topology as empty', () => {
     const failure = new Error('Authoritative topology is unreadable');
     const input = materializeCatalog([backend]);
-    input.traversableGraph.resolveRoot = () => {
+    input.dagDiscoverySource.resolveRootVertex = () => {
       throw failure;
     };
     let thrown: unknown;
