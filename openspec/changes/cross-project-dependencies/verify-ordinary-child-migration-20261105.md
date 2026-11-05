@@ -113,3 +113,93 @@ checkboxes and parent UC2 are not closed by an approximate test count or this
 source record. A separately reviewed compile-only run is recorded later if it
 actually completes. Main architecture adoption, full CI/exact host gate and
 deployment remain open.
+
+## Actual seventeen-row compiler-only qualification
+
+Source/design/evidence committed locally as
+`f2d72ee4c01ceae556e3d7a216c2e8a71439713a`, with normal hooks and no bypass.
+Tool Wiki was visibly inactive because its external activation root is absent;
+no migration/README-cap hook matched these files. Root's combined3-source lint,
+current document/index checks and all334OpenSpec entries passed.
+
+Independent preflight review SHA256
+`fad5bbb130ac8b2f1a7e90b5322310df94018c82ce837a7220f98e23150e7e9f`
+approved ONEfresh compiler-only invocation. Driver SHA256
+`2f16f22b299ea5b0f516f1da3d247e48d5c6bc271824b66eb6ad665f7a9ede9d`;
+expected manifest SHA256
+`47af92aab2a3310e020b0d7e229477d1abbe8dbdc49f494adf90e0622173f57b`;
+launcher SHA256
+`d58ecd87fde54e943e3506ce00218e748ba52054df34e111b66a083015958cbf`.
+Root ran exactly once:
+
+```sh
+python3 /tmp/puni-ordinary-child-image-build-20261105/launch.py
+```
+
+Actual PID/PGID2327056 exited0, no signal, both pipesEOF, empty stderr;
+source/configuration/compiler/driver pre/post pins and modes matched.
+All46setup/compiler originals and separately retained observers fulfilled and
+joined, including17source realpaths and17reads. It emitted one1151979-byte
+bundle SHA256
+`94c5549b00e4a03266b666c2e6b8c0ba0708d9df0794ed81cfdbc6977a7c6fbc`
+and590699-byte metadata SHA256
+`1f9e15cbd82f25cc9f551c7962a73c0f2b9e8bd4189ac2530f35937a967f24d2`.
+Actual metadata has284inputs:28virtual and256filesystem,16fixed bundled
+modules and4unchanged scanner external edges. All55cuts/28ports and7exact
+unqualified strings were verified. No generated output/port was imported or run.
+
+Private receipt SHA256
+`131497d3e6dbac74c955f4d614c5df4e556893fa2d5d0250477bef83fc4d0323`;
+success capture SHA256
+`76a8c7cae6065a792f25d12a87cd32a2b5c42088655c955c854895a02e78b8ec`;
+raw compiler metafile SHA256
+`7865e3697b18054db0132448302308108540024a015751f80e5dbf881f8ebfb1`.
+Independent actual review SHA256
+`25a8456f58a86428d4496d4a42e8718ef52ae0d64e6bc37f1e7af025cf499c82`
+accepts only compiler/link/metadata qualification and this unwired publication.
+It grants no runtime/native/fullUC2 acceptance. A following documentation commit
+preserves the exact built24ee/4ced/storage05byte identities.
+
+## Read-only closure candidate, not execution admission
+
+A separate Sol Medium audit parsed the actual emitted JavaScript as text and
+observed compiler/source/runtime-data files without importing the image, ports,
+fixture or production modules. Its1901741-byte private report-v3 has SHA256
+`6e6d01bbb131053335a4cff362157bb25fa35d03e3f94180df00a3d3ed61d75b`;
+audit program SHA256
+`44ea91532c2c91fff2230f8a24ff5595642b85a8d08f188175b3b98ee8e1ae6a`.
+It exited0 with empty stderr as a candidate inventory, not a readiness check.
+
+Observed284inputs=256filesystem+28virtual templates;14transformed rows;
+all17historical input tuples/28template hashes and raw/rendered compiler byte
+lengths match. Emitted AST has0parse diagnostics and118static imports:
+114builtin imports and4canonical scanner imports. No dynamic/require/helper
+load was recorded by this parser; arbitrary aliases/control-flow remain
+unqualified, so this is not proof that no other runtime load is possible.
+Migration data candidate:107folders/218files/103explicit optional absences.
+Actual parser provenance is the6.0.2wrapper delegating to the6.0.3implementation,
+whose source SHA256 is
+`569177652966bd528c319171c7dd22860dbf72bde116cbc4f644f1d02bb12e39`.
+This distinction is recorded rather than inferring installation drift.
+
+The auditor initially applied private-artifact0700/0755 rules to repository
+source directories and refused their775modes. That was an audit-boundary error,
+not a product blocker. The pinned fixture copies source migrations and calls
+modes() before creating/scanning private artifacts. Source775/664 observations
+are kept separately; actual private copied modes remain unobserved. No chmod or
+source permission change was performed to make an audit pass.
+
+Independent candidate review SHA256
+`0d14b9306fc4e5700615406a2799230de655637377c0ac2e61f84d43edee9f2b`
+matched counts/manifests and accepted publication with these limits. Independent
+hashes of the14actual rendered callback contents are still missing. All module
+hashes are post-build observations, not pre-build immutable admission. Runtime
+generated inputs, native/package-tree completeness, loader/control-flow and
+scanner serialization remain unqualified. The next source step must capture
+actual onLoad returns and independently bind their reconstruction; it must not
+approve itself from this inventory.
+
+CMT2 alone is reconciled as complete for the implemented/inert-qualified fixed
+transport source. CMT1,3,4,5 and parent UC2 stay open for their entire stated
+contracts, including remaining constructor/absence/guard/census and integrated
+execution obligations. The compiler result does not close those wider tasks.
