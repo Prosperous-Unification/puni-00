@@ -2701,3 +2701,22 @@ command`. The unit lists 75 in `SuccessExitStatus`, so a busy hour is not a fail
 The controller-image evaluator's E3 now records five unit files and drops each of the eight
 conditions in turn. E4 records them too. E5 adds `refresh timer disabled`, which the probe
 refuses, and removing `failed_when` lets it through. The run's lines are in the commands table.
+
+### Commands (fresh, 2026-11-05, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, this workstation)
+
+| Command                                                                             | Result                                                                           |
+| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `bash bin/heavy-lock.test.sh`                                                       | `all heavy-lock checks passed`, cases 49a–49g included                           |
+| `bash bin/gate-launcher-refresh.test.sh`                                            | `all gate launcher refresh checks passed`                                        |
+| `bash bin/h2puni-gate.test.sh`                                                      | exit 0, `all cases passed`                                                       |
+| evaluator (`gate-host-assertions.py`, controller `@sha256:372f6f43…`, `--user 0:0`) | 102 `ok`, `{"failures": 0}`, exit 0                                              |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                    | 5714 pass, 53 skip, 0 fail across 183 files; exit 0                              |
+| `bunx nx run tool-fleet:check --skip-nx-cache`                                      | 604 pass, 0 fail; `shellcheck 0.11.0: 14 scripts`, `every family passed`, exit 0 |
+| `bunx nx format:check --all`                                                        | exit 0                                                                           |
+| `bunx openspec validate --all --json`                                               | 328 passed, 0 failed, exit 0                                                     |
+| Burokrat `check-indexes working <worktree> origin/main`                             | exit 0 (two pre-existing review-debt rows)                                       |
+| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2`                | 10 projects, exit 0                                                              |
+
+Not done: no host apply, so the units are not installed on h2puni or h4claw. That apply is owed
+with 6.3e's converging apply, and the timer starts at step 5 of the enrollment. No gate ran on a
+host.
