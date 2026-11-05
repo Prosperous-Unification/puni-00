@@ -5,7 +5,7 @@ import { type } from 'arktype';
 import type { SeedPin } from './lab-seed-preparation';
 
 /** Exact current source pins and historical seed trust; no resource limits are selectable. */
-export interface GuestPreparationRequest {
+export interface GuestPreparationRequestV1 {
   readonly schemaVersion: 1;
   readonly root: string;
   readonly state: string;
@@ -21,6 +21,17 @@ export interface GuestPreparationRequest {
   };
 }
 
+/** Continued guest admission requires seed-v2 carrying the same explicit repair lineage. */
+export interface GuestPreparationRequestV2 extends Omit<
+  GuestPreparationRequestV1,
+  'schemaVersion'
+> {
+  readonly schemaVersion: 2;
+  readonly lineage: 'continued-guest';
+}
+
+export type GuestPreparationRequest = GuestPreparationRequestV1 | GuestPreparationRequestV2;
+
 const Digest = type('string').matching(/^[a-f0-9]{64}$/);
 const Receipt = type({
   schemaVersion: '1',
@@ -32,6 +43,7 @@ const Receipt = type({
   fullRehearsalAuthority: 'false',
 }).onUndeclaredKey('reject');
 
+/** Transport version1 binds the digest of a native receipt of either request version. */
 export type GuestPreparation = typeof Receipt.infer;
 export type GuestPreparationFailure =
   | 'invalid-arguments'

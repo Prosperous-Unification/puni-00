@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "scope": "Task100 finite native-control source preparation",
+  "sourcePins": [
+    {
+      "path": "openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
+      "sha256": "544f89cd65cfc91aeb126e204ad21585815bc4a631901bdc6d374875dbfb312c",
+      "bytes": 58478,
+      "lines": 1144,
+      "mode": "0644",
+      "uid": 1000
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-repair-native-control.test.ts",
+      "sha256": "e6af3354c95bf36d81e2212b16f155ea4dfb147cfd163613553ed6b03d40a74b",
+      "bytes": 40716,
+      "lines": 748,
+      "mode": "0644",
+      "uid": 1000
+    }
+  ],
+  "records": [
+    {
+      "path": "repair-native-controls/report.md",
+      "bytes": 13108,
+      "sha256": "18dcd42a3b6ec69acac9939f6becd90c654a0740ac11bee7ee4604ff76832861"
+    },
+    {
+      "path": "repair-native-controls/review.md",
+      "bytes": 11926,
+      "sha256": "91f0e0675fe76edc626d954b77da53bb1ac01873aeccc419819da0196fd40b44"
+    },
+    {
+      "path": "repair-native-controls/fix-report.md",
+      "bytes": 11694,
+      "sha256": "7f6485383093fa292268f1db0cc110cf36066c559750eeca9d4c9e2ae9f2b7f7"
+    },
+    {
+      "path": "repair-native-controls/fix-review.md",
+      "bytes": 9381,
+      "sha256": "7c4e59fd7a92378f41f8bffa45aa3cea521f09220a9c4d155b386a4d4d577908"
+    },
+    {
+      "path": "repair-native-controls/source.patch",
+      "bytes": 65328,
+      "sha256": "770968ca37ccd77c346115434295415fd490f44ad5fac523bd0c32f02275c136"
+    },
+    {
+      "path": "repair-native-controls/fix-scoped.patch",
+      "bytes": 57731,
+      "sha256": "5ebe2a09ae2596f96f966f635911a34c16ce84e31ad994422509fce68f9e6f87"
+    },
+    {
+      "path": "repair-native-controls/fix-full.patch.gz",
+      "bytes": 23627,
+      "sha256": "febfaed2d5712c7496343754b62b28a93ae85e517d9a9acbda84958d55d8fdf1"
+    },
+    {
+      "path": "repair-native-controls/fix-source-pins.json",
+      "bytes": 3574,
+      "sha256": "6142e434cc09f59ad71501ee92413145399f6a40dce0371a8bea0d3f43d092c9"
+    }
+  ],
+  "checks": {
+    "initialMetadataTests": 2,
+    "initialAssertions": 30,
+    "initialWatchedFaults": 23,
+    "finalMetadataTests": 9,
+    "finalAssertions": 58,
+    "batchTypingSeconds": 1.9168191029966692,
+    "batchTypingExit": 0
+  },
+  "review": "five source findings and two-phase closure resolved; scoped approval",
+  "initialMemoryBytes": 2818572288,
+  "liveMemoryBytes": 2147483648,
+  "stagingBytes": 10737418240,
+  "outsideBytes": 167772160,
+  "metadataBudget": {
+    "projectedBeforeRootReviewAndExtras": 491520,
+    "maximum": 524288,
+    "rootFixReviewAllocated": 12288,
+    "remainingForRootExtras": 20480
+  },
+  "nativeExecuted": false,
+  "requestGenerated": false,
+  "limits": [
+    "Controlled metadata tests only; no native enforcement/lifecycle/cleanup qualification",
+    "Fresh committed source/runtime/kernel/inventory/ledger request and independent review required",
+    "Root-installed system bytecode remains an explicit trust boundary",
+    "No repair or full observability acceptance"
+  ]
+}

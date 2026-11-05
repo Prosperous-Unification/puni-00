@@ -290,7 +290,7 @@ with tempfile.TemporaryDirectory() as state:
         open(state+relative,'wb').write(b'fixture');os.chmod(state+relative,0o600)
     raw_fd=os.open(state+'/disk.raw',os.O_CREAT|os.O_EXCL|os.O_RDWR,0o600);os.posix_fallocate(raw_fd,0,8192);os.write(raw_fd,b'\0'*8192);os.fsync(raw_fd);os.close(raw_fd)
     iso=state+'/seed-'+('b'*32)+'/seed.iso'
-    request={'state':state,'nonce':'a'*32,'seedReceipt':'reviewed-seed','bootstrapSha256':'f'*64,'kvm':{'identity':p.raw.identity(os.stat('/dev/null')),'rdev':os.stat('/dev/null').st_rdev},'pins':[{'path':iso,'sha256':hashlib.sha256(b'fixture').hexdigest(),'bytes':7,'uid':os.geteuid(),'mode':0o600}]}
+    request={'schemaVersion':1,'state':state,'nonce':'a'*32,'seedReceipt':'reviewed-seed','bootstrapSha256':'f'*64,'kvm':{'identity':p.raw.identity(os.stat('/dev/null')),'rdev':os.stat('/dev/null').st_rdev},'pins':[{'path':iso,'sha256':hashlib.sha256(b'fixture').hexdigest(),'bytes':7,'uid':os.geteuid(),'mode':0o600}]}
     p.raw.RAW_BYTES=8192
     p.verify_inputs=lambda request:'c'*64
     p.verify_seed=lambda request:{'raw':state+'/disk.raw','rawIdentity':p.raw.identity(os.stat(state+'/disk.raw')),'nonce':'b'*32}
@@ -728,7 +728,7 @@ with tempfile.TemporaryDirectory() as root:
     provenance=state+'/seed-provenance.json';record(provenance,{'schemaVersion':1,'sourceRevision':'f'*40,'sourcePins':history,'requestDigest':receipt['requestDigest'],'receiptDigest':receipt_pin['sha256']})
     # A current guest pin may differ from historical seed source; immutable inputs still must match.
     pins.remove(historical_pin);os.unlink(source);write(source,b'current-changed-source')
-    request={'root':root,'state':state,'pins':pins,'seedRequest':seed_request,'seedReceipt':seed_receipt,'seedProvenance':provenance,'bootstrapSha256':bootstrap_pin['sha256']}
+    request={'schemaVersion':1,'root':root,'state':state,'pins':pins,'seedRequest':seed_request,'seedReceipt':seed_receipt,'seedProvenance':provenance,'bootstrapSha256':bootstrap_pin['sha256']}
     # Native raw allocation and dependency closure have separate accepted component evidence.
     p.seed.verify_raw=lambda request:None;p.seed.check_dependency=lambda *args:None
     selected=p.verify_seed(request)
@@ -1287,7 +1287,7 @@ with tempfile.TemporaryDirectory() as directory:
     required=[str(p.HELPER),str(p.HELPER.with_suffix('.ts')),str(p.HELPER.with_name('lab-guest-preparation-cli.ts')),str(p.HELPER.with_name('lab-raw-preparation.py')),str(p.HELPER.with_name('lab-raw-allocation.py')),str(p.HELPER.with_name('lab-seed-preparation.py')),str(p.HELPER.with_name('lab-guest-bootstrap.py')),root+'/infra/local/qemu-lab.lock.json','/usr/bin/python3.12','/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2',state+'/tools-root/usr/bin/qemu-system-x86_64',state+'/tools-root/usr/share/seabios/bios-256k.bin','/fixture/library.so']
     pins=[{'path':path,'sha256':'a'*64,'bytes':1,'uid':0,'mode':0o400} for path in required]
     for relative in ('usr/share/qemu','usr/share/seabios','usr/lib/x86_64-linux-gnu/qemu'):os.makedirs(state+'/tools-root/'+relative,mode=0o700)
-    request={'root':root,'state':state,'pins':pins}
+    request={'schemaVersion':1,'root':root,'state':state,'pins':pins}
     # External pin/version/loader observations are controlled; directory traversal is real.
     p.seed.verify_pin=lambda *args:None;p.verify_seed=lambda request:None
     p.seed.read_pinned_json=lambda *args:{'qemu':{'systemVersionLine':'selected-version'}}
@@ -1686,7 +1686,7 @@ with tempfile.TemporaryDirectory() as state:
     p.raw.RAW_BYTES=8192
     path=state+'/disk.raw';descriptor=os.open(path,os.O_CREAT|os.O_EXCL|os.O_RDWR,0o600);os.posix_fallocate(descriptor,0,8192);os.write(descriptor,b'\0'*8192);os.fsync(descriptor);os.close(descriptor)
     os.mkdir(state+'/seed-'+('a'*32),0o700);iso=state+'/seed-'+('a'*32)+'/seed.iso';open(iso,'wb').write(b'fixture');os.chmod(iso,0o600)
-    request={'state':state,'pins':[{'path':iso,'sha256':hashlib.sha256(b'fixture').hexdigest(),'bytes':7,'uid':os.geteuid(),'mode':0o600}]}
+    request={'schemaVersion':1,'state':state,'pins':[{'path':iso,'sha256':hashlib.sha256(b'fixture').hexdigest(),'bytes':7,'uid':os.geteuid(),'mode':0o600}]}
     binding={'rawPath':path,'raw':p.raw.identity(os.stat(path)),'seedNonce':'a'*32,'inputs':{'iso':{'identity':p.raw.stable_identity(os.stat(iso))}}}
     p.check_final_artifact(request,binding)
     if sys.argv[2]=='coverage':
@@ -2460,7 +2460,7 @@ preparations=[node for node in ast.walk(worker) if isinstance(node,ast.FunctionD
 assert len(preparations)==1
 prepared=preparations[0]
 # The original worker's preexec body is executed, not copied or matched as source text.
-scope=dict(p.__dict__,descriptors={'raw':17,'qemu':18,'kvm':19,'null':20},predecessor={'raw':'/controlled','rawIdentity':[]},binding={},request={'kvm':{}},staging_fd=21,directory_fd=22)
+scope=dict(p.__dict__,descriptors={'raw':17,'qemu':18,'kvm':19,'null':20},predecessor={'raw':'/controlled','rawIdentity':[]},binding={},request={'schemaVersion':1,'kvm':{}},staging_fd=21,directory_fd=22)
 for name in ('check_original_raw','check_input_descriptors','check_kvm'):
     scope[name]=lambda *args:None
 scope['os']=types.SimpleNamespace(close=lambda descriptor:None)

@@ -2,6 +2,8 @@ import { fileURLToPath } from 'node:url';
 
 import { type } from 'arktype';
 
+import type { RawRepairPreparation } from './lab-raw-repair';
+
 export type SeedMemberName =
   | 'user-data'
   | 'meta-data'
@@ -37,7 +39,7 @@ export interface SeedRawProvenance {
  * The raw allocation record must be pinned beside rawReceipt as allocation.json.
  * No resource profile or guest-authority field is caller selectable.
  */
-export interface SeedPreparationRequest {
+export interface SeedPreparationRequestV1 {
   readonly schemaVersion: 1;
   readonly root: string;
   readonly state: string;
@@ -52,6 +54,22 @@ export interface SeedPreparationRequest {
   readonly provenance: readonly string[];
 }
 
+/** Independently selected historical repair success; envelope1 binds the actual native receipt digest. */
+export interface SeedRepairProvenance extends SeedRawProvenance {
+  readonly envelope: RawRepairPreparation;
+}
+
+/** Continued seed admission preserves the v1 inputs and explicitly selects successful same-inode repair. */
+export interface SeedPreparationRequestV2 extends Omit<SeedPreparationRequestV1, 'schemaVersion'> {
+  readonly schemaVersion: 2;
+  readonly lineage: 'continued-guest';
+  readonly repairRequest: string;
+  readonly repairReceipt: string;
+  readonly repairProvenance: string;
+}
+
+export type SeedPreparationRequest = SeedPreparationRequestV1 | SeedPreparationRequestV2;
+
 const Digest = type('string').matching(/^[a-f0-9]{64}$/);
 const Receipt = type({
   schemaVersion: '1',
@@ -63,6 +81,7 @@ const Receipt = type({
   fullRehearsalAuthority: 'false',
 }).onUndeclaredKey('reject');
 
+/** Transport version1 binds the digest of a native receipt of either request version. */
 export type SeedPreparation = typeof Receipt.infer;
 export type SeedPreparationFailure =
   | 'invalid-arguments'

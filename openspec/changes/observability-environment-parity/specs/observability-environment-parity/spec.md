@@ -1471,3 +1471,37 @@ Repair debt SHALL remain pending until a separately qualified release proof bind
 - **THEN** exact canonical source-bound receipt bytes may prove the earlier certificate publication returned for settlement of that reservation only
 - **AND** the coordinator throws without a successful preparation envelope or guest authority
 - **AND** certificate bytes without the required accepted receipt, or any present malformed/failed state, cannot be treated as successful runtime acceptance
+
+### Requirement: Continued-guest lineage is explicit and independently accepted
+
+Seed and guest request schemaVersion2 SHALL select `continued-guest`. Seed-v2 SHALL require the selected repair request, receipt and provenance including a successful preparation envelope; guest-v2 SHALL require matching seed-v2. Native v2 receipts SHALL bind repair lineage. Closed v1 contracts SHALL remain unchanged. Version1 transport envelopes SHALL bind the actual native receipt digest.
+
+#### Scenario: Accepted same-inode repair admits a distinct continued seed and guest
+
+- **WHEN** independently pinned original history and successful repair provenance join exact counters, immutable artifact/certificate/receipt and verified cleanup
+- **THEN** the v2 consumer derives the original target, verifies its current exact decimal after-snapshot and fully initialized map before writable handoff, and retains historical receipts unchanged
+- **AND** a distinct seed/request and NoCloud identity bind the corrected bootstrap while the old ISO remains immutable
+- **AND** native v2 seed and guest receipts retain the same explicit repair lineage and all authority fields remain component-only
+
+#### Scenario: Missing, changed or mixed continued lineage refuses
+
+- **WHEN** the success envelope is missing/failed/malformed, only a release-causal receipt exists, provenance/request/source/digests differ, native snapshot/map is changed, or v1 and v2 inputs are mixed
+- **THEN** continued admission refuses before writable handoff without fallback, reset, retry or reimaging
+- **AND** one-nanosecond and unsafe numeric precision substitutions cannot be normalized into acceptance
+
+#### Scenario: Continued components retain unresolved allocation debt
+
+- **WHEN** seed-v2 or guest-v2 starts, remains live or finalizes with pending or prior failed repair reservations
+- **THEN** all unresolved G is enumerated and charged exactly once above the unchanged backing floors, independently of current inode staging and retained output allowances
+- **AND** missing, unreadable or malformed required debt state refuses before the protected next operation
+
+### Requirement: First inventory uses observed API definitions
+
+The Kubernetes preflight adapter SHALL query core workloads and only supported custom workload types whose CRDs were observed. It SHALL report absent custom APIs explicitly without treating query failure as empty state. Inventory completion SHALL NOT authorize migration.
+
+#### Scenario: Initial inventory discovers absent custom workload APIs
+
+- **WHEN** the actual API lists core workloads and only some supported custom resource definitions during initial inventory
+- **THEN** preflight queries core workloads plus only those fixed custom types justified by the observed CRD inventory and records the missing definitions
+- **AND** native query errors for a type observed as present still refuse rather than becoming empty or absent state
+- **AND** missing required controllers/resources continue to block cutover; inventory completion grants no runtime or migration acceptance

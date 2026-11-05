@@ -340,7 +340,7 @@ with tempfile.TemporaryDirectory() as state:
     for offset,name in enumerate(['user-data','meta-data','network-config','docker-ce.deb','docker-ce-cli.deb','containerd.io.deb']):
         path=state+'/inputs/'+name;payload=('fixture '+str(offset)+' '+name).encode();open(path,'wb').write(payload);os.chmod(path,0o400)
         members[name]={'path':path,'sha256':hashlib.sha256(payload).hexdigest(),'bytes':len(payload)}
-    request={'state':state,'nonce':'a'*32,'members':members,'dependencyReport':'reviewed-dependency','rawReceipt':'reviewed-raw'};children=[]
+    request={'schemaVersion':1,'state':state,'nonce':'a'*32,'members':members,'dependencyReport':'reviewed-dependency','rawReceipt':'reviewed-raw'};children=[]
     p.verify_inputs=lambda request:'c'*64;p.observe_capacity=lambda *args,**kwargs:{}
     unit='puni-seed-'+request['nonce']+'.service'
     unloaded={'LoadState':'not-found','ActiveState':'inactive','SubState':'dead','MainPID':'0','InvocationID':'','ControlGroup':'','Result':'','ExecMainStatus':''}
@@ -602,7 +602,7 @@ with tempfile.TemporaryDirectory() as root:
         allocation_pin=pin(allocation_path,json.dumps({'after':native}).encode())
         history={'schemaVersion':1,'sourceRevision':'d'*40,'sourcePins':historical,'requestDigest':original_pin['sha256'],'receiptDigest':receipt_pin['sha256']}
         history_pin=pin(history_path,json.dumps(history).encode())
-        request={'root':root,'state':state,'image':image,'rawReceipt':receipt_path,'rawRequest':request_path,'rawProvenance':history_path,'pins':[original_pin,receipt_pin,allocation_pin,history_pin]}
+        request={'schemaVersion':1,'root':root,'state':state,'image':image,'rawReceipt':receipt_path,'rawRequest':request_path,'rawProvenance':history_path,'pins':[original_pin,receipt_pin,allocation_pin,history_pin]}
         p.raw.load_inspector=lambda:types.SimpleNamespace(inspect_file=lambda path,size:copy.deepcopy(native))
         accepted=p.verify_raw(request);assert accepted['sourceRevision']=='d'*40
         history_accepted=p.verify_raw_history(request);assert history_accepted['path']==path
@@ -658,7 +658,7 @@ import hashlib,importlib.util,os,sys,tempfile
 spec=importlib.util.spec_from_file_location('seed',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
 with tempfile.TemporaryDirectory() as root:
     state=root+'/state';os.mkdir(state,0o700);path=state+'/cloud-image-signature.json';payload=b'{"selected":true}';open(path,'wb').write(payload);os.chmod(path,0o664)
-    pin={'path':path,'sha256':hashlib.sha256(payload).hexdigest(),'bytes':len(payload),'uid':os.geteuid(),'mode':0o664};request={'state':state,'pins':[pin]}
+    pin={'path':path,'sha256':hashlib.sha256(payload).hexdigest(),'bytes':len(payload),'uid':os.geteuid(),'mode':0o664};request={'schemaVersion':1,'state':state,'pins':[pin]}
     p.verify_pin(request,pin)
     assert p.read_pinned_json(request,path)=={'selected':True}
     original_read=p.raw.read_fd
@@ -701,10 +701,10 @@ def refused(operation,category):
     try:operation()
     except p.raw.PreparationRefusal as failure:assert str(failure)==category,str(failure)
     else:raise AssertionError('unsafe source accepted')
-refused(lambda:p.verify_inputs({'root':'/foreign','state':state,'pins':[]}),'seed-source-binding')
-refused(lambda:p.verify_inputs({'root':root,'state':state,'pins':[]}),'seed-source-pins-missing')
+refused(lambda:p.verify_inputs({'schemaVersion':1,'root':'/foreign','state':state,'pins':[]}),'seed-source-binding')
+refused(lambda:p.verify_inputs({'schemaVersion':1,'root':root,'state':state,'pins':[]}),'seed-source-pins-missing')
 required=[str(p.HELPER),str(p.HELPER.with_suffix('.ts')),str(p.HELPER.with_name('lab-seed-preparation-cli.ts')),str(p.HELPER.with_name('lab-raw-preparation.py')),str(p.HELPER.with_name('lab-raw-allocation.py')),root+'/infra/local/qemu-lab.lock.json','/usr/bin/python3.12','/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2',state+'/tools-root/usr/bin/genisoimage',state+'/tools-root/usr/bin/isoinfo']
-request={'root':root,'state':state,'dependencyReport':'/reviewed/dependency','pins':[{'path':path,'sha256':'a'*64,'bytes':1,'uid':os.geteuid(),'mode':0o400} for path in required]}
+request={'schemaVersion':1,'root':root,'state':state,'dependencyReport':'/reviewed/dependency','pins':[{'path':path,'sha256':'a'*64,'bytes':1,'uid':os.geteuid(),'mode':0o400} for path in required]}
 p.os.path.realpath=lambda path:'/foreign'
 refused(lambda:p.verify_inputs(request),'seed-python-binding')
 p.os.path.realpath=lambda path:'/usr/bin/python3.12' if path=='/usr/bin/python3' else path

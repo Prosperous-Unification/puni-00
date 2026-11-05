@@ -379,9 +379,14 @@ def check_request(request):
     """Current guest pins are selected independently of historical raw and seed source pins."""
     fields = {'schemaVersion', 'root', 'state', 'nonce', 'pins', 'seedRequest', 'seedReceipt',
               'seedProvenance', 'bootstrapSha256', 'kvm'}
+    continued = type(request) is dict and type(request.get('schemaVersion')) is int and request['schemaVersion'] == 2
+    if continued:
+        fields.add('lineage')
     # Proof: caller memoryMax override — previous category witness; only this reached call is claimed; focused guest control observes refusal or the protected-operation witness.
+    # Proof: requests accepted mixed/open v2 input after only this boundary call was omitted (faults.json).
     require(type(request) is dict and set(request) == fields and type(request['schemaVersion']) is int
-            and request['schemaVersion'] == 1 and type(request['root']) is str
+            and request['schemaVersion'] in (1, 2) and (not continued or request['lineage'] == 'continued-guest')
+            and type(request['root']) is str
             and Path(request['root']).is_absolute() and os.path.normpath(request['root']) == request['root']
             and request['state'] == request['root'] + '/.puni/fleet-labs/observability-baseline'
             and type(request['nonce']) is str and re.fullmatch('[a-f0-9]{32}', request['nonce'])
@@ -423,7 +428,7 @@ def check_capacity(memory, free, allocated, initial, after_allocation):
     require(allocated + raw.RESERVE_BYTES <= raw.STAGING_BYTES, 'guest-staging-bound')
 
 
-def observe_capacity(state, initial=False, after_allocation=False):
+def observe_capacity(state, initial=False, after_allocation=False, request=None):
     readings = re.findall(r'^MemAvailable:[ \t]+([0-9]+)[ \t]+kB$', raw.read_text('/proc/meminfo'), re.M)
     # Proof: unique MemAvailable — single-call AST mutation; focused guest control observes the independent trust/output barrier.
     require(len(readings) == 1, 'guest-capacity-malformed')
@@ -432,6 +437,9 @@ def observe_capacity(state, initial=False, after_allocation=False):
     free = filesystem.f_bavail * filesystem.f_frsize
     allocated = raw.allocated_bytes(state)
     check_capacity(memory, free, allocated, initial, after_allocation)
+    if request is not None and request['schemaVersion'] == 2:
+        # Proof: capacity accepted one-byte-short prior-failed G at this component observation when omitted (faults.json).
+        seed.load_lineage().check_backing(state, free, initial)
     return {'availableMemoryBytes': memory, 'freeBytes': free, 'allocatedBytes': allocated, 'observedNs': time.time_ns()}
 
 
@@ -444,14 +452,17 @@ def check_kvm(descriptor, expected):
             'guest-kvm-changed')
 
 
-def check_receipt(receipt, prefix):
+def check_receipt(receipt, prefix, version=1):
     fields = {'schemaVersion', 'scope', 'accepted', 'guestAuthority', 'fullRehearsalAuthority',
               'requestDigest', 'sourceDigest', 'binding', 'counterDigest', 'measurementPhase', 'counterPersistence',
               'terminal', 'groupEvents', 'finalCapacity', 'finishedNs', 'trust'}
     fields |= {'rawBytes'} if prefix == 'raw' else {'isoBytesLimit', 'memberBytesLimit', 'dependencyReport', 'rawReceipt'}
+    if prefix == 'seed' and version == 2:
+        fields |= {'lineage', 'repairRequestDigest', 'repairReceiptDigest', 'repairProvenanceDigest', 'repairArtifactDigest'}
     # Proof: receipt extra field — previous category witness; only this reached call is claimed; focused guest control observes refusal or the protected-operation witness.
+    # Proof: guest-native-mixed admitted native v1 as v2 when only this schema call was omitted (faults.json).
     require(type(receipt) is dict and set(receipt) == fields and type(receipt['schemaVersion']) is int
-            and receipt['schemaVersion'] == 1 and receipt['scope'] == prefix + '-preparation'
+            and receipt['schemaVersion'] == version and receipt['scope'] == prefix + '-preparation'
             and receipt['accepted'] is True and receipt['guestAuthority'] is False
             and receipt['fullRehearsalAuthority'] is False and type(receipt['finishedNs']) is int
             and 0 < receipt['finishedNs'] <= time.time_ns(), 'guest-predecessor-receipt')
@@ -464,6 +475,12 @@ def check_receipt(receipt, prefix):
             and receipt['counterPersistence'] == 'coordinator-fsync-before-worker-durability-ack'
             and receipt['trust'] == 'independently-selected-content-pins; signatures remain separate input provenance',
             'guest-predecessor-receipt')
+    if version == 2:
+        # Proof: guest-native-type accepted a boolean lineage digest when this call was omitted (lab-repair-lineage.test.ts; faults.json).
+        require(receipt['lineage'] == 'continued-guest'
+                and all(type(receipt[field]) is str and re.fullmatch('[a-f0-9]{64}', receipt[field])
+                        for field in ('repairRequestDigest', 'repairReceiptDigest',
+                                      'repairProvenanceDigest', 'repairArtifactDigest')), 'guest-predecessor-lineage')
     binding = receipt['binding']
     fields = {'pid', 'start', 'unit', 'invocation', 'cgroup', 'nonce', 'creator', 'python', 'source', 'request'}
     fields |= {'raw', 'rawFd', 'image', 'imageFd', 'tool', 'toolFd'} if prefix == 'raw' else {'iso', 'isoFd', 'inputs'}
@@ -514,15 +531,17 @@ def check_receipt(receipt, prefix):
             and receipt['sourceDigest'] == receipt['binding']['source'], 'guest-predecessor-receipt')
 
 
-def verify_seed(request):
+def verify_seed(request, current=True):
     """Consume durable seed acceptance and historical source evidence without querying its dead worker."""
     original = seed.read_pinned_json(request, request['seedRequest'])
     seed.check_request(original)
     # Proof: predecessor namespace after broken request validator — single-call AST mutation; focused guest control observes the independent trust/output barrier.
-    require(original['root'] == request['root'] and original['state'] == request['state'], 'guest-seed-binding')
+    # Proof: guest-mixed reached the receipt-read witness after only this version-join call was omitted (faults.json).
+    require(original['root'] == request['root'] and original['state'] == request['state']
+            and original['schemaVersion'] == request['schemaVersion'], 'guest-seed-binding')
     pins = {pin['path']: pin for pin in request['pins']}
     receipt = seed.read_pinned_json(request, request['seedReceipt'])
-    check_receipt(receipt, 'seed')
+    check_receipt(receipt, 'seed', request['schemaVersion'])
     directory = request['state'] + '/seed-' + original['nonce']
     # Proof: seed receipt nonce join — single-call AST mutation; focused guest control observes the independent trust/output barrier.
     require(request['seedReceipt'] == directory + '/receipt.json'
@@ -559,7 +578,14 @@ def verify_seed(request):
         require(raw.identity(os.fstat(raw_directory_fd)) == predecessor['binding']['creator'], 'guest-raw-binding')
     finally:
         os.close(raw_directory_fd)
-    seed.verify_raw(selected)
+    if request['schemaVersion'] == 2:
+        continuation = seed.load_lineage().verify_lineage(selected, seed.verify_raw_history(selected),
+                                                seed.read_pinned_json, current=current)
+        # Proof: guest-digest accepted a substituted repair artifact digest when this call was omitted (lab-repair-lineage.test.ts; faults.json).
+        require(all(receipt[field] == value for field, value in continuation['receipt'].items()),
+                'guest-seed-lineage')
+    else:
+        seed.verify_raw(selected)
     dependency = seed.read_pinned_json(selected, selected['dependencyReport'])
     seed.check_dependency(dependency, selected)
     for observation in dependency['inputBindings']:
@@ -610,11 +636,13 @@ def verify_seed(request):
             and seed.decode_json(files[1]['content']) == {'schemaVersion': 1, 'nonce': original['nonce'],
                                                         'bootstrapSha256': request['bootstrapSha256']}, 'guest-bootstrap-binding')
     return {'nonce': original['nonce'], 'raw': raw_directory + '/disk.raw',
+            **({'lineage': continuation['receipt'], 'admission': continuation['admission']}
+               if request['schemaVersion'] == 2 else {}),
             'rawIdentity': predecessor['binding']['raw'], 'iso': iso, 'isoIdentity': raw.stable_identity(observed),
             'bootstrapSha256': request['bootstrapSha256']}
 
 
-def verify_inputs(request):
+def verify_inputs(request, current=True):
     root, state = request['root'], request['state']
     # Proof: source location — single-call AST mutation; focused guest control observes refusal or the protected-operation witness.
     require(str(HELPER) == root + '/tools/tool-fleet/src/lab-guest-preparation.py', 'guest-source-binding')
@@ -626,6 +654,10 @@ def verify_inputs(request):
                 '/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2',
                 state + '/tools-root/usr/bin/qemu-system-x86_64', state + '/tools-root/usr/share/seabios/bios-256k.bin']
     # Proof: required source pins — single-call AST mutation; focused guest control observes refusal or the protected-operation witness.
+    if request['schemaVersion'] == 2:
+        required += [str(HELPER.with_name(name)) for name in
+                     ('lab-repair-lineage.py', 'lab-raw-repair.py', 'lab-repair-worker.py')]
+    # Proof: roles crossed into unselected file verification after this v2 pin barrier was omitted (faults.json).
     require(all(path in pins for path in required), 'guest-source-pins-missing')
     # Proof: qualified interpreter — single-call AST mutation; focused guest control observes refusal or the protected-operation witness.
     require(os.path.realpath('/usr/bin/python3') == '/usr/bin/python3.12', 'guest-python-binding')
@@ -651,7 +683,10 @@ def verify_inputs(request):
             require(not any(os.path.islink(parent + '/' + name) for name in names), 'guest-tool-closure')
             # Proof: unpinned firmware — single-call AST mutation; focused guest control observes refusal or the protected-operation witness.
             require(all(os.path.realpath(parent + '/' + name) in pins for name in files), 'guest-tool-closure')
-    verify_seed(request)
+    if request['schemaVersion'] == 2:
+        verify_seed(request, current=current)
+    else:
+        verify_seed(request)
     return raw.digest_json({path: pin['sha256'] for path, pin in pins.items()})
 
 
@@ -771,7 +806,7 @@ def check_ready(frame, request, request_digest, source, directory, directory_fd)
     check_input_descriptors(binding, request)
     # Proof: fresh ready source — single-call AST mutation; focused guest control observes the independent trust/output barrier.
     require(verify_inputs(request) == source, 'guest-source-binding')
-    observe_capacity(request['state'], initial=True)
+    observe_capacity(request['state'], initial=True, request=request)
     return binding
 
 
@@ -791,7 +826,7 @@ def worker(request, request_digest):
         opened.callback(os.close, staging_fd)
         source = verify_inputs(request)
         predecessor = verify_seed(request)
-        observe_capacity(request['state'], initial=True)
+        observe_capacity(request['state'], initial=True, request=request)
         unit = 'puni-guest-' + request['nonce'] + '.service'
         native = observe_active(unit, os.getpid())
         # Proof: foreign worker invocation — previous category witness; only this reached call is claimed; focused guest control observes refusal or the protected-operation witness.
@@ -831,7 +866,7 @@ def worker(request, request_digest):
         check_input_descriptors(binding, request)
         # Proof: original staging root — single-call AST mutation; focused guest control observes refusal or the protected-operation witness.
         require(raw.identity(os.fstat(staging_fd)) == raw.identity(os.lstat(request['state'])), 'guest-staging-changed')
-        observe_capacity(request['state'], initial=True)
+        observe_capacity(request['state'], initial=True, request=request)
         seed.require_descriptors({0, 1, 2, staging_fd, directory_fd, *descriptors.values()})
         def prepare():
             check_original_raw(descriptors['raw'], predecessor['raw'], predecessor['rawIdentity'])
@@ -839,6 +874,10 @@ def worker(request, request_digest):
             check_kvm(descriptors['kvm'], request['kvm'])
             # Proof: guest geometry caller admission refuses before the original QEMU preexec body can finish.
             check_raw_geometry(descriptors['raw'], predecessor['raw'])
+            if request['schemaVersion'] == 2:
+                # Proof: handoff reached the writable-handoff witness after only this production callback call was omitted (faults.json).
+                seed.load_lineage().check_admission(predecessor['admission']['history'],
+                                                 predecessor['admission']['artifact'])
             confine_qemu(descriptors['raw'], descriptors['qemu'], descriptors['kvm'], descriptors['null'])
             # Proof: guest fdset caller revalidates canonical raw path; removing this call admits an actual write after pathname substitution.
             check_original_raw(descriptors['raw'], predecessor['raw'], predecessor['rawIdentity'])
@@ -851,7 +890,7 @@ def worker(request, request_digest):
         def monitor():
             nonlocal next_observation
             if time.monotonic() >= next_observation:
-                observe_capacity(request['state'], after_allocation=True)
+                observe_capacity(request['state'], after_allocation=True, request=request)
                 # Proof: live native caps — single-call AST mutation; focused guest control observes refusal or the protected-operation witness.
                 require(raw.read_caps(binding['cgroup']) == CAPS, 'guest-native-caps')
                 next_observation = time.monotonic()+1
@@ -1019,7 +1058,9 @@ def coordinator(request, request_path, request_digest):
         publish('terminal.json', {'native': terminal, 'groupEvents': events, 'finalCapacity': final,
                                  'allocation': original_allocation})
     adapter = types.SimpleNamespace(
-        verify_inputs=verify_inputs, observe_capacity=observe_capacity, observe_unit=raw.observe_unit,
+        verify_inputs=verify_inputs,
+        observe_capacity=lambda state, **phase: observe_capacity(state, request=request, **phase),
+        observe_unit=raw.observe_unit,
         launch_service=launch, check_ready=ready, check_counter=check_counter,
         observe_active=observe_active, check_creator=check_creator, check_input_descriptors=check_input_descriptors,
         stop_owned=raw.stop_owned, prefix='guest', caps=CAPS, seconds=910, final_cleanup=True,
@@ -1027,7 +1068,8 @@ def coordinator(request, request_path, request_digest):
         measurement_phase='after-qemu-exit-and-reap-before-worker-exit', persist_artifact=persist_artifact,
         consume_output=output, consume_stderr=stderr, stdout_limit=14*1024**2, stderr_limit=1024**2,
         finalize_artifact=finalize, receipt_fields=lambda record: {'rawBytes': raw.RAW_BYTES, 'vmMemoryBytes': 1024**3,
-            'guestPoweroffVerified': True, 'hostCleanupVerified': True, 'seedReceipt': request['seedReceipt']})
+            'guestPoweroffVerified': True, 'hostCleanupVerified': True, 'seedReceipt': request['seedReceipt'],
+            **(verify_seed(request, current=False)['lineage'] if request['schemaVersion'] == 2 else {})})
     try:
         return raw.coordinate_attempt(request, request_path, request_digest, adapter)
     except BaseException:

@@ -31,6 +31,17 @@ SERVICE_LIMITS = dict(raw.SERVICE_LIMITS, RuntimeMaxUSec='1min', LimitAS='107374
 require = raw.require
 
 
+def load_lineage():
+    """Load only the fixed v2 consumer sibling lazily; unify its modeled refusal boundary."""
+    spec = importlib.util.spec_from_file_location('seed_lineage', HELPER.with_name('lab-repair-lineage.py'))
+    # Proof: seed-runtime absent sibling lost modeled refusal when this call was omitted (lab-repair-lineage.test.ts; faults.json).
+    require(spec is not None and spec.loader is not None, 'seed-lineage-unavailable')
+    lineage = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(lineage)
+    lineage.initialize_runtime(raw)
+    return lineage
+
+
 def check_capacity(memory, free, allocated, initial, after_allocation):
     """Charge existing raw blocks once; reserve only the new seed and bounded evidence."""
     # Proof: capacity controls inject unknown/one-byte-short memory, disk and staging facts.
@@ -210,9 +221,15 @@ def check_request(request):
     """Exact selected paths and pins are operator reviewed; all native resource policy is fixed."""
     fields = {'schemaVersion', 'root', 'state', 'nonce', 'pins', 'members', 'image',
               'dependencyReport', 'rawReceipt', 'rawRequest', 'rawProvenance', 'provenance'}
+    continued = type(request) is dict and type(request.get('schemaVersion')) is int and request['schemaVersion'] == 2
+    if continued:
+        fields |= {'lineage', 'repairRequest', 'repairReceipt', 'repairProvenance'}
     # Proof: request controls inject extra policy keys, unsafe paths, boolean sizes, aliases and absent pins.
+    # Proof: requests accepted mixed/open v2 input after only this boundary call was omitted (faults.json).
     require(isinstance(request, dict) and set(request) == fields, 'seed-request-invalid')
-    require(type(request['schemaVersion']) is int and request['schemaVersion'] == 1
+    # Proof: requests accepted mixed/open v2 input after only this boundary call was omitted (faults.json).
+    require(type(request['schemaVersion']) is int and request['schemaVersion'] in (1, 2)
+            and (not continued or request['lineage'] == 'continued-guest')
             and isinstance(request['root'], str) and Path(request['root']).is_absolute()
             and os.path.normpath(request['root']) == request['root']
             and request['state'] == request['root'] + '/.puni/fleet-labs/observability-baseline'
@@ -246,7 +263,11 @@ def check_request(request):
         paths.add(member['path'])
         total += member['bytes']
     require(total <= MEMBER_BYTES, 'seed-request-invalid')
-    for field in ('image', 'dependencyReport', 'rawReceipt', 'rawRequest', 'rawProvenance'):
+    selected = ('image', 'dependencyReport', 'rawReceipt', 'rawRequest', 'rawProvenance')
+    if continued:
+        selected += ('repairRequest', 'repairReceipt', 'repairProvenance')
+    for field in selected:
+        # Proof: requests accepted mixed/open v2 input after only this boundary call was omitted (faults.json).
         require(isinstance(request[field], str) and request[field] in pins
                 and request[field].startswith(request['state'] + '/'), 'seed-request-invalid')
     require(isinstance(request['provenance'], list) and 1 <= len(request['provenance']) <= 64
@@ -430,7 +451,7 @@ def check_dependency(report, request):
 
 
 
-def observe_capacity(state, initial=False, after_allocation=False):
+def observe_capacity(state, initial=False, after_allocation=False, request=None):
     # Proof: capacity-parser control supplies native aligned whitespace, missing/unknown and duplicated readings.
     memory = re.findall(r'^MemAvailable:[ \t]+([0-9]+)[ \t]+kB$', raw.read_text('/proc/meminfo'), re.M)
     require(len(memory) == 1, 'seed-capacity-malformed')
@@ -439,6 +460,9 @@ def observe_capacity(state, initial=False, after_allocation=False):
     free = filesystem.f_bavail * filesystem.f_frsize
     allocated = raw.allocated_bytes(state)
     check_capacity(available, free, allocated, initial, after_allocation)
+    if request is not None and request['schemaVersion'] == 2:
+        # Proof: capacity accepted one-byte-short prior-failed G at this component observation when omitted (faults.json).
+        load_lineage().check_backing(state, free, initial)
     return {'availableMemoryBytes': available, 'freeBytes': free, 'allocatedBytes': allocated,
             'observedNs': time.time_ns()}
 
@@ -484,7 +508,7 @@ def check_ready(frame, request, request_digest, source, directory, directory_fd)
     check_input_descriptors(binding, request)
     require(verify_inputs(request) == source, 'seed-source-binding')
     # This is fresh admission while the worker holds the original nonblocking staging lock.
-    observe_capacity(request['state'], initial=True)
+    observe_capacity(request['state'], initial=True, request=request)
     return binding
 
 
@@ -526,7 +550,7 @@ def produce_seed(request, request_digest, staging_fd):
     with ExitStack() as opened:
         state = request['state']
         source = verify_inputs(request)
-        observe_capacity(state, initial=True)
+        observe_capacity(state, initial=True, request=request)
         unit = 'puni-seed-' + request['nonce'] + '.service'
         native = observe_active(unit, os.getpid())
         # Proof: lifecycle invocation injects a foreign environment ID; bypassing this guard accepts it.
@@ -567,7 +591,7 @@ def produce_seed(request, request_digest, staging_fd):
         check_members(members)
         # Proof: lifecycle staging moves every original child into a new700 root; the original lock cannot authorize it.
         require(raw.identity(os.fstat(staging_fd)) == raw.identity(os.lstat(state)), 'seed-staging-changed')
-        observe_capacity(state, initial=True)
+        observe_capacity(state, initial=True, request=request)
         require_descriptors({0, 1, 2, staging_fd, directory_fd, iso_fd, *tools.values(),
                              *(member['fd'] for member in members.values())})
         raw.confine_writer(iso_fd, tools['genisoimage'], (tools['isoinfo'],))
@@ -575,7 +599,7 @@ def produce_seed(request, request_digest, staging_fd):
         def monitor():
             nonlocal next_observation
             if time.monotonic() >= next_observation:
-                observe_capacity(state)
+                observe_capacity(state, request=request)
                 check_caps(raw.read_caps(binding['cgroup']))
                 next_observation = time.monotonic() + 1
         started_ns = time.time_ns()
@@ -631,10 +655,19 @@ def persist_artifact(frame, publish, request):
         os.close(descriptor)
 
 
+def read_lineage(request):
+    """Native receipt lineage is independent of the version1 transport envelope."""
+    if request['schemaVersion'] == 1:
+        return {}
+    return load_lineage().verify_lineage(request, verify_raw_history(request), read_pinned_json, current=False)['receipt']
+
+
 def coordinator(request, request_path, request_digest):
     """Reuse raw's fixed bounded lifecycle while selecting only the fixed seed adapter callbacks."""
     adapter = types.SimpleNamespace(
-        verify_inputs=verify_inputs, observe_capacity=observe_capacity, observe_unit=raw.observe_unit,
+        verify_inputs=verify_inputs,
+        observe_capacity=lambda state, **phase: observe_capacity(state, request=request, **phase),
+        observe_unit=raw.observe_unit,
         launch_service=launch_service, check_ready=check_ready, check_counter=check_counter,
         observe_active=observe_active, check_creator=check_creator, check_input_descriptors=check_input_descriptors,
         stop_owned=raw.stop_owned, prefix='seed', caps=CAPS, seconds=70, final_cleanup=True, decode_frame=decode_json,
@@ -642,7 +675,8 @@ def coordinator(request, request_path, request_digest):
         persist_artifact=lambda frame, publish: persist_artifact(frame, publish, request),
         receipt_fields=lambda record: {'isoBytesLimit': ISO_BYTES, 'memberBytesLimit': MEMBER_BYTES,
                                       'dependencyReport': request['dependencyReport'],
-                                      'rawReceipt': request['rawReceipt']})
+                                      'rawReceipt': request['rawReceipt'],
+                                      **read_lineage(request)})
     return raw.coordinate_attempt(request, request_path, request_digest, adapter)
 
 
@@ -744,6 +778,8 @@ def verify_raw_history(request):
 def verify_raw(request):
     """Preserve v1 current exact map/identity admission on top of immutable historical joins."""
     history = verify_raw_history(request)
+    if request['schemaVersion'] == 2:
+        return load_lineage().verify_lineage(request, history, read_pinned_json)
     path, binding, allocation = history['path'], history['binding'], history['allocation']
     observation = os.lstat(path)
     require(raw.identity(observation) == binding['raw'] and observation.st_size == raw.RAW_BYTES,
@@ -769,6 +805,11 @@ def verify_inputs(request):
                 root + '/infra/local/qemu-lab.lock.json', '/usr/bin/python3.12',
                 '/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2',
                 state + '/tools-root/usr/bin/genisoimage', state + '/tools-root/usr/bin/isoinfo']
+    if request['schemaVersion'] == 2:
+        required += [str(HELPER.with_name(name)) for name in
+                     ('lab-repair-lineage.py', 'lab-raw-repair.py', 'lab-repair-worker.py',
+                      'lab-guest-preparation.py')]
+    # Proof: roles crossed into unselected file verification after this v2 pin barrier was omitted (faults.json).
     require(all(path in pins for path in required), 'seed-source-pins-missing')
     require(os.path.realpath('/usr/bin/python3') == '/usr/bin/python3.12', 'seed-python-binding')
     for pin in request['pins']:

@@ -733,8 +733,9 @@ async function readCandidateCosts(
 
 /**
  * Read one safe inventory using the existing bounded process contract. Inventory mode allows first
- * discovery without UID pins; cutover mode demands pins, source-bound workload costs, retained
- * history and fresh rollback evidence. Prerequisite readiness is not route promotion authorization.
+ * discovery without UID pins, explicitly reports supported custom API absence, and queries custom
+ * workloads only when their CRDs are observed. Cutover mode demands pins, source-bound workload
+ * costs, retained history and fresh rollback evidence. Prerequisite readiness is not route promotion authorization.
  * All subprocess and projection failures are sanitized before they cross this boundary.
  */
 export async function preflightObservability(
@@ -759,6 +760,7 @@ export async function preflightObservability(
       return refusePreflight('command-unavailable-or-timeout');
     }
     // Proof: forwarding raw failed stdout/stderr failed `Secret failure diagnostics never expose plaintext or encoded private markers`.
+    // Proof: suppressed-query-error mutation failed all three `first inventory refuses a native query failure` cases with fulfilled-without-refusal.
     if (response.exitCode !== 0)
       throw new ObservabilityPreflightRefusal(
         'command-failed',
@@ -853,14 +855,31 @@ export async function preflightObservability(
       ['-A'],
     ),
   );
+  const customWorkloadAPIs = [
+    'elasticsearches.elasticsearch.k8s.elastic.co',
+    'kibanas.kibana.k8s.elastic.co',
+    'helmreleases.helm.toolkit.fluxcd.io',
+  ].map((resourceType) => {
+    // Proof: crd-kind-spoof and crd-name-spoof mutations failed `first inventory ignores unrecognized CRDs and non-CRD metadata impersonating a supported CRD` with command-failed.
+    const definition = targetResources.find(
+      (resource) => resource.kind === 'CustomResourceDefinition' && resource.name === resourceType,
+    );
+    // Proof: absent-state-removed mutation failed `first inventory queries exactly discovered custom APIs: none` with absent/unknown assertion mismatch.
+    return definition === undefined
+      ? { resourceType, state: 'absent' as const }
+      : { resourceType, state: 'present' as const, uid: definition.uid };
+  });
+  const workloadTypes = [
+    'deployments.apps',
+    'statefulsets.apps',
+    'daemonsets.apps',
+    'replicasets.apps',
+    // Proof: unsupported-query mutation failed `first inventory queries exactly discovered custom APIs: none` with command-failed; omitted-discovered-type failed its all case with missing query types.
+    ...customWorkloadAPIs.filter((api) => api.state === 'present').map((api) => api.resourceType),
+  ].join(',');
   const workloads = decodeProjection(
     Resource.array(),
-    await kubernetes(
-      request.context,
-      'deployments.apps,statefulsets.apps,daemonsets.apps,replicasets.apps,elasticsearches.elasticsearch.k8s.elastic.co,kibanas.kibana.k8s.elastic.co,helmreleases.helm.toolkit.fluxcd.io',
-      observabilityProjections.resources,
-      ['-A'],
-    ),
+    await kubernetes(request.context, workloadTypes, observabilityProjections.resources, ['-A']),
   );
   const resources = [...targetResources, ...fluxResources, ...workloads];
   const nodes = decodeProjection(
@@ -933,6 +952,7 @@ export async function preflightObservability(
   if (request.phase === 'inventory')
     return {
       schemaVersion: 1,
+      customWorkloadAPIs,
       candidateRevision: request.candidateRevision,
       requestSHA256: createHash('sha256').update(JSON.stringify(request)).digest('hex'),
       fleetId: request.fleetId,
