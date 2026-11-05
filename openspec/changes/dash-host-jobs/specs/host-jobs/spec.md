@@ -239,8 +239,11 @@ through the ledger's change notification after every admission and settlement. E
 SHALL be published through the resource authority events as a versioned use variant
 (`kind: 'host_job'`, optional planning links, immutable organization and authority ownership,
 reservation entries per dimension, type, label, host, payload SHA): `registered` from the outbox
-after admission, `release_verified` only with the settlement evidence (run record digest, durable
-locator, disposition `returned`). The project resources read SHALL show reserved units and the
+after admission, `release_verified` only with the settlement evidence naming the job's run
+record: the locator `dash-host-job-run://<host>/<jobId>` and the SHA-256 of the record's gate
+entry, disposition `returned`; a job whose gate never opened has no run record and SHALL return
+`not_created` with the SHA-256 of `<locator> absent`. WBS SHALL refuse any other host-job
+evidence `400 invalid_body`. The project resources read SHALL show reserved units and the
 job names beside the measured figure, keeping `stale`, `unreachable` and adopt-by-command
 unchanged. A deleted planning link SHALL NOT strand the use. No WBS write SHALL admit, refuse or
 end a host job.
@@ -257,6 +260,18 @@ end a host job.
 - **THEN** the gate is admitted from the ledger alone, runs to its exit, its `registered` and
   `release_verified` events wait in the outbox, and are published in order on the next tick that
   WBS answers
+
+#### Scenario: A returned job's evidence names its run record
+
+- **WHEN** a gate on the pool enrolled as `h2puni` runs to its exit and every entry is returned
+- **THEN** its `release_verified` evidence carries the locator `dash-host-job-run://h2puni/<jobId>`,
+  the SHA-256 of that run record's stored gate entry and disposition `returned`, and WBS stores it
+
+#### Scenario: The ledger-row digest is refused
+
+- **WHEN** a `release_verified` host-job event carries the slice-5 evidence, the ledger row's
+  digest under `dash-host-job://<authorityId>/<jobId>/<revision>`
+- **THEN** WBS answers `400 invalid_body`, stores nothing and advances no sequence
 
 ### Requirement: Each reservation entry settles with its own terminal evidence
 

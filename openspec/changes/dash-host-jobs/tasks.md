@@ -277,7 +277,10 @@
         running job with that id before running nested — test: a fake scope of that name with no
         such job is refused. Done in slice 6e: `ops job admission` (`ops/admission.test.ts`) and
         `bin/heavy-lock.test.sh` cases 49h–49k (S6E-A3).
-- [ ] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
+- [x] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
       (slice 3, #809) carries `descriptorDigest` and no durable locator, so this needs a locator
       for the run record and a decision on which digest WBS keeps — test: a returned host job's
       evidence names the run record; negative: send the ledger-row digest and watch WBS refuse it.
+      Done in slice 6f (S6F-A1): locator `dash-host-job-run://<enrollmentId>/<jobId>`, digest the
+      SHA-256 of the record's stored gate entry, `not_created` for a job whose gate never opened;
+      be-01 refuses the ledger-row evidence `400 invalid_body`.

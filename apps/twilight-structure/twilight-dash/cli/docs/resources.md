@@ -336,9 +336,22 @@ transaction, into the authority outbox as `resourceRuntimeUse` v2 (`kind: 'host_
 planning link, `type`, `label`, the pool's `enrollmentId` as `host`, `launcherSha: null` (the launching checkout's HEAD) until
 the launcher records one, one reservation entry per envelope dimension and exclusive id): an
 admission becomes `registered`, the settlement that returns every entry becomes
-`release_verified` with the SHA-256 of that ledger row, the locator
-`dash-host-job://<authorityId>/<jobId>/<revision>` and disposition `returned`; launches and
-partial or blocked settlements stay local. They then publish through
+`release_verified` with evidence naming the job's run record (task 6.8, S6F-A1); launches and
+partial or blocked settlements stay local. The locator is `dash-host-job-run://<enrollmentId>/<jobId>`:
+the `runs` row of that job in `<root>/.dash/host-job-runs.sqlite` on the host enrolled under that
+id. The digest is the SHA-256 of the row's stored `start` text, the gate entry the launcher writes
+once before the payload runs, and the disposition is `returned`. A job whose gate never opened (refused
+at the gate, withdrawn, or never launched) has no run record: its disposition is `not_created` and
+its digest is the SHA-256 of `<locator> absent`. Missing run records beside a ledger with host jobs
+stop the move and publish nothing until they are restored. WBS refuses any other locator,
+including the ledger-row `dash-host-job://…` evidence of slice 5, with `400 invalid_body`. To check a
+returned job's digest on its host:
+
+```sh
+bun -e 'const { Database } = require("bun:sqlite"); const [file, job] = process.argv.slice(-2); const row = new Database(file, { readonly: true }).query("SELECT start FROM runs WHERE job_id=?").get(job); console.log(row === null ? "absent" : new Bun.CryptoHasher("sha256").update(row.start).digest("hex"));' <root>/.dash/host-job-runs.sqlite <jobId>
+```
+
+The moved events publish through
 `putApiResourceAuthoritiesByAuthorityIdEvents` in the authority's one sequence with the
 worktree uses' events, so a WBS that answers nothing only delays them. WBS keeps each host job
 owned by the authority and its organization; the project resources read lists the unreturned

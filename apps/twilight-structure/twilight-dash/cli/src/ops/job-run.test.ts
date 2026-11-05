@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import {
   chmodSync,
@@ -20,6 +20,7 @@ import { afterAll, afterEach, describe, expect, test } from 'bun:test';
 
 import { monotonicClock, wallClock } from '../clock';
 import { fakeCredential } from '../compute/testing/credential';
+import { scriptedTools } from '../mcp/testing/scripted-tools';
 import { ampleHost, fixtureGit, hostPoolFixture } from '../resources/host-pool.test.fixture';
 import { privateLegacyLock } from '../resources/legacy-lock.test.fixture';
 import { loadResourceConfiguration, ResourceRuntime } from '../resources/runtime';
@@ -706,6 +707,78 @@ if (insideOpsNamespace(import.meta.path)) {
         },
       );
     });
+
+  describe('settlement evidence names the run record (task 6.8, S6F-A1)', () => {
+    const EVENT_TOOL = 'putApiResourceAuthoritiesByAuthorityIdEvents';
+    /** What `watch` publishes for the pool's host jobs, each event acknowledged. */
+    async function publishedReturns(config: string) {
+      const tools = scriptedTools((call) => {
+        if (call.name !== EVENT_TOOL)
+          return { kind: 'answered', body: { requests: [], nextCursor: null } };
+        const { sequence, useId, revision } = call.input as {
+          sequence: number;
+          useId: string;
+          revision: number;
+        };
+        return { kind: 'answered', body: { acceptedSequence: sequence, useId, revision } };
+      });
+      await ledger(config).synchronize(tools);
+      return tools.calls
+        .filter((call) => call.name === EVENT_TOOL && call.input['kind'] === 'release_verified')
+        .map((call) => call.input['evidence']);
+    }
+
+    test("a returned gate digests its run record's gate entry under the record's locator", async () => {
+      const { config, checkout, base, root } = pool();
+      const payload = payloadScript(join(base, 'gate.sh'), 'true');
+      expect(
+        await runHostJob(request(config, 'gate', [payload]), runDependencies(checkout, [])),
+      ).toBe(0);
+      const job = onlyJob(config);
+      expect(job.state).toBe('released');
+      const db = new Database(HostJobRunRecords.pathOf(root), { readonly: true });
+      const start = db
+        .query<{ start: string }, [string]>('SELECT start FROM runs WHERE job_id=?')
+        .get(job.id)?.start;
+      db.close();
+      if (start === undefined) throw new Error('no run record written');
+      expect(await publishedReturns(config)).toEqual([
+        {
+          digest: createHash('sha256').update(start).digest('hex'),
+          locator: `dash-host-job-run://enrollment-one/${job.id}`,
+          disposition: 'returned',
+          reclaimedBytes: null,
+        },
+      ]);
+    });
+
+    test('a gate refused before it opened returns not_created, naming the absent record', async () => {
+      const { config, checkout, base } = pool();
+      const payload = payloadScript(join(base, 'payload.sh'), 'true');
+      const refused = await refusal(
+        runHostJob(
+          request(config, 'test-queued', [payload]),
+          runDependencies(checkout, [], {
+            environment: {
+              ...process.env,
+              PATH: `${fakeBin('exits')}:${process.env['PATH'] ?? ''}`,
+            },
+          }),
+        ),
+      );
+      expect(refused.exitCode).toBe(70);
+      const job = onlyJob(config);
+      const locator = `dash-host-job-run://enrollment-one/${job.id}`;
+      expect(await publishedReturns(config)).toEqual([
+        {
+          digest: createHash('sha256').update(`${locator} absent`).digest('hex'),
+          locator,
+          disposition: 'not_created',
+          reclaimedBytes: null,
+        },
+      ]);
+    });
+  });
 
   describe('launch faults over the fake seam (review F2, F4, F9, F10, F13)', () => {
     test('refuses 70 when the scope never starts, the payload never runs', async () => {

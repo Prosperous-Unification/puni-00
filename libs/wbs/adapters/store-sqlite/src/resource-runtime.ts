@@ -1,4 +1,8 @@
+import { createHash } from 'node:crypto';
+
 import {
+  hostJobRunRecordAbsence,
+  hostJobRunRecordLocator,
   type ResourceAuthority,
   type ResourceRuntimeAdmission,
   type ResourceRuntimeAdmissionReceipt,
@@ -317,12 +321,21 @@ export class SqliteResourceRuntime implements ResourceRuntime {
           !event.evidence.locator.trim())
       )
         return refused('invalid_body');
-      // `returned` is a host job's settlement and only a host job's (`dash-host-jobs` J2').
+      // `returned` is a host job's settlement and only a host job's (`dash-host-jobs` J2'); a
+      // host job whose gate never opened is `not_created` (task 6.8), never `removed`.
       // Proof: with this check made `false`, `refuses what a host job cannot be`
       // (host-job-use.controller.db.test.ts) saw a `removed` host job answer 200 (2026-11-01).
       if (
         event.kind === 'release_verified' &&
-        (event.evidence?.disposition === 'returned') !== (event.use.kind === 'host_job')
+        (event.use.kind === 'host_job'
+          ? event.evidence?.disposition === 'removed'
+          : event.evidence?.disposition === 'returned')
+      )
+        return refused('invalid_body');
+      if (
+        event.kind === 'release_verified' &&
+        event.use.kind === 'host_job' &&
+        !namesRunRecord(event.evidence, event.use.host, event.useId)
       )
         return refused('invalid_body');
       if (event.use.kind === 'host_job')
@@ -712,6 +725,32 @@ function acceptRuntimeEvent(
     .where(eq(resourceAuthorityRecord.authorityId, authorityId))
     .run();
   return response;
+}
+
+/**
+ * Whether a host job's settlement evidence names its run record (`dash-host-jobs` task 6.8,
+ * S6F-A1): the locator is exactly {@link hostJobRunRecordLocator} of the declared host and the
+ * use, and a `not_created` return (its gate never opened) digests
+ * {@link hostJobRunRecordAbsence}. A `returned` digest covers a row only Dash holds, so WBS
+ * checks its shape alone. S5-A11's ledger-row evidence (`dash-host-job://…`) is refused.
+ */
+function namesRunRecord(
+  evidence: ResourceRuntimeEvent['evidence'],
+  host: string,
+  useId: string,
+): boolean {
+  if (evidence === undefined) return false;
+  const locator = hostJobRunRecordLocator(host, useId);
+  // Proof: with the locator comparison made `true`, `keeps the run record as a returned job's
+  // evidence and refuses the ledger-row shape` (host-job-use.controller.db.test.ts) saw the
+  // ledger-row locator answer 200 for 400 (2026-11-05).
+  if (evidence.locator !== locator) return false;
+  // Proof: with this comparison made `true`, the same test saw a `not_created` return with
+  // another digest answer 200 for 400 (2026-11-05).
+  return (
+    evidence.disposition !== 'not_created' ||
+    evidence.digest === createHash('sha256').update(hostJobRunRecordAbsence(locator)).digest('hex')
+  );
 }
 
 /**
