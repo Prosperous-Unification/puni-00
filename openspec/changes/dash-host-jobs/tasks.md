@@ -47,13 +47,15 @@
       transaction with the outbox event — test: the surviving-child and dirty-tree scenarios;
       negative: settle memory on exit code alone and watch the surviving-child test admit over it.
 
-- [ ] 2.4 Follow-up (seen in slice 6c's full `twilight-dash:test`): `host-jobs.test.ts`'s
+- [x] 2.4 Follow-up (seen in slice 6c's full `twilight-dash:test`): `host-jobs.test.ts`'s
       `a replaced tmp directory or symlink stays charged and untouched` failed once under
       full-suite load (expected `blocked`, received `released`), then passed alone three times.
       `rmdir` then `mkdir` can reuse the inode, so a tmp directory's device and inode identity
       does not prove it is the original. The identity should include ctime or birth time, or a
       content marker — test: replace the directory with one that reuses the inode; negative:
       compare dev and inode only and watch the replacement be released.
+      Done in slice 6e: a content marker (`HostJob.tmpMarker`, `.dash-tmp-identity`, S6E-A1,
+      S6E-A2); `a replacement directory that reuses the inode stays charged and untouched`.
 
 ## 3. Measured runs (needs 2)
 

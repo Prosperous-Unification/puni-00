@@ -2755,3 +2755,49 @@ refuses, and removing `failed_when` lets it through. The run's lines are in the 
 Not done: no host apply, so the units are not installed on h2puni or h4claw. That apply is owed
 with 6.3e's converging apply, and the timer starts at step 5 of the enrollment. No gate ran on a
 host.
+
+## Slice 6e: tmp identity, nested admission, catalogue bookkeeping (tasks 2.4, 6.10a, 1.1)
+
+Branch `feat/host-jobs-inode-identity-and-admission` from `main` at `0ff9b5a1f`. Nothing here
+touched a host: no ssh, no apply, no enrollment.
+
+### Assumptions (overrulable by id)
+
+- **S6E-A1 A content marker, not birth time or ctime, completes the tmp directory's identity
+  (task 2.4).** `prepareHostJob` writes a random UUID to `<locator>/.dash-tmp-identity` (mode
+  0600, `wx`) and persists it as `HostJob.tmpMarker`. Settlement requires device, inode and that
+  token: `hostJobTmpPresent` reads it with `O_NOFOLLOW` and requires a regular file with one
+  link, and the removal script reads it again through the directory descriptor it then erases,
+  so the check and the removal see the same directory.
+  - Why not ctime: it changes whenever an entry is added to or removed from the directory, which
+    every payload does to its `TMPDIR`. Why not birth time: `statx` reports it only where the
+    filesystem records it, and a missing birth time would leave the inode-reuse hole open
+    exactly there.
+  - The marker lives in the payload's `TMPDIR`, so a payload that deletes or rewrites it leaves
+    its tmp entry `blocked` with `identity changed: content marker differs` for an operator.
+    That is the fail-closed reading of "not provably the original", and a payload has no reason
+    to touch a dot-file it did not create. A deliberate same-account forger can copy the token;
+    the lock is advisory for the same account already (S6D-A1), and this closes the accidental
+    reuse, which is what the full-suite failure showed.
+  - The removal script erases the marker last, after everything else, so a removal refused
+    halfway (an outside hard link) leaves the directory still provably the original and the
+    next pass keeps the same reason instead of writing a new settlement event. A crash between
+    unlinking the marker and the final `rmdir` leaves an empty unmarked directory, which reads
+    `blocked` for an operator; that window is one syscall long.
+  - Measured on this workstation's ext4 `/tmp`: `rmdir` then `mkdir` returned the same inode on
+    the first attempt five times out of five. The old test passed alone only because its
+    `mkdir(outside)` between the two took the freed inode.
+- **S6E-A2 No ledger version bump.** `tmpMarker` is an optional key of the host-job snapshot,
+  the pattern `reserved?` set in slice 4. A row prepared before this change has device and
+  inode and no marker; it settles on device and inode as it did, so a job running across the
+  upgrade is not stranded. Every row prepared from now on carries one.
+
+### Faults (2.4, `bun test src/resources/host-jobs.test.ts` in its namespace)
+
+| ID    | Injected fault                                                       | Observed                                                                                                                                                                                                               |
+| ----- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6e-F0 | none: the new reuse test against `main`'s dev+inode identity         | `a replacement directory that reuses the inode stays charged and untouched`: `Expected: "blocked"`, `Received: "released"`                                                                                             |
+| 6e-F1 | TypeScript marker comparison replaced by `if (false && …)`           | the reuse test and `a tmp directory whose marker the payload removed stays charged` failed: `Expected to contain: "identity changed"`, `Received: "tmp directory cleanup failed: descriptor-relative removal refused"` |
+| 6e-F2 | 6e-F1 plus the removal script's `marker=` option dropped             | both failed: `Expected: "blocked"`, `Received: "released"`                                                                                                                                                             |
+| 6e-F3 | removal script erases the marker with the rest, not last             | `a blocked tmp directory adds no outbox rows and backs off its evidence reads`: `Expected: 4`, `Received: 5` (a new settlement event)                                                                                  |
+| 6e-F4 | a marker required of a row without one (`job.tmpMarker ?? "absent"`) | `a row prepared before markers settles on device and inode`: `Expected: "released"`, `Received: "blocked"`                                                                                                             |

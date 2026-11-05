@@ -290,6 +290,13 @@ export interface HostJob {
   locator: string;
   dev: number | null;
   ino: number | null;
+  /**
+   * The random token {@link ResourceRuntime.prepareHostJob} wrote to {@link TMP_MARKER} in the
+   * tmp directory: `rmdir` then `mkdir` can hand the same inode back, so device and inode alone
+   * do not prove the directory is the one prepared (task 2.4, S6E-A1). Absent on a row
+   * prepared before markers, which settles on device and inode as it always did (S6E-A2).
+   */
+  tmpMarker?: string;
   tmpDeleteIntent: boolean;
   admittedAt: number;
   launchDeadline: number;
@@ -344,6 +351,7 @@ const HostJobShape = type({
   locator: 'string > 0',
   dev: 'number | null',
   ino: 'number | null',
+  'tmpMarker?': /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
   tmpDeleteIntent: 'boolean',
   admittedAt: 'number',
   launchDeadline: 'number',
@@ -578,6 +586,32 @@ function hostJobDeclaration(job: HostJob, host: string): ResourceRuntimeHostJobU
       ...[...exclusive].map(([dimension, units]) => ({ dimension, units })),
     ],
   };
+}
+
+/**
+ * The token in a tmp directory's {@link TMP_MARKER}, or null when it is absent, a symlink, not a
+ * regular file or hard-linked: each of those means the directory is not the one prepared.
+ * @throws on any other read failure, which is not evidence of replacement.
+ */
+function readTmpMarker(directory: string): string | null {
+  let descriptor;
+  try {
+    descriptor = openSync(
+      join(directory, TMP_MARKER),
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
+  } catch (cause) {
+    if (isMissing(cause) || (cause instanceof Error && 'code' in cause && cause.code === 'ELOOP'))
+      return null;
+    throw cause;
+  }
+  try {
+    const opened = fstatSync(descriptor);
+    if (!opened.isFile() || opened.nlink !== 1 || opened.size > 64) return null;
+    return readFileSync(descriptor, 'utf8');
+  } finally {
+    closeSync(descriptor);
+  }
 }
 
 /** What a settlement event reports: entries, state and the evidence identities. */
@@ -1400,18 +1434,33 @@ export function inspectHolds(locator: string, scope: HoldScope): void {
   }
 }
 
-/** Descriptor-relative removal never follows a symlink, crosses a mount, or accepts a replacement inode. */
+/** The file in a host job's tmp directory that holds its {@link HostJob.tmpMarker}. */
+const TMP_MARKER = '.dash-tmp-identity';
+/**
+ * Descriptor-relative removal never follows a symlink, crosses a mount, or accepts a replacement
+ * inode. Options after the identity: `inspect` removes nothing; `marker=<token>` also requires
+ * {@link TMP_MARKER}, read through the opened directory, to hold that token.
+ */
 const removeDirectory = String.raw`
 import os,sys,stat
 root,name,dev,ino=sys.argv[1:5]
-remove=len(sys.argv)<6 or sys.argv[5]!="inspect"
+options=sys.argv[5:]
+remove="inspect" not in options
+markers=[o[7:] for o in options if o.startswith("marker=")]
 flags=os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW
 parent=os.open(root,flags)
 fd=os.open(name,flags,dir_fd=parent)
 s=os.fstat(fd)
 if (s.st_dev,s.st_ino)!=(int(dev),int(ino)): raise RuntimeError('identity changed')
+if markers:
+ try: m=os.open("${TMP_MARKER}",os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=fd)
+ except OSError: raise RuntimeError('identity changed')
+ ms=os.fstat(m)
+ if not stat.S_ISREG(ms.st_mode) or ms.st_nlink!=1 or os.read(m,64).decode('ascii','replace')!=markers[0]: raise RuntimeError('identity changed')
+ os.close(m)
 def erase(directory):
  for name in os.listdir(directory):
+  if markers and directory==fd and name=="${TMP_MARKER}": continue
   before=os.stat(name,dir_fd=directory,follow_symlinks=False)
   if before.st_dev!=s.st_dev: raise RuntimeError('mount boundary')
   if stat.S_ISDIR(before.st_mode):
@@ -1428,6 +1477,10 @@ def erase(directory):
    if not stat.S_ISLNK(before.st_mode) and before.st_nlink>1: raise RuntimeError('shared hardlink')
    if remove: os.unlink(name,dir_fd=directory)
 erase(fd)
+# The marker goes last, so a refused removal leaves the directory still provably the original.
+# Proof: erasing it with the rest made 'a blocked tmp directory adds no outbox rows' (host-jobs.test.ts)
+# see revision 5, not 4: the next pass read the marker gone and changed the reason (Slice 6e).
+if markers and remove: os.unlink("${TMP_MARKER}",dir_fd=fd)
 after=os.stat(name,dir_fd=parent,follow_symlinks=False)
 if (after.st_dev,after.st_ino)!=(s.st_dev,s.st_ino): raise RuntimeError('identity changed')
 if remove: os.rmdir(name,dir_fd=parent)
@@ -3212,8 +3265,11 @@ export class ResourceRuntime {
         );
       mkdirSync(job.locator, { mode: 0o700 });
       const identity = lstatSync(job.locator);
+      const marker = randomUUID();
+      writeFileSync(join(job.locator, TMP_MARKER), marker, { mode: 0o600, flag: 'wx' });
       job.dev = identity.dev;
       job.ino = identity.ino;
+      job.tmpMarker = marker;
       this.saveHostJob(job);
       return job;
     });
@@ -3425,6 +3481,10 @@ export class ResourceRuntime {
               job.id,
               String(job.dev),
               String(job.ino),
+              // Proof: dropping this option, with the TypeScript marker check also dropped, let
+              // `a replacement directory that reuses the inode stays charged and untouched`
+              // (host-jobs.test.ts) remove the replacement: `released` (2026-11-05, Slice 6e).
+              ...(job.tmpMarker === undefined ? [] : [`marker=${job.tmpMarker}`]),
             ],
             { stdout: 'pipe', stderr: 'pipe', timeout: 30000, killSignal: 'SIGKILL' },
           );
@@ -3495,6 +3555,14 @@ export class ResourceRuntime {
       identity.ino !== job.ino
     )
       throw new Error('host job tmp directory identity changed');
+    // Proof: without the marker comparison `a replacement directory that reuses the inode stays
+    // charged and untouched` and `a tmp directory whose marker the payload removed stays
+    // charged` (host-jobs.test.ts) were refused only by the removal script, reason `cleanup
+    // failed: descriptor-relative removal refused`; requiring a marker of a row without one made
+    // `a row prepared before markers settles on device and inode` stay `blocked` (2026-11-05,
+    // verify.md Slice 6e).
+    if (job.tmpMarker !== undefined && readTmpMarker(job.locator) !== job.tmpMarker)
+      throw new Error('host job tmp directory identity changed: content marker differs');
     return true;
   }
   /**
