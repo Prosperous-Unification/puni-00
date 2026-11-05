@@ -4,15 +4,15 @@
   "sourcePins": [
     {
       "path": "openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
-      "sha256": "8ec522139750bbeaba46af0fbe84170e0a7e72cb923680b82ead4760839b23cd",
-      "bytes": 59331,
+      "sha256": "bfde6b7beb09e0849f5746c05a672f205d13d96428163bef9c81aa6e71e412d1",
+      "bytes": 59513,
       "mode": "0644",
       "uid": 1000
     },
     {
       "path": "tools/tool-fleet/src/lab-repair-native-control.test.ts",
-      "sha256": "77ada4be4c5b26ed7d8a8176885d9ba8f43631ebaa8652f9bf16a860d1f37c09",
-      "bytes": 43994,
+      "sha256": "21c36b87af55c7da917fd5f4a9c73040a0c8cb0f241f45227a51966e439ce88b",
+      "bytes": 45013,
       "mode": "0644",
       "uid": 1000
     }
@@ -148,5 +148,15 @@
     "green": "one focused inventory case,4Bun assertions,8filtered; internal owner/type/read/search/world-write/stability/active-mode and no-follow vectors with watched guard faults",
     "review": "independent scoped read-only approval: frozen pins/modes/allocations/diff and unrelated AST equivalence; no findings, replay or writes",
     "remainingMetadataDiagnostic": "6241 actual metadata rows; no other owner/kind/owner-read failures. No payload reads or native authority."
+  },
+  "emptyRuntimeCorrection": {
+    "base": "89b613cfca1fd124021cf3fff046a018e23bc634",
+    "observed": "actual69-file runtime contains root-owned0644 zero-byte /usr/lib/python3.12/urllib/__init__.py; generic producer positive-size assertion stopped before request open/unit",
+    "red": "actual entry/check_request refused selected runtime0 with pin-schema",
+    "green": "only metadata guards and runtime-closure:2pass31assertions7filtered; actual empty owned file original-FD/hash plus source0/runtime-negative/unselected-empty refusals; watched wrong-role/removed-guard faults",
+    "review": "independent scoped approval, no findings/replay/writes; exact hashes/modes/allocations and integrated proofs checked",
+    "statics": "named ESLint/Prettier/AST/diff passed; unrelated source definitions/test branches/non-string TS AST equivalent",
+    "allocatedGrowth": 0,
+    "newMetadataFile": false
   }
 }

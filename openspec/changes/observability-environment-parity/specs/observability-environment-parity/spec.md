@@ -1516,3 +1516,13 @@ Finite native qualification SHALL account for retained evidence without changing
 - **THEN** inventory records its exact mode and every allocated entry without changing it
 - **AND** foreign ownership, world-writable or unreadable/unsearchable directories, symlink traversal and changed metadata still refuse
 - **AND** group-writable active staging or control-packet directories still refuse
+
+### Requirement: Runtime identity supports empty imported modules
+
+Native qualification SHALL distinguish repository source/tool pins from actual imported runtime module pins. Source/tool bytes SHALL be positive. An actual selected root-owned runtime module MAY be empty, with unchanged mode, original-FD hash/stability and exact runtime-closure requirements.
+
+#### Scenario: Empty system package marker retains strict identity
+
+- **WHEN** the actual imported runtime contains a root-owned zero-byte Python package marker
+- **THEN** its exact empty content hash and native identity may satisfy the runtime pin
+- **AND** zero-byte source/tool pins, negative byte counts and unmatched runtime declarations still refuse

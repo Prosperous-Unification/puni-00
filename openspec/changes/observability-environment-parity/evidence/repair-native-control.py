@@ -155,11 +155,12 @@ def read_private(path):
         raise Refusal('request-owner-mode') from None
 
 
-def check_pin(pin, path):
+def check_pin(pin, path, *, is_runtime=False):
+    # Proof: selected empty runtime schema/file pass; source0/runtime-negative refuse; role/guard faults admit source0.
     closed(pin, 'path sha256 bytes uid mode', 'pin-schema')
     require(pin['path'] == path and type(pin['sha256']) is str
             and re.fullmatch('[a-f0-9]{64}', pin['sha256'])
-            and type(pin['bytes']) is int and 0 < pin['bytes'] <= 128 * MIB
+            and type(pin['bytes']) is int and (0 if is_runtime else 1) <= pin['bytes'] <= 128 * MIB
             and type(pin['uid']) is int and pin['uid'] in (0, os.geteuid())
             and type(pin['mode']) is int and 0 <= pin['mode'] <= 0o755
             and not pin['mode'] & 0o022, 'pin-schema')
@@ -198,7 +199,7 @@ def check_request(request, nonce, root=ROOT):
                 and is_runtime_path(pin['path'])
                 and os.path.normpath(pin['path']) == pin['path']
                 and pin['path'] not in runtime_paths and pin['path'] not in expected, 'runtime-pin-set')
-        check_pin(pin, pin['path'])
+        check_pin(pin, pin['path'], is_runtime=True)
         require(pin['uid'] == 0, 'runtime-pin-set')
         runtime_paths.add(pin['path'])
     closed(request['kernel'], 'release version machine', 'kernel-schema')

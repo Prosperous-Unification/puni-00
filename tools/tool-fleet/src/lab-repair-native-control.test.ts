@@ -31,7 +31,7 @@ def selfcheck():
                  'state': str(root / '.puni/fleet-labs/observability-baseline'),
                  'outside': str(root / PLAN), 'packet': str(packet), 'nonce': nonce,
                  'commit': 'b' * 40,
-                 'runtimePins': [dict(path=p,sha256='f'*64,bytes=1,uid=0,mode=0o644) for p in ('/etc/python3.12/sitecustomize.py','/usr/lib/python3/dist-packages/apport_python_hook.py')],
+                 'runtimePins': [dict(path=p,sha256='f'*64,bytes=0 if p.endswith('__init__.py') else 1,uid=0,mode=0o644) for p in ('/etc/python3.12/sitecustomize.py','/usr/lib/python3/dist-packages/apport_python_hook.py','/usr/lib/python3.12/urllib/__init__.py')],
                  'pins': [{'path': name, 'sha256': 'c'*64, 'bytes': 1, 'uid': os.geteuid(), 'mode': 0o644}
                           for name in pin_paths],
                  'kernel': {'release': '7.0.11-76070011-generic', 'version': 'fixture', 'machine': 'x86_64'},
@@ -572,7 +572,7 @@ elif case=='runtime-closure':
     actual={declared[0]['path']}
     control.runtime_paths=lambda:set(actual)
     hashed=[]
-    control.verify_file=lambda pin,**keywords:hashed.append(pin['path'])
+    verify_file=control.verify_file;control.verify_file=lambda pin,**keywords:hashed.append(pin['path'])
     assert control.verify_runtime_pins(request,control.time.monotonic()+1)==actual
     assert not hashed
     # Known stdlib import.
@@ -595,6 +595,17 @@ elif case=='runtime-closure':
     control.check_loaded_runtime(request,control.time.monotonic()+1)
     assert declared[1]['path'] not in hashed
     print('watched runtime closure guard removed: RED accepted unselected hook')
+    control.require=original_require;request['runtimePins'].pop();hashed.clear()
+    request['runtimePins'].append({'path':'/usr/lib/python3.12/urllib/__init__.py','bytes':0})
+    refused(lambda:control.check_loaded_runtime(request,control.time.monotonic()+1),'runtime-pin-set');assert not hashed
+    with tempfile.NamedTemporaryFile() as f:
+        p=dict(path=f.name,bytes=0,sha256=hashlib.sha256(b'').hexdigest(),uid=os.geteuid(),mode=0o600)
+        refused(lambda:control.check_pin(p,f.name),'pin-schema')
+        refused(lambda:control.check_pin(dict(p,bytes=-1),f.name,is_runtime=True),'pin-schema')
+        control.check_pin(p,f.name,is_runtime=True);verify_file(p)
+        control.require=lambda ok,c:original_require(ok,c) if c!='pin-schema' else None;control.check_pin(p,f.name)
+        control.require=original_require
+    print('watched runtime role on source0: RED accepts zero; default refuses')
 elif case=='deadline':
     clock=[0.]
     control.time.monotonic=lambda:clock[0]
