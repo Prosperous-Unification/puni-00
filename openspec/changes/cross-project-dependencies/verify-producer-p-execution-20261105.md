@@ -72,3 +72,33 @@ The overall original workflow remains live in other jobs. The independent
 negative-evidence review and full-workflow terminal/output-retention checks are
 still required before restoration. No fourth-member necessity completion,
 restored-positive qualification, merge, native grant or deployment is claimed.
+
+## Original workflow terminal and exact restoration launched
+
+Original CI41981186851 is now terminal failure with26terminal jobs, no cancelled
+or timed-out jobs. Only the three recorded source/workspace/storage jobs and
+aggregate gate failed; twilight and remote completed. Root retained the entire
+workflow console ZIP, SHA256
+`95426f2ce91af68bc63580d425608ce5628650d971f56c31c804ff5bef8be911`,
+and13runtime/selection log artifacts with matching server digests. All artifact
+metadata is retained, including unrelated pixel output identities. Terminal
+record SHA256 `cfb5866aa097875ee57152bbfb319e1922573611ed7db4a51f76f51c647acce1`.
+
+After that condition and fixed-base verification, Root applied only the inverse
+11-line insertion. An incorrect0664 permission assumption from another worktree
+stopped preflight before commit; actual0644 and tracked100644 were checked, no
+Git mode change existed. Exact20738bytes/SHAe97d5810 and all10manifest invariants
+match the accepted original. The complete restored tree is exactly
+`52bb47b6eea0de560cc0de8c8b82b45f4fd86907`, equal to c955.
+
+Normal hooks passed. Restoration commit
+`1c7715e9ffba2cf1a1089ba972b02b17873a0c54` has parent297764348; it was
+pushed normally to the same never-merge PR866. No live original job was
+superseded. New original CI41992019181 and infra41992019417 are running;
+trusted-wiki41992016632 was skipped. Launch-record SHA256
+`cb823d86cbab3a045ad41fc47ffd03aefb1b0f368fa9633f8ac273b11c02188e`.
+
+The required fresh whole Source7 restored positive and new workflow terminal
+state remain unobserved. Final producer-P necessity, closure of this never-merge
+PR and broader FEP8 remain pending; exact source restoration alone is not proof
+of a successful restored execution.

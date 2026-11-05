@@ -1485,6 +1485,8 @@ export async function prepareDependencyOwnerCustody(): Promise<
     }
   }
 }
+import { realpath as ordinaryHoldRealpath } from 'node:fs/promises';
+import { resolve as ordinaryHoldResolve } from 'node:path';
 
 // The ordinary V1 image is separate from the historical private constructor protocol.
 export interface OrdinaryHoldSourcePinV1 {
@@ -1739,7 +1741,10 @@ export function materializeOrdinaryHoldImageV1(
     }
     if (mapping.inputSha256 !== pin.sha256)
       throw new Error('ordinary HOLD transformed source pin differs');
-    let source = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+    let source = new TextDecoder('utf-8', {
+      fatal: true,
+      ignoreBOM: true,
+    }).decode(bytes);
     for (const cut of mapping.cuts) {
       if (source.split(cut.before).length - 1 !== cut.count)
         throw new Error('ordinary HOLD source cut cardinality differs');
@@ -1755,7 +1760,10 @@ export function materializeOrdinaryHoldImageV1(
 
 /** Exact module identities and image modes; arbitrary near-name maps are never accepted. */
 export const ordinaryHoldModuleModesV1 = [
-  { relative: 'tools/tool-remote-scripts/src/lib/edge-ownership.ts', mode: 'transform' },
+  {
+    relative: 'tools/tool-remote-scripts/src/lib/edge-ownership.ts',
+    mode: 'transform',
+  },
   {
     relative: 'tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts',
     mode: 'transform',
@@ -1765,9 +1773,15 @@ export const ordinaryHoldModuleModesV1 = [
     mode: 'transform',
   },
   { relative: 'tools/tool-remote-scripts/src/lib/lock.ts', mode: 'transform' },
-  { relative: 'tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts', mode: 'transform' },
+  {
+    relative: 'tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts',
+    mode: 'transform',
+  },
   { relative: 'libs/wbs/adapters/store-sqlite/src/db.ts', mode: 'transform' },
-  { relative: 'libs/wbs/adapters/store-sqlite/src/backup.ts', mode: 'transform' },
+  {
+    relative: 'libs/wbs/adapters/store-sqlite/src/backup.ts',
+    mode: 'transform',
+  },
   {
     relative: 'tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts',
     mode: 'external-unchanged',
@@ -1780,7 +1794,10 @@ export const ordinaryHoldModuleModesV1 = [
     relative: 'tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts',
     mode: 'transform',
   },
-  { relative: 'tools/tool-remote-scripts/src/fixtures/source-startup.ts', mode: 'transform' },
+  {
+    relative: 'tools/tool-remote-scripts/src/fixtures/source-startup.ts',
+    mode: 'transform',
+  },
   {
     relative: 'tools/tool-remote-scripts/src/fixtures/source-database-binding.ts',
     mode: 'transform',
@@ -1789,9 +1806,18 @@ export const ordinaryHoldModuleModesV1 = [
     relative: 'tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts',
     mode: 'transform',
   },
-  { relative: 'tools/tool-remote-scripts/src/fixtures/namespace-audit.ts', mode: 'transform' },
-  { relative: 'tools/tool-remote-scripts/src/lib/directory-file.ts', mode: 'pinned-pass-through' },
-  { relative: 'libs/wbs/adapters/store-sqlite/src/sqlite-cleanup.ts', mode: 'pinned-pass-through' },
+  {
+    relative: 'tools/tool-remote-scripts/src/fixtures/namespace-audit.ts',
+    mode: 'transform',
+  },
+  {
+    relative: 'tools/tool-remote-scripts/src/lib/directory-file.ts',
+    mode: 'pinned-pass-through',
+  },
+  {
+    relative: 'libs/wbs/adapters/store-sqlite/src/sqlite-cleanup.ts',
+    mode: 'pinned-pass-through',
+  },
 ] as const;
 
 /** Closed ordinary case metadata only; registration and helper execution are later work. */
@@ -2158,7 +2184,11 @@ export function planOrdinaryHoldAdmissionV1(
       ordinaryHoldSelectionPattern(ORDINARY_HOLD_KNOWN_ONLY_TITLE),
     ])
   )
-    return Object.freeze({ mode: 'not-selected', profile: 'local-exact', caseIds: [] as const });
+    return Object.freeze({
+      mode: 'not-selected',
+      profile: 'local-exact',
+      caseIds: [] as const,
+    });
   const row = ordinaryHoldCasesV1.find((candidate) => candidate.caseId === selection);
   if (
     row === undefined ||
@@ -2279,4 +2309,1050 @@ export function decodeOrdinaryHoldObservationV1(value: unknown): OrdinaryHoldObs
     titleDigest,
     evidenceDigest: ordinaryHoldSha(packet['evidenceDigest'], 'ordinary HOLD observation evidence'),
   });
+}
+
+/** Fixed source bytes for the ordinary image compiler epoch at published febb1c244. */
+export const ordinaryHoldSourceEpochV1 = Object.freeze({
+  sourceIdentity: 'febb1c24427b2d368aa2d6446d6000dc1faabdb3',
+  pins: Object.freeze([
+    Object.freeze({
+      relative: 'tools/tool-remote-scripts/src/lib/edge-ownership.ts',
+      bytes: 83874,
+      sha256: 'd979452d02089652c12515af8bfcaeede1fa13bc458a66013f5463555b528f68',
+    }),
+    Object.freeze({
+      relative: 'tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts',
+      bytes: 34665,
+      sha256: 'e8ac098736b6cc538693437ae9c923819f5783fb8df61285d4f217a0f1b2154a',
+    }),
+    Object.freeze({
+      relative: 'tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts',
+      bytes: 43658,
+      sha256: 'ab7766c66a8a53fb84f11f3e0262802295ad823854b1cb4df13899bfddd2b798',
+    }),
+    Object.freeze({
+      relative: 'tools/tool-remote-scripts/src/lib/lock.ts',
+      bytes: 8844,
+      sha256: '6d2c29fa57f4356f28f0ba0287f15c0c8a49dded94b251d12a33c3e11a28d40d',
+    }),
+    Object.freeze({
+      relative: 'tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts',
+      bytes: 91002,
+      sha256: 'bdf3da709f70238e073fcc7db1f51870e855959477048645c1fcd46bb3b042ef',
+    }),
+    Object.freeze({
+      relative: 'libs/wbs/adapters/store-sqlite/src/db.ts',
+      bytes: 24545,
+      sha256: '3071cca955b20084cac3c769dad23b0741a34ad4204d6f7e4dbb476392715120',
+    }),
+    Object.freeze({
+      relative: 'libs/wbs/adapters/store-sqlite/src/backup.ts',
+      bytes: 25178,
+      sha256: 'c681a4ec8fc6d8b2787647507e8f8357146cff261cba75250ae446cea305a230',
+    }),
+    Object.freeze({
+      relative: 'tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts',
+      bytes: 9796,
+      sha256: 'fd749af5d221bafecfb7581d61e187a0ef15bcdb59a077eed25e86b0ce382ace',
+    }),
+    Object.freeze({
+      relative: 'tools/tool-remote-scripts/src/fixtures/dependency-participant-restoration.ts',
+      bytes: 5394,
+      sha256: '32c05b771edbab3f5f6fd448aaa0de7184f16e6ffe21e1d84444c66087d841bc',
+    }),
+    Object.freeze({
+      relative: 'tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts',
+      bytes: 17432,
+      sha256: 'ae37e7411040d680ab04419090a546fcddfc7f295697d99ff9e46ff7d915d91e',
+    }),
+    Object.freeze({
+      relative: 'tools/tool-remote-scripts/src/fixtures/source-startup.ts',
+      bytes: 4791,
+      sha256: '0c8e0b6afc98008f34352d68254fbe137265c46a24fa0edf482dcf1ca341783b',
+    }),
+    Object.freeze({
+      relative: 'tools/tool-remote-scripts/src/fixtures/source-database-binding.ts',
+      bytes: 14053,
+      sha256: 'b83a928aae6880c6142c4dc6d0f584fa085d5039a1b4f70512c73f5819d5bbd4',
+    }),
+    Object.freeze({
+      relative: 'tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts',
+      bytes: 5425,
+      sha256: 'a4f9378c421110a43d2a2db51edb9e56afc38cbb6bfc74f954322b2810d196c0',
+    }),
+    Object.freeze({
+      relative: 'tools/tool-remote-scripts/src/fixtures/namespace-audit.ts',
+      bytes: 10450,
+      sha256: '63a0506377f8d7c4ee7701e06a155bccb65ab8abd0783d5d4f6929e491bab015',
+    }),
+    Object.freeze({
+      relative: 'tools/tool-remote-scripts/src/lib/directory-file.ts',
+      bytes: 3520,
+      sha256: 'b3d0480ceaa6fc88e19278cfc667919d1803173f5fdccaf5e4b33bf2c97e7e0c',
+    }),
+    Object.freeze({
+      relative: 'libs/wbs/adapters/store-sqlite/src/sqlite-cleanup.ts',
+      bytes: 2479,
+      sha256: '83785f02655bf81514328255fe45e047b4b79a5374fdebb3a269d2d2687ac74b',
+    }),
+  ]),
+});
+
+/** Resolves only classifier-sensitive imports to one canonical module per ordinary image. */
+export function resolveOrdinaryHoldImportV1(
+  sourceRoot: string,
+  importer: string,
+  specifier: string,
+): { readonly path: string; readonly external: boolean } | undefined {
+  const root = ordinaryHoldAbsolute(sourceRoot, 'ordinary HOLD resolver root');
+  const from = ordinaryHoldAbsolute(importer, 'ordinary HOLD resolver importer');
+  if (!from.startsWith(`${root}/`)) throw new Error('ordinary HOLD importer outside source root');
+  if (specifier.startsWith('ordinary-hold-v1:'))
+    throw new Error('ordinary HOLD unknown virtual port');
+  const aliases: Readonly<Record<string, string>> = {
+    '@wbs/store-sqlite/db': 'libs/wbs/adapters/store-sqlite/src/db.ts',
+    '@wbs/store-sqlite/backup': 'libs/wbs/adapters/store-sqlite/src/backup.ts',
+    '@wbs/store-sqlite/sqlite-cleanup': 'libs/wbs/adapters/store-sqlite/src/sqlite-cleanup.ts',
+  };
+  let destination: string | undefined;
+  if (Object.hasOwn(aliases, specifier)) destination = `${root}/${aliases[specifier]}`;
+  else if (specifier.startsWith('./') || specifier.startsWith('../')) {
+    const directory = from.slice(0, from.lastIndexOf('/'));
+    destination = join(directory, specifier.endsWith('.ts') ? specifier : `${specifier}.ts`);
+  } else if (specifier.startsWith(`${root}/`)) destination = specifier;
+  if (destination === undefined) return undefined;
+  const scanner = `${root}/tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts`;
+  const canonical = [
+    'tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts',
+    'libs/wbs/adapters/store-sqlite/src/db.ts',
+    'libs/wbs/adapters/store-sqlite/src/backup.ts',
+    'libs/wbs/adapters/store-sqlite/src/sqlite-cleanup.ts',
+    'tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts',
+  ];
+  if (!canonical.some((relative) => destination === `${root}/${relative}`)) return undefined;
+  return { path: destination, external: destination === scanner };
+}
+
+interface OrdinaryHoldConcreteCutV1 extends OrdinaryHoldSourceCutV1 {
+  readonly id: string;
+}
+
+/** Fixed febb source cuts. Missing runtime taps remain explicit build qualifications. */
+function ordinaryHoldConcreteCutsV1(
+  relative: string,
+  sourceRoot: string,
+): readonly OrdinaryHoldConcreteCutV1[] {
+  const cut = (id: string, before: string, after: string, count = 1) =>
+    Object.freeze({ id, before, after, count });
+  const fs = (id: string, port: string, count = 1) =>
+    cut(id, "from 'node:fs';", `from 'ordinary-hold-v1:${port}';`, count);
+  const asyncFs = (id: string, port: string) =>
+    cut(id, "from 'node:fs/promises';", `from 'ordinary-hold-v1:${port}';`);
+  switch (relative) {
+    case 'tools/tool-remote-scripts/src/lib/edge-ownership.ts':
+      return [
+        fs('owner.fs', 'owner-fs'),
+        cut(
+          'owner.timer-import',
+          "import { createHash, randomUUID } from 'node:crypto';",
+          "import { createHash, randomUUID } from 'node:crypto';\nimport { ordinaryHoldSetInterval, ordinaryHoldClearInterval } from 'ordinary-hold-v1:owner-timer';",
+        ),
+        cut(
+          'owner.interval',
+          'setInterval(() => retained, 60000)',
+          'ordinaryHoldSetInterval(() => retained, 60000)',
+        ),
+        cut(
+          'owner.clear',
+          'clearInterval(ownership.keeper.interval)',
+          'ordinaryHoldClearInterval(ownership.keeper.interval)',
+        ),
+      ];
+    case 'tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts':
+      return [
+        fs('storage.fs-main-and-finalizer', 'storage-fs', 2),
+        cut(
+          'storage.database',
+          "from '@wbs/store-sqlite/db';",
+          "from 'ordinary-hold-v1:storage-database';",
+        ),
+        cut(
+          'storage.graph',
+          "from './initial-handoff-graph';",
+          "from 'ordinary-hold-v1:storage-graph';",
+        ),
+      ];
+    case 'tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts':
+      return [
+        cut(
+          'complete.storage',
+          "from './dependency-activation-storage';",
+          "from 'ordinary-hold-v1:complete-storage';",
+        ),
+        cut(
+          'complete.scanner',
+          "from './dependency-migration-artifact-scanner';",
+          "from 'ordinary-hold-v1:complete-scanner';",
+        ),
+      ];
+    case 'tools/tool-remote-scripts/src/lib/lock.ts':
+      return [fs('lock.fs', 'lock-fs')];
+    case 'tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts':
+      return [
+        fs('graph.fs', 'graph-fs'),
+        cut(
+          'graph.relative',
+          "from './directory-file';",
+          "from 'ordinary-hold-v1:graph-relative';",
+        ),
+      ];
+    case 'libs/wbs/adapters/store-sqlite/src/db.ts':
+      return [
+        cut(
+          'database.readonly-import',
+          "import { Database, SQLiteError } from 'bun:sqlite';",
+          "import { Database, SQLiteError } from 'bun:sqlite';\nimport { ordinaryHoldOpenReadonly } from 'ordinary-hold-v1:database-readonly';",
+        ),
+        cut(
+          'database.readonly-enter-return',
+          'const client = new Database(dbPath, { readonly: true, create: false });',
+          'const client = ordinaryHoldOpenReadonly(Database, dbPath);',
+        ),
+      ];
+    case 'libs/wbs/adapters/store-sqlite/src/backup.ts':
+      return [fs('backup.fs', 'backup-fs')];
+    case 'tools/tool-remote-scripts/src/fixtures/dependency-participant-restoration.ts':
+      return [asyncFs('setup.participant.fs', 'setup-participant-fs')];
+    case 'tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts':
+      return [
+        asyncFs('setup.complete.fs', 'setup-complete-fs'),
+        cut(
+          'setup.migration-root',
+          "const migrationsDirectory = new URL('../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;",
+          `const migrationsDirectory = ${JSON.stringify(`${sourceRoot}/apps/wbs/be-01/drizzle`)};`,
+        ),
+      ];
+    case 'tools/tool-remote-scripts/src/fixtures/source-startup.ts':
+      return [asyncFs('setup.startup.fs', 'setup-startup-fs')];
+    case 'tools/tool-remote-scripts/src/fixtures/source-database-binding.ts':
+      return [asyncFs('setup.database.fs', 'setup-database-fs')];
+    case 'tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts':
+      return [
+        asyncFs('setup.frontend.fs', 'setup-frontend-fs'),
+        cut(
+          'setup.frontend-root',
+          "const ROOT = resolve(import.meta.dir, '../../../..');",
+          `const ROOT = ${JSON.stringify(sourceRoot)};`,
+        ),
+      ];
+    case 'tools/tool-remote-scripts/src/fixtures/namespace-audit.ts':
+      return [asyncFs('setup.namespace.fs', 'setup-namespace-fs')];
+    default:
+      throw new Error('ordinary HOLD fixed transform recipe absent');
+  }
+}
+
+const ORDINARY_HOLD_FS_NAMES = [
+  'closeSync',
+  'fstatSync',
+  'fsyncSync',
+  'readFileSync',
+  'readSync',
+  'writeFileSync',
+  'fchmodSync',
+  'lstatSync',
+  'openSync',
+  'readdirSync',
+  'realpathSync',
+  'mkdirSync',
+  'ftruncateSync',
+  'statSync',
+  'writeSync',
+  'opendirSync',
+  'copyFileSync',
+  'existsSync',
+  'renameSync',
+  'rmSync',
+] as const;
+const ORDINARY_HOLD_ASYNC_FS_NAMES = [
+  'chmod',
+  'cp',
+  'lstat',
+  'mkdir',
+  'mkdtemp',
+  'readdir',
+  'symlink',
+  'writeFile',
+  'readFile',
+  'rename',
+  'stat',
+  'link',
+  'rm',
+] as const;
+
+/** Fixed generated ports forward real APIs and retain their actual return/throw identities. */
+function ordinaryHoldPortSourcesV1(sourceRoot: string): ReadonlyMap<string, string> {
+  const root = ordinaryHoldAbsolute(sourceRoot, 'ordinary HOLD port root');
+  const port = (name: string, source: string): readonly [string, string] => [
+    `ordinary-hold-v1:${name}`,
+    source,
+  ];
+  const nativeFs = (label: string) =>
+    `import * as native from 'node:fs';\nimport { observeSync } from 'ordinary-hold-v1:ledger';\n` +
+    `export type { BigIntStats, Dir } from 'node:fs';\nexport const constants=native.constants;\n` +
+    ORDINARY_HOLD_FS_NAMES.map(
+      (name) =>
+        `export const ${name}=(...args)=>observeSync('${label}.${name}',native.${name},native,args);`,
+    ).join('\n');
+  const promiseFs = (label: string) =>
+    `import * as native from 'node:fs/promises';\nimport { observePromise } from 'ordinary-hold-v1:ledger';\n` +
+    ORDINARY_HOLD_ASYNC_FS_NAMES.map(
+      (name) =>
+        `export const ${name}=(...args)=>observePromise('${label}.${name}',native.${name},native,args);`,
+    ).join('\n');
+  const ledger = `export const ordinaryHoldOriginals=[];
+export function observeSync(label,original,receiver,args){
+  if(ordinaryHoldOriginals.length>=8192)throw Error('ordinary HOLD runtime operation cap exceeded');
+  const record={label,kind:'sync',original,receiver,args,state:'entered',returned:undefined,cause:undefined};ordinaryHoldOriginals.push(record);
+  try{const returned=Reflect.apply(original,receiver,args);record.returned=returned;record.state='returned';return returned;}
+  catch(cause){record.cause=cause;record.state='threw';throw cause;}
+}
+export function observePromise(label,original,receiver,args){
+  if(ordinaryHoldOriginals.length>=8192)throw Error('ordinary HOLD runtime operation cap exceeded');
+  const record={label,kind:'promise',original,receiver,args,state:'entered',returned:undefined,observer:undefined,cause:undefined};ordinaryHoldOriginals.push(record);
+  try{const returned=Reflect.apply(original,receiver,args);record.returned=returned;record.state='pending';
+    record.observer=returned.then(value=>{record.value=value;record.state='fulfilled';},cause=>{record.cause=cause;record.state='rejected';});return returned;}
+  catch(cause){record.cause=cause;record.state='threw';throw cause;}
+}`;
+  const storage = `${root}/tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts`;
+  const graph = `${root}/tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts`;
+  const db = `${root}/libs/wbs/adapters/store-sqlite/src/db.ts`;
+  const scanner = `${root}/tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts`;
+  const relative = `${root}/tools/tool-remote-scripts/src/lib/directory-file.ts`;
+  return new Map([
+    port('ledger', ledger),
+    ...(['owner', 'storage', 'lock', 'graph', 'backup'] as const).map((name) =>
+      port(`${name}-fs`, nativeFs(name)),
+    ),
+    ...(['participant', 'complete', 'startup', 'database', 'frontend', 'namespace'] as const).map(
+      (name) => port(`setup-${name}-fs`, promiseFs(`setup.${name}`)),
+    ),
+    port(
+      'owner-timer',
+      `import { observeSync } from 'ordinary-hold-v1:ledger';\nexport const ordinaryHoldSetInterval=(...args)=>observeSync('owner.interval',setInterval,undefined,args);\nexport const ordinaryHoldClearInterval=(...args)=>observeSync('owner.clear',clearInterval,undefined,args);`,
+    ),
+    port(
+      'storage-database',
+      `import { openReadOnlyConnection as connection, openReadOnlyDatabase as database } from ${JSON.stringify(db)};\nimport { observeSync } from 'ordinary-hold-v1:ledger';\nexport const openReadOnlyConnection=(...args)=>observeSync('storage.database.connection',connection,undefined,args);\nexport const openReadOnlyDatabase=(...args)=>observeSync('storage.database.database',database,undefined,args);`,
+    ),
+    port(
+      'storage-graph',
+      `import { captureInitialHandoffArtifacts as original } from ${JSON.stringify(graph)};\nimport { observeSync } from 'ordinary-hold-v1:ledger';\nexport const captureInitialHandoffArtifacts=(...args)=>observeSync('storage.graph',original,undefined,args);`,
+    ),
+    port(
+      'complete-storage',
+      `import { activateDependencyStores as original, hashActivationBytes } from ${JSON.stringify(storage)};\nimport { observePromise } from 'ordinary-hold-v1:ledger';\nexport { hashActivationBytes };\nexport const activateDependencyStores=(...args)=>observePromise('complete.storage',original,undefined,args);`,
+    ),
+    port(
+      'complete-scanner',
+      `import { scanMigrationArtifact as original } from ${JSON.stringify(scanner)};\nimport { observePromise } from 'ordinary-hold-v1:ledger';\nexport const scanMigrationArtifact=(...args)=>observePromise('complete.scanner',original,undefined,args);`,
+    ),
+    port(
+      'graph-relative',
+      `import { openDirectoryFile as original } from ${JSON.stringify(relative)};\nimport { observeSync } from 'ordinary-hold-v1:ledger';\nexport const openDirectoryFile=(...args)=>observeSync('graph.relative',original,undefined,args);`,
+    ),
+    port(
+      'database-readonly',
+      `import { observeSync } from 'ordinary-hold-v1:ledger';\nexport const ordinaryHoldOpenReadonly=(Database,dbPath)=>observeSync('database.readonly',()=>new Database(dbPath,{readonly:true,create:false}),undefined,[]);`,
+    ),
+  ]);
+}
+
+/** Identifies only the observed closed virtual keys and cwd-relative filesystem labels. */
+export function identifyOrdinaryHoldMetafilePathV1(
+  sourceRoot: string,
+  compilerCwd: string,
+  rawPath: string,
+): string {
+  const root = ordinaryHoldAbsolute(sourceRoot, 'ordinary HOLD metadata root');
+  const cwd = ordinaryHoldAbsolute(compilerCwd, 'ordinary HOLD compiler cwd');
+  if (rawPath.startsWith('ordinary-hold-v1:')) {
+    if (!ordinaryHoldPortSourcesV1(root).has(rawPath))
+      throw new Error('ordinary HOLD virtual metadata identity differs');
+    return rawPath;
+  }
+  if (rawPath.startsWith('node:') || rawPath.startsWith('bun:')) return rawPath;
+  if (rawPath.includes(':') && !rawPath.startsWith('/'))
+    throw new Error('ordinary HOLD unknown metadata namespace');
+  if (rawPath.startsWith('/')) return rawPath;
+  if (rawPath === '' || rawPath.includes('\0'))
+    throw new Error('ordinary HOLD metadata filesystem label differs');
+  return ordinaryHoldResolve(cwd, rawPath);
+}
+
+/** Admits only the fixed imports from a generated port's exact bare module ID. */
+export function resolveOrdinaryHoldPortImportV1(
+  sourceRoot: string,
+  importerId: string,
+  specifier: string,
+): { readonly path: string; readonly external: boolean; readonly namespace?: string } | undefined {
+  const root = ordinaryHoldAbsolute(sourceRoot, 'ordinary HOLD port root');
+  if (!ordinaryHoldPortSourcesV1(root).has(`ordinary-hold-v1:${importerId}`))
+    throw new Error('ordinary HOLD importer port absent');
+  const ledger = 'ordinary-hold-v1:ledger';
+  const storage = `${root}/tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts`;
+  const graph = `${root}/tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts`;
+  const database = `${root}/libs/wbs/adapters/store-sqlite/src/db.ts`;
+  const scanner = `${root}/tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts`;
+  const relative = `${root}/tools/tool-remote-scripts/src/lib/directory-file.ts`;
+  let allowed: readonly string[];
+  if (['owner-fs', 'storage-fs', 'lock-fs', 'graph-fs', 'backup-fs'].includes(importerId))
+    allowed = ['node:fs', ledger];
+  else if (importerId.startsWith('setup-') && importerId.endsWith('-fs'))
+    allowed = ['node:fs/promises', ledger];
+  else {
+    switch (importerId) {
+      case 'ledger':
+        allowed = [];
+        break;
+      case 'owner-timer':
+      case 'database-readonly':
+        allowed = [ledger];
+        break;
+      case 'storage-database':
+        allowed = [database, ledger];
+        break;
+      case 'storage-graph':
+        allowed = [graph, ledger];
+        break;
+      case 'complete-storage':
+        allowed = [storage, ledger];
+        break;
+      case 'complete-scanner':
+        allowed = [scanner, ledger];
+        break;
+      case 'graph-relative':
+        allowed = [relative, ledger];
+        break;
+      default:
+        throw new Error('ordinary HOLD importer port absent');
+    }
+  }
+  if (!allowed.includes(specifier)) throw new Error('ordinary HOLD port destination differs');
+  if (specifier.startsWith('node:') || specifier.startsWith('bun:')) return undefined;
+  if (specifier === ledger)
+    return { path: 'ledger', namespace: 'ordinary-hold-v1', external: false };
+  return { path: specifier, external: specifier === scanner };
+}
+
+export interface OrdinaryHoldBuildPlanV1 {
+  readonly image: OrdinaryHoldImageV1;
+  readonly materialized: ReadonlyMap<string, Uint8Array>;
+  readonly appliedCuts: readonly {
+    readonly id: string;
+    readonly count: number;
+  }[];
+  readonly portSources: ReadonlyMap<string, string>;
+}
+
+/** Builds the closed current-source plan from fixed recipes, never caller-supplied cuts. */
+export function planOrdinaryHoldBuildV1(
+  sourceRoot: string,
+  supplied: ReadonlyMap<string, Uint8Array>,
+): OrdinaryHoldBuildPlanV1 {
+  const root = ordinaryHoldAbsolute(sourceRoot, 'ordinary HOLD build root');
+  if (supplied.size !== ordinaryHoldSourceEpochV1.pins.length)
+    throw new Error('ordinary HOLD build source roster differs');
+  const pins = ordinaryHoldSourceEpochV1.pins.map((pin) => ({
+    path: `${root}/${pin.relative}`,
+    bytes: pin.bytes,
+    sha256: pin.sha256,
+  }));
+  const appliedCuts: { id: string; count: number }[] = [];
+  const mappings: OrdinaryHoldSourceMappingV1[] = ordinaryHoldModuleModesV1.map((entry, index) => {
+    const pin = pins.at(index);
+    if (pin?.path !== `${root}/${entry.relative}`)
+      throw new Error('ordinary HOLD build pin order differs');
+    const bytes = supplied.get(pin.path);
+    if (bytes === undefined) throw new Error('ordinary HOLD build source bytes absent');
+    if (
+      bytes.byteLength !== pin.bytes ||
+      createHash('sha256').update(bytes).digest('hex') !== pin.sha256
+    )
+      throw new Error('ordinary HOLD build source bytes differ');
+    if (entry.mode !== 'transform') return { mode: entry.mode, path: pin.path, sha256: pin.sha256 };
+    let source = new TextDecoder('utf-8', {
+      fatal: true,
+      ignoreBOM: true,
+    }).decode(bytes);
+    const cuts = ordinaryHoldConcreteCutsV1(entry.relative, root);
+    for (const cut of cuts) {
+      const count = source.split(cut.before).length - 1;
+      if (count !== cut.count)
+        throw new Error(`ordinary HOLD fixed cut ${cut.id} cardinality differs`);
+      source = source.replaceAll(cut.before, () => cut.after);
+      appliedCuts.push({ id: cut.id, count });
+    }
+    return {
+      mode: 'transform',
+      path: pin.path,
+      inputSha256: pin.sha256,
+      outputSha256: createHash('sha256').update(new TextEncoder().encode(source)).digest('hex'),
+      cuts: cuts.map(({ before, after, count }) => ({
+        before,
+        after,
+        count,
+      })),
+    };
+  });
+  const image = decodeOrdinaryHoldImageV1({
+    format: 'dependency-owner-ordinary-hold-image',
+    version: 1,
+    sourceRoot: root,
+    sourceIdentity: ordinaryHoldSourceEpochV1.sourceIdentity,
+    sourcePins: pins,
+    mappings,
+    mappingDigest: createHash('sha256').update(JSON.stringify(mappings)).digest('hex'),
+    titleDigest: ordinaryHoldTitleDigestV1,
+  });
+  return Object.freeze({
+    image,
+    materialized: materializeOrdinaryHoldImageV1(image, supplied),
+    appliedCuts: Object.freeze(appliedCuts),
+    portSources: ordinaryHoldPortSourcesV1(root),
+  });
+}
+
+export interface OrdinaryHoldBuildOnlyRequestV1 {
+  readonly version: 1;
+  readonly mode: 'build-only';
+  readonly sourceRoot: string;
+  readonly sourceEpoch: 'ordinary-febb-image-v1';
+}
+interface OrdinaryHoldSetupRecordV1 {
+  readonly label: string;
+  readonly kind: 'promise';
+  state: 'entered' | 'pending' | 'fulfilled' | 'rejected' | 'threw' | 'unknown';
+  returned?: unknown;
+  original?: Promise<unknown>;
+  observer?: Promise<void>;
+  cause?: unknown;
+  joined: boolean;
+}
+interface OrdinaryHoldResolutionV1 {
+  readonly importer: string;
+  readonly specifier: string;
+  readonly importerNamespace: string;
+  readonly resolveDir: string;
+  readonly kind: string;
+  readonly path: string;
+  readonly external: boolean;
+  readonly destinationNamespace?: string;
+}
+interface OrdinaryHoldBuildProvenanceV1 {
+  readonly compiler: {
+    readonly version: string;
+    readonly revision: string;
+    readonly executable: string;
+    readonly cwd: string;
+  };
+  readonly issuer: { readonly path: string; readonly bytes: number; readonly sha256: string };
+  readonly authority: readonly {
+    readonly path: string;
+    readonly bytes: number;
+    readonly sha256: string;
+  }[];
+  readonly ports: readonly {
+    readonly specifier: string;
+    readonly bytes: number;
+    readonly sha256: string;
+  }[];
+  readonly entrySource: { readonly path: string; readonly bytes: number; readonly sha256: string };
+  readonly buildOptionsSha256: string;
+}
+/** A setup record retires only after a known no-return throw or both retained original and observer settle. */
+export function hasKnownOrdinaryHoldSetupOutcomeV1(
+  record: Pick<
+    OrdinaryHoldSetupRecordV1,
+    'state' | 'returned' | 'original' | 'observer' | 'joined'
+  >,
+): boolean {
+  return (
+    (record.state === 'threw' && record.returned === undefined) ||
+    (record.joined &&
+      record.original !== undefined &&
+      record.observer !== undefined &&
+      (record.state === 'fulfilled' || record.state === 'rejected'))
+  );
+}
+
+export interface OrdinaryHoldBuiltImageV1 {
+  readonly format: 'dependency-owner-ordinary-image-build';
+  readonly version: 1;
+  readonly status: 'built-unqualified';
+  readonly sourceEpoch: 'ordinary-febb-image-v1';
+  readonly imageDigest: string;
+  readonly titleDigest: string;
+  readonly entryPath: string;
+  readonly entrySha256: string;
+  readonly metafileDigest: string;
+  readonly sourceObservations: readonly OrdinaryHoldSourcePinV1[];
+  readonly appliedCuts: OrdinaryHoldBuildPlanV1['appliedCuts'];
+  readonly resolutions: readonly OrdinaryHoldResolutionV1[];
+  readonly setupOperations: readonly OrdinaryHoldSetupRecordV1[];
+  readonly provenance: OrdinaryHoldBuildProvenanceV1;
+  readonly unqualified: readonly string[];
+}
+
+function ordinaryHoldBuildRequestV1(value: unknown): OrdinaryHoldBuildOnlyRequestV1 {
+  const request = ordinaryHoldFields(
+    value,
+    ['version', 'mode', 'sourceRoot', 'sourceEpoch'],
+    'ordinary HOLD build request',
+  );
+  if (
+    request['version'] !== 1 ||
+    request['mode'] !== 'build-only' ||
+    request['sourceEpoch'] !== 'ordinary-febb-image-v1'
+  )
+    throw new Error('ordinary HOLD build-only epoch differs');
+  return {
+    version: 1,
+    mode: 'build-only',
+    sourceRoot: ordinaryHoldAbsolute(request['sourceRoot'], 'ordinary HOLD build root'),
+    sourceEpoch: 'ordinary-febb-image-v1',
+  };
+}
+
+/** Retains each original setup Promise and its observer before allowing the next build effect. */
+async function ordinaryHoldSetupOperationV1<T>(
+  records: OrdinaryHoldSetupRecordV1[],
+  label: string,
+  action: () => Promise<T>,
+): Promise<T> {
+  if (records.length >= 96) throw new Error('ordinary HOLD setup operation cap exceeded');
+  const record: OrdinaryHoldSetupRecordV1 = {
+    label,
+    kind: 'promise',
+    state: 'entered',
+    joined: false,
+  };
+  records.push(record);
+  let returned: Promise<T>;
+  try {
+    returned = action();
+    record.returned = returned;
+  } catch (cause) {
+    record.cause = cause;
+    record.state = 'threw';
+    throw cause;
+  }
+  if (!(returned instanceof Promise)) {
+    record.state = 'unknown';
+    throw new Error('ordinary HOLD setup original Promise absent');
+  }
+  record.original = returned;
+  record.state = 'pending';
+  try {
+    record.observer = returned.then(
+      () => {
+        record.state = 'fulfilled';
+      },
+      (cause: unknown) => {
+        record.cause = cause;
+        record.state = 'rejected';
+      },
+    );
+  } catch (cause) {
+    record.cause = cause;
+    record.state = 'unknown';
+    throw cause;
+  }
+  const [outcome, observation] = await Promise.allSettled([returned, record.observer]);
+  if (observation.status === 'rejected') {
+    record.cause = observation.reason;
+    record.state = 'unknown';
+    throw observation.reason;
+  }
+  record.joined = true;
+  if (outcome.status === 'rejected') throw outcome.reason;
+  return outcome.value;
+}
+
+function ordinaryHoldEntryV1(sourceRoot: string): string {
+  const exports = [
+    ['owner', 'tools/tool-remote-scripts/src/lib/edge-ownership.ts'],
+    ['storage', 'tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts'],
+    ['complete', 'tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts'],
+    ['graph', 'tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts'],
+    ['database', 'libs/wbs/adapters/store-sqlite/src/db.ts'],
+    ['snapshot', 'libs/wbs/adapters/store-sqlite/src/backup.ts'],
+    ['sqliteCleanup', 'libs/wbs/adapters/store-sqlite/src/sqlite-cleanup.ts'],
+    ['locks', 'tools/tool-remote-scripts/src/lib/lock.ts'],
+    ['scanner', 'tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts'],
+    [
+      'participantFixture',
+      'tools/tool-remote-scripts/src/fixtures/dependency-participant-restoration.ts',
+    ],
+    ['completeFixture', 'tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts'],
+    ['sourceSetup', 'tools/tool-remote-scripts/src/fixtures/source-startup.ts'],
+    ['sourceDatabaseSetup', 'tools/tool-remote-scripts/src/fixtures/source-database-binding.ts'],
+    ['frontendSetup', 'tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts'],
+    ['namespaceSetup', 'tools/tool-remote-scripts/src/fixtures/namespace-audit.ts'],
+    ['directoryFile', 'tools/tool-remote-scripts/src/lib/directory-file.ts'],
+  ] as const;
+  return (
+    exports
+      .map(
+        ([name, relative]) =>
+          `export * as ${name} from ${JSON.stringify(`${sourceRoot}/${relative}`)};`,
+      )
+      .join('\n') + "\nexport * as ledger from 'ordinary-hold-v1:ledger';\n"
+  );
+}
+
+interface OrdinaryHoldBuildAttemptV1 {
+  readonly operations: OrdinaryHoldSetupRecordV1[];
+  readonly observer: Promise<void>;
+  outputRoot?: string;
+}
+const ordinaryHoldBuilderAttempts = new WeakMap<
+  Promise<OrdinaryHoldBuiltImageV1>,
+  OrdinaryHoldBuildAttemptV1
+>();
+
+/** The same original build Promise keys its retained setup records and observer. */
+export function inspectOrdinaryHoldBuildV1(
+  original: Promise<OrdinaryHoldBuiltImageV1>,
+): OrdinaryHoldBuildAttemptV1 {
+  const attempt = ordinaryHoldBuilderAttempts.get(original);
+  if (attempt === undefined) throw new Error('ordinary HOLD build original absent');
+  return attempt;
+}
+
+/** Compiles real pinned sources once, retains actual setup outcomes, and never imports the output. */
+export function buildOrdinaryHoldImageV1(request: unknown): Promise<OrdinaryHoldBuiltImageV1> {
+  const admitted = ordinaryHoldBuildRequestV1(request);
+  const operations: OrdinaryHoldSetupRecordV1[] = [];
+  const body = buildOrdinaryHoldImageBodyV1(admitted, operations, (outputRoot) => {
+    const attempt = ordinaryHoldBuilderAttempts.get(body);
+    if (attempt !== undefined) attempt.outputRoot = outputRoot;
+  });
+  const observer = body.then(
+    () => undefined,
+    () => undefined,
+  );
+  ordinaryHoldBuilderAttempts.set(body, { operations, observer });
+  return body;
+}
+
+async function buildOrdinaryHoldImageBodyV1(
+  request: OrdinaryHoldBuildOnlyRequestV1,
+  operations: OrdinaryHoldSetupRecordV1[],
+  retainOutputRoot: (outputRoot: string) => void,
+): Promise<OrdinaryHoldBuiltImageV1> {
+  const keeper = setInterval(() => operations, 60000);
+  try {
+    const root = request.sourceRoot;
+    if (
+      (await ordinaryHoldSetupOperationV1(operations, 'root.realpath', () =>
+        ordinaryHoldRealpath(root),
+      )) !== root
+    )
+      throw new Error('ordinary HOLD source root changed');
+    const supplied = new Map<string, Uint8Array>();
+    for (const pin of ordinaryHoldSourceEpochV1.pins) {
+      const path = `${root}/${pin.relative}`;
+      if (
+        (await ordinaryHoldSetupOperationV1(operations, 'source.realpath', () =>
+          ordinaryHoldRealpath(path),
+        )) !== path
+      )
+        throw new Error('ordinary HOLD source path changed');
+      supplied.set(
+        path,
+        await ordinaryHoldSetupOperationV1(operations, 'source.read', () => readBinaryFile(path)),
+      );
+    }
+    const plan = planOrdinaryHoldBuildV1(root, supplied);
+    const authority: { path: string; bytes: number; sha256: string }[] = [];
+    for (const relative of ['tsconfig.base.json', 'package.json', 'bun.lock'] as const) {
+      const bytes = await ordinaryHoldSetupOperationV1(operations, 'authority.read', () =>
+        readBinaryFile(`${root}/${relative}`),
+      );
+      authority.push({
+        path: relative,
+        bytes: bytes.byteLength,
+        sha256: createHash('sha256').update(bytes).digest('hex'),
+      });
+    }
+    const issuerPath = new URL(import.meta.url).pathname;
+    if (
+      (await ordinaryHoldSetupOperationV1(operations, 'issuer.realpath', () =>
+        ordinaryHoldRealpath(issuerPath),
+      )) !== issuerPath
+    )
+      throw new Error('ordinary HOLD executing fixture path changed');
+    const issuerBytes = await ordinaryHoldSetupOperationV1(operations, 'issuer.read', () =>
+      readBinaryFile(issuerPath),
+    );
+    const issuer = {
+      path: issuerPath,
+      bytes: issuerBytes.byteLength,
+      sha256: createHash('sha256').update(issuerBytes).digest('hex'),
+    };
+    const outputRoot = await ordinaryHoldSetupOperationV1(operations, 'output.mkdtemp', () =>
+      mkdtemp(join(tmpdir(), 'puni-ordinary-image-')),
+    );
+    retainOutputRoot(outputRoot);
+    const entryPath = join(outputRoot, 'ordinary-image-entry.ts');
+    const entry = ordinaryHoldEntryV1(root);
+    const ports = Array.from(plan.portSources, ([specifier, source]) => ({
+      specifier,
+      bytes: Buffer.byteLength(source),
+      sha256: createHash('sha256').update(source).digest('hex'),
+    }));
+    const entrySource = {
+      path: entryPath,
+      bytes: Buffer.byteLength(entry),
+      sha256: createHash('sha256').update(entry).digest('hex'),
+    };
+    await ordinaryHoldSetupOperationV1(operations, 'entry.write', () =>
+      writeFile(entryPath, entry, { mode: 0o600 }),
+    );
+    const resolutions: OrdinaryHoldResolutionV1[] = [];
+    const callbacks = new Map<string, number>();
+    const plugin: BunPlugin = {
+      name: 'ordinary-hold-v1-fixed-image',
+      setup(builder) {
+        const resolveImport = (source: {
+          path: string;
+          importer: string;
+          namespace: string;
+          resolveDir: string;
+          kind: string;
+        }) => {
+          const observe = (resolved: { path: string; external?: boolean; namespace?: string }) => {
+            resolutions.push({
+              importer: source.importer,
+              specifier: source.path,
+              importerNamespace: source.namespace,
+              resolveDir: source.resolveDir,
+              kind: source.kind,
+              path: resolved.path,
+              external: resolved.external === true,
+              destinationNamespace: resolved.namespace,
+            });
+            return resolved;
+          };
+          if (plan.portSources.has(`ordinary-hold-v1:${source.importer}`)) {
+            const mapped = resolveOrdinaryHoldPortImportV1(root, source.importer, source.path);
+            if (mapped === undefined) {
+              observe({ path: source.path, external: true });
+              return undefined;
+            }
+            return observe(mapped);
+          }
+          if (source.path.startsWith('ordinary-hold-v1:')) {
+            if (!plan.portSources.has(source.path))
+              throw new Error('ordinary HOLD virtual port absent');
+            return observe({
+              path: source.path.slice('ordinary-hold-v1:'.length),
+              namespace: 'ordinary-hold-v1',
+            });
+          }
+          if (source.path.startsWith(`${root}/`)) {
+            const mapping = plan.image.mappings.find((entry) => entry.path === source.path);
+            if (
+              mapping !== undefined &&
+              (source.importer === entryPath || source.importer.startsWith(`${root}/`))
+            )
+              return observe({
+                path: mapping.path,
+                external: mapping.mode === 'external-unchanged',
+              });
+          }
+          if (source.importer !== '' && !source.importer.startsWith('/'))
+            throw new Error('ordinary HOLD unrecognized virtual importer');
+          if (!source.importer.startsWith(`${root}/`)) return undefined;
+          const mapped = resolveOrdinaryHoldImportV1(root, source.importer, source.path);
+          if (mapped !== undefined) return observe(mapped);
+          return undefined;
+        };
+        builder.onResolve({ filter: /.*/ }, resolveImport);
+        builder.onResolve({ filter: /.*/, namespace: 'ordinary-hold-v1' }, resolveImport);
+        builder.onLoad({ filter: /.*/, namespace: 'ordinary-hold-v1' }, (source) => {
+          const contents = plan.portSources.get(`ordinary-hold-v1:${source.path}`);
+          if (contents === undefined) throw new Error('ordinary HOLD virtual port absent');
+          return { contents, loader: 'ts' };
+        });
+        builder.onLoad({ filter: /.*/, namespace: 'file' }, (source) => {
+          const bytes = plan.materialized.get(source.path);
+          if (bytes === undefined) return undefined;
+          const mapping = plan.image.mappings.find(
+            (sourceMapping) => sourceMapping.path === source.path,
+          );
+          if (mapping?.mode === 'external-unchanged')
+            throw new Error('ordinary HOLD scanner entered bundled loader');
+          callbacks.set(source.path, (callbacks.get(source.path) ?? 0) + 1);
+          return { contents: bytes, loader: 'ts' };
+        });
+      },
+    };
+    const compilerCwd = process.cwd();
+    const buildOptionsIdentity = {
+      entrypoints: [entryPath],
+      target: 'bun',
+      format: 'esm',
+      splitting: false,
+      minify: false,
+      sourcemap: 'none',
+      bytecode: false,
+      packages: 'bundle',
+      metafile: true,
+      throw: false,
+      root,
+      tsconfig: `${root}/tsconfig.base.json`,
+      plugin: plugin.name,
+    };
+    const provenance: OrdinaryHoldBuildProvenanceV1 = {
+      compiler: {
+        version: Bun.version,
+        revision: Bun.revision,
+        executable: process.execPath,
+        cwd: compilerCwd,
+      },
+      issuer,
+      authority,
+      ports,
+      entrySource,
+      buildOptionsSha256: createHash('sha256')
+        .update(JSON.stringify(buildOptionsIdentity))
+        .digest('hex'),
+    };
+    const built = await ordinaryHoldSetupOperationV1(operations, 'compiler.Bun.build', () =>
+      Bun.build({
+        entrypoints: [entryPath],
+        target: 'bun',
+        format: 'esm',
+        splitting: false,
+        minify: false,
+        sourcemap: 'none',
+        bytecode: false,
+        packages: 'bundle',
+        metafile: true,
+        throw: false,
+        root,
+        tsconfig: `${root}/tsconfig.base.json`,
+        plugins: [plugin],
+      }),
+    );
+    if (process.cwd() !== compilerCwd) throw new Error('ordinary HOLD compiler cwd changed');
+    if (
+      !built.success ||
+      built.outputs.length !== 1 ||
+      built.outputs[0]?.kind !== 'entry-point' ||
+      built.metafile === undefined
+    )
+      throw new Error('ordinary HOLD compiler output differs');
+    for (const mapping of plan.image.mappings) {
+      if (mapping.mode !== 'external-unchanged' && callbacks.get(mapping.path) !== 1)
+        throw new Error('ordinary HOLD mapped compiler source absent or duplicated');
+    }
+    const meta = built.metafile;
+    const inputs = Object.entries(meta.inputs);
+    const normalizedInputs = inputs.map(([rawPath]) => ({
+      rawPath,
+      identity: identifyOrdinaryHoldMetafilePathV1(root, compilerCwd, rawPath),
+    }));
+    const scanner = `${root}/tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts`;
+    if (normalizedInputs.some((input) => input.identity === scanner))
+      throw new Error('ordinary HOLD scanner bundled input differs');
+    for (const mapping of plan.image.mappings) {
+      if (mapping.mode === 'external-unchanged') continue;
+      if (normalizedInputs.filter((input) => input.identity === mapping.path).length !== 1)
+        throw new Error('ordinary HOLD classifier or mapped input identity differs');
+    }
+    const normalizedEdges = inputs.flatMap(([rawImporter, input]) =>
+      input.imports.map((edge) => ({
+        rawImporter,
+        importerIdentity: identifyOrdinaryHoldMetafilePathV1(root, compilerCwd, rawImporter),
+        rawPath: edge.path,
+        identity:
+          edge.external === true && !edge.path.startsWith('/')
+            ? edge.path
+            : identifyOrdinaryHoldMetafilePathV1(root, compilerCwd, edge.path),
+        external: edge.external === true,
+      })),
+    );
+    const scannerEdges = normalizedEdges.filter((edge) => edge.identity === scanner);
+    if (scannerEdges.length === 0 || scannerEdges.some((edge) => !edge.external))
+      throw new Error('ordinary HOLD scanner external edge differs');
+    const output = built.outputs.at(0);
+    if (output === undefined) throw new Error('ordinary HOLD compiler artifact absent');
+    const outputEntries = Object.entries(meta.outputs);
+    const outputEntry = outputEntries.at(0);
+    const entryPoint = outputEntry?.[1].entryPoint;
+    if (
+      outputEntries.length !== 1 ||
+      outputEntry?.[0] !== output.path ||
+      entryPoint === undefined ||
+      identifyOrdinaryHoldMetafilePathV1(root, compilerCwd, entryPoint) !== entryPath
+    )
+      throw new Error('ordinary HOLD compiler output label or entry identity differs');
+    const artifact = new Uint8Array(
+      await ordinaryHoldSetupOperationV1(operations, 'artifact.arrayBuffer', () =>
+        output.arrayBuffer(),
+      ),
+    );
+    if (artifact.byteLength < 1 || artifact.byteLength > 64 * 1024 * 1024)
+      throw new Error('ordinary HOLD compiler artifact outside bound');
+    const entryBundle = join(outputRoot, 'ordinary-image.js');
+    await ordinaryHoldSetupOperationV1(operations, 'artifact.write', () =>
+      writeFile(entryBundle, artifact, { mode: 0o600 }),
+    );
+    const metadata = JSON.stringify({
+      image: plan.image,
+      inputs: meta.inputs,
+      outputs: meta.outputs,
+      provenance,
+      resolutions,
+      normalizedInputs,
+      normalizedEdges,
+    });
+    if (Buffer.byteLength(metadata) > 4 * 1024 * 1024)
+      throw new Error('ordinary HOLD compiler metadata outside bound');
+    await ordinaryHoldSetupOperationV1(operations, 'metadata.write', () =>
+      writeFile(join(outputRoot, 'ordinary-image-metafile.json'), metadata, {
+        mode: 0o600,
+      }),
+    );
+    const imageDigest = createHash('sha256').update(JSON.stringify(plan.image)).digest('hex');
+    return Object.freeze({
+      format: 'dependency-owner-ordinary-image-build',
+      version: 1,
+      status: 'built-unqualified',
+      sourceEpoch: request.sourceEpoch,
+      imageDigest,
+      titleDigest: plan.image.titleDigest,
+      entryPath: entryBundle,
+      entrySha256: createHash('sha256').update(artifact).digest('hex'),
+      metafileDigest: createHash('sha256').update(metadata).digest('hex'),
+      sourceObservations: plan.image.sourcePins,
+      appliedCuts: plan.appliedCuts,
+      resolutions: Object.freeze(resolutions),
+      setupOperations: Object.freeze(operations),
+      provenance,
+      unqualified: Object.freeze([
+        'runtime owner observer and keeper taps',
+        'complete body/projection/acceptance taps',
+        'setup Bun.write, migrations and four child-reader taps',
+        'transitive source closure',
+        'scanner serialized-function equivalence',
+        'actual native custody and finite HOLD retirement',
+      ]),
+    });
+  } finally {
+    if (operations.every(hasKnownOrdinaryHoldSetupOutcomeV1)) clearInterval(keeper);
+  }
 }

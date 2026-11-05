@@ -21,7 +21,10 @@ function fixture() {
   writeFileSync(`${root}/edge.lock`, '');
   return {
     root,
-    plan: { sha: 'a'.repeat(40), layouts: [{ ...envLayout('prod'), root, stateDir: root }] },
+    plan: {
+      sha: 'a'.repeat(40),
+      layouts: [{ ...envLayout('prod'), root, stateDir: root }],
+    },
   };
 }
 
@@ -143,7 +146,10 @@ for (const fault of ['invalid-sha', 'duplicate-environment', 'relative-directory
     const { root, plan } = fixture();
     if (fault === 'invalid-sha') plan.sha = 'short';
     if (fault === 'duplicate-environment')
-      plan.layouts.push({ ...plan.layouts[0], stateDir: scratchSync('duplicate-owner-') });
+      plan.layouts.push({
+        ...plan.layouts[0],
+        stateDir: scratchSync('duplicate-owner-'),
+      });
     if (fault === 'relative-directory') plan.layouts[0].stateDir = '.';
     await refuses(withDependencyOwner(plan, () => Promise.resolve(undefined), root));
     expect(await Bun.file(`${root}/edge-owner.pending`).exists()).toBe(false);
@@ -198,7 +204,11 @@ test('dev poll and devsync are held before sorted prod dev deploy locks', async 
   const { mkdir } = await import('node:fs/promises');
   const { root, plan } = fixture();
   await mkdir(`${root}/dev`);
-  const dev = { ...envLayout('dev'), root: `${root}/dev`, stateDir: `${root}/dev` };
+  const dev = {
+    ...envLayout('dev'),
+    root: `${root}/dev`,
+    stateDir: `${root}/dev`,
+  };
   await withDependencyOwner(
     { sha: plan.sha, layouts: [dev, ...plan.layouts] },
     async (owner) => {
@@ -370,7 +380,11 @@ test('held dev poll refuses before touching prod deploy lock', async () => {
   const { mkdir } = await import('node:fs/promises');
   const { root, plan } = fixture();
   await mkdir(`${root}/dev`);
-  const dev = { ...envLayout('dev'), root: `${root}/dev`, stateDir: `${root}/dev` };
+  const dev = {
+    ...envLayout('dev'),
+    root: `${root}/dev`,
+    stateDir: `${root}/dev`,
+  };
   await withLock(`${dev.stateDir}/poll.lock`, async () => {
     await refuses(
       withDependencyOwner(
@@ -392,21 +406,33 @@ test('shared pending decoder preserves the existing publication and refuses unsc
     format: 'dependency-edge-owner',
     version: 1,
     attempt: '12345678-1234-4123-8123-123456789abc',
-    plan: { sha: 'a'.repeat(40), layouts: [envLayout('prod'), envLayout('dev')] },
+    plan: {
+      sha: 'a'.repeat(40),
+      layouts: [envLayout('prod'), envLayout('dev')],
+    },
   } as const;
   expect(decodeDependencyOwnerPublication(publication)).toEqual(publication);
   for (const value of [
     { ...publication, extra: true },
     {
       ...publication,
-      plan: { ...publication.plan, layouts: [...publication.plan.layouts].reverse() },
+      plan: {
+        ...publication.plan,
+        layouts: [...publication.plan.layouts].reverse(),
+      },
     },
     { ...publication, attempt: 'foreign' },
     { ...publication, plan: { ...publication.plan, extra: true } },
-    { ...publication, plan: { ...publication.plan, layouts: [envLayout('prod')] } },
     {
       ...publication,
-      plan: { ...publication.plan, layouts: [envLayout('prod'), envLayout('prod')] },
+      plan: { ...publication.plan, layouts: [envLayout('prod')] },
+    },
+    {
+      ...publication,
+      plan: {
+        ...publication.plan,
+        layouts: [envLayout('prod'), envLayout('prod')],
+      },
     },
     {
       ...publication,
@@ -431,7 +457,10 @@ test('initial active policy refuses before creating or truncating lower locks', 
       phase: 'active',
       edgeState: root,
       ownerPublicationSha256: 'a'.repeat(64),
-      handoff: { name: 'edge-owner-123456-handoff-complete.json', sha256: 'b'.repeat(64) },
+      handoff: {
+        name: 'edge-owner-123456-handoff-complete.json',
+        sha256: 'b'.repeat(64),
+      },
     }),
   );
   let entered = false;
@@ -466,7 +495,10 @@ test('initial owner rechecks its original ordinary policy after real lower-lock 
     }),
   );
   const program = `import * as fs from 'node:fs';import{mock}from'bun:test';const truncate=fs.ftruncateSync;let delivered=false;mock.module('node:fs',()=>({...fs,ftruncateSync:(descriptor,length)=>{truncate(descriptor,length);if(!delivered&&fs.readlinkSync('/proc/self/fd/'+descriptor)===${JSON.stringify(`${root}/deploy.lock`)}){const path=${JSON.stringify(`${root}/edge-policy.json`)};const bytes=fs.readFileSync(path);fs.renameSync(path,path+'.original');fs.writeFileSync(path,bytes);fs.writeFileSync(${JSON.stringify(`${root}/replacement-delivered`)},'delivered');delivered=true;}}}));const{withDependencyOwner}=await import(${JSON.stringify(`${import.meta.dir}/edge-ownership.ts`)});let refused=false;try{await withDependencyOwner(${JSON.stringify(plan)},async()=>{fs.writeFileSync(${JSON.stringify(`${root}/callback-entered`)},'entered');},${JSON.stringify(root)});}catch(cause){if(!String(cause).includes('ordinary controller policy changed'))throw cause;refused=true;}if(!delivered||!refused)throw new Error('original policy recheck boundary not observed');`;
-  const child = Bun.spawn([process.execPath, '-e', program], { stdout: 'pipe', stderr: 'pipe' });
+  const child = Bun.spawn([process.execPath, '-e', program], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
   const stdout = await new Response(child.stdout).text();
   const stderr = await new Response(child.stderr).text();
   expect(await child.exited).toBe(0);
@@ -483,7 +515,11 @@ for (const fault of ['active', 'restoring', 'marker', 'malformed'] as const) {
     const { root, plan } = fixture();
     const { mkdir } = await import('node:fs/promises');
     await mkdir(`${root}/dev`);
-    const dev = { ...envLayout('dev'), root: `${root}/dev`, stateDir: `${root}/dev` };
+    const dev = {
+      ...envLayout('dev'),
+      root: `${root}/dev`,
+      stateDir: `${root}/dev`,
+    };
     await writeFile(`${root}/edge.lock`, 'edge sentinel');
     await writeFile(`${root}/deploy.lock`, 'prod sentinel');
     await writeFile(`${root}/dev/devsync.lock`, 'dev sentinel');
@@ -499,7 +535,10 @@ for (const fault of ['active', 'restoring', 'marker', 'malformed'] as const) {
             ...ordinary,
             phase: 'active',
             ownerPublicationSha256: 'a'.repeat(64),
-            handoff: { name: 'edge-owner-123456-handoff-complete.json', sha256: 'b'.repeat(64) },
+            handoff: {
+              name: 'edge-owner-123456-handoff-complete.json',
+              sha256: 'b'.repeat(64),
+            },
           }
         : fault === 'restoring'
           ? {
@@ -564,7 +603,11 @@ async function handoffFixture() {
     prod: plan.layouts[0],
     dev: { ...envLayout('dev'), root: `${root}/dev`, stateDir: `${root}/dev` },
   };
-  return { root, layouts, plan: { sha: plan.sha, layouts: [layouts.prod, layouts.dev] } };
+  return {
+    root,
+    layouts,
+    plan: { sha: plan.sha, layouts: [layouts.prod, layouts.dev] },
+  };
 }
 
 test('initial handoff primitives retain exact pending bytes and share activation sequence', async () => {
@@ -603,7 +646,10 @@ test('initial handoff primitives retain exact pending bytes and share activation
       const complete = await retainInitialHandoffRecord(owner, layouts, 'handoff-complete', {
         primitive: true,
       });
-      return { pending, snapshots: [admission, activation, writers, source, complete] };
+      return {
+        pending,
+        snapshots: [admission, activation, writers, source, complete],
+      };
     },
     root,
   );
@@ -661,7 +707,9 @@ test('initial handoff envelope admits exact UTF8 byte maximum and refuses overfl
       const accepted = await retainInitialHandoffRecord(owner, layouts, 'handoff-intent', record);
       const before = await readdir(root);
       await refuses(
-        retainInitialHandoffRecord(owner, layouts, 'exposure-intent', { payload: payload + 'x' }),
+        retainInitialHandoffRecord(owner, layouts, 'exposure-intent', {
+          payload: payload + 'x',
+        }),
         'size',
       );
       const after = await readdir(root);
@@ -858,7 +906,10 @@ for (const family of ['envelope', 'raw'] as const)
       ]);
       expect(code).toBe(0);
       expect(stderr).toBe('');
-      expect(JSON.parse(stdout)).toMatchObject({ entered: true, injected: true });
+      expect(JSON.parse(stdout)).toMatchObject({
+        entered: true,
+        injected: true,
+      });
     });
 
 for (const fault of [
@@ -1011,7 +1062,10 @@ test('UC2 core reserves one exact original composition under the owner', async (
         }),
       ).toThrow('association');
       expect(() =>
-        custody.enrollDependencyPreparation(owner, { ...binding, deadline: performance.now() - 1 }),
+        custody.enrollDependencyPreparation(owner, {
+          ...binding,
+          deadline: performance.now() - 1,
+        }),
       ).toThrow('association');
       const preparation = custody.enrollDependencyPreparation(owner, binding);
       const original = readFile(source);
@@ -1436,7 +1490,11 @@ test('UC2 ordinary HOLD V1 image rejects malformed source and map metadata befor
       ...image,
       mappings: image.mappings.map((entry, index) =>
         index === scannerIndex
-          ? { mode: 'pinned-pass-through', path: scannerPath, sha256: pin.sha256 }
+          ? {
+              mode: 'pinned-pass-through',
+              path: scannerPath,
+              sha256: pin.sha256,
+            }
           : entry,
       ),
     }),
@@ -1558,7 +1616,9 @@ test('UC2 ordinary HOLD V1 admission plans exact full and local selections witho
       path: '/tmp/ordinary-hold-empty-bunfig.toml',
       sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
     },
-    environment: { PUNI_ORDINARY_HOLD_SELECTION: ordinaryHoldCasesV1[0].caseId },
+    environment: {
+      PUNI_ORDINARY_HOLD_SELECTION: ordinaryHoldCasesV1[0].caseId,
+    },
     argv: [...localPrefix, `--test-name-pattern=^${ordinaryHoldCasesV1[0].title}$`],
   };
   const selected = planOrdinaryHoldAdmissionV1(image, local);
@@ -1572,7 +1632,11 @@ test('UC2 ordinary HOLD V1 admission plans exact full and local selections witho
       '--test-name-pattern=^initial fenced envelope LF is admitted before the actual fenced publication$',
     ],
   });
-  expect(known).toEqual({ mode: 'not-selected', profile: 'local-exact', caseIds: [] });
+  expect(known).toEqual({
+    mode: 'not-selected',
+    profile: 'local-exact',
+    caseIds: [],
+  });
   expect(() =>
     planOrdinaryHoldAdmissionV1(image, {
       ...local,
@@ -1780,4 +1844,207 @@ test('UC2 ordinary HOLD packet refuses sparse oracle failures', async () => {
     evidenceDigest: 'b'.repeat(64),
   };
   expect(() => decodeOrdinaryHoldObservationV1(packet)).toThrow('oracle code');
+}, 10000);
+
+test('UC2 ordinary HOLD V1 fixed source epoch pins actual compiler inputs', async () => {
+  const { ordinaryHoldSourceEpochV1, ordinaryHoldModuleModesV1 } =
+    await import('../fixtures/dependency-owner-custody');
+  expect(ordinaryHoldSourceEpochV1.sourceIdentity).toBe('febb1c24427b2d368aa2d6446d6000dc1faabdb3');
+  expect(ordinaryHoldSourceEpochV1.pins).toHaveLength(16);
+  expect(
+    createHash('sha256').update(JSON.stringify(ordinaryHoldSourceEpochV1.pins)).digest('hex'),
+  ).toBe('48bbb9090b0efbfc28a2589fd34d994e640e5d80bc8c6a2328af9a6b94622c84');
+  expect(ordinaryHoldSourceEpochV1.pins.map((pin) => pin.relative)).toEqual(
+    ordinaryHoldModuleModesV1.map((entry) => entry.relative),
+  );
+  const root = new URL('../../../../', import.meta.url);
+  for (const pin of ordinaryHoldSourceEpochV1.pins) {
+    const bytes = await readFile(new URL(pin.relative, root));
+    expect(bytes.byteLength).toBe(pin.bytes);
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(pin.sha256);
+  }
+}, 10000);
+
+test('UC2 ordinary HOLD V1 resolver keeps classifier identity and scanner external', async () => {
+  const { resolveOrdinaryHoldImportV1 } = await import('../fixtures/dependency-owner-custody');
+  const root = '/ordinary-hold';
+  const owner = `${root}/tools/tool-remote-scripts/src/lib/edge-ownership.ts`;
+  const storage = `${root}/tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts`;
+  const database = `${root}/libs/wbs/adapters/store-sqlite/src/db.ts`;
+  const backup = `${root}/libs/wbs/adapters/store-sqlite/src/backup.ts`;
+  const cleanup = `${root}/libs/wbs/adapters/store-sqlite/src/sqlite-cleanup.ts`;
+  const graph = `${root}/tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts`;
+  const scanner = `${root}/tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts`;
+  expect(resolveOrdinaryHoldImportV1(root, owner, '@wbs/store-sqlite/backup')).toEqual({
+    path: backup,
+    external: false,
+  });
+  expect(resolveOrdinaryHoldImportV1(root, backup, './db')).toEqual({
+    path: database,
+    external: false,
+  });
+  expect(resolveOrdinaryHoldImportV1(root, owner, '@wbs/store-sqlite/sqlite-cleanup')).toEqual({
+    path: cleanup,
+    external: false,
+  });
+  expect(resolveOrdinaryHoldImportV1(root, database, './sqlite-cleanup')).toEqual({
+    path: cleanup,
+    external: false,
+  });
+  expect(resolveOrdinaryHoldImportV1(root, storage, '@wbs/store-sqlite/db')).toEqual({
+    path: database,
+    external: false,
+  });
+  expect(resolveOrdinaryHoldImportV1(root, storage, './initial-handoff-graph')).toEqual({
+    path: graph,
+    external: false,
+  });
+  expect(
+    resolveOrdinaryHoldImportV1(root, owner, './dependency-migration-artifact-scanner'),
+  ).toEqual({
+    path: scanner,
+    external: true,
+  });
+  expect(resolveOrdinaryHoldImportV1(root, owner, './managed-cohort')).toBeUndefined();
+  expect(resolveOrdinaryHoldImportV1(root, owner, '@wbs/store-sqlite/db-near')).toBeUndefined();
+  expect(() => resolveOrdinaryHoldImportV1(root, owner, 'ordinary-hold-v1:unknown')).toThrow(
+    'port',
+  );
+}, 10000);
+
+test('UC2 ordinary HOLD V1 concrete compiler plan transforms pinned production modules', async () => {
+  const { planOrdinaryHoldBuildV1, ordinaryHoldSourceEpochV1 } =
+    await import('../fixtures/dependency-owner-custody');
+  const rootUrl = new URL('../../../../', import.meta.url);
+  const sourceRoot = rootUrl.pathname.replace(/\/$/, '');
+  const supplied = new Map<string, Uint8Array>();
+  for (const pin of ordinaryHoldSourceEpochV1.pins)
+    supplied.set(`${sourceRoot}/${pin.relative}`, await readFile(new URL(pin.relative, rootUrl)));
+  const planned = planOrdinaryHoldBuildV1(sourceRoot, supplied);
+  expect(planned.image.sourceIdentity).toBe(ordinaryHoldSourceEpochV1.sourceIdentity);
+  expect(planned.image.mappings).toHaveLength(16);
+  expect(planned.appliedCuts.length).toBeGreaterThan(13);
+  expect(planned.materialized.size).toBe(16);
+  for (const mapping of planned.image.mappings) {
+    const original = supplied.get(mapping.path);
+    const transformed = planned.materialized.get(mapping.path);
+    expect(original).toBeDefined();
+    expect(transformed).toBeDefined();
+    if (mapping.mode === 'transform') expect(transformed).not.toEqual(original);
+    else expect(transformed).toEqual(original);
+  }
+  const scanner = `${sourceRoot}/tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts`;
+  expect(planned.image.mappings.find((entry) => entry.path === scanner)?.mode).toBe(
+    'external-unchanged',
+  );
+  expect(planned.portSources.has('ordinary-hold-v1:ledger')).toBe(true);
+  expect(planned.portSources.has('ordinary-hold-v1:owner-fs')).toBe(true);
+  const frontend = `${sourceRoot}/tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts`;
+  const completeFixture = `${sourceRoot}/tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts`;
+  const frontendSource = new TextDecoder().decode(planned.materialized.get(frontend));
+  const completeSource = new TextDecoder().decode(planned.materialized.get(completeFixture));
+  expect(frontendSource).toContain(`const ROOT = ${JSON.stringify(sourceRoot)};`);
+  expect(frontendSource).not.toContain("resolve(import.meta.dir, '../../../..')");
+  expect(completeSource).toContain(
+    `const migrationsDirectory = ${JSON.stringify(`${sourceRoot}/apps/wbs/be-01/drizzle`)};`,
+  );
+  expect(completeSource).not.toContain(
+    "new URL('../../../../apps/wbs/be-01/drizzle', import.meta.url)",
+  );
+  expect(planned.appliedCuts.filter((cut) => cut.id === 'setup.frontend-root')).toEqual([
+    { id: 'setup.frontend-root', count: 1 },
+  ]);
+  expect(planned.appliedCuts.filter((cut) => cut.id === 'setup.migration-root')).toEqual([
+    { id: 'setup.migration-root', count: 1 },
+  ]);
+}, 10000);
+
+test('UC2 ordinary HOLD V1 probe-backed port and compiler metadata identities', async () => {
+  const { identifyOrdinaryHoldMetafilePathV1, resolveOrdinaryHoldPortImportV1 } =
+    await import('../fixtures/dependency-owner-custody');
+  const root = '/ordinary-hold';
+  const scanner = `${root}/tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts`;
+  const database = `${root}/libs/wbs/adapters/store-sqlite/src/db.ts`;
+  expect(identifyOrdinaryHoldMetafilePathV1(root, '/work/repo', '../../../../tmp/entry.ts')).toBe(
+    '/tmp/entry.ts',
+  );
+  expect(identifyOrdinaryHoldMetafilePathV1(root, '/work/repo', 'ordinary-hold-v1:ledger')).toBe(
+    'ordinary-hold-v1:ledger',
+  );
+  expect(identifyOrdinaryHoldMetafilePathV1(root, '/work/repo', scanner)).toBe(scanner);
+  expect(resolveOrdinaryHoldPortImportV1(root, 'complete-scanner', scanner)).toEqual({
+    path: scanner,
+    external: true,
+  });
+  expect(resolveOrdinaryHoldPortImportV1(root, 'storage-database', database)).toEqual({
+    path: database,
+    external: false,
+  });
+  expect(
+    resolveOrdinaryHoldPortImportV1(root, 'storage-database', 'ordinary-hold-v1:ledger'),
+  ).toEqual({
+    path: 'ledger',
+    namespace: 'ordinary-hold-v1',
+    external: false,
+  });
+  expect(resolveOrdinaryHoldPortImportV1(root, 'owner-fs', 'node:fs')).toBeUndefined();
+  expect(() => resolveOrdinaryHoldPortImportV1(root, 'owner-fs-near', 'node:fs')).toThrow('port');
+  expect(() => resolveOrdinaryHoldPortImportV1(root, 'complete-scanner', database)).toThrow(
+    'destination',
+  );
+  expect(() =>
+    identifyOrdinaryHoldMetafilePathV1(root, '/work/repo', 'ordinary-hold-v1:near'),
+  ).toThrow('virtual');
+}, 10000);
+
+test('UC2 ordinary HOLD V1 setup retirement distinguishes unknown return from invocation throw', async () => {
+  const { hasKnownOrdinaryHoldSetupOutcomeV1 } =
+    await import('../fixtures/dependency-owner-custody');
+  const original = Promise.resolve('observed');
+  const observer = original.then(() => undefined);
+  const base = { label: 'source.read', kind: 'promise' as const, joined: false };
+  expect(hasKnownOrdinaryHoldSetupOutcomeV1({ ...base, state: 'threw' })).toBe(true);
+  expect(hasKnownOrdinaryHoldSetupOutcomeV1({ ...base, state: 'unknown' })).toBe(false);
+  expect(hasKnownOrdinaryHoldSetupOutcomeV1({ ...base, state: 'unknown', returned: 1 })).toBe(
+    false,
+  );
+  expect(hasKnownOrdinaryHoldSetupOutcomeV1({ ...base, state: 'unknown', original })).toBe(false);
+  expect(
+    hasKnownOrdinaryHoldSetupOutcomeV1({ ...base, state: 'fulfilled', original, joined: true }),
+  ).toBe(false);
+  expect(
+    hasKnownOrdinaryHoldSetupOutcomeV1({
+      ...base,
+      state: 'fulfilled',
+      original,
+      observer,
+      joined: true,
+    }),
+  ).toBe(true);
+  expect(
+    hasKnownOrdinaryHoldSetupOutcomeV1({
+      ...base,
+      state: 'rejected',
+      original,
+      observer,
+      joined: true,
+    }),
+  ).toBe(true);
+  await Promise.allSettled([original, observer]);
+}, 10000);
+
+test('UC2 ordinary HOLD V1 resolver delegates non-classifier aliases', async () => {
+  const { resolveOrdinaryHoldImportV1 } = await import('../fixtures/dependency-owner-custody');
+  const root = '/ordinary-hold';
+  const completeFixture = `${root}/tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts`;
+  const storage = `${root}/tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts`;
+  for (const [importer, alias] of [
+    [completeFixture, '@wbs/store-sqlite/migrate'],
+    [storage, '@wbs/store-sqlite/cross-project-dependency-activation'],
+    [storage, '@wbs/store-sqlite/migration-set'],
+    [storage, '@wbs/store-sqlite/db-near'],
+    [storage, '@wbs/store-sqlite/backup-near'],
+    [storage, '@wbs/store-sqlite/sqlite-cleanup-near'],
+  ] as const)
+    expect(resolveOrdinaryHoldImportV1(root, importer, alias)).toBeUndefined();
 }, 10000);
