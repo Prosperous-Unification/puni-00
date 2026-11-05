@@ -2860,3 +2860,22 @@ namespace.
 | 6e-F9  | `hostJobRunning` reduced to `job.state === 'held'`                | `a job whose payload exited, or whose process is gone, is not running`: `- "running": false`, `+ "running": true` (the exited job)                                                      |
 | 6e-F10 | the leader-liveness term dropped                                  | the same test: the killed payload's job read `"running": true`                                                                                                                          |
 | 6e-F11 | `--job` typed `flagValue('NAME')` instead of the job-id pattern   | `the grammar takes only a job id`: `Received function did not throw` for `--job gate`                                                                                                   |
+
+### Commands (fresh, 2026-11-05, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, this workstation)
+
+| Command                                                              | Result                                                                           |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `bun test src/resources/host-jobs.test.ts` (twilight-dash cli)       | 39 pass, 0 fail inside the namespace; outer wrapper 1 pass                       |
+| `bun test src/ops/admission.test.ts src/cli.test.ts`                 | 5 pass in the namespace; 127 pass with `no-ambient-clock.test.ts`, 0 fail        |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                     | 5717 pass, 53 skip, 0 fail across 184 files (3129 s); exit 0                     |
+| `bash bin/heavy-lock.test.sh`                                        | `all heavy-lock checks passed`, cases 49a–49k included                           |
+| `bash bin/h2puni-gate.test.sh`                                       | exit 0                                                                           |
+| `bun test tools/tool-dagger/src/heavy-lock.test.ts`                  | 9 pass, 0 fail                                                                   |
+| `bunx nx run tool-fleet:check --skip-nx-cache`                       | 604 pass, 0 fail; `shellcheck 0.11.0: 14 scripts`, `every family passed`, exit 0 |
+| `bunx nx format:check --all`                                         | exit 0                                                                           |
+| `bunx openspec validate --all --json`                                | 328 passed, 0 failed, exit 0                                                     |
+| Burokrat `check-indexes working <worktree> origin/main`              | exit 0 (two pre-existing review-debt rows)                                       |
+| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2` | 8 projects, exit 0                                                               |
+
+Not done: no host apply and no gate on a host. The admission check takes effect on h2puni and
+h4claw when their launcher checkouts move to a commit carrying it (the hourly refresh, S6D-A4).
