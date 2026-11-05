@@ -1,5 +1,7 @@
 # Repair source-cache investigation — 2026-11-05 UTC
 
+Later resolution: [Task104 verification](../verify.md#task104-verified-source-execution--2026-11-05-utc) records the implemented and reviewed source fix. The initial findings and original red probe below remain historical evidence; retained-disk and full-stack acceptance remain separate.
+
 The repair producer can execute owner-controlled repository bytecode while every pinned Python source hash still verifies. Python `-B` prevents writing bytecode caches; it does not prevent reading existing caches. This investigation covers the actual coordinator and worker startup loaders and the lazy allocation loader. The main script itself does not load its own cache. Root-installed Python runtime/stdlib remain the existing system trust boundary.
 
 Fresh verification used owned temporary copies of the six actual repository Python sources and a harmless unchecked-hash cache marker. All six source pins passed the actual `raw.verify_pin` before substituted execution. Clean coordinator and worker cases refused the absent request with `raw-state-absent`; the clean lazy case loaded the allocation source. With only a cache substituted, all three printed `UNPINNED_REPOSITORY_CACHE_EXECUTED`. No valid request, retained disk, host cache, native service or VM was accessed.

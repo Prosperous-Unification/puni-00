@@ -14,6 +14,211 @@ import subprocess
 import sys
 import time
 
+_SOURCE_BOOTSTRAP = r'''
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import sys
+
+_REPAIR_SOURCE_BYTES = 131072
+_REPAIR_SOURCES_BYTES = 786432
+_REPAIR_REQUEST_BYTES = 65536
+_REPAIR_SOURCE_NAMES = ('lab-raw-repair.py', 'lab-raw-preparation.py', 'lab-repair-worker.py',
+                        'lab-seed-preparation.py', 'lab-guest-preparation.py', 'lab-raw-allocation.py')
+
+
+def _source_refuse(category):
+    """Expose only a fixed admission category, including failures before helper exceptions exist."""
+    print(category, file=sys.stderr)
+    raise SystemExit(1)
+
+
+def _source_require(predicate, category):
+    if not predicate:
+        _source_refuse(category)
+
+
+def _source_identity(observed):
+    return (observed.st_dev, observed.st_ino, observed.st_uid, observed.st_mode,
+            observed.st_size, observed.st_nlink, observed.st_mtime_ns, observed.st_ctime_ns)
+
+
+def _source_capture(path, limit, pin=None, digest=None):
+    """Capture finite bytes from one non-following FD and join its original and final path state."""
+    try:
+        before = os.lstat(path)
+        # Proof: source startup unreadable-source omission attempts open before the OS refuses unreadability.
+        _source_require(bool(before.st_mode & 0o400), 'raw-state-unreadable')
+        if pin is None:
+            safe = before.st_uid == os.geteuid() and stat.S_IMODE(before.st_mode) == 0o600
+        else:
+            safe = (before.st_uid == pin['uid'] and stat.S_IMODE(before.st_mode) == pin['mode']
+                    and not before.st_mode & 0o022)
+        # Proof: source startup unsafe-request/source and linked-source reach helpers when this guard is omitted.
+        _source_require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1 and safe,
+                        'repair-source-unsafe')
+        descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            # Proof: source startup changed-open replaces the opened path; identity omission reaches helpers.
+            _source_require(_source_identity(before) == _source_identity(os.fstat(descriptor)),
+                            'repair-source-changed')
+            # Proof: source startup source/request-bound proves oversized metadata cannot reach a read.
+            _source_require(0 < before.st_size <= limit, 'repair-source-bound')
+            payload = bytearray()
+            for offset in range(0, limit + 1, 4096):
+                chunk = os.read(descriptor, min(4096, limit + 1 - offset))
+                if not chunk:
+                    break
+                payload.extend(chunk)
+            # Proof: source startup oversized-source/request and short-read omit this guard to reach hash admission.
+            _source_require(len(payload) == before.st_size and len(payload) <= limit,
+                            'repair-source-bound')
+            # Proof: source startup changed-read/path replaces same-byte files after capture; omission reaches helpers.
+            _source_require(_source_identity(before) == _source_identity(os.fstat(descriptor))
+                            == _source_identity(os.lstat(path)), 'repair-source-changed')
+            payload = bytes(payload)
+            if pin is not None:
+                # Proof: source startup digest/size mismatch omissions execute otherwise rejected helpers.
+                _source_require(len(payload) == pin['bytes']
+                                and hashlib.sha256(payload).hexdigest() == pin['sha256'],
+                                'repair-source-digest')
+            else:
+                # Proof: source startup request-digest omission executes helpers for an unjoined request.
+                _source_require(hashlib.sha256(payload).hexdigest() == digest, 'repair-request-digest')
+            return payload
+        finally:
+            os.close(descriptor)
+    except FileNotFoundError:
+        _source_refuse('raw-state-absent')
+    except PermissionError:
+        _source_refuse('raw-state-unreadable')
+    except OSError:
+        _source_refuse('repair-source-unavailable')
+
+
+def _source_request(path, digest):
+    """Early bounded duplicate-free request and pin syntax; full semantic admission follows imports."""
+    payload = _source_capture(path, _REPAIR_REQUEST_BYTES, digest=digest)
+    def fields(pairs):
+        record = {}
+        for name, value in pairs:
+            # Proof: source startup duplicate-json/duplicate-nested-json hook omissions execute admitted helpers.
+            _source_require(name not in record, 'repair-source-json-duplicate')
+            record[name] = value
+        return record
+    try:
+        # Proof: source startup malformed-json/deep-json breaks request decoding before any helper executes.
+        request = json.loads(payload, object_pairs_hook=fields)
+    except (ValueError, UnicodeError, RecursionError):
+        _source_refuse('repair-source-request-invalid')
+    # Proof: source startup malformed request/pins injected parser dependency refuses before imports.
+    _source_require(type(request) is dict and type(request.get('pins')) is list
+                    and 1 <= len(request['pins']) <= 512, 'repair-source-request-invalid')
+    # Proof: source startup request-shape/schema/root/state/nonce omissions execute admitted helpers.
+    _source_require(set(request) == set(('schemaVersion root state nonce pins image rawRequest rawReceipt '
+                    'rawProvenance priorGuestRequest priorGuestFailure postBootEvidence expectedRaw witness').split())
+                    and type(request['schemaVersion']) is int and request['schemaVersion'] == 1
+                    and type(request['root']) is str and Path(request['root']).is_absolute()
+                    and os.path.normpath(request['root']) == request['root']
+                    and type(request['state']) is str
+                    and request['state'] == request['root'] + '/.puni/fleet-labs/observability-baseline'
+                    and type(request['nonce']) is str and re.fullmatch('[a-f0-9]{32}', request['nonce'])
+                    and all(type(request[field]) is str for field in ('image', 'rawRequest', 'rawReceipt',
+                        'rawProvenance', 'priorGuestRequest', 'priorGuestFailure', 'postBootEvidence', 'witness')),
+                    'repair-source-request-shape')
+    snapshot = request['expectedRaw']
+    # Proof: source startup snapshot-shape/quantity/owner/mode/links omissions reach initial helpers.
+    _source_require(type(snapshot) is dict and set(snapshot) == set(('device inode owner mode links '
+                    'logicalBytes allocatedBytes mtimeNs ctimeNs').split())
+                    and all(type(snapshot[field]) is str
+                        and re.fullmatch(r'0|[1-9][0-9]{0,19}', snapshot[field])
+                        and int(snapshot[field]) <= 2**64 - 1
+                        for field in ('device', 'inode', 'logicalBytes', 'allocatedBytes', 'mtimeNs', 'ctimeNs'))
+                    and type(snapshot['owner']) is int and 0 <= snapshot['owner'] < 2**32
+                    and type(snapshot['mode']) is str and re.fullmatch('[0-7]{4}', snapshot['mode'])
+                    and type(snapshot['links']) is int and 0 <= snapshot['links'] < 2**32,
+                    'repair-source-snapshot-invalid')
+    pins = {}
+    for pin in request['pins']:
+        # Proof: source startup pin-type/path/sha/bytes/uid/mode omissions reach helpers with malformed pins.
+        _source_require(type(pin) is dict and set(pin) == {'path', 'sha256', 'bytes', 'uid', 'mode'}
+                        and type(pin['path']) is str and Path(pin['path']).is_absolute()
+                        and os.path.normpath(pin['path']) == pin['path']
+                        and type(pin['sha256']) is str and re.fullmatch('[a-f0-9]{64}', pin['sha256'])
+                        and type(pin['bytes']) is int and 0 < pin['bytes'] <= 1024**3
+                        and type(pin['uid']) is int and pin['uid'] in (0, os.geteuid())
+                        and type(pin['mode']) is int and 0 <= pin['mode'] <= 0o755
+                        and not pin['mode'] & 0o022, 'repair-source-pin-invalid')
+        # Proof: source startup duplicate-pin omission admits repeated source selection.
+        _source_require(pin['path'] not in pins, 'repair-source-pin-duplicate')
+        pins[pin['path']] = pin
+    return request, pins
+
+
+def _source_entry(entry, pins):
+    """Select only the existing fixed entry role beside the trusted launcher, never request-selected code."""
+    # Proof: source startup missing-pin omission loses the bounded category at the actual entry selection.
+    _source_require(str(entry) in pins, 'repair-source-pin-absent')
+    return _source_capture(str(entry), _REPAIR_SOURCE_BYTES, pin=pins[str(entry)])
+
+
+def _source_compile(payload, path):
+    """Compile admitted bytes only; malformed executable source refuses before any helper executes."""
+    try:
+        return compile(payload, str(path), 'exec')
+    except (SyntaxError, ValueError):
+        # Proof: source startup malformed-source injects syntax; omitted recovery loses the bounded refusal.
+        _source_refuse('repair-source-syntax-invalid')
+
+
+def _source_install(entry, pins):
+    """Keep immutable verified buffers active for initial, nested and lazy repository file imports.
+
+    The direct coordinator/Bun launcher and root-installed Python runtime/stdlib are trusted.
+    This loader grants execution only, without native mutation or semantic request admission.
+    """
+    from types import MappingProxyType
+    directory = entry.parent
+    captures = {str(directory / name): _source_entry(directory / name, pins)
+                for name in _REPAIR_SOURCE_NAMES}
+    # Proof: source startup aggregate-bound injects a lowered cap; omission permits initial helper execution.
+    _source_require(sum(map(len, captures.values())) <= _REPAIR_SOURCES_BYTES, 'repair-sources-bound')
+    captures = MappingProxyType({path: _source_compile(payload, path)
+                                 for path, payload in captures.items()})
+    original_spec = importlib.util.spec_from_file_location
+
+    class RepairSourceLoader:
+        def __init__(self, path):
+            self.path = path
+
+        def create_module(self, specification):
+            return None
+
+        def exec_module(self, module):
+            exec(captures[self.path], module.__dict__)
+
+    def repository_spec(name, location=None, *arguments, **keywords):
+        path = None if location is None else os.path.abspath(os.fspath(location))
+        # Proof: source startup unselected-guard omission loses the fixed refusal; loader omission executes foreign aliases.
+        _source_require(path in captures, 'repair-source-unselected')
+        return original_spec(name, path, loader=RepairSourceLoader(path))
+
+    # Proof: source startup loader-omission executes substituted initial/worker/lazy cache markers.
+    importlib.util.spec_from_file_location = repository_spec
+'''
+exec(_SOURCE_BOOTSTRAP)
+
+if __name__ == '__main__':
+    # Proof: source startup arguments omission reaches imports on a foreign worker argument shape.
+    _source_require(len(sys.argv) in (3, 4) and (len(sys.argv) == 3 or sys.argv[1] == '--worker')
+                    and re.fullmatch('[a-f0-9]{64}', sys.argv[-1]) is not None, 'repair-arguments')
+    _early_request, _early_pins = _source_request(*sys.argv[-2:])
+    _source_install(Path(os.path.abspath(__file__)), _early_pins)
+
 _spec = importlib.util.spec_from_file_location('repair_raw', Path(__file__).with_name('lab-raw-preparation.py'))
 raw = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(raw)
@@ -754,9 +959,22 @@ def hash_logical(descriptor, monitor):
 
 def service_arguments(request, request_path, request_digest):
     """Identical fixed raw service caps/limits, distinct original unit and repair helper."""
-    return [('--unit=puni-raw-repair-' + request['nonce'] + '.service' if argument.startswith('--unit=')
-             else str(HELPER) if argument == str(raw.HELPER) else argument)
-            for argument in raw.service_arguments(request, request_path, request_digest)]
+    arguments = [('--unit=puni-raw-repair-' + request['nonce'] + '.service'
+                  if argument.startswith('--unit=') else argument)
+                 for argument in raw.service_arguments(request, request_path, request_digest)]
+    bootstrap = _SOURCE_BOOTSTRAP + """
+entry = Path(sys.argv[1])
+# Proof: source startup wrong-worker-entry omits this guard and executes a different pinned Python role.
+_source_require(entry.is_absolute() and entry.name == 'lab-raw-repair.py'
+                and os.path.normpath(str(entry)) == str(entry)
+                and re.fullmatch('[a-f0-9]{64}', sys.argv[-1]) is not None, 'repair-arguments')
+request, pins = _source_request(*sys.argv[-2:])
+payload = _source_entry(entry, pins)
+sys.argv = [str(entry), '--worker', *sys.argv[-2:]]
+exec(_source_compile(payload, entry), {'__name__': '__main__', '__file__': str(entry)})
+"""
+    position = arguments.index(str(raw.HELPER))
+    return arguments[:position] + ['-c', bootstrap, str(HELPER), request_path, request_digest]
 
 
 def launch_service(request, request_path, request_digest):

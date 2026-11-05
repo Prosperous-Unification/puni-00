@@ -392,7 +392,12 @@ elif case=='lifecycle':
     request=dict(nonce='a'*32,state='/private/state')
     arguments=p.service_arguments(request,'/private/request','b'*64)
     assert '--unit=puni-raw-repair-'+request['nonce']+'.service' in arguments
-    assert str(p.HELPER) in arguments
+    original=p.raw.service_arguments(request,'/private/request','b'*64)
+    position=original.index(str(p.raw.HELPER))
+    expected=[('--unit=puni-raw-repair-'+request['nonce']+'.service' if value.startswith('--unit=') else value) for value in original[:position]]
+    assert arguments[:position]==expected
+    assert arguments[position]=='-c' and arguments[position+1].startswith(p._SOURCE_BOOTSTRAP)
+    assert arguments[position+2:]==[str(p.HELPER),'/private/request','b'*64]
     assert '--property=MemoryMax=1073741824' in arguments and '--property=RuntimeMaxSec=900s' in arguments
     assert '--property=Restart=no' in arguments and '--property=LimitFSIZE=8589934592' in arguments
     events=[]
