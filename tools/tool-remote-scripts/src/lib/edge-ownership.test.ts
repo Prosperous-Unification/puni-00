@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { existsSync, fstatSync, openSync, renameSync, writeFileSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -8,6 +8,7 @@ import { assertNoEdgeOwner } from './edge-admission';
 import {
   assertDependencyOwner,
   type DependencyOwner,
+  type DependencyOwnerPublication,
   ownerDocker,
   withDependencyOwner,
 } from './edge-ownership';
@@ -986,4 +987,364 @@ test('UC2 known callback refusal releases runtime then outer original locks', as
   await refuses(assertDependencyOwner(originalOwner, plan.layouts[0]), 'live');
   for (const name of ['edge.lock', 'deploy.lock', 'solver-runtime.lock'])
     await withLock(`${root}/${name}`, () => Promise.resolve(undefined));
+}, 10000);
+
+test('UC2 core reserves one exact original composition under the owner', async () => {
+  const custody = await import('./edge-ownership');
+  expect('enrollDependencyPreparation' in custody).toBe(true);
+  const { root, plan } = fixture();
+  const source = `${root}/composition.txt`;
+  writeFileSync(source, 'original composition');
+  await withDependencyOwner(
+    plan,
+    async (owner) => {
+      const binding = {
+        layouts: plan.layouts,
+        deadline: performance.now() + 10000,
+        purpose: 'fenced' as const,
+      };
+      expect(() =>
+        custody.enrollDependencyPreparation(owner, {
+          ...binding,
+          layouts: [{ ...plan.layouts[0], network: 'foreign' }],
+        }),
+      ).toThrow('association');
+      expect(() =>
+        custody.enrollDependencyPreparation(owner, { ...binding, deadline: performance.now() - 1 }),
+      ).toThrow('association');
+      const preparation = custody.enrollDependencyPreparation(owner, binding);
+      const original = readFile(source);
+      expect(custody.bindPreparationComposition(preparation, original)).toBe(original);
+      expect(() => custody.enrollDependencyPreparation(owner, binding)).toThrow('composition');
+      custody.assertDependencyPreparation(owner, preparation);
+      const pending = await readFile(`${root}/edge-owner.pending`, 'utf8');
+      // This one-layout mechanical fixture uses the actual pending bytes; the two-layout
+      // production publication decoder is intentionally not its fixture grammar.
+      const publication = JSON.parse(pending) as DependencyOwnerPublication;
+      expect(() => {
+        custody.assertPreparationPublication(preparation, publication, 'copied');
+      }).toThrow('association');
+      expect(() => {
+        custody.assertPreparationPublication(
+          preparation,
+          { ...publication, attempt: 'copied' },
+          pending,
+        );
+      }).toThrow('association');
+      custody.assertPreparationPublication(preparation, publication, pending);
+      expect(() => {
+        custody.assertDependencyPreparation(owner, structuredClone(preparation));
+      }).toThrow('identity');
+      await original;
+      custody.closeDependencyPreparation(preparation, 'release');
+    },
+    root,
+  );
+}, 10000);
+
+test('UC2 core retains the exact original operation Promise and defers terminal close', async () => {
+  const custody = await import('./edge-ownership');
+  const { root, plan } = fixture();
+  const source = `${root}/operation.txt`;
+  writeFileSync(source, 'original operation');
+  let descriptor = -1;
+  await withDependencyOwner(
+    plan,
+    async (owner) => {
+      const preparation = custody.enrollDependencyPreparation(owner, {
+        layouts: plan.layouts,
+        deadline: performance.now() + 10000,
+        purpose: 'fenced',
+      });
+      const composition = readFile(source);
+      expect(custody.bindPreparationComposition(preparation, composition)).toBe(composition);
+      descriptor = openSync(source, 'r');
+      custody.retainPreparationOriginal(preparation, {
+        kind: 'descriptor',
+        role: 'evidence',
+        descriptor,
+      });
+      const operation = custody.beginPreparationOperation(preparation, 'evidence-inspection');
+      const original = readFile(source);
+      expect(custody.bindPreparationOperation(operation, original)).toBe(original);
+      expect(custody.requestPreparationClose(preparation, 'release')).toBe('deferred');
+      expect(() => fstatSync(descriptor)).not.toThrow();
+      await original;
+      await composition;
+    },
+    root,
+  );
+  expect(() => fstatSync(descriptor)).toThrow();
+}, 10000);
+
+test('UC2 core synchronous runtime callback refusal retains its cause and closes known originals', async () => {
+  const custody = await import('./edge-ownership');
+  const { root, plan } = fixture();
+  const source = `${root}/runtime.txt`;
+  writeFileSync(source, 'runtime refusal');
+  const refusal = new Error('original synchronous runtime refusal');
+  let descriptor = -1;
+  await withDependencyOwner(
+    plan,
+    async (owner) => {
+      const preparation = custody.enrollDependencyPreparation(owner, {
+        layouts: plan.layouts,
+        deadline: performance.now() + 10000,
+        purpose: 'fenced',
+      });
+      const composition = readFile(source);
+      expect(custody.bindPreparationComposition(preparation, composition)).toBe(composition);
+      descriptor = openSync(source, 'r');
+      custody.retainPreparationOriginal(preparation, {
+        kind: 'descriptor',
+        role: 'evidence',
+        descriptor,
+      });
+      let observed: unknown;
+      try {
+        await custody.withOwnerSolverRuntime(owner, plan.layouts[0], () => {
+          throw refusal;
+        });
+      } catch (cause) {
+        observed = cause;
+      }
+      expect(observed).toBe(refusal);
+      expect(() => fstatSync(descriptor)).toThrow();
+      await withLock(`${root}/solver-runtime.lock`, () => Promise.resolve(undefined));
+      await composition;
+    },
+    root,
+  );
+  for (const name of ['edge.lock', 'deploy.lock', 'solver-runtime.lock'])
+    await withLock(`${root}/${name}`, () => Promise.resolve(undefined));
+}, 10000);
+
+test('UC2 missing transfer joins a genuine unawaited operation and closes its known original', async () => {
+  const custody = await import('./edge-ownership');
+  const { root, plan } = fixture();
+  const source = `${root}/transfer.txt`;
+  writeFileSync(source, Buffer.alloc(1024 * 1024, 0x61));
+  let descriptor = -1;
+  let operationOriginal: Promise<Buffer> | undefined;
+  let operationObserver: Promise<void> | undefined;
+  let operationSettled = false;
+  try {
+    await withDependencyOwner(
+      plan,
+      async (owner) => {
+        const preparation = custody.enrollDependencyPreparation(owner, {
+          layouts: plan.layouts,
+          deadline: performance.now() + 10000,
+          purpose: 'fenced',
+        });
+        const composition = readFile(source);
+        void custody.bindPreparationComposition(preparation, composition);
+        descriptor = openSync(source, 'r');
+        custody.retainPreparationOriginal(preparation, {
+          kind: 'descriptor',
+          role: 'evidence',
+          descriptor,
+        });
+        let refusal: unknown;
+        try {
+          await custody.withOwnerSolverRuntime(owner, plan.layouts[0], async () => {
+            await refuses(
+              withLock(`${root}/solver-runtime.lock`, () => Promise.resolve()),
+              'lock held',
+            );
+            const operation = custody.beginPreparationOperation(preparation, 'evidence-inspection');
+            operationOriginal = readFile(source);
+            expect(custody.bindPreparationOperation(operation, operationOriginal)).toBe(
+              operationOriginal,
+            );
+            operationObserver = operationOriginal.then(
+              () => {
+                operationSettled = true;
+              },
+              () => {
+                operationSettled = true;
+              },
+            );
+            expect(operationSettled).toBe(false);
+          });
+        } catch (cause) {
+          refusal = cause;
+        }
+        expect(String(refusal)).toContain('evidence transfer absent');
+        expect(operationSettled).toBe(true);
+        expect(() => fstatSync(descriptor)).toThrow();
+        await withLock(`${root}/solver-runtime.lock`, () => Promise.resolve());
+        await composition;
+      },
+      root,
+    );
+  } finally {
+    if (operationOriginal !== undefined && operationObserver !== undefined)
+      await Promise.allSettled([operationOriginal, operationObserver]);
+  }
+  if (operationOriginal === undefined || operationObserver === undefined)
+    throw new Error('genuine operation original and observer absent');
+}, 10000);
+
+test('UC2 transfer refuses without original storage and runtime association', async () => {
+  const custody = await import('./edge-ownership');
+  const { root, plan } = fixture();
+  const source = `${root}/no-storage.txt`;
+  writeFileSync(source, 'no storage');
+  await withDependencyOwner(
+    plan,
+    async (owner) => {
+      const preparation = custody.enrollDependencyPreparation(owner, {
+        layouts: plan.layouts,
+        deadline: performance.now() + 10000,
+        purpose: 'fenced',
+      });
+      const composition = readFile(source);
+      void custody.bindPreparationComposition(preparation, composition);
+      expect(() => {
+        custody.transferPreparationEvidence(preparation);
+      }).toThrow('association');
+      let refusal: unknown;
+      try {
+        await custody.withOwnerSolverRuntime(owner, plan.layouts[0], () =>
+          Promise.resolve().then(() => {
+            custody.transferPreparationEvidence(preparation);
+          }),
+        );
+      } catch (cause) {
+        refusal = cause;
+      }
+      expect(String(refusal)).toContain('transfer association');
+      await composition;
+    },
+    root,
+  );
+}, 10000);
+
+test('UC2 revoked projection binding refuses the same original Promise', async () => {
+  const custody = await import('./edge-ownership');
+  const { root, plan } = fixture();
+  const source = `${root}/projection.txt`;
+  writeFileSync(source, 'projection');
+  await withDependencyOwner(
+    plan,
+    async (owner) => {
+      const preparation = custody.enrollDependencyPreparation(owner, {
+        layouts: plan.layouts,
+        deadline: performance.now() + 10000,
+        purpose: 'fenced',
+      });
+      const composition = readFile(source);
+      void custody.bindPreparationComposition(preparation, composition);
+      expect(custody.requestPreparationClose(preparation, 'release')).toBe('deferred');
+      expect(() => {
+        void custody.bindPreparationProjection(preparation, composition);
+      }).toThrow('active');
+      await composition;
+    },
+    root,
+  );
+}, 10000);
+
+test('UC2 replaced runtime inode refuses preparation and operation observation', async () => {
+  const custody = await import('./edge-ownership');
+  const { root, plan } = fixture();
+  const source = `${root}/runtime-inode.txt`;
+  writeFileSync(source, 'runtime inode');
+  let descriptor = -1;
+  await withDependencyOwner(
+    plan,
+    async (owner) => {
+      const preparation = custody.enrollDependencyPreparation(owner, {
+        layouts: plan.layouts,
+        deadline: performance.now() + 10000,
+        purpose: 'fenced',
+      });
+      const composition = readFile(source);
+      void custody.bindPreparationComposition(preparation, composition);
+      descriptor = openSync(source, 'r');
+      custody.retainPreparationOriginal(preparation, {
+        kind: 'descriptor',
+        role: 'evidence',
+        descriptor,
+      });
+      const operation = custody.beginPreparationOperation(preparation, 'evidence-inspection');
+      const original = readFile(source);
+      expect(custody.bindPreparationOperation(operation, original)).toBe(original);
+      let refusal: unknown;
+      try {
+        await custody.withOwnerSolverRuntime(owner, plan.layouts[0], () =>
+          Promise.resolve().then(() => {
+            const named = `${root}/solver-runtime.lock`;
+            const retained = `${root}/solver-runtime.original.lock`;
+            const replacement = `${root}/solver-runtime.replacement.lock`;
+            renameSync(named, retained);
+            try {
+              writeFileSync(named, 'replacement');
+              expect(() => {
+                custody.assertDependencyPreparation(owner, preparation);
+              }).toThrow('lock');
+              expect(() => {
+                custody.assertPreparationOperation(operation);
+              }).toThrow('lock');
+            } finally {
+              try {
+                if (existsSync(named)) renameSync(named, replacement);
+              } finally {
+                renameSync(retained, named);
+              }
+            }
+          }),
+        );
+      } catch (cause) {
+        refusal = cause;
+      }
+      expect(String(refusal)).toContain('evidence transfer absent');
+      expect(() => fstatSync(descriptor)).toThrow();
+      await original;
+      await composition;
+    },
+    root,
+  );
+}, 10000);
+
+test('UC2 owner observes a discarded original runtime admission before releasing outer locks', async () => {
+  const custody = await import('./edge-ownership');
+  const { root, plan } = fixture();
+  let original: Promise<void> | undefined;
+  let observer: Promise<void> | undefined;
+  let callbackCount = 0;
+  let terminal: unknown;
+  let terminalAtOwnerReturn: unknown;
+  try {
+    await withDependencyOwner(
+      plan,
+      (owner) => {
+        original = custody.withOwnerSolverRuntime(owner, plan.layouts[0], () => {
+          callbackCount++;
+          return Promise.resolve();
+        });
+        observer = original.then(
+          () => {
+            terminal = 'fulfilled';
+          },
+          (cause: unknown) => {
+            terminal = cause;
+          },
+        );
+        return Promise.resolve();
+      },
+      root,
+    );
+    terminalAtOwnerReturn = terminal;
+  } finally {
+    if (original !== undefined && observer !== undefined)
+      await Promise.allSettled([original, observer]);
+  }
+  if (original === undefined || observer === undefined)
+    throw new Error('original runtime admission and observer absent');
+  expect(callbackCount).toBe(0);
+  expect(String(terminalAtOwnerReturn)).toContain('active');
+  for (const name of ['edge.lock', 'deploy.lock'])
+    await withLock(`${root}/${name}`, () => Promise.resolve());
 }, 10000);

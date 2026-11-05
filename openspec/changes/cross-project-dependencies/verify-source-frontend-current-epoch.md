@@ -294,3 +294,52 @@ Final staged document/index checks and `openspec validate --all --json` passed
 334/334 entries (314 changes,20 specs); formatting and staged diff checks passed.
 Astra materialization review aligned the composition-slot sentence to the
 corrected design; UC2 implementation/proofs remain prospective.
+
+## Hosted fourth-epoch qualification — PR863, 2026-11-05
+
+The original [source job127055663212](https://github.com/Prosperous-Unification/puni-00/actions/runs/41969919400/job/127055663212)
+completed successfully04:47:31–05:31:20UTC. It ran the unchanged whole seven-parent
+source lane: **189 pass,0 fail,1391 assertions,7files,2535.38s**. The final outer
+receipt has no skips/filter; nested readiness filtered summaries are distinct.
+The original child exit and both streams join before the strict leaf receipt
+`fresh:true,exitCode:0` is emitted. Phase end is2543s/exit0, within unchanged4500s.
+
+Actual checked-out synthetic merge:
+`6993c68cd2bdd8e5da2b227b775a2c16f8120f43`, parents0962b42b5bb4293d24fb865a9c33c004b523782f
+andc955920c1db94d68d359f53e2f2d5849d64fae7c. Its authoritative Git tree
+`52bb47b6eea0de560cc0de8c8b82b45f4fd86907` equals published c955's tree exactly;
+this is qualification at c955, not the unpublished UC2 core or another final head.
+
+The complete artifact explicitly records the actual pinned Vite producer positive
+passing in1592.51ms. That unchanged test reads all18 actual captured inputs,
+checks the fourth complete package/lock pair, builds a distinct genuine canonical
+fixture/manifest, invokes the production selector and both unchanged complete
+response inspectors. The producer retains original source SHA/selection through
+closing and settles actual HTTP/server/watchers before callback completion.
+The source review found no modeled response or substituted historical input.
+Setup Node v24.20.0 was observed; the positive's raw child version packet was not
+uploaded, so inert-child diagnostics are not used as its substitute.
+
+Artifact13391595168, `nx-gate-log-remote-source-1`, ZIP18688bytes SHA256
+`8b57314c565c1d459ab799c86d9fee63f08e8e3b791cc0cfa2b03fd9d3c04dd1`,
+matches the server-uploaded digest. Its sole member `nx-gate.log` is186313bytes,
+SHA256 `98d0e6b562bfaf7bbbd46b8a9fc0a175e6cf57f5c7540b9257c18cf2d2833cbd`.
+Private copies: `/tmp/puni-pr863-source-artifact-20261105.zip` and
+`/tmp/puni-pr863-source-nx-gate-20261105.log`. No raw response/observation/canonical
+archive was uploaded; qualification relies on the pinned test's actual assertions
+and retained complete log, not independent later inspection of raw responses.
+The ordinary FEP9 boundary is accepted by the independent hosted review
+`/tmp/puni-pr863-frontend-epoch-hosted-review-20261105.md`, SHA256
+`9b505604564e0ec282656742f47819888a3526d7f4503fdfa32feacdbb930bb7`.
+
+The first gh client refused logs while the overall workflow still ran; direct job
+REST was then used with explicit escape-byte output to a private file. Console
+output is only the last200 lines and did not contain the early Vite case; only
+the complete uploaded artifact provides that observation. No log-read failure is
+reported as a test failure or fabricated success.
+
+FEP9 ordinary current-response qualification is complete at c955. FEP8 producer
+physical omission P remains open; an unapplied hosted protocol is being prepared.
+Full matrix/aggregate, exact final h2 gate, UC2 wiring/UNKNOWN/native and deployment
+are not qualified by one successful source job. Final combined source retains
+its own fresh CI obligations. No local closed Vite/private campaign was replayed.

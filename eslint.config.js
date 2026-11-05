@@ -314,6 +314,8 @@ export default [
   // These exact source-bundled activation leaves are deliberate product/buildable exceptions.
   // Every other edge keeps the complete Nx options and constraints. There is no forward SQL in production storage.
   ...[
+    // Proof: separately removing backup or sqlite-cleanup from this exact row made the real Nx owner-path admission probe fail; each passed after exact restoration (2026-11-05).
+    ['lib/edge-ownership.ts', ['@wbs/store-sqlite/backup', '@wbs/store-sqlite/sqlite-cleanup']],
     [
       'lib/dependency-activation-storage.ts',
       [

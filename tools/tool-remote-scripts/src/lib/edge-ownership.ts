@@ -12,10 +12,21 @@ import {
 import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
+import { isSnapshotCleanupUnknown } from '@wbs/store-sqlite/backup';
+import { isSqliteCleanupUnknown } from '@wbs/store-sqlite/sqlite-cleanup';
+
+import type { PreparedDependencyActivation } from './complete-dependency-exclusion';
 import type {
   ActivationRecordByLabel,
   ActivationRecordLabel,
 } from './dependency-activation-records';
+import type {
+  activateDependencyStores,
+  ActivationReadOnlyConnection,
+  ActivationReadOnlyDatabase,
+} from './dependency-activation-storage';
+import type { scanMigrationArtifact } from './dependency-migration-artifact-scanner';
+import type { FinalizedParticipantRestorationContext } from './dependency-participant-preparation';
 import { openDirectoryFile, renameDirectoryFile } from './directory-file';
 import type { RunDocker } from './docker-deadline';
 import type { DockerExec } from './docker-exec';
@@ -30,6 +41,10 @@ import {
   withOrdinaryControllerAdmission,
 } from './edge-policy';
 import type { EnvLayout } from './env';
+import {
+  type InitialHandoffArtifactObservation,
+  isInitialHandoffCleanupUnknown,
+} from './initial-handoff-graph';
 import { assertInheritedLock, withCanonicalLock, withExistingCanonicalLock } from './lock';
 import { publishRecord, readClosed, readRecord, readString } from './managed-cohort';
 import type { RunSolverHost } from './solver-host';
@@ -122,8 +137,788 @@ interface Ownership {
   layouts: readonly EnvLayout[];
   sequence: number;
   sha: string;
+  attempt: string;
+  state: 'active' | 'closing' | 'unknown';
+  preparations: Set<PreparationRecord>;
+  composition: PreparationRecord | undefined;
+  keeper: PreparationKeeper | undefined;
+  runtimeEntries: Set<RuntimeEntry>;
+}
+interface RuntimeEntry {
+  readonly original: Promise<unknown>;
+  observer: Promise<void> | undefined;
+  outcome: OperationOutcome;
 }
 const owners = new WeakMap<DependencyOwner, Ownership>();
+
+const preparationIdentity: unique symbol = Symbol('dependency-preparation');
+const originalIdentity: unique symbol = Symbol('preparation-original');
+const operationIdentity: unique symbol = Symbol('preparation-operation');
+
+/** Opaque original preparation enrolled by the actual owner, never by a serialized packet. */
+export interface DependencyPreparation {
+  readonly [preparationIdentity]: true;
+}
+/** One acquired original; a reused numeric descriptor always receives a fresh token. */
+export interface PreparationOriginal {
+  readonly [originalIdentity]: true;
+}
+/** One original asynchronous operation, bound before its caller receives its Promise. */
+export interface PreparationOperation {
+  readonly [operationIdentity]: true;
+}
+export type PreparationPurpose = 'fenced' | 'restoration' | 'initial-handoff';
+export type PreparationBoundary =
+  'operation' | 'runtime-finalizer' | 'complete-finalizer' | 'consume' | 'release' | 'owner-return';
+export type PreparationOperationKind =
+  | 'storage-activation'
+  | 'evidence-inspection'
+  | 'stores-inspection'
+  | 'preparation-consume'
+  | 'context-assertion';
+
+type PreparationAcquisition =
+  | {
+      readonly kind: 'descriptor';
+      readonly role:
+        | 'anchor-parent'
+        | 'anchor-main'
+        | 'capture-read'
+        | 'backup-read'
+        | 'backup-finalizer'
+        | 'state'
+        | 'evidence';
+      readonly descriptor: number;
+    }
+  | {
+      readonly kind: 'database';
+      readonly role: 'authority-read' | 'backup-read';
+      readonly database: ActivationReadOnlyDatabase;
+    }
+  | {
+      readonly kind: 'connection';
+      readonly role: 'authority-read';
+      readonly connection: ActivationReadOnlyConnection;
+    }
+  | {
+      readonly kind: 'graph';
+      readonly role: 'initial-evidence';
+      readonly graph: InitialHandoffArtifactObservation;
+    }
+  | {
+      readonly kind: 'scanner';
+      readonly role: 'restoration-artifact';
+      readonly scanner: Awaited<ReturnType<typeof scanMigrationArtifact>>;
+    };
+type PreparationPhase =
+  'preparing' | 'runtime-evidence' | 'prepared' | 'consumed' | 'closing' | 'closed' | 'unknown';
+type OperationOutcome =
+  | { readonly phase: 'starting' }
+  | { readonly phase: 'pending' }
+  | { readonly phase: 'fulfilled' }
+  | { readonly phase: 'rejected'; readonly cause: unknown };
+interface OriginalRecord {
+  readonly preparation: PreparationRecord;
+  readonly acquisition: PreparationAcquisition;
+  state: 'open' | 'closing' | 'closed' | 'unknown';
+  failure: unknown;
+}
+interface PreparationOperationRecord {
+  readonly preparation: PreparationRecord;
+  readonly kind: PreparationOperationKind;
+  original: Promise<unknown> | undefined;
+  observer: Promise<void> | undefined;
+  outcome: OperationOutcome;
+}
+interface CompositionSettlement {
+  original: Promise<unknown> | undefined;
+  observer: Promise<void> | undefined;
+  outcome: OperationOutcome;
+}
+interface PreparationKeeper {
+  readonly interval: ReturnType<typeof setInterval>;
+  readonly pending: Promise<void>;
+  reported: boolean;
+  reportFailure: unknown;
+}
+interface PreparationRecord {
+  readonly owner: DependencyOwner;
+  readonly ownership: Ownership;
+  readonly purpose: PreparationPurpose;
+  readonly attempt: string;
+  readonly pending: string;
+  readonly layouts: readonly EnvLayout[];
+  readonly deadline: number;
+  readonly locks: readonly Ownership['locks'][number][];
+  readonly originals: Set<OriginalRecord>;
+  readonly operations: Set<PreparationOperationRecord>;
+  readonly composition: CompositionSettlement;
+  readonly failures: { readonly boundary: PreparationBoundary; readonly cause: unknown }[];
+  readonly inherited: unknown[];
+  phase: PreparationPhase;
+  closeRequested: boolean;
+  closeBoundary: PreparationBoundary | undefined;
+  runtimeLock: Ownership['locks'][number] | undefined;
+  runtimeReleased: boolean;
+  runtimeAction: CompositionSettlement | undefined;
+  runtimeRefusalSettled: boolean;
+  storage: Awaited<ReturnType<typeof activateDependencyStores>> | undefined;
+  prepared: PreparedDependencyActivation | undefined;
+  context: FinalizedParticipantRestorationContext | undefined;
+  projection: CompositionSettlement | undefined;
+}
+const preparations = new WeakMap<DependencyPreparation, PreparationRecord>();
+const originals = new WeakMap<PreparationOriginal, OriginalRecord>();
+const operations = new WeakMap<PreparationOperation, PreparationOperationRecord>();
+const preparedPreparations = new WeakMap<PreparedDependencyActivation, PreparationRecord>();
+const contextPreparations = new WeakMap<
+  FinalizedParticipantRestorationContext,
+  PreparationRecord
+>();
+
+function requirePreparation(preparation: DependencyPreparation): PreparationRecord {
+  const record = preparations.get(preparation);
+  if (record === undefined) throw new Error('dependency preparation identity absent');
+  return record;
+}
+function assertPreparationLocks(record: PreparationRecord): void {
+  for (const lock of record.locks) {
+    if (!record.ownership.locks.includes(lock))
+      throw new Error('preparation outer lock association differs');
+    assertInheritedLock(lock.path, lock.descriptor);
+  }
+  const runtime = record.runtimeLock;
+  if (runtime === undefined) return;
+  if (record.runtimeReleased) {
+    if (record.ownership.locks.includes(runtime))
+      throw new Error('preparation released runtime lock remains entered');
+    return;
+  }
+  if (!record.ownership.locks.includes(runtime))
+    throw new Error('preparation entered runtime lock association differs');
+  assertInheritedLock(runtime.path, runtime.descriptor);
+}
+function poisonPreparation(record: PreparationRecord, cause: unknown): void {
+  record.inherited.push(cause);
+  record.phase = 'unknown';
+  record.ownership.state = 'unknown';
+}
+function isOwnershipUnknown(ownership: Ownership): boolean {
+  return ownership.state === 'unknown';
+}
+function keeperFor(owner: DependencyOwner, ownership: Ownership): PreparationKeeper {
+  if (ownership.keeper !== undefined) return ownership.keeper;
+  // The referenced callback retains the exact original owner and capsule set; it performs no work.
+  const retained = { owner, ownership, preparations: ownership.preparations };
+  const interval = setInterval(() => retained, 60000);
+  const pending = new Promise<void>(() => {
+    // The owner resolves no UNKNOWN cleanup through a timer or caller continuation.
+  });
+  const keeper: PreparationKeeper = {
+    interval,
+    pending,
+    reported: false,
+    reportFailure: undefined,
+  };
+  ownership.keeper = keeper;
+  return keeper;
+}
+function maybeReleaseComposition(record: PreparationRecord): void {
+  if (
+    record.ownership.composition === record &&
+    (record.composition.outcome.phase === 'fulfilled' ||
+      record.composition.outcome.phase === 'rejected') &&
+    (record.phase === 'prepared' || record.phase === 'closed')
+  )
+    record.ownership.composition = undefined;
+}
+function hasPendingOperations(record: PreparationRecord): boolean {
+  return [...record.operations].some(
+    (operation) => operation.outcome.phase === 'starting' || operation.outcome.phase === 'pending',
+  );
+}
+function closeOriginal(record: OriginalRecord): void {
+  if (record.state !== 'open') throw new Error('preparation original close already attempted');
+  record.state = 'closing';
+  try {
+    const acquisition = record.acquisition;
+    switch (acquisition.kind) {
+      case 'descriptor':
+        closeSync(acquisition.descriptor);
+        break;
+      case 'database':
+        acquisition.database.close();
+        break;
+      case 'connection':
+        acquisition.connection.close();
+        break;
+      case 'graph':
+        acquisition.graph.closeFiles();
+        break;
+      case 'scanner':
+        acquisition.scanner.close();
+        break;
+    }
+    record.state = 'closed';
+  } catch (cause) {
+    record.failure = cause;
+    record.state = 'unknown';
+    poisonPreparation(record.preparation, cause);
+    throw cause;
+  }
+}
+function drainPreparationCleanup(record: PreparationRecord): 'closed' | 'deferred' {
+  if (!record.closeRequested) return 'deferred';
+  if (hasPendingOperations(record)) return 'deferred';
+  if (
+    !record.runtimeRefusalSettled &&
+    record.composition.outcome.phase !== 'fulfilled' &&
+    record.composition.outcome.phase !== 'rejected'
+  )
+    return 'deferred';
+  for (const original of record.originals) {
+    if (original.state !== 'open') continue;
+    try {
+      closeOriginal(original);
+    } catch {
+      // The exact original error and sticky UNKNOWN were saved before the next distinct close.
+    }
+  }
+  if (
+    record.ownership.state === 'unknown' ||
+    [...record.originals].some((original) => original.state === 'unknown')
+  ) {
+    record.phase = 'unknown';
+    return 'deferred';
+  }
+  record.phase = 'closed';
+  maybeReleaseComposition(record);
+  return 'closed';
+}
+function observeSettlement(
+  record: PreparationRecord,
+  settlement: CompositionSettlement,
+  original: Promise<unknown>,
+): void {
+  if (settlement.outcome.phase !== 'starting' || settlement.original !== undefined)
+    throw new Error('preparation original Promise already bound');
+  settlement.original = original;
+  settlement.outcome = { phase: 'pending' };
+  const observer = original.then(
+    () => {
+      settlement.outcome = { phase: 'fulfilled' };
+      drainPreparationCleanup(record);
+      maybeReleaseComposition(record);
+    },
+    (cause: unknown) => {
+      settlement.outcome = { phase: 'rejected', cause };
+      record.failures.push({ boundary: 'operation', cause });
+      drainPreparationCleanup(record);
+      maybeReleaseComposition(record);
+    },
+  );
+  settlement.observer = observer;
+  void observer.catch((cause: unknown) => {
+    poisonPreparation(record, cause);
+  });
+}
+/** Reserves the only unfinished composition from exact live owner publication and locks. */
+export function enrollDependencyPreparation(
+  owner: DependencyOwner,
+  binding: {
+    readonly layouts: readonly EnvLayout[];
+    readonly deadline: number;
+    readonly purpose: PreparationPurpose;
+  },
+): DependencyPreparation {
+  const ownership = owners.get(owner);
+  if (ownership?.state !== 'active') throw new Error('dependency owner is not active');
+  if (ownership.composition !== undefined)
+    throw new Error('dependency preparation composition pending');
+  if (
+    !Number.isFinite(binding.deadline) ||
+    binding.deadline <= performance.now() ||
+    JSON.stringify(binding.layouts) !== JSON.stringify(ownership.layouts)
+  )
+    throw new Error('dependency preparation owner association differs');
+  for (const lock of ownership.locks) assertInheritedLock(lock.path, lock.descriptor);
+  keeperFor(owner, ownership);
+  const record: PreparationRecord = {
+    owner,
+    ownership,
+    purpose: binding.purpose,
+    attempt: ownership.attempt,
+    pending: ownership.publication,
+    layouts: ownership.layouts,
+    deadline: binding.deadline,
+    locks: [...ownership.locks],
+    originals: new Set(),
+    operations: new Set(),
+    composition: { original: undefined, observer: undefined, outcome: { phase: 'starting' } },
+    failures: [],
+    inherited: [],
+    phase: 'preparing',
+    closeRequested: false,
+    closeBoundary: undefined,
+    runtimeLock: undefined,
+    runtimeReleased: false,
+    runtimeAction: undefined,
+    runtimeRefusalSettled: false,
+    storage: undefined,
+    prepared: undefined,
+    context: undefined,
+    projection: undefined,
+  };
+  const preparation: DependencyPreparation = Object.freeze({
+    [preparationIdentity]: true as const,
+  });
+  preparations.set(preparation, record);
+  ownership.preparations.add(record);
+  ownership.composition = record;
+  return preparation;
+}
+/** Compares the later genuine publication capture to the earlier private enrollment. */
+export function assertPreparationPublication(
+  preparation: DependencyPreparation,
+  publication: DependencyOwnerPublication,
+  pending: string,
+): void {
+  const record = requirePreparation(preparation);
+  assertDependencyPreparation(record.owner, preparation);
+  if (
+    publication.attempt !== record.attempt ||
+    publication.plan.sha !== record.ownership.sha ||
+    JSON.stringify(publication.plan.layouts) !== JSON.stringify(record.layouts) ||
+    pending !== record.pending
+  )
+    throw new Error('dependency preparation publication association differs');
+}
+/** Refuses copied, foreign, expired, revoked or closed preparation work before observation. */
+export function assertDependencyPreparation(
+  owner: DependencyOwner,
+  preparation: DependencyPreparation,
+): void {
+  const record = requirePreparation(preparation);
+  if (
+    record.owner !== owner ||
+    owners.get(owner) !== record.ownership ||
+    record.ownership.state !== 'active' ||
+    record.closeRequested ||
+    record.phase === 'closing' ||
+    record.phase === 'closed' ||
+    record.phase === 'unknown' ||
+    performance.now() >= record.deadline
+  )
+    throw new Error('dependency preparation is not active');
+  // Proof: omitting this call failed the preparation missing-throw assertion in
+  // "UC2 replaced runtime inode refuses preparation and operation observation" (exit 1; restored exit 0).
+  assertPreparationLocks(record);
+}
+/** Binds the actual async composition body, retaining its original and observer separately. */
+export function bindPreparationComposition<T>(
+  preparation: DependencyPreparation,
+  original: Promise<T>,
+): Promise<T> {
+  const record = requirePreparation(preparation);
+  if (record.ownership.composition !== record)
+    throw new Error('dependency composition slot differs');
+  observeSettlement(record, record.composition, original);
+  return original;
+}
+/** Retains the actual post-body projection Promise without substituting it for the body. */
+export function bindPreparationProjection<T>(
+  preparation: DependencyPreparation,
+  original: Promise<T>,
+): Promise<T> {
+  const record = requirePreparation(preparation);
+  assertDependencyPreparation(record.owner, preparation);
+  if (record.ownership.composition !== record || record.composition.original === undefined)
+    throw new Error('dependency projection composition association differs');
+  if (record.projection !== undefined) throw new Error('dependency projection already bound');
+  const projection: CompositionSettlement = {
+    original: undefined,
+    observer: undefined,
+    outcome: { phase: 'starting' },
+  };
+  record.projection = projection;
+  observeSettlement(record, projection, original);
+  return original;
+}
+/**
+ * Final post-body acceptance for the actual complete projection. The complete caller
+ * must await this before returning its packet; this never awaits that calling projection.
+ */
+export async function assertPreparationCompletion(
+  preparation: DependencyPreparation,
+): Promise<void> {
+  const record = requirePreparation(preparation);
+  const body = record.composition;
+  if (body.original === undefined || body.observer === undefined) {
+    poisonPreparation(record, new Error('preparation composition original missing'));
+    await retainUnknownOwner(record.owner, record.ownership);
+  }
+  await Promise.allSettled([body.original, body.observer]);
+  if (record.ownership.state === 'unknown' || record.phase === 'unknown')
+    await retainUnknownOwner(record.owner, record.ownership);
+  const operationOriginals: Promise<unknown>[] = [];
+  for (const operation of record.operations) {
+    const original = operation.original;
+    const observer = operation.observer;
+    if (original === undefined || observer === undefined) {
+      poisonPreparation(record, new Error('preparation original operation missing'));
+      return retainUnknownOwner(record.owner, record.ownership);
+    }
+    operationOriginals.push(original, observer);
+  }
+  await Promise.allSettled(operationOriginals);
+  if (record.ownership.state === 'unknown' || record.phase === 'unknown')
+    await retainUnknownOwner(record.owner, record.ownership);
+  const projection = record.projection;
+  if (
+    owners.get(record.owner) !== record.ownership ||
+    record.ownership.state !== 'active' ||
+    body.outcome.phase !== 'fulfilled' ||
+    projection?.original === undefined ||
+    projection.observer === undefined ||
+    record.runtimeLock === undefined ||
+    !record.runtimeReleased ||
+    record.runtimeAction?.outcome.phase !== 'fulfilled' ||
+    record.storage === undefined ||
+    record.failures.length !== 0 ||
+    [...record.operations].some((operation) => operation.outcome.phase !== 'fulfilled') ||
+    performance.now() >= record.deadline
+  )
+    throw new Error('dependency preparation completion refused');
+  assertPreparationLocks(record);
+  if (record.purpose === 'fenced') {
+    if (
+      !record.closeRequested ||
+      record.phase !== 'closed' ||
+      record.prepared !== undefined ||
+      record.context !== undefined ||
+      [...record.originals].some((original) => original.state !== 'closed')
+    )
+      throw new Error('dependency fenced completion cleanup incomplete');
+    return;
+  }
+  const context = record.context;
+  const prepared = record.prepared;
+  const retained = [...record.originals].filter((original) => original.state === 'open');
+  const count = (kind: PreparationAcquisition['kind'], role: string) =>
+    retained.filter(
+      (original) => original.acquisition.kind === kind && original.acquisition.role === role,
+    ).length;
+  if (
+    record.closeRequested ||
+    record.phase !== 'prepared' ||
+    context === undefined ||
+    prepared === undefined ||
+    contextPreparations.get(context) !== record ||
+    preparedPreparations.get(prepared) !== record ||
+    context.owner !== record.owner ||
+    context.storage !== record.storage ||
+    count('descriptor', 'state') !== 1 ||
+    count('descriptor', 'evidence') !== 1 ||
+    count('scanner', 'restoration-artifact') !== 1 ||
+    count('graph', 'initial-evidence') !== (record.purpose === 'initial-handoff' ? 1 : 0) ||
+    [...record.originals].some((original) => original.state === 'unknown')
+  )
+    throw new Error('dependency prepared completion association differs');
+}
+
+/** Starts fixed original work before the async body acquires or inspects anything. */
+export function beginPreparationOperation(
+  preparation: DependencyPreparation,
+  kind: PreparationOperationKind,
+): PreparationOperation {
+  const record = requirePreparation(preparation);
+  assertDependencyPreparation(record.owner, preparation);
+  if (
+    (kind === 'preparation-consume' &&
+      (record.phase !== 'prepared' || record.prepared === undefined)) ||
+    (kind === 'context-assertion' && (record.phase !== 'consumed' || record.context === undefined))
+  )
+    throw new Error('prepared operation association absent');
+  const operationRecord: PreparationOperationRecord = {
+    preparation: record,
+    kind,
+    original: undefined,
+    observer: undefined,
+    outcome: { phase: 'starting' },
+  };
+  const operation: PreparationOperation = Object.freeze({ [operationIdentity]: true as const });
+  operations.set(operation, operationRecord);
+  record.operations.add(operationRecord);
+  return operation;
+}
+/** Attaches immediate fulfillment and rejection observation, returning the SAME original Promise. */
+export function bindPreparationOperation<T>(
+  operation: PreparationOperation,
+  original: Promise<T>,
+): Promise<T> {
+  const observed = operations.get(operation);
+  if (observed === undefined) throw new Error('preparation operation identity absent');
+  if (observed.outcome.phase !== 'starting' || observed.original !== undefined)
+    throw new Error('preparation operation already bound');
+  observed.original = original;
+  observed.outcome = { phase: 'pending' };
+  const observer = original.then(
+    () => {
+      observed.outcome = { phase: 'fulfilled' };
+      drainPreparationCleanup(observed.preparation);
+    },
+    (cause: unknown) => {
+      observed.outcome = { phase: 'rejected', cause };
+      observed.preparation.failures.push({ boundary: 'operation', cause });
+      drainPreparationCleanup(observed.preparation);
+    },
+  );
+  observed.observer = observer;
+  void observer.catch((cause: unknown) => {
+    poisonPreparation(observed.preparation, cause);
+  });
+  // Proof: returning a value-preserving .then projection failed the SAME-Promise assertion in
+  // "UC2 core retains the exact original operation Promise and defers terminal close" (exit 1; restored exit 0).
+  return original;
+}
+/** Denies further work after owner or capsule revocation; exact original remains retained. */
+export function assertPreparationOperation(operation: PreparationOperation): void {
+  const observed = operations.get(operation);
+  if (observed === undefined) throw new Error('preparation operation identity absent');
+  const record = observed.preparation;
+  if (
+    record.ownership.state !== 'active' ||
+    record.closeRequested ||
+    record.phase === 'closed' ||
+    record.phase === 'unknown' ||
+    performance.now() >= record.deadline
+  )
+    throw new Error('preparation operation is revoked');
+  // Proof: omitting only this call failed the operation missing-throw assertion in
+  // "UC2 replaced runtime inode refuses preparation and operation observation" (exit 1; restored exit 0).
+  assertPreparationLocks(record);
+}
+/** Retains one real acquired original before the next fallible inspection. */
+export function retainPreparationOriginal(
+  preparation: DependencyPreparation,
+  acquisition: PreparationAcquisition,
+): PreparationOriginal {
+  const record = requirePreparation(preparation);
+  if (record.phase === 'closed') throw new Error('preparation original enrollment after close');
+  const original: PreparationOriginal = Object.freeze({ [originalIdentity]: true as const });
+  const observed: OriginalRecord = {
+    preparation: record,
+    acquisition,
+    state: 'open',
+    failure: undefined,
+  };
+  originals.set(original, observed);
+  record.originals.add(observed);
+  return original;
+}
+/** Attempts the selected original close exactly once with its actual receiver and arguments. */
+export function closePreparationOriginal(
+  preparation: DependencyPreparation,
+  original: PreparationOriginal,
+): void {
+  const record = requirePreparation(preparation);
+  const observed = originals.get(original);
+  if (observed?.preparation !== record) throw new Error('preparation original association differs');
+  closeOriginal(observed);
+}
+/** Records the exact operation cause and recognizes only three genuine private UNKNOWN identities. */
+export function recordPreparationFailure(
+  preparation: DependencyPreparation,
+  boundary: PreparationBoundary,
+  cause: unknown,
+): void {
+  const record = requirePreparation(preparation);
+  record.failures.push({ boundary, cause });
+  if (
+    isInitialHandoffCleanupUnknown(cause) ||
+    isSqliteCleanupUnknown(cause) ||
+    isSnapshotCleanupUnknown(cause)
+  )
+    poisonPreparation(record, cause);
+}
+/** Binds the exact actual storage packet before any caller can hide its returned evidence. */
+export function bindPreparationStorage(
+  preparation: DependencyPreparation,
+  storage: Awaited<ReturnType<typeof activateDependencyStores>>,
+): void {
+  const record = requirePreparation(preparation);
+  assertDependencyPreparation(record.owner, preparation);
+  if (
+    record.ownership.composition !== record ||
+    record.phase !== 'preparing' ||
+    record.runtimeLock === undefined ||
+    record.runtimeReleased ||
+    (record.purpose === 'initial-handoff'
+      ? storage.purpose !== 'initial-handoff'
+      : storage.purpose !== 'restoration')
+  )
+    throw new Error('preparation storage runtime association differs');
+  if (record.storage !== undefined) throw new Error('preparation storage already bound');
+  record.storage = storage;
+}
+/** Transfers only known-closed transients; live evidence retains owner custody after runtime. */
+export function transferPreparationEvidence(preparation: DependencyPreparation): void {
+  const record = requirePreparation(preparation);
+  assertDependencyPreparation(record.owner, preparation);
+  if (
+    record.phase !== 'preparing' ||
+    record.ownership.composition !== record ||
+    record.storage === undefined ||
+    record.runtimeLock === undefined ||
+    record.runtimeReleased ||
+    hasPendingOperations(record) ||
+    [...record.operations].some((operation) => operation.observer === undefined)
+  )
+    throw new Error('preparation evidence transfer association differs');
+  const retained = [...record.originals].filter((original) => original.state === 'open');
+  const count = (role: string) =>
+    retained.filter(
+      (original) =>
+        original.acquisition.kind === 'descriptor' && original.acquisition.role === role,
+    ).length;
+  const graphs = retained.filter((original) => original.acquisition.kind === 'graph').length;
+  const scanners = retained.filter((original) => original.acquisition.kind === 'scanner').length;
+  if (
+    count('state') !== 1 ||
+    count('evidence') !== 1 ||
+    graphs !== (record.purpose === 'initial-handoff' ? 1 : 0) ||
+    scanners !== (record.purpose === 'fenced' ? 0 : 1)
+  )
+    throw new Error('preparation retained evidence roles differ');
+  if (
+    [...record.originals].some(
+      (original) =>
+        original.state !== 'closed' &&
+        !(
+          original.acquisition.kind === 'graph' ||
+          original.acquisition.kind === 'scanner' ||
+          (original.acquisition.kind === 'descriptor' &&
+            (original.acquisition.role === 'state' || original.acquisition.role === 'evidence'))
+        ),
+    )
+  )
+    throw new Error('preparation transient cleanup incomplete');
+  record.phase = 'runtime-evidence';
+}
+/** Retains exact prepared and context identities; a copy cannot substitute for either. */
+export function bindPreparedContext(
+  preparation: DependencyPreparation,
+  prepared: PreparedDependencyActivation,
+  context: FinalizedParticipantRestorationContext,
+): void {
+  const record = requirePreparation(preparation);
+  assertDependencyPreparation(record.owner, preparation);
+  const scanners = [...record.originals].filter(
+    (original) => original.state === 'open' && original.acquisition.kind === 'scanner',
+  );
+  if (
+    scanners.length !== 1 ||
+    scanners[0]?.acquisition.kind !== 'scanner' ||
+    context.artifact !== scanners[0].acquisition.scanner ||
+    record.prepared !== undefined ||
+    record.context !== undefined ||
+    record.phase !== 'runtime-evidence' ||
+    record.purpose === 'fenced' ||
+    record.storage === undefined ||
+    record.runtimeLock === undefined ||
+    !record.runtimeReleased ||
+    context.owner !== record.owner ||
+    context.storage !== record.storage ||
+    context.purpose !== record.purpose ||
+    context.attempt !== record.attempt ||
+    context.deadline !== record.deadline ||
+    context.pending.contents !== record.pending ||
+    context.directory !== record.ownership.directory ||
+    JSON.stringify([context.layouts.prod, context.layouts.dev]) !== JSON.stringify(record.layouts)
+  )
+    throw new Error('prepared context association differs');
+  if (preparedPreparations.has(prepared) || contextPreparations.has(context))
+    throw new Error('prepared context already associated');
+  record.prepared = prepared;
+  record.context = context;
+  preparedPreparations.set(prepared, record);
+  contextPreparations.set(context, record);
+  record.phase = 'prepared';
+  maybeReleaseComposition(record);
+}
+/** Records the exact prepared/context pair's one-way consume transition. */
+export function markPreparationConsumed(
+  preparation: DependencyPreparation,
+  prepared: PreparedDependencyActivation,
+  context: FinalizedParticipantRestorationContext,
+): void {
+  assertPreparedContextAssociation(preparation, prepared, context);
+  const record = requirePreparation(preparation);
+  if (record.phase !== 'prepared') throw new Error('preparation already consumed');
+  record.phase = 'consumed';
+}
+/** Resolves only the exact preparation bound to both private prepared and context objects. */
+export function assertPreparedContextAssociation(
+  preparation: DependencyPreparation,
+  prepared: PreparedDependencyActivation,
+  context: FinalizedParticipantRestorationContext,
+): void {
+  const record = requirePreparation(preparation);
+  if (preparedPreparations.get(prepared) !== record || contextPreparations.get(context) !== record)
+    throw new Error('prepared context association differs');
+  assertDependencyPreparation(record.owner, preparation);
+}
+/** Revokes work synchronously and defers every terminal close while originals are pending. */
+export function requestPreparationClose(
+  preparation: DependencyPreparation,
+  boundary: 'release' | 'consume' | 'operation' | 'owner-return',
+): 'closed' | 'deferred' {
+  const record = requirePreparation(preparation);
+  record.closeRequested = true;
+  record.closeBoundary = boundary;
+  if (record.phase !== 'closed' && record.phase !== 'unknown') record.phase = 'closing';
+  return drainPreparationCleanup(record);
+}
+/** Releases known originals once; a deferred release never grants further work. */
+export function closeDependencyPreparation(
+  preparation: DependencyPreparation,
+  boundary: 'release' | 'owner-return' | 'operation' | 'runtime-finalizer',
+): void {
+  const closure = requestPreparationClose(
+    preparation,
+    boundary === 'runtime-finalizer' ? 'operation' : boundary,
+  );
+  if (closure === 'deferred') throw new Error('dependency preparation closure deferred');
+}
+async function joinPreparation(record: PreparationRecord): Promise<void> {
+  const pending: Promise<unknown>[] = [];
+  for (const operation of record.operations) {
+    if (operation.original === undefined || operation.observer === undefined)
+      poisonPreparation(record, new Error('preparation original operation missing'));
+    else pending.push(operation.original, operation.observer);
+  }
+  for (const settlement of [record.composition, record.projection, record.runtimeAction]) {
+    if (settlement === undefined) continue;
+    if (settlement.original === undefined || settlement.observer === undefined)
+      poisonPreparation(record, new Error('preparation composition original missing'));
+    else pending.push(settlement.original, settlement.observer);
+  }
+  await Promise.allSettled(pending);
+  drainPreparationCleanup(record);
+}
+async function retainUnknownOwner(owner: DependencyOwner, ownership: Ownership): Promise<never> {
+  const keeper = keeperFor(owner, ownership);
+  if (!keeper.reported) {
+    keeper.reported = true;
+    try {
+      writeFileSync(2, 'dependency preparation cleanup outcome unknown; owner retained\n');
+    } catch (cause) {
+      keeper.reportFailure = cause;
+    }
+  }
+  await keeper.pending;
+  throw new Error('retained owner keeper unexpectedly settled');
+}
 
 async function requireDirectory(path: string): Promise<void> {
   // Proof: omitted canonical directory guard; noncanonical-layout-root publisher reached callback (exit 1).
@@ -189,17 +984,56 @@ export async function withDependencyOwner<T>(
     for (const lock of locks) assertInheritedLock(lock.path, lock.descriptor);
     // Proof: omitted admission; retained committed-owner negative reached callback (exit 1).
     await recheck();
-    const publication = `${JSON.stringify({ format: 'dependency-edge-owner', version: 1, attempt: randomUUID(), plan: { sha, layouts } })}\n`;
+    const attempt = randomUUID();
+    const publication = `${JSON.stringify({ format: 'dependency-edge-owner', version: 1, attempt, plan: { sha, layouts } })}\n`;
     // Proof: omitted publication; real callback could not read required pending marker (exit 1).
     await publishRecord(join(directory, 'edge-owner.pending'), publication);
     const owner: DependencyOwner = Object.freeze({ [identity]: true as const });
-    owners.set(owner, { directory, publication, locks, layouts, sequence: 0, sha });
+    const ownership: Ownership = {
+      directory,
+      publication,
+      locks,
+      layouts,
+      sequence: 0,
+      sha,
+      attempt,
+      state: 'active',
+      preparations: new Set(),
+      composition: undefined,
+      keeper: undefined,
+      runtimeEntries: new Set(),
+    };
+    owners.set(owner, ownership);
+    let outcome: { readonly value: T } | { readonly failure: unknown };
     try {
-      return await action(owner);
-    } finally {
-      // Proof: omitted expiry; expired-owner negative lost its live-authority refusal (exit 1).
-      owners.delete(owner);
+      outcome = { value: await action(owner) };
+    } catch (cause) {
+      outcome = { failure: cause };
     }
+    if (ownership.state !== 'unknown') ownership.state = 'closing';
+    for (const record of ownership.preparations) {
+      record.closeRequested = true;
+      record.closeBoundary = 'owner-return';
+      if (record.phase !== 'unknown' && record.phase !== 'closed') record.phase = 'closing';
+      drainPreparationCleanup(record);
+    }
+    await Promise.allSettled(
+      [...ownership.runtimeEntries].flatMap((entry) =>
+        entry.observer === undefined ? [entry.original] : [entry.original, entry.observer],
+      ),
+    );
+    for (const record of ownership.preparations) await joinPreparation(record);
+    if (
+      ownership.state === 'unknown' ||
+      [...ownership.preparations].some((record) => record.phase !== 'closed')
+    )
+      await retainUnknownOwner(owner, ownership);
+    if (ownership.keeper !== undefined) clearInterval(ownership.keeper.interval);
+    // Historical pre-UC2/c955 Proof: omitting deletion lost the expired-owner refusal.
+    // The current closing state also revokes work; deletion's independent necessity is unproved.
+    owners.delete(owner);
+    if ('failure' in outcome) throw outcome.failure;
+    return outcome.value;
   }
   const edgePath = join(directory, 'edge.lock');
   if (!(await lstat(edgePath)).isFile() || (await realpath(edgePath)) !== edgePath)
@@ -224,6 +1058,7 @@ export async function assertDependencyOwner(
 ): Promise<void> {
   const ownership = owners.get(owner);
   if (ownership === undefined) throw new Error('dependency owner is not live');
+  if (ownership.state !== 'active') throw new Error('dependency owner is not active');
   // Proof: omitted SHA binding; wrong-SHA owner fence reached real fake-Docker cohort work (exit 1).
   if (sha !== undefined && sha !== ownership.sha) throw new Error('dependency owner SHA differs');
   // Proof: omitted layout binding; foreign-layout production Docker negative executed its effect (exit 1).
@@ -234,6 +1069,8 @@ export async function assertDependencyOwner(
   // Proof: removed byte equality; changed-pending production Docker negative executed its effect (exit 1).
   if ((await readRecord(join(ownership.directory, 'edge-owner.pending'))) !== ownership.publication)
     throw new Error('dependency owner publication changed');
+  // This second read occurs after awaited publication I/O; state may have changed.
+  if (owners.get(owner)?.state !== 'active') throw new Error('dependency owner is not active');
 }
 
 /** Durable per-boundary intent and observed response; uncertain calls retain intent without readback. */
@@ -304,39 +1141,166 @@ export function ownerDockerExec(
   };
 }
 
-/**
- * Holds the canonical solver runtime description for the entire protected callback.
- * Acquisition proves exclusion only for guarded executables, never legacy live
- * solver drain. Every owner boundary inside the callback verifies this description.
- */
-export async function withOwnerSolverRuntime<T>(
+async function joinRuntimeOperations(record: PreparationRecord): Promise<void> {
+  const pending: Promise<unknown>[] = [];
+  for (const operation of record.operations) {
+    if (operation.original === undefined || operation.observer === undefined)
+      poisonPreparation(record, new Error('runtime original operation missing'));
+    else pending.push(operation.original, operation.observer);
+  }
+  await Promise.allSettled(pending);
+  if (record.ownership.state === 'unknown') return;
+  if ([...record.operations].some((operation) => operation.outcome.phase !== 'fulfilled'))
+    throw new Error('preparation runtime operation did not fulfill');
+}
+
+/** Retains the exact public runtime-entry Promise before its first awaited owner check. */
+export function withOwnerSolverRuntime<T>(
   owner: DependencyOwner,
   layout: EnvLayout,
   action: () => Promise<T>,
 ): Promise<T> {
-  // Proof: omitting both entry owner checks reached protected callback after
-  // marker replacement (solver-runtime-admission.test.ts, owner-entry mutation, exit 1).
-  await assertDependencyOwner(owner, layout);
   const ownership = owners.get(owner);
-  if (ownership === undefined) throw new Error('dependency owner is not live');
+  if (ownership?.state !== 'active')
+    return Promise.reject(new Error('dependency owner is not live'));
+  const original = runOwnerSolverRuntime(owner, ownership, layout, action);
+  const entry: RuntimeEntry = {
+    original,
+    observer: undefined,
+    outcome: { phase: 'pending' },
+  };
+  ownership.runtimeEntries.add(entry);
+  const observer = original.then(
+    () => {
+      entry.outcome = { phase: 'fulfilled' };
+    },
+    (cause: unknown) => {
+      entry.outcome = { phase: 'rejected', cause };
+    },
+  );
+  entry.observer = observer;
+  void observer.then(
+    () => {
+      ownership.runtimeEntries.delete(entry);
+    },
+    () => {
+      ownership.state = 'unknown';
+    },
+  );
+  return original;
+}
+
+/** Actual canonical runtime body; every entered path settles before its description can unwind. */
+async function runOwnerSolverRuntime<T>(
+  owner: DependencyOwner,
+  ownership: Ownership,
+  layout: EnvLayout,
+  action: () => Promise<T>,
+): Promise<T> {
+  // Historical pre-UC2/c955 entry admission proof covered the original two owner checks.
+  await assertDependencyOwner(owner, layout);
+  if (owners.get(owner) !== ownership || ownership.state !== 'active')
+    throw new Error('dependency runtime owner association changed');
+  const preparation = ownership.composition;
   const path = join(ownership.directory, 'solver-runtime.lock');
-  // Proof: substituting wrong-runtime.lock reached protected work during actual
-  // paused CLI startup (solver-runtime-admission.proc.test.ts, owner-lock mutation, exit 1).
-  return withCanonicalLock(path, async (descriptor) => {
-    // Proof: omitting checked description lets replaced runtime inode pass an owner boundary (solver-runtime-admission.test.ts).
-    const lock = { path, descriptor };
-    ownership.locks.push(lock);
-    try {
-      await assertDependencyOwner(owner, layout);
-      const value = await action();
-      // Proof: omitting this check returned success after callback changed owner
-      // bytes (solver-runtime-admission.test.ts, owner-post-check mutation, exit 1).
-      await assertDependencyOwner(owner, layout);
-      return value;
-    } finally {
-      ownership.locks.splice(ownership.locks.indexOf(lock), 1);
+  let entered: Ownership['locks'][number] | undefined;
+  let outcome: { readonly value: T } | { readonly failure: unknown };
+  try {
+    // Historical pre-UC2/c955 lock-path proof replaced this canonical path in the original wrapper.
+    outcome = await withCanonicalLock(path, async (descriptor) => {
+      if (ownership.state === 'unknown') await retainUnknownOwner(owner, ownership);
+      if (ownership.state !== 'active') throw new Error('dependency runtime owner is closing');
+      const lock = { path, descriptor };
+      entered = lock;
+      ownership.locks.push(lock);
+      if (preparation !== undefined && preparation.runtimeLock === undefined)
+        preparation.runtimeLock = lock;
+      let exitAllowed = false;
+      try {
+        let outcome: { readonly value: T } | { readonly failure: unknown };
+        let actionOriginal: Promise<T> | undefined;
+        let actionSettled = false;
+        try {
+          // Historical pre-UC2/c955 description check preceded the original protected callback.
+          await assertDependencyOwner(owner, layout);
+          if (
+            preparation !== undefined &&
+            (ownership.composition !== preparation ||
+              preparation.runtimeLock !== lock ||
+              preparation.runtimeReleased ||
+              preparation.phase !== 'preparing')
+          )
+            throw new Error('preparation runtime association differs');
+          try {
+            actionOriginal = action();
+          } catch (cause) {
+            // A synchronous callback throw returned no Promise; it remains a known refusal.
+            actionSettled = true;
+            throw cause;
+          }
+          if (preparation !== undefined) {
+            const runtimeAction: CompositionSettlement = {
+              original: undefined,
+              observer: undefined,
+              outcome: { phase: 'starting' },
+            };
+            if (preparation.runtimeAction !== undefined)
+              throw new Error('preparation runtime action already bound');
+            preparation.runtimeAction = runtimeAction;
+            observeSettlement(preparation, runtimeAction, actionOriginal);
+          }
+          const returned = await actionOriginal;
+          actionSettled = true;
+          // Historical pre-UC2/c955 post-check proof covered the returned callback value.
+          await assertDependencyOwner(owner, layout);
+          if (preparation !== undefined) {
+            if (preparation.phase !== 'runtime-evidence')
+              throw new Error('preparation runtime evidence transfer absent');
+            await joinRuntimeOperations(preparation);
+          }
+          outcome = { value: returned };
+        } catch (cause) {
+          outcome = { failure: cause };
+        }
+        if (preparation !== undefined && 'failure' in outcome) {
+          if (actionOriginal !== undefined && !actionSettled) {
+            await Promise.allSettled([
+              actionOriginal,
+              ...(preparation.runtimeAction?.observer === undefined
+                ? []
+                : [preparation.runtimeAction.observer]),
+            ]);
+          }
+          preparation.failures.push({ boundary: 'runtime-finalizer', cause: outcome.failure });
+          preparation.closeRequested = true;
+          preparation.closeBoundary = 'runtime-finalizer';
+          if (preparation.phase !== 'unknown') preparation.phase = 'closing';
+          preparation.runtimeRefusalSettled = true;
+          await joinRuntimeOperations(preparation).catch((cause: unknown) => {
+            preparation.failures.push({ boundary: 'runtime-finalizer', cause });
+          });
+          drainPreparationCleanup(preparation);
+        }
+        if (isOwnershipUnknown(ownership)) await retainUnknownOwner(owner, ownership);
+        exitAllowed = true;
+        return outcome;
+      } finally {
+        if (!exitAllowed && (preparation !== undefined || isOwnershipUnknown(ownership)))
+          await retainUnknownOwner(owner, ownership);
+        ownership.locks.splice(ownership.locks.indexOf(lock), 1);
+      }
+    });
+  } catch (cause) {
+    if (preparation !== undefined && entered !== undefined) {
+      poisonPreparation(preparation, cause);
+      await retainUnknownOwner(owner, ownership);
     }
-  });
+    throw cause;
+  }
+  // Only normal canonical return establishes its own finally and close completed.
+  if (preparation !== undefined && entered !== undefined) preparation.runtimeReleased = true;
+  if ('failure' in outcome) throw outcome.failure;
+  return outcome.value;
 }
 
 /** Exact trusted UTF-8 config file observation; identities are strings to retain full inode precision. */

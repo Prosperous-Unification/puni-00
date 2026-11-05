@@ -1517,6 +1517,7 @@ describe('product lint policy discovery', () => {
 });
 
 const ACTIVATION_IMPORTS = [
+  ['lib/edge-ownership.ts', ['@wbs/store-sqlite/backup', '@wbs/store-sqlite/sqlite-cleanup']],
   [
     'lib/dependency-activation-storage.ts',
     [
@@ -1559,6 +1560,50 @@ describe('source-bundled activation leaves', () => {
       `no parser or setup diagnostics for ${path}`,
     ).toEqual([]);
     return report.messages.map((message) => message.ruleId);
+  }
+
+  for (const [alias, classifier] of [
+    ['@wbs/store-sqlite/backup', 'isSnapshotCleanupUnknown'],
+    ['@wbs/store-sqlite/sqlite-cleanup', 'isSqliteCleanupUnknown'],
+  ]) {
+    it(`owner admits only its exact ${alias} classifier import`, async () => {
+      const path = 'tools/tool-remote-scripts/src/lib/edge-ownership.ts';
+      const source = `import { ${classifier} } from '${alias}'; export { ${classifier} };`;
+      expect(await readActivationMessages(path, source)).not.toContain(
+        '@nx/enforce-module-boundaries',
+      );
+    }, 30000);
+
+    it(`owner rejects broadened ${alias} classifier imports`, async () => {
+      const path = 'tools/tool-remote-scripts/src/lib/edge-ownership.ts';
+      for (const forbidden of [
+        `${alias}/foreign`,
+        `${alias}-extra`,
+        `@wbs/store-sqlite/foreign${alias}`,
+        relative(
+          dirname(path),
+          `libs/wbs/adapters/store-sqlite/src/${alias.slice('@wbs/store-sqlite/'.length)}.ts`,
+        ),
+        '@wbs/store-sqlite',
+        '@wbs/store-sqlite/migrate',
+      ]) {
+        const source = `import * as Leaf from '${forbidden}'; export { Leaf };`;
+        expect(await readActivationMessages(path, source), forbidden).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+      }
+      for (const foreign of [
+        'tools/tool-remote-scripts/src/lib/docker.ts',
+        'tools/tool-remote-scripts/src/lib/edge-ownership.test.ts',
+        'tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts',
+        'tools/tool-smoke/src/color.ts',
+      ]) {
+        const source = `import { ${classifier} } from '${alias}'; export { ${classifier} };`;
+        expect(await readActivationMessages(foreign, source), foreign).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+      }
+    }, 30000);
   }
 
   it('keeps every peer boundary option and only the exact needed activation edges', async () => {

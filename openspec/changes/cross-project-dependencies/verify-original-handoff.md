@@ -426,3 +426,9 @@ pushed fixture repairs retain their epochs; no new storage/HOLD/constructor run
 or native grant follows. Actual commands, source identities and proof limits
 must be recorded per implemented slice. Current ordinary/source/gate/native/main
 adoption and deployment remain separate acceptance obligations.
+
+## UC2 core implementation records — 2026-11-05
+
+[Core and exact policy evidence](verify-uc2-core-20261105.md) separates the two
+accepted policy pairs from the partial owner-core known controls, failed fixture
+history and pending source-review fixes. Full UC2 remains incomplete.
