@@ -31,7 +31,7 @@ def selfcheck():
                  'state': str(root / '.puni/fleet-labs/observability-baseline'),
                  'outside': str(root / PLAN), 'packet': str(packet), 'nonce': nonce,
                  'commit': 'b' * 40,
-                 'runtimePins': [{'path': '/usr/lib/python3.12/os.py', 'sha256': 'f'*64, 'bytes': 1, 'uid': 0, 'mode': 0o644}],
+                 'runtimePins': [dict(path=p,sha256='f'*64,bytes=1,uid=0,mode=0o644) for p in ('/etc/python3.12/sitecustomize.py','/usr/lib/python3/dist-packages/apport_python_hook.py')],
                  'pins': [{'path': name, 'sha256': 'c'*64, 'bytes': 1, 'uid': os.geteuid(), 'mode': 0o644}
                           for name in pin_paths],
                  'kernel': {'release': '7.0.11-76070011-generic', 'version': 'fixture', 'machine': 'x86_64'},
@@ -517,7 +517,9 @@ elif case=='worker-bootstrap':
     assert launches==[True]
     print('watched worker-source pin guard removed: RED reached launch sentinel above64KiB source cap')
 elif case=='runtime-closure':
-    declared=[{'path':'/usr/lib/python3.12/first.py'},{'path':'/usr/lib/python3.12/later.py'}]
+    declared=[{'path':p} for p in ('/etc/python3.12/sitecustomize.py','/usr/lib/python3/dist-packages/apport_python_hook.py')]
+    assert all(control.is_runtime_path(p['path']) for p in declared)
+    for p in ('/etc/python3.12/sitecustomize.pyx','/usr/lib/python3/dist-packages/private.py','/root/key'):assert not control.is_runtime_path(p)
     request={'runtimePins':declared}
     actual={declared[0]['path']}
     control.runtime_paths=lambda:set(actual)
@@ -525,7 +527,7 @@ elif case=='runtime-closure':
     control.verify_file=lambda pin,**keywords:hashed.append(pin['path'])
     assert control.verify_runtime_pins(request,control.time.monotonic()+1)==actual
     assert not hashed
-    # A tiny reviewed source body introduces one root-installed stdlib import between phases.
+    # Known stdlib import.
     fixture=b'import base64\n'
     exec(compile(fixture,'metadata-runtime-fixture','exec'),{})
     assert 'base64' in sys.modules
@@ -537,14 +539,14 @@ elif case=='runtime-closure':
     refused(lambda:control.check_loaded_runtime(request,control.time.monotonic()+1),'runtime-pin-set')
     assert not hashed
     actual.remove('/usr/lib/python3.12/unexpected.py')
-    request['runtimePins'].append({'path':'/usr/lib/python3.12/unselected.py'})
+    actual.remove(declared[1]['path'])
     refused(lambda:control.check_loaded_runtime(request,control.time.monotonic()+1),'runtime-pin-set')
     assert not hashed
     original_require=control.require
     control.require=lambda predicate,category:original_require(predicate,category) if category!='runtime-pin-set' else None
     control.check_loaded_runtime(request,control.time.monotonic()+1)
-    assert '/usr/lib/python3.12/unselected.py' not in hashed
-    print('watched runtime closure guard removed: RED accepted unmatched declaration; extra path was never hashed')
+    assert declared[1]['path'] not in hashed
+    print('watched runtime closure guard removed: RED accepted unselected hook')
 elif case=='deadline':
     clock=[0.]
     control.time.monotonic=lambda:clock[0]

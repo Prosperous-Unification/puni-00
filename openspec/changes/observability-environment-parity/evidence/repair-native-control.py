@@ -165,6 +165,13 @@ def check_pin(pin, path):
             and not pin['mode'] & 0o022, 'pin-schema')
 
 
+def is_runtime_path(path):
+    # Proof: startup-role vectors allow both exact hooks, reject nearby/private paths;
+    # runtime-closure rejects a declared but unselected hook before hashing.
+    return path.startswith(('/usr/lib/python3.12/', '/usr/lib/x86_64-linux-gnu/', '/usr/lib/locale/')) or path in (
+        '/etc/python3.12/sitecustomize.py', '/usr/lib/python3/dist-packages/apport_python_hook.py')
+
+
 def check_request(request, nonce, root=ROOT):
     """No caller command, fixture, bounds, policy or executable selection is accepted."""
     # Proof: selfcheck schema, nonce, paths, pins, kernel and inventory faults exercise this entry.
@@ -188,9 +195,7 @@ def check_request(request, nonce, root=ROOT):
     runtime_paths = set()
     for pin in request['runtimePins']:
         require(type(pin) is dict and type(pin.get('path')) is str
-                and (pin['path'].startswith('/usr/lib/python3.12/')
-                     or pin['path'].startswith('/usr/lib/x86_64-linux-gnu/')
-                     or pin['path'].startswith('/usr/lib/locale/'))
+                and is_runtime_path(pin['path'])
                 and os.path.normpath(pin['path']) == pin['path']
                 and pin['path'] not in runtime_paths and pin['path'] not in expected, 'runtime-pin-set')
         check_pin(pin, pin['path'])
@@ -357,9 +362,7 @@ def runtime_paths():
             require(not fields[5].endswith(' (deleted)'), 'runtime-mapping')
             mappings.add(str(Path(fields[5]).resolve()))
     paths = (imported | mappings) - covered
-    require(1 <= len(paths) <= 256 and all(
-        path.startswith(('/usr/lib/python3.12/', '/usr/lib/x86_64-linux-gnu/', '/usr/lib/locale/'))
-        for path in paths), 'runtime-mapping')
+    require(1 <= len(paths) <= 256 and all(is_runtime_path(path) for path in paths), 'runtime-mapping')
     return paths
 
 

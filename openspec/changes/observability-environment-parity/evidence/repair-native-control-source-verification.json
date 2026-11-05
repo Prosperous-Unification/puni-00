@@ -3,20 +3,16 @@
   "scope": "Task100 finite native-control source preparation",
   "sourcePins": [
     {
-      "path": "openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
-      "sha256": "544f89cd65cfc91aeb126e204ad21585815bc4a631901bdc6d374875dbfb312c",
-      "bytes": 58478,
-      "lines": 1144,
+      "bytes": 58636,
       "mode": "0644",
-      "uid": 1000
+      "path": "openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
+      "sha256": "75393bd253e9896831e49f617b9fd4e6cdea1a48d471a246185d00546c10d74e"
     },
     {
-      "path": "tools/tool-fleet/src/lab-repair-native-control.test.ts",
-      "sha256": "e6af3354c95bf36d81e2212b16f155ea4dfb147cfd163613553ed6b03d40a74b",
-      "bytes": 40716,
-      "lines": 748,
+      "bytes": 40863,
       "mode": "0644",
-      "uid": 1000
+      "path": "tools/tool-fleet/src/lab-repair-native-control.test.ts",
+      "sha256": "cc808735733432da591ef55f3ea94f8182d2f540bb01554c87dd5c5ce0f00868"
     }
   ],
   "records": [
@@ -68,7 +64,8 @@
     "finalMetadataTests": 9,
     "finalAssertions": 58,
     "batchTypingSeconds": 1.9168191029966692,
-    "batchTypingExit": 0
+    "batchTypingExit": 0,
+    "finalIncrementalTypingExit": 0
   },
   "review": "five source findings and two-phase closure resolved; scoped approval",
   "initialMemoryBytes": 2818572288,
@@ -87,6 +84,35 @@
     "Controlled metadata tests only; no native enforcement/lifecycle/cleanup qualification",
     "Fresh committed source/runtime/kernel/inventory/ledger request and independent review required",
     "Root-installed system bytecode remains an explicit trust boundary",
-    "No repair or full observability acceptance"
-  ]
+    "No repair or full observability acceptance",
+    "Two exact installed startup-hook paths admitted; nearby paths and unselected declarations still refuse"
+  ],
+  "previousSourcePins": [
+    {
+      "path": "openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
+      "sha256": "544f89cd65cfc91aeb126e204ad21585815bc4a631901bdc6d374875dbfb312c",
+      "bytes": 58478,
+      "lines": 1144,
+      "mode": "0644",
+      "uid": 1000
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-repair-native-control.test.ts",
+      "sha256": "e6af3354c95bf36d81e2212b16f155ea4dfb147cfd163613553ed6b03d40a74b",
+      "bytes": 40716,
+      "lines": 748,
+      "mode": "0644",
+      "uid": 1000
+    }
+  ],
+  "startupCompatibility": {
+    "sourceBase": "120acaf85d18c0065c394155f404dc55ad983216",
+    "reportSha256": "1c2041bc1564a0e57aa876082c25a6a02aec306f404166d3a9b14b883e569f1a",
+    "tests": 3,
+    "assertions": 34,
+    "review": "independent scoped fix2 review approved; frozen pins and embedded diff verified; no replay or findings",
+    "installedProbe": "Before any request/service: original host probe rejected two undeclared root-owned startup hooks. Sandbox C-locale classifier accepted 67 runtime roles then correctly refused hooks reported UID65534; original host UID0/70-path observation is separate. Fresh final host binding remains required.",
+    "locale": "LANG=C LC_ALL=C for request, controller and worker",
+    "nativeExecuted": false
+  }
 }
