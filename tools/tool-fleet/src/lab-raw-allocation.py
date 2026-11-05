@@ -62,12 +62,50 @@ def observe_repair(path, expected_bytes):
     return _inspect_file(path, expected_bytes, repair=True)
 
 
-def _inspect_file(path, expected_bytes, *, require_initialized=False, repair=False):
+def observe_repair_ranges(path, expected_bytes):
+    """Return exact ordered holes with the unchanged non-admitting repair observation.
+
+    Each offset/length pair charges 16 additional projection bytes against the
+    decoder's finite metadata policy. This is logical projection accounting,
+    not a measurement of Python memory. No file contents or SYNC are requested.
+    """
+    return _inspect_file(path, expected_bytes, repair=True, collect_ranges=True)
+
+
+def inspect_initialized_range(path, expected_bytes, offset_bytes, range_bytes):
+    """Inspect full private allocation but certify initialization only in this range.
+
+    Positive aligned integer geometry is checked before any native inspection.
+    UNWRITTEN outside the selected range remains permitted; intersecting extents
+    refuse. The explicit range-scoped projection grants no authority and cannot
+    replace whole-file initialized inspection.
+    """
+    return _inspect_file(path, expected_bytes, initialized_range=(offset_bytes, range_bytes))
+
+
+def _record_missing_range(missing_ranges, offset_bytes, range_bytes, metadata_bytes):
+    """Bound each additional interval before growing the separate projection."""
+    # Proof: raw-range-projection-bound fault accepts the oversized holes projection at a 160-byte cap.
+    if metadata_bytes + (len(missing_ranges) + 1) * 16 > MAX_METADATA_BYTES:
+        raise InspectionRefusal('raw-range-projection-bound')
+    missing_ranges.append([offset_bytes, range_bytes])
+
+
+def _inspect_file(path, expected_bytes, *, require_initialized=False, repair=False,
+                  collect_ranges=False, initialized_range=None):
     """Walk one original descriptor; repair selects a non-admitting observation only."""
     # Proof: invalid-size guard removal changes its production refusal category in the fault campaign.
     if (type(expected_bytes) is not int or expected_bytes <= 0
             or expected_bytes > MAX_BYTES or expected_bytes % ALIGNMENT):
         raise InspectionRefusal('raw-invalid-size')
+    if initialized_range is not None:
+        offset_bytes, range_bytes = initialized_range
+        # Proof: raw-invalid-range fault reaches the forbidden native-operation sentinel; guarded invalid bounds never inspect a path.
+        if (type(offset_bytes) is not int or type(range_bytes) is not int
+                or offset_bytes < 0 or range_bytes <= 0
+                or offset_bytes % ALIGNMENT or range_bytes % ALIGNMENT
+                or offset_bytes + range_bytes > expected_bytes):
+            raise InspectionRefusal('raw-invalid-range')
     started = time.monotonic()
     descriptor = None
     try:
@@ -93,6 +131,7 @@ def _inspect_file(path, expected_bytes, *, require_initialized=False, repair=Fal
         page_count = 0
         extent_count = 0
         metadata_bytes = 0
+        missing_ranges = []
         mapped_bytes = 0
         unwritten_bytes = 0
         complete = False
@@ -118,8 +157,8 @@ def _inspect_file(path, expected_bytes, *, require_initialized=False, repair=Fal
             page_count += 1
             extent_count += count
             metadata_bytes += HEADER.size + count * EXTENT.size
-            # Proof: projection-bound fault campaign disables predicate; metadata negative succeeds.
-            if extent_count > MAX_EXTENTS or metadata_bytes > MAX_METADATA_BYTES:
+            # Proof: projection-bound fault campaign disables predicate; metadata negative succeeds. Range page-cap fault also accepts a later page after prior interval charges.
+            if extent_count > MAX_EXTENTS or metadata_bytes + len(missing_ranges) * 16 > MAX_METADATA_BYTES:
                 raise InspectionRefusal('raw-map-bound')
             # Proof: repair completion fault accepts an empty continuation without LAST after a mapped extent.
             if repair and count == 0 and extent_count != 0:
@@ -145,12 +184,23 @@ def _inspect_file(path, expected_bytes, *, require_initialized=False, repair=Fal
                 if ((bool(extent_flags & 1) and index != count - 1) or (end == expected_bytes and not extent_flags & 1)
                         if repair else bool(extent_flags & 1) != (end == expected_bytes) or (end == expected_bytes and index != count - 1)):
                     raise InspectionRefusal('raw-map-last')
+                # Proof: raw-range-uninitialized fault logically accepts an intersecting UNWRITTEN extent, including range boundaries.
+                if (initialized_range is not None and extent_flags & 0x800
+                        and logical < offset_bytes + range_bytes and end > offset_bytes):
+                    raise InspectionRefusal('raw-range-uninitialized')
+                if collect_ranges and logical > cursor:
+                    _record_missing_range(missing_ranges, cursor, logical - cursor, metadata_bytes)
                 digest.update(packet[offset:offset + EXTENT.size])
                 cursor = end
                 mapped_bytes += extent_length
                 if extent_flags & 0x800:
                     unwritten_bytes += extent_length
                 complete = bool(extent_flags & 1)
+        if collect_ranges and cursor < expected_bytes:
+            _record_missing_range(missing_ranges, cursor, expected_bytes - cursor, metadata_bytes)
+        # Proof: omitting the final interval refuses raw-range-incomplete; disabling this check with that omission logically accepts incomplete holes.
+        if collect_ranges and sum(length for _, length in missing_ranges) != expected_bytes - mapped_bytes:
+            raise InspectionRefusal('raw-range-incomplete')
         # Proof: repair accounting fault accepts mapped lengths larger than inode blocks; excess-residual and empty-map residual negatives use this same boundary.
         if repair and not 0 <= allocated_bytes - mapped_bytes <= 1024**2:
             raise InspectionRefusal('raw-map-accounting')
@@ -180,6 +230,14 @@ def _inspect_file(path, expected_bytes, *, require_initialized=False, repair=Fal
                 'mappedDataBytes': mapped_bytes, 'missingDataBytes': expected_bytes - mapped_bytes,
                 'unwrittenBytes': unwritten_bytes, 'residualAllocatedBytes': allocated_bytes - mapped_bytes,
             })
+        if collect_ranges:
+            return {'observation': receipt, 'missingRanges': missing_ranges}
+        if initialized_range is not None:
+            return {
+                'allocation': receipt, 'offsetBytes': offset_bytes, 'rangeBytes': range_bytes,
+                'admissionAuthorized': False, 'repairAuthorized': False,
+                'guestAuthorized': False, 'fullStackAuthorized': False,
+            }
         return receipt
     except OSError as failure:
         if failure.errno == errno.ENOENT:

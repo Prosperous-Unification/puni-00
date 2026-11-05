@@ -1402,3 +1402,48 @@ The Linux FIEMAP adapter SHALL share one bounded read-only decoder between stric
 - **WHEN** source state is missing, unreadable, unstable or malformed, flags are unknown/shared, logical ranges overlap/exceed bounds, or enumeration completion cannot be proven
 - **THEN** observation refuses rather than returning authoritative facts
 - **AND** finite page, extent, projection and time limits remain enforced
+
+### Requirement: Repair range checks reuse canonical allocation decoding
+
+The FIEMAP adapter SHALL derive bounded missing ranges and initialized-range checks from its existing original-descriptor decoder. Existing strict and aggregate observation projections SHALL remain unchanged. Missing ranges SHALL exactly partition holes, and initialized-range checks SHALL require full private allocation plus initialization of the requested aligned range. These observations SHALL grant no repair or guest authority.
+
+#### Scenario: Missing ranges are planning evidence only
+
+- **WHEN** a private sparse map contains leading, interior or trailing holes, including page boundaries or an entirely sparse file
+- **THEN** the bounded range observation reports every missing logical interval exactly once in order with the existing aggregate observation
+- **AND** malformed map/identity/input state and excessive projected metadata refuse through the canonical validation path without content reads, writes or SYNC
+- **AND** existing aggregate-only observation and strict CLI schemas remain unchanged
+
+#### Scenario: Only the completed range must be initialized
+
+- **WHEN** a trusted worker inspects an aligned positive range inside a fully allocated private file after a bounded write
+- **THEN** an UNWRITTEN extent intersecting that range refuses before another write is authorized
+- **AND** UNWRITTEN extents wholly outside that range may remain while whole-file initialized inspection still refuses them
+- **AND** invalid, boolean, unaligned, empty, overflowing or out-of-file ranges refuse before native inspection
+- **AND** the result explicitly identifies its limited range and cannot certify whole-file or guest readiness
+
+### Requirement: Repair admission retains live and unreclaimed allocation budgets
+
+The fixed repair adapter SHALL preserve existing memory, inode-staging, outside and free-backing limits. Each step SHALL reserve its complete next-step growth before mutation. A durable original-bound gross filesystem reservation SHALL precede admission ACK, survive failure and remain charged once in later repair and continued-guest admissions until independently qualified release. Missing or malformed reservation state SHALL refuse.
+
+#### Scenario: Existing raw and next step are charged correctly
+
+- **WHEN** an existing8GiB failed disk is admitted for bounded repair
+- **THEN** current inode blocks are counted once, with160MiB outside and full next-step gross inside10GiB staging
+- **AND** the reviewed fixed profile uses one native syscall per missing4KiB block, at most256calls per allocation batch, and1MiB rewrite steps
+- **AND** fresh free backing retains50GiB initial or40GiB live floor plus the full current/prior unreclaimed reservations and other outstanding reservations
+- **AND** an unknown, unsupported or one-byte-short observation refuses before mutation
+
+#### Scenario: Failed attempts retain their debt
+
+- **WHEN** repair fails, is cancelled, completes, cleans up or a new nonce is proposed
+- **THEN** the original request/source/inode-bound durable reservation remains discoverable and charged exactly once
+- **AND** absence of an accepted receipt, smaller st_blocks, successful fsync or final logical equality cannot release it
+- **AND** no mutation ACK precedes the reservation's file and directory durability
+
+#### Scenario: A step cannot be replayed or self-certified
+
+- **WHEN** a confined child reports a completed bounded step
+- **THEN** its trusted worker validates exact sequence/offset/count and canonical initialized range before the next private acknowledgement
+- **AND** short I/O, failed sync, uninitialized range, stale/replayed completion or unsupported profile refuses without retry or another write
+- **AND** the outer coordinator keeps its existing frame/output bounds and captures authentic counters only after child reap

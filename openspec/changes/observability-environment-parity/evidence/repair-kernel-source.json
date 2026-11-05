@@ -1,0 +1,157 @@
+{
+  "recordedAt": "2026-11-05T03:26:49.988790+00:00",
+  "scope": "installed-kernel-source-identity-comparison-only",
+  "vendorRepository": "https://github.com/pop-os/linux",
+  "vendorRevision": "49748809f7e18ca62f2e054523f1e2c0eb7a88ad",
+  "installedVersion": "7.0.11-76070011.202606011647~1784215097~24.04~4974880",
+  "installedRelease": "7.0.11-76070011-generic",
+  "installedChangelogSha256": "5b40c328ae4ed4a56d36d73f37f5335136439db093be8033dc4c413f663c7569",
+  "comparisonRevision": "torvalds/linux v7.0",
+  "comparisons": [
+    {
+      "path": "fs/ext4/balloc.c",
+      "vendorBlob": "8040c731b3e45d1c54fda8bb5493604e03c969bd",
+      "upstreamV70Blob": "8040c731b3e45d1c54fda8bb5493604e03c969bd",
+      "identicalToV70": true,
+      "vendorBytes": 29718,
+      "upstreamBytes": 29718
+    },
+    {
+      "path": "fs/ext4/ext4_jbd2.h",
+      "vendorBlob": "63d17c5201b56e6e29b211959bc547febe464300",
+      "upstreamV70Blob": "63d17c5201b56e6e29b211959bc547febe464300",
+      "identicalToV70": true,
+      "vendorBytes": 15372,
+      "upstreamBytes": 15372
+    },
+    {
+      "path": "fs/ext4/extents.c",
+      "vendorBlob": "8cce1479be6d1e8d4f57428a0a0ed1088744e72e",
+      "upstreamV70Blob": "8cce1479be6d1e8d4f57428a0a0ed1088744e72e",
+      "identicalToV70": true,
+      "vendorBytes": 176520,
+      "upstreamBytes": 176520
+    },
+    {
+      "path": "fs/ext4/fast_commit.c",
+      "vendorBlob": "2f0057e049346cf364be277c39e8ef3690cd0ad3",
+      "upstreamV70Blob": "2f0057e049346cf364be277c39e8ef3690cd0ad3",
+      "identicalToV70": true,
+      "vendorBytes": 69371,
+      "upstreamBytes": 69371
+    },
+    {
+      "path": "fs/ext4/file.c",
+      "vendorBlob": "f1dc5ce791a7df920e07ad37e6c8522b2f660501",
+      "upstreamV70Blob": "f1dc5ce791a7df920e07ad37e6c8522b2f660501",
+      "identicalToV70": true,
+      "vendorBytes": 26722,
+      "upstreamBytes": 26722
+    },
+    {
+      "path": "fs/ext4/fsync.c",
+      "vendorBlob": "bd8f230fa507e77c88096930d1fc634bd749133c",
+      "upstreamV70Blob": "bd8f230fa507e77c88096930d1fc634bd749133c",
+      "identicalToV70": true,
+      "vendorBytes": 5046,
+      "upstreamBytes": 5046
+    },
+    {
+      "path": "fs/ext4/inode.c",
+      "vendorBlob": "1123d995494b588744ba47fcee88e9cd0cc992dd",
+      "upstreamV70Blob": "1123d995494b588744ba47fcee88e9cd0cc992dd",
+      "identicalToV70": true,
+      "vendorBytes": 199266,
+      "upstreamBytes": 199266
+    },
+    {
+      "path": "fs/ext4/mballoc.c",
+      "vendorBlob": "bb58eafb87bcd6d865f63135f4df03d586a15523",
+      "upstreamV70Blob": "bb58eafb87bcd6d865f63135f4df03d586a15523",
+      "identicalToV70": true,
+      "vendorBytes": 209784,
+      "upstreamBytes": 209784
+    },
+    {
+      "path": "fs/ext4/page-io.c",
+      "vendorBlob": "39fe50b3c662d0fcd36a1e974559ceccfdcf9af3",
+      "upstreamV70Blob": "39fe50b3c662d0fcd36a1e974559ceccfdcf9af3",
+      "identicalToV70": true,
+      "vendorBytes": 16885,
+      "upstreamBytes": 16885
+    },
+    {
+      "path": "fs/ext4/super.c",
+      "vendorBlob": "a34efb44e73d70d034aa2ed1b4011a6851235f22",
+      "upstreamV70Blob": "a34efb44e73d70d034aa2ed1b4011a6851235f22",
+      "identicalToV70": true,
+      "vendorBytes": 215865,
+      "upstreamBytes": 215865
+    },
+    {
+      "path": "fs/ext4/ext4.h",
+      "vendorBlob": "7617e2d454ea516fee9047366458c0bda568fddf",
+      "upstreamV70Blob": "7617e2d454ea516fee9047366458c0bda568fddf",
+      "identicalToV70": true,
+      "vendorBytes": 140469,
+      "upstreamBytes": 140469
+    },
+    {
+      "path": "fs/jbd2/journal.c",
+      "vendorBlob": "cb2c529a8f1bea33df6d4135e5782b9a77792732",
+      "upstreamV70Blob": "cb2c529a8f1bea33df6d4135e5782b9a77792732",
+      "identicalToV70": true,
+      "vendorBytes": 91989,
+      "upstreamBytes": 91989
+    },
+    {
+      "path": "fs/jbd2/commit.c",
+      "vendorBlob": "7203d2d2624d7afd0d7a3fe7f830845665dd4c14",
+      "upstreamV70Blob": "7203d2d2624d7afd0d7a3fe7f830845665dd4c14",
+      "identicalToV70": true,
+      "vendorBytes": 35848,
+      "upstreamBytes": 35848
+    },
+    {
+      "path": "fs/iomap/direct-io.c",
+      "vendorBlob": "e911daedff65ae60ecb9b7f710ada6ddaefaf425",
+      "upstreamV70Blob": "e911daedff65ae60ecb9b7f710ada6ddaefaf425",
+      "identicalToV70": true,
+      "vendorBytes": 25179,
+      "upstreamBytes": 25179
+    },
+    {
+      "path": "fs/quota/dquot.c",
+      "vendorBlob": "64cf42721496544e431878551c6c0e9daa2ca43c",
+      "upstreamV70Blob": "376739f6420ed5a415fe7c2d2bcfab65c0820208",
+      "identicalToV70": false,
+      "vendorBytes": 84447,
+      "upstreamBytes": 83993
+    },
+    {
+      "path": "include/linux/quotaops.h",
+      "vendorBlob": "f9c0f9d7c9d93a24c07b0d4ca239e97f1ba1dfc8",
+      "upstreamV70Blob": "c334f82ed385a13f76df1eb8196dabeaac8a3206",
+      "identicalToV70": false,
+      "vendorBytes": 10287,
+      "upstreamBytes": 10514
+    }
+  ],
+  "runtimeRepairAuthorized": false,
+  "binaryReproducibilityProved": false,
+  "quotaDeltaSha256": "0a8c85996e2e7c051cece0c495f075d7df17078a64320979a7615b899e2fe7d1",
+  "quotaDeltaBytes": 3239,
+  "independentReviewSha256": "afbd1126fd67e76d27defa003b2ffa7a97958eb698dac544d4fe5e7651ec9081",
+  "depthHeader": {
+    "path": "fs/ext4/ext4_extents.h",
+    "gitBlob": "ebaf7cc42430fa2c36c08dedfc6767f651431442",
+    "sha256": "1c94c3ff8e9e7c83bac0a7a3d44c72da661d810da0b1c1c78373317a1fb4c068",
+    "inspection": "independently fetched and checked by reviewer"
+  },
+  "sourceMultipliersApproved": {
+    "metadataClustersPerInsertion": 6,
+    "kernelAttemptsPerMissingBlock": 4,
+    "conversionInsertionsPerBlock": 2,
+    "predicate": "dense private EXTENTS, 4KiB clusters, delalloc, dioread_nolock, no data journal, fixed non-atomic monotonic no-redirty steps"
+  }
+}

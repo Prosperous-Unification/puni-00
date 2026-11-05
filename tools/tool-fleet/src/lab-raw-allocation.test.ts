@@ -657,3 +657,302 @@ print('verified absence and unreadability')
     await chmod(path, 0o600);
   }
 });
+
+// Range cases reuse the existing native reply fixture so identity, descriptor and
+// canonical packet validation remain on the same production path.
+const rangeKernel = repairKernel.slice(0, repairKernel.indexOf('refusals='));
+
+async function inspectRanges(case_: string, assertions: string, fault = '') {
+  const directory = await scratchAsync('lab-repair-range-');
+  const path = join(directory, 'disk.raw');
+  await writeFile(path, '', { mode: 0o600 });
+  return Bun.spawnSync(
+    ['python3', '-I', '-B', '-c', `${rangeKernel}\n${assertions}`, helper, path, case_, fault],
+    { timeout: 12000, maxBuffer: 65536 },
+  );
+}
+
+function expectRangePass(invocation: Bun.SyncSubprocess<'pipe', 'pipe'>) {
+  expect(invocation.stderr.toString()).toBe('');
+  expect(invocation.exitCode).toBe(0);
+}
+
+for (const [case_, intervals] of [
+  ['holes', '[[0,4096],[8192,4096],[16384,4096]]'],
+  ['empty', '[[0,20480]]'],
+  ['initialized', '[]'],
+  ['unwritten', '[]'],
+  ['residual-beyond-eof', '[[4096,16384]]'],
+  ['multipage', '[[4096+index*8192,4096] for index in range(512)]+[[4198400,8192]]'],
+]) {
+  test(`repair ranges report exact bounded intervals for ${case_}`, async () => {
+    expectRangePass(
+      await inspectRanges(
+        case_,
+        `
+receipt=p.observe_repair_ranges(sys.argv[2],size)
+assert set(receipt)=={'observation','missingRanges'},receipt
+assert receipt['missingRanges']==${intervals},receipt['missingRanges']
+aggregate=p.observe_repair(sys.argv[2],size)
+assert receipt['observation']==aggregate
+assert set(aggregate)=={'provider','inspectorVersion','observations','identity','expectedBytes','allocatedBytes','extentCount','pageCount','metadataBytes','mapDigest','observation','admissionAuthorized','repairAuthorized','guestAuthorized','fullStackAuthorized','mappedDataBytes','missingDataBytes','unwrittenBytes','residualAllocatedBytes'},aggregate
+assert sum(length for offset,length in receipt['missingRanges'])==aggregate['missingDataBytes']
+assert all(aggregate[key] is False for key in ('admissionAuthorized','repairAuthorized','guestAuthorized','fullStackAuthorized'))
+`,
+      ),
+    );
+  });
+}
+
+test('initialized range keeps full allocation and only certifies its explicit initialized scope', async () => {
+  expectRangePass(
+    await inspectRanges(
+      'initialized',
+      `
+rows=[(0,4096,0x800),(4096,8192,0),(12288,8192,0x801)]
+receipt=p.inspect_initialized_range(sys.argv[2],size,4096,8192)
+assert set(receipt)=={'allocation','offsetBytes','rangeBytes','admissionAuthorized','repairAuthorized','guestAuthorized','fullStackAuthorized'},receipt
+assert receipt['offsetBytes']==4096 and receipt['rangeBytes']==8192
+assert receipt['allocation']==p.inspect_file(sys.argv[2],size)
+assert all(receipt[key] is False for key in ('admissionAuthorized','repairAuthorized','guestAuthorized','fullStackAuthorized'))
+try:p.inspect_file(sys.argv[2],size,require_initialized=True)
+except p.InspectionRefusal as refusal:assert str(refusal)=='raw-map-uninitialized'
+else:raise AssertionError('whole-file initialization widened')
+`,
+    ),
+  );
+});
+
+for (const [offset, length] of [
+  [0, 4096],
+  [0, 8192],
+  [8192, 8192],
+  [12288, 4096],
+]) {
+  test(`initialized range refuses intersecting UNWRITTEN at ${String(offset)}:${String(length)}`, async () => {
+    expectRangePass(
+      await inspectRanges(
+        'initialized',
+        `
+rows=[(0,4096,0x800),(4096,8192,0),(12288,8192,0x801)]
+try:p.inspect_initialized_range(sys.argv[2],size,${String(offset)},${String(length)})
+except p.InspectionRefusal as refusal:assert str(refusal)=='raw-range-uninitialized',str(refusal)
+else:raise AssertionError('intersecting UNWRITTEN accepted')
+`,
+      ),
+    );
+  });
+}
+
+const invalidRanges = String.raw`
+for offset,length in ((True,4096),(0,True),(0.0,4096),(0,4096.0),(-4096,4096),(1,4096),(0,1),(0,0),(0,-4096),(size,4096),(16384,8192),(2**100,4096),(0,2**100)):
+    try:p.inspect_initialized_range(sys.argv[2],size,offset,length)
+    except p.InspectionRefusal as refusal:assert str(refusal)=='raw-invalid-range',str(refusal)
+    else:raise AssertionError('invalid range accepted')
+`;
+test('initialized range refuses invalid bounds before any native inspection', async () => {
+  expectRangePass(
+    await inspectRanges(
+      'initialized',
+      `
+p.os.lstat=lambda path:forbid()
+${invalidRanges}
+`,
+    ),
+  );
+});
+
+test('repair ranges count added intervals against the same finite projection cap', async () => {
+  expectRangePass(
+    await inspectRanges(
+      'holes',
+      `
+p.MAX_METADATA_BYTES=160
+try:p.observe_repair_ranges(sys.argv[2],size)
+except p.InspectionRefusal as refusal:assert str(refusal)=='raw-range-projection-bound',str(refusal)
+else:raise AssertionError('oversized range projection accepted')
+assert p.observe_repair(sys.argv[2],size)['metadataBytes']==144
+`,
+    ),
+  );
+});
+
+for (const [case_, category] of [
+  ['header', 'raw-map-header'],
+  ['identity', 'raw-identity-changed'],
+  ['holes', 'raw-allocation-invalid'],
+]) {
+  test(`repair range APIs preserve canonical refusal for ${case_}`, async () => {
+    expectRangePass(
+      await inspectRanges(
+        case_,
+        `
+if case=='header':rows=[(0,size,1)];blocks=size//512
+if case=='identity':
+    size=513*4096;blocks=size//512
+    rows=[(index*4096,4096,1 if index==512 else 0) for index in range(513)]
+for inspect,expected in ((lambda:p.observe_repair_ranges(sys.argv[2],size),None if case=='holes' else '${category}'),(lambda:p.inspect_initialized_range(sys.argv[2],size,0,4096),'${category}')):
+    calls=0
+    try:inspect()
+    except p.InspectionRefusal as refusal:assert str(refusal)==expected,(str(refusal),expected)
+    else:assert expected is None,'canonical invalid state accepted'
+`,
+      ),
+    );
+  });
+}
+
+for (const [fault, assertions, witness] of [
+  [
+    'raw-invalid-range',
+    `p.os.lstat=lambda path:forbid()\n${invalidRanges}`,
+    'content access or mutation attempted',
+  ],
+  [
+    'raw-range-projection-bound',
+    `p.MAX_METADATA_BYTES=160\np.observe_repair_ranges(sys.argv[2],size)\nraise AssertionError('oversized range projection accepted')`,
+    'oversized range projection accepted',
+  ],
+  [
+    'raw-range-uninitialized',
+    `p.inspect_initialized_range(sys.argv[2],size,0,4096)\nraise AssertionError('intersecting UNWRITTEN accepted')`,
+    'intersecting UNWRITTEN accepted',
+  ],
+]) {
+  test(`repair range fault ${fault} exposes the removed production guard`, async () => {
+    const invocation = await inspectRanges(
+      fault === 'raw-range-projection-bound' ? 'holes' : 'unwritten',
+      assertions,
+      fault,
+    );
+    expect(invocation.exitCode).not.toBe(0);
+    expect(invocation.stderr.toString()).toContain(witness);
+  });
+}
+
+test('repair range APIs distinguish real absence and unreadability', async () => {
+  const directory = await scratchAsync('lab-range-input-');
+  const path = join(directory, 'disk.raw');
+  await writeFile(path, '', { mode: 0o000 });
+  try {
+    const invocation = Bun.spawnSync([
+      'python3',
+      '-I',
+      '-B',
+      '-c',
+      `${repairImport}
+for path,category in ((sys.argv[2]+'-absent','raw-input-absent'),(sys.argv[2],'raw-input-unreadable')):
+    for inspect in (lambda:p.observe_repair_ranges(path,4096),lambda:p.inspect_initialized_range(path,4096,0,4096)):
+        try:inspect()
+        except p.InspectionRefusal as refusal:assert str(refusal)==category,str(refusal)
+        else:raise AssertionError('untrusted range input accepted')
+`,
+      helper,
+      path,
+    ]);
+    expectRangePass(invocation);
+  } finally {
+    await chmod(path, 0o600);
+  }
+});
+
+test('repair ranges and initialized range follow real sparse, UNWRITTEN and initialized allocation', async () => {
+  const directory = await scratchAsync('lab-range-real-');
+  const path = join(directory, 'disk.raw');
+  await writeFile(path, '', { mode: 0o600 });
+  expect(Bun.spawnSync(['truncate', '-s', '16384', path]).exitCode).toBe(0);
+  const invocation = Bun.spawnSync([
+    'python3',
+    '-I',
+    '-B',
+    '-c',
+    `${repairImport}
+assert p.observe_repair_ranges(sys.argv[2],16384)['missingRanges']==[[0,16384]]
+descriptor=os.open(sys.argv[2],os.O_WRONLY|os.O_NOFOLLOW)
+try:os.posix_fallocate(descriptor,0,16384)
+finally:os.close(descriptor)
+assert p.observe_repair_ranges(sys.argv[2],16384)['missingRanges']==[]
+try:p.inspect_initialized_range(sys.argv[2],16384,4096,4096)
+except p.InspectionRefusal as refusal:assert str(refusal)=='raw-range-uninitialized',str(refusal)
+else:raise AssertionError('real UNWRITTEN accepted')
+descriptor=os.open(sys.argv[2],os.O_WRONLY|os.O_NOFOLLOW)
+try:
+    assert os.pwrite(descriptor,b'x'*4096,4096)==4096
+    os.fsync(descriptor)
+finally:os.close(descriptor)
+before=p.identify_file(os.lstat(sys.argv[2]))
+receipt=p.inspect_initialized_range(sys.argv[2],16384,4096,4096)
+assert receipt['offsetBytes']==4096 and receipt['rangeBytes']==4096
+assert p.identify_file(os.lstat(sys.argv[2]))==before
+try:p.inspect_file(sys.argv[2],16384,require_initialized=True)
+except p.InspectionRefusal as refusal:assert str(refusal)=='raw-map-uninitialized'
+else:raise AssertionError('real whole-file initialization widened')
+`,
+    helper,
+    path,
+  ]);
+  expectRangePass(invocation);
+});
+
+const pageRangeCap = String.raw`
+rows=[(index*8192,4096,0) for index in range(512)]+[(4190208,16384,1)]
+blocks=4128
+p.MAX_METADATA_BYTES=36900
+try:p.observe_repair_ranges(sys.argv[2],size)
+except p.InspectionRefusal as refusal:assert str(refusal)=='raw-map-bound',str(refusal)
+else:raise AssertionError('later page projection accepted')
+`;
+test('repair ranges carry interval charges across page boundaries', async () => {
+  expectRangePass(await inspectRanges('multipage', pageRangeCap));
+});
+test('repair range fault raw-map-bound exposes omitted earlier interval charges', async () => {
+  const invocation = await inspectRanges('multipage', pageRangeCap, 'raw-map-bound');
+  expect(invocation.exitCode).not.toBe(0);
+  expect(invocation.stderr.toString()).toContain('later page projection accepted');
+});
+
+// Inject a dropped final interval through the real decoder, then demonstrate the
+// completeness guard is the boundary that prevents logically incomplete output.
+const omitFinalRange = rangeKernel.replace(
+  'spec.loader.exec_module(p)',
+  String.raw`spec.loader.exec_module(p)
+import ast,pathlib
+changed=ast.parse(pathlib.Path(spec.origin).read_text())
+final_intervals=[node for node in ast.walk(changed) if isinstance(node,ast.If) and any(isinstance(child,ast.Call) and isinstance(child.func,ast.Name) and child.func.id=='_record_missing_range' and isinstance(child.args[2],ast.BinOp) and isinstance(child.args[2].left,ast.Name) and child.args[2].left.id=='expected_bytes' for child in ast.walk(node))]
+assert len(final_intervals)==1
+final_intervals[0].body=[ast.Pass()]
+exec(compile(ast.fix_missing_locations(changed),spec.origin,'exec'),p.__dict__)
+`,
+);
+for (const fault of ['', 'raw-range-incomplete']) {
+  test(`repair range completeness ${fault ? 'fault exposes incomplete logical acceptance' : 'refuses a dropped final interval'}`, async () => {
+    const directory = await scratchAsync('lab-range-completeness-');
+    const path = join(directory, 'disk.raw');
+    await writeFile(path, '', { mode: 0o600 });
+    const changed = omitFinalRange.replace(
+      'tree=ast.parse(pathlib.Path(spec.origin).read_text())',
+      'tree=changed',
+    );
+    const invocation = Bun.spawnSync([
+      'python3',
+      '-I',
+      '-B',
+      '-c',
+      `${changed}
+try:p.observe_repair_ranges(sys.argv[2],size)
+except p.InspectionRefusal as refusal:assert str(refusal)=='raw-range-incomplete',str(refusal)
+else:raise AssertionError('incomplete holes accepted')
+`,
+      helper,
+      path,
+      'holes',
+      fault,
+    ]);
+    if (fault) {
+      expect(invocation.exitCode).not.toBe(0);
+      expect(invocation.stderr.toString()).toContain('incomplete holes accepted');
+    } else {
+      expectRangePass(invocation);
+    }
+  });
+}
