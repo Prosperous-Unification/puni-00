@@ -498,3 +498,8 @@ contains two exact unapplied three-module patches and their independent reviews.
 Revision2 resolves the synchronous-refusal projection custody finding, but
 neither revision is applied or used by the ordinary image. Accepted actual
 compiler receipts remain separate from native/controller/HOLD acceptance.
+
+The [prospective known-controller design](ordinary-known-controller-design-20261105.md)
+and [source evidence](verify-ordinary-known-controller-20261105.md) define the
+next implementation step after the compiler-input checkpoint. No runtime lease
+or production application is granted by that source-only decision.

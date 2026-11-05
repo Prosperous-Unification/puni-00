@@ -2850,3 +2850,31 @@ bytes without using the builder plan as its own oracle.
 - **WHEN** a reviewed consumer imports only the four emitted scanner declarations and the canonical scanner namespace
 - **THEN** it may compare actual function identities, serialize the fixed program and parse the generated text
 - **AND** it never invokes the scan, imports the full image, acquires native resources or grants runtime readiness
+
+### Requirement: Prospective coupled image preserves genuine custody and execution boundaries
+
+A prospective owned image SHALL admit only the literal ordinary-uc2-coupled-r2-v1
+epoch and exact reviewed three-file patch, while independently checking unchanged
+physical repository bases. It SHALL distinguish physical, proposed and rendered
+source identities and retain the complete historical private prefix and import
+marker. No prior image receipt or caller digest SHALL authorize new source bytes.
+
+#### Scenario: Exact in-memory proposal admission
+
+- **WHEN** a prospective planner receives a changed base, hunk, path or proposed hash
+- **THEN** it refuses without writing production files or evaluating source
+- **AND** an accepted patch reverses exactly to the admitted original bytes
+
+#### Scenario: Completion and scanner association preserve actual originals
+
+- **WHEN** genuine preparation is enrolled and retained scanner or completion work returns
+- **THEN** fixed ports associate the exact actual preparation, Promise, observer and returned monitor before caller continuation
+- **AND** nonretained already-closed scanner results create no live scanner obligation, and opaque scanner custody invents no descriptor identities
+- **AND** UNKNOWN and genuine delegated close failures never authorize retry or known success
+
+#### Scenario: Known controller uses actual fixture and production methods
+
+- **WHEN** a fixed known-control case is selected before fixture creation
+- **THEN** generated source calls the genuine fixture, owner, preparation, consume, inspection and release paths with its actual layouts
+- **AND** the pre-await refusal path preserves the exact original body cause through completion and projection with known cleanup and no context exposure
+- **AND** source generation and inert tests invoke no full image or native helper and do not register the39required HOLD cases

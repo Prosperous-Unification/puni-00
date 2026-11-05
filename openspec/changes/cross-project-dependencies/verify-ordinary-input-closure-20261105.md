@@ -263,3 +263,14 @@ proposed module was imported or executed. Actual owner/storage/complete sources
 remain byte-identical to their original pins. Application/executable publication
 await finite controls/HOLD migrations and exact census, with all runtime/R5/gate
 obligations retained.
+
+## Publication receipt
+
+The source9f524273 and accepted compiler/unapplied-data delivery
+ad459f924e25ff954c4e3a7f146221f2686e86a2 were freshly pushed to draft PR875.
+Normal hooks and required334-entry/document checks passed for the data commit.
+WBS010.12 read/append/write/read verified revision52to53 with exact note bytes.
+All ICL1–6 slice tasks are complete at their stated source/compiler/publication
+boundaries; full feature and parent UC2 remain incomplete. The prospective
+controller KCT1–6 source delta is materialized for continuation with no active
+code writer or new runtime execution lease at this checkpoint.
