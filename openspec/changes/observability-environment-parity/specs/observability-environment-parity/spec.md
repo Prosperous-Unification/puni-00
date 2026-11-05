@@ -1620,3 +1620,9 @@ The existing request/envelope versions, fixed source roles, service/process and 
 - **THEN** the existing direct coordinator/Bun launcher and root-installed Python runtime/stdlib retain their explicit trust boundaries
 - **AND** the worker entry verifies before execution, each of six Python sources is at most131072bytes and their sum is at most786432bytes
 - **AND** source capture grants no mutation, release, guest or full observability acceptance and preserves the existing runtime/capacity/history contracts
+
+#### Scenario: A fixed tool uses its installed private library directory
+
+- **WHEN** the fixed installed tool's actual ELF dependency closure includes its supported private library path
+- **THEN** repair input admission accepts that selected, pinned library while retaining exact equality with the complete actual dependency set
+- **AND** an extra or foreign library refuses before its payload is read; no credential or arbitrary directory becomes an allowed input role
