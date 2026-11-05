@@ -1,5 +1,9 @@
 # Prepared producer omission proof — not executed
 
+The protocol below is preserved at its preparation epoch. Its subsequently
+[launched original execution](verify-producer-p-execution-20261105.md) remains
+pending; no fault/restoration proof is implied by publication.
+
 This is a publication checkpoint of the reviewed protocol and exact unapplied
 mutation. Publishing this document does not execute the fault, qualify producer P,
 or grant a new private native campaign. Existing FEP8 obligations remain open.

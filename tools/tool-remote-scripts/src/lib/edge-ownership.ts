@@ -574,6 +574,32 @@ export async function assertPreparationCompletion(
   if (record.ownership.state === 'unknown' || record.phase === 'unknown')
     await retainUnknownOwner(record.owner, record.ownership);
   const projection = record.projection;
+  // Proof: before this known-rejection branch, "UC2 completion preserves the original body refusal
+  // after known cleanup" failed ENOENT object identity (exit 1); adding it passed the same consumer (exit 0).
+  if (body.outcome.phase === 'rejected') {
+    if (
+      owners.get(record.owner) !== record.ownership ||
+      record.ownership.state !== 'active' ||
+      projection?.original === undefined ||
+      projection.observer === undefined
+    )
+      throw new Error('dependency rejected completion association differs');
+    if (
+      !record.closeRequested ||
+      record.phase !== 'closed' ||
+      (record.runtimeLock !== undefined && !record.runtimeReleased) ||
+      record.prepared !== undefined ||
+      record.context !== undefined ||
+      [...record.originals].some((original) => original.state !== 'closed') ||
+      [...record.operations].some(
+        (operation) =>
+          operation.outcome.phase === 'starting' || operation.outcome.phase === 'pending',
+      )
+    )
+      throw new Error('dependency rejected completion cleanup incomplete');
+    assertPreparationLocks(record);
+    throw body.outcome.cause;
+  }
   if (
     owners.get(record.owner) !== record.ownership ||
     record.ownership.state !== 'active' ||
