@@ -1555,13 +1555,13 @@ Native qualification SHALL retain bounded failure-stage and original-client evid
 
 ### Requirement: Fresh qualification accounts for retained failures
 
-A fresh native qualification request SHALL charge retained failed-attempt provenance and its complete future capture/fixture envelope under unchanged limits. Any lossless archival of static review patches SHALL preserve exact logical bytes, metadata, explicit archive mapping and rollback; live source/tools/requests/receipts/raw/ISO SHALL NOT be repacked. Old requests SHALL remain historical and SHALL NOT regain execution authority.
+A fresh qualification SHALL fully charge retained provenance and future request/capture/fixture costs, reserving a bounded1MiB program/evidence allowance in backing/outside arithmetic. Other resource limits and physical floors SHALL remain unchanged. Original plaintext patches, live source/tools, requests/receipts and raw/ISO SHALL remain retained; the unexecuted archival draft grants no repacking authority. Old requests SHALL remain historical and non-executable.
 
 #### Scenario: A failed request remains while a new attempt is planned
 
 - **WHEN** retained provenance plus a new request/captures would exceed the fixed metadata cap
-- **THEN** admission refuses until a reviewed exact lossless static-patch archival and fresh full accounting fit
-- **AND** absent/changed/unreadable input, corrupt archives, incomplete publication or insufficient budget refuse before original plaintext retirement
+- **THEN** admission refuses until a concrete reviewed allocation plan and fresh complete accounting fit without retiring original provenance
+- **AND** absent/changed/unreadable retained input or insufficient budget refuses without original plaintext retirement
 - **AND** a separately reviewed fresh nonce is required; no automatic retry or debt credit follows
 
 #### Scenario: Worker emits a modeled refusal frame
@@ -1576,3 +1576,10 @@ A fresh native qualification request SHALL charge retained failed-attempt proven
 - **WHEN** SIGINT or SIGTERM cancels the controller before acceptance
 - **THEN** controlled cancellation retains bounded stage state and performs only original-owned cleanup
 - **AND** the hard 20-second alarm and service/resource limits remain unchanged
+
+#### Scenario: Retained evidence needs the revised bounded allowance
+
+- **WHEN** native qualification reserves its durable program/evidence envelope
+- **THEN** capacity arithmetic charges the complete1MiB allowance and refuses a one-byte deficit before client launch
+- **AND** reverting to the old512KiB allowance is caught by a production-path negative
+- **AND** original plaintext provenance remains retained; no archival utility, debt credit, larger runtime/source/output bound or weaker memory/staging/backing floor follows

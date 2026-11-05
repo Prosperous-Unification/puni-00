@@ -337,6 +337,56 @@ if case=='initial-memory':
         assert launched==[True]
     finally:control.subprocess.Popen=original_popen
     print('initial headroom guard protects actual controller before launch sentinel')
+elif case=='metadata-reserve':
+    # Literal thresholds include 33619968 guest, 2097152 fixture, 1048576 metadata and 12345 ledger bytes.
+    for initial,backing in ((True,53723869241),(False,42986451001)):
+        for category in ('capacity-backing','capacity-outside'):
+            current=facts(initial);current['ledger']['grossBytes']=12345
+            if category=='capacity-backing':current['freeBytes']=backing
+            else:current['inventory']['outsideBytes']=131006464
+            control.check_capacity(current)
+            if category=='capacity-backing':current['freeBytes']-=1
+            else:current['inventory']['outsideBytes']+=1
+            refused(lambda:control.check_capacity(current),category)
+            print('metadata reserve exact/one-byte boundary '+str(initial)+' '+category)
+    launched=[]
+    class LaunchReached(Exception):pass
+    def launch(*arguments,**keywords):
+        launched.append(True)
+        raise LaunchReached()
+    control.subprocess.Popen=launch
+    control.check_loaded_runtime=lambda *arguments:None
+    control.check_directory=lambda *arguments,**keywords:None
+    helpers={'raw':types.SimpleNamespace(observe_unit=lambda _: {'LoadState':'not-found'},client_limits=lambda:None)}
+    original_reserve=control.METADATA_LIMIT
+    for category in ('capacity-backing','capacity-outside'):
+        current=facts();current['ledger']['grossBytes']=12345
+        if category=='capacity-backing':current['freeBytes']=53723869241
+        else:current['inventory']['outsideBytes']=131006464
+        control.observe_capacity=lambda *arguments,**keywords:control.check_capacity(current)
+        def coordinate():
+            started=control.time.monotonic()
+            control.coordinate_controls({'packet':'/synthetic','pins':[source_pin]},'/request','sha','a'*32,'source',helpers,
+                    started,started+12,[started+12])
+        try:coordinate()
+        except LaunchReached:pass
+        else:raise AssertionError('exact reserve did not reach launch sentinel')
+        assert launched==[True];launched.clear()
+        if category=='capacity-backing':current['freeBytes']-=1
+        else:current['inventory']['outsideBytes']+=1
+        refused(coordinate,category)
+        assert not launched
+        for smaller in (524288,1048575):
+            try:
+                control.METADATA_LIMIT=smaller
+                try:coordinate()
+                except LaunchReached:pass
+                else:raise AssertionError('smaller reserve fault did not reach launch sentinel')
+                assert launched==[True];launched.clear()
+            finally:control.METADATA_LIMIT=original_reserve
+            refused(coordinate,category)
+            assert not launched
+            print('watched metadata reserve '+str(smaller)+' '+category+': RED reached pre-client launch sentinel; restored refusal')
 elif case=='staging':
     current=facts()
     current['inventory']['retainedBytes']=10*control.GIB-160*control.MIB
@@ -862,6 +912,7 @@ for (const name of [
   'worker-bootstrap',
   'inventory',
   'initial-memory',
+  'metadata-reserve',
   'deadline',
   'staging',
   'runtime-closure',
@@ -878,6 +929,12 @@ for (const name of [
     expect(child.exitCode).toBe(0);
     const report = new TextDecoder().decode(child.stdout);
     expect(report).toContain('watched ');
+    if (name === 'metadata-reserve') {
+      expect(report.match(/metadata reserve exact\/one-byte boundary /g)).toHaveLength(4);
+      expect(
+        report.match(/RED reached pre-client launch sentinel; restored refusal/g),
+      ).toHaveLength(4);
+    }
     expect(report).toEndWith(`repair-fix ${name}: GREEN metadata boundary\n`);
   });
 }

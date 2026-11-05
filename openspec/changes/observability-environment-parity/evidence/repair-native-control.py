@@ -40,7 +40,7 @@ PROPERTIES = ('MemoryMax=268435456', 'MemorySwapMax=0', 'CPUQuota=100%',
               'LimitCORE=0', 'NoNewPrivileges=yes', 'Restart=no', 'UMask=0077')
 FUTURE_GUEST = 33619968
 FIXTURE_LIMIT = 2 * 1024**2
-METADATA_LIMIT = 512 * 1024
+METADATA_LIMIT = 1024**2
 OUTPUT_LIMIT = 65536
 WORKER_REFUSALS = frozenset(('raw-staging-occupied raw-staging-changed raw-state-absent '
     'raw-state-unreadable raw-state-unsafe raw-child-timeout raw-child-output-bound raw-child-failed '
@@ -567,7 +567,7 @@ def check_capacity(facts):
     inventory = facts['inventory']
     ledger = facts['ledger']
     future = FUTURE_GUEST + FIXTURE_LIMIT + METADATA_LIMIT
-    # Proof: initial-memory tests exact 2.625GiB, one byte short and separate live2GiB boundary.
+    # Proof: initial-memory/metadata-reserve deficits refuse; old reserve reaches launch sentinel.
     require(facts['availableMemoryBytes'] >= 2 * GIB + (640*MIB if facts['initial'] else 0),
             'capacity-memory')
     require(facts['freeBytes'] >= (50 if facts['initial'] else 40) * GIB
