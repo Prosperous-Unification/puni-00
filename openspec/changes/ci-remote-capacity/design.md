@@ -85,3 +85,38 @@ routing, parsed sixth membership/execution, complete outer receipts, unchanged
 workflow reducer and toolchain checks. Each new safety boundary still needs a
 separately reviewed finite production-path R5 witness. This materialization grants
 no source omission, held-campaign replay, native acceptance or hosted retry.
+
+## Storage whole-parent follow-up (2026-11-05)
+
+This revision extends the fixed CI exception to eight leaves and seven isolated
+matrix members. Add only storage, `tool-remote-scripts:test:ci:storage`, and
+remote-storage. Its exact owner is `src/lib/dependency-activation-storage.test.ts`.
+Keep the whole69 expanded-case parent in place;42 syntactic callback sites are
+only the separate preservation census. Rest adds one exact root-relative ignore.
+The three-case `dependency-initial-layout-boundary.test.ts` stays in rest.
+
+The completed old run41937874976 storage group accounts for2163.981 printed
+callback-seconds/69cases; its complete phase ended4500s/124 without final census.
+That concentration justifies one isolated runner. Failure repair may increase
+execution time, and unexecuted tail/per-file wall time remain unknown. This is
+owner-selection evidence, not capacity acceptance.
+
+Use the existing fixed singleton contract: noncached target, canonical inputs
+and test-default environment, ^build, required regular/readable/nonaliased owner
+and raw target admission before launch. Require fresh FINAL outer69passes AND
+69tests/onefile, no failures/skips/todos/outer filters, original child exit0 and
+joined outputs. Preserve all canonical positional tokens and exact collision
+union/disjointness. Existing source/complete39/Graph228 receipts remain exact.
+
+Extend only closed runtime dispatch and matrix membership/execution. Keep
+fail-fast:false, immutable plan/head/base/mode, --skip-nx-cache/parallel2, distinct
+logs/artifacts, and the strict whole-matrix reducer. Rest retains Caddy/static
+once. No reached separate Node dependency is established for this Bun emitter
+fixture: preserve the current exact source/policy Node subset. Phase4500s,
+job90m, TERM30s and all per-case/cleanup bounds remain unchanged. Canonical
+local/host execution and separate private three-case acceptance stay unchanged.
+
+Task29–31 finite local implementation/proofs are independent of task32 hosted
+acceptance. Require storage69, rest and every peer plus strict aggregate on one
+final reviewed candidate before capacity qualification. No private pin/grant,
+architecture main or deployment authority follows from this CI-only change.

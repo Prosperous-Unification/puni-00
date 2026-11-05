@@ -752,3 +752,17 @@ repeated after these comments; their actual proof results above remain the
 runtime evidence. Required full CI and the final exact-SHA host gate are still
 open. Fresh check records are retained in
 `/tmp/puni-ci-proof-records-materialization-20261102/`.
+
+## Storage owner scope preparation — 2026-11-05
+
+Prospective R4 amendment only: eight fixed leaves, seven isolated runners, exact
+whole storage parent69/69/1 receipt. Independent source decision:
+`/tmp/puni-remote-storage-capacity-astra-decision-20261105.md`. Measured trigger
+is old run41937874976 timeout4500s/124 and its completed storage group's
+2163.981 printed callback-seconds/69 cases; no final run census or post-repair
+fit is inferred. Source/fixture correctness repairs retain their separate epochs.
+
+Task29–32 implementation, R5 observations and final hosted capacity remain
+unqualified at this preparation. No new skip, budget, private grant, host or
+architectural adoption is introduced. Earlier historical proof and held-campaign
+limits remain unchanged; normal authorized CI/gates retain their own authority.
