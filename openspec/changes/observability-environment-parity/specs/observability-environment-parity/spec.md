@@ -1378,3 +1378,27 @@ The supported QEMU provider SHALL enforce fixed raw length and allocated-range b
 - **THEN** canonical decimal-string fields preserve exact values through its typed boundary
 - **AND** numeric/coerced input, a prior tuple shape or a one-nanosecond substitution refuses before writable admission
 - **AND** historical v1 opaque bytes and their digests remain unchanged
+
+### Requirement: Repair source observation cannot certify allocation readiness
+
+The Linux FIEMAP adapter SHALL share one bounded read-only decoder between strict inspection and a distinct non-admitting repair observation. It SHALL preserve strict/default/initialized contracts and report mapped, missing and unwritten data plus unclassified residual allocation. Residual bytes SHALL NOT be identified as metadata or grant admission authority.
+
+#### Scenario: A sparse file produces facts but stays inadmissible
+
+- **WHEN** a private original file has bounded verified leading/interior/trailing holes or no mapped data
+- **THEN** the repair observation reports exact missing data and the unclassified allocation residual separately without writing or synchronizing it
+- **AND** strict and initialized admission still refuse that sparse file
+- **AND** the repair observation has no guest, repair or full-rehearsal authority
+
+#### Scenario: Pagination and physical accounting remain bounded
+
+- **WHEN** the repair source spans multiple FIEMAP pages
+- **THEN** the original descriptor/path identity, native LAST/empty-map semantics, page/extent/projection/time bounds and known flags are checked through completion
+- **AND** missing data is derived from mapped logical extent bytes, never from st_blocks alone
+- **AND** allocated inode bytes below mapped data or unexplained metadata beyond the supported bound refuse
+
+#### Scenario: Invalid repair observations refuse
+
+- **WHEN** source state is missing, unreadable, unstable or malformed, flags are unknown/shared, logical ranges overlap/exceed bounds, or enumeration completion cannot be proven
+- **THEN** observation refuses rather than returning authoritative facts
+- **AND** finite page, extent, projection and time limits remain enforced

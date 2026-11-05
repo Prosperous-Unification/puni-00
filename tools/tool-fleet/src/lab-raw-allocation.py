@@ -44,6 +44,26 @@ def inspect_file(path, expected_bytes, *, require_initialized=False):
     allocated UNWRITTEN extents. Both modes return the same closed projection.
     https://docs.kernel.org/filesystems/fiemap.html
     """
+    return _inspect_file(path, expected_bytes, require_initialized=require_initialized)
+
+
+def observe_repair(path, expected_bytes):
+    """Measure private sparse raw allocation without authorizing admission or repair.
+
+    Mapped lengths include UNWRITTEN extents. Missing bytes are logical length
+    minus mapped lengths, never a subtraction of st_blocks (which also counts
+    allocation outside this query). The residual is unclassified inode allocation not
+    represented by the queried logical range; it may include allocation beyond
+    EOF and is at best a metadata upper bound, not identified metadata. It must
+    fit the existing qualified 1MiB allowance, not a transient repair budget.
+    An initial empty map proves all holes; continuation requires native LAST.
+    Shares strict inspection's read-only descriptor, decoder and finite bounds.
+    """
+    return _inspect_file(path, expected_bytes, repair=True)
+
+
+def _inspect_file(path, expected_bytes, *, require_initialized=False, repair=False):
+    """Walk one original descriptor; repair selects a non-admitting observation only."""
     # Proof: invalid-size guard removal changes its production refusal category in the fault campaign.
     if (type(expected_bytes) is not int or expected_bytes <= 0
             or expected_bytes > MAX_BYTES or expected_bytes % ALIGNMENT):
@@ -64,16 +84,20 @@ def inspect_file(path, expected_bytes, *, require_initialized=False):
         if identify_file(before) != identify_file(opened):
             raise InspectionRefusal('raw-identity-changed')
         allocated_bytes = opened.st_blocks * 512
-        # Proof: allocation guard removal admits injected under/over/alignment/size observations; real sparse files also refuse.
-        if (opened.st_size != expected_bytes or allocated_bytes < expected_bytes
+        # Proof: repair alignment fault removes this guard and accepts misaligned inode accounting; strict allocation negatives remain unchanged.
+        if (opened.st_size != expected_bytes or allocated_bytes < 0
+                or (not repair and allocated_bytes < expected_bytes)
                 or allocated_bytes > expected_bytes + 1024**2 or allocated_bytes % ALIGNMENT):
             raise InspectionRefusal('raw-allocation-invalid')
         cursor = 0
         page_count = 0
         extent_count = 0
         metadata_bytes = 0
+        mapped_bytes = 0
+        unwritten_bytes = 0
+        complete = False
         digest = hashlib.sha256()
-        while cursor < expected_bytes:
+        while cursor < expected_bytes and not complete:
             # Proof: bound fault campaign removes this predicate; pages/timeout negatives then succeed.
             if page_count >= MAX_PAGES or time.monotonic() - started >= MAX_SECONDS:
                 raise InspectionRefusal('raw-inspection-bound')
@@ -86,9 +110,10 @@ def inspect_file(path, expected_bytes, *, require_initialized=False):
             if len(packet) != HEADER.size + PAGE_EXTENTS * EXTENT.size:
                 raise InspectionRefusal('raw-map-truncated')
             start, length, flags, count, capacity, reserved = HEADER.unpack_from(packet)
-            # Proof: kernel fault campaign changes reserved/start/count; header/start/count/empty negatives fail when disabled.
+            # Proof: repair header fault accepts a reserved header; strict empty-map refusal is preserved.
             if (start != cursor or length != expected_bytes - cursor or flags != 0
-                    or reserved != 0 or capacity != PAGE_EXTENTS or not 0 < count <= PAGE_EXTENTS):
+                    or reserved != 0 or capacity != PAGE_EXTENTS or not 0 <= count <= PAGE_EXTENTS
+                    or (not repair and count == 0)):
                 raise InspectionRefusal('raw-map-header')
             page_count += 1
             extent_count += count
@@ -96,6 +121,11 @@ def inspect_file(path, expected_bytes, *, require_initialized=False):
             # Proof: projection-bound fault campaign disables predicate; metadata negative succeeds.
             if extent_count > MAX_EXTENTS or metadata_bytes > MAX_METADATA_BYTES:
                 raise InspectionRefusal('raw-map-bound')
+            # Proof: repair completion fault accepts an empty continuation without LAST after a mapped extent.
+            if repair and count == 0 and extent_count != 0:
+                raise InspectionRefusal('raw-map-completion')
+            if count == 0:
+                complete = True
             for index in range(count):
                 offset = HEADER.size + index * EXTENT.size
                 logical, physical, extent_length, reserved1, reserved2, extent_flags, reserved3, reserved4, reserved5 = EXTENT.unpack_from(packet, offset)
@@ -108,20 +138,28 @@ def inspect_file(path, expected_bytes, *, require_initialized=False):
                 if require_initialized and extent_flags & 0x800:
                     raise InspectionRefusal('raw-map-uninitialized')
                 end = logical + extent_length
-                # Proof: coverage fault campaign removes predicate; gap/overlap/beyond negatives succeed.
-                if logical != cursor or end > expected_bytes:
+                # Proof: repair coverage fault accepts overlapping extents; strict gap/overlap/beyond checks remain active.
+                if ((logical < cursor or logical % ALIGNMENT) if repair else logical != cursor) or end > expected_bytes:
                     raise InspectionRefusal('raw-map-coverage')
-                # Proof: LAST fault campaign removes predicate; early-last/missing-last negatives succeed.
-                if bool(extent_flags & 1) != (end == expected_bytes) or (end == expected_bytes and index != count - 1):
+                # Proof: repair LAST fault accepts LAST before the final row; strict EOF completion stays exact.
+                if ((bool(extent_flags & 1) and index != count - 1) or (end == expected_bytes and not extent_flags & 1)
+                        if repair else bool(extent_flags & 1) != (end == expected_bytes) or (end == expected_bytes and index != count - 1)):
                     raise InspectionRefusal('raw-map-last')
                 digest.update(packet[offset:offset + EXTENT.size])
                 cursor = end
+                mapped_bytes += extent_length
+                if extent_flags & 0x800:
+                    unwritten_bytes += extent_length
+                complete = bool(extent_flags & 1)
+        # Proof: repair accounting fault accepts mapped lengths larger than inode blocks; excess-residual and empty-map residual negatives use this same boundary.
+        if repair and not 0 <= allocated_bytes - mapped_bytes <= 1024**2:
+            raise InspectionRefusal('raw-map-accounting')
         after = os.fstat(descriptor)
         named = os.lstat(path)
         # Proof: identity fault campaign changes mtime during ioctl; disabling this comparison loses identity negative.
         if identify_file(opened) != identify_file(after) or identify_file(after) != identify_file(named):
             raise InspectionRefusal('raw-identity-changed')
-        return {
+        receipt = {
             'provider': 'linux-fiemap', 'inspectorVersion': 1,
             'observations': {'kernelRelease': platform.release(), 'pythonVersion': platform.python_version()},
             'identity': {'device': str(after.st_dev), 'inode': str(after.st_ino),
@@ -132,6 +170,17 @@ def inspect_file(path, expected_bytes, *, require_initialized=False):
             'coverageBytes': cursor, 'extentCount': extent_count, 'pageCount': page_count,
             'metadataBytes': metadata_bytes, 'mapDigest': digest.hexdigest(),
         }
+        if repair:
+            del receipt['allocationOverheadBytes']
+            del receipt['coverageBytes']
+            receipt.update({
+                'observation': 'repair-source',
+                'admissionAuthorized': False, 'repairAuthorized': False,
+                'guestAuthorized': False, 'fullStackAuthorized': False,
+                'mappedDataBytes': mapped_bytes, 'missingDataBytes': expected_bytes - mapped_bytes,
+                'unwrittenBytes': unwritten_bytes, 'residualAllocatedBytes': allocated_bytes - mapped_bytes,
+            })
+        return receipt
     except OSError as failure:
         if failure.errno == errno.ENOENT:
             raise InspectionRefusal('raw-input-absent') from failure

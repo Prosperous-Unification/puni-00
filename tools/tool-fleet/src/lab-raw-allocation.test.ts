@@ -411,3 +411,249 @@ exec(compile(ast.fix_missing_locations(_tree),spec.origin,'exec'),p.__dict__)`,
   expect(invocation.exitCode).not.toBe(0);
   expect(invocation.stderr.toString()).toContain('uninitialized/shared map admitted');
 });
+
+const repairImport = String.raw`
+import importlib.util,json,os,sys
+spec=importlib.util.spec_from_file_location('allocation',sys.argv[1])
+p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+`;
+
+test('repair observation measures real sparse holes without admitting or changing the file', async () => {
+  const directory = await scratchAsync('lab-repair-observation-');
+  const path = join(directory, 'disk.raw');
+  await writeFile(path, '', { mode: 0o600 });
+  expect(Bun.spawnSync(['truncate', '-s', '16384', path]).exitCode).toBe(0);
+  const script = `${repairImport}
+before=p.identify_file(os.lstat(sys.argv[2]))
+receipt=p.observe_repair(sys.argv[2],16384)
+assert receipt['mappedDataBytes']==0
+assert receipt['missingDataBytes']==16384
+assert receipt['unwrittenBytes']==0
+assert receipt['residualAllocatedBytes']==0
+assert receipt['admissionAuthorized'] is False and receipt['repairAuthorized'] is False
+assert receipt['guestAuthorized'] is False and receipt['fullStackAuthorized'] is False
+assert p.identify_file(os.lstat(sys.argv[2]))==before
+try:p.inspect_file(sys.argv[2],16384)
+except p.InspectionRefusal as refusal:assert str(refusal)=='raw-allocation-invalid'
+else:raise AssertionError('strict inspection admitted sparse file')
+print('verified real all-hole observation and strict refusal')
+`;
+  const invocation = Bun.spawnSync(['python3', '-I', '-B', '-c', script, helper, path]);
+  expect(invocation.stderr.toString()).toBe('');
+  expect(invocation.exitCode).toBe(0);
+  expect(invocation.stdout.toString()).toBe(
+    'verified real all-hole observation and strict refusal\n',
+  );
+});
+
+// Only ioctl replies and native stat fields are controlled. The owned descriptor,
+// private-file checks, packet decoder, walk and byte accounting remain production code.
+const repairKernel = `${repairImport}${String.raw`
+import ast,errno,pathlib,struct,time,types
+case=sys.argv[3]
+fault=sys.argv[4] if len(sys.argv)>4 else ''
+if fault:
+    tree=ast.parse(pathlib.Path(spec.origin).read_text())
+    matches=[node for node in ast.walk(tree) if isinstance(node,ast.If) and any(isinstance(child,ast.Raise) and isinstance(child.exc,ast.Call) and child.exc.args and isinstance(child.exc.args[0],ast.Constant) and child.exc.args[0].value==fault for child in node.body)]
+    assert len(matches)==1,(fault,len(matches))
+    matches[0].test=ast.Constant(value=False)
+    exec(compile(ast.fix_missing_locations(tree),spec.origin,'exec'),p.__dict__)
+size=5*4096
+rows=[(4096,4096,0),(12288,4096,0x801)]
+blocks=24
+# Models inode allocation beyond queried EOF without exposing it as queried extents.
+if case=='residual-beyond-eof':rows=[(0,4096,1)];blocks=24
+if case=='initialized':rows=[(0,size,1)];blocks=40
+if case=='unwritten':rows=[(0,size,0x801)];blocks=40
+if case in ('empty','empty-metadata','empty-over'):rows=[];blocks={'empty':0,'empty-metadata':16,'empty-over':2056}[case]
+if case=='under':blocks=8
+if case=='over':blocks=2080
+if case=='alignment':blocks=25
+if case=='negative':blocks=-8
+if case=='overlap':rows=[(4096,8192,0),(8192,4096,1)]
+if case=='logical-alignment':rows=[(1,4096,1)]
+if case=='beyond':rows=[(16384,8192,1)]
+if case=='last-row':rows=[(4096,4096,1),(12288,4096,1)]
+if case in ('missing-last','empty-continuation'):rows=[(4096,4096,0)]
+if case=='missing-last-eof':rows=[(0,size,0)];blocks=40
+if case in ('shared','unknown','reserved','physical','length'):
+    rows=[(4096,4096,{'shared':0x2001,'unknown':0x10001}.get(case,1))];blocks=8
+if case in ('multipage','identity','pages','extents','metadata','timeout'):
+    size=1027*4096;rows=[(index*8192,4096,1 if index==512 else 0x800) for index in range(513)];blocks=4120
+if case=='pages':p.MAX_PAGES=1
+if case=='extents':p.MAX_EXTENTS=512
+if case=='metadata':p.MAX_METADATA_BYTES=32
+if case=='timeout':p.MAX_SECONDS=0.001
+wide=9007199254740993
+for name in ('lstat','fstat'):
+    original=getattr(p.os,name)
+    def snapshot(*args,_read=original,**kwargs):
+        observed=_read(*args,**kwargs)
+        fields={field:getattr(observed,field) for field in ('st_dev','st_ino','st_uid','st_mode','st_nlink','st_size','st_blocks','st_mtime_ns','st_ctime_ns')}
+        fields.update(st_size=size+(4096 if case=='size' else 0),st_blocks=blocks,st_dev=wide,st_ino=wide+2,st_mtime_ns=wide+4,st_ctime_ns=wide+6)
+        if case=='identity' and calls>=2:fields['st_ctime_ns']+=1
+        return types.SimpleNamespace(**fields)
+    setattr(p.os,name,snapshot)
+calls=0
+def ioctl(descriptor,request,packet,mutate):
+    global calls
+    calls+=1
+    start,length,flags,mapped,capacity,reserved=struct.unpack_from('=QQIIII',packet)
+    assert request==p.FIEMAP and flags==0 and capacity==512
+    page=[row for row in rows if row[0]>=start][:512]
+    struct.pack_into('=QQIIII',packet,0,start,length,0,len(page),512,1 if case=='header' else 0)
+    for index,(logical,length,flags) in enumerate(page):
+        physical=0 if case=='physical' else 1048576+index*4096
+        struct.pack_into('=QQQQQIIII',packet,32+index*56,logical,physical,0 if case=='length' else length,1 if case=='reserved' else 0,0,flags,0,0,0)
+    if case=='truncated':del packet[-1:]
+    if case=='timeout':time.sleep(.002)
+p.fcntl.ioctl=ioctl
+original_open=p.os.open
+def open_readonly(path,flags):
+    assert flags==os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC|os.O_NONBLOCK
+    return original_open(path,flags)
+p.os.open=open_readonly
+def forbid(*args):raise AssertionError('content access or mutation attempted')
+p.os.read=forbid;p.os.pread=forbid;p.os.write=forbid;p.os.pwrite=forbid;p.os.fsync=forbid
+refusals={'under':'raw-map-accounting','over':'raw-map-accounting','empty-over':'raw-map-accounting','alignment':'raw-allocation-invalid','negative':'raw-allocation-invalid','size':'raw-allocation-invalid','overlap':'raw-map-coverage','logical-alignment':'raw-map-coverage','beyond':'raw-map-coverage','last-row':'raw-map-last','missing-last':'raw-map-completion','empty-continuation':'raw-map-completion','missing-last-eof':'raw-map-last','shared':'raw-map-extent','unknown':'raw-map-extent','reserved':'raw-map-extent','physical':'raw-map-extent','length':'raw-map-extent','header':'raw-map-header','truncated':'raw-map-truncated','identity':'raw-identity-changed','pages':'raw-inspection-bound','extents':'raw-map-bound','metadata':'raw-map-bound','timeout':'raw-inspection-bound'}
+try:receipt=p.observe_repair(sys.argv[2],size)
+except p.InspectionRefusal as refusal:
+    assert case in refusals and str(refusal)==refusals[case],(case,str(refusal))
+    print('refused '+case)
+else:
+    assert case not in refusals,'unsafe observation accepted: '+case
+    expected={'residual-beyond-eof':(4096,16384,0,8192),'initialized':(20480,0,0,0),'unwritten':(20480,0,20480,0),'empty':(0,20480,0,0),'empty-metadata':(0,20480,0,8192),'multipage':(2101248,2105344,2097152,8192)}.get(case,(8192,12288,4096,4096))
+    assert tuple(receipt[key] for key in ('mappedDataBytes','missingDataBytes','unwrittenBytes','residualAllocatedBytes'))==expected,receipt
+    assert receipt['identity']['device']==str(wide) and receipt['identity']['inode']==str(wide+2)
+    assert receipt['identity']['mtimeNs']==str(wide+4) and receipt['identity']['ctimeNs']==str(wide+6)
+    assert 'allocatedMetadataBytes' not in receipt,receipt
+    assert all(receipt[key] is False for key in ('admissionAuthorized','repairAuthorized','guestAuthorized','fullStackAuthorized'))
+    if case=='multipage':assert receipt['pageCount']==2 and receipt['extentCount']==513 and receipt['metadataBytes']==28792
+    print('observed '+case)
+`}`;
+
+async function inspectRepair(case_: string, fault = '') {
+  const directory = await scratchAsync('lab-repair-kernel-');
+  const path = join(directory, 'disk.raw');
+  await writeFile(path, '', { mode: 0o600 });
+  return Bun.spawnSync(['python3', '-I', '-B', '-c', repairKernel, helper, path, case_, fault], {
+    timeout: 12000,
+    maxBuffer: 65536,
+  });
+}
+
+for (const case_ of [
+  'holes',
+  'initialized',
+  'unwritten',
+  'empty',
+  'empty-metadata',
+  'multipage',
+  'residual-beyond-eof',
+]) {
+  test(`repair observation accounts exactly for ${case_}`, async () => {
+    const invocation = await inspectRepair(case_);
+    expect(invocation.stderr.toString()).toBe('');
+    expect(invocation.exitCode).toBe(0);
+    expect(invocation.stdout.toString()).toBe(`observed ${case_}\n`);
+  });
+}
+for (const case_ of [
+  'under',
+  'over',
+  'empty-over',
+  'alignment',
+  'negative',
+  'size',
+  'overlap',
+  'logical-alignment',
+  'beyond',
+  'last-row',
+  'missing-last',
+  'empty-continuation',
+  'missing-last-eof',
+  'shared',
+  'unknown',
+  'reserved',
+  'physical',
+  'length',
+  'header',
+  'truncated',
+  'identity',
+  'pages',
+  'extents',
+  'metadata',
+  'timeout',
+]) {
+  test(`repair observation refuses ${case_}`, async () => {
+    const invocation = await inspectRepair(case_);
+    expect(invocation.stderr.toString()).toBe('');
+    expect(invocation.exitCode).toBe(0);
+    expect(invocation.stdout.toString()).toBe(`refused ${case_}\n`);
+  });
+}
+for (const [case_, fault] of [
+  ['under', 'raw-map-accounting'],
+  ['empty-continuation', 'raw-map-completion'],
+  ['overlap', 'raw-map-coverage'],
+  ['last-row', 'raw-map-last'],
+  ['header', 'raw-map-header'],
+  ['alignment', 'raw-allocation-invalid'],
+]) {
+  test(`repair observation fault ${fault} exposes unsafe acceptance of ${case_}`, async () => {
+    const invocation = await inspectRepair(case_, fault);
+    expect(invocation.exitCode).not.toBe(0);
+    expect(invocation.stderr.toString()).toContain(`unsafe observation accepted: ${case_}`);
+  });
+}
+
+test('repair observation separates real UNWRITTEN allocation from missing bytes and initialization', async () => {
+  const directory = await scratchAsync('lab-repair-real-');
+  const path = join(directory, 'disk.raw');
+  await writeFile(path, '', { mode: 0o600 });
+  expect(Bun.spawnSync(['truncate', '-s', '16384', path]).exitCode).toBe(0);
+  expect(Bun.spawnSync(['fallocate', '-o', '4096', '-l', '4096', path]).exitCode).toBe(0);
+  const script = `${repairImport}
+for initialized in (False,True):
+    if initialized:
+        descriptor=os.open(sys.argv[2],os.O_WRONLY|os.O_NOFOLLOW)
+        try:
+            assert os.pwrite(descriptor,b'x'*4096,4096)==4096
+            os.fsync(descriptor)
+        finally:os.close(descriptor)
+    before=p.identify_file(os.lstat(sys.argv[2]))
+    receipt=p.observe_repair(sys.argv[2],16384)
+    assert receipt['mappedDataBytes']==4096 and receipt['missingDataBytes']==12288,receipt
+    assert receipt['unwrittenBytes']==(0 if initialized else 4096),receipt
+    assert receipt['residualAllocatedBytes']==os.lstat(sys.argv[2]).st_blocks*512-4096
+    assert p.identify_file(os.lstat(sys.argv[2]))==before
+print('verified real unwritten and initialized sparse observations')
+`;
+  const invocation = Bun.spawnSync(['python3', '-I', '-B', '-c', script, helper, path]);
+  expect(invocation.stderr.toString()).toBe('');
+  expect(invocation.exitCode).toBe(0);
+  expect(invocation.stdout.toString()).toBe(
+    'verified real unwritten and initialized sparse observations\n',
+  );
+});
+
+test('repair observation distinguishes real absence from unreadability', async () => {
+  const directory = await scratchAsync('lab-repair-input-');
+  const path = join(directory, 'disk.raw');
+  await writeFile(path, '', { mode: 0o000 });
+  const script = `${repairImport}
+for path,category in ((sys.argv[2]+'-absent','raw-input-absent'),(sys.argv[2],'raw-input-unreadable')):
+    try:p.observe_repair(path,4096)
+    except p.InspectionRefusal as refusal:assert str(refusal)==category
+    else:raise AssertionError('untrusted input accepted')
+print('verified absence and unreadability')
+`;
+  try {
+    const invocation = Bun.spawnSync(['python3', '-I', '-B', '-c', script, helper, path]);
+    expect(invocation.stderr.toString()).toBe('');
+    expect(invocation.exitCode).toBe(0);
+    expect(invocation.stdout.toString()).toBe('verified absence and unreadability\n');
+  } finally {
+    await chmod(path, 0o600);
+  }
+});
