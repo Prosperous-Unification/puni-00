@@ -473,7 +473,6 @@ elif case=='source-cache':
             cached=control.load_helpers()
             assert all(helper.UNPINNED_CACHE for helper in cached.values())
             print('watched source loader omitted: RED executed substituted repository cache')
-            # Captured bytes survive an in-place source rewrite: never reread after verification.
             for path in originals: pathlib.Path(path).write_text('CHANGED_AFTER_VERIFY=True\n')
             with control.repository_loader(originals):
                 assert all(helper.REVIEWED for helper in control.load_helpers().values())
@@ -504,7 +503,6 @@ elif case=='worker-bootstrap':
             else:raise AssertionError('wrong bootstrap hash executed')
             assert not hasattr(sys,'_repair_bootstrap_marker')
             assert errors==[b'repair-native-control: worker-source-refused\n'];errors.clear()
-            # Replace only the named path after the original descriptor supplied its bytes.
             replacement=root/'replacement';replacement.write_bytes(body);replacement.chmod(0o644)
             def substitute(descriptor,count):
                 payload=actual_read(descriptor,count)
@@ -542,7 +540,6 @@ elif case=='worker-bootstrap':
             assert not errors
             print('watched bootstrap valid guard removed: RED executed wrong-hash harmless body')
         finally:sys.argv=original_argv;os.write=actual_write;os.read=actual_read
-    # Parent derives the bootstrap target from its required pin and rejects over64KiB before launch.
     original_require=control.require
     control.check_loaded_runtime=lambda *arguments:None
     control.check_directory=lambda *arguments,**keywords:None
@@ -565,6 +562,17 @@ elif case=='worker-bootstrap':
     assert launches==[True]
     print('watched worker-source pin guard removed: RED reached launch sentinel above64KiB source cap')
 elif case=='runtime-closure':
+    import io
+    s,r=control.sys,control.Path.resolve;p='/usr/lib/python3.12/encodings/ascii.py';m={'b':types.SimpleNamespace(__file__=p+'x')}
+    control.sys=types.SimpleNamespace(modules=m);control.Path.resolve=lambda p:p
+    def maps(*a,**k):
+        m.setdefault('a',types.SimpleNamespace(__file__=p));return io.StringIO('')
+    control.open=maps
+    try:
+        assert control.runtime_paths()==control.runtime_paths()=={p,p+'x'}
+        m.pop('a');control.open=lambda *a,**k:io.StringIO('')
+        assert control.runtime_paths()=={p+'x'}
+    finally:control.sys=s;control.Path.resolve=r;del control.open
     declared=[{'path':p} for p in ('/etc/python3.12/sitecustomize.py','/usr/lib/python3/dist-packages/apport_python_hook.py')]
     assert all(control.is_runtime_path(p['path']) for p in declared)
     for p in ('/etc/python3.12/sitecustomize.pyx','/usr/lib/python3/dist-packages/private.py','/root/key'):assert not control.is_runtime_path(p)
@@ -575,7 +583,6 @@ elif case=='runtime-closure':
     verify_file=control.verify_file;control.verify_file=lambda pin,**keywords:hashed.append(pin['path'])
     assert control.verify_runtime_pins(request,control.time.monotonic()+1)==actual
     assert not hashed
-    # Known stdlib import.
     fixture=b'import base64\n'
     exec(compile(fixture,'metadata-runtime-fixture','exec'),{})
     assert 'base64' in sys.modules
@@ -673,8 +680,6 @@ elif case=='deadline':
     control.require=original_require
     assert calls==[17,18]
     print('watched native-step deadline guard removed: RED reached following write sentinel')
-    # Exercise the actual fixed controller across post-readiness/source, post-counter probe,
-    # and post-fsync return. Every late path enters original-owned cleanup, without ACK/write.
     class Pipe:
         closed=False
         def fileno(self):return 1
@@ -737,7 +742,6 @@ elif case=='deadline':
             control.__dict__.update(original_namespace)
             control.subprocess.Popen=actual_popen
             control.time.monotonic=lambda:clock[0]
-    # The real worker path refreshes capacity after ACK; delay that observation across7s.
     clock[0]=0.
     worker_events=[]
     raw=types.SimpleNamespace(acquire_staging=lambda _:61,identity=lambda _:'staging',

@@ -4,15 +4,15 @@
   "sourcePins": [
     {
       "path": "openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
-      "sha256": "bfde6b7beb09e0849f5746c05a672f205d13d96428163bef9c81aa6e71e412d1",
-      "bytes": 59513,
+      "sha256": "abe4fc959f0bb073b0dadb447480d4ad773082f46129ec39d626d8a8e046ccc7",
+      "bytes": 59606,
       "mode": "0644",
       "uid": 1000
     },
     {
       "path": "tools/tool-fleet/src/lab-repair-native-control.test.ts",
-      "sha256": "21c36b87af55c7da917fd5f4a9c73040a0c8cb0f241f45227a51966e439ce88b",
-      "bytes": 45013,
+      "sha256": "7a97506c60905541686bcb6cd1951db0c81499a4244bbde46f819bd2e4f8384a",
+      "bytes": 45029,
       "mode": "0644",
       "uid": 1000
     }
@@ -158,5 +158,15 @@
     "statics": "named ESLint/Prettier/AST/diff passed; unrelated source definitions/test branches/non-string TS AST equivalent",
     "allocatedGrowth": 0,
     "newMetadataFile": false
+  },
+  "observerCorrection": {
+    "base": "2d17c52448c4b99cb4c4ea465e411adbad039061",
+    "diagnostic": "cold69, second70 adds only encodings/ascii.py, third stable; old snapshot preceded its own ASCII maps read",
+    "change": "module snapshot follows maps read/parse; no warmup/preload/exception",
+    "proof": "old-order actual-function RED;1targeted4assertions8filtered GREEN first includes codec/repeat stable; omitted-import dependency fault loses codec",
+    "review": "independent scoped approval; pins/modes/allocations/diff/proofs/unrelated AST checked; no findings/replay/writes",
+    "allocatedGrowth": 0,
+    "requestWrittenOrAuthorized": false,
+    "unitStarted": false
   }
 }

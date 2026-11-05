@@ -351,8 +351,6 @@ def runtime_paths():
     """
     covered = {str((ROOT / relative).resolve()) for relative in SOURCES}
     covered.update(str(Path(path).resolve()) for path in TOOLS)
-    imported = {str(Path(module.__file__).resolve()) for module in tuple(sys.modules.values())
-                if getattr(module, '__file__', None) is not None}
     mappings = set()
     with open('/proc/self/maps', encoding='ascii') as stream:
         payload = stream.read(65537)
@@ -362,6 +360,9 @@ def runtime_paths():
         if len(fields) == 6 and fields[5].startswith('/'):
             require(not fields[5].endswith(' (deleted)'), 'runtime-mapping')
             mappings.add(str(Path(fields[5]).resolve()))
+    # Proof: first-open codec is included immediately; omitting its import loses that codec.
+    imported = {str(Path(module.__file__).resolve()) for module in tuple(sys.modules.values())
+                if getattr(module, '__file__', None) is not None}
     paths = (imported | mappings) - covered
     require(1 <= len(paths) <= 256 and all(is_runtime_path(path) for path in paths), 'runtime-mapping')
     return paths

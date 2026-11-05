@@ -1526,3 +1526,13 @@ Native qualification SHALL distinguish repository source/tool pins from actual i
 - **WHEN** the actual imported runtime contains a root-owned zero-byte Python package marker
 - **THEN** its exact empty content hash and native identity may satisfy the runtime pin
 - **AND** zero-byte source/tool pins, negative byte counts and unmatched runtime declarations still refuse
+
+### Requirement: Runtime observation includes its own imports
+
+Native runtime identity observation SHALL include modules imported by its own map-reading work. A first cold observation and an unchanged subsequent observation SHALL agree without caller warmup, preload exceptions or weakening exact closure checks.
+
+#### Scenario: Map decoding imports a codec on the first observation
+
+- **WHEN** the first native map read imports a supported runtime codec
+- **THEN** that same observation includes the codec in its imported-module set
+- **AND** an unchanged subsequent observation returns the same set
