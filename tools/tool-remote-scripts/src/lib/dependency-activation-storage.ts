@@ -59,6 +59,10 @@ import {
 import { assertSame, readRecord } from './managed-cohort';
 import { writeNewMigrationCapture } from './migration-capture-file';
 
+/** Actual SQLite return types retained by the original owner; this type-only surface starts no storage work. */
+export type ActivationReadOnlyDatabase = ReturnType<typeof openReadOnlyDatabase>;
+export type ActivationReadOnlyConnection = ReturnType<typeof openReadOnlyConnection>;
+
 /** Weak diagnostic retention only: raw owner/outcomes may be collected when the safe error is discarded; this is not UNKNOWN custody. */
 const storageFailures = new WeakMap<DependencyActivationFailure, readonly unknown[]>();
 function settleStorage<T>(operation: () => T, cleanups: readonly (() => void)[]): T {
