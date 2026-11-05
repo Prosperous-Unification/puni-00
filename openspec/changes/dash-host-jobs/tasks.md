@@ -151,9 +151,10 @@
       and labelled: the supervisor's managed solver containers, the orphan proc tests, Caddy in
       `mcp-body-limit.test.ts`; `dagger_engine` needs a token Git tree unit until Dash has a
       non-tree unit kind (S6-A7).
-- [ ] 6.3 `gate_host` role: linger on, pool config, ledger directory, second gate tree,
+- [x] 6.3 `gate_host` role: linger on, pool config, ledger directory, second gate tree,
       `validate` runs `ops job audit`; h2puni disk cleaned first per the recorded order — proof:
-      two converging applies, `changed=0` on the second.
+      two converging applies, `changed=0` on the second, on both hosts, 2026-11-05; verify.md
+      "2026-11-05 token-unit apply converged on both hosts".
 - [x] 6.3a Code (slice 6c): the role turns linger on, creates the empty fixed pool root and
       `~/.config/dash`, the `dagger_engine` token unit and two more full clones with one frozen
       install each, `~/puni-00-gate-tbf2` (the second `gate_tree`) and the launcher-only
@@ -182,12 +183,14 @@
   - [x] 6.3d Operator half on `main` `149e6e85b` (2026-11-05): h2puni converged (apply 1
         `changed=1`, apply 2 `changed=0`, validate `failed=0`), and h4claw was re-applied with the
         same numbers. Both stay unenrolled (verify.md, "2026-11-05 role converged on both hosts").
-  - [ ] 6.3e `docker_build` token unit and h2puni's launcher checkouts (PR #869): the role creates and validates a second token unit
+  - [x] 6.3e `docker_build` token unit and h2puni's launcher checkouts (PR #869): the role creates and validates a second token unit
         `~/.local/share/dash/units/docker_build` and lists it in `exclusiveUnits`, because
         puni-pr-00's `website-dev-build` declares it; h2puni's inventory sets
-        `puni_gate_pool_launcher_checkouts` to the launcher checkout and `~/wbs-dev/src`. Code
-        done; owed: one more converging apply on each host after the merge (`changed=1` for the
-        new unit, then `changed=0`), before `ops pool init`, which pins the unit list.
+        `puni_gate_pool_launcher_checkouts` to the launcher checkout and `~/wbs-dev/src`. Applied
+        at `main` `5150237fc` on h2puni and then h4claw (2026-11-05): apply 1 `changed=1` for the
+        new unit only, apply 2 `changed=0`, validate `failed=0`; both still unenrolled, so
+        `ops pool init`, which pins the unit list, comes after (verify.md, "2026-11-05 token-unit
+        apply converged on both hosts").
 - [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
       `Restart=on-failure` and `KillMode=process` (beside the observation units of 4.2). It
       lands before 6.4, because observe mode needs a running `watch` (review H1 of #818). A host
