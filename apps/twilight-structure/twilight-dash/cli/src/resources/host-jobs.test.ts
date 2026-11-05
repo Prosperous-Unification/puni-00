@@ -223,7 +223,7 @@ if (insideLinuxNamespace(import.meta.path)) {
       const binding = db.query<{ identity: string }, []>('SELECT identity FROM binding').get();
       const legacy = (JSON.parse(binding?.identity ?? '[]') as string[]).slice(0, 11);
       db.run(
-        'DROP TABLE host_jobs; DROP TABLE host_job_tickets; DROP TABLE host_job_events; DROP TABLE host_pool; DROP TABLE host_pool_mode_records; PRAGMA user_version=0',
+        'DROP TABLE host_jobs; DROP TABLE host_job_tickets; DROP TABLE host_job_events; DROP TABLE host_pool; DROP TABLE host_pool_mode_records; DROP TABLE event_refusals; DROP TABLE dropped_events; PRAGMA user_version=0',
       );
       db.query('UPDATE binding SET identity=?').run(
         JSON.stringify(legacy.map((field) => (field === 'runtime-one' ? 'runtime-two' : field))),
@@ -845,7 +845,7 @@ if (insideLinuxNamespace(import.meta.path)) {
       const binding = db.query<{ identity: string }, []>('SELECT identity FROM binding').get();
       const legacy = (JSON.parse(binding?.identity ?? '[]') as string[]).slice(0, 11);
       db.run(
-        'DROP TABLE host_jobs; DROP TABLE host_job_tickets; DROP TABLE host_job_events; DROP TABLE host_pool; DROP TABLE host_pool_mode_records; CREATE TABLE stranger (id INTEGER); PRAGMA user_version=0',
+        'DROP TABLE host_jobs; DROP TABLE host_job_tickets; DROP TABLE host_job_events; DROP TABLE host_pool; DROP TABLE host_pool_mode_records; DROP TABLE event_refusals; DROP TABLE dropped_events; CREATE TABLE stranger (id INTEGER); PRAGMA user_version=0',
       );
       db.query('UPDATE binding SET identity=?').run(JSON.stringify(legacy));
       db.close();
@@ -1007,7 +1007,7 @@ if (insideLinuxNamespace(import.meta.path)) {
       // Reduce the fresh ledger to exactly what slices 2 to 5 wrote (version 1).
       const db = new Database(ledger);
       db.run(
-        'DROP TABLE host_pool_mode_records; ALTER TABLE host_pool DROP COLUMN guard; ALTER TABLE host_pool DROP COLUMN guard_holder; ALTER TABLE host_pool DROP COLUMN switching; ALTER TABLE host_pool DROP COLUMN hold_corruption; PRAGMA user_version=1',
+        'DROP TABLE host_pool_mode_records; DROP TABLE event_refusals; DROP TABLE dropped_events; ALTER TABLE host_pool DROP COLUMN guard; ALTER TABLE host_pool DROP COLUMN guard_holder; ALTER TABLE host_pool DROP COLUMN switching; ALTER TABLE host_pool DROP COLUMN hold_corruption; PRAGMA user_version=1',
       );
       db.close();
       const migrated = ResourceRuntime.open(loadResourceConfiguration(config), clock);
@@ -1025,6 +1025,44 @@ if (insideLinuxNamespace(import.meta.path)) {
       }
     });
 
+    test('migrates a version-2 ledger to the outbox repair state, keeping its records', () => {
+      const { root, config, runtime } = pool(scenarioPool);
+      runtime.close();
+      const ledger = join(root, '.dash', 'resources.sqlite');
+      // Reduce the fresh ledger to exactly what slice 6b to 6f wrote (version 2).
+      const db = new Database(ledger);
+      db.run(
+        'DROP TABLE event_refusals; DROP TABLE dropped_events; INSERT INTO host_pool_mode_records(record) VALUES (\'{"at":1,"operator":"dany","account":"puni1","action":"switch","from":"observe","to":"concurrent","evidence":[]}\'); PRAGMA user_version=2',
+      );
+      db.close();
+      const migrated = ResourceRuntime.open(loadResourceConfiguration(config), clock);
+      try {
+        expect(migrated.outboxRefusals()).toEqual([]);
+        expect(migrated.outboxDrops()).toEqual([]);
+        expect(migrated.modeRecords().map((record) => record.operator)).toEqual(['dany']);
+      } finally {
+        migrated.close();
+      }
+      const after = new Database(ledger, { readonly: true });
+      expect(
+        after.query<{ user_version: number }, []>('PRAGMA user_version').get()?.user_version,
+      ).toBe(3);
+      after.close();
+    });
+
+    test('refuses a version-2 ledger with unexpected tables', () => {
+      const { root, config, runtime } = pool(scenarioPool);
+      runtime.close();
+      const db = new Database(join(root, '.dash', 'resources.sqlite'));
+      db.run(
+        'DROP TABLE event_refusals; DROP TABLE dropped_events; CREATE TABLE stranger (id INTEGER); PRAGMA user_version=2',
+      );
+      db.close();
+      expect(() => ResourceRuntime.open(loadResourceConfiguration(config), clock)).toThrow(
+        'resource ledger version 2 has unexpected tables: binding, cursor, events, host_job_events, host_job_tickets, host_jobs, host_pool, host_pool_mode_records, sqlite_sequence, stranger, uses',
+      );
+    });
+
     test('a read-only open refuses a ledger of another version and leaves it as it was', () => {
       const { root, config, runtime } = pool(scenarioPool);
       runtime.close();
@@ -1032,11 +1070,11 @@ if (insideLinuxNamespace(import.meta.path)) {
       // Exactly a version-1 ledger, which `open` would migrate.
       const db = new Database(ledger);
       db.run(
-        'DROP TABLE host_pool_mode_records; ALTER TABLE host_pool DROP COLUMN guard; ALTER TABLE host_pool DROP COLUMN guard_holder; ALTER TABLE host_pool DROP COLUMN switching; ALTER TABLE host_pool DROP COLUMN hold_corruption; PRAGMA user_version=1',
+        'DROP TABLE host_pool_mode_records; DROP TABLE event_refusals; DROP TABLE dropped_events; ALTER TABLE host_pool DROP COLUMN guard; ALTER TABLE host_pool DROP COLUMN guard_holder; ALTER TABLE host_pool DROP COLUMN switching; ALTER TABLE host_pool DROP COLUMN hold_corruption; PRAGMA user_version=1',
       );
       db.close();
       expect(() => ResourceRuntime.openReadOnly(loadResourceConfiguration(config), clock)).toThrow(
-        'resource ledger version 1 is not 2, the version this Dash reads; a read-only open migrates nothing',
+        'resource ledger version 1 is not 3, the version this Dash reads; a read-only open migrates nothing',
       );
       const after = new Database(ledger, { readonly: true });
       expect(
@@ -1067,7 +1105,7 @@ if (insideLinuxNamespace(import.meta.path)) {
       runtime.close();
       const db = new Database(join(root, '.dash', 'resources.sqlite'));
       db.run(
-        'DROP TABLE host_pool_mode_records; ALTER TABLE host_pool DROP COLUMN guard; ALTER TABLE host_pool DROP COLUMN guard_holder; ALTER TABLE host_pool DROP COLUMN switching; ALTER TABLE host_pool DROP COLUMN hold_corruption; CREATE TABLE stranger (id INTEGER); PRAGMA user_version=1',
+        'DROP TABLE host_pool_mode_records; DROP TABLE event_refusals; DROP TABLE dropped_events; ALTER TABLE host_pool DROP COLUMN guard; ALTER TABLE host_pool DROP COLUMN guard_holder; ALTER TABLE host_pool DROP COLUMN switching; ALTER TABLE host_pool DROP COLUMN hold_corruption; CREATE TABLE stranger (id INTEGER); PRAGMA user_version=1',
       );
       db.close();
       expect(() => ResourceRuntime.open(loadResourceConfiguration(config), clock)).toThrow(
@@ -1083,7 +1121,7 @@ if (insideLinuxNamespace(import.meta.path)) {
       const binding = db.query<{ identity: string }, []>('SELECT identity FROM binding').get();
       const legacy = (JSON.parse(binding?.identity ?? '[]') as string[]).slice(0, 11);
       db.run(
-        'DROP TABLE host_jobs; DROP TABLE host_job_tickets; DROP TABLE host_job_events; DROP TABLE host_pool; DROP TABLE host_pool_mode_records; PRAGMA user_version=0',
+        'DROP TABLE host_jobs; DROP TABLE host_job_tickets; DROP TABLE host_job_events; DROP TABLE host_pool; DROP TABLE host_pool_mode_records; DROP TABLE event_refusals; DROP TABLE dropped_events; PRAGMA user_version=0',
       );
       db.query('UPDATE binding SET identity=?').run(JSON.stringify(legacy));
       db.close();
@@ -1100,7 +1138,7 @@ if (insideLinuxNamespace(import.meta.path)) {
         process.stderr.write = write;
       }
       expect(lines).toEqual([
-        `resources: migrated ledger ${ledger} from version 0 to 2 (host pool)\n`,
+        `resources: migrated ledger ${ledger} from version 0 to 3 (host pool)\n`,
       ]);
     });
   });

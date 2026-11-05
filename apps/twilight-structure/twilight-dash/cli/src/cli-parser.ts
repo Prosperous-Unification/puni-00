@@ -695,8 +695,35 @@ const opsNamespace = command(
       ),
       { brief: message`Initialize, inspect and switch the host pool.` },
     ),
+    command(
+      'outbox',
+      opsCommand(
+        'drop',
+        'outbox drop',
+        'Drop the host-job event WBS refuses 400 from the head of the authority outbox, journalled; the next event publishes.',
+        {
+          config: poolConfig(),
+          event: option('--event', string({ metavar: 'ID', pattern: /^[0-9a-f-]{36}$/u }), {
+            description: message`The refused event's id, as watch's refusal line names it.`,
+          }),
+          operator: option('--operator', flagValue('NAME'), {
+            description: message`Who drops it; the drop record names them beside the account.`,
+          }),
+          // Proof: with `flagValue('NAME')` here `the grammar takes an event id, an operator and
+          // a reason` (outbox-drop.test.ts) parsed a blank reason (2026-11-05, Slice 6g).
+          reason: option(
+            '--reason',
+            string({ metavar: 'TEXT', pattern: /^(?!--)\s*\S[\s\S]*$/u }),
+            {
+              description: message`Why it is dropped, kept in the drop record.`,
+            },
+          ),
+        },
+      ),
+      { brief: message`Repair the authority outbox.` },
+    ),
   ),
-  { brief: message`Operate releases, host jobs and the host pool.` },
+  { brief: message`Operate releases, host jobs, the host pool and its outbox.` },
 );
 
 const commands = [...dispatchedCommands, opsNamespace, ...entrypointCommands];

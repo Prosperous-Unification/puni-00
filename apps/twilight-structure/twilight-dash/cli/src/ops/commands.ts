@@ -10,6 +10,7 @@ import {
   type HostFacts,
   type HostPoolStatus,
   loadResourceConfiguration,
+  OutboxDropRefusal,
   ResourceRuntime,
 } from '../resources/runtime';
 import { auditDrift } from './audit';
@@ -365,6 +366,28 @@ export const opsHandlers: OpsHandlers = {
         },
       );
       deps.stdout(`${JSON.stringify(record)}\n`);
+      return 0;
+    } finally {
+      runtime.close();
+    }
+  },
+  'outbox drop': (command, deps) => {
+    const runtime = openPool(command.config, deps.clock, 'ops outbox drop');
+    try {
+      let drop;
+      try {
+        drop = runtime.dropRefusedEvent(command.event, {
+          operator: command.operator,
+          account: deps.user,
+          reason: command.reason,
+        });
+      } catch (cause) {
+        if (!(cause instanceof OutboxDropRefusal)) throw cause;
+        throw new OpsRefusal(64, `ops outbox drop: ${cause.message}`, { cause });
+      }
+      deps.stdout(
+        `ops outbox: dropped event ${drop.eventId} (sequence ${String(drop.eventSequence)}, host job ${drop.useId} ${drop.kind}, refused HTTP ${String(drop.refusal.status)} at ${new Date(drop.refusal.lastRefusedAt).toISOString()}); ${drop.next === null ? 'the outbox is now empty' : `next in line: event ${drop.next.eventId} (sequence ${String(drop.next.sequence)})`}\n`,
+      );
       return 0;
     } finally {
       runtime.close();
