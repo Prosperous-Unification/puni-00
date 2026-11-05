@@ -93,9 +93,10 @@
   },
   "review": "source and mechanical type fix approved",
   "nativeReproduction": "native-bootstrap-query-20261105.json",
-  "correctedNativeQueryVerified": false,
+  "correctedNativeQueryVerified": true,
   "limits": [
     "Real complete inventory/cutover remains open",
     "Explicit absence inventory-only; cutover unchanged; query errors refuse"
-  ]
+  ],
+  "correctedNativeEvidence": "native-api-discovery-20261105.json"
 }
