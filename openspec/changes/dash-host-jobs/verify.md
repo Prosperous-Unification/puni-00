@@ -2819,6 +2819,23 @@ status`. Nested calls are rare: today only a `test:queued` run inside a gate.
   - The Dash queried is the launcher checkout's own (`resolve_dash_entrypoint`), the same one
     `ops job run` uses, so the reader and the writer of the ledger are one revision.
 
+- **S6E-A4 Task 1.1 was complete on `main`; only its box was open.** Each promise, checked
+  against `0ff9b5a1f`:
+  - `infra/jobs/catalogue.json` holds the four types (`jq -r '.jobs[].id'`: `gate`,
+    `release-build`, `test-queued`, `solver-image-publish`). `infra/jobs/README.md` has the
+    sections Fields, Heuristics (provisional) and Changing an envelope (the `calibrate` →
+    `propose` → pull request → `audit` loop). Both came in `aadff2c3f`.
+  - The comment goes on each catalogue `entrypoint`, not on every launcher. `gate` is at
+    `bin/h2puni-gate.sh:130` and `release-build` at `bin/publish-release.sh:15`.
+    `solver-image-publish` is at `tools/tool-devsync/src/solver-binding-runtime.ts:227`, its
+    catalogue entrypoint. `test-queued`'s entrypoint is `package.json#scripts.test:queued`, and
+    the README says JSON holds none. The launchers `bin/test-queued.sh` and
+    `bin/solver-image-publish.sh` already name their type in `HEAVY_LOCK_JOB_TYPE=<id>`, so a
+    comment there would only repeat it. None was added.
+  - `puni-pr-00` #75, with `website-dev-build`, merged at `022a7e8b8` on 2026-11-03.
+  - Tests: `job-catalogue.test.ts` (Burokrat contracts) has `parses this repository's catalogue
+and names its four job types` and `refuses arguments outside the argument profile`.
+
 ### Faults (2.4, `bun test src/resources/host-jobs.test.ts` in its namespace)
 
 | ID    | Injected fault                                                       | Observed                                                                                                                                                                                                               |

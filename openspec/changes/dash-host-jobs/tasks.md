@@ -9,12 +9,17 @@
 
 ## 1. Catalogue and rule (static; no host change)
 
-- [ ] 1.1 `infra/jobs/catalogue.json` with the four types of this repository (J2, J14) and
+- [x] 1.1 `infra/jobs/catalogue.json` with the four types of this repository (J2, J14) and
       `infra/jobs/README.md` naming the fields, the provisional heuristics of J9 and the
       `propose` → PR loop; each entrypoint script gains one comment naming its catalogue id;
       `puni-pr-00` gets its own catalogue with `website-dev-build` in a companion PR — test: the
       catalogue parses with the shared ArkType shape; an argv outside the argument profile is
       refused.
+      Checked in slice 6e, all already on `main` (S6E-A4): `infra/jobs/catalogue.json` with
+      the four types and `infra/jobs/README.md` (both `aadff2c3f`); the id comments in
+      `bin/h2puni-gate.sh`, `bin/publish-release.sh` and `solver-binding-runtime.ts`;
+      `puni-pr-00` #75 (merged `022a7e8b8`); the parse and argument-profile tests in
+      `job-catalogue.test.ts` (Burokrat contracts).
 - [x] 1.2 Burokrat rule `JOB-CATALOGUE` in observe mode through the existing rule framework:
       malformed entry, duplicate id, absent entrypoint, expired estimate against the supplied
       instant, envelope below calibrated p95, unbounded containers — test: one fixture per
