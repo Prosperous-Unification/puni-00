@@ -158,3 +158,39 @@ The first unstaged check refused those untracked diagnostic paths and supplies
 no pass credit. Fresh `openspec validate --all --json` exited0:333/333 passed,
 0failed (313changes,20specs). Both evidence documents were formatted before the
 normal commit; no pre-commit hook bypass is used.
+
+## Reviewed fresh-main integration
+
+Normal checkpoint `cd804a809f0c2d24947eac98334eb4999894395d` retained the reviewed
+repair and passed the configured repository hooks. After independent Astra High
+review, merge `301bcf332754e7fb4031183b4948abbc17560aef` incorporated exact main
+`149e6e85b5f578b74cb31112a0068698da0b1269`, preserving both histories. Root verified
+the first-parent merge delta contains exactly the eleven reviewed incoming files
+and all three restoration implementation/test files remain byte-identical to
+the checkpoint. No package lock, application runtime, migration or native source
+protocol changed in this main delta. The merged worktree was clean.
+
+Fresh combined-tree checks:
+
+- Focused incoming `tools/tool-fleet/src/ansible.test.ts`:34passed/0failed,
+  237assertions,1.55seconds, with configured scratch teardown returning.
+- Configured uncached `tool-fleet:typecheck` and `tool-fleet:lint`:both passed.
+- Required `nx format:check --all`:exit0; OpenSpec333/333,0failures.
+- Current-document/index check:passed.
+- Gate-host playbook `ansible-playbook --syntax-check -i localhost,` in the
+  digest-locked disposable controller:exit0. The expected unmatched `gate_hosts`
+  inventory warning remained; no live inventory or host was selected.
+- Separate `gate-host-assertions.py` evaluator:88cases,0failures. It used the
+  existing controller image
+  `ghcr.io/prosperous-unification/fleet-controller:0.1.0@sha256:372f6f433050a5844bc9c4cd657facf993eb505fec96b50838d253787e2462de`,
+  user0:0, disabled network, read-only root and repository mount, and isolated
+  tmpfs for temporary files. The exact owned container was absent after normal
+  `--rm` completion. Evaluator stdout SHA-256:
+  `abcc478be30b48da68ff9ce762cd7edabd23cf2dd81a401d9d188e0ac26bed76`.
+
+The controller checks execute disposable local fixtures. No Ansible apply or live
+host `--tags validate` was run: even live validation can open/migrate a Dash
+ledger. No gate-account cache or authorized keys were modified on h2puni.
+Earlier restoration observations retain their actual checkpoint/working-source
+epochs. The final published combined SHA still requires its own CI and canonical
+h2 gate; private native acceptance and architectural main adoption remain open.
