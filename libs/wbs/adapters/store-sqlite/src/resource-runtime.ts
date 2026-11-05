@@ -756,7 +756,8 @@ function namesRunRecord(
 /**
  * Projects one host job event (`dash-host-jobs` J10): `registered` at revision 1 creates the
  * row, owned by the authority and its organization; `release_verified` at revision 2, carrying
- * the same declaration and the settlement evidence (`returned`, J2'), marks it returned. No
+ * the same declaration and the settlement evidence (`returned`, or `not_created` when it has no
+ * run record; J2', task 6.8), marks it returned and stores that evidence. No
  * other kind exists for a host job, and nothing here admits, refuses or ends one: the host pool
  * already did. Planning links are kept as sent and never resolved, so a deleted project, work
  * item or person cannot strand the use. The caller has checked epoch, sequence, reason, instant

@@ -340,10 +340,10 @@ admission becomes `registered`, the settlement that returns every entry becomes
 partial or blocked settlements stay local. The locator is `dash-host-job-run://<enrollmentId>/<jobId>`:
 the `runs` row of that job in `<root>/.dash/host-job-runs.sqlite` on the host enrolled under that
 id. The digest is the SHA-256 of the row's stored `start` text, the gate entry the launcher writes
-once before the payload runs, and the disposition is `returned`. A job whose gate never opened (refused
-at the gate, withdrawn, or never launched) has no run record: its disposition is `not_created` and
+once before the payload runs, and the disposition is `returned`. A job with no run record (its launcher never
+wrote the gate entry: withdrawn, never launched, or refused before `begin`) returns `not_created`, and
 its digest is the SHA-256 of `<locator> absent`. Missing run records beside a ledger with host jobs
-stop the move and publish nothing until they are restored. WBS refuses any other locator,
+stop the move and publish nothing until they are restored. WBS refuses any other locator or disposition,
 including the ledger-row `dash-host-job://…` evidence of slice 5, with `400 invalid_body`. To check a
 returned job's digest on its host:
 

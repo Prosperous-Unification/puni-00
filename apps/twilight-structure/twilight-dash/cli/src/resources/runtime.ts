@@ -2895,10 +2895,15 @@ export class ResourceRuntime {
   /**
    * The settlement evidence of a returned host job (`dash-host-jobs` task 6.8, S6F-A1): its run
    * record's locator ({@link hostJobRunRecordLocator}, this pool's `enrollmentId` as host) and
-   * the SHA-256 of that record's gate entry, disposition `returned`. A job whose gate never
-   * opened has no run record: `not_created`, digesting {@link hostJobRunRecordAbsence}. The gate
+   * the SHA-256 of that record's gate entry, disposition `returned`. A job with no run
+   * record (its launcher never wrote the gate entry) is `not_created`, digesting
+   * {@link hostJobRunRecordAbsence}; a job refused after `begin` (a late SIGINT) has one and is
+   * `returned`. The gate
    * entry is written before the payload runs and the gated shell cannot exit before it, so a
-   * released job without one never ran its payload.
+   * released job without one never ran its payload. One window is admitted: a scope killed from
+   * outside after the gate sample and before `begin` can be settled and moved by `watch` as
+   * `not_created` while `begin` then writes `start`, so WBS holds `not_created` for a record that
+   * exists; it is a few milliseconds long and loses no state.
    * @throws when the run records are missing, a link, not owner-only or of another schema.
    */
   private settlementEvidence(jobId: string): NonNullable<ResourceEvent['evidence']> {

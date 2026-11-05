@@ -284,3 +284,8 @@
       Done in slice 6f (S6F-A1): locator `dash-host-job-run://<enrollmentId>/<jobId>`, digest the
       SHA-256 of the record's stored gate entry, `not_created` for a job whose gate never opened;
       be-01 refuses the ledger-row evidence `400 invalid_body`.
+  - [ ] 6.8a An operator command that drops one permanently refused event from the authority
+        outbox, naming it and the refusal (pre-existing gap; S6F-A4: a moved old-shape host-job
+        event refused by a newer be-01 otherwise blocks every later event of the authority) —
+        test: a refused event is dropped and the next one publishes; negative: the command
+        refuses an event WBS has not refused.

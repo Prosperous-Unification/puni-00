@@ -2939,9 +2939,11 @@ host: no ssh, no apply, no enrollment. No migration: `resource_host_job.evidence
     is a few synchronous statements long. `start` also holds `descriptorDigest`,
     `launcherSha`, `argv`, unit, cgroup, tmp directory and units, so the descriptor is covered
     through it.
-  - **No run record.** A job whose gate never opened (refused at the gate, withdrawn by
-    `withdrawUnlaunchedHostJob`, or a `LaunchUnstarted` job settled by `watch`) has no `runs`
-    row. It returns `not_created` under the same locator, with the digest of
+  - **No run record.** A job whose launcher never wrote the gate entry (withdrawn by
+    `withdrawUnlaunchedHostJob`, a `LaunchUnstarted` job settled by `watch`, or refused before
+    `begin`) has no `runs` row. Only that converse holds: a SIGINT after `begin` and before the
+    last `refuseIfInterrupted()` writes `start`, refuses 130 and publishes `returned` for a
+    payload that never ran (review of #877). It returns `not_created` under the same locator, with the digest of
     `<locator> absent` (`hostJobRunRecordAbsence`). be-01 recomputes that digest and refuses
     any other.
   - **Refusal.** be-01 refuses with `400 invalid_body` any host-job `release_verified` whose
@@ -2979,10 +2981,16 @@ host: no ssh, no apply, no enrollment. No migration: `resource_host_job.evidence
   evidence as they are. Only ingest is stricter. No pool is enrolled yet (task 6.3: both hosts
   unenrolled), so no outbox holds an old-shape event. One that did would be refused `400`,
   retried for 30 minutes (S5-A20), then stop `watch` naming the refusal.
-- **S6F-A4 Deploy order stays WBS before Dash.** A be-01 without this change accepts the new
-  `returned` evidence (it checked only the 64-hex shape and a non-empty locator). It refuses a
-  host job's `not_created` (`returned` only), which the S5-A20 bounded retry covers while be-01
-  rolls out.
+- **S6F-A4 Either deploy order is safe today only because no pool is enrolled (corrected in
+  review of #877).** WBS first is the hazard once host jobs publish: an old Dash moves
+  `dash-host-job://…` evidence into its outbox, the new be-01 refuses it `400` for good, the
+  outbox retries the exact bytes, `watch` retries for 30 minutes (S5-A20), exits, restarts and
+  starts the bound again, forever, and the refused event blocks every later event of the
+  authority, worktree uses included. A moved event is never re-shaped. With host-job events in
+  flight, Dash must upgrade first (an old be-01 accepts the new `returned` evidence; only a
+  host job's `not_created` is refused, inside the S5-A20 bound) or the outbox must be drained
+  before be-01 moves. No operator command drops a permanently refused outbox event: follow-up
+  under task 6.8.
 
 ### Fault injection
 
@@ -3028,3 +3036,24 @@ in this sandbox) and the PostgreSQL fixtures, as on `main`. No migration, so no 
 Not done: no host apply, no enrollment, no h2puni gate. No end-to-end publish against a
 composed be-01: the Dash tests check each event with the shared contract, and the be-01 test
 sends the same shapes through mcp-01's forwarded grant.
+
+### Review fixes (Fable, #877)
+
+Verdict "merge after fixes", no code defect. Docs, spec and JSDoc only, plus one contract test:
+
+- S6F-A4 rewritten: WBS first is the hazard once a pool publishes, because a moved old-shape
+  event is never re-shaped. Either order is safe today only because no pool is enrolled. The
+  missing drop-a-refused-event command is follow-up 6.8a in `tasks.md`.
+- The "no run record" claims now state only the converse (a job whose launcher never wrote the
+  gate entry), in the spec delta, `docs/resources.md`, S6F-A1 and the `settlementEvidence`
+  JSDoc. A SIGINT after `begin` writes `start`, refuses 130 and publishes `returned`.
+- `settlementEvidence`'s JSDoc names the admitted window. The spec says which host-job evidence
+  WBS refuses (locator or disposition; a `returned` digest is checked for shape only). The
+  scenario uses an example enrollment id `h2puni-host-pool`. `ingestHostJob`'s JSDoc names both
+  stored dispositions.
+- New `libs/wbs/domain/contracts/src/http/resource-runtime-shapes.test.ts` pins the locator
+  and the absence digest literally. Proof: with the absence statement's ` absent` changed to
+  ` missing`, `a not_created digest hashes a stable absence statement` failed (1 pass 1 fail,
+  `Received: "…/job-1 missing"`). `/` in a part is not refused by the helper: Dash's
+  enrollment and job ids are `Identifier`s (no `/`), and making be-01 throw on a label host
+  would answer 500 rather than a modelled refusal.
