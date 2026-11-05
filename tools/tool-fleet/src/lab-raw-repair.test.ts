@@ -1047,6 +1047,8 @@ with tempfile.TemporaryDirectory() as root:
         return dict(terminal,LoadState='loaded',InvocationID='f'*32) if fault=='terminal' and calls>1 else terminal
     p.RepairCoordinator.observe_unit=staticmethod(observe_unit)
     p.RepairCoordinator.observe_active=staticmethod(p.raw.observe_active)
+    native_text=p.raw.read_text
+    p.raw.read_text=lambda path,limit=65536:str(child.pid)+'\n' if path in ('/sys/fs/cgroup/fixture/cgroup.procs','/sys/fs/cgroup/fixture/cgroup.threads') else native_text(path,limit)
     p.raw.read_caps=lambda group:p.raw.CAPS;p.raw.group_events=lambda group:'populated 1' if fault=='populated' else None
     child=None;stopped=[]
     def launch(selected,path_,digest):
@@ -1079,7 +1081,7 @@ with tempfile.TemporaryDirectory() as root:
         envelope=p.coordinator(request,'/private/request','b'*64)
         assert fault=='success','unsafe durable receipt accepted '+fault
         assert envelope['scope']=='raw-repair-preparation' and envelope['guestAuthority'] is False
-        assert json.load(open(directory+'/receipt.json'))['grossDebtRetained'] is True
+        assert json.load(open(directory+'/receipt.json'))['grossDebtRetained'] is False
         assert stopped==[child.pid]
     except (p.raw.PreparationRefusal,OSError):
         assert fault!='success'

@@ -48,7 +48,7 @@ The existing ready callback already receives the original attempt directory/FD; 
 
 ## Qualified future release path without extra filesystem work
 
-Independent read-only source review approved a finite future release path, SHA256`b25a4df0bdcc11ef9fe4ef72bf2f881c9c1520c857469fb520f5d79a7b7b0cf7`. Current admission still retains every G; no release implementation, certificate, native control or credit exists yet.
+Independent read-only source review approved a finite future release path, SHA256`b25a4df0bdcc11ef9fe4ef72bf2f881c9c1520c857469fb520f5d79a7b7b0cf7`. The initial admission layer retained every G. Task98 now implements and independently reviews the qualified current-reservation certificate/ledger composition; no actual native repair, release credit or kernel callback observation has occurred.
 
 After the exact writer/descendants are reaped, original raw I/O is successfully drained and no further selected repair mutation can occur, the existing coordinator exclusively publishes `worker-counter.json` with file fsync and original-directory fsync. Only after that returns does the repair adapter exclusively create and fully publish its distinct artifact through the same directory. Qualified ext4 directory fsync forces the current full journal commit even with fast commit enabled. The second exclusive creation enters a later transaction; the synchronous JBD2 committer cannot publish it before the prior ext4 callback returns pending frees to the buddy allocator. This establishes earlier repair-debt reclamation without assuming a transaction waits for its own callback.
 

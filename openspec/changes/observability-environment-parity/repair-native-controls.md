@@ -1,0 +1,31 @@
+# Bounded native repair primitive qualification
+
+This is the next control plan, not executed evidence or repaired-disk acceptance. Execute only after its harness and exact source pins are independently reviewed, committed and freshly rebound. Task97, the actual repair and full two-instance observability acceptance remain open.
+
+## Scope and prerequisites
+
+Use only disposable owned tiny files and original owned child PIDs within one dedicated transient user service. Never open retained `disk.raw`, historical ISO, `/dev/kvm`, foreign writable paths or a host export. No guest, QEMU, download, mount, global flush or pressure replay. Reuse the committed worker's leaf functions and fixed geometry policy without changing production constants. Any fault is confined to the tiny owned control and explicitly named; controls with another policy layer omitted to avoid masking are labeled isolated policy witnesses.
+
+Before starting, require exact current committed source/tool/runtime/kernel identities, complete retained-state plus outside-plan allocated-byte inventory, available memory and backing space. Charge every retained artifact, helper, fixture, certificate and future capture exactly once. Preserve 10 GiB retained staging, the 160 MiB outside allowance, 50/40 GiB initial/live free-backing floors and 2 GiB live host available memory; no floor changes. Additional native-control fixtures are capped at 2 MiB total allocated target bytes and all new control program/log/evidence metadata at 512 KiB. Inventory growth or unknown state refuses launch.
+
+## Finite service and controller
+
+Dedicated nonce-derived `puni-repair-primitives-<nonce>.service`: MemoryMax256 MiB, swap0, CPUQuota100%/100ms, TasksMax32, RuntimeMax10s, stop1s, control-group kill, SIGKILL enabled, AS256 MiB, FSIZE2 MiB, NOFILE64, core0, umask0077, NoNewPrivileges, no restart. The separate controller has AS128 MiB, CPU5s, FSIZE64 KiB, NOFILE64, core0 and wall20s; per-pipe stdout/stderr64 KiB. A longer wait never silently raises these bounds. Effective native values and authentic counters must be observed, not inferred from arguments.
+
+The worker holds the original staging flock across readiness, fixture creation, controls and the controller's durable completion ACK. Parent independently checks actual original worker PID/start/unit/InvocationID/cgroup and effective bounds before admission ACK. Controller records actual terminal state, exact owned group emptiness and independent repeated cleanup. Missing counter/ACK/exit/cleanup evidence keeps the control unaccepted; a D-state timeout initiates stop and never proves immediate reap.
+
+## Required controls
+
+| Control                       | Small target and protected operation                                                      | Required witness                                                                                                                                                            |
+| ----------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Full direct-I/O chain         | One initialized 1 MiB file; actual `confine_child`, aligned buffer and one `rewrite_step` | Actual O_DIRECT/O_DSYNC reopen, original inode retained, same complete hash and initialized map, exact successful step and reap                                             |
+| Native offset width           | The same 1 MiB file; native positioned reads at 2 GiB and 4 GiB                           | EOF without a write; an explicitly narrow/wrapped 4 GiB offset exposes reading offset0, confined to the fixture                                                             |
+| Native allocation primitive   | One separate 4 KiB fixture                                                                | Fixed one-block native fallocate succeeds; this does not establish whole 8 GiB transient accounting or performance                                                          |
+| Landlock TRUNCATE             | Two independent 64 KiB targets                                                            | No-TRUNCATE grant plus fresh reopen denies truncation; the exact grant fault permits truncation on its own file, with seccomp omitted only for this isolated policy witness |
+| Landlock EXECUTE              | Two 64 KiB target contexts and one exact pinned harmless system executable                | No executable grant denies execution; the exact executable/loader grant permits that executable in its own reaped child; isolated before seccomp to avoid masking           |
+| Inherited writable descriptor | Two 64 KiB targets plus two 16 KiB foreign fixtures, all owned                            | Full child confinement closes the preopened foreign writable FD; omitting only that close exposes its original write authority on the tiny foreign fixture                  |
+| Descendant creation           | Two 64 KiB targets                                                                        | Full chain denies native clone; omitting only the fixed clone rule permits one owned child which immediately exits and is exactly reaped                                    |
+
+All fixtures remain below the 2 MiB allocation cap. Do not create 4/8 GiB offset fixtures or repeat old geometry/pressure campaigns. Bound every fork/pipe/wait; at most one controlled child is live, with one additional child only in the clone fault. Native rejection must name the actual errno or protected-operation result; a Python wrapper exception is not a kernel denial witness. The full-chain positive and per-policy unmasked negatives have different scopes and are reported separately.
+
+After the service is independently terminal, verify only declared fixture identities/contents, publish exact hashes, native effective bounds/counters, commands/exits/timing and remaining limitations in OpenSpec. Keep original failed guest/raw/ISO/history unchanged. This qualification does not release debt, accept a repair, certify a continued guest or close canonical3.1. Actual repair still requires reviewed v2 consumers, a fresh source-bound request and complete current admission.

@@ -1464,3 +1464,10 @@ Repair debt SHALL remain pending until a separately qualified release proof bind
 - **THEN** credit refuses and original reservations remain charged
 - **AND** absent optional proof means pending debt, while unreadable or malformed trusted proof cannot become released
 - **AND** a prior failed attempt requires independent terminal/drain proof before inclusion
+
+#### Scenario: Later receipt failure does not fabricate runtime acceptance
+
+- **WHEN** the qualified release certificate was durably published after all ordered barriers, quiescence and cleanup, but the subsequent accepted receipt directory sync and failure-record publication fail
+- **THEN** exact canonical source-bound receipt bytes may prove the earlier certificate publication returned for settlement of that reservation only
+- **AND** the coordinator throws without a successful preparation envelope or guest authority
+- **AND** certificate bytes without the required accepted receipt, or any present malformed/failed state, cannot be treated as successful runtime acceptance

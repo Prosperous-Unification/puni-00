@@ -234,9 +234,10 @@ def read_reservations(state, pending=None):
     """Charge every repair directory, including failed/cancelled attempts without accepted receipts.
 
     Hold the original staging lock throughout enumeration/admission. Only the trusted original
-    coordinator PendingAttempt may exclude its unpublished directory; published attempts all owe G.
+    coordinator PendingAttempt may exclude its unpublished directory. Published attempts owe G
+    until a complete accepted release joins.
     Traversal is top-level (the fixed attempt layout), bounded to 20,000 entries/1,024 records and
-    <64KiB per read. Missing/unreadable/malformed state throws; no reclamation is implemented.
+    <64KiB per read. Missing/unreadable/malformed state throws; absent optional release remains pending.
     """
     root_fd = raw.open_private(state, directory=True)
     try:
@@ -274,9 +275,10 @@ def read_reservations(state, pending=None):
                     # Proof: changed-read bypass reaches next-authority in metadata-changed.
                     require(identity == raw.identity(os.lstat(directory)), 'repair-state-changed')
                     seen.add(record['nonce'])
-                    records.append(record)
+                    if not read_release(directory, identity, record):
+                        records.append(record)
                     # Proof: ledger bound bypass admits 1,025 records in native capacity/metadata-bounds.
-                    require(len(records) <= 1024, 'repair-ledger-bound')
+                    require(len(seen) <= 1024, 'repair-ledger-bound')
                 finally:
                     os.close(descriptor)
         # Proof: pending-presence bypass admits a missing original entry in metadata-boundaries.
@@ -287,6 +289,102 @@ def read_reservations(state, pending=None):
         return records
     finally:
         os.close(root_fd)
+
+
+def read_release(directory, identity, reservation):
+    """Credit only the fixed producer's complete accepted certificate under its pinned source contract.
+
+    Files cannot reconstruct publication ordering. The certificate is authority only because the
+    independently pinned coordinator creates it after those returns and terminal cleanup. Absent
+    optional proof is pending; every present proof requires all original private canonical joins.
+    Canonical receipt bytes witness the prior certificate publish return, not their own directory
+    sync or a successful runtime envelope. A present failure still refuses; later v2 consumers
+    require their separate fresh success/provenance authority.
+    """
+    certificate_path = Path(directory) / 'release.json'
+    try:
+        os.lstat(certificate_path)
+    except FileNotFoundError:
+        return False
+    certificate = read_record(certificate_path)
+    closed(certificate, 'schemaVersion nonce requestDigest sourceDigest reservationDigest bindingDigest '
+                        'counterDigest repairDigest directory profile publication quiescence cleanup '
+                        'terminal groupEvents finalSnapshot issuedNs')
+    receipt = read_record(Path(directory) / 'receipt.json')
+    counter = read_record(Path(directory) / 'worker-counter.json')
+    artifact = read_record(Path(directory) / 'repair.json')
+    ready = read_record(Path(directory) / 'worker-ready.json')
+    closed(artifact, 'schemaVersion repair originalReceiptDigest failedGuestDigest requestDigest sourceDigest '
+                     'reservationDigest counterDigest guestAuthority fullRehearsalAuthority grossDebtRetained')
+    closed(receipt, 'schemaVersion scope accepted guestAuthority fullRehearsalAuthority requestDigest sourceDigest '
+                    'binding counterDigest measurementPhase counterPersistence terminal groupEvents finalCapacity '
+                    'finishedNs repairDigest releaseDigest rawBytes lineage grossDebtRetained trust')
+    # Proof: fix ready-bool guard removal credits canonical observedNs=False before delegated comparisons.
+    require(type(ready['observedNs']) is int and 0 < ready['observedNs'] <= 2**64 - 1,
+            'repair-release-ready-time')
+    # Proof: fix receipt-float guard removal credits canonical float finishedNs before delegated comparisons.
+    require(type(receipt['finishedNs']) is int and 0 < receipt['finishedNs'] <= 2**64 - 1,
+            'repair-release-receipt-time')
+    capacity = receipt['finalCapacity']
+    # Proof: fix capacity guard removal credits malformed canonical shape, quantity, clock or retained flag.
+    require(type(capacity) is dict and set(capacity) == {
+                'availableMemoryBytes', 'freeBytes', 'retainedInodeBytes', 'otherFutureReservations',
+                'observedNs', 'grossDebtRetained'}
+            and all(type(capacity[field]) is int and 0 <= capacity[field] <= 2**64 - 1
+                    for field in ('availableMemoryBytes', 'freeBytes', 'retainedInodeBytes', 'otherFutureReservations'))
+            and type(capacity['observedNs']) is str
+            and re.fullmatch('[1-9][0-9]{0,19}', capacity['observedNs']) is not None
+            and int(capacity['observedNs']) <= 2**64 - 1
+            and capacity['grossDebtRetained'] is True, 'repair-release-capacity-invalid')
+    # Proof: fix trust guard removal credits a canonical receipt with a non-source-produced trust value.
+    require(type(receipt['trust']) is str
+            and receipt['trust'] == 'independently-selected-content-pins; signatures remain separate input provenance',
+            'repair-release-trust-invalid')
+    check_repair(artifact['repair'], reservation['originalSnapshot'])
+    check_profile(certificate['profile'], artifact['repair']['after'])
+    binding = counter['binding']
+    check_counter(counter, binding, ready['observedNs'], receipt['finishedNs'])
+    raw.check_terminal(receipt['terminal'], receipt['groupEvents'], 0)
+    # Proof: release ledger-{source,directory,reservation,counter,artifact,binding,receipt,premature,
+    # profile,cleanup,terminal,artifact-schema,receipt-schema,artifact-history} corrupt actual
+    # published records; bypass admits unsafe credit.
+    require(type(certificate['schemaVersion']) is int and certificate['schemaVersion'] == 1
+            and certificate['nonce'] == reservation['nonce'] == binding['nonce']
+            and certificate['requestDigest'] == reservation['requestDigest'] == receipt['requestDigest']
+                == artifact['requestDigest'] == binding['request']
+            and certificate['sourceDigest'] == reservation['sourceDigest'] == receipt['sourceDigest']
+                == artifact['sourceDigest'] == binding['source']
+            and certificate['reservationDigest'] == raw.digest_json(reservation)
+                == artifact['reservationDigest'] == binding['reservationDigest']
+            and certificate['directory'] == identity == binding['creator']
+            and certificate['bindingDigest'] == raw.digest_json(binding)
+            and ready['binding'] == receipt['binding'] == binding
+            and certificate['counterDigest'] == receipt['counterDigest'] == artifact['counterDigest']
+                == raw.digest_json(counter)
+            and certificate['repairDigest'] == receipt['repairDigest'] == raw.digest_json(artifact)
+            and receipt['releaseDigest'] == raw.digest_json(certificate)
+            and certificate['publication'] == 'exclusive-counter-dir-before-exclusive-repair-dir'
+            and certificate['quiescence'] == 'sole-original-worker-reaped-child-original-fd-drained'
+            and certificate['cleanup'] == 'verified-original-unit-empty'
+            and certificate['terminal'] == receipt['terminal']
+            and certificate['groupEvents'] == receipt['groupEvents']
+            and certificate['finalSnapshot'] == artifact['repair']['after']
+            and type(certificate['issuedNs']) is int
+            and counter['finishedNs'] <= certificate['issuedNs'] <= receipt['finishedNs']
+            and type(receipt['schemaVersion']) is int and receipt['schemaVersion'] == 1
+            and type(artifact['schemaVersion']) is int and artifact['schemaVersion'] == 1
+            and all(type(artifact[field]) is str and re.fullmatch('[a-f0-9]{64}', artifact[field]) is not None
+                    for field in ('originalReceiptDigest', 'failedGuestDigest'))
+            and artifact['grossDebtRetained'] is True
+            and receipt['scope'] == 'raw-repair-preparation'
+            and receipt['accepted'] is True and receipt['guestAuthority'] is False
+            and receipt['fullRehearsalAuthority'] is False and receipt['grossDebtRetained'] is False
+            and receipt['rawBytes'] == raw.RAW_BYTES and receipt['lineage'] == 'continued-guest'
+            and receipt['measurementPhase'] == RepairCoordinator.measurement_phase
+            and receipt['counterPersistence'] == 'coordinator-fsync-before-worker-durability-ack'
+            and artifact['guestAuthority'] is False and artifact['fullRehearsalAuthority'] is False
+            and not os.path.lexists(Path(directory) / 'failure.json'), 'repair-release-invalid')
+    return True
 
 
 HELPER = Path(__file__).resolve()
@@ -805,7 +903,6 @@ class RepairCoordinator:
     stop_owned = staticmethod(raw.stop_owned)
     launch_service = staticmethod(launch_service)
     check_counter = staticmethod(check_counter)
-    check_creator = staticmethod(check_creator)
     check_input_descriptors = staticmethod(check_input_descriptors)
     decode_frame = staticmethod(seed.decode_json)
 
@@ -816,6 +913,12 @@ class RepairCoordinator:
         self.artifact = None
         self.source = None
         self.inputs = None
+        self.release = None
+        self.publications = []
+        self.release_binding = None
+        self.release_directory = None
+        self.release_descriptor = None
+        self.release_profile = None
 
     def verify_inputs(self, request):
         self.source = verify_inputs(request)
@@ -901,7 +1004,73 @@ class RepairCoordinator:
         finally:
             os.close(descriptor)
 
+    def check_creator(self, binding, directory, directory_fd):
+        """Before A, independently drain the original inode and exclude live owned byte writers."""
+        check_creator(binding, directory, directory_fd)
+        self.release_binding = binding
+        self.release_directory = directory
+        self.release_descriptor = directory_fd
+        self.check_release_live()
+        descriptor = raw.open_private(self.path)
+        try:
+            check_original(descriptor, self.path, binding['raw'])
+            # Proof: release raw-drain fault fails the real original-FD fsync before counter creation.
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+    def check_release_live(self):
+        """Rejoin original live worker, lock, same filesystem, pinned source and qualified journal."""
+        binding = self.release_binding
+        check_creator(binding, self.release_directory, self.release_descriptor)
+        check_input_descriptors(binding, self.request)
+        refresh_inputs(self.request, self.inputs)
+        native = self.observe_active(binding['unit'], binding['pid'])
+        # Proof: release native-change injects a changed original cgroup after A; bypass accepts it.
+        require(all(native[name] == binding[name] for name in ('pid', 'start', 'unit', 'invocation', 'cgroup'))
+                and raw.read_caps(binding['cgroup']) == self.caps, 'repair-release-native-changed')
+        tasks = []
+        with os.scandir(f"/proc/{binding['pid']}/task") as entries:
+            for entry in entries:
+                tasks.append(entry.name)
+                if len(tasks) == 2:
+                    break
+        children = raw.read_text(f"/proc/{binding['pid']}/task/{binding['pid']}/children", 4096)
+        processes = raw.read_text('/sys/fs/cgroup' + binding['cgroup'] + '/cgroup.procs', 4096).split()
+        threads = raw.read_text('/sys/fs/cgroup' + binding['cgroup'] + '/cgroup.threads', 4096).split()
+        # Proof: release live-thread uses a live thread; live-child/live-group inject owned proc/cgroup replies.
+        require(tasks == [str(binding['pid'])] and not children.strip()
+                and processes == threads == [str(binding['pid'])], 'repair-release-writer-live')
+        descriptor = raw.open_private(self.path)
+        try:
+            check_original(descriptor, self.path, binding['raw'])
+            profile = observe_profile(self.request, descriptor)
+            check_profile(profile, snapshot_file(os.fstat(descriptor)))
+            # Proof: release foreign-fs substitutes the recorded original device after qualification; bypass accepts it.
+            require(str(os.fstat(self.release_descriptor).st_dev) == profile['rawDevice']
+                    and (self.release_profile is None or profile == self.release_profile),
+                    'repair-release-profile-changed')
+            self.release_profile = profile
+        finally:
+            os.close(descriptor)
+
+    def persisted(self, name, record, directory, directory_fd):
+        """Record only actual successful original raw.persist returns; no external witness accepted."""
+        if name not in ('worker-counter.json', 'repair.json'):
+            return
+        # Proof: release substituted-directory passes an actual foreign directory FD to notification; bypass accepts it.
+        require(directory == self.release_directory and directory_fd == self.release_descriptor
+                and self.publications == ([] if name == 'worker-counter.json'
+                                          else [('worker-counter.json', record['counterDigest'])]),
+                'repair-release-publication-invalid')
+        self.check_release_live()
+        self.publications.append((name, raw.digest_json(record)))
+
     def persist_artifact(self, frame, publish):
+        # Proof: release counter-notification fault refuses artifact creation without actual A return.
+        require(self.publications == [('worker-counter.json', raw.digest_json(frame['record']))],
+                'repair-release-publication-invalid')
+        self.check_release_live()
         artifact = frame['repair']
         check_repair(artifact, self.request['expectedRaw'])
         self.check_final(artifact)
@@ -929,11 +1098,39 @@ class RepairCoordinator:
         require(self.artifact is not None, 'repair-artifact-absent')
         refresh_inputs(self.request, self.inputs)
         self.check_final(self.artifact['repair'])
+        descriptor = open_original(self.path, self.artifact['repair']['after'])
+        try:
+            profile = observe_profile(self.request, descriptor)
+            # Proof: release final-profile fault refuses changed journal after owned cleanup.
+            require(profile == self.release_profile
+                    and str(os.fstat(self.release_descriptor).st_dev) == profile['rawDevice']
+                    and raw.identity(os.fstat(self.release_descriptor)) == binding['creator']
+                        == raw.identity(os.lstat(self.release_directory)), 'repair-release-profile-changed')
+        finally:
+            os.close(descriptor)
+        # Proof: release artifact-notification fault refuses certificate without actual C return.
+        require(self.publications == [('worker-counter.json', self.artifact['counterDigest']),
+                                      ('repair.json', raw.digest_json(self.artifact))]
+                and binding == self.release_binding, 'repair-release-publication-invalid')
+        raw.check_terminal(terminal, events, 0)
+        self.release = {'schemaVersion': 1, 'nonce': self.reservation['nonce'],
+                        'requestDigest': self.request_digest, 'sourceDigest': self.source,
+                        'reservationDigest': raw.digest_json(self.reservation),
+                        'bindingDigest': raw.digest_json(binding),
+                        'counterDigest': self.artifact['counterDigest'],
+                        'repairDigest': raw.digest_json(self.artifact), 'directory': binding['creator'],
+                        'profile': profile, 'publication': 'exclusive-counter-dir-before-exclusive-repair-dir',
+                        'quiescence': 'sole-original-worker-reaped-child-original-fd-drained',
+                        'cleanup': 'verified-original-unit-empty', 'terminal': terminal, 'groupEvents': events,
+                        'finalSnapshot': self.artifact['repair']['after'], 'issuedNs': time.time_ns()}
+        publish('release.json', self.release)
 
     def receipt_fields(self, record):
         require(self.artifact is not None, 'repair-artifact-absent')
-        return {'repairDigest': raw.digest_json(self.artifact), 'rawBytes': raw.RAW_BYTES,
-                'lineage': 'continued-guest', 'grossDebtRetained': True}
+        # Proof: release skip-finalize breaks the required certificate producer; bypass accepts an unproved receipt.
+        require(self.release is not None, 'repair-release-absent')
+        return {'repairDigest': raw.digest_json(self.artifact), 'releaseDigest': raw.digest_json(self.release),
+                'rawBytes': raw.RAW_BYTES, 'lineage': 'continued-guest', 'grossDebtRetained': False}
 
 
 def coordinator(request, request_path, request_digest):

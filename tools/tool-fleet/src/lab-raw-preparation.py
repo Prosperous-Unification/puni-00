@@ -433,6 +433,7 @@ def persist(directory, name, record, directory_fd=None):
             os.fsync(descriptor)
         finally:
             os.close(descriptor)
+        # Proof: release directory-A-removed/directory-C-removed watch real missing barriers before artifact/certificate creation.
         os.fsync(directory_fd)
     finally:
         if owns_directory:
@@ -858,6 +859,10 @@ def coordinate_attempt(request, request_path, request_digest, adapter):
     directory_fd = open_private(directory, directory=True)
     def publish(name, record):
         persist(directory, name, record, directory_fd=directory_fd)
+        # Proof: repair release order watches both actual directory barriers before notification.
+        persisted = getattr(adapter, 'persisted', None)
+        if persisted is not None:
+            persisted(name, record, directory, directory_fd)
     publish('request-binding.json', {'requestDigest': request_digest, 'sourceDigest': source,
                                                'initial': initial, 'unitBefore': absent})
     client = adapter.launch_service(request, request_path, request_digest)
