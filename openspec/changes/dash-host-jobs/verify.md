@@ -2912,3 +2912,119 @@ After the review fixes, fresh on this workstation: `bunx nx run twilight-dash:te
 `tool-fleet:check` 604 pass, shellcheck 14 scripts, exit 0; `format:check --all` exit 0;
 `openspec validate --all --json` 328 passed, 0 failed; Burokrat `check-indexes` exit 0 (the
 two existing review-debt rows); `nx affected -t lint typecheck` 8 projects, exit 0.
+
+## Slice 6f: run-record settlement evidence (task 6.8)
+
+Branch `feat/host-jobs-run-record-digest` from `main` at `3ad0b1b43`. Nothing here touched a
+host: no ssh, no apply, no enrollment. No migration: `resource_host_job.evidence` is JSON text.
+
+### Assumptions (overrulable by id)
+
+- **S6F-A1 WBS keeps one digest, over the run record's gate entry, under a locator naming the
+  record (task 6.8).** A returned host job's `release_verified` evidence is
+  `{ digest, locator, disposition: 'returned', reclaimedBytes: null }` where:
+  - **Locator** `dash-host-job-run://<enrollmentId>/<jobId>`: the `runs` row whose `job_id` is
+    the job, in `<pool root>/.dash/host-job-runs.sqlite` on the pool enrolled as `<enrollmentId>`
+    (the declaration's `host`). The run record already has a durable file and a primary key;
+    what it lacked was a name WBS could hold. The pool root is left out: WBS should not hold a
+    host's filesystem layout, and an operator finds the root from the enrollment's
+    `host-pool.json` (the fixed root of task 6.3). Built by `hostJobRunRecordLocator` in
+    `@wbs/contracts`, which Dash and be-01 both call.
+  - **Digest** the SHA-256 of the row's stored `start` text, byte for byte as `begin` wrote it.
+    `start` is written once, in the transaction that records the gate sample, before the gate
+    opens. The gated shell cannot exit until the launcher writes `start` or closes the gate, so
+    by the time a job is released its `start` is final. One window stays open: a scope killed
+    from outside after the gate sample and before `begin` can be settled by `watch` as
+    `not_created`, and then `begin` writes a `start` for a payload that never runs. That window
+    is a few synchronous statements long. `start` also holds `descriptorDigest`,
+    `launcherSha`, `argv`, unit, cgroup, tmp directory and units, so the descriptor is covered
+    through it.
+  - **No run record.** A job whose gate never opened (refused at the gate, withdrawn by
+    `withdrawUnlaunchedHostJob`, or a `LaunchUnstarted` job settled by `watch`) has no `runs`
+    row. It returns `not_created` under the same locator, with the digest of
+    `<locator> absent` (`hostJobRunRecordAbsence`). be-01 recomputes that digest and refuses
+    any other.
+  - **Refusal.** be-01 refuses with `400 invalid_body` any host-job `release_verified` whose
+    locator is not exactly `hostJobRunRecordLocator(use.host, useId)`. That covers S5-A11's
+    `dash-host-job://<authorityId>/<jobId>/<revision>` evidence, another host's record and
+    another job's record. It also refuses a `not_created` with any other digest, and `removed`
+    for a host job. A `returned` digest covers bytes only Dash holds, so WBS checks its shape
+    (64 hex) and nothing more. ADR 0061's reconciliation is the operator's: find the row by the
+    locator and recompute (the `bun -e` check in `docs/resources.md`).
+  - Alternatives rejected:
+    - `descriptorDigest` alone identifies the job type at a catalogue revision. Every gate run
+      of that revision shares it, so it attests nothing about this run.
+    - A digest over the run records file: the file holds every job's rows and changes with
+      every sample of every later job, so the digest could not be checked after the next run.
+    - A digest over `start`, outcome and samples together attests more but is unstable. `watch`
+      can settle and move the job between payload exit and the launcher's `finish`, and a
+      launcher that died never writes an outcome, so the published digest would cover a state
+      that later changes.
+    - Both `descriptorDigest` and the record digest: the second contains the first, so a second
+      field would add a contract change for no new evidence.
+    - Keeping the ledger-row digest beside the record's: WBS could not then refuse the old
+      shape, which is what the task asks for. Both name durable Dash state, and the run record
+      is the one that says what ran.
+- **S6F-A2 The runtime reads the run records itself.** `moveHostJobEvents` opens the records
+  read-only (`readRunRecordStart`, new `src/resources/run-record-file.ts`) for each settlement
+  it moves. The path, the owner-only check and the version check moved there from
+  `ops/run-records.ts`, which now imports them, because `resources` must not import `ops`
+  (`ops` depends on `resources`). Missing, linked, group-readable or other-version records
+  throw: the whole move rolls back and `watch` publishes nothing until they are restored. That
+  follows the launcher's own rule that records missing beside a ledger with host jobs are lost
+  state, never recreated.
+- **S6F-A3 No WBS migration and no change to stored rows.** The evidence column is JSON text
+  with no shape CHECK, and nothing in WBS parses a host job's evidence after ingest (the
+  resources read lists `registered` jobs only). Rows stored under S5-A11, if any, keep their
+  evidence as they are. Only ingest is stricter. No pool is enrolled yet (task 6.3: both hosts
+  unenrolled), so no outbox holds an old-shape event. One that did would be refused `400`,
+  retried for 30 minutes (S5-A20), then stop `watch` naming the refusal.
+- **S6F-A4 Deploy order stays WBS before Dash.** A be-01 without this change accepts the new
+  `returned` evidence (it checked only the 64-hex shape and a non-empty locator). It refuses a
+  host job's `not_created` (`returned` only), which the S5-A20 bounded retry covers while be-01
+  rolls out.
+
+### Fault injection
+
+Each fault went in as an exact text replacement through a scratch script outside the
+repository. The script ran the named tests, restored the file and checked its SHA-256. Every
+fault ran against the final code.
+
+| Fault injected                                                                   | Test that went red                                                                                                                                                                                                                            | Observed                                                          |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `settlementEvidence` treats the gate entry as absent                             | `a gate run while WBS is down publishes registered then returned, in order` (host-job-publication.test.ts, 7 pass 1 fail); `a returned gate digests its run record's gate entry under the record's locator` (job-run.test.ts, 35 pass 1 fail) | `toEqual` failed: `not_created` and the absence digest            |
+| S5-A11's ledger-row evidence restored in `moveHostJobEvents`                     | publication: the wbs-down case, `a job withdrawn before its gate publishes not_created…`, `run records missing beside a returned host job…` (5 pass 3 fail); job-run.test.ts: both 6.8 cases (34 pass 2 fail)                                 | `dash-host-job://…` locator; the missing records `"synchronized"` |
+| missing run records read as "no record" (`return null` on `ENOENT`)              | `run records missing beside a returned host job stop the move, publishing nothing` (7 pass 1 fail)                                                                                                                                            | `Received value: "synchronized"`                                  |
+| be-01 locator comparison made `true` (`namesRunRecord`)                          | `keeps the run record as a returned job's evidence and refuses the ledger-row shape` (host-job-use.controller.db.test.ts, 4 pass 1 fail)                                                                                                      | `Expected: 400`, `Received: 200`                                  |
+| be-01 absence digest comparison made `true`                                      | same test (4 pass 1 fail)                                                                                                                                                                                                                     | `Expected: 400`, `Received: 200`                                  |
+| be-01 disposition check made `false` (the S5 proof, rewritten for `not_created`) | `refuses what a host job cannot be, accepting nothing and advancing no sequence` (4 pass 1 fail)                                                                                                                                              | `Expected: 400`, `Received: 200`                                  |
+
+The negative the task names is the be-01 case: S5-A11's evidence, the ledger row's digest under
+`dash-host-job://dash-h2puni/<jobId>/5`, answers `400` and `accepted_sequence` stays 1. On the
+Dash side, restoring the ledger-row emission turns both launcher-level and runtime-level
+evidence tests red.
+
+### Commands
+
+Fresh on 2026-11-05 on the 24-core workstation, from the worktree root, `CLAUDECODE` and
+`CLAUDE_CODE_ENTRYPOINT` unset. The suites ran against `bd5bdc844` with this section's assumptions
+and fault table already in the working tree; the commit after it changes this file only.
+
+| Command                                                                            | Result                                                                                                                  |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                   | 5717 pass, 53 skip, 0 fail, `Ran 5770 tests across 184 files. [3120.48s]`, exit 0                                       |
+| `bunx nx affected -t test --base=origin/main --exclude=twilight-dash --parallel=1` | `Successfully ran target test for 20 projects and 2 tasks they depend on`, exit 0 (be-01 3909 tests, store-sqlite 2049) |
+| `bun test src/controller/host-job-use.controller.db.test.ts` (be-01)               | 5 pass, 0 fail; red first (`Expected: 400`, `Received: 200`) before the store change                                    |
+| `host-job-publication.test.ts` inside its namespace                                | 8 pass, 0 fail; red first (3 fail) before the runtime change                                                            |
+| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2`               | `Successfully ran targets lint, typecheck for 21 projects and 3 tasks they depend on`, exit 0                           |
+| `bunx nx format:check --all`                                                       | exit 0                                                                                                                  |
+| `bunx openspec validate --all --json`                                              | 328 passed, 0 failed, exit 0                                                                                            |
+| Burokrat `check-indexes working <worktree> origin/main`                            | exit 0 (the two existing review-debt rows: store-memory 53/40, plan-commands 48/40)                                     |
+
+`twilight-dash:test` is excluded from the affected run because it ran on its own above. Its
+53 skips are the real-scope cases (`systemd-run --user --scope`: `Failed to connect to bus`
+in this sandbox) and the PostgreSQL fixtures, as on `main`. No migration, so no migration lint.
+
+Not done: no host apply, no enrollment, no h2puni gate. No end-to-end publish against a
+composed be-01: the Dash tests check each event with the shared contract, and the be-01 test
+sends the same shapes through mcp-01's forwarded grant.
