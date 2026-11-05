@@ -114,3 +114,55 @@ configuration/preload on finald8e705f3/5ded95b8: **107passed,0failed,
 hashes remained exact. Separate raw captures preserve the initial104test epoch
 and corrected107test epoch. Configured forced types, populated-graph uncached
 lint and formatting also passed on the corrected frozen source.
+
+## Final source review and actual instrumented compile
+
+Independent source/proof review SHA256
+`e7a7e55f3c5b4450ca692f3b575f79d164221c0b6435e03a9342ddb3684611ac`
+accepted publication of the unwired corrected slice with the explicit proof
+limits above. Code/design/evidence committed locally as
+`41bc5fd3e3eecc7a4b6adf1a2dce2de8da91ee95` with normal hooks. Tool Wiki
+reported inactive because its external activation root is not provisioned;
+migration and README-cap hooks had no matching files. No hook was bypassed.
+
+Independent compiler preflight review SHA256
+`791d466c686741652f6902cc737422b4d8799a957a935364104d4479a27a0b75`
+accepted one fresh build-only run. Driver SHA256
+`46fa12f56d678257b0a2c4494c106135398163cf27ed6b63abd643162e49b813`;
+expected manifest SHA256
+`b2455f75d550d07c61c079b9372dc1094eb0cd450b298324484300359f5989d1`;
+launcher SHA256
+`d1d37d7100cd8362c62037cf462a1a5755851d6657a715c120fd12f9badb5e51`.
+Root invoked exactly once:
+
+```sh
+python3 /tmp/puni-ordinary-image-instrumented-build-20261105/launch.py
+```
+
+Actual PID/PGID2123794 exited0, no signal, both streams EOF, empty stderr.
+All44setup/compiler originals and separately retained observers fulfilled and
+joined. The one1136264-byte entry bundle has SHA256
+`5d2501a95b71538dbd4e4c8c8862b3e7262ab3b17d0b51af5cd8c60824b81206`;
+the569455-byte metadata file has SHA256
+`c7f31a76b3d864946d9daecb665c06b2e714e6a4504e6fe9e3d6be58fce5fdb4`.
+There are275compiler inputs,15fixed bundled modules and4scanner external edges.
+Source/driver/configuration/compiler pre/post identities matched. All7exact
+unqualified strings remained present. No generated image or port was imported
+or executed.
+
+Private receipt SHA256
+`645493328ce149e205e3d379d35aa13ab527019f9b48e46df72a694dfe98b066`;
+success observation SHA256
+`7da401eef8ec482a49aa1da5c386af296a266bc5ee19f3daea52613425187e73`;
+raw compiler metafile SHA256
+`2daeac00bda52113e573bd31e8619bee1e0fbd50923746b9025884b66a46e761`.
+This proves syntax/link/metadata qualification of the actual instrumented image,
+not execution of its native/resource/owner observations or finite retirement.
+The following publication commit changes documentation only; the actual built
+fixture/test byte identities remain the finald8e/5ded epoch.
+
+Independent actual compiler receipt review SHA256
+`dd4fcab3a2d4730b38b377c83386e5437906d8f24f6981cc9925a98fa4aced09`
+matched original streams, all44joined operations, complete artifact/metadata
+hashes and unchanged source pins. Compiler-only acceptance and draft publication
+GO stand; all7runtime qualifications remain open. All evidence readers ended.

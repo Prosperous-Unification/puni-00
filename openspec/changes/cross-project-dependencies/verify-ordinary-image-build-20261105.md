@@ -408,3 +408,11 @@ The next fixed-ledger/owner-tap source decision is SHA256
 `f0597e25de749a5acf4d75fda8c868108b83de07c3ce0f2ffbc5f8a1bfb31a37`.
 It authorizes only the existing fixture/owner-test implementation and inert
 generated-ledger consumers, preserving all actual runtime prerequisites.
+
+## Instrumented source successor
+
+The [runtime ledger verification](verify-ordinary-runtime-custody-20261105.md)
+records its later107test corrected source and actual successful compile on
+41bc5fd3. That successor uses30cuts/19ports and retains7unqualified
+capabilities. The earlier23-cut/f8d build and its six-gap contract remain at
+their original epoch; neither record is silently retargeted.
