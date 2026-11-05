@@ -406,7 +406,9 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
     Its reservation is then settled;
   - with `TMPDIR` the job's private directory under the managed root, `DASH_JOB_ID`,
     `DASH_JOB_TYPE`, `DASH_JOB_UNIT_<ID>` per exclusive unit (the id upper-cased) and
-    `HEAVY_LOCK_LABEL` set to `--label`;
+    `HEAVY_LOCK_LABEL` set to `--label`. `$TMPDIR` holds `.dash-tmp-identity`, the marker that
+    proves the directory is the one prepared; a payload that deletes or rewrites it leaves its
+    tmp entry `blocked` for an operator (fail-closed, task 2.4);
   - sampled every ten seconds and at exit: the counters, the tmp directory's allocated bytes
     (no link followed) and, for a containers bound, the labelled containers' `docker stats`.
     The gated shell keeps the scope alive until the exit sample is stored, so even `true` gets

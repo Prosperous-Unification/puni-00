@@ -1,6 +1,8 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { join } from 'node:path';
 
+import { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import { parseDashCommand } from '../cli-parser';
@@ -9,7 +11,7 @@ import { fakeCredential } from '../compute/testing/credential';
 import { ampleHost, build, hostPoolFixture } from '../resources/host-pool.test.fixture';
 import { privateLegacyLock } from '../resources/legacy-lock.test.fixture';
 import { loadResourceConfiguration, ResourceRuntime } from '../resources/runtime';
-import { type OpsDependencies, opsHandlers } from './commands';
+import { type OpsDependencies, opsHandlers, runOps } from './commands';
 import { insideOpsNamespace } from './ops.test.fixture';
 import { linuxScopeTelemetry } from './scope';
 
@@ -136,6 +138,47 @@ if (insideOpsNamespace(import.meta.path))
         state: 'starting',
         running: false,
       });
+    });
+
+    test('a ledger of another version is refused 70 and not migrated', async () => {
+      const { root, config, runtime } = pool();
+      runtime.close();
+      const ledger = join(root, '.dash', 'resources.sqlite');
+      const db = new Database(ledger);
+      db.run(
+        'DROP TABLE host_pool_mode_records; ALTER TABLE host_pool DROP COLUMN guard; ALTER TABLE host_pool DROP COLUMN guard_holder; ALTER TABLE host_pool DROP COLUMN switching; ALTER TABLE host_pool DROP COLUMN hold_corruption; PRAGMA user_version=1',
+      );
+      db.close();
+      const stderr: string[] = [];
+      const code = await runOps(
+        {
+          command: 'ops',
+          words: 'job admission',
+          config,
+          job: '0f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0',
+        },
+        {
+          clock,
+          monotonic: monotonicClock(),
+          environment: globalThis.process.env,
+          cwd: globalThis.process.cwd(),
+          stdout: () => {
+            throw new Error('a refused admission prints nothing on stdout');
+          },
+          stderr: (text) => stderr.push(text),
+          telemetry: linuxScopeTelemetry(),
+          host: ampleHost,
+          user: 'puni1',
+          legacyLock: () => privateLegacyLock('/nonexistent'),
+        },
+      );
+      expect(code).toBe(70);
+      expect(stderr.join('')).toContain('resource ledger version 1 is not 2');
+      const after = new Database(ledger, { readonly: true });
+      expect(
+        after.query<{ user_version: number }, []>('PRAGMA user_version').get()?.user_version,
+      ).toBe(1);
+      after.close();
     });
 
     test('the grammar takes only a job id', () => {

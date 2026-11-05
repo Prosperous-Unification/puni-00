@@ -1568,8 +1568,8 @@ export class ResourceRuntime {
       readFileSync('/etc/machine-id', 'utf8').trim(),
     ];
   }
-  /** Opening validates the root and binding before any reservation or provider effect. */
-  static open(configuration: ResourceConfiguration, clock: WallClock): ResourceRuntime {
+  /** The ledger path under `configuration.root`, refused unless it and its directory are owner-only. */
+  private static trustedLedgerPath(configuration: ResourceConfiguration): string {
     checkRoot(configuration.root);
     const path = join(configuration.root, '.dash', 'resources.sqlite');
     for (const trusted of [dirname(path), path]) {
@@ -1582,6 +1582,45 @@ export class ResourceRuntime {
       )
         throw new Error('resource ledger must be owner-only without symlinks');
     }
+    return path;
+  }
+  /**
+   * Open the ledger for reading only (`dash-host-jobs` task 6.10a, review of #876 F1): SQLite
+   * `readonly`, no migration, no eligibility check, the binding still compared. A nested
+   * launcher's admission query runs the Dash of the caller's own checkout, which inside a gate is
+   * the candidate commit, against the production configuration; that Dash must never step the
+   * production ledger's schema.
+   * @throws when the ledger's `user_version` is not {@link LEDGER_VERSION}, naming both, or
+   * when the binding differs.
+   */
+  static openReadOnly(configuration: ResourceConfiguration, clock: WallClock): ResourceRuntime {
+    const path = ResourceRuntime.trustedLedgerPath(configuration);
+    const db = new Database(path, { readonly: true, strict: true });
+    try {
+      db.run('PRAGMA busy_timeout=10000');
+      const row = db.query<{ user_version: number }, []>('PRAGMA user_version').get();
+      if (row === null) throw new Error('resource ledger version unreadable');
+      // Proof: calling `migrate` here instead made `a read-only open refuses a ledger of
+      // another version and leaves it as it was` (host-jobs.test.ts) receive only SQLite's
+      // `attempt to write a readonly database`; with `readonly` dropped as well, the open
+      // migrated the ledger and did not throw (2026-11-05, Slice 6e review F1).
+      if (row.user_version !== LEDGER_VERSION)
+        throw new Error(
+          `resource ledger version ${String(row.user_version)} is not ${String(LEDGER_VERSION)}, the version this Dash reads; a read-only open migrates nothing`,
+        );
+      const root = lstatSync(configuration.root);
+      const binding = db.query<{ identity: string }, []>('SELECT identity FROM binding').get();
+      if (binding?.identity !== JSON.stringify(ResourceRuntime.binding(configuration, root)))
+        throw new Error('resource authority binding mismatch');
+      return new ResourceRuntime(db, configuration, clock, root);
+    } catch (cause) {
+      db.close();
+      throw cause;
+    }
+  }
+  /** Opening validates the root and binding before any reservation or provider effect. */
+  static open(configuration: ResourceConfiguration, clock: WallClock): ResourceRuntime {
+    const path = ResourceRuntime.trustedLedgerPath(configuration);
     const db = new Database(path, { create: false, strict: true });
     db.run('PRAGMA busy_timeout=10000; PRAGMA synchronous=FULL');
     const root = lstatSync(configuration.root);

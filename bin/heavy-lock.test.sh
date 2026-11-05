@@ -1300,6 +1300,8 @@ if arguments[1:4] == ['ops', 'job', 'admission']:
         print(json.dumps({'job': job, 'state': None, 'running': False}))
     elif answer == 'malformed':
         print(json.dumps({'job': job}))
+    elif answer == 'hang':
+        time.sleep(600)
     elif answer == 'another-job':
         print(json.dumps({'job': 'ffffffff-4b5a-4968-8776-a5b4c3d2e1f0', 'state': 'held', 'running': True}))
     else:
@@ -1333,6 +1335,7 @@ resolve_host_pool_config_path() { printf "%s\n" "$JOB_TEST_CONFIG"; }
 resolve_host_pool_root() { printf "%s\n" "$JOB_TEST_ROOT"; }
 resolve_heavy_lock_path() { printf "%s\n" "$JOB_TEST_LOCK"; }
 if [[ -n ${JOB_TEST_CGROUP:-} ]]; then read_own_cgroup() { printf "%s\n" "$JOB_TEST_CGROUP"; }; fi
+if [[ -n ${JOB_TEST_ADMISSION_TIMEOUT:-} ]]; then resolve_admission_timeout_seconds() { printf "%s\n" "$JOB_TEST_ADMISSION_TIMEOUT"; }; fi
 trap "printf \"exit\n\" >>\"\$JOB_TEST_TRAPS\"" EXIT
 run_heavy_job "$@"'
 run_job() {
@@ -1690,6 +1693,21 @@ run_job_suite() {
       else fail "49i: the refusal did not name the unusable answer ($answer): $(cat "$job_scratch/stderr")"; fi
     fi
   done
+  # 49j. A Dash that never answers is bounded: refused 70 once the admission timeout passes.
+  reset_job_logs
+  status=0
+  local started=$SECONDS
+  DASH_JOB_ID=$job_id HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP="$in_scope" JOB_TEST_ADMISSION=hang \
+    JOB_TEST_ADMISSION_TIMEOUT=1 HEAVY_LOCK_JOB_TYPE=test-queued run_job "$sh" -- touch "$job_scratch/ran" \
+    2>"$job_scratch/stderr" || status=$?
+  expect_status 70 "$status" '49j: a Dash that does not answer is refused'
+  if (( SECONDS - started < 30 )) && [[ ! -e $job_scratch/ran ]]; then
+    pass '49j: refused within the bound, nothing ran'
+  else fail "49j: took $((SECONDS - started))s or the payload ran"; fi
+  if grep -q "Dash did not say within 1s whether job $job_id is running" "$job_scratch/stderr"; then
+    pass '49j: the refusal says Dash did not answer in time'
+  else fail "49j: the refusal did not say Dash timed out: $(cat "$job_scratch/stderr")"; fi
+
   reset_job_logs
   mv "$config" "$config.away"
   status=0

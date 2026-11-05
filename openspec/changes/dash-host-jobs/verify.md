@@ -2792,7 +2792,10 @@ touched a host: no ssh, no apply, no enrollment.
 - **S6E-A2 No ledger version bump.** `tmpMarker` is an optional key of the host-job snapshot,
   the pattern `reserved?` set in slice 4. A row prepared before this change has device and
   inode and no marker; it settles on device and inode as it did, so a job running across the
-  upgrade is not stranded. Every row prepared from now on carries one.
+  upgrade is not stranded. Every row prepared from now on carries one. `HostJobShape` rejects
+  undeclared keys, so a Dash from before this commit cannot read those new rows: an
+  un-restarted watch, or an older checkout's `ops job status`. The refresh restarts the watch
+  right after the checkout moves (S6D-A6), which makes that unlikely.
 
 - **S6E-A3 A nested call asks the ledger through a new read-only `ops job admission` (task
   6.10a).** After the placement and exclusive-unit checks, `run_nested_heavy_job` runs
@@ -2816,8 +2819,18 @@ status`. Nested calls are rare: today only a `test:queued` run inside a gate.
     scope it makes. That process runs beside a job that really is admitted and measured. The
     lock is advisory for the account (S6D-A1), and this closes the forged-id case the review of
     #873 reproduced.
-  - The Dash queried is the launcher checkout's own (`resolve_dash_entrypoint`), the same one
-    `ops job run` uses, so the reader and the writer of the ledger are one revision.
+  - The Dash queried is the nested caller's own checkout's (`resolve_dash_entrypoint`, from the
+    library the caller sourced). Inside a gate that is the gate tree at the candidate commit,
+    asked about the production ledger with the production `--config`. So `ops job admission`
+    opens the ledger with `ResourceRuntime.openReadOnly` (review of #876 F1). That means SQLite
+    `readonly`, the binding still compared, no eligibility check, and no migration. A ledger
+    whose `user_version` is not this Dash's `LEDGER_VERSION` is refused 70, and the shell treats
+    that refusal like any other Dash failure. A candidate that bumps the schema therefore
+    cannot migrate the production ledger from inside a gate. Its nested calls are refused
+    until production moves to that version.
+  - The query is bounded (review F2): `timeout --kill-after=5 60`. Exit 124 or 137 is refused
+    70 with its own message. `timeout` is coreutils, Essential on Ubuntu (gate-hosts.md,
+    Packages).
 
 - **S6E-A4 Task 1.1 was complete on `main`; only its box was open.** Each promise, checked
   against `0ff9b5a1f`:
@@ -2879,3 +2892,16 @@ namespace.
 
 Not done: no host apply and no gate on a host. The admission check takes effect on h2puni and
 h4claw when their launcher checkouts move to a commit carrying it (the hourly refresh, S6D-A4).
+
+### Review fixes (Fable, #876)
+
+| ID     | Injected fault                                                     | Observed                                                                                                                                                                                                  |
+| ------ | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6e-F12 | `openReadOnly` calls `migrate` instead of refusing another version | `a read-only open refuses a ledger of another version and leaves it as it was`: `Expected substring: "resource ledger version 1 is not 2, …"`, `Received message: "attempt to write a readonly database"` |
+| 6e-F13 | 6e-F12 plus `readonly` dropped                                     | the same test: `Received function did not throw`; the open migrated the ledger                                                                                                                            |
+| 6e-F14 | `timeout` dropped from the admission query                         | `HEAVY_LOCK_TEST_SUITES=jobs`, bounded at 90 s from outside, ended 124 before printing `49j`                                                                                                              |
+| 6e-F15 | exit 124 folded into the generic refusal                           | `49j: the refusal did not say Dash timed out: … (exit 124)`; 1 check failed                                                                                                                               |
+
+The F3 marker contract is now one sentence each in `docs/resources.md` (the `TMPDIR` bullet of
+`ops job run`) and `docs/infra/heavy-job-launchers.md`. F4 adds the nested-call requirement to
+the `heavy-lock-queue` delta, with five scenarios. F6: the state text is `(.state // "none" | tostring)`.

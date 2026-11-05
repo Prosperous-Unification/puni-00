@@ -1265,6 +1265,13 @@ run_heavy_job() {
   run_enrolled_heavy_job "$job_type" "$@"
 }
 
+# Seconds a nested call waits for `ops job admission` before refusing (review of #876 F2): one
+# Bun start and one SQLite read take well under a second, so a minute only says Dash is stuck.
+# Fixed, like the paths above; tests shorten it by redefining this function in their own shell.
+resolve_admission_timeout_seconds() {
+  printf '60\n'
+}
+
 # The cgroup v2 path of this shell, the `0::` line of `/proc/self/cgroup`, or 70 when that file is
 # unreadable or has no such line. Tests reach {@link run_nested_heavy_job}'s admitted branch by redefining this function in
 # their own shell, as they do the fixed paths: no variable names a cgroup.
@@ -1371,16 +1378,31 @@ run_nested_heavy_job() {
       "$job_id" "$job_type" >&2
     return 70
   fi
-  local entrypoint answer running
+  local entrypoint answer running query_status=0 limit
   entrypoint=$(resolve_dash_entrypoint)
-  if [[ ! -f $entrypoint ]] || ! command -v bun >/dev/null 2>&1; then
-    printf 'heavy job: cannot ask Dash whether job %s is running: the entrypoint %s or bun is missing\n' \
+  if [[ ! -f $entrypoint ]] || ! command -v bun >/dev/null 2>&1 || ! command -v timeout >/dev/null 2>&1; then
+    printf 'heavy job: cannot ask Dash whether job %s is running: the entrypoint %s, bun or timeout is missing\n' \
       "$job_id" "$entrypoint" >&2
     return 70
   fi
-  if ! answer=$(bun "$entrypoint" ops job admission --config "$(resolve_host_pool_config_path)" --job "$job_id" </dev/null); then
-    printf 'heavy job: Dash could not say whether job %s is running; %s does not run on its admission\n' \
-      "$job_id" "$job_type" >&2
+  # The Dash of this library's own checkout answers: inside a gate that is the candidate commit,
+  # which is why the command opens the ledger read-only and refuses another schema version.
+  limit=$(resolve_admission_timeout_seconds)
+  answer=$(timeout --kill-after=5 "$limit" \
+    bun "$entrypoint" ops job admission --config "$(resolve_host_pool_config_path)" --job "$job_id" \
+    </dev/null) || query_status=$?
+  # Proof (observed 2026-11-05): without `timeout`, a Dash that never answers held the nested
+  # call; the jobs suite, bounded at 90 s from outside, ended 124 before printing `49j`. With 124
+  # folded into the generic refusal, `49j: the refusal did not say Dash timed out … (exit 124)`
+  # (bin/heavy-lock.test.sh).
+  if [[ $query_status == 124 || $query_status == 137 ]]; then
+    printf 'heavy job: Dash did not say within %ss whether job %s is running; %s does not run on its admission\n' \
+      "$limit" "$job_id" "$job_type" >&2
+    return 70
+  fi
+  if [[ $query_status != 0 ]]; then
+    printf 'heavy job: Dash could not say whether job %s is running (exit %s); %s does not run on its admission\n' \
+      "$job_id" "$query_status" "$job_type" >&2
     return 70
   fi
   if ! running=$(jq -er --arg id "$job_id" \
@@ -1391,7 +1413,7 @@ run_nested_heavy_job() {
   fi
   if [[ $running != true ]]; then
     printf 'heavy job: DASH_JOB_ID is %s and this process runs in its scope, but the host pool ledger has no running job %s (%s); a scope of that name is not an admission; unset it to run %s as a job of its own\n' \
-      "$job_id" "$job_id" "$(jq -r '"state " + (.state // "none")' <<<"$answer")" "$job_type" >&2
+      "$job_id" "$job_id" "$(jq -r '"state " + (.state // "none" | tostring)' <<<"$answer")" "$job_type" >&2
     return 70
   fi
   local nested_label="$outer_label/$job_type"

@@ -49,6 +49,9 @@ launcher splits into an outer half and an admitted payload whose arguments fit t
 ## Conflict inventory (J3)
 
 What each launcher touches, and what keeps two of them apart once a pool admits them together.
+Every payload's `$TMPDIR` is job-private and holds `.dash-tmp-identity`, the marker Dash wrote
+when it prepared the directory; a payload that deletes or rewrites it leaves its tmp entry
+`blocked` for an operator (fail-closed, S6E-A1).
 "Unit" is an exclusive unit in the pool configuration; "serialised" means the type stays
 ineligible for concurrency (J16) until the gap closes.
 

@@ -1025,6 +1025,43 @@ if (insideLinuxNamespace(import.meta.path)) {
       }
     });
 
+    test('a read-only open refuses a ledger of another version and leaves it as it was', () => {
+      const { root, config, runtime } = pool(scenarioPool);
+      runtime.close();
+      const ledger = join(root, '.dash', 'resources.sqlite');
+      // Exactly a version-1 ledger, which `open` would migrate.
+      const db = new Database(ledger);
+      db.run(
+        'DROP TABLE host_pool_mode_records; ALTER TABLE host_pool DROP COLUMN guard; ALTER TABLE host_pool DROP COLUMN guard_holder; ALTER TABLE host_pool DROP COLUMN switching; ALTER TABLE host_pool DROP COLUMN hold_corruption; PRAGMA user_version=1',
+      );
+      db.close();
+      expect(() => ResourceRuntime.openReadOnly(loadResourceConfiguration(config), clock)).toThrow(
+        'resource ledger version 1 is not 2, the version this Dash reads; a read-only open migrates nothing',
+      );
+      const after = new Database(ledger, { readonly: true });
+      expect(
+        after.query<{ user_version: number }, []>('PRAGMA user_version').get()?.user_version,
+      ).toBe(1);
+      after.close();
+    });
+
+    test('a read-only open reads a launched job', async () => {
+      const { config, runtime } = pool(scenarioPool);
+      const job = admitted(
+        runtime,
+        queue(runtime, { descriptor: build, label: 'reader', waitSeconds: 0 }),
+      );
+      const payload = launch(runtime, job);
+      const reader = ResourceRuntime.openReadOnly(loadResourceConfiguration(config), clock);
+      try {
+        expect(reader.hostJobRunning(job.id)).toEqual({ state: 'held', running: true });
+      } finally {
+        reader.close();
+      }
+      await payload.release();
+      runtime.close();
+    });
+
     test('refuses a version-1 ledger with unexpected tables', () => {
       const { root, config, runtime } = pool(scenarioPool);
       runtime.close();
