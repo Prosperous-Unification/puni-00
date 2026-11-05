@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "scope": "Task100 finite native-control source preparation",
+  "scope": "Task100 source preparation and first failed pre-admission native attempt",
   "sourcePins": [
     {
       "path": "openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
@@ -78,13 +78,15 @@
     "projectedBeforeRootReviewAndExtras": 491520,
     "maximum": 524288,
     "rootFixReviewAllocated": 12288,
-    "remainingForRootExtras": 0,
-    "currentProjectedIncludingOriginalPad": 524288
+    "actualAllocatedAfterTerminal": 450560,
+    "oldAttemptFutureCapturesPending": false,
+    "preparedAttemptProjectedIncludingOriginalPad": 524288,
+    "preparedAttemptRemainingForRootExtras": 0
   },
-  "nativeExecuted": false,
-  "requestGenerated": false,
+  "nativeExecuted": true,
+  "requestGenerated": true,
   "limits": [
-    "Controlled metadata tests only; no native enforcement/lifecycle/cleanup qualification",
+    "No accepted native enforcement/lifecycle/counter qualification; first attempt failed before admission, readiness unavailable",
     "Fresh committed source/runtime/kernel/inventory/ledger request and independent review required",
     "Root-installed system bytecode remains an explicit trust boundary",
     "No repair or full observability acceptance",
@@ -157,5 +159,13 @@
     "green": "1targeted4assertions8filtered; each single-option omission rejected; statics and unrelated AST equivalent",
     "review": "independent scoped approval; exact pins/modes/blocks, no findings/replay/writes",
     "allocatedGrowth": 0
+  },
+  "nativeQualified": false,
+  "actualAttempt": {
+    "evidence": "native-primitive-attempt-20261105.json",
+    "state": "failed-before-admission-readiness-unavailable",
+    "requestSha256": "2a0bc82b930bdb5bf075fcb81eefc1ab445f9e29c7243ced13613253ef6e30b3",
+    "counter": "unavailable",
+    "retryPerformed": false
   }
 }

@@ -1,6 +1,6 @@
 # Bounded native repair primitive qualification
 
-This is the next control plan, not executed evidence or repaired-disk acceptance. Execute only after its harness and exact source pins are independently reviewed, committed and freshly rebound. Task97, the actual repair and full two-instance observability acceptance remain open.
+One recorded attempt started the worker and failed before admission; readiness evidence is unavailable and no primitive or repair is accepted. Any fresh attempt still requires reviewed committed source, new request identity and complete fresh bindings. Task97, the actual repair and full two-instance observability acceptance remain open.
 
 ## Scope and prerequisites
 
@@ -41,3 +41,9 @@ Pin roles distinguish nonempty repository sources/executables from imported syst
 Runtime observation snapshots imported modules after reading/parsing its own native maps. The first observation includes any codec imports caused by the observation itself, so a cold sample and unchanged warm sample agree without caller warmup or a preload list.
 
 The transient worker service receives explicit `--setenv=LANG=C` and `--setenv=LC_ALL=C`. The client process environment alone does not set the service environment; [systemd-run service environment semantics](https://freedesktop.org/software/systemd/man/latest/systemd-run.html) distinguish the manager-spawned service and explicit variable settings. This does not inspect or modify the user manager environment.
+
+## First startup attempt and next bounded work
+
+The original request was independently reviewed and finalized once, then used for one attempt. Journald confirms worker start and exit1 after659235microseconds from the Started event. No admission, fixture directory, durable result or verified ready/counter evidence was retained; readiness may have been received internally and rejected. Repeated native observations found the original unit unloaded, PID0 and blank invocation/group fields. The journal emitter PID belongs to the user manager; no worker PID may be reconstructed from it. [Exact failed-startup evidence](evidence/native-primitive-attempt-20261105.json) preserves unavailable states and the original request digest.
+
+The controller currently closes worker stderr without retaining it on an early frame failure; helper refusal classes may also reach its generic exception category. The actual pre-admission cause is unavailable. Preserve that uncertainty, repair the bounded failure-observation path first, and never rerun the failed request. Before a fresh nonce, account for all old provenance plus new request/captures. A separately reviewed lossless repack may archive only named static source-review patches with exact byte hashes and rollback metadata; live source, tools, requests, receipts, raw/ISO/history and every unresolved reservation remain untouched. Compression grants no execution authority or debt credit.

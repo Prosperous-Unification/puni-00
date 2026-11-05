@@ -1542,3 +1542,24 @@ Native runtime identity observation SHALL include modules imported by its own ma
 - **WHEN** native qualification launches its manager-spawned worker
 - **THEN** the service command explicitly sets LANG and LC_ALL to C
 - **AND** client-only locale values cannot substitute for that service handoff
+
+### Requirement: Native startup failures retain bounded provenance
+
+Native qualification SHALL retain bounded failure-stage and original-client evidence when a worker fails or its readiness is rejected before admission. Known helper refusals SHALL preserve their safe category; unknown/private diagnostics SHALL produce explicit unavailable or incomplete states and bounded identities, never plaintext disclosure or invented counters. Failure SHALL remain unaccepted and SHALL NOT authorize a mutation ACK, foreign-process cleanup or request reuse.
+
+#### Scenario: Worker exits before its readiness frame
+
+- **WHEN** the original worker exits with a modeled refusal before readiness
+- **THEN** the caller retains its bounded safe category, stage, original client exit and missing worker-binding/counter states before closing the streams
+- **AND** unknown/private or oversized diagnostics fail safely without plaintext leakage, missing-as-success behavior or broader cleanup authority
+
+### Requirement: Fresh qualification accounts for retained failures
+
+A fresh native qualification request SHALL charge retained failed-attempt provenance and its complete future capture/fixture envelope under unchanged limits. Any lossless archival of static review patches SHALL preserve exact logical bytes, metadata, explicit archive mapping and rollback; live source/tools/requests/receipts/raw/ISO SHALL NOT be repacked. Old requests SHALL remain historical and SHALL NOT regain execution authority.
+
+#### Scenario: A failed request remains while a new attempt is planned
+
+- **WHEN** retained provenance plus a new request/captures would exceed the fixed metadata cap
+- **THEN** admission refuses until a reviewed exact lossless static-patch archival and fresh full accounting fit
+- **AND** absent/changed/unreadable input, corrupt archives, incomplete publication or insufficient budget refuse before original plaintext retirement
+- **AND** a separately reviewed fresh nonce is required; no automatic retry or debt credit follows
