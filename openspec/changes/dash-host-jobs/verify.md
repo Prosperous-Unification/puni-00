@@ -2553,8 +2553,8 @@ puni_gate_authorized_keys lists 3`. With the count condition removed both bad fi
   (`- Expected - 3`), dropping either loop (`- Expected - 1`, `+ Received + 1`) and dropping the
   `when` (`Received: undefined`) each failed it.
 - Open: no type in this repository's catalogue declares `docker_build` yet, so the unit
-  serialises `website-dev-build` runs with each other only, not with `release-build` or the gate's
-  solver smoke, which share the same BuildKit cache.
+  serialises `website-dev-build` runs with each other only, not with the gate's solver smoke, which
+  shares the host daemon's BuildKit cache (release-build builds inside the Dagger engine's own cache).
 
 ### Commands (fresh, 2026-11-05, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT` for tests)
 

@@ -66,7 +66,7 @@ puni_gate_pool_ledger: '{{ puni_gate_pool_root }}/.dash/resources.sqlite'
 # is a token tree: one empty commit, never changed, which settlement finds clean at its resting
 # commit. `docker_build` stands for the host daemon's BuildKit cache (J3): puni-pr-00's
 # website-dev-build type declares it, because its three `docker build`s share that cache with
-# release-build and the solver smoke. It serialises only the types that declare it, and this
+# the gate's solver smoke (release-build builds inside the Dagger engine's own cache). It serialises only the types that declare it, and this
 # repository's catalogue declares it for none yet; an enrolled host refuses 73 a type naming a
 # unit its pool lacks.
 puni_gate_pool_units_root: '{{ puni_gate_home }}/.local/share/dash/units'

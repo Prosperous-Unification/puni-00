@@ -182,8 +182,7 @@
   - [x] 6.3d Operator half on `main` `149e6e85b` (2026-11-05): h2puni converged (apply 1
         `changed=1`, apply 2 `changed=0`, validate `failed=0`), and h4claw was re-applied with the
         same numbers. Both stay unenrolled (verify.md, "2026-11-05 role converged on both hosts").
-  - [ ] 6.3e `docker_build` token unit and h2puni's launcher checkouts (this repository's PR on
-        `feat/gate-host-docker-build-unit`): the role creates and validates a second token unit
+  - [ ] 6.3e `docker_build` token unit and h2puni's launcher checkouts (PR #869): the role creates and validates a second token unit
         `~/.local/share/dash/units/docker_build` and lists it in `exclusiveUnits`, because
         puni-pr-00's `website-dev-build` declares it; h2puni's inventory sets
         `puni_gate_pool_launcher_checkouts` to the launcher checkout and `~/wbs-dev/src`. Code
