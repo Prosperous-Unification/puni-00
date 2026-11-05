@@ -1,0 +1,20 @@
+{
+  "file": "postgres-session-20261104.json.gz",
+  "sha256": "53337904ea3de451176e57248f17bd3d8d4e0186564f834d2c153629c9d2dc8c",
+  "bytes": 185737,
+  "originalFiles": 412,
+  "originalBytes": 658933,
+  "sourceCommit": "61277840be4c9c4e0498e22dca77f922894c9b97",
+  "sourceSha256": {
+    "session.ts": "c3ae1c71c95411569616cd6f526d8972c29a22e276fe25da631e7bd8efde24c0",
+    "session.test.ts": "e3937565bb6d14c8d47628d129b26fb5d07681947dfe597a8151268bcdeb06d2",
+    "session.db.test.ts": "014d081fe611c6b5cb07ed6e31297eacbfcc80db7bdb6a0765e63d1306a83a7f"
+  },
+  "verifiedNativeRecords": 90,
+  "finalPrivateTests": 53,
+  "newSessionTests": 30,
+  "initialCreditedControls": 27,
+  "fixCreditedControls": ["S28", "S29", "S30c"],
+  "allReadbackHashesVerified": true,
+  "scope": "Reviewed private transaction/session owner only; historical observer intermittency remains explicit pending separate fixture correction. No full-provider, whole-branch, host-gate, migration, transfer or deployment acceptance."
+}
