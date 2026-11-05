@@ -101,12 +101,12 @@ test('SQLite reopen retains unfinished work and discards the previous coordinato
         readWbs: () => Promise.resolve(facts),
       });
       expect(await reconstructed.ready()).toEqual([]);
-      expect(reconstructed.summary().completedWorkIds).toEqual(['sn1.work.first']);
+      expect(reconstructed.summary().workCompletionCommittedVertexIds).toEqual(['sn1.work.first']);
       const rejected = await reconstructed.complete(ticket).then(
         () => false,
         () => true,
       );
-      expect(reconstructed.summary().completedWorkIds).toEqual(['sn1.work.first']);
+      expect(reconstructed.summary().workCompletionCommittedVertexIds).toEqual(['sn1.work.first']);
       expect(rejected).toBe(true);
       expect(await reopened.runs.readRun(run.runId)).toEqual(before);
       expect(before.capacity.reserved).toBe(1);

@@ -27,7 +27,7 @@
         "application-exception": "0.9.0",
         "arktype": "^2.2.3",
         "caught-object-report-json": "15.0.0",
-        "configurable-tree-traversal": "0.12.0",
+        "configurable-tree-traversal": "0.13.0",
         "di-bag": "0.5.2",
         "dns-packet": "5.6.1",
         "drizzle-orm": "1.0.0-rc.4",
@@ -1411,7 +1411,7 @@
 
     "conf": ["conf@10.2.0", "", { "dependencies": { "ajv": "^8.6.3", "ajv-formats": "^2.1.1", "atomically": "^1.7.0", "debounce-fn": "^4.0.0", "dot-prop": "^6.0.1", "env-paths": "^2.2.1", "json-schema-typed": "^7.0.3", "onetime": "^5.1.2", "pkg-up": "^3.1.0", "semver": "^7.3.5" } }, "sha512-8fLl9F04EJqjSqH+QjITQfJF8BrOVaYr1jewVgSRAEWePfxT0sku4w2hrGQ60BC/TNLGQ2pgxNlTbWQmMPFvXg=="],
 
-    "configurable-tree-traversal": ["configurable-tree-traversal@0.12.0", "", { "dependencies": { "uuid": "^14.0.3" } }, "sha512-AsAFLmDPdtEvYZ0sQPIgavYba8SKUgLqS+snyW0DlPE7wwYuXguj+UdvQRgbfPRvjWHVowFxaBowDX2otO+rlQ=="],
+    "configurable-tree-traversal": ["configurable-tree-traversal@0.13.0", "", { "dependencies": { "uuid": "^14.0.3" } }, "sha512-7bEo36spuSbjIvDflzcr+DrZ9MQhZeYHRPW72rtQuL0KfgD5VGzIEMENLsgVTkn+JzqXIT/7qvl+J3Lbbl8vNA=="],
 
     "confusing-browser-globals": ["confusing-browser-globals@1.0.11", "", {}, "sha512-JsPKdmh8ZkmnHxDk55FZ1TqVLvEQTvoByJZRN9jzI0UjxK/QgAmsphz7PGtqgPieQZ/CQcHWXCR7ATDNhGe+YA=="],
 

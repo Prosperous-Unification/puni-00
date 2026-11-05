@@ -1,9 +1,9 @@
 import { formatStepNodeId, orderSteps, type StepNodeRef } from '@wbs/domain';
 import {
-  materializeDagInputFromRecords,
-  type MaterializedDagInput,
-  prepareDag,
-  type PreparedDag,
+  discoverValidateAndCaptureDag,
+  type MaterializedDagTraversalInput,
+  materializeMultiEntryDagInputFromRecordCatalog,
+  type ValidatedReusableDagTopology,
 } from 'configurable-tree-traversal';
 
 /**
@@ -15,7 +15,7 @@ import {
 export function materializeOrderedSteps(
   workItemId: string,
   steps: readonly { id: string; position: number }[],
-): MaterializedDagInput<StepNodeRef, string> {
+): MaterializedDagTraversalInput<StepNodeRef, string> {
   const predecessors = new Map<StepNodeRef, string>();
   let previous: string | undefined;
   const nodes = orderSteps(steps).map((step) => {
@@ -24,9 +24,9 @@ export function materializeOrderedSteps(
     previous = formatStepNodeId(node);
     return node;
   });
-  return materializeDagInputFromRecords(nodes, {
-    id: formatStepNodeId,
-    dependsOnWork: (node) => {
+  return materializeMultiEntryDagInputFromRecordCatalog(nodes, {
+    selectVertexId: formatStepNodeId,
+    selectWorkPrerequisiteVertexIds: (node) => {
       const predecessor = predecessors.get(node);
       return predecessor === undefined ? [] : [predecessor];
     },
@@ -39,14 +39,15 @@ export function materializeOrderedSteps(
  * subsequent inspection register no workflow visitors. Native W/C milestones stay distinct.
  */
 export function prepareCoordination(
-  input: MaterializedDagInput<StepNodeRef, string>,
-): PreparedDag<StepNodeRef, string> {
+  input: MaterializedDagTraversalInput<StepNodeRef, string>,
+): ValidatedReusableDagTopology<StepNodeRef, string> {
   // Proof: omitting CTT's validateDiscoveredGraph call exposed prepared DAGs for a
   // disconnected cycle, absent prerequisite and milestone cycle; the three production
-  // refusal tests failed with "Received function did not throw" (2026-10-31).
-  const preparation = prepareDag(input);
+  // refusal tests failed with "Received function did not throw" (2026-10-31); skipping the
+  // `invalid` refusal below failed the same three tests on CTT 0.13 (2026-11-04).
+  const preparation = discoverValidateAndCaptureDag(input);
   if (preparation.kind === 'invalid') {
     throw new Error('Invalid coordination topology', { cause: preparation.issues });
   }
-  return preparation.dag;
+  return preparation.validatedTopology;
 }

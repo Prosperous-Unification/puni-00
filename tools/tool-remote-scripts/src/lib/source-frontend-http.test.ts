@@ -90,13 +90,59 @@ const CAPTURED_INPUTS = {
   },
   'package.json': {
     bytes: 4992,
-    sha256: '6482624ce19f7d9ea6cd919328f839e3bb7bb8c48ae120a4f5c3104e9a87c381',
+    sha256: '0b635ebde6513e9bce36d000bbd04fc3cc817ff49074af8e5e3219910a97f131',
   },
   'bun.lock': {
     bytes: 534113,
-    sha256: '129512f0a0fc719b814e7998353190f8827d96085f99000c418c6988ebbbb728',
+    sha256: '48b5cea4e2ac740d300f4e41cc705dfb5213210c4db378f8cdf65640fb695adb',
   },
 };
+
+test('fourth current frontend pair materializes and selects without Vite', async () => {
+  const prepared = await artifact();
+  const registration = roots.indexOf(prepared.root);
+  if (registration < 0) throw new Error('canonical fixture root unregistered');
+  try {
+    await prepareSourceFrontendProfile(prepared.root);
+    await modes(prepared.root);
+    await git(prepared.root, 'add', '.');
+    await git(
+      prepared.root,
+      '-c',
+      'user.name=Fixture',
+      '-c',
+      'user.email=fixture@example.invalid',
+      'commit',
+      '-qm',
+      'fourth frontend pair',
+    );
+    await modes(prepared.root);
+    const sourceSha = await git(prepared.root, 'rev-parse', 'HEAD');
+    const generated = await createSourceStartupManifest(prepared.root, sourceSha, configuration);
+    const manifest = decodeSourceStartupManifest(generated.contents, {
+      ...prepared.pins,
+      sourceSha,
+      manifestSha256: generated.sha256,
+    });
+    for (const path of ['package.json', 'bun.lock'] as const) {
+      const bytes = await readFile(join(prepared.root, path));
+      const observed = {
+        bytes: bytes.byteLength,
+        sha256: createHash('sha256').update(bytes).digest('hex'),
+      };
+      expect(observed).toEqual(CAPTURED_INPUTS[path]);
+      const entry = manifest.entries.find(
+        (candidate) => candidate.root === 'source' && candidate.path === path,
+      );
+      if (entry?.kind !== 'file') throw new Error('canonical frontend pair absent');
+      expect({ bytes: entry.size, sha256: entry.sha256 }).toEqual(observed);
+    }
+    expect(selectSourceFrontendProfile(manifest)).toBe('wbs-source-frontend-wire-v1');
+  } finally {
+    await rm(prepared.root, { recursive: true, force: true });
+    roots.splice(registration, 1);
+  }
+}, 30000);
 
 test('actual pinned Vite producer reaches the complete frontend document and entry inspectors', async () => {
   await withSourceFrontendProducer(async (observations, directory) => {
@@ -114,7 +160,7 @@ test('actual pinned Vite producer reaches the complete frontend document and ent
     const fields = readFields(packet);
     const selectedInputs = readFields(fields['selectedInputs']);
     const sourceFiles = readFields(fields['files']);
-    expect(fields['epoch']).toBe('fresh-main-20261104');
+    expect(fields['epoch']).toBe('fresh-main-20261105-ctt-0.13.0');
     expect(Object.keys(selectedInputs).sort()).toEqual(Object.keys(CAPTURED_INPUTS).sort());
     const captured = new Map<string, Buffer>();
     for (const [path, expected] of Object.entries(CAPTURED_INPUTS)) {
@@ -1129,6 +1175,16 @@ const CTT_PAIR = {
     sha256: 'e3e915704bce2282142eae1f2374cd6217f408d1fed38ae116579a4f6fb1025d',
   },
 };
+const PREVIOUS_MAIN_PAIR = {
+  'package.json': {
+    bytes: 4992,
+    sha256: '6482624ce19f7d9ea6cd919328f839e3bb7bb8c48ae120a4f5c3104e9a87c381',
+  },
+  'bun.lock': {
+    bytes: 534113,
+    sha256: '129512f0a0fc719b814e7998353190f8827d96085f99000c418c6988ebbbb728',
+  },
+};
 const CURATED_SOURCE = [
   'apps/wbs/fe-01',
   'libs/wbs/domain',
@@ -1515,7 +1571,7 @@ test('producer rejects a different supported live epoch after the actual child c
       JSON.parse(await readFile(join(retained, 'source-manifest.json'), 'utf8')),
     );
     expect(packet['head']).toBe(prepared.sourceSha);
-    expect(packet['epoch']).toBe('fresh-main-20261104');
+    expect(packet['epoch']).toBe('fresh-main-20261105-ctt-0.13.0');
     expect(packet['selectedInputs']).toEqual(CAPTURED_INPUTS);
     for (const [path, expected] of Object.entries(CAPTURED_INPUTS))
       expect(describeBytes(await readFile(join(retained, 'snapshot', path)))).toEqual(expected);
@@ -1578,6 +1634,25 @@ test('producer rejects a different supported live epoch after the actual child c
     }
   }
 }, 130000);
+const CURRENT_REVERSALS = {
+  'package.json': [
+    [
+      '    "configurable-tree-traversal": "0.13.0",\n',
+      '    "configurable-tree-traversal": "0.12.0",\n',
+    ],
+  ],
+  'bun.lock': [
+    [
+      '        "configurable-tree-traversal": "0.13.0",\n',
+      '        "configurable-tree-traversal": "0.12.0",\n',
+    ],
+    [
+      '    "configurable-tree-traversal": ["configurable-tree-traversal@0.13.0", "", { "dependencies": { "uuid": "^14.0.3" } }, "sha512-7bEo36spuSbjIvDflzcr+DrZ9MQhZeYHRPW72rtQuL0KfgD5VGzIEMENLsgVTkn+JzqXIT/7qvl+J3Lbbl8vNA=="],\n',
+      '    "configurable-tree-traversal": ["configurable-tree-traversal@0.12.0", "", { "dependencies": { "uuid": "^14.0.3" } }, "sha512-AsAFLmDPdtEvYZ0sQPIgavYba8SKUgLqS+snyW0DlPE7wwYuXguj+UdvQRgbfPRvjWHVowFxaBowDX2otO+rlQ=="],\n',
+    ],
+  ],
+} as const;
+
 const HISTORICAL_REVERSALS = {
   'package.json': [
     ['  "name": "@puni-mono/workspace",\n', '  "name": "@puni/workspace",\n'],
@@ -1637,9 +1712,15 @@ const HISTORICAL_REMOVALS = {
 
 function reconstructHistoricalInput(path: 'package.json' | 'bun.lock', bytes: Uint8Array): Buffer {
   expect(describeBytes(bytes)).toEqual(CAPTURED_INPUTS[path]);
+  // Reverse only the exact CTT pin and resolved lock identity before older historical hunks.
+  let contents = Buffer.from(bytes).toString('utf8');
+  for (const [present, prior] of CURRENT_REVERSALS[path]) {
+    expect(contents.split(present).length - 1).toBe(1);
+    contents = contents.replace(present, prior);
+  }
+  expect(describeBytes(Buffer.from(contents))).toEqual(PREVIOUS_MAIN_PAIR[path]);
   // Restore the reviewed CTT pair before removing its additions. Exact hashes
   // at both boundaries keep the owned negatives independent of CI history.
-  let contents = Buffer.from(bytes).toString('utf8');
   for (const [present, prior] of HISTORICAL_REVERSALS[path]) {
     expect(contents.split(present).length - 1).toBe(1);
     contents = contents.replace(present, prior);

@@ -1384,3 +1384,30 @@ constructor qualification while correcting ordinary discovery.
 - [x] N3 Add exact canonical/rest exclusions and harmless actual-routing coverage that retains similarly named ordinary markers and all Graph receipt requirements.
 - [x] N4 Observe separate omitted-exclusion and widened-exclusion failures, restore exact source, and rerun the same tests; record scoped statics and OpenSpec validation.
 - [x] N5 Publish the reviewed source split and distinguish ordinary CI from mandatory constructor/native and full-goal/release acceptance; do not execute or qualify the relocated native entry under historical packets.
+
+## Fresh-main CTT0.13 frontend compatibility — 2026-11-05
+
+[Intent](frontend-input-epochs-intent.md#ctt013-compatibility--2026-11-05),
+[design](design.md#current-frontend-input-epochs),
+[evidence](verify-source-frontend-current-epoch.md).
+Only the existing five frontend profile/producer/test paths may change. This is
+separate from UC2 and does not adopt architecture on main.
+
+- [x] FEP6. Resolve the independently reviewed private main union, preserving both wiki-policy declaration sets and feature rules, the @ark/schema patch and main's exact CTT0.13 caller/lock migration. Verify actual proposed package/lock identities, then use an owned frozen install; never install through the borrowed node_modules symlink. Qualify actual CTT resolution, affected coordination/topology and wiki-policy consumers.
+- [x] FEP7. Add the fourth exact paired epoch to all three existing admission owners after genuine finite selector/mixed-pair RED. Preserve all old pairs and negatives, common16 and response constants; update the current-epoch test branch, exact current HTTP literals, unique reverse hunks and independently checked historical intermediate identities. Missing/duplicated/changed reversals must refuse before producer work.
+- [ ] FEP8. Review exact finite consumers and observe distinct fourth-pair admission and reversal/intermediate necessity negatives, with exact restoration before the next pair. Preserve historical proof scope, configured checks and explicit unobserved producer boundaries; do not substitute selector success for producer admission. Publish independently reviewed source/evidence with fresh pushes.
+- [ ] FEP9. Require actual exact-source current Node/Vite producer/captured bytes/canonical manifest and both unchanged inspectors through the hosted source lane. A response difference stops this slice for separate design. Final storage69/rest/peers/aggregate, canonical h2 gate, native grants, architectural main adoption and deployment remain separate obligations.
+
+## UC2 executable custody slices — 2026-11-05
+
+[Corrected portable design](original-handoff-design.md#uc2-preparation-custody-implementation--2026-11-05).
+Parent UC2/UC4/UC5 remain unchecked. Exact eight-path source/support scope and
+separate future census exception are exhaustive. No whole-storage/default gate
+or executable HOLD push precedes accepted ordinary finite containment.
+
+- [ ] UC2A. Implement owner-enrolled opaque custody, explicit composition slot and exact storage/context binding, fixed original union and the two exact classifier import-policy exceptions. Reach unchanged known live/expired drop/release and runtime-refusal controls; preserve standalone anchor behavior and original rejection APIs.
+- [ ] UC2B. Retain actual composition body/projection and named operation/observer Promises. Prove synchronous revoke/defer without cleanup beneath pending work, owner joins discarded originals, no self-join, and no second composition during post-runtime finalization.
+- [ ] UC2C. Record direct closes and genuine Graph/SQLite/snapshot failures before wrapping; preserve operation/close attribution and commit prefixes. Implement evidence transfer, expiry cleanup, sticky work revocation and both actual unwind guards, without native retry, public diagnostics or fictional runtime retention.
+- [ ] UC2D. Independently prepare/qualify the distinct ordinary finite protocol in the existing fixture. Migrate both throwing-close cases, missing-evidence fallback and every affected case; preserve private builder/pins/three constructor cases. Freeze literal expanded census and materialize its separate routing/receipt exception before editing. Accepted containment must accompany executable publication.
+- [ ] UC2E. Review/observe distinct physical negatives for enrollment/association, owner-backed resources, direct/inherited attribution, original Promise binding/observation, pending-cleanup exclusion, post-await revocation, composition slot, evidence transfer, both guards, owner joins, keeper and expiry/drop cleanup. Retain exact restores/original resources/streams; ungranted constructor predicates remain pending.
+- [ ] UC2F. After accepted finite routing, qualify actual owning ordinary files, unchanged complete39, configured statics/OpenSpec and independent source review, then publish fresh combined source and qualify storage/rest/peers/aggregate and exact-SHA canonical h2 gate. UC3, broader provenance, native grants, architecture adoption and deployment retain separate obligations.

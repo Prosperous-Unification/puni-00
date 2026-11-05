@@ -461,6 +461,30 @@ for (const fault of ['anchor-close', 'operation-two-cleanups'] as const)
         let evidenceDescriptor: number | undefined;
         let committed = false;
         let cleanupFaults = 0;
+        let fencedPrimarySeen = false;
+        let stateRetired = false;
+        let evidenceRetired = false;
+        type SelectedRole = 'state' | 'evidence';
+        const originals: {
+          role: SelectedRole;
+          descriptor: number;
+          argument: Parameters<typeof open>[0];
+          path: string;
+          identity: string;
+        }[] = [];
+        const returnedCloses: {
+          role: SelectedRole;
+          descriptor: number;
+          path: string;
+          identity: string;
+          committed: boolean;
+          fencedPrimarySeen: boolean;
+          nativeReturned: true;
+        }[] = [];
+        const identifyDescriptor = (descriptor: number) => {
+          const identity = filesystem.fstatSync(descriptor, { bigint: true });
+          return `${String(identity.dev)}:${String(identity.ino)}`;
+        };
         const opened = spyOn(filesystem, 'openSync').mockImplementation(
           (...args: Parameters<typeof open>) => {
             const descriptor = open(...args);
@@ -468,20 +492,58 @@ for (const fault of ['anchor-close', 'operation-two-cleanups'] as const)
             live.set(descriptor, path);
             if (withinStorage && anchor === undefined && path === dirname(fixture.prodPath))
               anchor = descriptor;
-            if (withinStorage && stateDescriptor === undefined && path === fixture.root)
+            // Proof: omitting only the literal argument predicate failed the unchanged two-cleanup count (received 1).
+            if (
+              withinStorage &&
+              stateDescriptor === undefined &&
+              args[0] === fixture.root &&
+              path === fixture.root
+            ) {
               stateDescriptor = descriptor;
+              originals.push({
+                role: 'state',
+                descriptor,
+                argument: args[0],
+                path,
+                identity: identifyDescriptor(descriptor),
+              });
+            }
             if (
               withinStorage &&
               evidenceDescriptor === undefined &&
               dirname(path) === fixture.root &&
               path.slice(fixture.root.length + 1).startsWith('dependency-activation-')
-            )
+            ) {
               evidenceDescriptor = descriptor;
+              originals.push({
+                role: 'evidence',
+                descriptor,
+                argument: args[0],
+                path,
+                identity: identifyDescriptor(descriptor),
+              });
+            }
             return descriptor;
           },
         );
         const closing = spyOn(filesystem, 'closeSync').mockImplementation((descriptor) => {
+          const isStateOriginal = descriptor === stateDescriptor && !stateRetired;
+          const isEvidenceOriginal = descriptor === evidenceDescriptor && !evidenceRetired;
+          const original =
+            fault === 'operation-two-cleanups' && (isStateOriginal || isEvidenceOriginal)
+              ? {
+                  role: isStateOriginal ? ('state' as const) : ('evidence' as const),
+                  descriptor,
+                  path: filesystem.readlinkSync(`/proc/self/fd/${String(descriptor)}`),
+                  identity: identifyDescriptor(descriptor),
+                  committed,
+                  fencedPrimarySeen,
+                }
+              : undefined;
           close(descriptor);
+          if (isStateOriginal) stateRetired = true;
+          if (isEvidenceOriginal) evidenceRetired = true;
+          if (original !== undefined) returnedCloses.push({ ...original, nativeReturned: true });
           live.delete(descriptor);
           if (
             fault === 'anchor-close' &&
@@ -496,7 +558,7 @@ for (const fault of ['anchor-close', 'operation-two-cleanups'] as const)
             fault === 'operation-two-cleanups' &&
             committed &&
             cleanupFaults < 2 &&
-            (descriptor === stateDescriptor || descriptor === evidenceDescriptor)
+            (isStateOriginal || isEvidenceOriginal)
           ) {
             cleanupFaults++;
             throw new Error('PRIVATE_CLEANUP_' + String(cleanupFaults));
@@ -519,8 +581,10 @@ for (const fault of ['anchor-close', 'operation-two-cleanups'] as const)
             if (
               fault === 'operation-two-cleanups' &&
               args[1].endsWith('-activation-fenced-complete.json')
-            )
+            ) {
+              fencedPrimarySeen = true;
               throw new Error('PRIVATE_PRIMARY_FENCE_READ');
+            }
             return observed;
           },
         );
@@ -547,6 +611,34 @@ for (const fault of ['anchor-close', 'operation-two-cleanups'] as const)
           fault === 'anchor-close' ? 'anchor-finalizers' : 'exclusion-or-finalizer',
         );
         expect(cleanupFaults).toBe(fault === 'anchor-close' ? 1 : 2);
+        if (fault === 'operation-two-cleanups') {
+          expect(fencedPrimarySeen).toBe(true);
+          expect(originals.map(({ role }) => role).sort()).toEqual(['evidence', 'state']);
+          const stateOriginal = originals.find(({ role }) => role === 'state');
+          const evidenceOriginal = originals.find(({ role }) => role === 'evidence');
+          if (stateOriginal === undefined || evidenceOriginal === undefined)
+            throw new Error('selected storage originals absent');
+          expect(stateOriginal.argument).toBe(fixture.root);
+          expect(evidenceOriginal.argument).toBe(evidenceOriginal.path);
+          expect(stateOriginal.descriptor).not.toBe(evidenceOriginal.descriptor);
+          expect(stateOriginal.identity).not.toBe(evidenceOriginal.identity);
+          expect(returnedCloses).toHaveLength(2);
+          expect(
+            [...returnedCloses].sort((left, right) => left.role.localeCompare(right.role)),
+          ).toEqual(
+            [...originals]
+              .sort((left, right) => left.role.localeCompare(right.role))
+              .map(({ role, descriptor, path, identity }) => ({
+                role,
+                descriptor,
+                path,
+                identity,
+                committed: true,
+                fencedPrimarySeen: true,
+                nativeReturned: true,
+              })),
+          );
+        }
         // Only directly owned closes are faulted; raw.closeFiles itself is allowed to settle normally.
         expect([...live.values()]).toEqual([]);
         const authorities = inspectStores(fixture);

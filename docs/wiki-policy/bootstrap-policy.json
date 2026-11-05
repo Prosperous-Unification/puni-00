@@ -477,6 +477,96 @@
     ],
     "binaryDeclarations": [
       {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/adapter-sdk-20261101.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/evidence/adapter-sdk-release-delta-20261101.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/evidence/adapter-sdk-release-delta-20261101.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/adapter-sdk-20261103.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/evidence/adapter-sdk-release-delta-20261103.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/evidence/adapter-sdk-release-delta-20261103.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/postgres-component-integration-20261104.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/publication.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/publication.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/postgres-index-20261104.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/evidence/packet-manifest.json",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/evidence/packet-manifest.json; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/postgres-observer-20261104.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/evidence/postgres-observer-publication.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/evidence/postgres-observer-publication.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/postgres-operation-order.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/evidence/postgres-operation-order.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/evidence/postgres-operation-order.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/postgres-parallel-fixture-20261104.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/evidence/postgres-parallel-fixture-publication.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/evidence/postgres-parallel-fixture-publication.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/postgres-review-cleanup-20261104.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/publication.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/publication.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/postgres-session-20261104.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/evidence/postgres-session-publication.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/evidence/postgres-session-publication.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/provider-acceptance-inventory-v3.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/evidence/provider-acceptance-inventory-v3.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/evidence/provider-acceptance-inventory-v3.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
         "path": "openspec/changes/cross-project-dependencies/evidence/fast-capacity-2026-10-23/capacity-resource-scope-fault.log",
         "format": "application/octet-stream",
         "consumer": "openspec/changes/cross-project-dependencies/verify.md",

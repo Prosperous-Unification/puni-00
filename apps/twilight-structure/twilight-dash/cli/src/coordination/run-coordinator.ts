@@ -1,4 +1,4 @@
-import type { DagWorkTicket } from 'configurable-tree-traversal';
+import type { DagWorkSettlementTicket } from 'configurable-tree-traversal';
 
 import { permitsRetry } from '../runs/plan-admission';
 import { decodeAdmission, decodeRunGuard } from '../runs/record-codecs';
@@ -40,8 +40,8 @@ export async function createRunCoordinator(options: {
   // Proof: seeding every activity hid unfinished work in `accepted predecessors
   // seed only fresh sessions and new done requires explicit completion`.
   const accepted = new Set(initial.completed);
-  const session = dag.createWorkSession({ completedWork: accepted });
-  const issued = new WeakMap<DagWorkTicket<string>, string>();
+  const session = dag.createExternalWorkSession({ acceptedCompletedWorkVertexIds: accepted });
+  const issued = new WeakMap<DagWorkSettlementTicket<string>, string>();
   let pending = Promise.resolve();
   function serialize<T>(operation: () => Promise<T>): Promise<T> {
     // Proof: starting operations concurrently exposed a successor after progress
@@ -66,7 +66,7 @@ export async function createRunCoordinator(options: {
       throw new Error('coordination rebuild required: accepted progress or catalog changed');
     return current;
   }
-  function requireTicket(ticket: DagWorkTicket<string>): string {
+  function requireTicket(ticket: DagWorkSettlementTicket<string>): string {
     // Proof: accepting foreign objects by vertex ID reserved a slot in
     // `foreign admission tickets cannot reserve capacity even for the same ready activity`.
     const occurrence = issued.get(ticket);
@@ -74,12 +74,12 @@ export async function createRunCoordinator(options: {
       throw new Error('coordination ticket is foreign or retargeted');
     return occurrence;
   }
-  function advanceTickets(): readonly DagWorkTicket<string>[] {
-    const boundary = session.advance();
+  function advanceTickets(): readonly DagWorkSettlementTicket<string>[] {
+    const boundary = session.runUntilWorkBoundary();
     if (boundary.kind === 'paused') throw new Error('coordination session unexpectedly paused');
     if (boundary.kind === 'finished') return [];
-    for (const ticket of boundary.workTickets) issued.set(ticket, ticket.vertexId);
-    return boundary.workTickets;
+    for (const ticket of boundary.workSettlementTickets) issued.set(ticket, ticket.vertexId);
+    return boundary.workSettlementTickets;
   }
   function excludesAttempt(
     snapshot: RunSnapshot,
@@ -109,7 +109,7 @@ export async function createRunCoordinator(options: {
     return current.eligible.has(node.stepId) && !current.completed.has(occurrence);
   }
   return {
-    async ready(): Promise<readonly DagWorkTicket<string>[]> {
+    async ready(): Promise<readonly DagWorkSettlementTicket<string>[]> {
       return await serialize(async () => {
         const current = await refresh();
         // Proof: removing the durable-state filter exposed tickets for unfinished,
@@ -122,7 +122,7 @@ export async function createRunCoordinator(options: {
       });
     },
     async admit(
-      ticket: DagWorkTicket<string>,
+      ticket: DagWorkSettlementTicket<string>,
       inputGuard: RunGuard,
       inputAdmission: Admission,
     ): Promise<StoreReply<Attempt>> {
@@ -154,7 +154,7 @@ export async function createRunCoordinator(options: {
         return await runs.admitAttempt(guard, admission);
       });
     },
-    async complete(ticket: DagWorkTicket<string>) {
+    async complete(ticket: DagWorkSettlementTicket<string>) {
       return await serialize(async () => {
         const occurrence = requireTicket(ticket);
         const current = await refresh();
@@ -162,13 +162,13 @@ export async function createRunCoordinator(options: {
         // `unaccepted completion never releases a successor; accepted duplicate is explicit`.
         if (!current.completed.has(occurrence))
           throw new Error('coordination completion lacks accepted WBS progress');
-        const receipt = session.completeWork(ticket);
+        const receipt = session.acceptCompletedWork(ticket);
         accepted.add(occurrence);
         return receipt;
       });
     },
     summary() {
-      return session.summary();
+      return session.captureProgressSnapshot();
     },
   };
 }
