@@ -62,7 +62,9 @@ second, configured by `infra/ansible/playbooks/gate-host.yml` (WBS 070.05) and l
   watch and both timers. It never starts any of them, and it never runs `ops pool init`.
 - **Packages.** It installs `git`, `jq`, `perl`, `python3-packaging`, `python3-venv`,
   `shellcheck`, `unzip`, `bubblewrap` and `busybox` from Ubuntu apt. The sandbox tools are
-  required by existing gate tests; installing them does not grant namespace capability. Docker must already be running. The role does not change Docker,
+  required by existing gate tests; installing them does not grant namespace capability. A
+  nested heavy job bounds its admission query with `timeout`, from `coreutils`, which Ubuntu
+  marks Essential, so the role installs nothing for it. Docker must already be running. The role does not change Docker,
   k3s, the firewall or the network.
 
 The last tasks are read-only probes run as `puni1` through its `~/.bashrc`:

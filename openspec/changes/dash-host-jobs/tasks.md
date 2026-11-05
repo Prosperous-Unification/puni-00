@@ -9,12 +9,17 @@
 
 ## 1. Catalogue and rule (static; no host change)
 
-- [ ] 1.1 `infra/jobs/catalogue.json` with the four types of this repository (J2, J14) and
+- [x] 1.1 `infra/jobs/catalogue.json` with the four types of this repository (J2, J14) and
       `infra/jobs/README.md` naming the fields, the provisional heuristics of J9 and the
       `propose` → PR loop; each entrypoint script gains one comment naming its catalogue id;
       `puni-pr-00` gets its own catalogue with `website-dev-build` in a companion PR — test: the
       catalogue parses with the shared ArkType shape; an argv outside the argument profile is
       refused.
+      Checked in slice 6e, all already on `main` (S6E-A4): `infra/jobs/catalogue.json` with
+      the four types and `infra/jobs/README.md` (both `aadff2c3f`); the id comments in
+      `bin/h2puni-gate.sh`, `bin/publish-release.sh` and `solver-binding-runtime.ts`;
+      `puni-pr-00` #75 (merged `022a7e8b8`); the parse and argument-profile tests in
+      `job-catalogue.test.ts` (Burokrat contracts).
 - [x] 1.2 Burokrat rule `JOB-CATALOGUE` in observe mode through the existing rule framework:
       malformed entry, duplicate id, absent entrypoint, expired estimate against the supplied
       instant, envelope below calibrated p95, unbounded containers — test: one fixture per
@@ -47,13 +52,15 @@
       transaction with the outbox event — test: the surviving-child and dirty-tree scenarios;
       negative: settle memory on exit code alone and watch the surviving-child test admit over it.
 
-- [ ] 2.4 Follow-up (seen in slice 6c's full `twilight-dash:test`): `host-jobs.test.ts`'s
+- [x] 2.4 Follow-up (seen in slice 6c's full `twilight-dash:test`): `host-jobs.test.ts`'s
       `a replaced tmp directory or symlink stays charged and untouched` failed once under
       full-suite load (expected `blocked`, received `released`), then passed alone three times.
       `rmdir` then `mkdir` can reuse the inode, so a tmp directory's device and inode identity
       does not prove it is the original. The identity should include ctime or birth time, or a
       content marker — test: replace the directory with one that reuses the inode; negative:
       compare dev and inode only and watch the replacement be released.
+      Done in slice 6e: a content marker (`HostJob.tmpMarker`, `.dash-tmp-identity`, S6E-A1,
+      S6E-A2); `a replacement directory that reuses the inode stays charged and untouched`.
 
 ## 3. Measured runs (needs 2)
 
@@ -265,10 +272,11 @@
       check and watch it record the outer label. Done (S6D-A1): `run_nested_heavy_job` re-labels a
       type without exclusive units and refuses 70 one with units or outside its job's scope; proof:
       with the branch removed, case 49a got `gate:abc` and Dash's `--label gate:abc`.
-  - [ ] 6.10a Check admission, not only placement: the scope check passes a same-account
+  - [x] 6.10a Check admission, not only placement: the scope check passes a same-account
         `systemd-run --user --scope --unit dash-job-<id>` (review of #873). Ask the ledger for a
         running job with that id before running nested — test: a fake scope of that name with no
-        such job is refused.
+        such job is refused. Done in slice 6e: `ops job admission` (`ops/admission.test.ts`) and
+        `bin/heavy-lock.test.sh` cases 49h–49k (S6E-A3).
 - [ ] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
       (slice 3, #809) carries `descriptorDigest` and no durable locator, so this needs a locator
       for the run record and a decision on which digest WBS keeps — test: a returned host job's

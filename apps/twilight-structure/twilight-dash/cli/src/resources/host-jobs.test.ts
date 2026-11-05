@@ -2,10 +2,11 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import {
   chmodSync,
+  existsSync,
   linkSync,
+  lstatSync,
   mkdirSync,
   readFileSync,
-  rmdirSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -730,7 +731,7 @@ if (insideLinuxNamespace(import.meta.path)) {
         queue(runtime, { descriptor: build, label: 'b', waitSeconds: 0 }),
       );
       const payload = launch(runtime, job);
-      rmdirSync(job.locator);
+      rmSync(job.locator, { recursive: true });
       await payload.release();
       runtime.sweep();
       expect(runtime.inspectHostJob(job.id).tmpDisk).toEqual({
@@ -748,7 +749,7 @@ if (insideLinuxNamespace(import.meta.path)) {
           queue(runtime, { descriptor: build, label: replacement, waitSeconds: 0 }),
         );
         const payload = launch(runtime, job);
-        rmdirSync(job.locator);
+        rmSync(job.locator, { recursive: true });
         const outside = join(base, 'outside');
         mkdirSync(outside);
         writeFileSync(join(outside, 'keep'), 'source');
@@ -765,6 +766,76 @@ if (insideLinuxNamespace(import.meta.path)) {
         expect(readFileSync(join(outside, 'keep'), 'utf8')).toBe('source');
         runtime.close();
       }
+    });
+
+    test('a replacement directory that reuses the inode stays charged and untouched', async () => {
+      const { runtime } = pool(scenarioPool);
+      const job = admitted(
+        runtime,
+        queue(runtime, { descriptor: build, label: 'reused', waitSeconds: 0 }),
+      );
+      const payload = launch(runtime, job);
+      const prepared = runtime.inspectHostJob(job.id);
+      // ext4 hands a freed inode straight back; bounded, so a filesystem that never reuses
+      // one fails here rather than passing without the replacement this case is about.
+      let reused = false;
+      for (let attempt = 0; attempt < 1000 && !reused; attempt += 1) {
+        rmSync(job.locator, { recursive: true });
+        mkdirSync(job.locator, { mode: 0o700 });
+        reused = lstatSync(job.locator).ino === prepared.ino;
+      }
+      expect(reused).toBe(true);
+      writeFileSync(join(job.locator, 'keep'), 'source');
+      await payload.release();
+      runtime.sweep();
+      const settled = runtime.inspectHostJob(job.id);
+      expect(settled.tmpDisk.state).toBe('blocked');
+      expect(settled.tmpDisk.reason).toContain('identity changed');
+      expect(readFileSync(join(job.locator, 'keep'), 'utf8')).toBe('source');
+      runtime.close();
+    });
+
+    test('a tmp directory whose marker the payload removed stays charged', async () => {
+      const { runtime } = pool(scenarioPool);
+      const job = admitted(
+        runtime,
+        queue(runtime, { descriptor: build, label: 'unmarked', waitSeconds: 0 }),
+      );
+      const payload = launch(runtime, job);
+      rmSync(join(job.locator, '.dash-tmp-identity'));
+      await payload.release();
+      runtime.sweep();
+      const settled = runtime.inspectHostJob(job.id);
+      expect(settled.tmpDisk.state).toBe('blocked');
+      expect(settled.tmpDisk.reason).toContain('identity changed');
+      expect(existsSync(job.locator)).toBe(true);
+      runtime.close();
+    });
+
+    test('a row prepared before markers settles on device and inode', async () => {
+      const { root, runtime } = pool(scenarioPool);
+      const job = admitted(
+        runtime,
+        queue(runtime, { descriptor: build, label: 'legacy', waitSeconds: 0 }),
+      );
+      const payload = launch(runtime, job);
+      rmSync(join(job.locator, '.dash-tmp-identity'));
+      const db = new Database(join(root, '.dash', 'resources.sqlite'));
+      const row = db
+        .query<{ snapshot: string }, [string]>('SELECT snapshot FROM host_jobs WHERE id=?')
+        .get(job.id);
+      const legacy = JSON.parse(row?.snapshot ?? '{}') as Record<string, unknown>;
+      delete legacy['tmpMarker'];
+      db.query('UPDATE host_jobs SET snapshot=? WHERE id=?').run(JSON.stringify(legacy), job.id);
+      db.close();
+      await payload.release();
+      runtime.sweep();
+      runtime.sweep();
+      const settled = runtime.inspectHostJob(job.id);
+      expect(settled.tmpMarker).toBeUndefined();
+      expect(settled.tmpDisk.state).toBe('released');
+      expect(existsSync(job.locator)).toBe(false);
+      runtime.close();
     });
 
     test('refuses a version-0 ledger with unexpected tables', () => {
@@ -952,6 +1023,43 @@ if (insideLinuxNamespace(import.meta.path)) {
       } finally {
         migrated.close();
       }
+    });
+
+    test('a read-only open refuses a ledger of another version and leaves it as it was', () => {
+      const { root, config, runtime } = pool(scenarioPool);
+      runtime.close();
+      const ledger = join(root, '.dash', 'resources.sqlite');
+      // Exactly a version-1 ledger, which `open` would migrate.
+      const db = new Database(ledger);
+      db.run(
+        'DROP TABLE host_pool_mode_records; ALTER TABLE host_pool DROP COLUMN guard; ALTER TABLE host_pool DROP COLUMN guard_holder; ALTER TABLE host_pool DROP COLUMN switching; ALTER TABLE host_pool DROP COLUMN hold_corruption; PRAGMA user_version=1',
+      );
+      db.close();
+      expect(() => ResourceRuntime.openReadOnly(loadResourceConfiguration(config), clock)).toThrow(
+        'resource ledger version 1 is not 2, the version this Dash reads; a read-only open migrates nothing',
+      );
+      const after = new Database(ledger, { readonly: true });
+      expect(
+        after.query<{ user_version: number }, []>('PRAGMA user_version').get()?.user_version,
+      ).toBe(1);
+      after.close();
+    });
+
+    test('a read-only open reads a launched job', async () => {
+      const { config, runtime } = pool(scenarioPool);
+      const job = admitted(
+        runtime,
+        queue(runtime, { descriptor: build, label: 'reader', waitSeconds: 0 }),
+      );
+      const payload = launch(runtime, job);
+      const reader = ResourceRuntime.openReadOnly(loadResourceConfiguration(config), clock);
+      try {
+        expect(reader.hostJobRunning(job.id)).toEqual({ state: 'held', running: true });
+      } finally {
+        reader.close();
+      }
+      await payload.release();
+      runtime.close();
     });
 
     test('refuses a version-1 ledger with unexpected tables', () => {

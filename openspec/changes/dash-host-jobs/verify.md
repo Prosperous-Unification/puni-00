@@ -2618,6 +2618,8 @@ admission of its own`, which lands in the enclosing job's log.
     of #873 reproduced `systemd-run --user --scope --unit dash-job-<id> …` passing it. The lock is
     advisory for the same account anyway. A real admission check would ask the ledger for a
     running job with that id; it is owed under task 6.10.
+  - Superseded in slice 6e (S6E-A3): admission is now checked too. After placement the nested
+    call asks `ops job admission` and runs only when the ledger has that job running.
   - Correction to the review: it read puni-pr-00 as not unsetting the variable. Its launcher
     `deploy/website/dev/build-release.sh` does, at line 77 on `origin/main` `a31b3c5`
     (`unset DASH_JOB_ID DASH_JOB_TYPE`), before its `run_heavy_job`. Its payload then reads the
@@ -2755,3 +2757,158 @@ refuses, and removing `failed_when` lets it through. The run's lines are in the 
 Not done: no host apply, so the units are not installed on h2puni or h4claw. That apply is owed
 with 6.3e's converging apply, and the timer starts at step 5 of the enrollment. No gate ran on a
 host.
+
+## Slice 6e: tmp identity, nested admission, catalogue bookkeeping (tasks 2.4, 6.10a, 1.1)
+
+Branch `feat/host-jobs-inode-identity-and-admission` from `main` at `0ff9b5a1f`. Nothing here
+touched a host: no ssh, no apply, no enrollment.
+
+### Assumptions (overrulable by id)
+
+- **S6E-A1 A content marker, not birth time or ctime, completes the tmp directory's identity
+  (task 2.4).** `prepareHostJob` writes a random UUID to `<locator>/.dash-tmp-identity` (mode
+  0600, `wx`) and persists it as `HostJob.tmpMarker`. Settlement requires device, inode and that
+  token: `hostJobTmpPresent` reads it with `O_NOFOLLOW` and requires a regular file with one
+  link, and the removal script reads it again through the directory descriptor it then erases,
+  so the check and the removal see the same directory.
+  - Why not ctime: it changes whenever an entry is added to or removed from the directory, which
+    every payload does to its `TMPDIR`. Why not birth time: `statx` reports it only where the
+    filesystem records it, and a missing birth time would leave the inode-reuse hole open
+    exactly there.
+  - The marker lives in the payload's `TMPDIR`, so a payload that deletes or rewrites it leaves
+    its tmp entry `blocked` with `identity changed: content marker differs` for an operator.
+    That is the fail-closed reading of "not provably the original", and a payload has no reason
+    to touch a dot-file it did not create. A deliberate same-account forger can copy the token;
+    the lock is advisory for the same account already (S6D-A1), and this closes the accidental
+    reuse, which is what the full-suite failure showed.
+  - The removal script erases the marker last, after everything else, so a removal refused
+    halfway (an outside hard link) leaves the directory still provably the original and the
+    next pass keeps the same reason instead of writing a new settlement event. A crash between
+    unlinking the marker and the final `rmdir` leaves an empty unmarked directory, which reads
+    `blocked` for an operator; that window is one syscall long.
+  - Measured on this workstation's ext4 `/tmp`: `rmdir` then `mkdir` returned the same inode on
+    the first attempt five times out of five. The old test passed alone only because its
+    `mkdir(outside)` between the two took the freed inode.
+- **S6E-A2 No ledger version bump.** `tmpMarker` is an optional key of the host-job snapshot,
+  the pattern `reserved?` set in slice 4. A row prepared before this change has device and
+  inode and no marker; it settles on device and inode as it did, so a job running across the
+  upgrade is not stranded. Every row prepared from now on carries one. `HostJobShape` rejects
+  undeclared keys, so a Dash from before this commit cannot read those new rows: an
+  un-restarted watch, or an older checkout's `ops job status`. The refresh restarts the watch
+  right after the checkout moves (S6D-A6), which makes that unlikely.
+
+- **S6E-A3 A nested call asks the ledger through a new read-only `ops job admission` (task
+  6.10a).** After the placement and exclusive-unit checks, `run_nested_heavy_job` runs
+  `bun <checkout>/…/entrypoint.ts ops job admission --config <fixed path> --job <id>` and
+  accepts only `{"job":"<id>","running":true}`.
+  - Why a new command: `ops job status` prints text for people and reads the shell lock's
+    queue, and `ops pool inspect` prints the whole pool plus that queue. Both are more work and a
+    wider contract than one yes or no. The new command opens the ledger as every `ops` command
+    does (`openPool`), reads one row and prints one JSON line. It takes no lock: SQLite WAL reads
+    do not wait on writers, and it neither sweeps nor settles.
+  - Running means launched (`held`), no exit code and no launch failure recorded, and the
+    leader recorded at launch still alive (pid, boot id and start time). A job admitted but not
+    launched has no payload that could be the caller. A finished job's id, reused by a forged
+    scope, is refused.
+  - The shell refuses 70 on an unenrolled host before asking: there is no ledger, so no job can
+    have been admitted. It also refuses 70 when Dash is missing, exits non-zero, or answers
+    anything but a boolean `running` for the same job id. "Cannot tell" is never "admitted".
+  - Cost: one Bun start and one SQLite read per nested call, about the cost of `ops job
+status`. Nested calls are rare: today only a `test:queued` run inside a gate.
+  - What it still does not stop: a same-account process that copies a running job's id into a
+    scope it makes. That process runs beside a job that really is admitted and measured. The
+    lock is advisory for the account (S6D-A1), and this closes the forged-id case the review of
+    #873 reproduced.
+  - The Dash queried is the nested caller's own checkout's (`resolve_dash_entrypoint`, from the
+    library the caller sourced). Inside a gate that is the gate tree at the candidate commit,
+    asked about the production ledger with the production `--config`. So `ops job admission`
+    opens the ledger with `ResourceRuntime.openReadOnly` (review of #876 F1). That means SQLite
+    `readonly`, the binding still compared, no eligibility check, and no migration. A ledger
+    whose `user_version` is not this Dash's `LEDGER_VERSION` is refused 70, and the shell treats
+    that refusal like any other Dash failure. A candidate that bumps the schema therefore
+    cannot migrate the production ledger from inside a gate. Its nested calls are refused
+    until production moves to that version.
+  - The query is bounded (review F2): `timeout --kill-after=5 60`. Exit 124 or 137 is refused
+    70 with its own message. `timeout` is coreutils, Essential on Ubuntu (gate-hosts.md,
+    Packages).
+
+- **S6E-A4 Task 1.1 was complete on `main`; only its box was open.** Each promise, checked
+  against `0ff9b5a1f`:
+  - `infra/jobs/catalogue.json` holds the four types (`jq -r '.jobs[].id'`: `gate`,
+    `release-build`, `test-queued`, `solver-image-publish`). `infra/jobs/README.md` has the
+    sections Fields, Heuristics (provisional) and Changing an envelope (the `calibrate` →
+    `propose` → pull request → `audit` loop). Both came in `aadff2c3f`.
+  - The comment goes on each catalogue `entrypoint`, not on every launcher. `gate` is at
+    `bin/h2puni-gate.sh:130` and `release-build` at `bin/publish-release.sh:15`.
+    `solver-image-publish` is at `tools/tool-devsync/src/solver-binding-runtime.ts:227`, its
+    catalogue entrypoint. `test-queued`'s entrypoint is `package.json#scripts.test:queued`, and
+    the README says JSON holds none. The launchers `bin/test-queued.sh` and
+    `bin/solver-image-publish.sh` already name their type in `HEAVY_LOCK_JOB_TYPE=<id>`, so a
+    comment there would only repeat it. None was added.
+  - `puni-pr-00` #75, with `website-dev-build`, merged at `022a7e8b8` on 2026-11-03.
+  - Tests: `job-catalogue.test.ts` (Burokrat contracts) has `parses this repository's catalogue
+and names its four job types` and `refuses arguments outside the argument profile`.
+
+### Faults (2.4, `bun test src/resources/host-jobs.test.ts` in its namespace)
+
+| ID    | Injected fault                                                       | Observed                                                                                                                                                                                                               |
+| ----- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6e-F0 | none: the new reuse test against `main`'s dev+inode identity         | `a replacement directory that reuses the inode stays charged and untouched`: `Expected: "blocked"`, `Received: "released"`                                                                                             |
+| 6e-F1 | TypeScript marker comparison replaced by `if (false && …)`           | the reuse test and `a tmp directory whose marker the payload removed stays charged` failed: `Expected to contain: "identity changed"`, `Received: "tmp directory cleanup failed: descriptor-relative removal refused"` |
+| 6e-F2 | 6e-F1 plus the removal script's `marker=` option dropped             | both failed: `Expected: "blocked"`, `Received: "released"`                                                                                                                                                             |
+| 6e-F3 | removal script erases the marker with the rest, not last             | `a blocked tmp directory adds no outbox rows and backs off its evidence reads`: `Expected: 4`, `Received: 5` (a new settlement event)                                                                                  |
+| 6e-F4 | a marker required of a row without one (`job.tmpMarker ?? "absent"`) | `a row prepared before markers settles on device and inode`: `Expected: "released"`, `Received: "blocked"`                                                                                                             |
+
+### Faults (6.10a)
+
+`bin/heavy-lock.test.sh` with `HEAVY_LOCK_TEST_SUITES=jobs`, then `admission.test.ts` in its
+namespace.
+
+| ID     | Injected fault                                                    | Observed                                                                                                                                                                                |
+| ------ | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6e-F5  | `if [[ $running != true ]]` replaced by `if false`                | `49h: a forged scope is refused when the ledger answers absent: want exit 70, got 0`; `49h: the payload ran on a forged scope (absent)`; 3 checks failed                                |
+| 6e-F6  | unenrolled refusal replaced by `if false`                         | `49k: a nested call on an unenrolled host is refused: want exit 70, got 0`; `49k: something ran or asked Dash on an unenrolled host`; 3 checks failed                                   |
+| 6e-F7  | the whole admission block dropped (the library as #873 merged it) | 49a `asked Dash something but its admission`, 49h and every 49i variant `want exit 70, got 0`, the payload ran; 49k `want exit 70, got 0`                                               |
+| 6e-F8  | answer-shape check reduced to `(.running \| tostring)`            | `49i … ledger answers another-job: want exit 70, got 0`, `the payload ran on a forged scope (another-job)`; the malformed answer was refused but not named as unusable; 4 checks failed |
+| 6e-F9  | `hostJobRunning` reduced to `job.state === 'held'`                | `a job whose payload exited, or whose process is gone, is not running`: `- "running": false`, `+ "running": true` (the exited job)                                                      |
+| 6e-F10 | the leader-liveness term dropped                                  | the same test: the killed payload's job read `"running": true`                                                                                                                          |
+| 6e-F11 | `--job` typed `flagValue('NAME')` instead of the job-id pattern   | `the grammar takes only a job id`: `Received function did not throw` for `--job gate`                                                                                                   |
+
+### Commands (fresh, 2026-11-05, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, this workstation)
+
+| Command                                                              | Result                                                                           |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `bun test src/resources/host-jobs.test.ts` (twilight-dash cli)       | 39 pass, 0 fail inside the namespace; outer wrapper 1 pass                       |
+| `bun test src/ops/admission.test.ts src/cli.test.ts`                 | 5 pass in the namespace; 127 pass with `no-ambient-clock.test.ts`, 0 fail        |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                     | 5717 pass, 53 skip, 0 fail across 184 files (3129 s); exit 0                     |
+| `bash bin/heavy-lock.test.sh`                                        | `all heavy-lock checks passed`, cases 49a–49k included                           |
+| `bash bin/h2puni-gate.test.sh`                                       | exit 0                                                                           |
+| `bun test tools/tool-dagger/src/heavy-lock.test.ts`                  | 9 pass, 0 fail                                                                   |
+| `bunx nx run tool-fleet:check --skip-nx-cache`                       | 604 pass, 0 fail; `shellcheck 0.11.0: 14 scripts`, `every family passed`, exit 0 |
+| `bunx nx format:check --all`                                         | exit 0                                                                           |
+| `bunx openspec validate --all --json`                                | 328 passed, 0 failed, exit 0                                                     |
+| Burokrat `check-indexes working <worktree> origin/main`              | exit 0 (two pre-existing review-debt rows)                                       |
+| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2` | 8 projects, exit 0                                                               |
+
+Not done: no host apply and no gate on a host. The admission check takes effect on h2puni and
+h4claw when their launcher checkouts move to a commit carrying it (the hourly refresh, S6D-A4).
+
+### Review fixes (Fable, #876)
+
+| ID     | Injected fault                                                     | Observed                                                                                                                                                                                                  |
+| ------ | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6e-F12 | `openReadOnly` calls `migrate` instead of refusing another version | `a read-only open refuses a ledger of another version and leaves it as it was`: `Expected substring: "resource ledger version 1 is not 2, …"`, `Received message: "attempt to write a readonly database"` |
+| 6e-F13 | 6e-F12 plus `readonly` dropped                                     | the same test: `Received function did not throw`; the open migrated the ledger                                                                                                                            |
+| 6e-F14 | `timeout` dropped from the admission query                         | `HEAVY_LOCK_TEST_SUITES=jobs`, bounded at 90 s from outside, ended 124 before printing `49j`                                                                                                              |
+| 6e-F15 | exit 124 folded into the generic refusal                           | `49j: the refusal did not say Dash timed out: … (exit 124)`; 1 check failed                                                                                                                               |
+
+The F3 marker contract is now one sentence each in `docs/resources.md` (the `TMPDIR` bullet of
+`ops job run`) and `docs/infra/heavy-job-launchers.md`. F4 adds the nested-call requirement to
+the `heavy-lock-queue` delta, with four scenarios. F6: the state text is `(.state // "none" | tostring)`.
+
+After the review fixes, fresh on this workstation: `bunx nx run twilight-dash:test
+--skip-nx-cache` 5717 pass, 53 skip, 0 fail across 184 files (3057 s), exit 0. Also:
+`bash bin/heavy-lock.test.sh` `all heavy-lock checks passed` (49a–49k, 49j new);
+`tool-fleet:check` 604 pass, shellcheck 14 scripts, exit 0; `format:check --all` exit 0;
+`openspec validate --all --json` 328 passed, 0 failed; Burokrat `check-indexes` exit 0 (the
+two existing review-debt rows); `nx affected -t lint typecheck` 8 projects, exit 0.

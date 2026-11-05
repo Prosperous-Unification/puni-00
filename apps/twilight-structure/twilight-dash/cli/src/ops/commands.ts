@@ -224,6 +224,30 @@ export const opsHandlers: OpsHandlers = {
     for (const path of written) deps.stdout(`${path}\n`);
     return 0;
   },
+  'job admission': (command, deps) => {
+    // Read-only and without the eligibility check: the Dash answering may be a gate candidate's,
+    // asked about the production ledger (review of #876 F1).
+    let runtime: ResourceRuntime;
+    try {
+      runtime = ResourceRuntime.openReadOnly(loadResourceConfiguration(command.config), deps.clock);
+    } catch (cause) {
+      throw new OpsRefusal(
+        70,
+        `ops job admission: host pool ${command.config} unreadable: ${causeText(cause)}`,
+        {
+          cause,
+        },
+      );
+    }
+    try {
+      deps.stdout(
+        `${JSON.stringify({ job: command.job, ...runtime.hostJobRunning(command.job) })}\n`,
+      );
+      return 0;
+    } finally {
+      runtime.close();
+    }
+  },
   'job status': (command, deps) => {
     const runtime = openPool(command.config, deps.clock, 'ops job status');
     try {

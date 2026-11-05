@@ -290,6 +290,13 @@ export interface HostJob {
   locator: string;
   dev: number | null;
   ino: number | null;
+  /**
+   * The random token {@link ResourceRuntime.prepareHostJob} wrote to {@link TMP_MARKER} in the
+   * tmp directory: `rmdir` then `mkdir` can hand the same inode back, so device and inode alone
+   * do not prove the directory is the one prepared (task 2.4, S6E-A1). Absent on a row
+   * prepared before markers, which settles on device and inode as it always did (S6E-A2).
+   */
+  tmpMarker?: string;
   tmpDeleteIntent: boolean;
   admittedAt: number;
   launchDeadline: number;
@@ -344,6 +351,7 @@ const HostJobShape = type({
   locator: 'string > 0',
   dev: 'number | null',
   ino: 'number | null',
+  'tmpMarker?': /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
   tmpDeleteIntent: 'boolean',
   admittedAt: 'number',
   launchDeadline: 'number',
@@ -578,6 +586,32 @@ function hostJobDeclaration(job: HostJob, host: string): ResourceRuntimeHostJobU
       ...[...exclusive].map(([dimension, units]) => ({ dimension, units })),
     ],
   };
+}
+
+/**
+ * The token in a tmp directory's {@link TMP_MARKER}, or null when it is absent, a symlink, not a
+ * regular file or hard-linked: each of those means the directory is not the one prepared.
+ * @throws on any other read failure, which is not evidence of replacement.
+ */
+function readTmpMarker(directory: string): string | null {
+  let descriptor;
+  try {
+    descriptor = openSync(
+      join(directory, TMP_MARKER),
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
+  } catch (cause) {
+    if (isMissing(cause) || (cause instanceof Error && 'code' in cause && cause.code === 'ELOOP'))
+      return null;
+    throw cause;
+  }
+  try {
+    const opened = fstatSync(descriptor);
+    if (!opened.isFile() || opened.nlink !== 1 || opened.size > 64) return null;
+    return readFileSync(descriptor, 'utf8');
+  } finally {
+    closeSync(descriptor);
+  }
 }
 
 /** What a settlement event reports: entries, state and the evidence identities. */
@@ -1400,18 +1434,33 @@ export function inspectHolds(locator: string, scope: HoldScope): void {
   }
 }
 
-/** Descriptor-relative removal never follows a symlink, crosses a mount, or accepts a replacement inode. */
+/** The file in a host job's tmp directory that holds its {@link HostJob.tmpMarker}. */
+const TMP_MARKER = '.dash-tmp-identity';
+/**
+ * Descriptor-relative removal never follows a symlink, crosses a mount, or accepts a replacement
+ * inode. Options after the identity: `inspect` removes nothing; `marker=<token>` also requires
+ * {@link TMP_MARKER}, read through the opened directory, to hold that token.
+ */
 const removeDirectory = String.raw`
 import os,sys,stat
 root,name,dev,ino=sys.argv[1:5]
-remove=len(sys.argv)<6 or sys.argv[5]!="inspect"
+options=sys.argv[5:]
+remove="inspect" not in options
+markers=[o[7:] for o in options if o.startswith("marker=")]
 flags=os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW
 parent=os.open(root,flags)
 fd=os.open(name,flags,dir_fd=parent)
 s=os.fstat(fd)
 if (s.st_dev,s.st_ino)!=(int(dev),int(ino)): raise RuntimeError('identity changed')
+if markers:
+ try: m=os.open("${TMP_MARKER}",os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=fd)
+ except OSError: raise RuntimeError('identity changed')
+ ms=os.fstat(m)
+ if not stat.S_ISREG(ms.st_mode) or ms.st_nlink!=1 or os.read(m,64).decode('ascii','replace')!=markers[0]: raise RuntimeError('identity changed')
+ os.close(m)
 def erase(directory):
  for name in os.listdir(directory):
+  if markers and directory==fd and name=="${TMP_MARKER}": continue
   before=os.stat(name,dir_fd=directory,follow_symlinks=False)
   if before.st_dev!=s.st_dev: raise RuntimeError('mount boundary')
   if stat.S_ISDIR(before.st_mode):
@@ -1428,6 +1477,10 @@ def erase(directory):
    if not stat.S_ISLNK(before.st_mode) and before.st_nlink>1: raise RuntimeError('shared hardlink')
    if remove: os.unlink(name,dir_fd=directory)
 erase(fd)
+# The marker goes last, so a refused removal leaves the directory still provably the original.
+# Proof: erasing it with the rest made 'a blocked tmp directory adds no outbox rows' (host-jobs.test.ts)
+# see revision 5, not 4: the next pass read the marker gone and changed the reason (Slice 6e).
+if markers and remove: os.unlink("${TMP_MARKER}",dir_fd=fd)
 after=os.stat(name,dir_fd=parent,follow_symlinks=False)
 if (after.st_dev,after.st_ino)!=(s.st_dev,s.st_ino): raise RuntimeError('identity changed')
 if remove: os.rmdir(name,dir_fd=parent)
@@ -1515,8 +1568,8 @@ export class ResourceRuntime {
       readFileSync('/etc/machine-id', 'utf8').trim(),
     ];
   }
-  /** Opening validates the root and binding before any reservation or provider effect. */
-  static open(configuration: ResourceConfiguration, clock: WallClock): ResourceRuntime {
+  /** The ledger path under `configuration.root`, refused unless it and its directory are owner-only. */
+  private static trustedLedgerPath(configuration: ResourceConfiguration): string {
     checkRoot(configuration.root);
     const path = join(configuration.root, '.dash', 'resources.sqlite');
     for (const trusted of [dirname(path), path]) {
@@ -1529,6 +1582,45 @@ export class ResourceRuntime {
       )
         throw new Error('resource ledger must be owner-only without symlinks');
     }
+    return path;
+  }
+  /**
+   * Open the ledger for reading only (`dash-host-jobs` task 6.10a, review of #876 F1): SQLite
+   * `readonly`, no migration, no eligibility check, the binding still compared. A nested
+   * launcher's admission query runs the Dash of the caller's own checkout, which inside a gate is
+   * the candidate commit, against the production configuration; that Dash must never step the
+   * production ledger's schema.
+   * @throws when the ledger's `user_version` is not {@link LEDGER_VERSION}, naming both, or
+   * when the binding differs.
+   */
+  static openReadOnly(configuration: ResourceConfiguration, clock: WallClock): ResourceRuntime {
+    const path = ResourceRuntime.trustedLedgerPath(configuration);
+    const db = new Database(path, { readonly: true, strict: true });
+    try {
+      db.run('PRAGMA busy_timeout=10000');
+      const row = db.query<{ user_version: number }, []>('PRAGMA user_version').get();
+      if (row === null) throw new Error('resource ledger version unreadable');
+      // Proof: calling `migrate` here instead made `a read-only open refuses a ledger of
+      // another version and leaves it as it was` (host-jobs.test.ts) receive only SQLite's
+      // `attempt to write a readonly database`; with `readonly` dropped as well, the open
+      // migrated the ledger and did not throw (2026-11-05, Slice 6e review F1).
+      if (row.user_version !== LEDGER_VERSION)
+        throw new Error(
+          `resource ledger version ${String(row.user_version)} is not ${String(LEDGER_VERSION)}, the version this Dash reads; a read-only open migrates nothing`,
+        );
+      const root = lstatSync(configuration.root);
+      const binding = db.query<{ identity: string }, []>('SELECT identity FROM binding').get();
+      if (binding?.identity !== JSON.stringify(ResourceRuntime.binding(configuration, root)))
+        throw new Error('resource authority binding mismatch');
+      return new ResourceRuntime(db, configuration, clock, root);
+    } catch (cause) {
+      db.close();
+      throw cause;
+    }
+  }
+  /** Opening validates the root and binding before any reservation or provider effect. */
+  static open(configuration: ResourceConfiguration, clock: WallClock): ResourceRuntime {
+    const path = ResourceRuntime.trustedLedgerPath(configuration);
     const db = new Database(path, { create: false, strict: true });
     db.run('PRAGMA busy_timeout=10000; PRAGMA synchronous=FULL');
     const root = lstatSync(configuration.root);
@@ -2664,6 +2756,29 @@ export class ResourceRuntime {
     if (!row) throw new Error('host job not found');
     return this.hostJobOf(row.snapshot);
   }
+  /**
+   * Whether host job `id`'s payload runs now, for a nested launcher's admission check
+   * (`dash-host-jobs` task 6.10a): launched (`held`), no exit or launch failure recorded, and
+   * its process group leader still the process recorded at launch. `state` is null for an id
+   * this ledger never admitted. Reads only: no sweep, no settlement, no lock.
+   */
+  hostJobRunning(id: string): { state: HostJob['state'] | null; running: boolean } {
+    const row = this.db
+      .query<{ snapshot: string }, [string]>('SELECT snapshot FROM host_jobs WHERE id=?')
+      .get(id);
+    if (!row) return { state: null, running: false };
+    const job = this.hostJobOf(row.snapshot);
+    // Proof: with only the `held` comparison, `a job whose payload exited, or whose process is
+    // gone, is not running` (admission.test.ts) read the exited job as running; with the
+    // liveness check alone dropped, the killed payload's job (2026-11-05, verify.md Slice 6e).
+    const running =
+      job.state === 'held' &&
+      job.exitCode === null &&
+      job.launchFailure === undefined &&
+      job.process !== null &&
+      alive(job.process);
+    return { state: job.state, running };
+  }
   /** Every host job, released history included, oldest admission first. */
   listHostJobs(): HostJob[] {
     return this.db
@@ -3212,8 +3327,11 @@ export class ResourceRuntime {
         );
       mkdirSync(job.locator, { mode: 0o700 });
       const identity = lstatSync(job.locator);
+      const marker = randomUUID();
+      writeFileSync(join(job.locator, TMP_MARKER), marker, { mode: 0o600, flag: 'wx' });
       job.dev = identity.dev;
       job.ino = identity.ino;
+      job.tmpMarker = marker;
       this.saveHostJob(job);
       return job;
     });
@@ -3425,6 +3543,10 @@ export class ResourceRuntime {
               job.id,
               String(job.dev),
               String(job.ino),
+              // Proof: dropping this option, with the TypeScript marker check also dropped, let
+              // `a replacement directory that reuses the inode stays charged and untouched`
+              // (host-jobs.test.ts) remove the replacement: `released` (2026-11-05, Slice 6e).
+              ...(job.tmpMarker === undefined ? [] : [`marker=${job.tmpMarker}`]),
             ],
             { stdout: 'pipe', stderr: 'pipe', timeout: 30000, killSignal: 'SIGKILL' },
           );
@@ -3495,6 +3617,14 @@ export class ResourceRuntime {
       identity.ino !== job.ino
     )
       throw new Error('host job tmp directory identity changed');
+    // Proof: without the marker comparison `a replacement directory that reuses the inode stays
+    // charged and untouched` and `a tmp directory whose marker the payload removed stays
+    // charged` (host-jobs.test.ts) were refused only by the removal script, reason `cleanup
+    // failed: descriptor-relative removal refused`; requiring a marker of a row without one made
+    // `a row prepared before markers settles on device and inode` stay `blocked` (2026-11-05,
+    // verify.md Slice 6e).
+    if (job.tmpMarker !== undefined && readTmpMarker(job.locator) !== job.tmpMarker)
+      throw new Error('host job tmp directory identity changed: content marker differs');
     return true;
   }
   /**

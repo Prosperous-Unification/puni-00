@@ -1265,6 +1265,13 @@ run_heavy_job() {
   run_enrolled_heavy_job "$job_type" "$@"
 }
 
+# Seconds a nested call waits for `ops job admission` before refusing (review of #876 F2): one
+# Bun start and one SQLite read take well under a second, so a minute only says Dash is stuck.
+# Fixed, like the paths above; tests shorten it by redefining this function in their own shell.
+resolve_admission_timeout_seconds() {
+  printf '60\n'
+}
+
 # The cgroup v2 path of this shell, the `0::` line of `/proc/self/cgroup`, or 70 when that file is
 # unreadable or has no such line. Tests reach {@link run_nested_heavy_job}'s admitted branch by redefining this function in
 # their own shell, as they do the fixed paths: no variable names a cgroup.
@@ -1293,15 +1300,16 @@ read_own_cgroup() {
 # receipt is written, because no hold is taken (the receipts `release-pin.ts`,
 # `scoping-rollback.ts` and `fleet-check` read carry no label).
 #
-# **The scope check proves placement, not admission.** `DASH_JOB_ID` is an environment variable
-# anyone can set, and a variable that skips the lock is an opt-out ({@link
-# resolve_heavy_lock_path}). So the id must have a job id's shape and this process must run in a
-# scope named `dash-job-<id>.scope` ({@link read_own_cgroup}); otherwise 70. That refuses an
-# inherited or hand-set `DASH_JOB_ID` outside such a scope, and a launcher that inherited one
-# unsets it before calling (`puni-pr-00`'s `build-release.sh` does, before its `run_heavy_job`).
-# It does not stop a same-account opt-out: `systemd-run --user --scope --unit dash-job-<id>`
-# passes it, as the lock itself is advisory for the account. A real admission check would ask
-# the ledger for a running job with that id (task 6.10 follow-up).
+# **Placement, then admission.** `DASH_JOB_ID` is an environment variable anyone can set, and a
+# variable that skips the lock is an opt-out ({@link resolve_heavy_lock_path}). So the id must
+# have a job id's shape and this process must run in a scope named `dash-job-<id>.scope` ({@link
+# read_own_cgroup}); otherwise 70. That refuses an inherited or hand-set `DASH_JOB_ID` outside
+# such a scope, and a launcher that inherited one unsets it before calling (`puni-pr-00`'s
+# `build-release.sh` does, before its `run_heavy_job`). A scope of that name proves placement
+# only: `systemd-run --user --scope --unit dash-job-<id>` makes one for any id. So the ledger is
+# asked last, through `ops job admission` of this checkout's Dash, which reads it without a
+# lock: the job must be launched, its payload not yet exited and its leader alive (task 6.10a,
+# S6E-A3). On an unenrolled host there is no ledger and so no admitted job: 70.
 #
 # **A type that declares an exclusive unit is refused, 70.** Its unit is either the enclosing
 # job's, in use by the payload that started this one, or not held at all; re-labelling cannot
@@ -1310,12 +1318,17 @@ read_own_cgroup() {
 # The payload runs as a foreground child and its status is returned; a signal reaches it through
 # the job's scope, which Dash signals as a whole. Exit codes: the payload's, 64 for a type the
 # catalogue does not name, 70 for an identity outside its scope, a catalogue that cannot be read,
-# or a type with an exclusive unit.
+# a type with an exclusive unit, an unenrolled host, a Dash that cannot answer, or no running job.
 #
 # Proof (observed 2026-11-05): with the scope comparison replaced by `false`, a `DASH_JOB_ID`
 # naming another job's scope ran the payload unlocked — `49d … want exit 70, got 0`; with the
 # exclusive-unit refusal removed, a nested `solver-image-publish` ran inside the gate's job —
-# `49f … want exit 70, got 0` (bin/heavy-lock.test.sh, case 49).
+# `49f … want exit 70, got 0` (bin/heavy-lock.test.sh, case 49). Observed 2026-11-05: with the
+# running-job comparison replaced by `false`, a forged scope with no such job ran the payload
+# unlocked — `49h … want exit 70, got 0`; with the unenrolled refusal removed, the unenrolled
+# host asked a Dash with no ledger — `49k … want exit 70, got 0`; with the answer's job id and
+# type unchecked, an answer about another running job ran it — `49i … another-job: want exit 70,
+# got 0`.
 run_nested_heavy_job() {
   local job_type=$1
   shift
@@ -1356,6 +1369,51 @@ run_nested_heavy_job() {
   if [[ -n $exclusive ]]; then
     printf 'heavy job: %s declares the exclusive unit %s; inside dash job %s (%s) it would share that job'\''s unit or hold none, so it runs only as a job of its own, outside %s\n' \
       "$job_type" "$exclusive" "$job_id" "$outer_label" "$outer_label" >&2
+    return 70
+  fi
+  local enrollment
+  enrollment=$(read_host_pool_enrollment) || return $?
+  if [[ $enrollment == unenrolled ]]; then
+    printf 'heavy job: DASH_JOB_ID is %s, but this host is not enrolled in a Dash host pool, so no Dash job admitted it; unset it to run %s on the legacy lock\n' \
+      "$job_id" "$job_type" >&2
+    return 70
+  fi
+  local entrypoint answer running query_status=0 limit
+  entrypoint=$(resolve_dash_entrypoint)
+  if [[ ! -f $entrypoint ]] || ! command -v bun >/dev/null 2>&1 || ! command -v timeout >/dev/null 2>&1; then
+    printf 'heavy job: cannot ask Dash whether job %s is running: the entrypoint %s, bun or timeout is missing\n' \
+      "$job_id" "$entrypoint" >&2
+    return 70
+  fi
+  # The Dash of this library's own checkout answers: inside a gate that is the candidate commit,
+  # which is why the command opens the ledger read-only and refuses another schema version.
+  limit=$(resolve_admission_timeout_seconds)
+  answer=$(timeout --kill-after=5 "$limit" \
+    bun "$entrypoint" ops job admission --config "$(resolve_host_pool_config_path)" --job "$job_id" \
+    </dev/null) || query_status=$?
+  # Proof (observed 2026-11-05): without `timeout`, a Dash that never answers held the nested
+  # call; the jobs suite, bounded at 90 s from outside, ended 124 before printing `49j`. With 124
+  # folded into the generic refusal, `49j: the refusal did not say Dash timed out … (exit 124)`
+  # (bin/heavy-lock.test.sh).
+  if [[ $query_status == 124 || $query_status == 137 ]]; then
+    printf 'heavy job: Dash did not say within %ss whether job %s is running; %s does not run on its admission\n' \
+      "$limit" "$job_id" "$job_type" >&2
+    return 70
+  fi
+  if [[ $query_status != 0 ]]; then
+    printf 'heavy job: Dash could not say whether job %s is running (exit %s); %s does not run on its admission\n' \
+      "$job_id" "$query_status" "$job_type" >&2
+    return 70
+  fi
+  if ! running=$(jq -er --arg id "$job_id" \
+    'if .job == $id and (.running | type) == "boolean" then (.running | tostring) else error("malformed") end' \
+    <<<"$answer" 2>/dev/null); then
+    printf 'heavy job: Dash answered %q for job %s, not an admission answer\n' "$answer" "$job_id" >&2
+    return 70
+  fi
+  if [[ $running != true ]]; then
+    printf 'heavy job: DASH_JOB_ID is %s and this process runs in its scope, but the host pool ledger has no running job %s (%s); a scope of that name is not an admission; unset it to run %s as a job of its own\n' \
+      "$job_id" "$job_id" "$(jq -r '"state " + (.state // "none" | tostring)' <<<"$answer")" "$job_type" >&2
     return 70
   fi
   local nested_label="$outer_label/$job_type"
