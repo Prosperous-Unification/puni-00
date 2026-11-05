@@ -249,13 +249,15 @@
       `checkout --detach origin/main` while no job runs from it, then a watch restart); until it
       lands that is a manual operator step (`docs/infra/gate-hosts.md`, S6C-A20) — test: the
       timer refuses while a job launched from the checkout runs.
-- [ ] 6.10 A nested `run_heavy_job` inherits the outer job's `HEAVY_LOCK_LABEL`: a `test:queued`
+- [x] 6.10 A nested `run_heavy_job` inherits the outer job's `HEAVY_LOCK_LABEL`: a `test:queued`
       or solver publish started inside an admitted gate payload is labelled as the gate, on the
       legacy lock and in Dash alike (found by slice 6c's h2puni gate on 37ca6254a, where
       `launchers.test.ts` saw `--label gate:37ca6254`). `run_heavy_job` should refuse a nested
       call, or re-label it `<outer label>/<own type>` when `DASH_JOB_ID` is already set — test:
       a launcher run inside a fake admitted job records the derived label; negative: drop the
-      check and watch it record the outer label.
+      check and watch it record the outer label. Done (S6D-A1): `run_nested_heavy_job` re-labels a
+      type without exclusive units and refuses 70 one with units or outside its job's scope; proof:
+      with the branch removed, case 49a got `gate:abc` and Dash's `--label gate:abc`.
 - [ ] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
       (slice 3, #809) carries `descriptorDigest` and no durable locator, so this needs a locator
       for the run record and a decision on which digest WBS keeps — test: a returned host job's

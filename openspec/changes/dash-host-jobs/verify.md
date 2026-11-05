@@ -2569,3 +2569,63 @@ puni_gate_authorized_keys lists 3`. With the count condition removed both bad fi
 | `bunx nx affected -t lint typecheck test --base=origin/main --parallel=2`           | 8 projects, exit 0                            |
 
 No host was touched: the converging apply of this change on h2puni and h4claw is owed (task 6.3e).
+
+## Slice 6d: nested heavy jobs and launcher freshness (tasks 6.10, 6.9)
+
+Branch `feat/host-jobs-nested-label-and-launcher-timer` from `main` at `5150237fc`. Nothing here
+touched a host: no ssh, no apply, no enrollment.
+
+### Assumptions (overrulable by id)
+
+- **S6D-A1 A nested call is re-labelled, on its enclosing job's admission, when that is sound
+  (task 6.10).** `run_heavy_job` with `DASH_JOB_ID` set calls `run_nested_heavy_job`, which takes
+  no lock, writes no ticket and asks Dash nothing. It runs the payload with
+  `HEAVY_LOCK_LABEL=<outer label>/<type>` and prints one stderr line,
+  `heavy job: <derived label> runs inside dash job <id> on that job's admission; no lock or
+admission of its own`, which lands in the enclosing job's log.
+  - Why re-label rather than refuse: the nested work is already inside an admitted scope, which
+    measures and caps it, and Dash attributes every process that carries the job's
+    `DASH_JOB_ID`. Asking again only queued it behind its own enclosing job: an observe-mode
+    ticket behind the job's legacy hold, or an admission behind a `gate` that is not
+    concurrency-eligible. With a zero budget either refused 75, under the gate's label.
+  - The identity is checked against the kernel. The id must have a job id's shape
+    (`[0-9a-f-]{36}`, as `status.ts` parses it). This process's cgroup v2 path must be, or sit
+    under, `dash-job-<id>.scope` (`scopeUnitOf`). Otherwise the call is refused 70, so an exported
+    `DASH_JOB_ID` cannot opt a run out of the lock. A variable inherited outside its job is
+    refused rather than ignored: the caller unsets it, as puni-pr-00's `build-release.sh` already
+    does before its `run_heavy_job`.
+  - A type that declares an exclusive unit is refused 70. Its unit is either the enclosing job's,
+    in use by the payload that started it, or not held at all. Re-labelling cannot make either
+    sound. Today that means every type but `test-queued`: a nested solver publish or release build
+    is refused with the unit named. It could not run before either: it queued behind the gate.
+    An uncatalogued type is 64, as Dash refuses it.
+  - The `/` separator is kept. The receipts that `release-pin.ts`, `scoping-rollback.ts`
+    (`heavy-lock-claim.ts`) and puni-fleet `fleet-check` read are
+    `<library> heavy lock: waited <n>s behind <k> tickets` or
+    `dash job <id> type website-dev-build`, and neither form carries a label. A ticket's
+    `label` line takes any text. `status.ts` parses a holder label only up to the space after
+    `dash-job-<id>`. A nested call writes none of these.
+  - The legacy lock is unchanged. On an unenrolled host there is no admitted job, so no
+    `DASH_JOB_ID`, and a nested launcher queues behind its parent's lock as before.
+- **S6D-A2 No Dash-side assertion in `launchers.test.ts`.** Its fake scope seam
+  (`fakeSystemdRun` `exec`, `fakeScopeTelemetry`) runs the payload outside any
+  `dash-job-<id>.scope`. A nested launcher there would be refused by the cgroup check, which is the
+  check doing its job. The derived label, the absence of a lock and of a second admission, the
+  status pass-through and the kernel identity are pinned in `bin/heavy-lock.test.sh` case 49,
+  with `read_own_cgroup` redefined in the test shell, the seam this library already uses for its
+  fixed paths. Case 49c reads the real `/proc/self/cgroup`.
+- **S6D-A3 Tests that spawn launchers with an inherited environment.** Run inside an enrolled
+  gate, a test that spawns a real launcher with `process.env` now takes the nested path.
+  `launchers.test.ts` already removes the job variables (S6C-A25), and `heavy-lock.test.sh`'s job
+  suite now unsets `HEAVY_LOCK_LABEL` and every `DASH_JOB_*` before case 40. The actual-entrypoint
+  cases in `tools/tool-dagger/src/heavy-lock.test.ts` still inherit them. Under an enrolled gate
+  they were already broken: their fixture checkout has no Dash entrypoint, so they get 70. They
+  owe the same cleaning before the first gate runs on an enrolled host.
+
+### Faults (6.10, `bin/heavy-lock.test.sh`, `HEAVY_LOCK_TEST_SUITES=jobs`)
+
+| Injected fault                                                | Observed                                                                                                                                                    |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `run_heavy_job`'s `DASH_JOB_ID` branch replaced by `if false` | `49a: the payload runs under the derived label: want 'gate:abc/test-queued', got 'gate:abc'`; `49a: the nested call asked Dash again: … --label gate:abc …` |
+| scope comparison replaced by `if false`                       | `49c`/`49d … want exit 70, got 0`, `something ran beside a forged job identity`; 4 checks failed                                                            |
+| exclusive-unit refusal replaced by `if false`                 | `49f … want exit 70, got 0`; the payload ran as `gate:abc/solver-image-publish`; 2 checks failed                                                            |

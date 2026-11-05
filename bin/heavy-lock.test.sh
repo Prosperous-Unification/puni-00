@@ -1278,6 +1278,9 @@ make_job_fixture() {
   mkdir -p "$checkout/bin" "$checkout/apps/twilight-structure/twilight-dash/cli/src" \
     "$job_scratch/fake-bin" "$job_scratch/root/.dash" "$job_scratch/config-dir"
   cp "$lock_lib" "$checkout/bin/heavy-lock-lib.sh"
+  # The real catalogue, so a nested job's exclusive units are the production types' own (case 49).
+  mkdir -p "$checkout/infra/jobs"
+  cp "$repo_root/infra/jobs/catalogue.json" "$checkout/infra/jobs/catalogue.json"
   : >"$checkout/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts"
   cat >"$job_scratch/fake-bin/bun" <<'FAKE'
 #!/usr/bin/env python3
@@ -1314,6 +1317,7 @@ job_inner='source "$1"; shift
 resolve_host_pool_config_path() { printf "%s\n" "$JOB_TEST_CONFIG"; }
 resolve_host_pool_root() { printf "%s\n" "$JOB_TEST_ROOT"; }
 resolve_heavy_lock_path() { printf "%s\n" "$JOB_TEST_LOCK"; }
+if [[ -n ${JOB_TEST_CGROUP:-} ]]; then read_own_cgroup() { printf "%s\n" "$JOB_TEST_CGROUP"; }; fi
 trap "printf \"exit\n\" >>\"\$JOB_TEST_TRAPS\"" EXIT
 run_heavy_job "$@"'
 run_job() {
@@ -1334,8 +1338,11 @@ trap_runs() { if [[ -e $job_scratch/traps ]]; then wc -l <"$job_scratch/traps" |
 run_job_suite() {
   local sh=$1 status config="$job_scratch/config-dir/host-pool.json" ledger="$job_scratch/root/.dash/resources.sqlite"
   printf '\nrun_heavy_job with %s\n' "$sh"
-  # A type inherited from whoever runs this suite would hide case 43.
-  unset HEAVY_LOCK_JOB_TYPE
+  # A type inherited from whoever runs this suite would hide case 43, and inside an admitted job
+  # (an enrolled gate running this suite) its job variables would make every case below nested.
+  unset HEAVY_LOCK_JOB_TYPE HEAVY_LOCK_LABEL
+  local inherited
+  for inherited in $(compgen -v DASH_JOB_); do unset "$inherited"; done
 
   # 40a. A configuration missing beside a ledger is a broken enrolled host: 70, neither mechanism.
   reset_job_logs
@@ -1563,6 +1570,78 @@ run_job_suite() {
   expect_status 64 "$status" "46d: a command without the '--' is refused"
   if [[ -e $job_scratch/ran ]] || dash_was_called; then fail "46d: something ran without the '--'"
   else pass "46d: nothing ran without the '--'"; fi
+
+  # 49. A launcher inside an admitted job (`dash-host-jobs` 6.10, S6D-A1) runs on that job's
+  # admission under `<outer label>/<own type>`: no lock, no ticket, no second `ops job run`. The
+  # enrolled configuration is present, as on the host where a gate payload starts it.
+  local job_id=0f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0 nested_env="$job_scratch/nested-env"
+  local in_scope="/user.slice/user-1000.slice/user@1000.service/app.slice/dash-job-$job_id.scope"
+  # shellcheck disable=SC2016 # Single quotes are the point: the payload expands these itself.
+  local report_label='printf "%s\n" "$HEAVY_LOCK_LABEL" >"$0"; exit "${1:-0}"'
+  reset_job_logs
+  rm -f "$nested_env"
+  status=0
+  DASH_JOB_ID=$job_id DASH_JOB_TYPE=gate HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP=$in_scope \
+    HEAVY_LOCK_JOB_TYPE=test-queued run_job "$sh" -- bash -c "$report_label" "$nested_env" \
+    2>"$job_scratch/stderr" || status=$?
+  expect_status 0 "$status" '49a: a nested launcher inside an admitted job runs'
+  expect_equal 'gate:abc/test-queued' "$(cat "$nested_env" 2>/dev/null)" \
+    '49a: the payload runs under the derived label'
+  if grep -q "heavy job: gate:abc/test-queued runs inside dash job $job_id" "$job_scratch/stderr"; then
+    pass '49a: the derived label is recorded'
+  else fail "49a: the derived label was not recorded: $(cat "$job_scratch/stderr")"; fi
+  if dash_was_called; then
+    fail "49a: the nested call asked Dash again: $(cat "$job_scratch/dash.log")"
+  elif [[ -e $job_scratch/heavy.lock.d ]] || compgen -G "$job_scratch/heavy.lock.queue/*" >/dev/null ||
+    grep -q 'heavy lock:' "$job_scratch/stderr"; then
+    fail "49a: the nested call took or queued for the heavy lock: $(cat "$job_scratch/stderr")"
+  else pass '49a: no lock, no ticket and no second admission'; fi
+  reset_job_logs
+  status=0
+  DASH_JOB_ID=$job_id HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP="$in_scope" \
+    HEAVY_LOCK_JOB_TYPE=test-queued run_job "$sh" -- bash -c "$report_label" "$nested_env" 42 \
+    2>/dev/null || status=$?
+  expect_status 42 "$status" "49b: the nested payload's status is the caller's"
+  expect_equal 1 "$(trap_runs)" "49b: the caller's EXIT trap ran once"
+
+  # 49c-49e. The job identity is the kernel's, not the variable's: a DASH_JOB_ID this process's
+  # cgroup does not carry is refused, so setting it is no way around the lock. 49c reads the real
+  # `/proc/self/cgroup`, which no test runner shares with a dash-job scope.
+  local other_scope="/user.slice/user-1000.slice/user@1000.service/app.slice/dash-job-ffffffff-4b5a-4968-8776-a5b4c3d2e1f0.scope"
+  local scenario
+  for scenario in "49c:$job_id:" "49d:$job_id:$other_scope" "49e:not-a-job-id:$in_scope"; do
+    local label=${scenario%%:*} rest=${scenario#*:}
+    local forged_id=${rest%%:*} forged_cgroup=${rest#*:}
+    reset_job_logs
+    status=0
+    DASH_JOB_ID=$forged_id HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP=$forged_cgroup \
+      HEAVY_LOCK_JOB_TYPE=test-queued run_job "$sh" -- touch "$job_scratch/ran" \
+      2>"$job_scratch/stderr" || status=$?
+    expect_status 70 "$status" "$label: a DASH_JOB_ID outside its job's scope is refused"
+    if [[ -e $job_scratch/ran || -e $job_scratch/heavy.lock.d ]] || dash_was_called; then
+      fail "$label: something ran beside a forged job identity"
+    else pass "$label: nothing ran, locked or admitted"; fi
+  done
+  if grep -q "DASH_JOB_ID is not-a-job-id" "$job_scratch/stderr"; then pass '49e: the refusal names the variable'
+  else fail "49e: the refusal did not name the variable: $(cat "$job_scratch/stderr")"; fi
+
+  # 49f. A type that declares an exclusive unit is refused nested: it would share the enclosing
+  # job's unit or hold none of its own. 49g: an uncatalogued type is 64, as Dash refuses it.
+  reset_job_logs
+  status=0
+  DASH_JOB_ID=$job_id HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP="$in_scope" \
+    HEAVY_LOCK_JOB_TYPE=solver-image-publish run_job "$sh" -- touch "$job_scratch/ran" \
+    2>"$job_scratch/stderr" || status=$?
+  expect_status 70 "$status" '49f: a nested type with an exclusive unit is refused'
+  if grep -q 'solver-image-publish declares the exclusive unit dagger_engine' "$job_scratch/stderr" &&
+    [[ ! -e $job_scratch/ran ]] && ! dash_was_called; then
+    pass '49f: the refusal names the unit and nothing ran'
+  else fail "49f: the refusal did not name the unit, or something ran: $(cat "$job_scratch/stderr")"; fi
+  status=0
+  DASH_JOB_ID=$job_id HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP="$in_scope" \
+    HEAVY_LOCK_JOB_TYPE=not-catalogued run_job "$sh" -- touch "$job_scratch/ran" \
+    2>"$job_scratch/stderr" || status=$?
+  expect_status 64 "$status" '49g: a nested uncatalogued type is refused'
 }
 
 # 47. The launchers' own argument refusals, through the real scripts (review F6). Each is refused
