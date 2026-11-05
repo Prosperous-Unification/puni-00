@@ -773,3 +773,75 @@ for (const boundary of ['interpreter', 'foreign', 'writable', 'path']) {
     expect(invocation.stdout.toString()).toBe(`verified fixture import ${boundary}\n`);
   });
 }
+
+const startupRuntime = String.raw`
+${providerStartup}
+import builtins,ctypes,_ctypes,io,tempfile
+case=sys.argv[1]
+# Discover the shared runtime independently of the helper's symbol-address lookup.
+# Built-in _ctypes uses its executable instead; a separately loaded libffi is foreign.
+ctypes.CDLL('libffi.so.8')
+with open('/proc/self/maps') as stream:
+    mappings=stream.read().splitlines()
+ffi_paths={line.split(None,5)[5] for line in mappings if '/libffi.so.' in line}
+assert len(ffi_paths)==1,ffi_paths
+ffi_path=ffi_paths.pop()
+libc_paths={line.split(None,5)[5] for line in mappings if '/libc.so.' in line}
+assert len(libc_paths)==1,libc_paths
+libc_path=libc_paths.pop()
+runtime_path=ffi_path if getattr(_ctypes,'__file__',None) else '/proc/self/exe'
+with tempfile.TemporaryDirectory() as directory:
+    retained=os.open(directory+'/retained',os.O_CREAT|os.O_EXCL|os.O_RDWR,0o600)
+    before=fixture_descriptors()
+    target=runtime_path if case in ('runtime','missing-map','unreadable-map','nonexecuting-map') else libc_path
+    if case=='lookalike':
+        target=directory+'/libffi.so.8'
+        with open(target,'wb') as stream:stream.write(b'foreign runtime name')
+    added=os.open(target,os.O_RDONLY)
+    if case in ('missing-map','unreadable-map','nonexecuting-map'):
+        # Force the real shared-libffi branch on built-in and extension builds alike.
+        _ctypes.__file__=ffi_path
+        original_open=builtins.open
+        def maps(path,*arguments,**keywords):
+            if path=='/proc/self/maps':
+                if case=='unreadable-map':raise PermissionError('fixture denied runtime maps')
+                return io.StringIO('\n'.join(line.replace('r-xp','r--p') for line in mappings) if case=='nonexecuting-map' else '')
+            return original_open(path,*arguments,**keywords)
+        builtins.open=maps
+    try:
+        complete_provider_import(before)
+    except (AssertionError,PermissionError) as failure:
+        assert case!='runtime',str(failure)
+        expected='fixture denied runtime maps' if case=='unreadable-map' else 'fixture-import-runtime' if case in ('missing-map','nonexecuting-map') else 'fixture-import-identity'
+        assert str(failure)==expected,str(failure)
+        assert os.fstat(added).st_ino>0
+        os.close(added)
+    else:
+        assert case=='runtime','fixture closed unowned or unresolved runtime descriptor'
+        try:os.fstat(added)
+        except OSError as failure:assert failure.errno==errno.EBADF
+        else:raise AssertionError('fixture runtime descriptor remained open')
+    os.write(retained,b'retained')
+    assert os.fstat(retained).st_size==8
+    os.close(retained)
+print('verified fixture runtime '+case)
+`;
+
+for (const boundary of [
+  'runtime',
+  'mapped-other',
+  'lookalike',
+  'missing-map',
+  'unreadable-map',
+  'nonexecuting-map',
+]) {
+  test(`logical provider startup binds the actual libffi runtime: ${boundary}`, () => {
+    const invocation = Bun.spawnSync(
+      ['/usr/bin/python3', '-I', '-B', '-c', startupRuntime, boundary],
+      { timeout: 3000, maxBuffer: 65536 },
+    );
+    expect(invocation.stderr.toString()).toBe('');
+    expect(invocation.exitCode).toBe(0);
+    expect(invocation.stdout.toString()).toBe(`verified fixture runtime ${boundary}\n`);
+  });
+}

@@ -270,6 +270,107 @@ def reopen_confined_raw(descriptor, original):
     finally:
         os.close(reopened)
 
+def check_raw_geometry(descriptor, path):
+    """Admit only the initialized, private ext4 overwrite profile through the canonical inspector.
+
+    This fixed provider requires the observed 4KiB ext4 mount policy, EXTENTS-only
+    inode flags, and no unwritten/shared/unknown FIEMAP extent. Existing mapped
+    overwrites then reuse mappings; the child filter denies range and xattr mutation.
+    Bind the path inspection back to the original descriptor before returning.
+    """
+    # Proof: geometry admission architecture/word-size and exact guard faults expose unsupported profile admission.
+    require(os.uname().machine == 'x86_64' and ctypes.sizeof(ctypes.c_long) == 8,
+            'guest-geometry-unsupported')
+    opened = os.fstat(descriptor)
+    filesystem = (ctypes.c_long * 15)()
+    libc = ctypes.CDLL(None, use_errno=True)
+    filesystem_status = libc.fstatfs(descriptor, ctypes.byref(filesystem))
+    # Proof: geometry admission statfs-failure preserves the failed syscall while removing only its status check.
+    require(filesystem_status == 0, 'guest-geometry-statfs')
+    # Proof: geometry admission filesystem/block-size exact-call faults admit the unqualified native reply.
+    require(filesystem[0] == 0xef53 and filesystem[1] == 4096, 'guest-geometry-filesystem')
+    device = f'{os.major(opened.st_dev)}:{os.minor(opened.st_dev)}'
+    mounts = [line.split() for line in raw.read_text('/proc/self/mountinfo', 1024**2).splitlines()]
+    selected = [mount for mount in mounts if len(mount) >= 10 and mount[2] == device]
+    # Proof: geometry admission mount-type/options/duplicate/missing faults each bypass this one call.
+    require(len(selected) == 1 and selected[0][5] == 'rw,noatime'
+            and selected[0][-4] == '-' and selected[0][-3] == 'ext4'
+            and selected[0][-1] == 'rw,errors=remount-ro', 'guest-geometry-mount')
+    flags = bytearray(8)
+    fcntl.ioctl(descriptor, 0x80086601, flags, True)
+    # Proof: geometry admission inode-feature fault bypass admits an unsupported feature; unreadable ioctl throws.
+    require(int.from_bytes(flags, 'little') == 0x80000, 'guest-geometry-inode')
+    allocation = raw.load_inspector().inspect_file(path, raw.RAW_BYTES, require_initialized=True)
+    retained = os.fstat(descriptor)
+    named = os.lstat(path)
+    # Proof: geometry admission raw-replace/allocation-change and exact guard faults expose unsafe validator acceptance.
+    require(raw.stable_identity(opened) == raw.stable_identity(retained) == raw.stable_identity(named)
+            and opened.st_blocks == retained.st_blocks == named.st_blocks, 'guest-geometry-changed')
+    return allocation
+
+
+def geometry_filter():
+    """Fixed native x86_64 cBPF: preserve initialized ext4 mappings under untrusted QEMU.
+
+    ioctls use the kernel's low unsigned 32-bit command; advice uses its low int.
+    KVM's 0xAE namespace has no geometry dispatch on the qualified ext4 raw inode.
+    Unknown ABI/syscall generations kill; no FD-number exception survives duplication.
+    """
+    allow = (0x06, 0, 0, 0x7fff0000)
+    deny = (0x06, 0, 0, 0x50001)
+    kill = (0x06, 0, 0, 0x80000000)
+    # Proof: guest geometry policy exercises compat/x32 dispatch against actual filter bytes.
+    instructions = [(0x20, 0, 0, 4), (0x15, 1, 0, 0xc000003e), kill,
+                    (0x20, 0, 0, 0), (0x35, 0, 1, 472), kill]
+    # Proof: native geometry punch control observes an actual hole without this rule.
+    instructions.extend([(0x15, 0, 1, 285), (0x06, 0, 0, 0x5005f)])
+    # Proof: geometry filter fault <syscall> removes each decision; native-alternates/block-green additionally witness
+    # copy-range/chmod/xattr mutations and successful legacy/io_uring setup with only their own rules removed.
+    # Fixed 7.0 syscall table: sockets, range operations, async bypasses, authority transfer,
+    # xattr/EA-inode allocation and private-inode attribute changes are unavailable.
+    for number in (41, 42, 43, 44, 45, 46, 47, 53, 76, 77, 90, 91, 92, 93, 94, 101,
+                   188, 189, 190, 197, 198, 199, 206, 207, 208, 209, 210,
+                   260, 268, 288, 299, 307, 311, 326, 333, 425, 426, 427,
+                   438, 440, 448, 452, 463, 466, 469):
+        instructions.extend([(0x15, 0, 1, number), deny])
+    # Proof: native-alternates madvise exact dispatch removal punches an actual mmap-backed raw hole.
+    advice = [(0x20, 0, 0, 32), (0x15, 0, 1, 9), deny, allow]
+    instructions.extend([(0x15, 0, len(advice), 28), *advice])
+    # Proof: native-alternates unresvsp default-ioctl fault punches an actual hole; block-green preserves KVM API12.
+    ioctl = [(0x20, 0, 0, 24)]
+    for command in (0x5401, 0x5413, 0x5421):
+        ioctl.extend([(0x15, 0, 1, command), allow])
+    ioctl.extend([(0x54, 0, 0, 0xff00), (0x15, 0, 1, 0xae00), allow,
+                  (0x06, 0, 0, 0x50019)])
+    instructions.extend([(0x15, 0, len(ioctl), 16), *ioctl, allow])
+    return tuple(instructions)
+
+
+def install_geometry_filter():
+    """Install the immutable policy after Landlock/reopen and before QEMU exec.
+
+    This provider qualifies one kernel/ABI profile; a newer syscall surface is not
+    silently admitted by the deny policy. Descendants inherit the irreversible filter.
+    """
+    # Proof: geometry installation architecture/kernel/word-size faults expose unqualified return before caller exec.
+    require(os.uname().machine == 'x86_64' and ctypes.sizeof(ctypes.c_long) == 8
+            and os.uname().release == '7.0.11-76070011-generic',
+            'guest-geometry-unsupported')
+    class Instruction(ctypes.Structure):
+        _fields_ = [('code', ctypes.c_ushort), ('jt', ctypes.c_ubyte),
+                    ('jf', ctypes.c_ubyte), ('k', ctypes.c_uint)]
+    class Program(ctypes.Structure):
+        _fields_ = [('length', ctypes.c_ushort), ('filter', ctypes.POINTER(Instruction))]
+    instructions = geometry_filter()
+    compiled = (Instruction * len(instructions))(*(Instruction(*entry) for entry in instructions))
+    program = Program(len(instructions), compiled)
+    libc = ctypes.CDLL(None, use_errno=True)
+    # Proof: geometry installation no-new-privileges failure/guard removal preserves the required failure contract.
+    require(libc.prctl(38, 1, 0, 0, 0) == 0, 'guest-geometry-install')
+    # Proof: geometry installation installation fault exposes return without a filter when this exact guard is removed.
+    require(libc.prctl(22, 2, ctypes.byref(program), 0, 0) == 0, 'guest-geometry-install')
+
+
 CAPS = dict(raw.CAPS, **{'memory.max': '1610612736'})
 SERVICE_LIMITS = dict(raw.SERVICE_LIMITS, LimitNOFILE='64', LimitCORE='0', Restart='no')
 
@@ -708,6 +809,7 @@ def worker(request, request_digest):
                                          | os.O_CLOEXEC | os.O_NOFOLLOW)
             opened.callback(os.close, descriptors[name])
         check_original_raw(descriptors['raw'], predecessor['raw'], predecessor['rawIdentity'])
+        check_raw_geometry(descriptors['raw'], predecessor['raw'])
         check_kvm(descriptors['kvm'], request['kvm'])
         # Proof: null device identity — single-call AST mutation; focused guest control observes refusal or the protected-operation witness.
         require(stat.S_ISCHR(os.fstat(descriptors['null']).st_mode)
@@ -735,9 +837,13 @@ def worker(request, request_digest):
             check_original_raw(descriptors['raw'], predecessor['raw'], predecessor['rawIdentity'])
             check_input_descriptors(binding, request)
             check_kvm(descriptors['kvm'], request['kvm'])
+            # Proof: guest geometry caller admission refuses before the original QEMU preexec body can finish.
+            check_raw_geometry(descriptors['raw'], predecessor['raw'])
             confine_qemu(descriptors['raw'], descriptors['qemu'], descriptors['kvm'], descriptors['null'])
             # Proof: guest fdset caller revalidates canonical raw path; removing this call admits an actual write after pathname substitution.
             check_original_raw(descriptors['raw'], predecessor['raw'], predecessor['rawIdentity'])
+            # Proof: guest geometry caller installation refuses before the original QEMU preexec body can finish.
+            install_geometry_filter()
             # CPython preexec precedes close_fds: close only this child's known worker-only copies.
             for descriptor in (staging_fd, directory_fd, descriptors['kvm'], descriptors['null']):
                 os.close(descriptor)
@@ -757,7 +863,7 @@ def worker(request, request_digest):
         os.fsync(descriptors['raw'])
         check_creator(binding, directory, directory_fd)
         check_input_descriptors(binding, request)
-        allocation = raw.load_inspector().inspect_file(predecessor['raw'], raw.RAW_BYTES)
+        allocation = raw.load_inspector().inspect_file(predecessor['raw'], raw.RAW_BYTES, require_initialized=True)
         # Proof: review I3 rejects a record starting before the ordinary child was reaped.
         started_ns = time.time_ns()
         counters = {key: raw.read_text('/sys/fs/cgroup' + binding['cgroup'] + '/' + key, 4096).strip()
@@ -850,7 +956,7 @@ def check_final_artifact(request, binding):
     descriptor = raw.open_private(binding['rawPath'])
     try:
         check_original_raw(descriptor, binding['rawPath'], binding['raw'])
-        allocation = raw.load_inspector().inspect_file(binding['rawPath'], raw.RAW_BYTES)
+        allocation = raw.load_inspector().inspect_file(binding['rawPath'], raw.RAW_BYTES, require_initialized=True)
         # Proof: final raw coverage — single-call AST mutation; focused guest control observes refusal or the protected-operation witness.
         require(allocation['coverageBytes'] == raw.RAW_BYTES, 'guest-final-artifact')
     finally:

@@ -117,7 +117,9 @@ elif case.startswith('seed-'):
         seed = pathlib.Path(directory)/'seed.iso'
         sector = bytearray(2048)
         sector[:7] = b'\x01CD001\x01'
-        sector[40:72] = b'CIDATA'+b' '*26
+        # Exact volume identifier from accepted producer PVD SHA79b2fb6b614f7db80cad16c7a8ebf201a91eee061db44b6069eeab514e3854ae.
+        sector[40:72] = bytes.fromhex('6369646174612020202020202020202020202020202020202020202020202020')
+        if fault == 'uppercase-label': sector[40:72] = b'CIDATA'+b' '*26
         def record(name, location, count, flags=0):
             raw = bytearray(33+len(name)+(len(name)%2 == 0))
             raw[0] = len(raw); raw[2:6] = location.to_bytes(4,'little'); raw[10:14] = count.to_bytes(4,'little');raw[25] = flags;raw[32]=len(name);raw[33:33+len(name)] = name
@@ -422,6 +424,7 @@ function refuses(case_: string, reason?: string) {
     'seed-writable': 'seed-not-readonly',
     'seed-size': 'seed-size',
     'seed-label': 'seed-label',
+    'seed-uppercase-label': 'seed-label',
     'seed-hash': 'seed-package-hash',
     'seed-instance': 'seed-instance',
     'seed-extra': 'seed-members',
@@ -532,6 +535,7 @@ test('NoCloud renderer binds fixed Python bytes and nonce without keys, NICs or 
   });
   expect(sha256(request.content)).toBe(seed.requestSha256);
   expect(config.runcmd).toHaveLength(1);
+  expect(config.runcmd[0]).toContain('--property=StandardError=journal+console');
   expect(config.runcmd[0].slice(-3)).toEqual([
     '/usr/bin/python3',
     '/opt/puni-baseline/bootstrap.py',
@@ -622,6 +626,7 @@ for (const fault of [
   'writable',
   'size',
   'label',
+  'uppercase-label',
   'hash',
   'instance',
   'extra',
@@ -638,7 +643,7 @@ for (const fault of [
   test(`original read-only CD guard refuses ${fault}`, () => {
     refuses(`seed-${fault}`);
   });
-test('original read-only CD guard hashes all selected package extents before mutation', () => {
+test('original read-only CD guard accepts actual producer PVD label bytes and hashes extents', () => {
   accepts('seed-valid');
 });
 for (const fault of [
@@ -917,4 +922,191 @@ test('real entrypoint refuses this host before guest mutations', async () => {
   expect(invocation.exitCode).toBe(1);
   expect(invocation.stderr.toString()).toContain('guest-boundary');
   expect(invocation.stdout.toString()).toBe('');
+});
+
+const bootstrapControl = String.raw`
+import builtins,importlib.util,json,os,pathlib,sys,tempfile
+spec=importlib.util.spec_from_file_location('bootstrap',sys.argv[1]);g=importlib.util.module_from_spec(spec);spec.loader.exec_module(g)
+host_spec=importlib.util.spec_from_file_location('host',sys.argv[2]);host=importlib.util.module_from_spec(host_spec);host_spec.loader.exec_module(host)
+fault=sys.argv[3]
+request={'schemaVersion':1,'nonce':'1234567890abcdef1234567890abcdef','bootstrapSha256':g.hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest()}
+values={'/sys/class/dmi/id/sys_vendor':'foreign' if fault=='host-vendor' else 'QEMU','/sys/class/dmi/id/product_name':'foreign' if fault=='host-product' else 'Puni bounded baseline','/sys/class/dmi/id/product_uuid':'12345678-90ab-cdef-1234-567890abcdef','/var/lib/cloud/data/instance-id':'puniq-'+request['nonce'],'/sys/class/block/vda/size':'16777216','/sys/class/block/sr0/device/type':'5','/proc/uptime':'601 0' if fault=='readiness' else '161 0','/proc/self/cgroup':'0::/system.slice/puni-baseline.service','/sys/fs/cgroup/system.slice/puni-baseline.service/memory.max':'134217728','/sys/fs/cgroup/system.slice/puni-baseline.service/memory.swap.max':'0','/sys/fs/cgroup/system.slice/puni-baseline.service/pids.max':'32'}
+g.read_text=lambda path,maximum=65536:values[str(path)]
+native_listdir=os.listdir;os.listdir=lambda path:['lo'] if path=='/sys/class/net' else native_listdir(path)
+os.geteuid=lambda:0
+fields={'MemoryMax':'0' if fault=='collector' else '134217728','MemorySwapMax':'0','TasksMax':'32','LimitFSIZE':'65536','RuntimeMaxUSec':'12min 30s','KillMode':'control-group','Restart':'no','TimeoutStopUSec':'30s','MainPID':str(os.getpid())}
+g.show_fields=lambda unit,properties:fields
+seed_checks=[]
+def inspect(request):
+    seed_checks.append(True)
+    if fault=='seed':raise g.Refusal('seed-label')
+g.inspect_seed=inspect
+sample={'capabilities':{'engineVersion':'29.7.2','serverApi':'1.55','minimumApi':'1.40','daemonId':'selected-daemon','os':'linux','arch':'amd64','driver':'overlayfs','driverType':'io.containerd.snapshotter.v1','requestApi':'1.55'},'counts':dict.fromkeys(('containers','running','paused','stopped','images'),0),'filesystem':{'fragmentBytes':4096,'blocks':100,'freeBlocks':50,'files':100,'freeFiles':50},'generation':{}}
+for unit,memory,tasks,executable in [('docker.service',536870912,64,'/usr/bin/dockerd'),('containerd.service',134217728,32,'/usr/bin/containerd')]:
+    unit_fields={'LoadState':'loaded','ActiveState':'active','SubState':'running','InvocationID':'a'*32,'MainPID':'12','ExecMainStartTimestampMonotonic':'123','ControlGroup':'/system.slice/'+unit,'MemoryMax':str(memory),'MemorySwapMax':'0','TasksMax':str(tasks),'NRestarts':'0','Restart':'no','KillMode':'control-group','TimeoutStopUSec':'30s'}
+    sample['generation'][unit]={'unit':unit_fields,'processStart':'123','executable':executable}
+for path in ['/run/docker.sock','/run/containerd/containerd.sock']:sample['generation'][path]=[1,2,3,0,0,432]
+sample['generation']['docker.socket']={'LoadState':'loaded','ActiveState':'active','SubState':'listening','Listen':'/run/docker.sock (Stream)','SocketMode':'0660','SocketUser':'root','SocketGroup':'root'}
+for unit,memory,tasks in [('system.slice',805306368,256),('user.slice',67108864,32)]:sample['generation'][unit]={'MemoryMax':str(memory),'MemorySwapMax':'0','TasksMax':str(tasks)}
+host.check_sample(sample)
+native_measure=g.measure;ticks=[0]
+def measure(request,protocol,shutdown):
+    def sleep(seconds):ticks[0]+=seconds
+    return native_measure(request,protocol,sample=lambda:sample,shutdown=shutdown,clock=lambda:ticks[0],sleep=sleep)
+g.measure=measure
+with tempfile.TemporaryDirectory() as directory:
+    root=pathlib.Path(directory);serial=root/'serial';serial.write_bytes(b'');marker=root/'mutation';marker.write_bytes(b'untouched')
+    g.SEED=root/'seed';serial_opens=[];install_calls=[];poweroffs=[];mutations=[]
+    native_open=builtins.open;native_mkdir=pathlib.Path.mkdir
+    def opened(path,*arguments,**keywords):
+        if str(path)=='/dev/ttyS0':serial_opens.append(True);return native_open(serial,*arguments,**keywords)
+        return native_open(path,*arguments,**keywords)
+    builtins.open=opened
+    def mkdir(path,*arguments,**keywords):
+        if str(path)=='/run/puni-baseline/docker-client':path=root/'client'
+        mutations.append(str(path));return native_mkdir(path,*arguments,**keywords)
+    pathlib.Path.mkdir=mkdir
+    def policy():marker.write_bytes(b'policy');mutations.append('policy')
+    g.write_policy=policy
+    def execute(command,**options):
+        if command[0]=='/usr/bin/cloud-id':return 'nocloud\n'
+        if command[0]=='/usr/bin/findmnt':
+            return '/dev/vda1' if command[-2]=='SOURCE' else ('ext4' if command[-2]=='FSTYPE' else '/dev/sr0 iso9660 ro,nosuid,nodev,noexec')
+        if command[0]=='/usr/sbin/swapon':return ''
+        if command[0]=='/usr/bin/dpkg-query':
+            name=command[-1];version,architecture=(g.PREREQUISITES if name in g.PREREQUISITES else g.PACKAGES)[name][:2]
+            return name+'\t'+version+'\t'+architecture+'\tinstall ok installed\n'
+        if command[0]=='/usr/bin/mount':
+            if fault=='mount':raise g.Refusal('controlled-mount-refusal')
+            return ''
+        if command[0]=='/usr/bin/cloud-init':
+            if fault=='schema':raise g.Refusal('command-exit')
+            return ''
+        if command[0]=='/usr/bin/systemd-run':
+            install_calls.append(True)
+            if fault=='install':raise g.Refusal('controlled-install-refusal')
+            return ''
+        if command[0]=='/usr/bin/systemctl':
+            if command[-1]=='poweroff':poweroffs.append(True)
+            return ''
+        raise AssertionError(command)
+    g.run=execute
+    failure=None
+    try:g.bootstrap(request)
+    except g.Refusal as refused:failure=str(refused)
+    finally:builtins.open=native_open;pathlib.Path.mkdir=native_mkdir
+    content=serial.read_bytes();collector=host.SerialCollector(request,0);host_refusal=None;finished=None
+    try:
+        collector.feed(content,60)
+        finished=collector.finish()
+    except host.raw.PreparationRefusal as refused:host_refusal=str(refused)
+    frames=[json.loads(line[len('PUNI_BASELINE '):]) for line in content.decode().splitlines()]
+    print(json.dumps({'failure':failure,'serialOpens':len(serial_opens),'serialBytes':len(content),'frames':frames,'mutation':marker.read_text(),'mutations':len(mutations),'installCalls':len(install_calls),'poweroffs':len(poweroffs),'hostRefusal':host_refusal,'hostFinished':finished is not None,'seedChecks':len(seed_checks)}))
+`;
+function bootstrapOutcome(fault: string) {
+  const invocation = Bun.spawnSync(
+    [
+      'python3',
+      '-I',
+      '-B',
+      '-c',
+      bootstrapControl,
+      helper,
+      join(import.meta.dir, 'lab-guest-preparation.py'),
+      fault,
+    ],
+    { env: { PATH: '/usr/bin:/bin' }, timeout: 10000, maxBuffer: 65536 },
+  );
+  expect(invocation.exitCode).toBe(0);
+  expect(invocation.stderr.toString()).toBe('');
+  return JSON.parse(invocation.stdout.toString()) as {
+    failure: string | null;
+    serialOpens: number;
+    serialBytes: number;
+    frames: {
+      schemaVersion: 1;
+      kind: string;
+      nonce: string;
+      bootstrapSha256: string;
+      code?: string;
+    }[];
+    mutation: string;
+    mutations: number;
+    installCalls: number;
+    poweroffs: number;
+    hostRefusal: string | null;
+    hostFinished: boolean;
+    seedChecks: number;
+  };
+}
+for (const fault of ['seed', 'collector', 'readiness'])
+  test(`admitted bootstrap ${fault} refusal emits one original Protocol frame before mutation`, async () => {
+    const outcome = bootstrapOutcome(fault);
+    expect(outcome.failure).toBe(
+      (
+        {
+          seed: 'seed-label',
+          collector: 'collector-policy',
+          readiness: 'readiness-deadline',
+        } as Record<string, string>
+      )[fault],
+    );
+    expect(outcome.serialOpens).toBe(1);
+    expect(outcome.frames).toEqual([
+      {
+        schemaVersion: 1,
+        nonce,
+        bootstrapSha256: sha256(await readFile(helper)),
+        kind: 'failure',
+        code: 'guest-baseline-refused',
+      },
+    ]);
+    expect(outcome.serialBytes).toBeLessThanOrEqual(65536);
+    expect(outcome.mutation).toBe('untouched');
+    expect(outcome.mutations).toBe(0);
+    expect(outcome.installCalls).toBe(0);
+    expect(outcome.poweroffs).toBe(0);
+    expect(outcome.hostRefusal).toBe('guest-frame-order');
+    expect(outcome.hostFinished).toBe(false);
+  });
+for (const fault of ['mount', 'schema', 'install'])
+  test(`admitted bootstrap ${fault} refusal emits exactly one failure frame`, () => {
+    const outcome = bootstrapOutcome(fault);
+    expect(outcome.failure).not.toBeNull();
+    expect(outcome.frames.map((frame) => frame.kind)).toEqual(['failure']);
+    expect(outcome.hostRefusal).toBe('guest-frame-order');
+    expect(outcome.hostFinished).toBe(false);
+    expect(outcome.poweroffs).toBe(0);
+  });
+for (const fault of ['vendor', 'product'])
+  test(`bootstrap host ${fault} boundary refuses before serial or mutation`, () => {
+    const outcome = bootstrapOutcome(`host-${fault}`);
+    expect(outcome.failure).toBe(fault === 'vendor' ? 'guest-boundary-vendor' : 'guest-boundary');
+    expect(outcome.serialOpens).toBe(0);
+    expect(outcome.serialBytes).toBe(0);
+    expect(outcome.frames).toEqual([]);
+    expect(outcome.mutation).toBe('untouched');
+    expect(outcome.mutations).toBe(0);
+    expect(outcome.installCalls).toBe(0);
+    expect(outcome.seedChecks).toBe(0);
+  });
+test('bootstrap success remains exactly measured/final through original host EOF consumer', () => {
+  const outcome = bootstrapOutcome('valid');
+  expect(outcome.failure).toBeNull();
+  expect(outcome.frames.map((frame) => frame.kind)).toEqual(['measured', 'final']);
+  expect(outcome.serialOpens).toBe(1);
+  expect(outcome.installCalls).toBe(1);
+  expect(outcome.poweroffs).toBe(1);
+  expect(outcome.hostRefusal).toBeNull();
+  expect(outcome.hostFinished).toBe(true);
+});
+
+test('console-routed bootstrap diagnostics keep arbitrary private paths out of stderr', () => {
+  const invocation = Bun.spawnSync(
+    ['python3', '-I', '-B', helper, '/controlled-private-secret/missing-bootstrap-request'],
+    { env: { PATH: '/usr/bin:/bin' }, timeout: 10000, maxBuffer: 65536 },
+  );
+  expect(invocation.exitCode).toBe(1);
+  expect(invocation.stdout.toString()).toBe('');
+  expect(invocation.stderr.toString()).toBe('Puni guest bootstrap refused: FileNotFoundError\n');
 });

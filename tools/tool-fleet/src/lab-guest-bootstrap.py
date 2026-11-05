@@ -147,8 +147,8 @@ def require_guest_identity(facts, request):
     require(facts == expected and type(facts['rootSectors']) is int and type(facts['uid']) is int, 'guest-boundary')
 
 
-def guard_guest(request):
-    """Read actual DMI first, so accidental execution on the host cannot reach mutation."""
+def guard_guest_identity(request):
+    """Validate read-only guest identity before any serial open or guest mutation."""
     # Proof: bypass guest-boundary-vendor failed `native guest entry checks refuse vendor` (watched guard fault).
     require(read_text('/sys/class/dmi/id/sys_vendor') == 'QEMU', 'guest-boundary-vendor')
     facts = {
@@ -158,6 +158,11 @@ def guard_guest(request):
         'rootSectors': int(read_text('/sys/class/block/vda/size')), 'network': sorted(os.listdir('/sys/class/net')), 'uid': os.geteuid(),
     }
     require_guest_identity(facts, request)
+
+
+def guard_guest(request):
+    """Revalidate identity and the complete root/package/CD boundary before mutation."""
+    guard_guest_identity(request)
     # Proof: bypass seed-not-cdrom failed `native guest entry checks refuse cdrom` (watched guard fault).
     require(int(read_text('/sys/class/block/sr0/device/type')) == 5, 'seed-not-cdrom')
     # Proof: bypass root-filesystem failed `native guest entry checks refuse filesystem` (watched guard fault).
@@ -187,8 +192,8 @@ def inspect_seed(request):
         # Proof: bypass seed-size failed `original read-only CD guard refuses size` (watched guard fault).
         require(0 < capacity <= 80 * 1024 * 1024, 'seed-size')
         pvd = pread_exact(fd, 2048, 16 * 2048)
-        # Proof: bypass seed-label failed `original read-only CD guard refuses label` (watched guard fault).
-        require(pvd[:7] == b'\x01CD001\x01' and pvd[40:72].rstrip(b' ') == b'CIDATA', 'seed-label')
+        # Proof: uppercase-label fault rejects actual producer PVD bytes; label bypass accepts the wrong-label negative.
+        require(pvd[:7] == b'\x01CD001\x01' and pvd[40:72] == b'cidata' + b' ' * 26, 'seed-label')
         supplementary = []
         for sector in range(17, 32):
             descriptor = pread_exact(fd, 2048, sector * 2048)
@@ -559,22 +564,24 @@ def require_seed_mount(text):
 
 
 def bootstrap(request):
-    guard_guest(request)
-    require_collector()
-    require_readiness()
-    resource = __import__('resource')
-    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-    resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
-    resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_FRAME, MAX_FRAME))
-    os.umask(0o077)
-    pathlib.Path('/run/puni-baseline/docker-client').mkdir(parents=True, mode=0o700)
-    SEED.mkdir(mode=0o700)
-    run(['/usr/bin/mount', '-t', 'iso9660', '-o', 'ro,nosuid,nodev,noexec', '/dev/sr0', str(SEED)])
-    require_seed_mount(run(['/usr/bin/findmnt', '-n', '-o', 'SOURCE,FSTYPE,OPTIONS', str(SEED)]))
-    run(['/usr/bin/cloud-init', 'schema', '--config-file', str(SEED / 'user-data')])
+    # Proof: skipped pre-serial identity opens the real serial fixture on host product/vendor refusal.
+    guard_guest_identity(request)
     with open('/dev/ttyS0', 'w', buffering=1) as serial:
         protocol = Protocol(request, serial)
         try:
+            guard_guest(request)
+            require_collector()
+            require_readiness()
+            resource = __import__('resource')
+            resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+            resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
+            resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_FRAME, MAX_FRAME))
+            os.umask(0o077)
+            pathlib.Path('/run/puni-baseline/docker-client').mkdir(parents=True, mode=0o700)
+            SEED.mkdir(mode=0o700)
+            run(['/usr/bin/mount', '-t', 'iso9660', '-o', 'ro,nosuid,nodev,noexec', '/dev/sr0', str(SEED)])
+            require_seed_mount(run(['/usr/bin/findmnt', '-n', '-o', 'SOURCE,FSTYPE,OPTIONS', str(SEED)]))
+            run(['/usr/bin/cloud-init', 'schema', '--config-file', str(SEED / 'user-data')])
             write_policy()
             run(['/usr/bin/systemd-run', '--unit=puni-offline-install', '--quiet', '--service-type=exec', '--wait', '--pipe', '--collect',
                  '--property=MemoryMax=512M', '--property=MemorySwapMax=0', '--property=TasksMax=64', '--property=RuntimeMaxSec=180',
@@ -586,6 +593,7 @@ def bootstrap(request):
             require_readiness()
             measure(request, protocol, shutdown=request_poweroff)
         except Exception:
+            # Proof: omitted failure emission loses the admitted seed/collector/readiness frame before mutation.
             protocol.emit('failure', code='guest-baseline-refused')
             raise
 

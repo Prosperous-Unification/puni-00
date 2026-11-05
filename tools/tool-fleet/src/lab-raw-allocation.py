@@ -35,11 +35,13 @@ def identify_file(observation):
             observation.st_blocks, observation.st_mtime_ns, observation.st_ctime_ns)
 
 
-def inspect_file(path, expected_bytes):
+def inspect_file(path, expected_bytes, *, require_initialized=False):
     """Read Linux FIEMAP without SYNC or contents; refuse unstable or nonprivate raw files.
 
     A native extent may cross a query boundary. This raw-file contract requires
     exact coverage through EOF and refuses extents extending beyond it.
+    Guest admission opts into initialized extents; legacy preparation may retain
+    allocated UNWRITTEN extents. Both modes return the same closed projection.
     https://docs.kernel.org/filesystems/fiemap.html
     """
     # Proof: invalid-size guard removal changes its production refusal category in the fault campaign.
@@ -102,6 +104,9 @@ def inspect_file(path, expected_bytes):
                         or physical <= 0 or physical % ALIGNMENT or extent_length <= 0
                         or extent_length % ALIGNMENT or extent_flags & ~0x801):
                     raise InspectionRefusal('raw-map-extent')
+                # Proof: initialized guest inspection admits UNWRITTEN when this barrier is removed.
+                if require_initialized and extent_flags & 0x800:
+                    raise InspectionRefusal('raw-map-uninitialized')
                 end = logical + extent_length
                 # Proof: coverage fault campaign removes predicate; gap/overlap/beyond negatives succeed.
                 if logical != cursor or end > expected_bytes:

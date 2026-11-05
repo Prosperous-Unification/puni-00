@@ -1,6 +1,14 @@
 # Durable seed and guest successor plan
 
-Canonical acceptance remains 4/11; Task97 remains open. The raw component now has a real accepted receipt, recorded in [verification](verify.md#native-raw-preparation-accepted-2026-11-04). This plan consumes that exact raw artifact after fresh identity/allocation checks. It does not recreate the removed `/tmp` capsules, adopt their receipts, or certify Kubernetes/Flux, startup sufficiency, full admission, signals/history/recovery or live migration.
+Canonical acceptance remains 4/11; Task97 remains open. Historical raw creation acceptance is recorded in [verification](verify.md#native-raw-preparation-accepted-2026-11-04). The later7fed guest boot changed its allocation, so that receipt no longer establishes current artifact readiness. This plan preserves the original inode and failure evidence and does not recreate removed `/tmp` capsules, adopt their receipts, or certify Kubernetes/Flux, startup sufficiency, full admission, signals/history/recovery or live migration.
+
+## Current continuation after actual boot —2026-11-05
+
+The b72 guest initialization failed before boot on fdset access-mode selection. After the reviewed correction, the distinct7fed request booted Ubuntu24.04.5 and cloud-init launched the baseline service. Read-only filesystem recovery found its exact `seed-label` refusal: producer and accepted ISO use lowercase `cidata`, while the old bootstrap expected uppercase. Corrected label/early failure source has independent review; a new bootstrap-bound seed is still required. The old ISO stays immutable/historical. No Docker install, steady window or guest acceptance is established.
+
+Current raw dev66307/inode21891946 remains8GiB/0600/nlink1 but has8435834880allocatedbytes,154099712below logical size. Final validation refused it. **No next guest may use this raw until kernel geometry enforcement and a separately reviewed byte-preserving allocation repair with explicit lineage are accepted.** No repair, reimage, second8GiB allocation or automatic retry has occurred. Preserve both failed attempts, complete before/after logical contents and original receipts.
+
+Next ordered work: finish/review fixed QEMU-child geometry policy and initialized ext4 admission; implement/review the bounded same-inode repair and explicit continued-guest seed/guest contracts; run that repair only with fresh source/input/capacity/native ownership and byte-preservation proof; regenerate a distinct reviewed seed/request; then attempt one bounded guest. A continued post-failure guest disk must not be described as a pristine cold image. Whole-platform and live acceptance remain separate and incomplete.
 
 ## Authority and inputs
 

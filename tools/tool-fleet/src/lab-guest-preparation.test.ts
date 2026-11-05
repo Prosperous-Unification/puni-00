@@ -288,7 +288,7 @@ with tempfile.TemporaryDirectory() as state:
     for relative in ('/tools-root/usr/bin','/tools-root/usr/share/seabios','/seed-'+('b'*32)):os.makedirs(state+relative,mode=0o700)
     for relative in ('/tools-root/usr/bin/qemu-system-x86_64','/tools-root/usr/share/seabios/bios-256k.bin','/seed-'+('b'*32)+'/seed.iso'):
         open(state+relative,'wb').write(b'fixture');os.chmod(state+relative,0o600)
-    raw_fd=os.open(state+'/disk.raw',os.O_CREAT|os.O_EXCL|os.O_RDWR,0o600);os.posix_fallocate(raw_fd,0,8192);os.close(raw_fd)
+    raw_fd=os.open(state+'/disk.raw',os.O_CREAT|os.O_EXCL|os.O_RDWR,0o600);os.posix_fallocate(raw_fd,0,8192);os.write(raw_fd,b'\0'*8192);os.fsync(raw_fd);os.close(raw_fd)
     iso=state+'/seed-'+('b'*32)+'/seed.iso'
     request={'state':state,'nonce':'a'*32,'seedReceipt':'reviewed-seed','bootstrapSha256':'f'*64,'kvm':{'identity':p.raw.identity(os.stat('/dev/null')),'rdev':os.stat('/dev/null').st_rdev},'pins':[{'path':iso,'sha256':hashlib.sha256(b'fixture').hexdigest(),'bytes':7,'uid':os.geteuid(),'mode':0o600}]}
     p.raw.RAW_BYTES=8192
@@ -605,6 +605,17 @@ complete_provider_import(fixture_import_descriptors)
 ${providerStat}
 request=json.loads(sys.argv[2]);sample=json.loads(sys.argv[3]);fault=sys.argv[4]
 p.raw.RAW_BYTES=8192
+# Logical lifecycle fixtures qualify filesystem/kernel identity separately from native admission;
+# retain the actual canonical initialized-map inspection and irreversible filter installation.
+p.check_raw_geometry=lambda descriptor,path:p.raw.load_inspector().inspect_file(path,p.raw.RAW_BYTES,require_initialized=True)
+_install_geometry=p.install_geometry_filter
+def install_logical_geometry():
+    import types
+    uname=p.os.uname
+    p.os.uname=lambda:types.SimpleNamespace(machine='x86_64',release='7.0.11-76070011-generic')
+    try:_install_geometry()
+    finally:p.os.uname=uname
+p.install_geometry_filter=install_logical_geometry
 # Small ordinary-file control only; the fixed production service limits have separate native evidence.
 def limits():
     resource.setrlimit(resource.RLIMIT_AS,(128*1024**2,)*2);resource.setrlimit(resource.RLIMIT_CPU,(5,5));resource.setrlimit(resource.RLIMIT_FSIZE,(8192,8192));resource.setrlimit(resource.RLIMIT_NOFILE,(64,64));resource.setrlimit(resource.RLIMIT_CORE,(0,0))
@@ -1673,14 +1684,14 @@ spec=importlib.util.spec_from_file_location('guest',sys.argv[1]);p=importlib.uti
 complete_provider_import(fixture_import_descriptors)
 with tempfile.TemporaryDirectory() as state:
     p.raw.RAW_BYTES=8192
-    path=state+'/disk.raw';descriptor=os.open(path,os.O_CREAT|os.O_EXCL|os.O_RDWR,0o600);os.posix_fallocate(descriptor,0,8192);os.close(descriptor)
+    path=state+'/disk.raw';descriptor=os.open(path,os.O_CREAT|os.O_EXCL|os.O_RDWR,0o600);os.posix_fallocate(descriptor,0,8192);os.write(descriptor,b'\0'*8192);os.fsync(descriptor);os.close(descriptor)
     os.mkdir(state+'/seed-'+('a'*32),0o700);iso=state+'/seed-'+('a'*32)+'/seed.iso';open(iso,'wb').write(b'fixture');os.chmod(iso,0o600)
     request={'state':state,'pins':[{'path':iso,'sha256':hashlib.sha256(b'fixture').hexdigest(),'bytes':7,'uid':os.geteuid(),'mode':0o600}]}
     binding={'rawPath':path,'raw':p.raw.identity(os.stat(path)),'seedNonce':'a'*32,'inputs':{'iso':{'identity':p.raw.stable_identity(os.stat(iso))}}}
     p.check_final_artifact(request,binding)
     if sys.argv[2]=='coverage':
         inspector=p.raw.load_inspector();inspect=inspector.inspect_file
-        inspector.inspect_file=lambda *args:dict(inspect(*args),coverageBytes=1)
+        inspector.inspect_file=lambda *args,**kwargs:dict(inspect(*args,**kwargs),coverageBytes=1)
         p.raw.load_inspector=lambda:inspector
     else:binding['inputs']['iso']['identity'][1]+=1
     refuse_selected(lambda:p.check_final_artifact(request,binding))
@@ -2297,3 +2308,365 @@ exec(compile(ast.fix_missing_locations(_worker),spec.origin,'exec'),p.__dict__)`
   expect(invocation.exitCode).not.toBe(0);
   expect(invocation.stderr.toString()).toContain('QEMU wrote after canonical raw path replacement');
 });
+
+const geometryPolicy = String.raw`
+import importlib.util,os,struct,sys
+${providerStartup}
+spec=importlib.util.spec_from_file_location('guest',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+complete_provider_import(fixture_import_descriptors)
+# Execute the production cBPF bytes against adversarial seccomp_data, not a duplicate policy.
+def evaluate(number,arguments=(),architecture=0xc000003e):
+    packet=struct.pack('<IIQ6Q',number,architecture,0,*(list(arguments)+[0]*(6-len(arguments))))
+    accumulator=0;index=0
+    instructions=p.geometry_filter()
+    while index<len(instructions):
+        code,yes,no,operand=instructions[index];index+=1
+        if code==0x20:accumulator=struct.unpack_from('<I',packet,operand)[0]
+        elif code==0x54:accumulator &= operand
+        elif code==0x15:index += yes if accumulator==operand else no
+        elif code==0x35:index += yes if accumulator>=operand else no
+        elif code==0x06:return operand
+        else:raise AssertionError(('unknown BPF instruction',code))
+    raise AssertionError('filter fell through')
+assert evaluate(18)==0x7fff0000,'ordinary pwrite denied'
+assert evaluate(285,(3,0,0,4096))==0x50000|95,'fallocate allowed'
+for number in (41,42,43,44,45,46,47,53,76,77,90,91,92,93,94,101,188,189,190,197,198,199,206,207,208,209,210,260,268,288,299,307,311,326,333,425,426,427,438,440,448,452,463,466,469):
+    assert evaluate(number)==0x50001,('mutation/import allowed',number)
+assert evaluate(28,(0,4096,9))==0x50001,'MADV_REMOVE allowed'
+assert evaluate(28,(0,4096,4))==0x7fff0000,'ordinary anonymous advice denied'
+assert evaluate(28,(0,4096,2**32+9))==0x50001,'truncated advice allowed'
+for command in (0xae00,0x4008ae01,2**32+0xae00):
+    assert evaluate(16,(3,command))==0x7fff0000,'KVM type denied'
+for command in (0x40305829,0x40049409,0x40086602,0x1234):
+    assert evaluate(16,(3,command))==0x50019,'filesystem ioctl allowed'
+for number,architecture in ((18,0x40000003),(0x40000012,0xc000003e),(512,0xc000003e)):
+    assert evaluate(number,architecture=architecture)==0x80000000,'unsupported ABI allowed'
+print('verified fixed geometry filter')
+`;
+
+test('guest geometry policy closes alternate mutation and ABI dispatch paths', () => {
+  const invocation = Bun.spawnSync(['/usr/bin/python3', '-I', '-B', '-c', geometryPolicy, helper], {
+    timeout: 10000,
+    maxBuffer: 65536,
+  });
+  expect(invocation.stderr.toString()).toBe('');
+  expect(invocation.exitCode).toBe(0);
+  expect(invocation.stdout.toString()).toBe('verified fixed geometry filter\n');
+});
+
+const geometryAdmission = String.raw`
+import ctypes,importlib.util,os,struct,sys,types
+${providerStartup}
+spec=importlib.util.spec_from_file_location('guest',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+complete_provider_import(fixture_import_descriptors)
+fault=sys.argv[2]
+if fault=='architecture':p.os.uname=lambda:types.SimpleNamespace(machine='arm64')
+if fault=='word-size':p.ctypes.sizeof=lambda *args:4
+class Native:
+    def fstatfs(self,descriptor,pointer):
+        fields=ctypes.cast(pointer,ctypes.POINTER(ctypes.c_long))
+        fields[0]=0x9123683e if fault=='filesystem' else 0xef53
+        fields[1]=512 if fault=='block-size' else 4096
+        return -1 if fault=='statfs-failure' else 0
+p.ctypes.CDLL=lambda *args,**kwargs:Native()
+opened=types.SimpleNamespace(st_dev=os.makedev(8,1),st_ino=2,st_uid=os.geteuid(),st_mode=0o100600,st_nlink=1,st_size=4096,st_blocks=8,st_mtime_ns=1,st_ctime_ns=1)
+reads=0
+def snapshot(descriptor):
+    global reads
+    reads+=1
+    return types.SimpleNamespace(**dict(vars(opened),st_blocks=16)) if fault=='allocation-change' and reads>1 else opened
+p.os.fstat=snapshot
+p.os.lstat=lambda path:types.SimpleNamespace(**dict(vars(opened),st_ino=3)) if fault=='raw-replace' else opened
+mount='1 0 8:1 / / rw,noatime - ext4 /dev/test rw,errors=remount-ro\n'
+if fault=='mount-type':mount=mount.replace('ext4','ext3')
+if fault=='mount-options':mount=mount.replace('rw,noatime','rw,relatime')
+if fault=='mount-duplicate':mount+=mount
+if fault=='mount-missing':mount=''
+def read_mount(path,limit):
+    if fault=='mount-unreadable':raise PermissionError('controlled unreadable mountinfo')
+    if fault=='mount-absent':raise FileNotFoundError('controlled absent mountinfo')
+    return mount
+p.raw.read_text=read_mount
+flags=0x80000 | (0x100000 if fault=='inode-feature' else 0)
+def ioctl(descriptor,command,packet,mutate):
+    if fault=='inode-unreadable':raise PermissionError('controlled unreadable inode flags')
+    assert command==0x80086601
+    struct.pack_into('=Q',packet,0,flags)
+p.fcntl.ioctl=ioctl
+calls=[]
+def inspect(path,length,**options):
+    calls.append(path)
+    assert options=={'require_initialized':True},'uninitialized inspection selected'
+    if fault=='unwritten':raise RuntimeError('controlled uninitialized map')
+    return {'coverageBytes':4096}
+p.raw.load_inspector=lambda:types.SimpleNamespace(inspect_file=inspect)
+try:
+    projection=p.check_raw_geometry(17,'/controlled')
+except (p.raw.PreparationRefusal,RuntimeError,OSError):
+    assert fault!='valid','qualified initialized filesystem refused'
+    if fault not in ('unwritten','raw-replace','allocation-change'):assert not calls,'unqualified filesystem reached inspector'
+else:
+    assert fault=='valid','unqualified raw geometry admitted '+fault
+    assert projection=={'coverageBytes':4096}
+print('verified geometry admission '+fault)
+`;
+
+for (const fault of [
+  'valid',
+  'filesystem',
+  'block-size',
+  'statfs-failure',
+  'mount-type',
+  'mount-options',
+  'mount-duplicate',
+  'mount-missing',
+  'inode-feature',
+  'unwritten',
+  'architecture',
+  'word-size',
+  'raw-replace',
+  'allocation-change',
+  'mount-unreadable',
+  'mount-absent',
+  'inode-unreadable',
+]) {
+  test(`guest geometry admission ${fault} protects the QEMU input boundary`, () => {
+    const invocation = Bun.spawnSync(
+      ['/usr/bin/python3', '-I', '-B', '-c', geometryAdmission, helper, fault],
+      {
+        timeout: 10000,
+        maxBuffer: 65536,
+      },
+    );
+    expect(invocation.stderr.toString()).toBe('');
+    expect(invocation.exitCode).toBe(0);
+    expect(invocation.stdout.toString()).toBe(`verified geometry admission ${fault}\n`);
+  });
+}
+
+const geometryCaller = String.raw`
+import ast,importlib.util,inspect,os,sys,types
+${providerStartup}
+spec=importlib.util.spec_from_file_location('guest',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+complete_provider_import(fixture_import_descriptors)
+fault=sys.argv[2];calls=[]
+worker=ast.parse(inspect.getsource(p.worker))
+preparations=[node for node in ast.walk(worker) if isinstance(node,ast.FunctionDef) and node.name=='prepare']
+assert len(preparations)==1
+prepared=preparations[0]
+# The original worker's preexec body is executed, not copied or matched as source text.
+scope=dict(p.__dict__,descriptors={'raw':17,'qemu':18,'kvm':19,'null':20},predecessor={'raw':'/controlled','rawIdentity':[]},binding={},request={'kvm':{}},staging_fd=21,directory_fd=22)
+for name in ('check_original_raw','check_input_descriptors','check_kvm'):
+    scope[name]=lambda *args:None
+scope['os']=types.SimpleNamespace(close=lambda descriptor:None)
+def admit(*arguments):
+    calls.append('admit')
+    if fault=='admission':raise p.raw.PreparationRefusal('controlled admission refusal')
+def confine(*arguments):calls.append('landlock')
+def install():
+    calls.append('filter')
+    if fault=='installation':raise p.raw.PreparationRefusal('controlled installation refusal')
+scope.update(check_raw_geometry=admit,confine_qemu=confine,install_geometry_filter=install)
+exec(compile(ast.fix_missing_locations(ast.Module(body=[prepared],type_ignores=[])),spec.origin,'exec'),scope)
+try:scope['prepare']()
+except p.raw.PreparationRefusal:assert fault!='valid'
+else:
+    assert fault=='valid','untrusted exec reached after '+fault+' refusal'
+    assert calls==['admit','landlock','filter'],'unqualified QEMU exec reached'
+print('verified geometry caller '+fault)
+`;
+for (const fault of ['valid', 'admission', 'installation']) {
+  test(`guest geometry caller ${fault} gates the original preexec body`, () => {
+    const invocation = Bun.spawnSync(
+      ['/usr/bin/python3', '-I', '-B', '-c', geometryCaller, helper, fault],
+      {
+        timeout: 10000,
+        maxBuffer: 65536,
+      },
+    );
+    expect(invocation.stderr.toString()).toBe('');
+    expect(invocation.exitCode).toBe(0);
+  });
+}
+
+for (const fault of [
+  'architecture',
+  'range',
+  'ioctl',
+  28,
+  285,
+  41,
+  42,
+  43,
+  44,
+  45,
+  46,
+  47,
+  53,
+  76,
+  77,
+  90,
+  91,
+  92,
+  93,
+  94,
+  101,
+  188,
+  189,
+  190,
+  197,
+  198,
+  199,
+  206,
+  207,
+  208,
+  209,
+  210,
+  260,
+  268,
+  288,
+  299,
+  307,
+  311,
+  326,
+  333,
+  425,
+  426,
+  427,
+  438,
+  440,
+  448,
+  452,
+  463,
+  466,
+  469,
+]) {
+  test(`guest geometry filter fault ${String(fault)} exposes unsafe syscall admission`, () => {
+    const changed = geometryPolicy.replace(
+      'complete_provider_import(fixture_import_descriptors)',
+      String.raw`complete_provider_import(fixture_import_descriptors)
+_original_filter=p.geometry_filter
+_fault=${JSON.stringify(fault)}
+def altered_filter():
+    instructions=list(_original_filter())
+    if _fault=='architecture':instructions[1]=(0x15,1,1,0xc000003e)
+    elif _fault=='range':instructions[4]=(0x35,0,1,0xffffffff)
+    elif _fault=='ioctl':
+        position=instructions.index((6,0,0,0x50019));instructions[position]=(6,0,0,0x7fff0000)
+    else:
+        sites=[index for index,instruction in enumerate(instructions) if instruction[0]==0x15 and instruction[3]==_fault]
+        assert len(sites)==1
+        position=sites[0];del instructions[position:position+1+instructions[position][2]]
+    return tuple(instructions)
+p.geometry_filter=altered_filter`,
+    );
+    const invocation = Bun.spawnSync(['/usr/bin/python3', '-I', '-B', '-c', changed, helper], {
+      timeout: 10000,
+      maxBuffer: 65536,
+    });
+    expect(invocation.exitCode).not.toBe(0);
+    expect(invocation.stderr.toString()).toMatch(/AssertionError:.*allowed/u);
+  });
+}
+
+const geometryInstallation = String.raw`
+import importlib.util,os,sys,types
+${providerStartup}
+spec=importlib.util.spec_from_file_location('guest',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+complete_provider_import(fixture_import_descriptors)
+fault=sys.argv[2]
+p.os.uname=lambda:types.SimpleNamespace(machine='arm64' if fault=='architecture' else 'x86_64',release='unknown' if fault=='kernel' else '7.0.11-76070011-generic')
+if fault=='word-size':p.ctypes.sizeof=lambda *args:4
+class Native:
+    def prctl(self,operation,*arguments):return -1 if (operation==38 and fault=='no-new-privileges') or (operation==22 and fault=='installation') else 0
+p.ctypes.CDLL=lambda *args,**kwargs:Native()
+try:p.install_geometry_filter()
+except p.raw.PreparationRefusal:pass
+else:raise AssertionError('unconfined exec admitted '+fault)
+print('verified geometry installation '+fault)
+`;
+for (const [fault, category, ordinal] of [
+  ['architecture', 'guest-geometry-unsupported', 0],
+  ['kernel', 'guest-geometry-unsupported', 0],
+  ['word-size', 'guest-geometry-unsupported', 0],
+  ['no-new-privileges', 'guest-geometry-install', 0],
+  ['installation', 'guest-geometry-install', 1],
+] as const) {
+  test(`guest geometry installation ${fault} refuses before exec and catches guard removal`, () => {
+    const ordinary = Bun.spawnSync(
+      ['/usr/bin/python3', '-I', '-B', '-c', geometryInstallation, helper, fault],
+      { timeout: 10000, maxBuffer: 65536 },
+    );
+    expect(ordinary.stderr.toString()).toBe('');
+    expect(ordinary.exitCode).toBe(0);
+    const changed = Bun.spawnSync(
+      [
+        '/usr/bin/python3',
+        '-I',
+        '-B',
+        '-c',
+        bypassSelectedGuard(geometryInstallation, 'install_geometry_filter', category, ordinal),
+        helper,
+        fault,
+      ],
+      { timeout: 10000, maxBuffer: 65536 },
+    );
+    expect(changed.exitCode).not.toBe(0);
+    expect(changed.stderr.toString()).toContain('unconfined exec admitted ' + fault);
+  });
+}
+
+for (const [fault, category] of [
+  ['architecture', 'guest-geometry-unsupported'],
+  ['word-size', 'guest-geometry-unsupported'],
+  ['raw-replace', 'guest-geometry-changed'],
+  ['allocation-change', 'guest-geometry-changed'],
+  ['filesystem', 'guest-geometry-filesystem'],
+  ['block-size', 'guest-geometry-filesystem'],
+  ['statfs-failure', 'guest-geometry-statfs'],
+  ['mount-type', 'guest-geometry-mount'],
+  ['mount-options', 'guest-geometry-mount'],
+  ['mount-duplicate', 'guest-geometry-mount'],
+  ['mount-missing', 'guest-geometry-mount'],
+  ['inode-feature', 'guest-geometry-inode'],
+] as const) {
+  test(`guest geometry admission fault ${fault} exposes unsafe validator acceptance`, () => {
+    const invocation = Bun.spawnSync(
+      [
+        '/usr/bin/python3',
+        '-I',
+        '-B',
+        '-c',
+        bypassSelectedGuard(geometryAdmission, 'check_raw_geometry', category, 0),
+        helper,
+        fault,
+      ],
+      { timeout: 10000, maxBuffer: 65536 },
+    );
+    expect(invocation.exitCode).not.toBe(0);
+    expect(invocation.stderr.toString()).toContain('unqualified raw geometry admitted ' + fault);
+  });
+}
+
+for (const [fault, call] of [
+  ['admission', 'check_raw_geometry'],
+  ['installation', 'install_geometry_filter'],
+] as const) {
+  test(`guest geometry caller fault ${fault} exposes completion of unqualified preexec`, () => {
+    const changed = geometryCaller.replace(
+      'prepared=preparations[0]',
+      String.raw`prepared=preparations[0]
+_sites=[index for index,statement in enumerate(prepared.body) if isinstance(statement,ast.Expr) and isinstance(statement.value,ast.Call) and isinstance(statement.value.func,ast.Name) and statement.value.func.id==${JSON.stringify(call)}]
+assert len(_sites)==1
+prepared.body.pop(_sites[0])`,
+    );
+    const invocation = Bun.spawnSync(
+      ['/usr/bin/python3', '-I', '-B', '-c', changed, helper, fault],
+      { timeout: 10000, maxBuffer: 65536 },
+    );
+    expect(invocation.exitCode).not.toBe(0);
+    expect(invocation.stderr.toString()).toContain(
+      'untrusted exec reached after ' + fault + ' refusal',
+    );
+  });
+}

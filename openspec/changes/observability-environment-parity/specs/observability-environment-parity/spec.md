@@ -1331,3 +1331,50 @@ The raw-allocation, raw-preparation, seed-preparation and guest-preparation sour
 - **THEN** successful stdout remains one valid JSON projection without console formatting escapes
 - **AND** refusal stderr retains its fixed category and excludes supplied private paths or raw child causes
 - **AND** focused regressions expose restoration of console formatting on the protocol stream
+
+### Requirement: Bootstrap consumes actual seed and reports admitted-guest failure
+
+The bootstrap SHALL accept the exact canonical seed label emitted and verified by the selected producer. It SHALL refuse other labels without normalization. After read-only guest identity validation, early startup refusal SHALL emit one bounded nonce/source-bound failure frame and propagate failure. Execution outside the expected guest SHALL refuse before opening its serial device or reaching mutation.
+
+#### Scenario: Real canonical seed reaches bootstrap
+
+- **WHEN** the selected producer emits the verified lowercase `cidata` PVD label
+- **THEN** the guest label boundary accepts those exact bytes
+- **AND** a foreign label remains refused through the production boundary
+
+#### Scenario: Startup refusal is visible before measurement
+
+- **WHEN** an identity-validated guest fails a seed or startup prerequisite before measurement
+- **THEN** its original serial protocol reports one bounded source/nonce-bound failure frame and raises
+- **AND** host supervision refuses without waiting for the success deadline
+- **AND** no installer or policy mutation follows the failed prerequisite
+
+### Requirement: Guest writable raw geometry is continuously constrained
+
+The supported QEMU provider SHALL enforce fixed raw length and allocated-range behavior in the kernel for QEMU and its descendants. Final allocation inspection SHALL remain necessary and SHALL NOT substitute for continuous enforcement. Unsupported filesystem, ABI, file features, kernel policy installation or allocation state SHALL refuse before execution. Historical creation acceptance SHALL NOT authorize a raw artifact that a subsequent failed guest changed into an invalid allocation state.
+
+#### Scenario: An alias cannot remove backing allocation
+
+- **WHEN** QEMU attempts a range allocation, punch, collapse, insert, truncate, clone or remap through an original, duplicated or reopened descriptor or an alternate submission interface
+- **THEN** the fixed provider policy denies unsupported geometry mutation while preserving the qualified ordinary-write/flush profile
+- **AND** unknown ioctls or imported foreign authority cannot bypass that policy
+
+#### Scenario: Initialized storage qualification preserves preparation compatibility
+
+- **WHEN** the guest requires the selected private, unshared, initialized ext4 profile
+- **THEN** an unwritten, shared, unknown or unsupported map refuses guest admission
+- **AND** the existing preparation inspector retains its default acceptance of allocated-unwritten extents
+
+#### Scenario: Repair preserves failed guest contents and lineage
+
+- **WHEN** a separately reviewed bounded component repairs physical allocation of the retained failed raw inode
+- **THEN** original identity/length and equal complete before/after logical-content hashes are required under existing staging/native limits
+- **AND** it publishes distinct repair lineage without replacing historical creation or failure receipts
+- **AND** no new guest runs until both repaired allocation and kernel enforcement are independently verified
+
+#### Scenario: Repair native metadata retains exact precision
+
+- **WHEN** new repair admission receives native identities or nanosecond timestamps beyond JavaScript's safe-integer range
+- **THEN** canonical decimal-string fields preserve exact values through its typed boundary
+- **AND** numeric/coerced input, a prior tuple shape or a one-nanosecond substitution refuses before writable admission
+- **AND** historical v1 opaque bytes and their digests remain unchanged

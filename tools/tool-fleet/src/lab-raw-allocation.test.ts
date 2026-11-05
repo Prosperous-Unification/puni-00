@@ -359,3 +359,55 @@ test('source CLI preserves canonical JSON and private diagnostics under forced c
   expect(refusal.stderr.toString()).toBe('raw allocation: input-absent\n');
   expect(refusal.stderr.toString()).not.toContain('PRIVATE-FORMAT-INPUT');
 });
+
+const initializedMap = String.raw`
+import importlib.util,json,os,struct,sys,types
+spec=importlib.util.spec_from_file_location('allocation',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+opened=types.SimpleNamespace(st_dev=1,st_ino=2,st_uid=os.geteuid(),st_mode=0o100600,st_nlink=1,st_size=4096,st_blocks=8,st_mtime_ns=1,st_ctime_ns=1)
+p.os.lstat=lambda path:opened;p.os.fstat=lambda descriptor:opened
+p.os.open=lambda *args:17;p.os.close=lambda descriptor:None
+flags=0x801
+def ioctl(descriptor,request,packet,mutate):
+    struct.pack_into('=QQIIII',packet,0,0,4096,0,1,512,0)
+    struct.pack_into('=QQQQQIIII',packet,32,0,4096,4096,0,0,flags,0,0,0)
+p.fcntl.ioctl=ioctl
+assert p.inspect_file('/controlled',4096)['coverageBytes']==4096,'legacy UNWRITTEN refused'
+flags=1
+assert p.inspect_file('/controlled',4096,require_initialized=True)['coverageBytes']==4096
+for flags in (0x801,0x2001):
+    try:p.inspect_file('/controlled',4096,require_initialized=True)
+    except p.InspectionRefusal:pass
+    else:raise AssertionError('uninitialized/shared map admitted')
+print('verified initialized opt-in with unchanged legacy contract')
+`;
+
+test('initialized guest inspection refuses UNWRITTEN and shared maps while legacy remains valid', () => {
+  const invocation = Bun.spawnSync(['/usr/bin/python3', '-I', '-B', '-c', initializedMap, helper], {
+    timeout: 10000,
+    maxBuffer: 65536,
+  });
+  expect(invocation.stderr.toString()).toBe('');
+  expect(invocation.exitCode).toBe(0);
+  expect(invocation.stdout.toString()).toBe(
+    'verified initialized opt-in with unchanged legacy contract\n',
+  );
+});
+
+test('initialized guest inspection fault admits UNWRITTEN when its exact check is removed', () => {
+  const changed = initializedMap.replace(
+    'spec.loader.exec_module(p)',
+    String.raw`spec.loader.exec_module(p)
+import ast,pathlib
+_tree=ast.parse(pathlib.Path(spec.origin).read_text())
+_checks=[node for node in ast.walk(_tree) if isinstance(node,ast.If) and isinstance(node.test,ast.BoolOp) and any(isinstance(part,ast.Name) and part.id=='require_initialized' for part in ast.walk(node.test))]
+assert len(_checks)==1
+_checks[0].test=ast.Constant(value=False)
+exec(compile(ast.fix_missing_locations(_tree),spec.origin,'exec'),p.__dict__)`,
+  );
+  const invocation = Bun.spawnSync(['/usr/bin/python3', '-I', '-B', '-c', changed, helper], {
+    timeout: 10000,
+    maxBuffer: 65536,
+  });
+  expect(invocation.exitCode).not.toBe(0);
+  expect(invocation.stderr.toString()).toContain('uninitialized/shared map admitted');
+});

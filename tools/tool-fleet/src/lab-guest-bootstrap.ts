@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
-/** Fixed offline baseline seed; the renderer grants no guest execution or cleanup authority. */
+/** Fixed offline seed; bounded bootstrap categories also reach console before protocol admission. */
 export async function renderLabGuestNoCloud(nonce: string) {
   // Proof: removing the nonce guard made the malformed-nonce negative resolve (renderer-fault.log).
   if (!/^[a-f0-9]{32}$/.test(nonce) || nonce.length !== 32)
@@ -49,6 +49,8 @@ export async function renderLabGuestNoCloud(nonce: string) {
         '--property=LimitNOFILE=64',
         '--property=LimitCORE=0',
         '--property=UMask=0077',
+        // Proof: omitted console routing failed the rendered preidentity-diagnostic contract.
+        '--property=StandardError=journal+console',
         '/usr/bin/python3',
         '/opt/puni-baseline/bootstrap.py',
         '/opt/puni-baseline/request.json',
