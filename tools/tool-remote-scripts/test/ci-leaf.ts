@@ -13,6 +13,7 @@ const CONTINUATION = 'src/lib/dependency-participant-continuation-model.test.ts'
 const RESTORATION = 'src/lib/dependency-source-restoration.test.ts';
 const POLICY = 'src/lib/dependency-participant-policy-restoration.test.ts';
 const COMPLETE = 'src/lib/complete-dependency-exclusion.test.ts';
+const STORAGE = 'src/lib/dependency-activation-storage.test.ts';
 const SOURCE = [
   'src/lib/source-role-process.test.ts',
   'src/lib/source-inner-command.test.ts',
@@ -42,6 +43,7 @@ type Leaf =
   | 'source-restoration'
   | 'participant-policy'
   | 'complete-activation'
+  | 'storage'
   | 'rest';
 
 class TestFailure extends Error {
@@ -146,6 +148,9 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
     // Proof: N2 complete-target entry omission failed the malformed-target tests
     // on the first model exit0; restored passed. Later faulted leaves were not reached (2026-11-02).
     'complete-activation',
+    // Proof: omitting storage validation let the first model child run for each malformed
+    // storage target; all three refusal cases passed after restoration (2026-11-05).
+    'storage',
     'rest',
   ] as const) {
     const target = requireRecord(targets[`test:ci:${name}`]);
@@ -195,6 +200,9 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
     // missing/unreadable dispatch-marker assertions and alias exit0 at the first complete
     // attempt; restored passed. The markers prove attempts, not inner PIDs (2026-11-02).
     COMPLETE,
+    // Proof: omitting storage ownership reached the child-start marker for missing/unreadable
+    // files and admitted the alias; all three cases passed after restoration (2026-11-05).
+    STORAGE,
     ...DISCOVERY.slice(1),
   ])
     requireFile(join(repository, PROJECT, path));
@@ -219,25 +227,32 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
               ? // Proof: N3 widening the complete filename failed the canonical-discovery
                 // test at receipt refusal after forty cases/two files; restored passed (2026-11-02).
                 ['test', `./${COMPLETE}`, ...OPTIONS]
-              : [
-                  'test',
-                  ...DISCOVERY,
-                  ...OPTIONS,
-                  `--path-ignore-patterns=${MODEL}`,
-                  `--path-ignore-patterns=${CONTINUATION}`,
-                  ...SOURCE.map((path) => `--path-ignore-patterns=${path}`),
-                  // Proof: omitting this literal duplicated the actual restoration parent
-                  // in rest; disjointness failed, then passed after exact restoration.
-                  `--path-ignore-patterns=${RESTORATION}`,
-                  `--path-ignore-patterns=${POLICY}`,
-                  // Proof: N4 complete-ignore omission failed the canonical-discovery
-                  // test's complement exclusion assertion; restored passed (2026-11-02).
-                  `--path-ignore-patterns=${COMPLETE}`,
-                  `--path-ignore-patterns=${GRAPH_FILE}`,
-                  // Proof: omitting this literal ran the native custody marker;
-                  // widening to acceptance/* hid the ordinary marker and failed census.
-                  `--path-ignore-patterns=${NATIVE_CUSTODY_FILE}`,
-                ];
+              : leaf === 'storage'
+                ? // Proof: routing storage to model failed its actual Bun receipt before union
+                  // assertions; restored execution reached the union and collision checks (2026-11-05).
+                  ['test', `./${STORAGE}`, ...OPTIONS]
+                : [
+                    'test',
+                    ...DISCOVERY,
+                    ...OPTIONS,
+                    `--path-ignore-patterns=${MODEL}`,
+                    `--path-ignore-patterns=${CONTINUATION}`,
+                    ...SOURCE.map((path) => `--path-ignore-patterns=${path}`),
+                    // Proof: omitting this literal duplicated the actual restoration parent
+                    // in rest; disjointness failed, then passed after exact restoration.
+                    `--path-ignore-patterns=${RESTORATION}`,
+                    `--path-ignore-patterns=${POLICY}`,
+                    // Proof: N4 complete-ignore omission failed the canonical-discovery
+                    // test's complement exclusion assertion; restored passed (2026-11-02).
+                    `--path-ignore-patterns=${COMPLETE}`,
+                    // Proof: omitting this exact storage ignore failed the actual remainder's
+                    // storage-exclusion assertion; restored union/disjointness passed (2026-11-05).
+                    `--path-ignore-patterns=${STORAGE}`,
+                    `--path-ignore-patterns=${GRAPH_FILE}`,
+                    // Proof: omitting this literal ran the native custody marker;
+                    // widening to acceptance/* hid the ordinary marker and failed census.
+                    `--path-ignore-patterns=${NATIVE_CUSTODY_FILE}`,
+                  ];
 }
 
 /**
@@ -245,7 +260,7 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
  * summary tail retained in memory. The final contiguous outer summary keeps pass, fail and
  * file counts together after nested parent-child output; its terminal boundary refuses
  * malformed final output rather than falling back to an earlier child. A successful child must have
- * actually run nonempty tests. The inherited23, policy8 and complete39 singleton receipts require their
+ * actually run nonempty tests. The restoration (23), policy (8), complete activation (39), and storage (69) singleton receipts require their
  * complete assigned pass/test counts and no outer skip, todo or filtering; nested summaries
  * cannot supply that terminal receipt. Rest first awaits the module-bound complete graph receipt;
  * only its successful return permits the historical disjoint remainder. Its final tests/files sum
@@ -271,6 +286,9 @@ export async function runRemoteTests(
     leafName !== 'source-restoration' &&
     leafName !== 'participant-policy' &&
     leafName !== 'complete-activation' &&
+    // Proof: omitting storage admission rejected the valid storage fixture before Bun selection;
+    // restored canonical discovery passed. This is valid-input support (2026-11-05).
+    leafName !== 'storage' &&
     leafName !== 'rest'
   )
     throw new Error('Unknown remote test leaf');
@@ -342,7 +360,11 @@ export async function runRemoteTests(
             // test at its first pass-count transformation (exit0, expected1); restored passed.
             // This proves the grouped registration, not individual parser predicates (2026-11-02).
             39
-          : undefined;
+          : leafName === 'storage'
+            ? // Proof: omitting the 69-case registration admitted the first transformed 68-pass
+              // outer receipt; restored execution rejected all seven transforms (2026-11-05).
+              69
+            : undefined;
   // Proof: bypassing the source file count admitted an actual six-parent receipt transformed exactly once from six to five (2026-10-29).
   // Proof: dropping the positive-pass check accepted an actual empty Bun file as fresh success.
   if (
@@ -373,7 +395,7 @@ if (import.meta.main) {
     headFlag?.startsWith('--head=') !== true
   )
     throw new Error(
-      'Usage: ci-leaf.ts <repository> <model|model-continuation|source|source-restoration|participant-policy|complete-activation|rest> --head=<sha>',
+      'Usage: ci-leaf.ts <repository> <model|model-continuation|source|source-restoration|participant-policy|complete-activation|storage|rest> --head=<sha>',
     );
   try {
     await runRemoteTests(repository, leaf, headFlag.slice('--head='.length));

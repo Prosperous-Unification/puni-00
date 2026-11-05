@@ -389,6 +389,7 @@ test.each([
   'remote-source-restoration',
   'remote-participant-policy',
   'remote-complete-activation',
+  'remote-storage',
 ])(
   'actual model matrix shell dispatches %s with its immutable merge base and status',
   async (partition) => {

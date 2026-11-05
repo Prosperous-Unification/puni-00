@@ -90,6 +90,7 @@ async function runRemoteLeaf(
     | 'source-restoration'
     | 'participant-policy'
     | 'complete-activation'
+    | 'storage'
     | 'rest',
   mode: string,
 ): Promise<void> {
@@ -144,6 +145,9 @@ export async function runRuntime(
       'remote-source-restoration',
       'remote-participant-policy',
       'remote-complete-activation',
+      // Proof: omitting storage admission rejected the affected-mode storage command;
+      // restored affected/full command ledgers passed (2026-11-05).
+      'remote-storage',
       'frontend',
       'twilight',
     ].includes(partition)
@@ -170,12 +174,18 @@ export async function runRuntime(
                 ? // Proof: N7 misrouting complete to policy failed the fixed-leaf command test
                   // in affected mode; restored passed affected/full. No faulted full-mode claim (2026-11-02).
                   'complete-activation'
-                : partition === 'remote-rest'
-                  ? 'rest'
-                  : undefined;
+                : partition === 'remote-storage'
+                  ? // Proof: misrouting storage to model failed the affected-mode recorded Nx
+                    // command; restored affected/full ledgers passed (2026-11-05).
+                    'storage'
+                  : partition === 'remote-rest'
+                    ? 'rest'
+                    : undefined;
   // Proof: N6 admission-call omission failed the absent-selected-target test:
   // actual Nx ran the sentinel before the marker assertion; restored passed.
   // This witnesses the missing-target surface only (2026-11-02).
+  // Proof: omitting this call for selected storage let actual Nx run the canonical fallback
+  // marker in full mode; restored storage refusal passed (2026-11-05).
   if (remoteLeaf !== undefined) requireRemoteTarget(repository, remoteLeaf);
   const owner = remoteLeaf === undefined ? partition : 'remote';
   if (mode === 'full') {
@@ -336,7 +346,7 @@ if (import.meta.main) {
     repository === undefined
   ) {
     throw new Error(
-      'Usage: ci-run-runtime.ts <workspace|backend|remote|remote-rest|remote-model|remote-model-continuation|remote-source|remote-source-restoration|remote-participant-policy|remote-complete-activation|frontend|twilight> <base-sha> <head-sha> <repository> [affected|full]',
+      'Usage: ci-run-runtime.ts <workspace|backend|remote|remote-rest|remote-model|remote-model-continuation|remote-source|remote-source-restoration|remote-participant-policy|remote-complete-activation|remote-storage|frontend|twilight> <base-sha> <head-sha> <repository> [affected|full]',
     );
   }
   try {

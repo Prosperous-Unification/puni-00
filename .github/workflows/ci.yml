@@ -706,6 +706,9 @@ jobs:
             # Proof: N8 sixth-member omission failed the exact parsed-matrix test;
             # restored passed. This is definition evidence, not scheduler execution (2026-11-02).
             remote-complete-activation,
+            # Proof: omitting storage failed the parsed seven-member matrix consumer;
+            # restored definition passed. This does not prove GitHub scheduling (2026-11-05).
+            remote-storage,
           ]
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and

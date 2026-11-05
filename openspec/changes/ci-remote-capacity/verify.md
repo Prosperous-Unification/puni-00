@@ -766,3 +766,10 @@ Task29–32 implementation, R5 observations and final hosted capacity remain
 unqualified at this preparation. No new skip, budget, private grant, host or
 architectural adoption is introduced. Earlier historical proof and held-campaign
 limits remain unchanged; normal authorized CI/gates retain their own authority.
+
+## Storage CI source checkpoint — 2026-11-05
+
+The [storage source verification](verify-storage-20261105.md) records the final
+180-test owning suite, ten physical dependency pairs and separate S8b lint
+addendum, configured statics and explicit remaining qualification. Preparation
+above is historical; task32 capacity acceptance remains open.

@@ -57,6 +57,7 @@ function history(path: string, content?: string) {
         'source-restoration',
         'participant-policy',
         'complete-activation',
+        'storage',
         'rest',
       ])
         Object.assign(targets, {
@@ -390,6 +391,7 @@ describe('production CI plan and execution', () => {
         'remote-source-restoration',
         'remote-participant-policy',
         'remote-complete-activation',
+        'remote-storage',
       ]) {
         const { invocation, calls } = invokeRuntime(candidate, part, '0', mode);
         expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
@@ -401,7 +403,7 @@ describe('production CI plan and execution', () => {
             .filter((line) => line.includes(':test:ci:')),
         ).toHaveLength(1);
         expect(commands).toContain(
-          `run tool-remote-scripts:test:ci:${part === 'remote-rest' ? 'rest' : part === 'remote-model' ? 'model' : part === 'remote-source' ? 'source' : part === 'remote-source-restoration' ? 'source-restoration' : part === 'remote-participant-policy' ? 'participant-policy' : part === 'remote-complete-activation' ? 'complete-activation' : 'model-continuation'} --head=${candidate.head} --skip-nx-cache --parallel=2`,
+          `run tool-remote-scripts:test:ci:${part === 'remote-rest' ? 'rest' : part === 'remote-model' ? 'model' : part === 'remote-source' ? 'source' : part === 'remote-source-restoration' ? 'source-restoration' : part === 'remote-participant-policy' ? 'participant-policy' : part === 'remote-complete-activation' ? 'complete-activation' : part === 'remote-storage' ? 'storage' : 'model-continuation'} --head=${candidate.head} --skip-nx-cache --parallel=2`,
         );
         expect(commands).not.toContain('-t test ');
         if (part === 'remote-rest')
@@ -423,6 +425,7 @@ describe('production CI plan and execution', () => {
       'remote-source-restoration',
       'remote-participant-policy',
       'remote-complete-activation',
+      'remote-storage',
     ]) {
       expect(
         invokeRuntime({ ...candidate, head: candidate.base }, part, '0', 'full').invocation

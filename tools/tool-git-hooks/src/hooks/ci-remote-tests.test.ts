@@ -21,6 +21,7 @@ const CONTINUATION = 'src/lib/dependency-participant-continuation-model.test.ts'
 const RESTORATION = 'src/lib/dependency-source-restoration.test.ts';
 const POLICY = 'src/lib/dependency-participant-policy-restoration.test.ts';
 const COMPLETE = 'src/lib/complete-dependency-exclusion.test.ts';
+const STORAGE = 'src/lib/dependency-activation-storage.test.ts';
 const NATIVE = 'acceptance/dependency-owner-custody.test.ts';
 const ORDINARY_CUSTODY = 'acceptance/dependency-owner-custody-extra.test.ts';
 const SOURCE = [
@@ -70,6 +71,10 @@ function fixture(): string {
     RESTORATION,
     POLICY,
     COMPLETE,
+    STORAGE,
+    `elsewhere/${STORAGE}`,
+    'src/lib/dependency-activation-storage-extra.test.ts',
+    'elsewhere/src-shadow/dependency-activation-storage.test.ts',
     `elsewhere/${COMPLETE}`,
     'src/lib/complete-dependency-exclusion-extra.test.ts',
     `elsewhere/${POLICY}`,
@@ -91,7 +96,7 @@ function fixture(): string {
       root,
       `${PROJECT}/${path}`,
       `import { test, expect } from 'bun:test';
-       for (let index = 0; index < ${String(path === RESTORATION ? 23 : path === POLICY ? 8 : path === COMPLETE ? 39 : 1)}; index++) test(${JSON.stringify(path)} + index, () => {
+       for (let index = 0; index < ${String(path === RESTORATION ? 23 : path === POLICY ? 8 : path === COMPLETE ? 39 : path === STORAGE ? 69 : 1)}; index++) test(${JSON.stringify(path)} + index, () => {
          if (index === 0) console.log('EXECUTED=' + ${JSON.stringify(path)});
          expect(process.env.CLAUDECODE).toBe('0'); expect(process.env.AGENT).toBe('0');
        });`,
@@ -164,6 +169,10 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
   expect(complete.exitCode, complete.stderr.toString()).toBe(0);
   const completeCases = executed(complete.stdout.toString());
   expect(completeCases).toEqual([COMPLETE]);
+  const storage = invoke(root, 'storage');
+  expect(storage.exitCode, storage.stderr.toString()).toBe(0);
+  const storageCases = executed(storage.stdout.toString());
+  expect(storageCases).toEqual([STORAGE]);
   const rest = invoke(root, 'rest');
   expect(model.exitCode, model.stderr.toString()).toBe(0);
   expect(rest.exitCode, rest.stderr.toString()).toBe(0);
@@ -187,6 +196,10 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
   expect(complement).not.toContain(RESTORATION);
   expect(complement).not.toContain(POLICY);
   expect(complement).not.toContain(COMPLETE);
+  expect(complement).not.toContain(STORAGE);
+  expect(complement).toContain(`elsewhere/${STORAGE}`);
+  expect(complement).toContain('src/lib/dependency-activation-storage-extra.test.ts');
+  expect(complement).toContain('elsewhere/src-shadow/dependency-activation-storage.test.ts');
   expect(complement).toContain(`elsewhere/${COMPLETE}`);
   expect(complement).toContain('src/lib/complete-dependency-exclusion-extra.test.ts');
   expect(complement).toContain(`elsewhere/${POLICY}`);
@@ -203,6 +216,7 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
       ...restorationCases,
       ...policyCases,
       ...completeCases,
+      ...storageCases,
       ...complement,
     ].sort(),
   ).toEqual(executed(canonical.stdout.toString()));
@@ -214,6 +228,7 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
       ...restorationCases,
       ...policyCases,
       ...completeCases,
+      ...storageCases,
       ...complement,
     ]).size,
   ).toBe(
@@ -223,6 +238,7 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
       restorationCases.length +
       policyCases.length +
       completeCases.length +
+      storageCases.length +
       complement.length,
   );
   expect(model.stdout.toString()).toContain('"fresh":true');
@@ -313,72 +329,79 @@ test.each([
   expect(invocation.stdout.toString()).not.toContain('"fresh":true');
 });
 
-test('runtime refuses an absent selected raw target before actual Nx canonical fallback', () => {
-  const root = fixture();
-  write(
-    root,
-    'package.json',
-    JSON.stringify({ name: 'remote-target-admission-fixture', private: true }),
-  );
-  symlinkSync(join(ROOT, 'node_modules'), join(root, 'node_modules'), 'dir');
-  for (const name of ['wbs-be-01', 'wbs-fe-01'])
-    write(root, `modules/${name}/project.json`, JSON.stringify({ name, targets: {} }));
-  const marker = join(root, 'canonical-test-started');
-  write(
-    root,
-    `${PROJECT}/test/canonical.test.ts`,
-    `import { writeFileSync } from 'node:fs'; import { test } from 'bun:test';
-     test('canonical fallback child', () => writeFileSync(${JSON.stringify(marker)}, 'started\\n'));`,
-  );
-  const path = join(root, PROJECT, 'project.json');
-  const project = JSON.parse(readFileSync(path, 'utf8')) as {
-    targets: Record<string, unknown>;
-  };
-  project.targets['test'] = {
-    executor: 'nx:run-commands',
-    inputs: ['default', '^production'],
-    options: { command: 'bun test ./test/canonical.test.ts --timeout=10000', cwd: PROJECT },
-  };
-  delete project.targets['test:ci:complete-activation'];
-  writeFileSync(path, JSON.stringify(project));
-  const head = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], { cwd: root, stdout: 'pipe' })
-    .stdout.toString()
-    .trim();
-  const invocation = Bun.spawnSync(
-    [
-      process.execPath,
-      join(ROOT, 'tools/tool-git-hooks/src/hooks/ci-run-runtime.ts'),
-      'remote-complete-activation',
-      '',
-      head,
+test.each([
+  ['complete-activation', 'remote-complete-activation'],
+  ['storage', 'remote-storage'],
+] as const)(
+  'runtime refuses an absent selected %s target before actual Nx canonical fallback',
+  (leaf, partition) => {
+    const root = fixture();
+    write(
       root,
-      'full',
-    ],
-    {
-      cwd: root,
-      env: {
-        ...process.env,
-        NX_DAEMON: 'false',
-        NX_ISOLATE_PLUGINS: 'false',
-        CLAUDECODE: '0',
-        AGENT: '0',
-      },
-      stdout: 'pipe',
-      stderr: 'pipe',
-      timeout: 9000,
-    },
-  );
-  if (existsSync(marker))
-    console.error(
-      `CANONICAL_FALLBACK_CHILD_STARTED\n${invocation.stdout.toString()}\n${invocation.stderr.toString()}`,
+      'package.json',
+      JSON.stringify({ name: 'remote-target-admission-fixture', private: true }),
     );
-  expect(
-    existsSync(marker),
-    'missing selected target must refuse before canonical test child',
-  ).toBe(false);
-  expect(invocation.exitCode, invocation.stderr.toString()).not.toBe(0);
-  expect(invocation.stderr.toString()).toContain('Unsupported selected remote leaf target');
-}, 10000);
+    symlinkSync(join(ROOT, 'node_modules'), join(root, 'node_modules'), 'dir');
+    for (const name of ['wbs-be-01', 'wbs-fe-01'])
+      write(root, `modules/${name}/project.json`, JSON.stringify({ name, targets: {} }));
+    const marker = join(root, 'canonical-test-started');
+    write(
+      root,
+      `${PROJECT}/test/canonical.test.ts`,
+      `import { writeFileSync } from 'node:fs'; import { test } from 'bun:test';
+     test('canonical fallback child', () => writeFileSync(${JSON.stringify(marker)}, 'started\\n'));`,
+    );
+    const path = join(root, PROJECT, 'project.json');
+    const project = JSON.parse(readFileSync(path, 'utf8')) as {
+      targets: Record<string, unknown>;
+    };
+    project.targets['test'] = {
+      executor: 'nx:run-commands',
+      inputs: ['default', '^production'],
+      options: { command: 'bun test ./test/canonical.test.ts --timeout=10000', cwd: PROJECT },
+    };
+    Reflect.deleteProperty(project.targets, `test:ci:${leaf}`);
+    writeFileSync(path, JSON.stringify(project));
+    const head = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], { cwd: root, stdout: 'pipe' })
+      .stdout.toString()
+      .trim();
+    const invocation = Bun.spawnSync(
+      [
+        process.execPath,
+        join(ROOT, 'tools/tool-git-hooks/src/hooks/ci-run-runtime.ts'),
+        partition,
+        '',
+        head,
+        root,
+        'full',
+      ],
+      {
+        cwd: root,
+        env: {
+          ...process.env,
+          NX_DAEMON: 'false',
+          NX_ISOLATE_PLUGINS: 'false',
+          CLAUDECODE: '0',
+          AGENT: '0',
+        },
+        stdout: 'pipe',
+        stderr: 'pipe',
+        timeout: 9000,
+      },
+    );
+    if (existsSync(marker))
+      console.error(
+        `CANONICAL_FALLBACK_CHILD_STARTED\n${invocation.stdout.toString()}\n${invocation.stderr.toString()}`,
+      );
+    expect(
+      existsSync(marker),
+      'missing selected target must refuse before canonical test child',
+    ).toBe(false);
+    expect(invocation.exitCode, invocation.stderr.toString()).not.toBe(0);
+    expect(invocation.stderr.toString()).toContain('Unsupported selected remote leaf target');
+  },
+  10000,
+);
 
 test('actual noncached Nx leaf targets preserve environment and run dependency builds with Caddy only in rest', () => {
   const root = fixture();
@@ -432,6 +455,7 @@ test('actual noncached Nx leaf targets preserve environment and run dependency b
     'source-restoration',
     'participant-policy',
     'complete-activation',
+    'storage',
     'rest',
   ]) {
     const child = Bun.spawnSync(
@@ -464,7 +488,7 @@ test('actual noncached Nx leaf targets preserve environment and run dependency b
     expect(child.stdout.toString()).toContain('"fresh":true');
     if (leaf !== 'rest') expect(existsSync(caddyMarker)).toBe(false);
   }
-  expect(readFileSync(dependencyMarker, 'utf8').trim().split('\n')).toHaveLength(6);
+  expect(readFileSync(dependencyMarker, 'utf8').trim().split('\n')).toHaveLength(7);
   expect(readFileSync(caddyMarker, 'utf8')).toBe('caddy\n');
 }, 20000);
 
@@ -945,26 +969,99 @@ test.each(['absent', 'inputs', 'environment'])(
   },
 );
 
+test.each(['missing', 'unreadable', 'alias'] as const)(
+  'storage owner refuses invalid parent before actual child selection: %s',
+  (fault) => {
+    const root = fixture();
+    const path = join(root, PROJECT, STORAGE);
+    if (fault === 'missing') rmSync(path);
+    if (fault === 'unreadable') chmodSync(path, 0);
+    if (fault === 'alias') {
+      renameSync(path, `${path}.owned`);
+      symlinkSync(`${path}.owned`, path);
+    }
+    const starts = recordChildStarts(root);
+    for (const leaf of ['storage', 'rest']) {
+      const refused = invoke(root, leaf, starts.preload);
+      expect(refused.exitCode, fault).not.toBe(0);
+      expect(executed(refused.stdout.toString())).toEqual([]);
+      expect(existsSync(starts.marker), 'no test child before required-storage validation').toBe(
+        false,
+      );
+    }
+    if (fault === 'unreadable') chmodSync(path, 0o644);
+  },
+);
+
+test.each(['absent', 'inputs', 'environment'])(
+  'all leaves refuse malformed storage target before actual children: %s',
+  (fault) => {
+    const root = fixture();
+    const path = join(root, PROJECT, 'project.json');
+    const project = JSON.parse(readFileSync(path, 'utf8')) as {
+      targets: Record<string, { inputs?: string[]; options?: Record<string, unknown> }>;
+    };
+    if (fault === 'absent') delete project.targets['test:ci:storage'];
+    if (fault === 'inputs') project.targets['test:ci:storage'].inputs = ['default'];
+    if (fault === 'environment') project.targets['test:ci:storage'].options = {};
+    writeFileSync(path, JSON.stringify(project));
+    const starts = recordChildStarts(root);
+    for (const leaf of [
+      'model',
+      'model-continuation',
+      'source',
+      'source-restoration',
+      'participant-policy',
+      'complete-activation',
+      'storage',
+      'rest',
+    ]) {
+      const refused = invoke(root, leaf, starts.preload);
+      expect(refused.exitCode).not.toBe(0);
+      expect(executed(refused.stdout.toString())).toEqual([]);
+      expect(existsSync(starts.marker), 'no test child before required-storage target').toBe(false);
+    }
+  },
+);
+
+test.each(['empty', 'failed'] as const)(
+  'storage leaf refuses an invalid actual Bun child: %s',
+  (fault) => {
+    const root = fixture();
+    write(
+      root,
+      `${PROJECT}/${STORAGE}`,
+      fault === 'empty'
+        ? 'export const empty = true;'
+        : "import { test } from 'bun:test'; test('storage failure', () => { throw new Error('owned storage failure'); });",
+    );
+    const invocation = invoke(root, 'storage');
+    expect(invocation.exitCode).not.toBe(0);
+    expect(invocation.stdout.toString()).not.toContain('"fresh":true');
+  },
+);
+
 test.each([
   ['source-restoration', RESTORATION, 23],
   ['participant-policy', POLICY, 8],
   ['complete-activation', COMPLETE, 39],
+  ['storage', STORAGE, 69],
 ] as const)(
   'complete %s outer receipts reject successful but incomplete execution',
   (leaf, owner, count) => {
     for (const fault of ['passes', 'tests', 'files', 'skip', 'todo', 'filtered', 'malformed']) {
       const root = fixture();
-      if (leaf === 'complete-activation') {
+      if (leaf === 'complete-activation' || leaf === 'storage') {
         const nested = join(root, 'nested-complete-child.test.ts');
         writeFileSync(
           nested,
-          `import { test } from 'bun:test'; for (let index = 0; index < 39; index++) test('nested-' + index, () => {});`,
+          `import { test } from 'bun:test'; for (let index = 0; index < ${String(count)}; index++) test('nested-' + index, () => {});`,
         );
         writeFileSync(
           join(root, PROJECT, owner),
           `
           import { test, expect } from 'bun:test';
-          for (let index = 0; index < 39; index++) test('outer-' + index, () => {
+          for (let index = 0; index < ${String(count)}; index++) test('outer-' + index, () => {
             if (index !== 0) return;
             const child = Bun.spawnSync([process.execPath, 'test', ${JSON.stringify(nested)}, '--timeout=10000'], {
               stdout: 'pipe', stderr: 'pipe', timeout: 5000
@@ -1015,7 +1112,7 @@ test.each([
       );
       const refused = invoke(root, leaf, preload);
       expect(executed(refused.stdout.toString()), fault).toEqual([owner]);
-      if (leaf === 'complete-activation')
+      if (leaf === 'complete-activation' || leaf === 'storage')
         expect(refused.stderr.toString(), fault).toContain('NESTED_COMPLETE_CHILD_JOINED');
       expect(refused.stderr.toString(), fault).toContain(
         'SUCCESSFUL_ORIGINAL_OUTER_TRANSFORMED_ONCE',
@@ -1033,6 +1130,7 @@ test.each([
   ['source-restoration', RESTORATION, 23],
   ['participant-policy', POLICY, 8],
   ['complete-activation', COMPLETE, 39],
+  ['storage', STORAGE, 69],
 ] as const)(
   'complete %s outer receipt permits expected nested child filtering',
   (leaf, owner, count) => {
@@ -1745,13 +1843,13 @@ test('graph launcher routing owns the canonical graph once while preserving coll
 function graphRestFixture(fault: GraphRoutingFault = 'none'): string {
   const root = graphRoutingFixture(fault);
   write(root, `${PROJECT}/test/ci-leaf.ts`, discoverCustodyMarkers(readFileSync(CLI, 'utf8')));
-  for (const path of [MODEL, CONTINUATION, ...SOURCE, RESTORATION, POLICY, COMPLETE])
+  for (const path of [MODEL, CONTINUATION, ...SOURCE, RESTORATION, POLICY, COMPLETE, STORAGE])
     write(
       root,
       `${PROJECT}/${path}`,
       `
 import {test,expect} from 'bun:test';
-for(let index=0;index<${String(path === RESTORATION ? 23 : path === POLICY ? 8 : path === COMPLETE ? 39 : 1)};index++)
+for(let index=0;index<${String(path === RESTORATION ? 23 : path === POLICY ? 8 : path === COMPLETE ? 39 : path === STORAGE ? 69 : 1)};index++)
  test(${JSON.stringify(path)}+index,()=>{console.log('ISOLATED_OWNER='+${JSON.stringify(path)});expect(true).toBe(true);});
 `,
     );
