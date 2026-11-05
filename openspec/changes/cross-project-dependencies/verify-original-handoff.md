@@ -482,3 +482,13 @@ regression. [Current CI fixture repairs](verify-ci-prehelper-extraction-20261105
 record the unchanged workspace oracle and one actual invalid SDK consumer after
 historical image equivalence. These do not complete native/controller/HOLD,
 coupled enrollment or full delivery gates.
+
+## Actual compiler-load and input closure successor — 2026-11-05
+
+The [input-closure design](ordinary-input-closure-design-20261105.md) and
+[observed evidence](verify-ordinary-input-closure-20261105.md) record independently
+reconstructed44loader expectations, the sealed1936-key filesystem closure,
+actual finite scanner serialization and21guard/restoration pairs. Full owning
+regression and source checks precede a separately reviewed compiler-only run.
+Native/controller/HOLD custody, coupled production enrollment, exact host gate,
+CI acceptance, main architecture adoption and deployment remain required.
