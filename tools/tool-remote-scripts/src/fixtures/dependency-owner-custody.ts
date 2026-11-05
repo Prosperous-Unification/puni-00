@@ -3307,11 +3307,202 @@ export function planOrdinaryHoldBuildV1(
   });
 }
 
+export interface OrdinaryHoldLoadExpectationV1 {
+  readonly namespace: 'file' | 'ordinary-hold-v1';
+  readonly identity: string;
+  readonly mode: 'transform' | 'pinned-pass-through' | 'virtual';
+  readonly loader: 'ts';
+  readonly bytes: number;
+  readonly sha256: string;
+}
+export interface OrdinaryHoldLoadReceiptV1 extends OrdinaryHoldLoadExpectationV1 {
+  readonly returned: true;
+  readonly settledSha256: string;
+}
+interface OrdinaryHoldLoadReturnV1 {
+  contents: Uint8Array | string;
+  loader: unknown;
+}
+
+/** Validates a presealed independent table; discovered callback bytes never authorize themselves. */
+function decodeOrdinaryHoldLoadExpectationsV1(
+  sourceRoot: string,
+  value: unknown,
+  digest: unknown,
+): readonly OrdinaryHoldLoadExpectationV1[] {
+  // Proof: omitting the inert table consistency block admitted a zero digest and made 'UC2 ordinary load expectation admission refuses changed seal and closed roster' fail; restoration passed (2026-11-05). This is not fixed packet authority.
+  if (
+    ordinaryHoldSha(digest, 'ordinary HOLD load digest') !==
+    createHash('sha256').update(JSON.stringify(value)).digest('hex')
+  )
+    throw new Error('ordinary HOLD load expectation digest differs');
+  // Proof: omitting only 44-row cardinality admitted 43 rows and made 'UC2 ordinary load expectation admission refuses changed seal and closed roster' fail; restoration passed (2026-11-05, inert table).
+  if (!Array.isArray(value) || value.length !== 44)
+    throw new Error('ordinary HOLD load expectation roster differs');
+  const classes = new Map<string, OrdinaryHoldLoadExpectationV1['mode']>();
+  for (const entry of ordinaryHoldModuleModesV1)
+    if (entry.mode !== 'external-unchanged')
+      classes.set(`${sourceRoot}/${entry.relative}`, entry.mode);
+  for (const identity of ordinaryHoldPortSourcesV1(sourceRoot).keys())
+    classes.set(identity.slice('ordinary-hold-v1:'.length), 'virtual');
+  const seen = new Set<string>();
+  return Object.freeze(
+    value.map((candidate: unknown) => {
+      const row = ordinaryHoldFields(
+        candidate,
+        ['namespace', 'identity', 'mode', 'loader', 'bytes', 'sha256'],
+        'ordinary HOLD load expectation',
+      );
+      const identity = row['identity'];
+      // Coverage: foreign identity fails 'ordinary load expectation admission'.
+      if (
+        typeof identity !== 'string' ||
+        seen.has(identity) ||
+        !classes.has(identity) ||
+        classes.get(identity) !== row['mode'] ||
+        row['loader'] !== 'ts' ||
+        row['namespace'] !== (row['mode'] === 'virtual' ? 'ordinary-hold-v1' : 'file') ||
+        typeof row['bytes'] !== 'number' ||
+        !Number.isSafeInteger(row['bytes']) ||
+        row['bytes'] < 0 ||
+        row['bytes'] > 16 * 1024 * 1024
+      )
+        throw new Error('ordinary HOLD load expectation identity or shape differs');
+      seen.add(identity);
+      const mode = classes.get(identity);
+      if (mode === undefined) throw new Error('ordinary HOLD load expectation class absent');
+      return Object.freeze({
+        namespace: mode === 'virtual' ? ('ordinary-hold-v1' as const) : ('file' as const),
+        identity,
+        mode,
+        loader: 'ts' as const,
+        bytes: row['bytes'],
+        sha256: ordinaryHoldSha(row['sha256'], 'ordinary HOLD load expectation'),
+      });
+    }),
+  );
+}
+
+/** Retains exact callback objects privately; the exported seam permits inert recorder proofs only. */
+export function createOrdinaryHoldLoadRecorderV1(
+  sourceRoot: string,
+  expected: unknown,
+  digest: unknown,
+) {
+  const rows = decodeOrdinaryHoldLoadExpectationsV1(
+    ordinaryHoldAbsolute(sourceRoot, 'ordinary HOLD load root'),
+    expected,
+    digest,
+  );
+  const expectations = new Map(rows.map((row) => [row.identity, row]));
+  const retained = new Map<
+    string,
+    { returned: OrdinaryHoldLoadReturnV1; contents: Uint8Array | string }
+  >();
+  let settled = false;
+  const fingerprint = (returned: OrdinaryHoldLoadReturnV1) => {
+    // Proof: omitting the loader predicate let post-record ts-to-js drift escape 'UC2 ordinary load receipts reject actual callback loader drift'; restoration passed (2026-11-05, inert recorder). Contents-shape predicates were not isolated.
+    if (
+      returned.loader !== 'ts' ||
+      !(typeof returned.contents === 'string' || returned.contents instanceof Uint8Array)
+    )
+      throw new Error('ordinary HOLD load returned shape differs');
+    return {
+      bytes:
+        typeof returned.contents === 'string'
+          ? Buffer.byteLength(returned.contents)
+          : returned.contents.byteLength,
+      sha256: createHash('sha256').update(returned.contents).digest('hex'),
+    };
+  };
+  return Object.freeze({
+    record<T extends OrdinaryHoldLoadReturnV1>(
+      namespace: OrdinaryHoldLoadExpectationV1['namespace'],
+      identity: string,
+      returned: T,
+    ): T {
+      if (settled) throw new Error('ordinary HOLD load recorder already settled');
+      const expectation = expectations.get(identity);
+      // Coverage: unknown callback identity refusal is exercised by 'UC2 ordinary load receipts refuse duplicate unknown missing and changed callback contents'; its guard omission remains unproved.
+      if (expectation?.namespace !== namespace)
+        throw new Error('ordinary HOLD load unknown identity');
+      // Proof: omitting retained-key refusal admitted a second identical return and made 'UC2 ordinary load receipts refuse duplicate unknown missing and changed callback contents' fail; restoration passed (2026-11-05, inert recorder).
+      if (retained.has(identity)) throw new Error('ordinary HOLD load duplicate identity');
+      const observed = fingerprint(returned);
+      // Proof: omitting this entire admission block admitted changed seven-byte contents and made 'UC2 ordinary load receipts refuse duplicate unknown missing and changed callback contents' fail; restoration passed (2026-11-05, inert recorder). Its length/hash/type conjuncts were not isolated.
+      if (
+        observed.bytes !== expectation.bytes ||
+        observed.sha256 !== expectation.sha256 ||
+        (namespace === 'file'
+          ? !(returned.contents instanceof Uint8Array)
+          : typeof returned.contents !== 'string')
+      )
+        throw new Error('ordinary HOLD load expectation bytes differ');
+      retained.set(identity, { returned, contents: returned.contents });
+      // Proof: returning a shallow copy made 'UC2 ordinary load receipts retain callback identity and publish frozen post-join hashes' fail its exact-object assertion; restoration passed (2026-11-05, inert recorder).
+      return returned;
+    },
+    settle(): readonly OrdinaryHoldLoadReceiptV1[] {
+      // Coverage: omitted generated returns are refused in 'UC2 ordinary load receipts refuse duplicate unknown missing and changed callback contents'; this count guard's omission was masked and remains unproved.
+      if (retained.size !== rows.length) throw new Error('ordinary HOLD load missing identity');
+      const receipts = rows.map((row) => {
+        const retainedReturn = retained.get(row.identity);
+        if (retainedReturn === undefined) throw new Error('ordinary HOLD load missing identity');
+        // Proof: omitting contents-reference identity let identical-byte replacement escape 'UC2 ordinary load receipts refuse replacement of the retained contents reference'; restoration passed (2026-11-05, inert recorder).
+        if (retainedReturn.returned.contents !== retainedReturn.contents)
+          throw new Error('ordinary HOLD load contents reference drift');
+        const observed = fingerprint(retainedReturn.returned);
+        // Proof: omitting only SHA comparison let same-length retained-byte mutation escape 'UC2 ordinary load receipts detect retained-object drift at the post-join finish boundary'; restoration passed (2026-11-05, inert recorder finish, no compiler execution). Length comparison was not isolated.
+        if (observed.bytes !== row.bytes || observed.sha256 !== row.sha256)
+          throw new Error('ordinary HOLD load contents drift after compiler join');
+        return Object.freeze({ ...row, returned: true as const, settledSha256: observed.sha256 });
+      });
+      settled = true;
+      return Object.freeze(receipts);
+    },
+  });
+}
+
+const ORDINARY_HOLD_LOAD_PACKET_SHA256_V1 =
+  '776d5585c05b6d420144392d2308520252ac5635daf8e7cb22691fbe570a37e2';
+
+/** The reviewed raw packet digest is authority; an adjacent caller digest is never accepted. */
+export function decodeOrdinaryHoldLoadPacketV1(
+  sourceRoot: string,
+  value: unknown,
+): readonly OrdinaryHoldLoadExpectationV1[] {
+  // Proof: omitting only raw SHA comparison admitted same-length valid JSON with 44 rows and one changed valid hash, failing 'UC2 ordinary load packet refuses same-length valid hash corruption before acquisition'; restoration passed (2026-11-05, pure decoder).
+  if (
+    typeof value !== 'string' ||
+    Buffer.byteLength(value) !== 11851 ||
+    createHash('sha256').update(value).digest('hex') !== ORDINARY_HOLD_LOAD_PACKET_SHA256_V1
+  )
+    throw new Error('ordinary HOLD load packet digest differs');
+  const packet = ordinaryHoldFields(
+    JSON.parse(value),
+    ['format', 'sourceRoot', 'sourceEpoch', 'rows'],
+    'ordinary HOLD load packet',
+  );
+  if (
+    packet['format'] !== 'ordinary-hold-load-expectations-v1' ||
+    packet['sourceRoot'] !== sourceRoot ||
+    packet['sourceEpoch'] !== 'ordinary-febb-custody-v1'
+  )
+    throw new Error('ordinary HOLD load packet root or epoch differs');
+  return decodeOrdinaryHoldLoadExpectationsV1(
+    sourceRoot,
+    packet['rows'],
+    createHash('sha256').update(JSON.stringify(packet['rows'])).digest('hex'),
+  );
+}
+
 export interface OrdinaryHoldBuildOnlyRequestV1 {
   readonly version: 1;
   readonly mode: 'build-only';
   readonly sourceRoot: string;
   readonly sourceEpoch: 'ordinary-febb-custody-v1';
+  readonly loadExpectations: string;
+  readonly closureManifest: OrdinaryHoldClosureManifestV1;
 }
 interface OrdinaryHoldSetupRecordV1 {
   readonly label: string;
@@ -3382,8 +3573,17 @@ export interface OrdinaryHoldBuiltImageV1 {
   readonly metafileDigest: string;
   readonly sourceObservations: readonly OrdinaryHoldSourcePinV1[];
   readonly appliedCuts: OrdinaryHoldBuildPlanV1['appliedCuts'];
+  readonly loadReceipts: readonly OrdinaryHoldLoadReceiptV1[];
+  readonly loadExpectationsSha256: string;
   readonly resolutions: readonly OrdinaryHoldResolutionV1[];
   readonly setupOperations: readonly OrdinaryHoldSetupRecordV1[];
+  readonly closureOperations: readonly {
+    readonly key: string;
+    readonly state: OrdinaryHoldSetupRecordV1['state'];
+    readonly joined: boolean;
+  }[];
+  readonly closureManifestSha256: string;
+  readonly closureReadLeaseAssumption: string;
   readonly provenance: OrdinaryHoldBuildProvenanceV1;
   readonly unqualified: readonly string[];
 }
@@ -3391,7 +3591,7 @@ export interface OrdinaryHoldBuiltImageV1 {
 function ordinaryHoldBuildRequestV1(value: unknown): OrdinaryHoldBuildOnlyRequestV1 {
   const request = ordinaryHoldFields(
     value,
-    ['version', 'mode', 'sourceRoot', 'sourceEpoch'],
+    ['version', 'mode', 'sourceRoot', 'sourceEpoch', 'loadExpectations', 'closureManifest'],
     'ordinary HOLD build request',
   );
   if (
@@ -3400,7 +3600,14 @@ function ordinaryHoldBuildRequestV1(value: unknown): OrdinaryHoldBuildOnlyReques
     request['sourceEpoch'] !== 'ordinary-febb-custody-v1'
   )
     throw new Error('ordinary HOLD build-only epoch differs');
+  const sourceRoot = ordinaryHoldAbsolute(request['sourceRoot'], 'ordinary HOLD build root');
+  const loadExpectations = request['loadExpectations'];
+  decodeOrdinaryHoldLoadPacketV1(sourceRoot, loadExpectations);
+  if (typeof loadExpectations !== 'string')
+    throw new Error('ordinary HOLD load packet text absent');
   return {
+    loadExpectations,
+    closureManifest: decodeOrdinaryHoldClosurePacketV1(sourceRoot, request['closureManifest']),
     version: 1,
     mode: 'build-only',
     sourceRoot: ordinaryHoldAbsolute(request['sourceRoot'], 'ordinary HOLD build root'),
@@ -3409,12 +3616,18 @@ function ordinaryHoldBuildRequestV1(value: unknown): OrdinaryHoldBuildOnlyReques
 }
 
 /** Retains each original setup Promise and its observer before allowing the next build effect. */
-async function ordinaryHoldSetupOperationV1<T>(
+export async function ordinaryHoldSetupOperationV1<T>(
   records: OrdinaryHoldSetupRecordV1[],
   label: string,
   action: () => Promise<T>,
+  budget = 96,
+  retain?: (
+    record: OrdinaryHoldSetupRecordV1,
+    original: Promise<T>,
+    observer: Promise<void>,
+  ) => void,
 ): Promise<T> {
-  if (records.length >= 96) throw new Error('ordinary HOLD setup operation cap exceeded');
+  if (records.length >= budget) throw new Error('ordinary HOLD setup operation cap exceeded');
   const record: OrdinaryHoldSetupRecordV1 = {
     label,
     kind: 'promise',
@@ -3452,15 +3665,649 @@ async function ordinaryHoldSetupOperationV1<T>(
     record.state = 'unknown';
     throw cause;
   }
-  const [outcome, observation] = await Promise.allSettled([returned, record.observer]);
+  const observer = record.observer;
+  retain?.(record, returned, observer);
+  const [outcome, observation] = await Promise.allSettled([returned, observer]);
   if (observation.status === 'rejected') {
-    record.cause = observation.reason;
+    // Proof: replacing aggregation with observer.reason lost the first setup-route primary Error in 'UC2 ordinary tracked setup and closure preserve both actual distinct rejection causes as unknown'; restoration passed (2026-11-05, inert consumer). Later closure-route and undefined-primary cases have positive coverage, not independent omission proof.
+    const cause: unknown =
+      outcome.status === 'rejected' && !Object.is(outcome.reason, observation.reason)
+        ? new AggregateError(
+            [outcome.reason, observation.reason],
+            'ordinary HOLD original and observer failed',
+          )
+        : observation.reason;
+    record.cause = cause;
     record.state = 'unknown';
-    throw observation.reason;
+    throw cause;
   }
   record.joined = true;
   if (outcome.status === 'rejected') throw outcome.reason;
   return outcome.value;
+}
+
+/** Checks the separately resolved canonical file before its byte read. */
+export function assertOrdinaryHoldClosureFileIdentityV1(
+  expected: { readonly canonical: string; readonly mode: number; readonly bytes: number },
+  canonical: string,
+  regular: boolean,
+  mode: number,
+  size: number,
+): void {
+  // Proof: four separate omissions of canonical, regular-file, mode and size predicates failed their respective supplied-scalar assertions in 'UC2 ordinary closure file guards reject canonical kind mode size and byte drift'; each restoration passed (2026-11-05, inert consumer, no filesystem fault).
+  if (
+    canonical !== expected.canonical ||
+    !regular ||
+    mode !== expected.mode ||
+    size !== expected.bytes
+  )
+    throw new Error('ordinary HOLD closure file identity differs');
+}
+
+/** Compares the actual read bytes against the independently sealed file row. */
+export function assertOrdinaryHoldClosureBytesV1(
+  expected: { readonly bytes: number; readonly sha256: string },
+  bytes: Uint8Array,
+): void {
+  // Proof: omitting only SHA comparison admitted equal-length changed 13-byte contents, failing 'UC2 ordinary closure file guards reject canonical kind mode size and byte drift'; restoration passed (2026-11-05, inert bytes). Length comparison was not isolated.
+  if (
+    bytes.byteLength !== expected.bytes ||
+    createHash('sha256').update(bytes).digest('hex') !== expected.sha256
+  )
+    throw new Error('ordinary HOLD closure file bytes differ');
+}
+
+/** The generated entry is one exact run path; discovered inputs cannot extend the admitted set. */
+export function assertOrdinaryHoldClosureInputsV1(
+  manifest: {
+    readonly sourceRoot: string;
+    readonly compilerInputs: readonly string[];
+    readonly virtualInputs: readonly string[];
+  },
+  entryPath: string,
+  identities: readonly string[],
+): void {
+  const expected = new Set([
+    ...manifest.compilerInputs.map((identity) => `${manifest.sourceRoot}/${identity}`),
+    ...manifest.virtualInputs,
+    entryPath,
+  ]);
+  // Proof: separate cardinality and membership omissions admitted a missing subset and a same-size foreign generated-entry path respectively, failing 'UC2 ordinary closure input set binds generated entry exact path and rejects missing extra duplicate inputs'; each restoration passed (2026-11-05, inert consumer). Duplicate-input uniqueness was not isolated.
+  if (
+    identities.length !== expected.size ||
+    new Set(identities).size !== identities.length ||
+    identities.some((identity) => !expected.has(identity))
+  )
+    throw new Error('ordinary HOLD closure compiler input set differs');
+}
+
+export type OrdinaryHoldClosureRoleV1 = 'compiler' | 'scanner' | 'authority' | 'package';
+export interface OrdinaryHoldClosureFileV1 {
+  readonly identity: string;
+  readonly canonical: string;
+  readonly mode: number;
+  readonly bytes: number;
+  readonly sha256: string;
+  readonly roles: readonly OrdinaryHoldClosureRoleV1[];
+  readonly compilerMode?: 'default' | 'transform' | 'pinned-pass-through';
+}
+export interface OrdinaryHoldClosureDirectoryV1 {
+  readonly identity: string;
+  readonly mode: number;
+}
+export interface OrdinaryHoldClosureSymlinkV1 {
+  readonly identity: string;
+  readonly target: string;
+  readonly mode: number;
+}
+export interface OrdinaryHoldClosureAbsenceV1 {
+  readonly identity: string;
+}
+export interface OrdinaryHoldClosureGeneratedEntryV1 {
+  readonly role: 'generated-entry';
+  readonly mode: number;
+  readonly bytes: number;
+  readonly sha256: string;
+  readonly template: {
+    readonly format: 'ordinary-hold-entry-v1';
+    readonly exports: readonly (readonly [string, string])[];
+    readonly ledger: string;
+  };
+}
+export interface OrdinaryHoldClosureManifestV1 {
+  readonly format: 'ordinary-hold-input-closure';
+  readonly version: 1;
+  readonly sourceEpoch: string;
+  readonly sourceRoot: string;
+  readonly sourceRootCanonical: string;
+  readonly compilerCwd: string;
+  readonly readLeaseAssumption: string;
+  readonly files: readonly OrdinaryHoldClosureFileV1[];
+  readonly directories: readonly OrdinaryHoldClosureDirectoryV1[];
+  readonly symlinks: readonly OrdinaryHoldClosureSymlinkV1[];
+  readonly absences: readonly OrdinaryHoldClosureAbsenceV1[];
+  readonly compilerInputs: readonly string[];
+  readonly virtualInputs: readonly string[];
+  readonly generatedEntry: OrdinaryHoldClosureGeneratedEntryV1;
+  readonly historicalSourcePins: readonly {
+    readonly relative: string;
+    readonly bytes: number;
+    readonly sha256: string;
+  }[];
+  readonly census: {
+    readonly F: number;
+    readonly D: number;
+    readonly L: number;
+    readonly A: number;
+  };
+  readonly closureOperationCount: number;
+}
+function ordinaryHoldClosureStringV1(value: unknown): string {
+  if (typeof value !== 'string' || value.length === 0 || value.includes('\0'))
+    throw new Error('ordinary HOLD closure string differs');
+  return value;
+}
+function ordinaryHoldClosureIntegerV1(value: unknown, maximum = Number.MAX_SAFE_INTEGER): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0 || value > maximum)
+    throw new Error('ordinary HOLD closure integer differs');
+  return value;
+}
+function ordinaryHoldClosurePathV1(value: unknown, absolute: boolean): string {
+  const identity = ordinaryHoldClosureStringV1(value);
+  if (
+    identity.includes('\\') ||
+    identity.startsWith('/') !== absolute ||
+    (identity !== '/' &&
+      (identity.endsWith('/') ||
+        identity.includes('//') ||
+        identity
+          .split('/')
+          .some((part) => part === '.' || part === '..' || (!absolute && part === ''))))
+  )
+    throw new Error('ordinary HOLD closure path differs');
+  return identity;
+}
+function ordinaryHoldClosureArrayV1(value: unknown): readonly unknown[] {
+  if (!Array.isArray(value)) throw new Error('ordinary HOLD closure array differs');
+  return value;
+}
+function ordinaryHoldClosureUniqueV1(identities: readonly string[]): void {
+  if (new Set(identities).size !== identities.length)
+    throw new Error('ordinary HOLD closure duplicate identity');
+}
+function ordinaryHoldClosureRoleV1(value: unknown): OrdinaryHoldClosureRoleV1 {
+  if (value !== 'compiler' && value !== 'scanner' && value !== 'authority' && value !== 'package')
+    throw new Error('ordinary HOLD closure role differs');
+  return value;
+}
+/** Decodes inert closure rows only; the private build boundary separately admits the fixed raw-byte digest. */
+export function decodeOrdinaryHoldClosureManifestV1(value: unknown): OrdinaryHoldClosureManifestV1 {
+  const packet = ordinaryHoldFields(
+    value,
+    [
+      'format',
+      'version',
+      'sourceEpoch',
+      'sourceRoot',
+      'sourceRootCanonical',
+      'compilerCwd',
+      'readLeaseAssumption',
+      'files',
+      'directories',
+      'symlinks',
+      'absences',
+      'compilerInputs',
+      'virtualInputs',
+      'generatedEntry',
+      'historicalSourcePins',
+      'census',
+      'closureOperationCount',
+    ],
+    'ordinary HOLD closure manifest',
+  );
+  if (
+    packet['format'] !== 'ordinary-hold-input-closure' ||
+    packet['version'] !== 1 ||
+    packet['sourceEpoch'] !== 'ordinary-febb-custody-v1'
+  )
+    throw new Error('ordinary HOLD closure format or epoch differs');
+  const sourceRoot = ordinaryHoldClosurePathV1(packet['sourceRoot'], true);
+  const sourceRootCanonical = ordinaryHoldClosurePathV1(packet['sourceRootCanonical'], true);
+  const compilerCwd = ordinaryHoldClosurePathV1(packet['compilerCwd'], true);
+  if (sourceRoot === '/' || sourceRootCanonical === '/' || compilerCwd !== sourceRoot)
+    throw new Error('ordinary HOLD closure root differs');
+  const readLeaseAssumption = ordinaryHoldClosureStringV1(packet['readLeaseAssumption']);
+  const files = Object.freeze(
+    ordinaryHoldClosureArrayV1(packet['files']).map(
+      (candidate: unknown): OrdinaryHoldClosureFileV1 => {
+        const shape = ordinaryHoldFields(
+          candidate,
+          Object.prototype.hasOwnProperty.call(candidate, 'compilerMode')
+            ? ['identity', 'canonical', 'mode', 'bytes', 'sha256', 'roles', 'compilerMode']
+            : ['identity', 'canonical', 'mode', 'bytes', 'sha256', 'roles'],
+          'ordinary HOLD closure file',
+        );
+        const identity = ordinaryHoldClosurePathV1(shape['identity'], false);
+        const canonical = ordinaryHoldClosurePathV1(shape['canonical'], true);
+        if (!canonical.startsWith(sourceRootCanonical + '/'))
+          throw new Error('ordinary HOLD closure file leaves canonical root');
+        const roles = Object.freeze(
+          ordinaryHoldClosureArrayV1(shape['roles']).map(ordinaryHoldClosureRoleV1),
+        );
+        ordinaryHoldClosureUniqueV1(roles);
+        if (roles.length === 0) throw new Error('ordinary HOLD closure empty file roles');
+        const row = {
+          identity,
+          canonical,
+          mode: ordinaryHoldClosureIntegerV1(shape['mode'], 0o7777),
+          bytes: ordinaryHoldClosureIntegerV1(shape['bytes']),
+          sha256: ordinaryHoldSha(shape['sha256'], 'ordinary HOLD closure file'),
+          roles,
+        };
+        if (roles.includes('compiler')) {
+          const compilerMode = shape['compilerMode'];
+          if (
+            compilerMode !== 'default' &&
+            compilerMode !== 'transform' &&
+            compilerMode !== 'pinned-pass-through'
+          )
+            throw new Error('ordinary HOLD closure compiler mode differs');
+          return Object.freeze({ ...row, compilerMode });
+        }
+        if (Object.hasOwn(shape, 'compilerMode'))
+          throw new Error('ordinary HOLD closure noncompiler mode');
+        return Object.freeze(row);
+      },
+    ),
+  );
+  const directories = Object.freeze(
+    ordinaryHoldClosureArrayV1(packet['directories']).map((candidate: unknown) => {
+      const row = ordinaryHoldFields(
+        candidate,
+        ['identity', 'mode'],
+        'ordinary HOLD closure directory',
+      );
+      return Object.freeze({
+        identity: ordinaryHoldClosurePathV1(row['identity'], true),
+        mode: ordinaryHoldClosureIntegerV1(row['mode'], 0o7777),
+      });
+    }),
+  );
+  const symlinks = Object.freeze(
+    ordinaryHoldClosureArrayV1(packet['symlinks']).map((candidate: unknown) => {
+      const row = ordinaryHoldFields(
+        candidate,
+        ['identity', 'target', 'mode'],
+        'ordinary HOLD closure symlink',
+      );
+      return Object.freeze({
+        identity: ordinaryHoldClosurePathV1(row['identity'], true),
+        target: ordinaryHoldClosureStringV1(row['target']),
+        mode: ordinaryHoldClosureIntegerV1(row['mode'], 0o7777),
+      });
+    }),
+  );
+  const absences = Object.freeze(
+    ordinaryHoldClosureArrayV1(packet['absences']).map((candidate: unknown) => {
+      const row = ordinaryHoldFields(candidate, ['identity'], 'ordinary HOLD closure absence');
+      return Object.freeze({ identity: ordinaryHoldClosurePathV1(row['identity'], true) });
+    }),
+  );
+  ordinaryHoldClosureUniqueV1([
+    ...files.map((row) => sourceRoot + '/' + row.identity),
+    ...directories.map((row) => row.identity),
+    ...symlinks.map((row) => row.identity),
+    ...absences.map((row) => row.identity),
+  ]);
+  const compilerInputs = Object.freeze(
+    ordinaryHoldClosureArrayV1(packet['compilerInputs']).map((identity) =>
+      ordinaryHoldClosurePathV1(identity, false),
+    ),
+  );
+  ordinaryHoldClosureUniqueV1(compilerInputs);
+  if (
+    compilerInputs.length !== 255 ||
+    JSON.stringify(compilerInputs) !== JSON.stringify([...compilerInputs].sort())
+  )
+    throw new Error('ordinary HOLD closure compiler roster differs');
+  const compilerFiles = files.filter((row) => row.roles.includes('compiler'));
+  if (
+    compilerFiles.length !== 255 ||
+    compilerFiles.some((row) => !compilerInputs.includes(row.identity)) ||
+    compilerFiles.filter((row) => row.compilerMode === 'default').length !== 239 ||
+    compilerFiles.filter((row) => row.compilerMode === 'transform').length !== 14 ||
+    compilerFiles.filter((row) => row.compilerMode === 'pinned-pass-through').length !== 2
+  )
+    throw new Error('ordinary HOLD closure compiler class census differs');
+  if (
+    files.filter((row) => row.roles.includes('scanner')).length !== 1 ||
+    files.some((row) => row.roles.includes('scanner') && row.roles.includes('compiler'))
+  )
+    throw new Error('ordinary HOLD closure scanner class differs');
+  const virtualInputs = Object.freeze(
+    ordinaryHoldClosureArrayV1(packet['virtualInputs']).map(ordinaryHoldClosureStringV1),
+  );
+  ordinaryHoldClosureUniqueV1(virtualInputs);
+  if (
+    virtualInputs.length !== 28 ||
+    virtualInputs.some((identity) => !/^ordinary-hold-v1:[a-z][a-z-]*$/.test(identity)) ||
+    JSON.stringify(virtualInputs) !== JSON.stringify([...virtualInputs].sort()) ||
+    virtualInputs.some((identity) => !ordinaryHoldPortSourcesV1(sourceRoot).has(identity))
+  )
+    throw new Error('ordinary HOLD closure virtual roster differs');
+  const generated = ordinaryHoldFields(
+    packet['generatedEntry'],
+    ['role', 'mode', 'bytes', 'sha256', 'template'],
+    'ordinary HOLD closure generated entry',
+  );
+  const template = ordinaryHoldFields(
+    generated['template'],
+    ['format', 'exports', 'ledger'],
+    'ordinary HOLD closure entry template',
+  );
+  if (
+    generated['role'] !== 'generated-entry' ||
+    generated['mode'] !== 0o600 ||
+    template['format'] !== 'ordinary-hold-entry-v1' ||
+    template['ledger'] !== "export * as ledger from 'ordinary-hold-v1:ledger';\n"
+  )
+    throw new Error('ordinary HOLD closure generated class differs');
+  const exports = Object.freeze(
+    ordinaryHoldClosureArrayV1(template['exports']).map((candidate: unknown) => {
+      const tuple = ordinaryHoldClosureArrayV1(candidate);
+      if (tuple.length !== 2) throw new Error('ordinary HOLD closure export tuple differs');
+      const name = ordinaryHoldClosureStringV1(tuple[0]);
+      if (!/^[A-Za-z][A-Za-z0-9]*$/.test(name))
+        throw new Error('ordinary HOLD closure export name differs');
+      return Object.freeze([name, ordinaryHoldClosurePathV1(tuple[1], false)] as const);
+    }),
+  );
+  ordinaryHoldClosureUniqueV1(exports.map((tuple) => tuple[0]));
+  ordinaryHoldClosureUniqueV1(exports.map((tuple) => tuple[1]));
+  if (
+    exports.length !== 17 ||
+    JSON.stringify(exports) !== JSON.stringify(ordinaryHoldClosureEntryExportsV1)
+  )
+    throw new Error('ordinary HOLD closure fixed exports differ');
+  const generatedEntry: OrdinaryHoldClosureGeneratedEntryV1 = Object.freeze({
+    role: 'generated-entry',
+    mode: 0o600,
+    bytes: ordinaryHoldClosureIntegerV1(generated['bytes']),
+    sha256: ordinaryHoldSha(generated['sha256'], 'ordinary HOLD closure generated entry'),
+    template: Object.freeze({
+      format: 'ordinary-hold-entry-v1',
+      exports,
+      ledger: "export * as ledger from 'ordinary-hold-v1:ledger';\n",
+    }),
+  });
+  const historicalSourcePins = Object.freeze(
+    ordinaryHoldClosureArrayV1(packet['historicalSourcePins']).map((candidate: unknown) => {
+      const row = ordinaryHoldFields(
+        candidate,
+        ['relative', 'bytes', 'sha256'],
+        'ordinary HOLD closure historical pin',
+      );
+      return Object.freeze({
+        relative: ordinaryHoldClosurePathV1(row['relative'], false),
+        bytes: ordinaryHoldClosureIntegerV1(row['bytes']),
+        sha256: ordinaryHoldSha(row['sha256'], 'ordinary HOLD closure historical pin'),
+      });
+    }),
+  );
+  ordinaryHoldClosureUniqueV1(historicalSourcePins.map((pin) => pin.relative));
+  if (
+    historicalSourcePins.length !== 17 ||
+    JSON.stringify(historicalSourcePins) !== JSON.stringify(ordinaryHoldSourceEpochV1.pins) ||
+    historicalSourcePins.some(
+      (pin) =>
+        !files.some(
+          (row) =>
+            row.identity === pin.relative && row.bytes === pin.bytes && row.sha256 === pin.sha256,
+        ),
+    )
+  )
+    throw new Error('ordinary HOLD closure historical pins differ');
+  const counts = ordinaryHoldFields(
+    packet['census'],
+    ['F', 'D', 'L', 'A'],
+    'ordinary HOLD closure census',
+  );
+  const census = Object.freeze({
+    F: ordinaryHoldClosureIntegerV1(counts['F']),
+    D: ordinaryHoldClosureIntegerV1(counts['D']),
+    L: ordinaryHoldClosureIntegerV1(counts['L']),
+    A: ordinaryHoldClosureIntegerV1(counts['A']),
+  });
+  if (
+    census.F !== 268 ||
+    census.D !== 39 ||
+    census.L !== 0 ||
+    census.A !== 122 ||
+    files.length !== census.F ||
+    directories.length !== census.D ||
+    symlinks.length !== census.L ||
+    absences.length !== census.A ||
+    packet['closureOperationCount'] !== 1936 ||
+    2 * (3 * (census.F + 1) + census.D + 2 * census.L + census.A) !==
+      packet['closureOperationCount']
+  )
+    throw new Error('ordinary HOLD closure operation census differs');
+  return Object.freeze({
+    format: 'ordinary-hold-input-closure',
+    version: 1,
+    sourceEpoch: 'ordinary-febb-custody-v1',
+    sourceRoot,
+    sourceRootCanonical,
+    compilerCwd,
+    readLeaseAssumption,
+    files,
+    directories,
+    symlinks,
+    absences,
+    compilerInputs,
+    virtualInputs,
+    generatedEntry,
+    historicalSourcePins,
+    census,
+    closureOperationCount: 1936,
+  });
+}
+
+const ordinaryHoldClosureEntryExportsV1 = [
+  ['owner', 'tools/tool-remote-scripts/src/lib/edge-ownership.ts'],
+  ['storage', 'tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts'],
+  ['complete', 'tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts'],
+  ['graph', 'tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts'],
+  ['database', 'libs/wbs/adapters/store-sqlite/src/db.ts'],
+  ['snapshot', 'libs/wbs/adapters/store-sqlite/src/backup.ts'],
+  ['sqliteCleanup', 'libs/wbs/adapters/store-sqlite/src/sqlite-cleanup.ts'],
+  ['locks', 'tools/tool-remote-scripts/src/lib/lock.ts'],
+  ['scanner', 'tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts'],
+  [
+    'participantFixture',
+    'tools/tool-remote-scripts/src/fixtures/dependency-participant-restoration.ts',
+  ],
+  ['completeFixture', 'tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts'],
+  ['sourceSetup', 'tools/tool-remote-scripts/src/fixtures/source-startup.ts'],
+  ['sourceDatabaseSetup', 'tools/tool-remote-scripts/src/fixtures/source-database-binding.ts'],
+  ['frontendSetup', 'tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts'],
+  ['namespaceSetup', 'tools/tool-remote-scripts/src/fixtures/namespace-audit.ts'],
+  ['directoryFile', 'tools/tool-remote-scripts/src/lib/directory-file.ts'],
+  ['migrations', 'libs/wbs/adapters/store-sqlite/src/migrate.ts'],
+] as const;
+import { lstat as ordinaryHoldLstat, readlink as ordinaryHoldReadlink } from 'node:fs/promises';
+
+type OrdinaryHoldClosureLedgerV1 = ReturnType<typeof createOrdinaryHoldClosureLedgerV1>;
+type OrdinaryHoldClosurePhaseV1 = 'before' | 'after';
+
+function ordinaryHoldClosureKeyV1(
+  phase: OrdinaryHoldClosurePhaseV1,
+  identity: string,
+  operation: string,
+): string {
+  return JSON.stringify([phase, identity, operation]);
+}
+
+function ordinaryHoldClosureKeysV1(manifest: OrdinaryHoldClosureManifestV1): readonly string[] {
+  const keys: string[] = [];
+  for (const phase of ['before', 'after'] as const) {
+    for (const row of [...manifest.files, { identity: 'generated-entry' }])
+      for (const operation of ['realpath', 'lstat', 'read'])
+        keys.push(ordinaryHoldClosureKeyV1(phase, row.identity, operation));
+    for (const row of manifest.directories)
+      keys.push(ordinaryHoldClosureKeyV1(phase, row.identity, 'lstat'));
+    for (const row of manifest.symlinks)
+      for (const operation of ['lstat', 'readlink'])
+        keys.push(ordinaryHoldClosureKeyV1(phase, row.identity, operation));
+    for (const row of manifest.absences)
+      keys.push(ordinaryHoldClosureKeyV1(phase, row.identity, 'lstat'));
+  }
+  if (keys.length !== manifest.closureOperationCount)
+    throw new Error('ordinary HOLD closure operation budget differs');
+  return Object.freeze(keys);
+}
+
+/** Each sealed key wraps exactly one actual filesystem Promise; default-loader resolution remains untouched. */
+async function observeOrdinaryHoldClosureV1(
+  manifest: OrdinaryHoldClosureManifestV1,
+  ledger: OrdinaryHoldClosureLedgerV1,
+  phase: OrdinaryHoldClosurePhaseV1,
+  entryPath: string,
+): Promise<void> {
+  for (const row of [
+    ...manifest.files,
+    { ...manifest.generatedEntry, identity: 'generated-entry', canonical: entryPath },
+  ]) {
+    const logical =
+      row.identity === 'generated-entry' ? entryPath : `${manifest.sourceRoot}/${row.identity}`;
+    const canonical = await ledger.run(
+      ordinaryHoldClosureKeyV1(phase, row.identity, 'realpath'),
+      () => ordinaryHoldRealpath(logical),
+    );
+    if (canonical !== row.canonical)
+      throw new Error('ordinary HOLD closure canonical identity differs');
+    const stat = await ledger.run(ordinaryHoldClosureKeyV1(phase, row.identity, 'lstat'), () =>
+      ordinaryHoldLstat(canonical),
+    );
+    assertOrdinaryHoldClosureFileIdentityV1(
+      row,
+      canonical,
+      stat.isFile(),
+      stat.mode & 0o7777,
+      stat.size,
+    );
+    const bytes = await ledger.run(ordinaryHoldClosureKeyV1(phase, row.identity, 'read'), () =>
+      readBinaryFile(canonical),
+    );
+    assertOrdinaryHoldClosureBytesV1(row, bytes);
+  }
+  for (const row of manifest.directories) {
+    const stat = await ledger.run(ordinaryHoldClosureKeyV1(phase, row.identity, 'lstat'), () =>
+      ordinaryHoldLstat(row.identity),
+    );
+    if (!stat.isDirectory() || (stat.mode & 0o7777) !== row.mode)
+      throw new Error('ordinary HOLD closure directory layout differs');
+  }
+  for (const row of manifest.symlinks) {
+    const stat = await ledger.run(ordinaryHoldClosureKeyV1(phase, row.identity, 'lstat'), () =>
+      ordinaryHoldLstat(row.identity),
+    );
+    if (!stat.isSymbolicLink() || (stat.mode & 0o7777) !== row.mode)
+      throw new Error('ordinary HOLD closure symlink layout differs');
+    const target = await ledger.run(ordinaryHoldClosureKeyV1(phase, row.identity, 'readlink'), () =>
+      ordinaryHoldReadlink(row.identity),
+    );
+    if (target !== row.target) throw new Error('ordinary HOLD closure symlink target differs');
+  }
+  for (const row of manifest.absences) {
+    try {
+      await ledger.run(ordinaryHoldClosureKeyV1(phase, row.identity, 'lstat'), () =>
+        ordinaryHoldLstat(row.identity),
+      );
+    } catch (cause) {
+      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') continue;
+      throw cause;
+    }
+    throw new Error('ordinary HOLD closure expected absence is present');
+  }
+}
+
+const ORDINARY_HOLD_CLOSURE_PACKET_SHA256_V1 =
+  '3947771e856124427559a77a842a24f6da5048840cb109c2f7079b8da7bce7f4';
+
+/** Fixed raw-byte authority is separate from the externally established exclusive no-writer lease. */
+export function decodeOrdinaryHoldClosurePacketV1(
+  sourceRoot: string,
+  value: unknown,
+): OrdinaryHoldClosureManifestV1 {
+  if (
+    typeof value !== 'string' ||
+    Buffer.byteLength(value) !== 138430 ||
+    createHash('sha256').update(value).digest('hex') !== ORDINARY_HOLD_CLOSURE_PACKET_SHA256_V1
+  )
+    throw new Error('ordinary HOLD closure packet digest differs');
+  const manifest = decodeOrdinaryHoldClosureManifestV1(JSON.parse(value));
+  if (manifest.sourceRoot !== sourceRoot || manifest.sourceRootCanonical !== sourceRoot)
+    throw new Error('ordinary HOLD closure packet root differs');
+  return manifest;
+}
+
+export interface OrdinaryHoldClosureObservationV1 {
+  readonly key: string;
+  readonly label: string;
+  readonly kind: 'promise';
+  readonly state: OrdinaryHoldSetupRecordV1['state'];
+  readonly joined: boolean;
+  readonly returned?: unknown;
+  readonly original?: Promise<unknown>;
+  readonly observer?: Promise<void>;
+}
+
+/** Closed keys reserve each real effect once; the inert seam does not establish a filesystem lease. */
+export function createOrdinaryHoldClosureLedgerV1(keys: readonly string[]) {
+  const allowed = new Set(keys);
+  // Proof: omitting admitted-key uniqueness let duplicate construction succeed, failing 'UC2 ordinary closure ledger refuses unknown duplicate and missing keys before sentinel effects'; restoration passed (2026-11-05, inert ledger).
+  if (allowed.size !== keys.length) throw new Error('ordinary HOLD closure duplicate admitted key');
+  const records: OrdinaryHoldSetupRecordV1[] = [];
+  const reserved = new Set<string>();
+  return Object.freeze({
+    async run<T>(key: string, action: () => Promise<T>): Promise<T> {
+      // Proof: omitting unknown-key refusal made invocation fulfill and failed the refusal assertion in 'UC2 ordinary closure ledger refuses unknown duplicate and missing keys before sentinel effects'; restoration passed (2026-11-05, inert ledger). The later sentinel-count assertion was not reached.
+      if (!allowed.has(key)) throw new Error('ordinary HOLD closure unknown key');
+      // Proof: omitting reserved-key refusal made the second invocation fulfill and failed the refusal assertion in 'UC2 ordinary closure ledger refuses unknown duplicate and missing keys before sentinel effects'; restoration passed (2026-11-05, inert ledger). The later sentinel-count assertion was not reached.
+      if (reserved.has(key)) throw new Error('ordinary HOLD closure duplicate key');
+      reserved.add(key);
+      return ordinaryHoldSetupOperationV1(records, key, action, keys.length);
+    },
+    inspect(): readonly OrdinaryHoldClosureObservationV1[] {
+      return Object.freeze(
+        records.map((record) =>
+          Object.freeze({
+            key: record.label,
+            label: record.label,
+            kind: record.kind,
+            state: record.state,
+            joined: record.joined,
+            returned: record.returned,
+            original: record.original,
+            observer: record.observer,
+          }),
+        ),
+      );
+    },
+    hasKnownOutcomes(): boolean {
+      return records.every(hasKnownOrdinaryHoldSetupOutcomeV1);
+    },
+    assertComplete(): void {
+      // Proof: omitting this entire completeness block let a missing after key escape 'UC2 ordinary closure ledger refuses unknown duplicate and missing keys before sentinel effects'; restoration passed (2026-11-05, inert ledger). Individual conjuncts and pending-provider behavior were not isolated.
+      if (
+        reserved.size !== allowed.size ||
+        records.length !== keys.length ||
+        !records.every(hasKnownOrdinaryHoldSetupOutcomeV1)
+      )
+        throw new Error('ordinary HOLD closure missing or unjoined keys');
+    },
+  });
 }
 
 function ordinaryHoldEntryV1(sourceRoot: string): string {
@@ -3497,6 +4344,7 @@ function ordinaryHoldEntryV1(sourceRoot: string): string {
 }
 
 interface OrdinaryHoldBuildAttemptV1 {
+  readonly closureOperations: () => readonly OrdinaryHoldClosureObservationV1[];
   readonly operations: OrdinaryHoldSetupRecordV1[];
   readonly observer: Promise<void>;
   outputRoot?: string;
@@ -3519,7 +4367,10 @@ export function inspectOrdinaryHoldBuildV1(
 export function buildOrdinaryHoldImageV1(request: unknown): Promise<OrdinaryHoldBuiltImageV1> {
   const admitted = ordinaryHoldBuildRequestV1(request);
   const operations: OrdinaryHoldSetupRecordV1[] = [];
-  const body = buildOrdinaryHoldImageBodyV1(admitted, operations, (outputRoot) => {
+  const closureLedger = createOrdinaryHoldClosureLedgerV1(
+    ordinaryHoldClosureKeysV1(admitted.closureManifest),
+  );
+  const body = buildOrdinaryHoldImageBodyV1(admitted, operations, closureLedger, (outputRoot) => {
     const attempt = ordinaryHoldBuilderAttempts.get(body);
     if (attempt !== undefined) attempt.outputRoot = outputRoot;
   });
@@ -3527,16 +4378,22 @@ export function buildOrdinaryHoldImageV1(request: unknown): Promise<OrdinaryHold
     () => undefined,
     () => undefined,
   );
-  ordinaryHoldBuilderAttempts.set(body, { operations, observer });
+  ordinaryHoldBuilderAttempts.set(body, {
+    operations,
+    observer,
+    closureOperations: closureLedger.inspect,
+  });
   return body;
 }
 
 async function buildOrdinaryHoldImageBodyV1(
   request: OrdinaryHoldBuildOnlyRequestV1,
   operations: OrdinaryHoldSetupRecordV1[],
+  closureLedger: OrdinaryHoldClosureLedgerV1,
   retainOutputRoot: (outputRoot: string) => void,
 ): Promise<OrdinaryHoldBuiltImageV1> {
-  const keeper = setInterval(() => operations, 60000);
+  let retainedLoadRecorder: ReturnType<typeof createOrdinaryHoldLoadRecorderV1> | undefined;
+  const keeper = setInterval(() => ({ operations, retainedLoadRecorder, closureLedger }), 60000);
   try {
     const root = request.sourceRoot;
     if (
@@ -3605,8 +4462,22 @@ async function buildOrdinaryHoldImageBodyV1(
     await ordinaryHoldSetupOperationV1(operations, 'entry.write', () =>
       writeFile(entryPath, entry, { mode: 0o600 }),
     );
+    assertOrdinaryHoldClosureBytesV1(
+      request.closureManifest.generatedEntry,
+      new TextEncoder().encode(entry),
+    );
+    if (process.cwd() !== request.closureManifest.compilerCwd)
+      throw new Error('ordinary HOLD closure compiler cwd differs');
+    await observeOrdinaryHoldClosureV1(request.closureManifest, closureLedger, 'before', entryPath);
     const resolutions: OrdinaryHoldResolutionV1[] = [];
     const callbacks = new Map<string, number>();
+    const loadExpectations = decodeOrdinaryHoldLoadPacketV1(root, request.loadExpectations);
+    const loadRecorder = createOrdinaryHoldLoadRecorderV1(
+      root,
+      loadExpectations,
+      createHash('sha256').update(JSON.stringify(loadExpectations)).digest('hex'),
+    );
+    retainedLoadRecorder = loadRecorder;
     const plugin: BunPlugin = {
       name: 'ordinary-hold-v1-fixed-image',
       setup(builder) {
@@ -3669,7 +4540,8 @@ async function buildOrdinaryHoldImageBodyV1(
         builder.onLoad({ filter: /.*/, namespace: 'ordinary-hold-v1' }, (source) => {
           const contents = plan.portSources.get(`ordinary-hold-v1:${source.path}`);
           if (contents === undefined) throw new Error('ordinary HOLD virtual port absent');
-          return { contents, loader: 'ts' };
+          const returned = { contents, loader: 'ts' as const };
+          return loadRecorder.record('ordinary-hold-v1', source.path, returned);
         });
         builder.onLoad({ filter: /.*/, namespace: 'file' }, (source) => {
           const bytes = plan.materialized.get(source.path);
@@ -3680,7 +4552,8 @@ async function buildOrdinaryHoldImageBodyV1(
           if (mapping?.mode === 'external-unchanged')
             throw new Error('ordinary HOLD scanner entered bundled loader');
           callbacks.set(source.path, (callbacks.get(source.path) ?? 0) + 1);
-          return { contents: bytes, loader: 'ts' };
+          const returned = { contents: new Uint8Array(bytes), loader: 'ts' as const };
+          return loadRecorder.record('file', source.path, returned);
         });
       },
     };
@@ -3715,23 +4588,56 @@ async function buildOrdinaryHoldImageBodyV1(
         .update(JSON.stringify(buildOptionsIdentity))
         .digest('hex'),
     };
-    const built = await ordinaryHoldSetupOperationV1(operations, 'compiler.Bun.build', () =>
-      Bun.build({
-        entrypoints: [entryPath],
-        target: 'bun',
-        format: 'esm',
-        splitting: false,
-        minify: false,
-        sourcemap: 'none',
-        bytecode: false,
-        packages: 'bundle',
-        metafile: true,
-        throw: false,
-        root,
-        tsconfig: `${root}/tsconfig.base.json`,
-        plugins: [plugin],
-      }),
+    const compilerIndex = operations.length;
+    let compilerCustody:
+      | {
+          readonly record: OrdinaryHoldSetupRecordV1;
+          readonly original: Promise<unknown>;
+          readonly observer: Promise<void>;
+        }
+      | undefined;
+    const built = await ordinaryHoldSetupOperationV1(
+      operations,
+      'compiler.Bun.build',
+      () => {
+        return Bun.build({
+          entrypoints: [entryPath],
+          target: 'bun',
+          format: 'esm',
+          splitting: false,
+          minify: false,
+          sourcemap: 'none',
+          bytecode: false,
+          packages: 'bundle',
+          metafile: true,
+          throw: false,
+          root,
+          tsconfig: `${root}/tsconfig.base.json`,
+          plugins: [plugin],
+        });
+      },
+      96,
+      (record, original, observer) => {
+        compilerCustody = Object.freeze({ record, original, observer });
+      },
     );
+    // This continuation follows the helper's actual await of its original and observer, never a caller token.
+    const compiler = operations.at(compilerIndex);
+    if (
+      compiler === undefined ||
+      compiler !== operations.at(-1) ||
+      compiler !== compilerCustody?.record ||
+      compiler.label !== 'compiler.Bun.build' ||
+      compiler.original !== compilerCustody.original ||
+      compiler.returned !== compilerCustody.original ||
+      compiler.observer !== compilerCustody.observer ||
+      !compiler.joined ||
+      compiler.state !== 'fulfilled'
+    )
+      throw new Error('ordinary HOLD actual compiler join identity differs');
+    const loadReceipts = loadRecorder.settle();
+    await observeOrdinaryHoldClosureV1(request.closureManifest, closureLedger, 'after', entryPath);
+    closureLedger.assertComplete();
     if (process.cwd() !== compilerCwd) throw new Error('ordinary HOLD compiler cwd changed');
     if (
       !built.success ||
@@ -3750,6 +4656,11 @@ async function buildOrdinaryHoldImageBodyV1(
       rawPath,
       identity: identifyOrdinaryHoldMetafilePathV1(root, compilerCwd, rawPath),
     }));
+    assertOrdinaryHoldClosureInputsV1(
+      request.closureManifest,
+      entryPath,
+      normalizedInputs.map((input) => input.identity),
+    );
     const scanner = `${root}/tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts`;
     if (normalizedInputs.some((input) => input.identity === scanner))
       throw new Error('ordinary HOLD scanner bundled input differs');
@@ -3796,7 +4707,19 @@ async function buildOrdinaryHoldImageBodyV1(
     await ordinaryHoldSetupOperationV1(operations, 'artifact.write', () =>
       writeFile(entryBundle, artifact, { mode: 0o600 }),
     );
+    const closureOperations = Object.freeze(
+      closureLedger
+        .inspect()
+        .map((record) =>
+          Object.freeze({ key: record.key, state: record.state, joined: record.joined }),
+        ),
+    );
     const metadata = JSON.stringify({
+      closureManifestSha256: ORDINARY_HOLD_CLOSURE_PACKET_SHA256_V1,
+      closureReadLeaseAssumption: request.closureManifest.readLeaseAssumption,
+      closureGeneratedEntry: { path: entryPath, ...request.closureManifest.generatedEntry },
+      closureCompilerCwd: request.closureManifest.compilerCwd,
+      closureOperations,
       image: plan.image,
       inputs: meta.inputs,
       outputs: meta.outputs,
@@ -3804,6 +4727,8 @@ async function buildOrdinaryHoldImageBodyV1(
       resolutions,
       normalizedInputs,
       normalizedEdges,
+      loadReceipts,
+      loadExpectationsSha256: ORDINARY_HOLD_LOAD_PACKET_SHA256_V1,
     });
     if (Buffer.byteLength(metadata) > 4 * 1024 * 1024)
       throw new Error('ordinary HOLD compiler metadata outside bound');
@@ -3825,7 +4750,12 @@ async function buildOrdinaryHoldImageBodyV1(
       metafileDigest: createHash('sha256').update(metadata).digest('hex'),
       sourceObservations: plan.image.sourcePins,
       appliedCuts: plan.appliedCuts,
+      loadReceipts,
+      loadExpectationsSha256: ORDINARY_HOLD_LOAD_PACKET_SHA256_V1,
       resolutions: Object.freeze(resolutions),
+      closureOperations,
+      closureManifestSha256: ORDINARY_HOLD_CLOSURE_PACKET_SHA256_V1,
+      closureReadLeaseAssumption: request.closureManifest.readLeaseAssumption,
       setupOperations: Object.freeze(operations),
       provenance,
       unqualified: Object.freeze([
@@ -3839,6 +4769,7 @@ async function buildOrdinaryHoldImageBodyV1(
       ]),
     });
   } finally {
-    if (operations.every(hasKnownOrdinaryHoldSetupOutcomeV1)) clearInterval(keeper);
+    if (operations.every(hasKnownOrdinaryHoldSetupOutcomeV1) && closureLedger.hasKnownOutcomes())
+      clearInterval(keeper);
   }
 }

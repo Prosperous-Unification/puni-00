@@ -2933,3 +2933,480 @@ test('UC2 generated collector refuses BOM-only raw stderr after known transport 
   expect(controlled.cancellations()).toBe(0);
   expect(refused).toBe(true);
 });
+
+/** Generated contents exercise the recorder only; no compiler or generated module executes. */
+async function makeOrdinaryLoadRecorderFixture() {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  const rootUrl = new URL('../../../../', import.meta.url);
+  const root = rootUrl.pathname.replace(/\/$/, '');
+  const supplied = new Map<string, Uint8Array>();
+  for (const pin of fixture.ordinaryHoldSourceEpochV1.pins)
+    supplied.set(`${root}/${pin.relative}`, await readFile(new URL(pin.relative, rootUrl)));
+  const plan = fixture.planOrdinaryHoldBuildV1(root, supplied);
+  const contents = 'generated receipt α';
+  const bytes = Buffer.byteLength(contents);
+  const sha256 = createHash('sha256').update(contents).digest('hex');
+  const rows = [
+    ...fixture.ordinaryHoldModuleModesV1
+      .filter((entry) => entry.mode !== 'external-unchanged')
+      .map((entry) => ({
+        namespace: 'file' as const,
+        identity: `${root}/${entry.relative}`,
+        mode: entry.mode,
+        loader: 'ts' as const,
+        bytes,
+        sha256,
+      })),
+    ...Array.from(plan.portSources.keys(), (identity) => ({
+      namespace: 'ordinary-hold-v1' as const,
+      identity: identity.slice('ordinary-hold-v1:'.length),
+      mode: 'virtual' as const,
+      loader: 'ts' as const,
+      bytes,
+      sha256,
+    })),
+  ];
+  const digest = createHash('sha256').update(JSON.stringify(rows)).digest('hex');
+  const recorder = fixture.createOrdinaryHoldLoadRecorderV1(root, rows, digest);
+  return { fixture, root, rows, digest, recorder, contents };
+}
+
+test('UC2 ordinary load receipts retain callback identity and publish frozen post-join hashes', async () => {
+  const { rows, recorder, contents } = await makeOrdinaryLoadRecorderFixture();
+  for (const row of rows) {
+    const returned = {
+      contents: row.namespace === 'file' ? new TextEncoder().encode(contents) : contents,
+      loader: 'ts' as const,
+    };
+    expect(recorder.record(row.namespace, row.identity, returned)).toBe(returned);
+  }
+  const receipts = recorder.settle();
+  expect(receipts).toHaveLength(44);
+  expect(Object.isFrozen(receipts)).toBe(true);
+  for (const receipt of receipts) {
+    expect(Object.isFrozen(receipt)).toBe(true);
+    expect(receipt.sha256).toBe(createHash('sha256').update(contents).digest('hex'));
+    expect(receipt.settledSha256).toBe(receipt.sha256);
+    expect(receipt.bytes).toBe(Buffer.byteLength(contents));
+    expect(receipt.returned).toBe(true);
+    expect('contents' in receipt).toBe(false);
+  }
+});
+
+test('UC2 ordinary load receipts refuse duplicate unknown missing and changed callback contents', async () => {
+  const { rows, recorder, contents } = await makeOrdinaryLoadRecorderFixture();
+  const first = rows[0];
+  const returned = { contents: new TextEncoder().encode(contents), loader: 'ts' as const };
+  recorder.record(first.namespace, first.identity, returned);
+  expect(() => recorder.record(first.namespace, first.identity, returned)).toThrow('duplicate');
+  expect(() => recorder.record('file', '/foreign.ts', returned)).toThrow('unknown');
+  expect(() => recorder.settle()).toThrow('missing');
+  const altered = await makeOrdinaryLoadRecorderFixture();
+  expect(() =>
+    altered.recorder.record(first.namespace, first.identity, {
+      contents: new TextEncoder().encode('changed'),
+      loader: 'ts',
+    }),
+  ).toThrow('expectation');
+});
+
+test('UC2 ordinary load receipts detect retained-object drift at the post-join finish boundary', async () => {
+  const { rows, recorder, contents } = await makeOrdinaryLoadRecorderFixture();
+  const retained: { contents: Uint8Array | string; loader: 'ts' }[] = [];
+  for (const row of rows) {
+    const returned = {
+      contents: row.namespace === 'file' ? new TextEncoder().encode(contents) : contents,
+      loader: 'ts' as const,
+    };
+    retained.push(returned);
+    recorder.record(row.namespace, row.identity, returned);
+  }
+  const bytes = retained[0].contents;
+  if (!(bytes instanceof Uint8Array)) throw Error('generated file bytes absent');
+  bytes[0] = 0;
+  expect(() => recorder.settle()).toThrow('drift');
+});
+
+test('UC2 ordinary load expectation admission refuses changed seal and closed roster', async () => {
+  const { fixture, root, rows, digest } = await makeOrdinaryLoadRecorderFixture();
+  expect(() => fixture.createOrdinaryHoldLoadRecorderV1(root, rows, '0'.repeat(64))).toThrow(
+    'digest',
+  );
+  const missing = rows.slice(1);
+  expect(() =>
+    fixture.createOrdinaryHoldLoadRecorderV1(
+      root,
+      missing,
+      createHash('sha256').update(JSON.stringify(missing)).digest('hex'),
+    ),
+  ).toThrow('roster');
+  const foreign = rows.map((row, index) =>
+    index === 0 ? { ...row, identity: '/foreign.ts' } : row,
+  );
+  expect(() =>
+    fixture.createOrdinaryHoldLoadRecorderV1(
+      root,
+      foreign,
+      createHash('sha256').update(JSON.stringify(foreign)).digest('hex'),
+    ),
+  ).toThrow('identity');
+  expect(digest).toHaveLength(64);
+});
+
+test('UC2 ordinary load receipts refuse replacement of the retained contents reference', async () => {
+  const { rows, recorder, contents } = await makeOrdinaryLoadRecorderFixture();
+  const retained: { contents: Uint8Array | string; loader: 'ts' }[] = [];
+  for (const row of rows) {
+    const returned = {
+      contents: row.namespace === 'file' ? new TextEncoder().encode(contents) : contents,
+      loader: 'ts' as const,
+    };
+    retained.push(returned);
+    recorder.record(row.namespace, row.identity, returned);
+  }
+  retained[0].contents = new TextEncoder().encode(contents);
+  expect(() => recorder.settle()).toThrow('drift');
+});
+
+test('UC2 ordinary load build admission refuses unsealed expectation text before acquisition', async () => {
+  const { buildOrdinaryHoldImageV1 } = await import('../fixtures/dependency-owner-custody');
+  expect(() =>
+    buildOrdinaryHoldImageV1({
+      version: 1,
+      mode: 'build-only',
+      sourceRoot: '/ordinary-hold',
+      sourceEpoch: 'ordinary-febb-custody-v1',
+      loadExpectations: '{}',
+      closureManifest: '',
+    }),
+  ).toThrow('digest');
+});
+
+test('UC2 ordinary load packet admits only the independently sealed root and rows without compiler entry', async () => {
+  const { decodeOrdinaryHoldLoadPacketV1 } = await import('../fixtures/dependency-owner-custody');
+  const packet = await readFile(
+    new URL('../fixtures/ordinary-input-load-expectations-20261105.json', import.meta.url),
+    'utf8',
+  );
+  const root = '/home/df/.codex/worktrees/1b31/puni-00';
+  const rows = decodeOrdinaryHoldLoadPacketV1(root, packet);
+  expect(rows).toHaveLength(44);
+  expect(Object.isFrozen(rows)).toBe(true);
+  expect(rows.filter((row) => row.mode === 'transform')).toHaveLength(14);
+  expect(rows.filter((row) => row.mode === 'pinned-pass-through')).toHaveLength(2);
+  expect(rows.filter((row) => row.mode === 'virtual')).toHaveLength(28);
+  expect(() => decodeOrdinaryHoldLoadPacketV1('/foreign', packet)).toThrow('root');
+  expect(() => decodeOrdinaryHoldLoadPacketV1(root, packet + '\n')).toThrow('digest');
+});
+
+test('UC2 ordinary closure ledger retains exact original and observer until their joined settlement', async () => {
+  const { createOrdinaryHoldClosureLedgerV1 } =
+    await import('../fixtures/dependency-owner-custody');
+  const ledger = createOrdinaryHoldClosureLedgerV1(['before:file:read']);
+  let fulfill!: (value: string) => void;
+  const original = new Promise<string>((resolve) => {
+    fulfill = resolve;
+  });
+  const running = ledger.run('before:file:read', () => original);
+  const pending = ledger.inspect()[0];
+  expect(pending.original).toBe(original);
+  expect(pending.returned).toBe(original);
+  expect(pending.observer).toBeInstanceOf(Promise);
+  expect(pending.joined).toBe(false);
+  expect(ledger.hasKnownOutcomes()).toBe(false);
+  fulfill('actual bytes');
+  expect(await running).toBe('actual bytes');
+  expect(ledger.inspect()[0].joined).toBe(true);
+  expect(ledger.hasKnownOutcomes()).toBe(true);
+  expect(() => {
+    ledger.assertComplete();
+  }).not.toThrow();
+  expect(Object.isFrozen(ledger.inspect())).toBe(true);
+  expect(Object.isFrozen(ledger.inspect()[0])).toBe(true);
+});
+
+test('UC2 ordinary closure ledger refuses unknown duplicate and missing keys before sentinel effects', async () => {
+  const { createOrdinaryHoldClosureLedgerV1 } =
+    await import('../fixtures/dependency-owner-custody');
+  const ledger = createOrdinaryHoldClosureLedgerV1(['before:file:read', 'after:file:read']);
+  let effects = 0;
+  const effect = () => {
+    effects++;
+    return Promise.resolve('bytes');
+  };
+  await refuses(ledger.run('unknown', effect), 'unknown');
+  expect(effects).toBe(0);
+  await ledger.run('before:file:read', effect);
+  await refuses(ledger.run('before:file:read', effect), 'duplicate');
+  expect(effects).toBe(1);
+  expect(() => {
+    ledger.assertComplete();
+  }).toThrow('missing');
+  expect(() => createOrdinaryHoldClosureLedgerV1(['same', 'same'])).toThrow('duplicate');
+});
+
+test('UC2 ordinary closure ledger separates known read rejection from unknown observer attachment', async () => {
+  const { createOrdinaryHoldClosureLedgerV1 } =
+    await import('../fixtures/dependency-owner-custody');
+  const refused = createOrdinaryHoldClosureLedgerV1(['before:file:read']);
+  const failure = new Error('modeled read refusal');
+  await refused
+    .run('before:file:read', () => Promise.reject(failure))
+    .then(
+      () => {
+        throw Error('expected read refusal');
+      },
+      (cause: unknown) => {
+        expect(cause).toBe(failure);
+      },
+    );
+  expect(refused.hasKnownOutcomes()).toBe(true);
+  const unknown = createOrdinaryHoldClosureLedgerV1(['before:file:read']);
+  const original = Promise.resolve('bytes');
+  original.then = () => {
+    throw failure;
+  };
+  await unknown
+    .run('before:file:read', () => original)
+    .then(
+      () => {
+        throw Error('expected observer refusal');
+      },
+      (cause: unknown) => {
+        expect(cause).toBe(failure);
+      },
+    );
+  expect(unknown.hasKnownOutcomes()).toBe(false);
+  expect(unknown.inspect()[0].original).toBe(original);
+  expect(unknown.inspect()[0].joined).toBe(false);
+});
+
+test('UC2 ordinary closure file guards reject canonical kind mode size and byte drift', async () => {
+  const { assertOrdinaryHoldClosureFileIdentityV1, assertOrdinaryHoldClosureBytesV1 } =
+    await import('../fixtures/dependency-owner-custody');
+  const bytes = new TextEncoder().encode('sealed source');
+  const row = {
+    canonical: '/sealed/source.ts',
+    mode: 0o664,
+    bytes: 13,
+    sha256: '22b8d77b1a6422b51c2d3aa6c15b48b526e8835be5d6278ea50d8223f50a424c',
+  };
+  row.sha256 = createHash('sha256').update(bytes).digest('hex');
+  expect(() => {
+    assertOrdinaryHoldClosureFileIdentityV1(row, '/foreign/source.ts', true, 0o664, 13);
+  }).toThrow('identity');
+  expect(() => {
+    assertOrdinaryHoldClosureFileIdentityV1(row, row.canonical, false, 0o664, 13);
+  }).toThrow('identity');
+  expect(() => {
+    assertOrdinaryHoldClosureFileIdentityV1(row, row.canonical, true, 0o600, 13);
+  }).toThrow('identity');
+  expect(() => {
+    assertOrdinaryHoldClosureFileIdentityV1(row, row.canonical, true, 0o664, 12);
+  }).toThrow('identity');
+  expect(() => {
+    assertOrdinaryHoldClosureFileIdentityV1(row, row.canonical, true, 0o664, 13);
+  }).not.toThrow();
+  expect(() => {
+    assertOrdinaryHoldClosureBytesV1(row, bytes);
+  }).not.toThrow();
+  expect(() => {
+    assertOrdinaryHoldClosureBytesV1(row, new TextEncoder().encode('altered bytes'));
+  }).toThrow('bytes');
+});
+
+test('UC2 ordinary closure input set binds generated entry exact path and rejects missing extra duplicate inputs', async () => {
+  const { assertOrdinaryHoldClosureInputsV1 } =
+    await import('../fixtures/dependency-owner-custody');
+  const manifest = {
+    sourceRoot: '/sealed',
+    compilerInputs: ['source.ts'],
+    virtualInputs: ['ordinary-hold-v1:ledger'],
+  };
+  const entry = '/private/run/ordinary-image-entry.ts';
+  const inputs = ['/sealed/source.ts', 'ordinary-hold-v1:ledger', entry];
+  expect(() => {
+    assertOrdinaryHoldClosureInputsV1(manifest, entry, inputs);
+  }).not.toThrow();
+  expect(() => {
+    assertOrdinaryHoldClosureInputsV1(manifest, entry, inputs.slice(1));
+  }).toThrow('set');
+  expect(() => {
+    assertOrdinaryHoldClosureInputsV1(manifest, entry, [...inputs, '/foreign.ts']);
+  }).toThrow('set');
+  expect(() => {
+    assertOrdinaryHoldClosureInputsV1(manifest, entry, [...inputs, entry]);
+  }).toThrow('set');
+  expect(() => {
+    assertOrdinaryHoldClosureInputsV1(manifest, entry, [
+      inputs[0],
+      inputs[1],
+      '/other/ordinary-image-entry.ts',
+    ]);
+  }).toThrow('set');
+});
+
+test('UC2 ordinary load receipts reject actual callback loader drift', async () => {
+  const { rows, recorder, contents } = await makeOrdinaryLoadRecorderFixture();
+  const retained: { contents: Uint8Array | string; loader: string }[] = [];
+  for (const row of rows) {
+    const returned = {
+      contents: row.namespace === 'file' ? new TextEncoder().encode(contents) : contents,
+      loader: 'ts' as const,
+    };
+    retained.push(returned);
+    recorder.record(row.namespace, row.identity, returned);
+  }
+  retained[0].loader = 'js';
+  expect(() => recorder.settle()).toThrow('shape');
+});
+
+test('UC2 ordinary closure manifest admits only fixed sealed packet and closed schema', async () => {
+  const { decodeOrdinaryHoldClosureManifestV1, decodeOrdinaryHoldClosurePacketV1 } =
+    await import('../fixtures/dependency-owner-custody');
+  const packet = await readFile(
+    new URL('../fixtures/ordinary-input-closure-manifest-20261105.json', import.meta.url),
+    'utf8',
+  );
+  const manifest = decodeOrdinaryHoldClosurePacketV1(
+    '/home/df/.codex/worktrees/1b31/puni-00',
+    packet,
+  );
+  expect(manifest.files).toHaveLength(268);
+  expect(manifest.closureOperationCount).toBe(1936);
+  expect(Object.isFrozen(manifest)).toBe(true);
+  expect(() => decodeOrdinaryHoldClosurePacketV1('/foreign', packet)).toThrow('root');
+  expect(() => decodeOrdinaryHoldClosurePacketV1(manifest.sourceRoot, packet + '\n')).toThrow(
+    'digest',
+  );
+  expect(() => decodeOrdinaryHoldClosureManifestV1({ ...manifest, extra: true })).toThrow();
+  expect(() =>
+    decodeOrdinaryHoldClosureManifestV1({ ...manifest, files: manifest.files.slice(1) }),
+  ).toThrow();
+  expect(() =>
+    decodeOrdinaryHoldClosureManifestV1({
+      ...manifest,
+      files: manifest.files.map((row, index) =>
+        index === 0 ? { ...row, identity: '../foreign' } : row,
+      ),
+    }),
+  ).toThrow();
+  expect(() =>
+    decodeOrdinaryHoldClosureManifestV1({
+      ...manifest,
+      compilerInputs: [...manifest.compilerInputs.slice(1), manifest.compilerInputs[0]],
+    }),
+  ).toThrow();
+  expect(() =>
+    decodeOrdinaryHoldClosureManifestV1({
+      ...manifest,
+      virtualInputs: [...manifest.virtualInputs.slice(1), 'foreign'],
+    }),
+  ).toThrow();
+  expect(() =>
+    decodeOrdinaryHoldClosureManifestV1({ ...manifest, closureOperationCount: 1937 }),
+  ).toThrow();
+});
+
+/** Only the first attachment returns the injected observer; real allSettled attachments always delegate. */
+function ordinaryRejectedObserverPair(
+  primary: unknown,
+  observerFailure: unknown,
+  rejected: boolean,
+) {
+  const originalDeferred = Promise.withResolvers<string>();
+  if (rejected) originalDeferred.reject(primary);
+  else originalDeferred.resolve('known value');
+  const original = originalDeferred.promise;
+  const observerDeferred = Promise.withResolvers<undefined>();
+  observerDeferred.reject(observerFailure);
+  const observer = observerDeferred.promise;
+  const actualThen = original.then.bind(original);
+  let first = true;
+  void Object.defineProperty(original, 'then', {
+    value: (...args: Parameters<typeof original.then>) => {
+      if (first) {
+        first = false;
+        return observer;
+      }
+      return actualThen(...args);
+    },
+  });
+  return { original, observer };
+}
+
+test('UC2 ordinary tracked setup and closure preserve both actual distinct rejection causes as unknown', async () => {
+  const { ordinaryHoldSetupOperationV1, createOrdinaryHoldClosureLedgerV1 } =
+    await import('../fixtures/dependency-owner-custody');
+  for (const useClosure of [false, true]) {
+    for (const primary of [new Error('actual original'), undefined]) {
+      const observerFailure = new Error('actual observer');
+      const { original, observer } = ordinaryRejectedObserverPair(primary, observerFailure, true);
+      const records: Parameters<typeof ordinaryHoldSetupOperationV1>[0] = [];
+      const ledger = createOrdinaryHoldClosureLedgerV1(['before:file:read']);
+      const operation = useClosure
+        ? ledger.run('before:file:read', () => original)
+        : ordinaryHoldSetupOperationV1(records, 'inert.read', () => original);
+      await operation.then(
+        () => {
+          throw Error('expected unknown observer refusal');
+        },
+        (cause: unknown) => {
+          expect(cause).toBeInstanceOf(AggregateError);
+          if (!(cause instanceof AggregateError)) throw Error('both original causes absent');
+          expect(cause.errors).toHaveLength(2);
+          expect(cause.errors[0]).toBe(primary);
+          expect(cause.errors[1]).toBe(observerFailure);
+        },
+      );
+      const record = useClosure ? ledger.inspect().at(0) : records.at(0);
+      expect(record?.original).toBe(original);
+      expect(record?.observer).toBe(observer);
+      expect(record?.state).toBe('unknown');
+      expect(record?.joined).toBe(false);
+      const outcomes = await Promise.allSettled([original, observer]);
+      expect(outcomes[0]).toEqual({ status: 'rejected', reason: primary });
+      expect(outcomes[1]).toEqual({ status: 'rejected', reason: observerFailure });
+    }
+  }
+});
+
+test('UC2 ordinary tracked observer failure preserves sole or identical actual cause', async () => {
+  const { ordinaryHoldSetupOperationV1 } = await import('../fixtures/dependency-owner-custody');
+  for (const rejected of [false, true]) {
+    const failure = new Error('same actual cause');
+    const { original } = ordinaryRejectedObserverPair(failure, failure, rejected);
+    const records: Parameters<typeof ordinaryHoldSetupOperationV1>[0] = [];
+    await ordinaryHoldSetupOperationV1(records, 'inert.read', () => original).then(
+      () => {
+        throw Error('expected observer refusal');
+      },
+      (cause: unknown) => {
+        expect(cause).toBe(failure);
+      },
+    );
+    expect(records[0]?.state).toBe('unknown');
+    expect(records[0]?.joined).toBe(false);
+  }
+});
+
+test('UC2 ordinary load packet refuses same-length valid hash corruption before acquisition', async () => {
+  const { decodeOrdinaryHoldLoadPacketV1 } = await import('../fixtures/dependency-owner-custody');
+  const packet = await readFile(
+    new URL('../fixtures/ordinary-input-load-expectations-20261105.json', import.meta.url),
+    'utf8',
+  );
+  const decoded = JSON.parse(packet) as { sourceRoot: string; rows: { sha256: string }[] };
+  const first = decoded.rows.at(0);
+  if (first === undefined) throw Error('sealed receipt row absent');
+  const changedHash = (first.sha256.startsWith('0') ? '1' : '0') + first.sha256.slice(1);
+  const corrupted = packet.replace(first.sha256, changedHash);
+  const changed = JSON.parse(corrupted) as { sourceRoot: string; rows: { sha256: string }[] };
+  expect(corrupted).not.toBe(packet);
+  expect(Buffer.byteLength(corrupted)).toBe(Buffer.byteLength(packet));
+  expect(changed.rows).toHaveLength(44);
+  expect(changed.sourceRoot).toBe(decoded.sourceRoot);
+  expect(changed.rows[0]?.sha256).toMatch(/^[0-9a-f]{64}$/);
+  expect(changed.rows[0]?.sha256).toBe(changedHash);
+  expect(() => decodeOrdinaryHoldLoadPacketV1(decoded.sourceRoot, corrupted)).toThrow('digest');
+});

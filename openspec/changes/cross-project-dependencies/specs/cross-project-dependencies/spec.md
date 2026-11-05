@@ -2821,3 +2821,60 @@ current execution acceptance SHALL NOT fall back between epochs.
 - **WHEN** transport semantics are evaluated after both readers and child have joined
 - **THEN** the nonempty raw stderr refuses even though ordinary text decoding would produce an empty string
 - **AND** ordinary Git, namespace and emitter text behavior remains unchanged
+
+### Requirement: Ordinary compilation binds actual returned bytes and sealed inputs
+
+The ordinary owned-image builder SHALL retain the same actual callback return
+objects through original compiler and observer settlement, recording exactly
+fourteen transformed, two pinned pass-through and twenty-eight virtual receipts.
+Frozen receipt metadata SHALL identify the exact returned contents before return
+and after settlement. Independent presealed reconstruction SHALL define expected
+bytes without using the builder plan as its own oracle.
+
+#### Scenario: Callback omission, duplication or byte drift refuses
+
+- **WHEN** a fixed callback identity is missing, duplicated, unknown or its actual contents differ from the presealed expectation or change before compiler settlement
+- **THEN** compilation qualification refuses and retains its actual operation obligations and evidence
+- **AND** no discovered value can extend the admitted expectation table
+
+#### Scenario: Default-loader closure is admitted before compilation
+
+- **GIVEN** a closed manifest and an exclusive no-writer lease over selected source, installation and configuration inputs
+- **WHEN** the builder checks those identities before and after genuine compiler settlement
+- **THEN** every actual filesystem operation and observer remains accounted separately from the unchanged setup budget
+- **AND** the normalized compiler input set equals the sealed expected set, with the generated entry bound to its actual creation rather than a previous random path
+- **AND** this controlled frozen-build qualification makes no atomic or adversarial filesystem snapshot claim
+
+#### Scenario: Scanner-only serialization is finite and separate
+
+- **WHEN** a reviewed consumer imports only the four emitted scanner declarations and the canonical scanner namespace
+- **THEN** it may compare actual function identities, serialize the fixed program and parse the generated text
+- **AND** it never invokes the scan, imports the full image, acquires native resources or grants runtime readiness
+
+### Requirement: Prospective coupled image preserves genuine custody and execution boundaries
+
+A prospective owned image SHALL admit only the literal ordinary-uc2-coupled-r2-v1
+epoch and exact reviewed three-file patch, while independently checking unchanged
+physical repository bases. It SHALL distinguish physical, proposed and rendered
+source identities and retain the complete historical private prefix and import
+marker. No prior image receipt or caller digest SHALL authorize new source bytes.
+
+#### Scenario: Exact in-memory proposal admission
+
+- **WHEN** a prospective planner receives a changed base, hunk, path or proposed hash
+- **THEN** it refuses without writing production files or evaluating source
+- **AND** an accepted patch reverses exactly to the admitted original bytes
+
+#### Scenario: Completion and scanner association preserve actual originals
+
+- **WHEN** genuine preparation is enrolled and retained scanner or completion work returns
+- **THEN** fixed ports associate the exact actual preparation, Promise, observer and returned monitor before caller continuation
+- **AND** nonretained already-closed scanner results create no live scanner obligation, and opaque scanner custody invents no descriptor identities
+- **AND** UNKNOWN and genuine delegated close failures never authorize retry or known success
+
+#### Scenario: Known controller uses actual fixture and production methods
+
+- **WHEN** a fixed known-control case is selected before fixture creation
+- **THEN** generated source calls the genuine fixture, owner, preparation, consume, inspection and release paths with its actual layouts
+- **AND** the pre-await refusal path preserves the exact original body cause through completion and projection with known cleanup and no context exposure
+- **AND** source generation and inert tests invoke no full image or native helper and do not register the39required HOLD cases

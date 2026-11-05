@@ -1424,3 +1424,33 @@ Keep UC2A–F and the complete feature obligations open.
 - [ ] CMT3. Prove missing/rejected/pending reads/closed/exit, nonzero/stderr semantic refusals, deadline and exact admission/byte/read caps. Overflow retains UNKNOWN with no new read/cancel/kill/retry/fake EOF; all test-owned providers retire explicitly. Keep native runtime keeper/containment unqualified.
 - [ ] CMT4. Freeze and review new safety checks; observe distinct unchanged-consumer before/fault/restored0/1/0 where granted in inert generated code, retain raw/source identities and add adjacent Proof comments only for actual observed scopes. Record every remaining guard obligation.
 - [ ] CMT5. Independently review frozen source/census, run the complete owning regression and configured types/populated lint/format/OpenSpec, then a separately reviewed single compile-only qualification. Preserve all runtime/source/data-closure/native/HOLD/coupled-enrollment/CI/host-gate/main/deployment obligations and publish fresh reviewable source/evidence.
+
+## UC2 actual compiler load and input closure — 2026-11-05
+
+[Intent](ordinary-input-closure-intent-20261105.md),
+[reviewed design](ordinary-input-closure-design-20261105.md) and
+[evidence](verify-ordinary-input-closure-20261105.md).
+This qualifies inputs toward genuine composition; parent UC2 and all seven
+runtime obligations remain open until their actual evidence exists.
+
+- [x] ICL1. Observe unchanged-consumer receipt RED, then retain the exact fixed callback return objects and private contents, frozen44-row metadata, closed identity census and post-join hashes without new callback filesystem effects or setup-budget growth.
+- [x] ICL2. Independently reconstruct all14 transformed hashes from pinned raw sources and ordered literal cuts, verify reversal, and seal expected16file/28virtual returns before the next compiler invocation.
+- [x] ICL3. Admit the closed255-preexisting-file manifest, external scanner/config/package layout and actual generated-entry identity under an explicit no-writer lease; separately bound and retain every real pre/post closure operation and observer, compare exact normalized inputs, and keep the96/46 setup budget unchanged.
+- [x] ICL4. Prepare and independently review the finite scanner-only exact-import/serialization consumer; observe its real positive and bounded identity/wrapper negatives without scanning, full image import or native execution.
+- [x] ICL5. Review exact source and proof obligations, run owning regressions/configured checks, then execute one separately reviewed compiler-only consumer against presealed expectations and retain genuine originals/streams and actual44load receipts. Compilation alone does not qualify runtime.
+- [x] ICL6. Publish current source/evidence in a freshly pushed draft PR, update WBS ownership and acceptance limits, and retain unapplied coupling/finite native/HOLD/gate/main/deployment obligations for the full feature.
+
+## UC2 prospective coupled image and known controller — 2026-11-05
+
+[Intent](ordinary-known-controller-intent-20261105.md),
+[architecture decision](ordinary-known-controller-design-20261105.md) and
+[evidence](verify-ordinary-known-controller-20261105.md).
+Existing production modules remain unapplied. Source work below does not waive
+any of the39ordinary HOLD rows, native/hosted gates or complete feature scope.
+
+- [ ] KCT1. Observe pure exact-proposal admission RED, then implement the separate coupled-r2 epoch with strict in-memory three-path patch application, fixed authority, physical/proposed/rendered identities and exact reverse reconstruction. Preserve all old epoch/prefix/import-marker bytes and production files.
+- [ ] KCT2. Add nonthrowing exact preparation association, genuine same-original completion forwarding and four closed controller Promise labels. Prove finite inert originals/observers, association/duplicate/refusal/deferred rules without self-join or synthetic authority.
+- [ ] KCT3. Add one genuine retained-scanner opaque obligation with actual saved close/receiver and one native delegation, nonretained exclusion and UNKNOWN/no retry; add the once-bound actual fixture Graph layouts. Observe inert guards and preserve canonical scanner/program bytes.
+- [ ] KCT4. Generate the two fixed genuine known-control paths and source-only passive bootstrap with actual body/projection/acceptance, operation and child joins; no top-level invocation, context stub, leaked-resource first-close success or production keeper tampering.
+- [ ] KCT5. Derive exact prospective31port/cut/setup/closure counts and independently sealed load/source authority packets; review finite inert R5 consumers, run owning/configured checks and prepare one separately reviewed compiler-only qualification. No new runtime invocation belongs to the source lease.
+- [ ] KCT6. Publish independently reviewed source/evidence with fresh pushes and WBS ownership. Then implement/qualify the complete finite native/HOLD/cleanup-migration and actual census continuation before applying or publishing executable production coupling; keep all parent acceptance obligations open.
