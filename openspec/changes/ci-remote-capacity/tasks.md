@@ -46,3 +46,10 @@
 - [x] 26. Exercise full discovery/collision coverage, required owner/target absence/unreadability/alias refusals, exact39 outer receipt, affected/full dispatch and parsed membership/execution with fresh tiny children; preserve static/Caddy/Node ownership, bounds and original custody.
 - [x] 27. Independently review frozen eight-path source and run scoped statics/OpenSpec. Separately prepare/review any new finite R5 dependencies before their execution grant; record only observed adjacent evidence. Preserve all held proof scopes.
 - [ ] 28. Require fresh complete39, remainder, all other required leaves and strict aggregate on one final candidate within unchanged budgets before capacity acceptance. Root owns publication/hosted validation; native and architectural main holds remain.
+
+## Storage whole-parent follow-up
+
+- [x] 29. Observe actual tiny-Bun storage owner/discovery/receipt RED; add only the unchanged storage69 whole parent as eighth leaf and seventh isolated runner. Prove exact canonical union/disjointness and collision retention without changing canonical host execution or the three-case private acceptance exclusion.
+- [x] 30. Exercise required storage file/target absence, unreadability, alias and malformed contracts before child launch; exact final69-pass/69-test/one-file receipts and invalid/empty/failed children; affected/full dispatch, parsed seventh membership/mandatory execution, exact Node subset, distinct artifacts and rest-only Caddy/static ownership.
+- [x] 31. Independently review exact finite R5 omission recipes, observe each accepted production-path negative with exact source restoration and restored consumers, then finish scoped test/type/lint/format/OpenSpec/source review and publish fresh source. Do not broaden parser, reducer or runtime proof claims beyond observed surfaces.
+- [ ] 32. Require fresh storage69, remainder, every existing peer and strict aggregate on one final candidate within unchanged75m/90m/30s and per-case/cleanup bounds before storage-capacity acceptance. Root owns combined-candidate publication and host/CI qualification; no private native or architecture/deployment completion follows.
