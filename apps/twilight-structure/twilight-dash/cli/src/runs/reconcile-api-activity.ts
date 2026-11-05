@@ -90,12 +90,14 @@ function snapshotObservation(
   locator: ExecutorLocator | null,
 ) {
   if (locator === null) {
+    // Proof: Fix1-lookup removed only this clone; post-return mutation during real held retention kept artifact JSON unsupported but published transport_lost in memory and reopened SQLite. Exact restored same cases passed.
     const observation = structuredClone(parseOrThrow(lookupCodec, input));
     // Proof: P12 removed preparation correlation; a foreign reply obtained from the real lookup was retained. Exact restored case passed.
     if (!equalRecords(observation.preparation, preparation))
       throw new Error('recovery preparation differs');
     return observation;
   }
+  // Proof: Fix1-resume removed only this clone; post-return mutation during real held retention kept artifact JSON unsupported but published transport_lost in memory and reopened SQLite. Exact restored same cases passed.
   const observation = structuredClone(parseOrThrow(resumeCodec, input));
   // Proof: P13 removed locator correlation; a foreign reply obtained from the real resume was retained. Exact restored case passed.
   if (!equalRecords(observation.locator, locator)) throw new Error('recovery locator differs');

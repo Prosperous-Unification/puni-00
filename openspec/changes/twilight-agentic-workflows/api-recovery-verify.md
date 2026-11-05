@@ -80,3 +80,35 @@ No dependencies, CTT, schema, migration, format/history owner, public port metho
 ```
 
 The final report is `.superpowers/sdd/api-recovery-tasks/task-1-report.md`. All temporary faults are restored. Source/index/HEAD hold releases only on the explicit parent message after closeout; branch/index verification, source review and publication remain root-owned.
+
+## Review fix 1 — I1 external observation detachment
+
+Root reviewed checkpoint 53d50b0cab05bfe90ca879891a73a675c729f9c6 (tree 11e7c92652f616148eef0291723f90abeab3102d). I1 identified missing mandatory R5 proof for the two existing observation clones, not a demonstrated defect in the cloning implementation. No runtime behavior or public contract changes are made.
+
+Two common cases exercise lookup and resume through mutable clones returned by the actual API adapter. Real artifact retention is held after JSON bytes have been encoded. Only then the returned reply reason is mutated to the valid generic transport_lost value. Cases independently check exact retained original bytes/JSON, preparation or complete locator, original target/checkpoint, held capacity and published/returned/persisted unsupported reasons. Both memory and actual reopened SQLite register the same cases, and actual pending retention/publication settles before fixture closure.
+
+Fresh native baseline fix1-baseline: 4 pass, 0 fail, 62 expect calls. Independent single-source controls remove only the route-specific structuredClone in snapshotObservation:
+
+| Capture              | Native outcome                          | Observed failure/restoration                                                                                                                                           |
+| -------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| fix1-lookup-fault    | exit 1; 0 pass, 2 fail, 30 expect calls | Both providers retain original unsupported JSON but publish/return/persist transport_lost. Original target/checkpoint/capacity checks pass before the reason mismatch. |
+| fix1-lookup-restored | exit 0; 2 pass, 0 fail, 32 expect calls | Exact same selected provider cases green after byte-exact restoration.                                                                                                 |
+| fix1-resume-fault    | exit 1; 0 pass, 2 fail, 28 expect calls | Same consequential post-retention reason mismatch for both providers.                                                                                                  |
+| fix1-resume-restored | exit 0; 2 pass, 0 fail, 30 expect calls | Exact same selected provider cases green after byte-exact restoration.                                                                                                 |
+
+Both controls restored the exact reviewed production SHA256 983c0ebf4cbd9d80b2f8f6182b897c7e5ceb552f33320b7ae17bfb95465c2d7c before the next control and before adjacent Proof comments. There were no setup/import/parser/timeouts or immediate-child signals in these controls. These prove external observation detachment under retained IO; they do not establish physical continuation, absence, quiescence, business outcomes or additional provider-fencing guarantees. Unchanged historical proof campaigns and tooling checks are not repeated or newly credited.
+
+Local append-only evidence: fix1-checkpoint.json, fix1-production-before.ts, fix1-proof-campaign.json, fresh fix1-* native regular-FD captures, and archived fix1-proof-driver.ts/fix1-native-helper.ts. The fresh helper records the same absolute Bun SHA256, argv/cwd/necessary nonsecret environment, regular stdout/stderr, status/signal and source/restoration identities as the initial task. Complete final counts, source/runtime correspondence and release are appended after required final verification.
+
+### I1 final verification and correspondence
+
+The immediate child commands below each ran once with only the matching clone removed and once after exact restoration. Their capture labels and native counts are in the table above; the original unsupported bytes and original target/checkpoint/capacity assertions complete before each intentional reason-drift failure.
+
+```sh
+/home/df/.bun/bin/bun test apps/twilight-structure/twilight-dash/cli/src/runs/reconcile-api-activity.test.ts apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/reconcile-api-activity.db.test.ts -t 'detaches actual lookup reply across held artifact retention' --timeout=10000
+/home/df/.bun/bin/bun test apps/twilight-structure/twilight-dash/cli/src/runs/reconcile-api-activity.test.ts apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/reconcile-api-activity.db.test.ts -t 'detaches actual resume reply across held artifact retention' --timeout=10000
+```
+
+Final relevant cohort fix1-final-regression: **466 pass, 0 fail, 1717 expect calls across five files** (56.00s). Actual uncached Dash lint fix1-final-lint exits 0 (45.3s); forced uncached Dash typecheck fix1-final-typecheck exits 0 (8.1s); changed-file formatting fix1-final-format and affected validation fix1-final-openspec exit 0. Only existing OpenSpec long-requirement warnings remain. No unchanged tooling checks, policy proofs or old source-fault campaigns were repeated.
+
+fix1-source-map.json preserves the reviewed pre-comment production SHA256 983c0ebf4cbd9d80b2f8f6182b897c7e5ceb552f33320b7ae17bfb95465c2d7c and final adjacent-comment-only SHA256 f8f78feb04febc4b9d01e5f5319a982713ae5dead92a3387b8459bb23f4582a0. Identical normalized emitted runtime is 2f354c2a8f317a15094008f07b3681e648759a5d9c54d393719c8417103579cd. It independently verifies all six final source identities against the final regression start vector. The full accepted composition and physical-recovery limits remain unchanged. This supplies I1 evidence without retroactively crediting the initial campaigns; scoped re-review and approval remain root-owned.

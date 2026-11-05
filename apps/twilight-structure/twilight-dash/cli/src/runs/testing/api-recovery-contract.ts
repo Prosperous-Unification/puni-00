@@ -11,7 +11,7 @@ import { createProviderRegistry, simulateReadableStream } from 'ai';
 import { MockLanguageModelV4, MockProviderV4 } from 'ai/test';
 import { describe, expect, test } from 'bun:test';
 
-import type { ActivityExecutor } from '../../agents/activity-executor';
+import type { ActivityExecutor, ResumeReply, SessionLookup } from '../../agents/activity-executor';
 import { createApiModelExecutor } from '../../agents/api-model-adapter';
 import { acceptClaimReceipt, stageClaimRequest } from '../claim-history';
 import { prepareActivity } from '../prepare-activity';
@@ -263,6 +263,146 @@ export function apiRecoveryContract(name: string, create: () => Promise<Recovery
         }
       });
 
+    for (const route of ['lookup', 'resume'] as const)
+      test('detaches actual ' + route + ' reply across held artifact retention', async () => {
+        const stores = await create();
+        const exposed =
+          Promise.withResolvers<Extract<SessionLookup | ResumeReply, { kind: 'unresolved' }>>();
+        const retaining = Promise.withResolvers<{
+          readonly text: string;
+          readonly mediaType: string;
+        }>();
+        const release = Promise.withResolvers<undefined>();
+        const retained = Promise.withResolvers<undefined>();
+        const settlements: Promise<undefined>[] = [];
+        let completion:
+          | Promise<
+              | {
+                  readonly kind: 'returned';
+                  readonly reply: Awaited<ReturnType<typeof reconcileApiActivity>>;
+                }
+              | { readonly kind: 'threw'; readonly cause: unknown }
+            >
+          | undefined;
+        try {
+          const fixture = await prepareApi(stores, route === 'lookup' ? 'preparing' : 'prepared');
+          const original = fixture.before.attempts.at(0);
+          if (
+            original?.version !== 2 ||
+            (original.state.kind !== 'preparing' && original.state.kind !== 'prepared')
+          )
+            throw new Error('original recovery checkpoint absent');
+          const executor: ActivityExecutor = {
+            ...fixture.executor,
+            async lookupSession(preparation, signal) {
+              const actual = structuredClone(
+                await fixture.executor.lookupSession(preparation, signal),
+              );
+              if (actual.kind !== 'unresolved') throw new Error('actual lookup was not unresolved');
+              exposed.resolve(actual);
+              return actual;
+            },
+            async resumeSession(locator, signal) {
+              const actual = structuredClone(await fixture.executor.resumeSession(locator, signal));
+              if (actual.kind !== 'unresolved') throw new Error('actual resume was not unresolved');
+              exposed.resolve(actual);
+              return actual;
+            },
+          };
+          const artifacts = {
+            ...stores.artifacts,
+            async retainArtifact(content: Uint8Array, mediaType: string) {
+              settlements.push(retained.promise);
+              retaining.resolve({ text: new TextDecoder().decode(content), mediaType });
+              try {
+                await release.promise;
+                return await stores.artifacts.retainArtifact(content, mediaType);
+              } finally {
+                retained.resolve(undefined);
+              }
+            },
+          };
+          completion = fixture.invoke({ executor, artifacts }).then(
+            (reply) => ({ kind: 'returned' as const, reply }),
+            (cause: unknown) => ({ kind: 'threw' as const, cause }),
+          );
+          const mutable = await exposed.promise;
+          const encoded = await retaining.promise;
+          const expectedText = JSON.stringify(mutable);
+          expect(encoded).toEqual({ text: expectedText, mediaType: 'application/json' });
+          expect(mutable.reason).toBe('unsupported');
+          expect(Reflect.set(mutable, 'reason', 'transport_lost')).toBe(true);
+          expect(mutable.reason).toBe('transport_lost');
+          release.resolve(undefined);
+          const observed = await completion;
+          if (observed.kind === 'threw') throw observed.cause;
+          const reply = observed.reply;
+          if (
+            reply.kind !== 'recorded' ||
+            reply.attempt.version !== 2 ||
+            reply.attempt.state.kind !== 'unresolved' ||
+            reply.attempt.state.observation.kind !== 'artifact'
+          )
+            throw new Error('recovery did not return artifact-backed uncertainty');
+          const history = await stores.runs.readExecutionHistory(
+            fixture.guard.runId,
+            fixture.guard.attemptId,
+          );
+          const entry = history.executions.find(
+            (candidate) => candidate.command.commandId === executionCommandId('recover'),
+          );
+          if (entry?.command.kind !== 'execution' || entry.command.fact.kind !== 'unresolved')
+            throw new Error('published unresolved fact absent');
+          const persisted = history.attempt;
+          if (
+            persisted.version !== 2 ||
+            persisted.state.kind !== 'unresolved' ||
+            persisted.state.observation.kind !== 'artifact'
+          )
+            throw new Error('retained unresolved state absent');
+          expect(reply.attempt.attemptId).toBe(fixture.guard.attemptId);
+          expect(reply.attempt.identity).toEqual(original.identity);
+          expect(reply.attempt.state.checkpoint).toEqual(original.state);
+          expect(persisted.state.checkpoint).toEqual(original.state);
+          expect(reply.attempt.holdsCapacity).toBe(true);
+          expect(persisted.holdsCapacity).toBe(true);
+          expect((await stores.runs.readRun(fixture.guard.runId)).capacity.reserved).toBe(1);
+          const evidence = await stores.artifacts.readArtifact(entry.command.fact.evidence);
+          const retainedText = new TextDecoder().decode(evidence);
+          expect(retainedText).toBe(expectedText);
+          const retainedObservation: unknown = JSON.parse(retainedText);
+          if (route === 'lookup')
+            expect(retainedObservation).toEqual({
+              kind: 'unresolved',
+              preparation: fixture.setup.preparationInput.preparation,
+              reason: 'unsupported',
+            });
+          else {
+            if (original.state.kind !== 'prepared')
+              throw new Error('original session checkpoint absent');
+            expect(retainedObservation).toEqual({
+              kind: 'unresolved',
+              locator: original.state.session.locator,
+              reason: 'unsupported',
+            });
+          }
+          expect({
+            published: entry.command.fact.reason,
+            returned: reply.attempt.state.observation.reason,
+            persisted: persisted.state.observation.reason,
+          }).toEqual({
+            published: 'unsupported',
+            returned: 'unsupported',
+            persisted: 'unsupported',
+          });
+          expect(fixture.queries()).toBe(1);
+        } finally {
+          release.resolve(undefined);
+          await Promise.all(settlements);
+          if (completion !== undefined) await completion;
+          await stores.close();
+        }
+      });
     test('foreign actual lookup or resume reply cannot be retained', async () => {
       for (const cut of ['preparing', 'prepared'] as const) {
         const stores = await create();
