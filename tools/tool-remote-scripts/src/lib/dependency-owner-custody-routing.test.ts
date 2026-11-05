@@ -48,18 +48,20 @@ test('ordinary storage callbacks retain their bodies without native owner bootst
   expect(callbacks).toHaveLength(42);
   if (callbacks.some((call) => call.arguments.length < 2))
     throw new Error('ordinary test callback absent');
+  // 2026-11-05 fixture-layout repair: 12 explicit bindings and leading provider restoration only.
+  // Independent AST removal retained all original callback, cleanup and four-route loop hashes.
   expect(
     sha256(
       callbacks
         .map((call) => `${call.arguments[0].getText(source)}\0${call.arguments[1].getText(source)}`)
         .join('\0'),
     ),
-  ).toBe('d1fc77b41acb688944122245eb49705895242cb5bbe6210c3121eb82985da87a');
+  ).toBe('629beecfe907fabc61ecb96435baf8e910af0b82c2083a5069cb6e561504365e');
   const cleanup = callsNamed(source, 'afterEach');
   expect(cleanup).toHaveLength(1);
   if (cleanup[0].arguments.length !== 1) throw new Error('ordinary cleanup callback absent');
   expect(sha256(cleanup[0].arguments[0].getText(source))).toBe(
-    '6c7c17458b29fd9151714be44cc3c98ec8f0c919c49ac1d22ffcff5acfed836a',
+    'd7da5e9b0f67f260dad53ec3d94e8ac3c992855bc57699292689a820b89764bf',
   );
   const originalOwnerLoop = source.statements
     .filter(ts.isForOfStatement)
@@ -68,7 +70,7 @@ test('ordinary storage callbacks retain their bodies without native owner bootst
     );
   if (originalOwnerLoop === undefined) throw new Error('ordinary four-route owner loop absent');
   expect(sha256(originalOwnerLoop.getText(source))).toBe(
-    '80d392c1f706611c6298b9910a0339296de4325d32a0c414a7666c7d3cf22fa2',
+    '24273786ca7a5baf0a359f17c6b5c4c949aec96606f02dca6fb5cef2143d150a',
   );
   expect(importPaths(source)).not.toContain('../fixtures/dependency-owner-custody');
   expect(callsNamed(source, 'prepareDependencyOwnerCustody')).toHaveLength(0);

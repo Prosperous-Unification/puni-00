@@ -30,6 +30,7 @@ import { retainActivationDatabase } from './dependency-activation-storage';
 import * as ownership from './edge-ownership';
 import { withDependencyOwner } from './edge-ownership';
 import * as edgePolicy from './edge-policy';
+import * as environment from './env';
 import * as initialGraph from './initial-handoff-graph';
 import * as managedCohort from './managed-cohort';
 import * as migrationCapture from './migration-capture-file';
@@ -81,9 +82,29 @@ test('retained database boundary refuses parent replacement despite same main in
 });
 
 afterEach(async () => {
+  restoreFixtureLayouts?.();
+  restoreFixtureLayouts = undefined;
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
   delete process.env['WBS_EDGE_STATE'];
 });
+
+let restoreFixtureLayouts: (() => void) | undefined;
+const realEnvLayout = environment.envLayout;
+
+/** Gives the raw decoder an independent expected layout pair for this completed scratch fixture. */
+function bindFixtureLayouts(fixture: Awaited<ReturnType<typeof participantActivationFixture>>) {
+  if (restoreFixtureLayouts !== undefined) throw new Error('fixture layouts already bound');
+  const layouts = structuredClone(fixture.layouts);
+  const provider = spyOn(environment, 'envLayout').mockImplementation((name) => {
+    if (name === 'prod' || name === 'dev') return layouts[name];
+    return realEnvLayout(name);
+  });
+  restoreFixtureLayouts = () => {
+    provider.mockRestore();
+    // Proof: omitting mockRestore failed the healthy prod afterEach identity assertion.
+    expect(environment.envLayout).toBe(realEnvLayout);
+  };
+}
 
 const digest = (bytes: string | Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 
@@ -238,6 +259,7 @@ for (const roster of [['prod'], ['dev'], ['prod', 'dev']] as const)
 for (const roster of [['prod'], ['dev'], ['prod', 'dev']] as const)
   test(`initial handoff ${roster.join('+')} retains genuine bounded original evidence`, async () => {
     const fixture = await participantActivationFixture(roster);
+    bindFixtureLayouts(fixture);
     process.env['WBS_EDGE_STATE'] = fixture.root;
     await withDependencyOwner(
       fixture.request.owner,
@@ -423,6 +445,7 @@ function assertSafeFailure(failure: unknown, stage?: string): asserts failure is
 for (const fault of ['anchor-close', 'operation-two-cleanups'] as const)
   test(`initial preparation ${fault} retains commits and closes directly owned original descriptors`, async () => {
     const fixture = await participantActivationFixture(['prod']);
+    bindFixtureLayouts(fixture);
     process.env['WBS_EDGE_STATE'] = fixture.root;
     await withDependencyOwner(
       fixture.request.owner,
@@ -542,6 +565,7 @@ for (const fault of ['anchor-close', 'operation-two-cleanups'] as const)
 
 test('initial preparation closes raw evidence after the actual final awaited fenced capture', async () => {
   const fixture = await participantActivationFixture(['prod']);
+  bindFixtureLayouts(fixture);
   process.env['WBS_EDGE_STATE'] = fixture.root;
   const capture = edgePolicy.captureEdgeRecord;
   let injected = false;
@@ -593,6 +617,7 @@ test('initial preparation closes raw evidence after the actual final awaited fen
 for (const boundary of ['first-readback', 'incomplete-roster'] as const)
   test(`initial capture growth at ${boundary} is refused before whole-file allocation`, async () => {
     const fixture = await participantActivationFixture(['prod', 'dev']);
+    bindFixtureLayouts(fixture);
     process.env['WBS_EDGE_STATE'] = fixture.root;
     const publish = migrationCapture.writeNewMigrationCapture;
     let injected = false;
@@ -678,6 +703,7 @@ for (const boundary of ['first-readback', 'incomplete-roster'] as const)
 for (const fault of ['capture-bytes', 'backup-bytes', 'backup-identity'] as const)
   test(`initial actual raw observer refuses ${fault} before any intent or activation`, async () => {
     const fixture = await participantActivationFixture(['prod']);
+    bindFixtureLayouts(fixture);
     process.env['WBS_EDGE_STATE'] = fixture.root;
     const observe = initialGraph.captureInitialHandoffArtifacts;
     let reached = false;
@@ -746,6 +772,7 @@ for (const fault of [
 ] as const)
   test(`initial between-dispatch ${fault} preserves the first actual receipt and refuses the second DML`, async () => {
     const fixture = await participantActivationFixture(['prod', 'dev']);
+    bindFixtureLayouts(fixture);
     process.env['WBS_EDGE_STATE'] = fixture.root;
     const publish = migrationCapture.writeNewMigrationCapture;
     const now = performance.now.bind(performance);
@@ -842,6 +869,7 @@ for (const fault of [
 for (const fault of ['capture-multibyte', 'capture-LF', 'envelope-LF', 'publisher-return'] as const)
   test(`initial ${fault} publication admission uses exact UTF-8 bytes including LF`, async () => {
     const fixture = await participantActivationFixture(['prod']);
+    bindFixtureLayouts(fixture);
     process.env['WBS_EDGE_STATE'] = fixture.root;
     const capture = migrationSets.captureAppliedMigrationSet;
     const retain = ownership.retainActivationRecord;
@@ -937,6 +965,7 @@ for (const fault of [
     const fixture = await participantActivationFixture(['prod']);
     const foreign =
       fault === 'foreign-owner' ? await participantActivationFixture(['prod']) : undefined;
+    bindFixtureLayouts(fixture);
     process.env['WBS_EDGE_STATE'] = fixture.root;
     const observe = initialGraph.captureInitialHandoffArtifacts;
     const open = filesystem.openSync;
@@ -1049,6 +1078,7 @@ for (const fault of [
 for (const fault of ['missing-evidence', 'wrong-purpose', 'physical-finalizer'] as const)
   test(`initial ${fault} refuses preparation after real storage and closes actual retained evidence`, async () => {
     const fixture = await participantActivationFixture(['prod']);
+    bindFixtureLayouts(fixture);
     process.env['WBS_EDGE_STATE'] = fixture.root;
     const activate = storage.activateDependencyStores;
     const exclude = sourceExclusion.withSourceDevExcluded;
@@ -1116,6 +1146,7 @@ for (const fault of ['missing-evidence', 'wrong-purpose', 'physical-finalizer'] 
 
 test('initial incomplete roster rejects first backup growth before reopening SQLite or whole-file allocation', async () => {
   const fixture = await participantActivationFixture(['prod', 'dev']);
+  bindFixtureLayouts(fixture);
   process.env['WBS_EDGE_STATE'] = fixture.root;
   const publish = migrationCapture.writeNewMigrationCapture;
   const open = storeConnections.openReadOnlyConnection;
@@ -1180,6 +1211,7 @@ test('initial incomplete roster rejects first backup growth before reopening SQL
 
 test('initial fenced envelope LF is admitted before the actual fenced publication', async () => {
   const fixture = await participantActivationFixture(['prod']);
+  bindFixtureLayouts(fixture);
   process.env['WBS_EDGE_STATE'] = fixture.root;
   const activate = storage.activateDependencyStores;
   const retain = ownership.retainActivationRecord;
@@ -1244,6 +1276,7 @@ for (const disposition of ['drop', 'release'] as const)
   for (const expiry of ['live', 'expired'] as const)
     test(`UC2 original ${disposition} ${expiry} closes genuine raw originals at owner return`, async () => {
       const fixture = await participantActivationFixture(['prod']);
+      bindFixtureLayouts(fixture);
       process.env['WBS_EDGE_STATE'] = fixture.root;
       const capture = initialGraph.captureInitialHandoffArtifacts;
       const open = filesystem.openSync;
