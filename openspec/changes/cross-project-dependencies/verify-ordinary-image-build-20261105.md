@@ -351,3 +351,68 @@ enrollment were found. Root's subsequently completed95-test run above fulfills
 the review's pending whole-owner regression. All334OpenSpec entries validate;
 current document/index checks pass. Publication does not grant a second build,
 image execution, main merge or deployment.
+
+## Second actual build: compiled, still unqualified
+
+The corrected f8d59caf/81617b96 source was committed as
+`ffa15caaf22d31275fea73872180055f0de61c6f` and freshly published in draft PR870.
+A new private directory preserved the failed first run unchanged. Its driver
+SHA256 `fee60b74685209cf7f3f51466f5b3be3efce6641969ae113e4ca183183475c3b`
+differs from the first only in the evidence directory and expected issuer hash.
+Expected manifest SHA256
+`376466a288034bfdeaaea994fec2bbd734ca466dbe558f005474410cb7a9a273`;
+launcher SHA256
+`ef6168d9c835e0342412eb0544559ceb53f78cc1c5a913c509a92e4d45c09b41`.
+After independent review Root ran exactly once:
+
+```sh
+python3 /tmp/puni-ordinary-image-second-build-20261105/launch.py
+```
+
+Actual PID/PGID1861410 exited0, no signal, stdout/stderr EOF, empty stderr.
+Pre/post source,16pinned inputs, configuration, compiler and driver matched.
+The actual compiler succeeded with no logs. All44setup operations fulfilled
+and their original Promises and separately retained observers were joined.
+The resulting one entry artifact is1110085bytes, SHA256
+`f4da563ee35593043e597ddcbe53e85594b7060beb4cce8cf5bfabf45f6ce2da`.
+The566665-byte metadata file has SHA256
+`a48737bceaba4206d035f9a7c70acfc705196e76e9dde8210965a1c64fb7491b`.
+Actual metadata contains275inputs:19fixed virtual ports and256filesystem
+inputs, including15fixed bundled modules and four unchanged scanner external
+edges. No generated output was imported or executed.
+
+Retained receipt SHA256
+`477aa7e6050e7ad63197087e5bf21fe09f1c51171d121ca1250ce8c13a2630eb`;
+success capture SHA256
+`c5305172881c36da1f72a7c2ba2e42510c5bb0f1c43195c7f3cb1f659be16b71`;
+raw compiler metafile SHA256
+`6cf42f0b87d360aa538062ac8c197802d1bc7c4552d57057c40acf9de0404727`.
+Independent review accepts compilation with status `built-unqualified` only.
+
+A separate post-build read-only closure observation (SHA256
+`3b86b3a0cdac68cd266c2bdc56d78b065d1c7efc5bd0d08ae62f6a5941cd1bc6`)
+is not a pre-build immutable admission. The13raw source-size differences are
+transformed modules. Input external flags also include unused Drizzle imports;
+output imports are empty and do not prove runtime closure. A reviewed complete
+source/actual emitted import closure remains required before image execution.
+All six explicit missing capabilities remain: owner observer/keeper taps,
+complete body/projection/acceptance taps, setup write/migration/child-reader taps,
+transitive closure, scanner serialization equivalence and actual native custody
+with finite HOLD retirement. No full UC2, host gate, main or deployment follows.
+
+Independent actual-build review SHA256
+`a835368ec2a217d101c2effdda43261b7382ed67ea6fc69872a27befe77aec9c`
+matched the original process receipt, complete bytes,44joined operations,
+275inputs and unchanged source. It accepts compiler-only qualification.
+The next fixed-ledger/owner-tap source decision is SHA256
+`f0597e25de749a5acf4d75fda8c868108b83de07c3ce0f2ffbc5f8a1bfb31a37`.
+It authorizes only the existing fixture/owner-test implementation and inert
+generated-ledger consumers, preserving all actual runtime prerequisites.
+
+## Instrumented source successor
+
+The [runtime ledger verification](verify-ordinary-runtime-custody-20261105.md)
+records its later107test corrected source and actual successful compile on
+41bc5fd3. That successor uses30cuts/19ports and retains7unqualified
+capabilities. The earlier23-cut/f8d build and its six-gap contract remain at
+their original epoch; neither record is silently retargeted.

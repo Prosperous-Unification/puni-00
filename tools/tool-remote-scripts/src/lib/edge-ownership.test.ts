@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, fstatSync, openSync, renameSync, writeFileSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
+import { runInNewContext } from 'node:vm';
 
 import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
@@ -1938,6 +1939,15 @@ test('UC2 ordinary HOLD V1 concrete compiler plan transforms pinned production m
     'external-unchanged',
   );
   expect(planned.portSources.has('ordinary-hold-v1:ledger')).toBe(true);
+  for (const id of [
+    'owner.settlement-observer',
+    'owner.operation-observer',
+    'owner.runtime-entry',
+    'owner.keeper',
+    'owner.original',
+    'owner.hold',
+  ])
+    expect(planned.appliedCuts.find((cut) => cut.id === id)).toEqual({ id, count: 1 });
   expect(planned.portSources.has('ordinary-hold-v1:owner-fs')).toBe(true);
   const frontend = `${sourceRoot}/tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts`;
   const completeFixture = `${sourceRoot}/tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts`;
@@ -2048,3 +2058,346 @@ test('UC2 ordinary HOLD V1 resolver delegates non-classifier aliases', async () 
   ] as const)
     expect(resolveOrdinaryHoldImportV1(root, importer, alias)).toBeUndefined();
 }, 10000);
+
+interface LedgerNativeSnapshot {
+  readonly ticket: object;
+  readonly phase: string;
+  readonly generation: number;
+  readonly nativeReturns: number;
+  readonly nativeEntries: number;
+  readonly productionAttempts: number;
+  readonly nativePhase: string;
+  readonly closeCause: unknown;
+  readonly acquisitionCause: unknown;
+  readonly args: readonly unknown[];
+  readonly receiver: unknown;
+}
+interface LedgerOperationSnapshot {
+  readonly original: Promise<unknown> | undefined;
+  readonly observer: Promise<unknown> | undefined;
+  readonly phase: string;
+  readonly joined: boolean;
+  readonly value: unknown;
+}
+interface LedgerOwnerObservation {
+  readonly record: unknown;
+  readonly original: unknown;
+  readonly observer: unknown;
+}
+interface LedgerHarness {
+  inspectLedger(): {
+    readonly natives: readonly LedgerNativeSnapshot[];
+    readonly operations: readonly LedgerOperationSnapshot[];
+    readonly owners: readonly {
+      readonly owner: unknown;
+      readonly ownership: unknown;
+      readonly observations: readonly LedgerOwnerObservation[];
+    }[];
+    readonly stopped: boolean;
+    readonly fatalObservation: LedgerOwnerObservation;
+  };
+  inspectNative(ticket: object): LedgerNativeSnapshot;
+  inspectOperation(ticket: object): LedgerOperationSnapshot;
+  reserveNative(label: string, kind: string, args: readonly unknown[], receiver?: unknown): object;
+  attachNative(ticket: object, original: unknown): unknown;
+  throwNative(ticket: object, cause: unknown): void;
+  aliasNative(ticket: object, alias: unknown): void;
+  attemptClose(original: unknown, origin: string): object;
+  enterClose(ticket: object, origin: string): object;
+  beginClose(original: unknown, origin: string): object;
+  returnClose(ticket: object, returned?: unknown): void;
+  throwClose(ticket: object, cause: unknown): void;
+  reserveOperation(
+    label: string,
+    kind: string,
+    receiver: unknown,
+    args: readonly unknown[],
+  ): object;
+  returnOperation(ticket: object, returned: unknown): unknown;
+  throwOperation(ticket: object, cause: unknown): void;
+  attachPromise(ticket: object, original: Promise<unknown>): Promise<unknown>;
+  joinOperation(ticket: object): Promise<void>;
+  captureSettlement(
+    record: unknown,
+    settlement: unknown,
+    original: Promise<unknown>,
+    observer: Promise<unknown>,
+  ): void;
+  captureKeeper(owner: unknown, ownership: unknown, keeper: unknown): void;
+  captureHold(owner: unknown, ownership: unknown, keeper: unknown): void;
+}
+
+/** Evaluates only the generated import-free ledger; no image, native port or production module runs. */
+async function ordinaryLedger() {
+  const { planOrdinaryHoldBuildV1, ordinaryHoldSourceEpochV1 } =
+    await import('../fixtures/dependency-owner-custody');
+  const rootUrl = new URL('../../../../', import.meta.url);
+  const sourceRoot = rootUrl.pathname.replace(/\/$/, '');
+  const supplied = new Map<string, Uint8Array>();
+  for (const pin of ordinaryHoldSourceEpochV1.pins)
+    supplied.set(`${sourceRoot}/${pin.relative}`, await readFile(new URL(pin.relative, rootUrl)));
+  const source = planOrdinaryHoldBuildV1(sourceRoot, supplied).portSources.get(
+    'ordinary-hold-v1:ledger',
+  );
+  expect(source).toBeDefined();
+  expect(source).not.toMatch(/\bimport\b/);
+  if (source === undefined) throw new Error('generated ordinary ledger absent');
+  // The inspected import-free generated source is the sole evaluated module; its exports are this test boundary.
+  return runInNewContext(
+    `${source.replaceAll('export ', '')}\n({inspectLedger,inspectNative,inspectOperation,reserveNative,attachNative,throwNative,aliasNative,attemptClose,enterClose,beginClose,returnClose,throwClose,reserveOperation,returnOperation,throwOperation,attachPromise,joinOperation,captureSettlement,captureKeeper,captureHold})`,
+    {},
+  ) as LedgerHarness;
+}
+
+test('UC2 generated ledger reserves native generations before entry and shares aliases', async () => {
+  const ledger = await ordinaryLedger();
+  expect(typeof ledger.reserveNative).toBe('function');
+  const first = ledger.reserveNative('storage.openSync', 'fd', ['/authority', 0]);
+  expect(ledger.inspectNative(first).phase).toBe('entered');
+  expect(ledger.inspectLedger().natives[0].ticket).toBe(first);
+  ledger.attachNative(first, 7);
+  const wrapper = {};
+  ledger.aliasNative(first, wrapper);
+  expect(ledger.beginClose(wrapper, 'production')).toBe(first);
+  ledger.returnClose(first);
+  expect(ledger.inspectNative(first).nativeReturns).toBe(1);
+  const second = ledger.reserveNative('storage.openSync', 'fd', ['/authority', 0]);
+  ledger.attachNative(second, 7);
+  expect(ledger.inspectNative(second).generation).not.toBe(ledger.inspectNative(first).generation);
+  expect(ledger.beginClose(7, 'production')).toBe(second);
+  const cause = new Error('sentinel close unknown');
+  ledger.throwClose(second, cause);
+  expect(ledger.inspectNative(second).closeCause).toBe(cause);
+  expect(ledger.inspectNative(second).nativePhase).toBe('unknown');
+});
+
+test('UC2 generated ledger retains exact operation Promise and independent joined observer', async () => {
+  const ledger = await ordinaryLedger();
+  expect(typeof ledger.reserveOperation).toBe('function');
+  let finish: ((value: string) => void) | undefined;
+  const original = new Promise<string>((resolve) => {
+    finish = resolve;
+  });
+  const operation = ledger.reserveOperation('complete.storage', 'promise', undefined, []);
+  try {
+    expect(ledger.attachPromise(operation, original)).toBe(original);
+    expect(ledger.inspectOperation(operation).original).toBe(original);
+    expect(ledger.inspectOperation(operation).observer).not.toBe(original);
+    expect(ledger.inspectOperation(operation).phase).toBe('pending');
+    expect(ledger.inspectOperation(operation).joined).toBe(false);
+    finish?.('settled');
+    await ledger.joinOperation(operation);
+    expect(ledger.inspectOperation(operation).phase).toBe('fulfilled');
+    expect(ledger.inspectOperation(operation).value).toBe('settled');
+    expect(ledger.inspectOperation(operation).joined).toBe(true);
+  } finally {
+    finish?.('settled');
+    await Promise.allSettled([original, ledger.inspectOperation(operation).observer]);
+  }
+});
+
+test('UC2 generated ledger rejects caps before the inert native entry', async () => {
+  const ledger = await ordinaryLedger();
+  for (let index = 0; index < 512; index++) {
+    const reserved = ledger.reserveNative('storage.openSync', 'fd', ['/authority', index]);
+    ledger.attachNative(reserved, index);
+  }
+  let entered = false;
+  expect(() => {
+    ledger.reserveNative('storage.openSync', 'fd', ['/authority', 512]);
+    entered = true;
+  }).toThrow('native cap');
+  expect(entered).toBe(false);
+  expect(ledger.inspectLedger().natives).toHaveLength(512);
+});
+
+test('UC2 generated ledger retains exact owner graphs when observation is capped', async () => {
+  const ledger = await ordinaryLedger();
+  const owner = {};
+  const ownership = { preparations: new Set() };
+  const original = Promise.resolve('observed');
+  const observer = original.then(() => undefined);
+  const settlement = { original, observer };
+  const record = { owner, ownership, composition: settlement };
+  try {
+    ledger.captureSettlement(record, settlement, original, observer);
+    const frame = ledger.inspectLedger().owners[0];
+    expect(frame.owner).toBe(owner);
+    expect(frame.ownership).toBe(ownership);
+    expect(frame.observations[0].record).toBe(record);
+    expect(frame.observations[0].original).toBe(original);
+    expect(frame.observations[0].observer).toBe(observer);
+    expect(Object.isFrozen(ledger.inspectLedger().owners)).toBe(true);
+    const keeper = { pending: original, interval: {} };
+    const timer = ledger.reserveOperation('owner.interval', 'sync', undefined, []);
+    ledger.returnOperation(timer, keeper.interval);
+    for (let index = 2; index < 8192; index++) ledger.captureKeeper(owner, ownership, keeper);
+    const primary = new Error('original production failure');
+    let caught: unknown;
+    try {
+      try {
+        throw primary;
+      } finally {
+        ledger.captureHold(owner, ownership, keeper);
+      }
+    } catch (cause) {
+      caught = cause;
+    }
+    expect(caught).toBe(primary);
+    const stopped = ledger.inspectLedger();
+    expect(stopped.stopped).toBe(true);
+    expect(stopped.fatalObservation.original).toBe(original);
+    expect(stopped.fatalObservation.record).toBe(keeper);
+    expect(() => ledger.reserveNative('storage.openSync', 'fd', [])).toThrow('ledger stopped');
+  } finally {
+    await Promise.allSettled([original, observer]);
+  }
+});
+
+test('UC2 generated ledger refuses a second native close after normal return or unknown throw', async () => {
+  for (const outcome of ['returned', 'unknown']) {
+    const ledger = await ordinaryLedger();
+    const ticket = ledger.reserveNative('storage.openSync', 'fd', ['/authority']);
+    const acquired = {};
+    expect(ledger.attachNative(ticket, acquired)).toBe(acquired);
+    const attempted = ledger.attemptClose(acquired, 'production');
+    expect(ledger.inspectNative(ticket).productionAttempts).toBe(1);
+    expect(ledger.inspectNative(ticket).nativeEntries).toBe(0);
+    ledger.enterClose(attempted, 'production');
+    const cause = new Error('actual sentinel close failure');
+    if (outcome === 'returned') ledger.returnClose(ticket, 'close return');
+    else ledger.throwClose(ticket, cause);
+    expect(ledger.inspectNative(ticket).nativeEntries).toBe(1);
+    expect(ledger.inspectNative(ticket).nativeReturns).toBe(outcome === 'returned' ? 1 : 0);
+    if (outcome === 'unknown') expect(ledger.inspectNative(ticket).closeCause).toBe(cause);
+    expect(() => ledger.enterClose(ticket, 'fixture')).toThrow('native close re-entry');
+    expect(ledger.inspectNative(ticket).nativeEntries).toBe(1);
+  }
+});
+
+test('UC2 generated ledger retains entered acquisition failures and rejects unknown boundaries', async () => {
+  const ledger = await ordinaryLedger();
+  const receiver = {};
+  const args = ['/authority', 0];
+  const ticket = ledger.reserveNative('storage.openSync', 'fd', args, receiver);
+  const cause = new Error('entered sentinel acquisition failed');
+  ledger.throwNative(ticket, cause);
+  expect(ledger.inspectNative(ticket).receiver).toBe(receiver);
+  expect(ledger.inspectNative(ticket).args).toEqual(args);
+  expect(ledger.inspectNative(ticket).acquisitionCause).toBe(cause);
+  expect(ledger.inspectNative(ticket).phase).toBe('unknown');
+  expect(() => ledger.reserveNative('storage.openSync', 'fd', [])).toThrow('ledger stopped');
+  const closed = await ordinaryLedger();
+  expect(() => closed.reserveNative('storage.openSync-near', 'fd', [])).toThrow('boundary differs');
+  const mismatched = await ordinaryLedger();
+  expect(() => mismatched.reserveNative('storage.openSync', 'sqlite', [])).toThrow(
+    'boundary differs',
+  );
+});
+
+test('UC2 generated ledger bounds each native family and settleable Promise census', async () => {
+  for (const [label, kind, cap] of [
+    ['database.readonly', 'sqlite', 64],
+    ['graph.opendirSync', 'dir', 32],
+  ] as const) {
+    const ledger = await ordinaryLedger();
+    for (let index = 0; index < cap; index++)
+      ledger.attachNative(ledger.reserveNative(label, kind, []), {});
+    expect(() => ledger.reserveNative(label, kind, [])).toThrow('native cap');
+    expect(ledger.inspectLedger().natives).toHaveLength(cap);
+  }
+  const ledger = await ordinaryLedger();
+  const original = Promise.resolve('known');
+  const tickets = [];
+  try {
+    for (let index = 0; index < 256; index++) {
+      const ticket = ledger.reserveOperation('complete.storage', 'promise', undefined, []);
+      tickets.push(ticket);
+      void ledger.attachPromise(ticket, original);
+    }
+    expect(() => ledger.reserveOperation('complete.storage', 'promise', undefined, [])).toThrow(
+      'Promise cap',
+    );
+  } finally {
+    await Promise.all(tickets.map((ticket) => ledger.joinOperation(ticket)));
+  }
+  expect(
+    ledger.inspectLedger().operations.every((operation: { joined: boolean }) => operation.joined),
+  ).toBe(true);
+});
+
+test('UC2 generated ledger stops on a missing keeper identity or ninth owner graph', async () => {
+  const original = Promise.resolve();
+  const keeper = { pending: original, interval: {} };
+  const missing = await ordinaryLedger();
+  missing.captureKeeper({}, { preparations: new Set() }, keeper);
+  expect(missing.inspectLedger().stopped).toBe(true);
+  expect(missing.inspectLedger().fatalObservation.record).toBe(keeper);
+  const bounded = await ordinaryLedger();
+  const timer = bounded.reserveOperation('owner.interval', 'sync', undefined, []);
+  bounded.returnOperation(timer, keeper.interval);
+  for (let index = 0; index < 8; index++)
+    bounded.captureKeeper({}, { preparations: new Set() }, keeper);
+  const ninth = {};
+  expect(() => {
+    bounded.captureKeeper(ninth, { preparations: new Set() }, keeper);
+  }).not.toThrow();
+  expect(bounded.inspectLedger().owners).toHaveLength(8);
+  expect(bounded.inspectLedger().stopped).toBe(true);
+  await original;
+});
+
+test('UC2 generated ledger inspection cannot manufacture native completion', async () => {
+  const ledger = await ordinaryLedger();
+  const ticket = ledger.reserveNative('storage.openSync', 'fd', []);
+  ledger.attachNative(ticket, 7);
+  const snapshot = ledger.inspectNative(ticket);
+  expect(Reflect.set(snapshot, 'nativePhase', 'returned')).toBe(false);
+  expect(ledger.inspectNative(ticket).nativePhase).toBe('not-entered');
+  expect(Object.isFrozen(ticket)).toBe(true);
+  expect(() => ledger.inspectNative({})).toThrow('ticket differs');
+});
+
+for (const stopCause of ['unknown close', 'event cap'] as const) {
+  test(`UC2 generated ledger permits independent existing cleanup after ${stopCause} STOP`, async () => {
+    const ledger = await ordinaryLedger();
+    const first = ledger.reserveNative('storage.openSync', 'fd', ['/first']);
+    const second = ledger.reserveNative('storage.openSync', 'fd', ['/second']);
+    ledger.attachNative(first, 7);
+    ledger.attachNative(second, 8);
+    ledger.beginClose(7, 'production');
+    if (stopCause === 'unknown close')
+      ledger.throwClose(first, new Error('sentinel native unknown'));
+    else {
+      ledger.returnClose(first);
+      for (let index = 2; index < 8192; index++)
+        ledger.reserveOperation('owner.interval', 'sync', undefined, []);
+      const pending = Promise.resolve();
+      ledger.captureHold({}, { preparations: new Set() }, { pending, interval: {} });
+      await pending;
+    }
+    expect(ledger.inspectLedger().stopped).toBe(true);
+    expect(ledger.beginClose(8, 'production')).toBe(second);
+    ledger.returnClose(second);
+    expect(ledger.inspectNative(second).nativeEntries).toBe(1);
+    expect(ledger.inspectNative(second).nativeReturns).toBe(1);
+    expect(ledger.inspectLedger().stopped).toBe(true);
+    expect(() => ledger.enterClose(first, 'fixture')).toThrow('native close re-entry');
+    expect(() => ledger.reserveNative('storage.openSync', 'fd', ['/new'])).toThrow(
+      'ledger stopped',
+    );
+    expect(() => ledger.reserveOperation('complete.storage', 'promise', undefined, [])).toThrow(
+      'ledger stopped',
+    );
+  });
+}
+
+test('UC2 generated ledger bounds cleanup attempt accounting without native entry', async () => {
+  const ledger = await ordinaryLedger();
+  const ticket = ledger.reserveNative('storage.openSync', 'fd', ['/first']);
+  ledger.attachNative(ticket, 7);
+  for (let index = 0; index < 8192; index++) ledger.attemptClose(7, 'production');
+  expect(() => ledger.attemptClose(7, 'production')).toThrow('close attempt cap');
+  expect(ledger.inspectNative(ticket).productionAttempts).toBe(8192);
+  expect(ledger.inspectNative(ticket).nativeEntries).toBe(0);
+});

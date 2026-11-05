@@ -123,6 +123,10 @@ const PAIRS = [
       sha256: '129512f0a0fc719b814e7998353190f8827d96085f99000c418c6988ebbbb728',
     },
   },
+  // Proof: deleting only this member made the unchanged real pinned Vite producer positive
+  // refuse at inspectPins in hosted run41981186851 (Source7:186/3, two predicted collateral failures);
+  // exact restoration in41992019181 returned the SAME Source7 consumer to189/0. This proves
+  // entry necessity only; see verify-producer-p-execution-20261105.md, not all pair predicates.
   {
     epoch: 'fresh-main-20261105-ctt-0.13.0',
     'package.json': {
