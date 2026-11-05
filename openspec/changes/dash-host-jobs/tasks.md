@@ -154,7 +154,7 @@
 - [x] 6.3 `gate_host` role: linger on, pool config, ledger directory, second gate tree,
       `validate` runs `ops job audit`; h2puni disk cleaned first per the recorded order — proof:
       two converging applies, `changed=0` on the second, on both hosts, 2026-11-05; verify.md
-      'Token-unit apply converged'.
+      "2026-11-05 token-unit apply converged on both hosts".
 - [x] 6.3a Code (slice 6c): the role turns linger on, creates the empty fixed pool root and
       `~/.config/dash`, the `dagger_engine` token unit and two more full clones with one frozen
       install each, `~/puni-00-gate-tbf2` (the second `gate_tree`) and the launcher-only

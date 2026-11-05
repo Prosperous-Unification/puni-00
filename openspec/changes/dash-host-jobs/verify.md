@@ -2587,5 +2587,7 @@ enrolled. Private `puni-plan` evidence: `evidence/2026-11-05-token-unit-apply.md
 - Neither host is enrolled: no `host-pool.json`, no ledger. `docker_build` is a clean
   one-commit tree.
 - **H2-A11** A `pgrep -f` probe over ssh matches its own remote shell, whose command line carries
-  the pattern; filter it with `grep -v pgrep` or a bracket pattern (gate-hosts.md, step 0).
+  the pattern; filter it with `pgrep -af … | grep -v pgrep` or a bracket pattern (gate-hosts.md, step 0).
+- The `ops job audit` probe under validate was among the 4 skips on both hosts (no ledger yet); it
+  stays unexercised live until 6.4. h2puni had 23 GiB free before each apply (role floor 20 GiB).
 - **H2-A12 / H4-A11** The token unit was the only drift on either host.
