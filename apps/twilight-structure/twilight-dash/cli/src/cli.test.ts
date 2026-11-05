@@ -446,6 +446,7 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
       [...Object.keys(opsHandlers), 'release plan', 'release run'].sort(),
     );
     expect(opsParserWords()).toEqual([
+      'job admission',
       'job audit',
       'job calibrate',
       'job propose',
@@ -659,6 +660,7 @@ describe('typed command grammars (tasks 1.5–1.9)', () => {
       'inspect-authority',
       'mcp token',
       'migrate-observation',
+      'ops job admission',
       'ops job audit',
       'ops job calibrate',
       'ops job propose',

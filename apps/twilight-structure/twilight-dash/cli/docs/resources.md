@@ -442,6 +442,14 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
   waiting website-dev-build build:site pid 4343 age 55s budget 1m05s overtakes 0
   ```
 
+- **`ops job admission --job <id>`** prints one JSON line, `{"job":"<id>","state":…,"running":…}`.
+  `running` is true only for a launched (`held`) job with no exit or launch failure recorded
+  whose leader is still the process recorded at launch; `state` is null for an id the ledger
+  never admitted. It reads the ledger and nothing else: no sweep, no settlement, no lock. A
+  nested `run_heavy_job` (`bin/heavy-lock-lib.sh`) asks it before running on the enclosing
+  job's admission, because a scope named `dash-job-<id>` alone can be made for any id
+  (`dash-host-jobs` task 6.10a).
+
 Not yet: `ops pool switch-mode` (slice 6). In observe mode `ops job run` does not yet take the
 shell lock's queue protocol (J12); that arrives with `run_heavy_job` in slice 6, before any host
 is enrolled. Run records live in their own file because the ledger's job snapshot is the
@@ -605,7 +613,7 @@ status` shows the mark, and the run records it; `ops job audit` reports the run 
 The configuration gains two optional fields, neither pinned by the binding:
 `launcherCheckouts` (absolute paths, each named once: the checkouts whose launchers run heavy
 jobs here) and `concurrencyEligible` (job type ids, each named once; absent means none). Every
-`ops` pool open (`pool init`, `job run`, `job calibrate`, `job status`, `pool inspect`,
+`ops` pool open (`pool init`, `job run`, `job calibrate`, `job status`, `job admission`, `pool inspect`,
 `switch-mode` and the record readers) refuses 64 an eligible id that no listed checkout's
 catalogue names at HEAD. A typo added later therefore stops the next command rather than
 silently serialising the type it meant (S6B-A17). `resources watch` does not check this,

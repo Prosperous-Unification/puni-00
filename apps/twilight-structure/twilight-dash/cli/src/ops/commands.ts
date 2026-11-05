@@ -224,6 +224,17 @@ export const opsHandlers: OpsHandlers = {
     for (const path of written) deps.stdout(`${path}\n`);
     return 0;
   },
+  'job admission': (command, deps) => {
+    const runtime = openPool(command.config, deps.clock, 'ops job admission');
+    try {
+      deps.stdout(
+        `${JSON.stringify({ job: command.job, ...runtime.hostJobRunning(command.job) })}\n`,
+      );
+      return 0;
+    } finally {
+      runtime.close();
+    }
+  },
   'job status': (command, deps) => {
     const runtime = openPool(command.config, deps.clock, 'ops job status');
     try {

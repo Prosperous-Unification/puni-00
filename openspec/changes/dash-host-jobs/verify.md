@@ -2618,6 +2618,8 @@ admission of its own`, which lands in the enclosing job's log.
     of #873 reproduced `systemd-run --user --scope --unit dash-job-<id> …` passing it. The lock is
     advisory for the same account anyway. A real admission check would ask the ledger for a
     running job with that id; it is owed under task 6.10.
+  - Superseded in slice 6e (S6E-A3): admission is now checked too. After placement the nested
+    call asks `ops job admission` and runs only when the ledger has that job running.
   - Correction to the review: it read puni-pr-00 as not unsetting the variable. Its launcher
     `deploy/website/dev/build-release.sh` does, at line 77 on `origin/main` `a31b3c5`
     (`unset DASH_JOB_ID DASH_JOB_TYPE`), before its `run_heavy_job`. Its payload then reads the
@@ -2792,6 +2794,31 @@ touched a host: no ssh, no apply, no enrollment.
   inode and no marker; it settles on device and inode as it did, so a job running across the
   upgrade is not stranded. Every row prepared from now on carries one.
 
+- **S6E-A3 A nested call asks the ledger through a new read-only `ops job admission` (task
+  6.10a).** After the placement and exclusive-unit checks, `run_nested_heavy_job` runs
+  `bun <checkout>/…/entrypoint.ts ops job admission --config <fixed path> --job <id>` and
+  accepts only `{"job":"<id>","running":true}`.
+  - Why a new command: `ops job status` prints text for people and reads the shell lock's
+    queue, and `ops pool inspect` prints the whole pool plus that queue. Both are more work and a
+    wider contract than one yes or no. The new command opens the ledger as every `ops` command
+    does (`openPool`), reads one row and prints one JSON line. It takes no lock: SQLite WAL reads
+    do not wait on writers, and it neither sweeps nor settles.
+  - Running means launched (`held`), no exit code and no launch failure recorded, and the
+    leader recorded at launch still alive (pid, boot id and start time). A job admitted but not
+    launched has no payload that could be the caller. A finished job's id, reused by a forged
+    scope, is refused.
+  - The shell refuses 70 on an unenrolled host before asking: there is no ledger, so no job can
+    have been admitted. It also refuses 70 when Dash is missing, exits non-zero, or answers
+    anything but a boolean `running` for the same job id. "Cannot tell" is never "admitted".
+  - Cost: one Bun start and one SQLite read per nested call, about the cost of `ops job
+status`. Nested calls are rare: today only a `test:queued` run inside a gate.
+  - What it still does not stop: a same-account process that copies a running job's id into a
+    scope it makes. That process runs beside a job that really is admitted and measured. The
+    lock is advisory for the account (S6D-A1), and this closes the forged-id case the review of
+    #873 reproduced.
+  - The Dash queried is the launcher checkout's own (`resolve_dash_entrypoint`), the same one
+    `ops job run` uses, so the reader and the writer of the ledger are one revision.
+
 ### Faults (2.4, `bun test src/resources/host-jobs.test.ts` in its namespace)
 
 | ID    | Injected fault                                                       | Observed                                                                                                                                                                                                               |
@@ -2801,3 +2828,18 @@ touched a host: no ssh, no apply, no enrollment.
 | 6e-F2 | 6e-F1 plus the removal script's `marker=` option dropped             | both failed: `Expected: "blocked"`, `Received: "released"`                                                                                                                                                             |
 | 6e-F3 | removal script erases the marker with the rest, not last             | `a blocked tmp directory adds no outbox rows and backs off its evidence reads`: `Expected: 4`, `Received: 5` (a new settlement event)                                                                                  |
 | 6e-F4 | a marker required of a row without one (`job.tmpMarker ?? "absent"`) | `a row prepared before markers settles on device and inode`: `Expected: "released"`, `Received: "blocked"`                                                                                                             |
+
+### Faults (6.10a)
+
+`bin/heavy-lock.test.sh` with `HEAVY_LOCK_TEST_SUITES=jobs`, then `admission.test.ts` in its
+namespace.
+
+| ID     | Injected fault                                                    | Observed                                                                                                                                                                                |
+| ------ | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6e-F5  | `if [[ $running != true ]]` replaced by `if false`                | `49h: a forged scope is refused when the ledger answers absent: want exit 70, got 0`; `49h: the payload ran on a forged scope (absent)`; 3 checks failed                                |
+| 6e-F6  | unenrolled refusal replaced by `if false`                         | `49k: a nested call on an unenrolled host is refused: want exit 70, got 0`; `49k: something ran or asked Dash on an unenrolled host`; 3 checks failed                                   |
+| 6e-F7  | the whole admission block dropped (the library as #873 merged it) | 49a `asked Dash something but its admission`, 49h and every 49i variant `want exit 70, got 0`, the payload ran; 49k `want exit 70, got 0`                                               |
+| 6e-F8  | answer-shape check reduced to `(.running \| tostring)`            | `49i … ledger answers another-job: want exit 70, got 0`, `the payload ran on a forged scope (another-job)`; the malformed answer was refused but not named as unusable; 4 checks failed |
+| 6e-F9  | `hostJobRunning` reduced to `job.state === 'held'`                | `a job whose payload exited, or whose process is gone, is not running`: `- "running": false`, `+ "running": true` (the exited job)                                                      |
+| 6e-F10 | the leader-liveness term dropped                                  | the same test: the killed payload's job read `"running": true`                                                                                                                          |
+| 6e-F11 | `--job` typed `flagValue('NAME')` instead of the job-id pattern   | `the grammar takes only a job id`: `Received function did not throw` for `--job gate`                                                                                                   |

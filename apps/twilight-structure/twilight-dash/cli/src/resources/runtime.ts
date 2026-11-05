@@ -2717,6 +2717,29 @@ export class ResourceRuntime {
     if (!row) throw new Error('host job not found');
     return this.hostJobOf(row.snapshot);
   }
+  /**
+   * Whether host job `id`'s payload runs now, for a nested launcher's admission check
+   * (`dash-host-jobs` task 6.10a): launched (`held`), no exit or launch failure recorded, and
+   * its process group leader still the process recorded at launch. `state` is null for an id
+   * this ledger never admitted. Reads only: no sweep, no settlement, no lock.
+   */
+  hostJobRunning(id: string): { state: HostJob['state'] | null; running: boolean } {
+    const row = this.db
+      .query<{ snapshot: string }, [string]>('SELECT snapshot FROM host_jobs WHERE id=?')
+      .get(id);
+    if (!row) return { state: null, running: false };
+    const job = this.hostJobOf(row.snapshot);
+    // Proof: with only the `held` comparison, `a job whose payload exited, or whose process is
+    // gone, is not running` (admission.test.ts) read the exited job as running; with the
+    // liveness check alone dropped, the killed payload's job (2026-11-05, verify.md Slice 6e).
+    const running =
+      job.state === 'held' &&
+      job.exitCode === null &&
+      job.launchFailure === undefined &&
+      job.process !== null &&
+      alive(job.process);
+    return { state: job.state, running };
+  }
   /** Every host job, released history included, oldest admission first. */
   listHostJobs(): HostJob[] {
     return this.db

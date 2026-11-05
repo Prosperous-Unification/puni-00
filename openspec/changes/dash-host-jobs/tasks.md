@@ -267,10 +267,11 @@
       check and watch it record the outer label. Done (S6D-A1): `run_nested_heavy_job` re-labels a
       type without exclusive units and refuses 70 one with units or outside its job's scope; proof:
       with the branch removed, case 49a got `gate:abc` and Dash's `--label gate:abc`.
-  - [ ] 6.10a Check admission, not only placement: the scope check passes a same-account
+  - [x] 6.10a Check admission, not only placement: the scope check passes a same-account
         `systemd-run --user --scope --unit dash-job-<id>` (review of #873). Ask the ledger for a
         running job with that id before running nested — test: a fake scope of that name with no
-        such job is refused.
+        such job is refused. Done in slice 6e: `ops job admission` (`ops/admission.test.ts`) and
+        `bin/heavy-lock.test.sh` cases 49h–49k (S6E-A3).
 - [ ] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
       (slice 3, #809) carries `descriptorDigest` and no durable locator, so this needs a locator
       for the run record and a decision on which digest WBS keeps — test: a returned host job's

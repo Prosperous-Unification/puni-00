@@ -616,6 +616,19 @@ const opsNamespace = command(
           },
         ),
         opsCommand(
+          'admission',
+          'job admission',
+          'Print as JSON whether the host job --job names is running; a nested launcher asks before it runs.',
+          {
+            config: poolConfig(),
+            // Proof: with `flagValue('NAME')` here `the grammar takes only a job id`
+            // (admission.test.ts) parsed `--job gate` (2026-11-05, verify.md Slice 6e).
+            job: option('--job', string({ metavar: 'ID', pattern: /^[0-9a-f-]{36}$/u }), {
+              description: message`The host job id, as DASH_JOB_ID carries it.`,
+            }),
+          },
+        ),
+        opsCommand(
           'status',
           'job status',
           'Print the running host jobs, then the waiters oldest first.',
