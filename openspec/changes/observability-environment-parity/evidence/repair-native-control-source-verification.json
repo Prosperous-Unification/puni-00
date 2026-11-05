@@ -4,15 +4,15 @@
   "sourcePins": [
     {
       "path": "openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
-      "sha256": "abe4fc959f0bb073b0dadb447480d4ad773082f46129ec39d626d8a8e046ccc7",
-      "bytes": 59606,
+      "sha256": "2fc3cf19ffde9b32c39b1291339177c71621b9596a2703ce604d0bbb3cb58bc5",
+      "bytes": 59739,
       "mode": "0644",
       "uid": 1000
     },
     {
       "path": "tools/tool-fleet/src/lab-repair-native-control.test.ts",
-      "sha256": "7a97506c60905541686bcb6cd1951db0c81499a4244bbde46f819bd2e4f8384a",
-      "bytes": 45029,
+      "sha256": "7b7408c8a232b6c5226eadba3ea8942100a642dd46c33bbcaf4bf965fd0bbee5",
+      "bytes": 45011,
       "mode": "0644",
       "uid": 1000
     }
@@ -90,24 +90,6 @@
     "No repair or full observability acceptance",
     "Two exact installed startup-hook paths admitted; nearby paths and unselected declarations still refuse"
   ],
-  "previousSourcePins": [
-    {
-      "path": "openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
-      "sha256": "544f89cd65cfc91aeb126e204ad21585815bc4a631901bdc6d374875dbfb312c",
-      "bytes": 58478,
-      "lines": 1144,
-      "mode": "0644",
-      "uid": 1000
-    },
-    {
-      "path": "tools/tool-fleet/src/lab-repair-native-control.test.ts",
-      "sha256": "e6af3354c95bf36d81e2212b16f155ea4dfb147cfd163613553ed6b03d40a74b",
-      "bytes": 40716,
-      "lines": 748,
-      "mode": "0644",
-      "uid": 1000
-    }
-  ],
   "startupCompatibility": {
     "sourceBase": "120acaf85d18c0065c394155f404dc55ad983216",
     "reportSha256": "1c2041bc1564a0e57aa876082c25a6a02aec306f404166d3a9b14b883e569f1a",
@@ -168,5 +150,12 @@
     "allocatedGrowth": 0,
     "requestWrittenOrAuthorized": false,
     "unitStarted": false
+  },
+  "serviceLocale": {
+    "flags": ["--setenv=LANG=C", "--setenv=LC_ALL=C"],
+    "red": "actual controller interceptor rejected missing service handoff",
+    "green": "1targeted4assertions8filtered; each single-option omission rejected; statics and unrelated AST equivalent",
+    "review": "independent scoped approval; exact pins/modes/blocks, no findings/replay/writes",
+    "allocatedGrowth": 0
   }
 }

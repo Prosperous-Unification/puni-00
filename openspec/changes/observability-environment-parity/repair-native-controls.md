@@ -39,3 +39,5 @@ Passive retained evidence/cache directories keep their recorded permissions. Inv
 Pin roles distinguish nonempty repository sources/executables from imported system runtime modules. An actual selected root-owned runtime module may have zero bytes (for example an empty Python package marker); root ownership, safe modes, original-FD identity/hash and exact actual runtime closure still apply. Source/tool zero lengths and unselected runtime declarations continue to refuse.
 
 Runtime observation snapshots imported modules after reading/parsing its own native maps. The first observation includes any codec imports caused by the observation itself, so a cold sample and unchanged warm sample agree without caller warmup or a preload list.
+
+The transient worker service receives explicit `--setenv=LANG=C` and `--setenv=LC_ALL=C`. The client process environment alone does not set the service environment; [systemd-run service environment semantics](https://freedesktop.org/software/systemd/man/latest/systemd-run.html) distinguish the manager-spawned service and explicit variable settings. This does not inspect or modify the user manager environment.

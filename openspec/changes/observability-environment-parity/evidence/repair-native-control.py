@@ -1037,8 +1037,9 @@ def coordinate_controls(request, path, request_sha, nonce, source, helpers, star
     # Proof: worker-bootstrap source cap fault reaches intercepted launch when this guard is removed.
     require(source_pin['mode'] == 0o644 and source_pin['uid'] == os.geteuid()
             and source_pin['bytes'] <= OUTPUT_LIMIT, 'worker-source-pin')
+    # Proof: actual controller interceptor rejects either omitted service locale assignment.
     command = ['/usr/bin/systemd-run', '--user', '--quiet', '--pipe', '--wait', '--collect',
-               '--service-type=exec', '--unit=' + unit, *('--property=' + value for value in PROPERTIES),
+               '--setenv=LANG=C', '--setenv=LC_ALL=C', '--service-type=exec', '--unit=' + unit, *('--property=' + value for value in PROPERTIES),
                '/usr/bin/python3.12', '-I', '-B', '-c', WORKER_BOOTSTRAP, str(ROOT),
                source_pin['sha256'], str(path), request_sha, nonce]
     assert_deadline(deadline)

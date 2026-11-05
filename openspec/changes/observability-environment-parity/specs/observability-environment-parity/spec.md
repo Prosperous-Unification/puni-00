@@ -1536,3 +1536,9 @@ Native runtime identity observation SHALL include modules imported by its own ma
 - **WHEN** the first native map read imports a supported runtime codec
 - **THEN** that same observation includes the codec in its imported-module set
 - **AND** an unchanged subsequent observation returns the same set
+
+#### Scenario: Transient worker receives the fixed runtime locale
+
+- **WHEN** native qualification launches its manager-spawned worker
+- **THEN** the service command explicitly sets LANG and LC_ALL to C
+- **AND** client-only locale values cannot substitute for that service handoff

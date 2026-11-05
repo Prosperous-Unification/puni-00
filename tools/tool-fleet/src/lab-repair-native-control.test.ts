@@ -19,29 +19,29 @@ selfcheck_source = r'''
 def selfcheck():
     """Metadata only: intercept actual CLI launch; watched faults never create native authority."""
     namespace = globals()
-    original_root, original_run, original_require = ROOT, run_control, require
+    original_root,original_run,original_require = ROOT,run_control,require
     with tempfile.TemporaryDirectory(prefix='repair-metadata-') as directory:
         root = Path(directory)
         packet = root / PLAN / 'repair-native-controls'
-        packet.mkdir(parents=True, mode=0o700)
+        packet.mkdir(parents=True,mode=0o700)
         nonce = 'a' * 32
         path = packet / ('request-' + nonce + '.json')
         pin_paths = [str(root / relative) for relative in SOURCES] + list(TOOLS)
-        valid = {'schemaVersion': 1, 'root': str(root),
-                 'state': str(root / '.puni/fleet-labs/observability-baseline'),
-                 'outside': str(root / PLAN), 'packet': str(packet), 'nonce': nonce,
-                 'commit': 'b' * 40,
-                 'runtimePins': [dict(path=p,sha256='f'*64,bytes=0 if p.endswith('__init__.py') else 1,uid=0,mode=0o644) for p in ('/etc/python3.12/sitecustomize.py','/usr/lib/python3/dist-packages/apport_python_hook.py','/usr/lib/python3.12/urllib/__init__.py')],
-                 'pins': [{'path': name, 'sha256': 'c'*64, 'bytes': 1, 'uid': os.geteuid(), 'mode': 0o644}
-                          for name in pin_paths],
-                 'kernel': {'release': '7.0.11-76070011-generic', 'version': 'fixture', 'machine': 'x86_64'},
-                 'inventory': {'digest': 'd'*64, 'entries': 2, 'retainedBytes': 0, 'outsideBytes': 0},
-                 'ledger': {'digest': 'e'*64, 'records': 0, 'grossBytes': 0}}
+        valid = {'schemaVersion':1,'root':str(root),
+            'state':str(root / '.puni/fleet-labs/observability-baseline'),
+            'outside':str(root / PLAN),'packet':str(packet),'nonce':nonce,
+            'commit':'b' * 40,
+            'runtimePins':[dict(path=p,sha256='f'*64,bytes=0 if p.endswith('__init__.py') else 1,uid=0,mode=0o644) for p in ('/etc/python3.12/sitecustomize.py','/usr/lib/python3/dist-packages/apport_python_hook.py','/usr/lib/python3.12/urllib/__init__.py')],
+            'pins':[{'path':name,'sha256':'c'*64,'bytes':1,'uid':os.geteuid(),'mode':0o644}
+                     for name in pin_paths],
+            'kernel':{'release':'7.0.11-76070011-generic','version':'fixture','machine':'x86_64'},
+            'inventory':{'digest':'d'*64,'entries':2,'retainedBytes':0,'outsideBytes':0},
+            'ledger':{'digest':'e'*64,'records':0,'grossBytes':0}}
         intercepted = []
-        namespace['run_control'] = lambda *_: intercepted.append('first-launch')
+        namespace['run_control'] = lambda *_:intercepted.append('first-launch')
         namespace['ROOT'] = root
         original_authorize = authorize
-        namespace['authorize'] = lambda path, sha, nonce: original_authorize(path, sha, nonce, root)
+        namespace['authorize'] = lambda path,sha,nonce:original_authorize(path,sha,nonce,root)
         try:
             def write_request(record):
                 payload = encode(record)
@@ -49,107 +49,107 @@ def selfcheck():
                 path.chmod(0o600)
                 return hashlib.sha256(payload).hexdigest()
             request_sha = write_request(valid)
-            entry(['run', str(path), request_sha, nonce])
-            require(intercepted == ['first-launch'], 'selfcheck-positive')
+            entry(['run',str(path),request_sha,nonce])
+            require(intercepted == ['first-launch'],'selfcheck-positive')
             cases = []
-            def changed(key, value):
+            def changed(key,value):
                 record = decode(encode(valid))
                 record[key] = value
                 return record
-            cases.extend((('schema', changed('bounds', {}), 'request-schema'),
-                          ('nonce', changed('nonce', 'f'*32), 'request-nonce'),
-                          ('paths', changed('outside', str(root)), 'request-paths'),
-                          ('commit', changed('commit', 'wrong'), 'source-commit'),
-                          ('pins', changed('pins', []), 'pin-set'),
-                          ('runtime-pins', changed('runtimePins', []), 'runtime-pin-set'),
-                          ('kernel', changed('kernel', {'release': 'wrong', 'version': 'fixture', 'machine': 'x86_64'}), 'kernel-schema'),
-                          ('inventory', changed('inventory', {'digest': 'd'*64, 'entries': 20001, 'retainedBytes': 0, 'outsideBytes': 0}), 'inventory-schema'),
-                          ('ledger', changed('ledger', {'digest': 'e'*64, 'records': 0, 'grossBytes': False}), 'ledger-schema')))
-            for name, request, category in cases:
+            cases.extend((('schema',changed('bounds',{}),'request-schema'),
+                ('nonce',changed('nonce','f'*32),'request-nonce'),
+                ('paths',changed('outside',str(root)),'request-paths'),
+                ('commit',changed('commit','wrong'),'source-commit'),
+                ('pins',changed('pins',[]),'pin-set'),
+                ('runtime-pins',changed('runtimePins',[]),'runtime-pin-set'),
+                ('kernel',changed('kernel',{'release':'wrong','version':'fixture','machine':'x86_64'}),'kernel-schema'),
+                ('inventory',changed('inventory',{'digest':'d'*64,'entries':20001,'retainedBytes':0,'outsideBytes':0}),'inventory-schema'),
+                ('ledger',changed('ledger',{'digest':'e'*64,'records':0,'grossBytes':False}),'ledger-schema')))
+            for name,request,category in cases:
                 request_sha = write_request(request)
                 intercepted.clear()
                 try:
-                    entry(['run', str(path), request_sha, nonce])
+                    entry(['run',str(path),request_sha,nonce])
                 except Refusal as refusal:
-                    require(str(refusal) == category, 'selfcheck-category')
+                    require(str(refusal) == category,'selfcheck-category')
                 else:
                     raise AssertionError('missing refusal: ' + name)
-                require(not intercepted, 'selfcheck-protected-launch')
-                def omit_category(predicate, code):
+                require(not intercepted,'selfcheck-protected-launch')
+                def omit_category(predicate,code):
                     if code != category:
-                        original_require(predicate, code)
+                        original_require(predicate,code)
                 namespace['require'] = omit_category
                 try:
-                    entry(['run', str(path), request_sha, nonce])
+                    entry(['run',str(path),request_sha,nonce])
                     if not intercepted:
                         raise AssertionError('fault did not reach intercepted launch: ' + name)
                 finally:
                     namespace['require'] = original_require
                 print('metadata-guard ' + name + ': GREEN refusal; watched removed-check RED reached launch sentinel')
-            for name, request, category in (
-                ('pin-schema', changed('pins', [dict(valid['pins'][0], mode=0o666), *valid['pins'][1:]]), 'pin-schema'),
+            for name,request,category in (
+                ('pin-schema',changed('pins',[dict(valid['pins'][0],mode=0o666),*valid['pins'][1:]]),'pin-schema'),
             ):
                 request_sha = write_request(request)
                 intercepted.clear()
                 try:
-                    entry(['run', str(path), request_sha, nonce])
+                    entry(['run',str(path),request_sha,nonce])
                 except Refusal as refusal:
-                    require(str(refusal) == category, 'selfcheck-category')
+                    require(str(refusal) == category,'selfcheck-category')
                 else:
                     raise AssertionError('missing refusal: ' + name)
-                require(not intercepted, 'selfcheck-protected-launch')
-                namespace['require'] = lambda predicate, code: original_require(predicate, code) if code != category else None
+                require(not intercepted,'selfcheck-protected-launch')
+                namespace['require'] = lambda predicate,code:original_require(predicate,code) if code != category else None
                 try:
-                    entry(['run', str(path), request_sha, nonce])
-                    require(bool(intercepted), 'selfcheck-fault-not-observed')
+                    entry(['run',str(path),request_sha,nonce])
+                    require(bool(intercepted),'selfcheck-fault-not-observed')
                 finally:
                     namespace['require'] = original_require
                 print('metadata-guard ' + name + ': GREEN refusal; watched removed-check RED reached launch sentinel')
             valid_payload = encode(valid)
-            for name, payload, supplied_sha, selected_path, category in (
-                ('digest', valid_payload, '0'*64, path, 'request-digest'),
-                ('path', valid_payload, hashlib.sha256(valid_payload).hexdigest(), packet / 'unexpected.json', 'request-path'),
-                ('duplicate', b'{"schemaVersion":1,' + valid_payload[1:], None, path, 'request-json'),
-                ('bound', valid_payload + b' '*(OUTPUT_LIMIT+1-len(valid_payload)), None, path, 'request-bound')):
+            for name,payload,supplied_sha,selected_path,category in (
+                ('digest',valid_payload,'0'*64,path,'request-digest'),
+                ('path',valid_payload,hashlib.sha256(valid_payload).hexdigest(),packet / 'unexpected.json','request-path'),
+                ('duplicate',b'{"schemaVersion":1,' + valid_payload[1:],None,path,'request-json'),
+                ('bound',valid_payload + b' '*(OUTPUT_LIMIT+1-len(valid_payload)),None,path,'request-bound')):
                 selected_path.write_bytes(payload)
                 selected_path.chmod(0o600)
                 supplied_sha = supplied_sha if supplied_sha is not None else hashlib.sha256(payload).hexdigest()
                 intercepted.clear()
                 try:
-                    entry(['run', str(selected_path), supplied_sha, nonce])
+                    entry(['run',str(selected_path),supplied_sha,nonce])
                 except Refusal as refusal:
-                    require(str(refusal) == category, 'selfcheck-category')
+                    require(str(refusal) == category,'selfcheck-category')
                 else:
                     raise AssertionError('missing refusal: ' + name)
-                require(not intercepted, 'selfcheck-protected-launch')
-                namespace['require'] = lambda predicate, code: original_require(predicate, code) if code != category else None
+                require(not intercepted,'selfcheck-protected-launch')
+                namespace['require'] = lambda predicate,code:original_require(predicate,code) if code != category else None
                 try:
-                    entry(['run', str(selected_path), supplied_sha, nonce])
-                    require(bool(intercepted), 'selfcheck-fault-not-observed')
+                    entry(['run',str(selected_path),supplied_sha,nonce])
+                    require(bool(intercepted),'selfcheck-fault-not-observed')
                 finally:
                     namespace['require'] = original_require
                 print('metadata-boundary ' + name + ': GREEN refusal; watched removed-check RED reached launch sentinel')
             request_sha = write_request(valid)
-            for name, change, category in (
-                ('unreadable', lambda: path.chmod(0o200), 'request-unreadable'),
-                ('mode', lambda: path.chmod(0o640), 'request-owner-mode')):
+            for name,change,category in (
+                ('unreadable',lambda:path.chmod(0o200),'request-unreadable'),
+                ('mode',lambda:path.chmod(0o640),'request-owner-mode')):
                 path.chmod(0o600)
-                readable = os.open(path, os.O_RDONLY)
+                readable = os.open(path,os.O_RDONLY)
                 actual_open = os.open
-                os.open = lambda selected, flags, *more, **keys: os.dup(readable) if str(selected) == str(path) else actual_open(selected, flags, *more, **keys)
+                os.open = lambda selected,flags,*more,**keys:os.dup(readable) if str(selected) == str(path) else actual_open(selected,flags,*more,**keys)
                 change()
                 intercepted.clear()
                 try:
-                    entry(['run', str(path), request_sha, nonce])
+                    entry(['run',str(path),request_sha,nonce])
                 except Refusal as refusal:
-                    require(str(refusal) == category, 'selfcheck-category')
+                    require(str(refusal) == category,'selfcheck-category')
                 else:
                     raise AssertionError('missing refusal: ' + name)
-                require(not intercepted, 'selfcheck-protected-launch')
-                namespace['require'] = lambda predicate, code: original_require(predicate, code) if code != category else None
+                require(not intercepted,'selfcheck-protected-launch')
+                namespace['require'] = lambda predicate,code:original_require(predicate,code) if code != category else None
                 try:
-                    entry(['run', str(path), request_sha, nonce])
-                    require(bool(intercepted), 'selfcheck-fault-not-observed')
+                    entry(['run',str(path),request_sha,nonce])
+                    require(bool(intercepted),'selfcheck-fault-not-observed')
                 finally:
                     namespace['require'] = original_require
                 os.open = actual_open
@@ -158,37 +158,37 @@ def selfcheck():
             path.chmod(0o600)
             path.unlink()
             try:
-                entry(['run', str(path), request_sha, nonce])
+                entry(['run',str(path),request_sha,nonce])
             except Refusal as refusal:
-                require(str(refusal) == 'request-absent', 'selfcheck-category')
+                require(str(refusal) == 'request-absent','selfcheck-category')
             else:
                 raise AssertionError('absence guard missing')
             pin_path = root / 'pinned'
             pin_path.write_bytes(b'X')
             pin_path.chmod(0o644)
-            pin = {'path': str(pin_path), 'bytes': 1, 'sha256': hashlib.sha256(b'X').hexdigest(),
-                   'uid': os.geteuid(), 'mode': 0o644}
+            pin = {'path':str(pin_path),'bytes':1,'sha256':hashlib.sha256(b'X').hexdigest(),
+                   'uid':os.geteuid(),'mode':0o644}
             verify_file(pin)
-            for key, wrong, category in (('bytes', 2, 'pin-identity'), ('mode', 0o600, 'pin-identity'),
-                                         ('sha256', 'f'*64, 'pin-hash')):
-                damaged = dict(pin, **{key: wrong})
+            for key,wrong,category in (('bytes',2,'pin-identity'),('mode',0o600,'pin-identity'),
+                                         ('sha256','f'*64,'pin-hash')):
+                damaged = dict(pin,**{key:wrong})
                 try:
                     verify_file(damaged)
                 except Refusal as refusal:
-                    require(str(refusal) == category, 'selfcheck-pin-category')
+                    require(str(refusal) == category,'selfcheck-pin-category')
                 else:
                     raise AssertionError('pin guard missing')
-                namespace['require'] = lambda predicate, code: original_require(predicate, code) if code != category else None
+                namespace['require'] = lambda predicate,code:original_require(predicate,code) if code != category else None
                 try:
                     verify_file(damaged)
                 finally:
                     namespace['require'] = original_require
                 print('metadata-pin ' + key + ': GREEN refusal; watched removed-check RED accepted bad metadata')
-            facts = {'inventory': {'outsideBytes': 0, 'retainedBytes': 0},
-                     'ledger': {'grossBytes': 0}, 'freeBytes': 100*GIB,
-                     'availableMemoryBytes': 2*GIB+640*MIB, 'initial': True}
+            facts = {'inventory':{'outsideBytes':0,'retainedBytes':0},
+                     'ledger':{'grossBytes':0},'freeBytes':100*GIB,
+                     'availableMemoryBytes':2*GIB+640*MIB,'initial':True}
             check_capacity(facts)
-            for category in ('capacity-memory', 'capacity-backing', 'capacity-outside', 'capacity-staging'):
+            for category in ('capacity-memory','capacity-backing','capacity-outside','capacity-staging'):
                 broken = decode(encode(facts))
                 if category == 'capacity-memory':
                     broken['availableMemoryBytes'] -= 1
@@ -201,17 +201,17 @@ def selfcheck():
                 try:
                     check_capacity(broken)
                 except Refusal as refusal:
-                    require(str(refusal) == category, 'selfcheck-capacity-category')
+                    require(str(refusal) == category,'selfcheck-capacity-category')
                 else:
                     raise AssertionError('capacity guard missing')
-                namespace['require'] = lambda predicate, code: original_require(predicate, code) if code != category else None
+                namespace['require'] = lambda predicate,code:original_require(predicate,code) if code != category else None
                 try:
                     check_capacity(broken)
                 finally:
                     namespace['require'] = original_require
                 print('metadata-capacity ' + category + ': GREEN refusal; watched removed-check RED accepted one-byte-short metadata')
         finally:
-            namespace['ROOT'], namespace['run_control'], namespace['require'] = original_root, original_run, original_require
+            namespace['ROOT'],namespace['run_control'],namespace['require'] = original_root,original_run,original_require
             namespace['authorize'] = original_authorize
     print('selfcheck: metadata-only; no native enforcement or lifecycle claim')
 
@@ -730,7 +730,10 @@ elif case=='deadline':
             if stage=='durable':clock[0]=12.
             return 1
         control.persist_projection=persist
-        control.subprocess.Popen=lambda *arguments,**keywords:Process()
+        def launch(command,**keywords):
+            assert all('--setenv='+p+'=C' in command for p in ('LANG','LC_ALL'))
+            events.append(command);return Process()
+        control.subprocess.Popen=launch
         try:
             with control.bounded_observations(raw,12.) as cutoff:
                 refused(lambda:control.coordinate_controls({'packet':'/synthetic','state':'/owned','pins':[source_pin]},'/request','sha',nonce,
@@ -742,6 +745,10 @@ elif case=='deadline':
             control.__dict__.update(original_namespace)
             control.subprocess.Popen=actual_popen
             control.time.monotonic=lambda:clock[0]
+    for flag in ('--setenv=LANG=C','--setenv=LC_ALL=C'):
+        try:launch([v for v in events[0] if v!=flag])
+        except AssertionError:pass
+        else:raise AssertionError('locale omission accepted')
     clock[0]=0.
     worker_events=[]
     raw=types.SimpleNamespace(acquire_staging=lambda _:61,identity=lambda _:'staging',
