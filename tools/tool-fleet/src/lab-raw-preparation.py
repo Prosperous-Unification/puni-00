@@ -458,9 +458,11 @@ def check_creator(binding, directory, directory_fd):
         raise PreparationRefusal('raw-creator-invalid') from None
 
 
-def confine_writer(raw_fd, executable_fd, additional_executables=()):
+def confine_writer(raw_fd, executable_fd, additional_executables=(), *, truncate=True):
     """Linux Landlock ABI>=3 grants WRITE/TRUNCATE on one file and EXECUTE on exact tool FDs.
 
+    Repair passes executable_fd=None/truncate=False for no execution or truncation grants.
+    Existing raw/seed callers retain their exact default grants.
     No directory write, create, rename or remove is granted. Preopened stdout/stderr
     must be pipes; evidence is bounded and fsynced by the coordinator, not this writer.
     """
@@ -481,11 +483,15 @@ def confine_writer(raw_fd, executable_fd, additional_executables=()):
     ruleset_fd = syscall(444, ctypes.byref(ruleset), ctypes.sizeof(ruleset), 0)
     require(ruleset_fd >= 0, 'raw-sandbox-refused')
     try:
-        loader_fd = os.open('/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2', os.O_PATH | os.O_CLOEXEC)
+        loader_fd = (os.open('/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2', os.O_PATH | os.O_CLOEXEC)
+                     if executable_fd is not None else None)
         # Proof: seed sandbox controls execute both granted leaf FDs; omitting the second denies it.
         # Removing WRITE/TRUNCATE or EXECUTE handling admits foreign writes or execution and fails the same control.
-        grants = ((raw_fd, (1 << 1) | (1 << 14)), (executable_fd, 1), (loader_fd, 1)) + tuple(
-            (descriptor, 1) for descriptor in additional_executables)
+        # Proof: repair grants control preserves raw/seed default rights; truncate-grant fault exposes unsafe repair rights.
+        grants = ((raw_fd, (1 << 1) | ((1 << 14) if truncate else 0)),)
+        if executable_fd is not None:
+            grants += ((executable_fd, 1), (loader_fd, 1))
+        grants += tuple((descriptor, 1) for descriptor in additional_executables)
         for descriptor, rights in grants:
             path_fd = os.open(f'/proc/self/fd/{descriptor}', os.O_PATH | os.O_CLOEXEC)
             try:
@@ -493,7 +499,8 @@ def confine_writer(raw_fd, executable_fd, additional_executables=()):
                 require(syscall(445, ruleset_fd, 1, ctypes.byref(rule), 0) == 0, 'raw-sandbox-refused')
             finally:
                 os.close(path_fd)
-        os.close(loader_fd)
+        if loader_fd is not None:
+            os.close(loader_fd)
         require(libc.prctl(38, 1, 0, 0, 0) == 0, 'raw-sandbox-refused')
         # Proof: real sandbox boundary attempts unrelated existing-file and new-file writes.
         require(syscall(446, ruleset_fd, 0) == 0, 'raw-sandbox-refused')

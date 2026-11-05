@@ -704,8 +704,8 @@ def read_pinned_json(request, path):
         return decode_json(payload)
 
 
-def verify_raw(request):
-    """Consume historical acceptance with original input/source provenance, never its exited PID."""
+def verify_raw_history(request):
+    """Join immutable original request/receipt/provenance; grants no current raw admission."""
     # Proof: raw-provenance controls substitute source/request/authority/history/inode/map facts independently.
     receipt = read_pinned_json(request, request['rawReceipt'])
     require(isinstance(receipt, dict) and receipt.get('schemaVersion') == 1
@@ -736,7 +736,15 @@ def verify_raw(request):
     historical = [pin for pin in original['pins'] if pin['path'].startswith(request['root'] + '/')
                   and not pin['path'].startswith(request['state'] + '/')]
     require(historical and provenance['sourcePins'] == historical, 'seed-raw-provenance')
-    path = directory + '/disk.raw'
+    return {'path': directory + '/disk.raw', 'binding': binding, 'allocation': allocation,
+            'receiptDigest': pins[request['rawReceipt']]['sha256'],
+            'sourceRevision': provenance['sourceRevision']}
+
+
+def verify_raw(request):
+    """Preserve v1 current exact map/identity admission on top of immutable historical joins."""
+    history = verify_raw_history(request)
+    path, binding, allocation = history['path'], history['binding'], history['allocation']
     observation = os.lstat(path)
     require(raw.identity(observation) == binding['raw'] and observation.st_size == raw.RAW_BYTES,
             'seed-raw-binding')
@@ -745,8 +753,8 @@ def verify_raw(request):
     require(current['identity'] == allocation['after']['identity']
             and current['mapDigest'] == allocation['after']['mapDigest']
             and current['coverageBytes'] == raw.RAW_BYTES, 'seed-raw-changed')
-    return {'receiptDigest': pins[request['rawReceipt']]['sha256'], 'identity': current['identity'],
-            'allocationDigest': current['mapDigest'], 'sourceRevision': provenance['sourceRevision']}
+    return {'receiptDigest': history['receiptDigest'], 'identity': current['identity'],
+            'allocationDigest': current['mapDigest'], 'sourceRevision': history['sourceRevision']}
 
 
 def verify_inputs(request):

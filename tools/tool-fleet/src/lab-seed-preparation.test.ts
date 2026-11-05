@@ -605,6 +605,11 @@ with tempfile.TemporaryDirectory() as root:
         request={'root':root,'state':state,'image':image,'rawReceipt':receipt_path,'rawRequest':request_path,'rawProvenance':history_path,'pins':[original_pin,receipt_pin,allocation_pin,history_pin]}
         p.raw.load_inspector=lambda:types.SimpleNamespace(inspect_file=lambda path,size:copy.deepcopy(native))
         accepted=p.verify_raw(request);assert accepted['sourceRevision']=='d'*40
+        history_accepted=p.verify_raw_history(request);assert history_accepted['path']==path
+        native['mapDigest']='f'*64
+        assert p.verify_raw_history(request)==history_accepted
+        refused(lambda:p.verify_raw(request),'seed-raw-changed')
+        native['mapDigest']='c'*64
         for fault in ['source','request','allocation','receipt','history','path']:
             saved_receipt=copy.deepcopy(receipt);saved_history=copy.deepcopy(history);saved_native=copy.deepcopy(native)
             if fault=='source':receipt['sourceDigest']='f'*64

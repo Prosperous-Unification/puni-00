@@ -12,7 +12,9 @@ The fixed QEMU-child geometry policy and initialized ext4 admission have indepen
 
 The closed repair identity/capacity/reservation source layer is independently approved, including the corrected duplicate-key proof. It grants no standalone native authority. A separate source review qualified a future reclamation path through existing ordered counter/artifact directory commits; no release hook exists yet.
 
-Next ordered work: compose/review the bounded trusted worker/confined writer and fixed release proof, then explicit continued-guest seed/guest contracts; run repair only with fresh source/input/capacity/native ownership and full-byte preservation proof; regenerate a distinct reviewed seed/request; then attempt one bounded guest. Preserve historical ISO and failed attempts. Whole-platform and live acceptance remain separate and incomplete.
+The native producer source composition now has focused tests and independent approval, including fixed nonretry I/O, original locked reservation/ACK and full logical hash preservation. No kernel-policy/native-unit/retained-disk qualification has run.
+
+Next ordered work: admit separately bounded tiny native controls; implement/review the fixed release proof and explicit continued-guest seed/guest contracts; run repair only with fresh source/input/capacity/native ownership and full-byte preservation proof; regenerate a distinct reviewed seed/request; then attempt one bounded guest. Preserve historical ISO and failed attempts. Whole-platform and live acceptance remain separate and incomplete.
 
 ## Authority and inputs
 
