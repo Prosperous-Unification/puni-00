@@ -7862,3 +7862,5 @@ Actual component tests keep their original epochs: harmless80, real Graph202/11/
 [Ordinary/constructor test ownership](verify-test-ownership.md) records the reversible source split, exact discovery obligations and separate mandatory native/release qualification. No native grant is inferred.
 
 2026-11-05: [fresh-main ADR identity repair](verify-adr-identities-20261105.md) preserves decision bytes and the existing numbering guard. The [hosted follow-up](verify-ci-hosted-followup-20261105.md#actual-hosted-vite-qualification) now records actual Vite producer success, separately from the failing workspace gate.
+
+2026-11-05: [restoration store-observer lifetime repair](verify-restoration-readback-20261105.md) records the new hosted failure, unchanged reproduction, exact-restored private diagnosis and reviewed ordinary/initial-handoff proof boundaries.

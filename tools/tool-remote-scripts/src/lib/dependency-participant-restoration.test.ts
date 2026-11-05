@@ -1,4 +1,5 @@
 import { rejects } from 'node:assert/strict';
+import * as filesystem from 'node:fs';
 import { readdirSync, readlinkSync } from 'node:fs';
 import { copyFile, link, mkdir, readFile, rename, rm } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
@@ -49,8 +50,63 @@ test('actual committed store observer survives source finalizers only under the 
           fixture.ports,
         );
         expect(completion.state).toBe('activation-committed-participants-fenced');
-        if (observed === undefined) throw new Error('actual finalized store observer absent');
-        await observed.inspect();
+        const storeObserver = observed;
+        if (storeObserver === undefined) throw new Error('actual finalized store observer absent');
+        await storeObserver.inspect();
+        const assertDeadlineAt = async (expiryBoundary: 2 | 4) => {
+          const assertOwner = ownership.assertDependencyOwner;
+          const open = filesystem.openSync;
+          const now = performance.now.bind(performance);
+          let awaitedOwners = 0;
+          let expired = false;
+          let expiredClockReads = 0;
+          let databaseMainOpens = 0;
+          const openedMains = new Set<string>();
+          const ownerBoundary = spyOn(ownership, 'assertDependencyOwner').mockImplementation(
+            async (...args) => {
+              await assertOwner(...args);
+              awaitedOwners++;
+              if (awaitedOwners === expiryBoundary) expired = true;
+            },
+          );
+          const clock = spyOn(performance, 'now').mockImplementation(() => {
+            if (!expired) return now();
+            expiredClockReads++;
+            return Number.MAX_SAFE_INTEGER;
+          });
+          const opened = spyOn(filesystem, 'openSync').mockImplementation(
+            (...args: Parameters<typeof open>) => {
+              const descriptor = open(...args);
+              const path = readlinkSync(`/proc/self/fd/${String(descriptor)}`);
+              if (path === fixture.prodPath || path === fixture.devPath) {
+                databaseMainOpens++;
+                openedMains.add(path);
+              }
+              return descriptor;
+            },
+          );
+          try {
+            await rejects(storeObserver.inspect(), (failure: unknown) => {
+              expect(failure).toBeInstanceOf(Error);
+              if (!(failure instanceof Error)) return false;
+              expect(failure.message).toContain('stage=restoration-store-readback');
+              return true;
+            });
+            expect(awaitedOwners).toBe(expiryBoundary);
+            expect(expiredClockReads).toBeGreaterThan(0);
+            if (expiryBoundary === 2) expect(databaseMainOpens).toBe(0);
+            else {
+              expect(databaseMainOpens).toBeGreaterThan(0);
+              expect([...openedMains].sort()).toEqual([fixture.prodPath, fixture.devPath].sort());
+            }
+          } finally {
+            opened.mockRestore();
+            clock.mockRestore();
+            ownerBoundary.mockRestore();
+          }
+        };
+        await assertDeadlineAt(2);
+        await assertDeadlineAt(4);
         const database = new Database(fixture.prodPath, { create: false });
         try {
           database
@@ -61,7 +117,7 @@ test('actual committed store observer survives source finalizers only under the 
         } finally {
           database.close();
         }
-        await rejects(observed.inspect());
+        await rejects(storeObserver.inspect());
         expect(fixture.source.State.Running).toBe(false);
         expect(fixture.commands.some((args) => ['start', 'restart', 'rm'].includes(args[0]))).toBe(
           false,

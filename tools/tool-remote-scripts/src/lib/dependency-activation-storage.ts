@@ -750,11 +750,15 @@ export async function activateDependencyStores(
           : { state: 'ENABLED', receipt: structuredClone(enabled.receipt) },
       );
     }
+    /** Restoration store readback survives source finalizers only while the original owner and deadline remain live; initial handoff also retains its raw evidence monitor. */
     const inspectStores = async () => {
       try {
         await assertDependencyOwner(owner, layouts.prod, request.owner.sha);
         await assertDependencyOwner(owner, layouts.dev, request.owner.sha);
-        closeRaw();
+        // Proof: restoring unconditional closeRaw here made the finalized same-owner store observer refuse before reading the database; the focused restoration case failed.
+        // Proof: omitting this restoration deadline call let the entry expiry reach main-file anchor opens; the focused case failed its zero-open oracle.
+        if (isInitial) closeRaw();
+        else checkDeadline();
         for (const env of ['prod', 'dev'] as const) {
           const authority = expected.get(env);
           const captured = original(env);
@@ -804,7 +808,10 @@ export async function activateDependencyStores(
         }
         await assertDependencyOwner(owner, layouts.prod, request.owner.sha);
         await assertDependencyOwner(owner, layouts.dev, request.owner.sha);
-        closeRaw();
+        // Proof: restoring unconditional closeRaw here made the finalized same-owner store observer refuse after readback; the focused restoration case failed.
+        // Proof: omitting this restoration deadline call let the observer resolve after expiry at the fourth awaited owner boundary; the focused case missed its required rejection.
+        if (isInitial) closeRaw();
+        else checkDeadline();
       } catch (cause) {
         const failure = new DependencyActivationFailure(
           attempt,
