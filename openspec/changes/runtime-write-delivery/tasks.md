@@ -329,6 +329,8 @@ RecoveryStore operations. The current generation barrier and fence bounds remain
 
 ### Task 4: Final review and source-specific acceptance
 
+2026-11-05 [reconciliation](evidence/runtime-write-acceptance-reconciliation-20261105.md): original 991 hosted/canonical acceptance and actual 645 merge/CI are proved. The 167-path prior-review mapping, 38-entry composition review and 26-scenario/original-proof census are retained; new reviewed C01–C03 resolve the three named proof gaps. The current acceptance-test source has focused 40/0 and uncached lint/typecheck/full format/OpenSpec 327/0 evidence. Both checkboxes stay open for the full current RunStore cohort, final publication review and current source-specific release gates; no exhaustive fresh 187-file review or full-foundation completion is claimed.
+
 - [ ] 4.1 Reconcile parent recovery/coordinator tasks without closing full S0/S7a, verify every
       new requirement/scenario and proof from original receipts, and obtain whole-branch independent
       review. Run the complete actual RunStore source inventory once after final source changes,
