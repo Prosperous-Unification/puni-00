@@ -206,7 +206,12 @@
     owner: '{{ puni_gate_user }}'
     group: '{{ puni_gate_user }}'
     mode: '0644'
-  loop: [dash-resources-watch.service, dash-job-audit.service, dash-job-audit.timer]
+  loop:
+    - dash-resources-watch.service
+    - dash-job-audit.service
+    - dash-job-audit.timer
+    - gate-launcher-refresh.service
+    - gate-launcher-refresh.timer
   register: puni_gate_user_units
 
 - name: Reload the gate account's user manager
@@ -218,8 +223,9 @@
   when: puni_gate_user_units is changed
   changed_when: true
 
-# Enabled, never started: the operator starts the watch right after `ops pool init` (task 6.4).
-# Not enabled on a host that is not enrolled, where the audit would fail every week.
+# Enabled, never started: the operator starts the watch and both timers right after `ops pool
+# init` (task 6.4). Not enabled on a host that is not enrolled, where the audit would fail every
+# week and nothing reads the launcher checkout's catalogue (6.9).
 - name: Enable the Dash user units on an enrolled host
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.systemd_service:
@@ -228,5 +234,5 @@
     enabled: true
   environment:
     XDG_RUNTIME_DIR: '/run/user/{{ ansible_facts.getent_passwd[puni_gate_user][1] }}'
-  loop: [dash-resources-watch.service, dash-job-audit.timer]
+  loop: [dash-resources-watch.service, dash-job-audit.timer, gate-launcher-refresh.timer]
   when: puni_gate_host_pool_enroll

@@ -56,9 +56,10 @@ second, configured by `infra/ansible/playbooks/gate-host.yml` (WBS 070.05) and l
 - **Dash user units.** `dash-resources-watch.service` (`resources watch`, `Restart=on-failure`,
   `KillMode=process` so the concurrent-mode guard holder outlives a restart, skipped until the
   ledger exists), and the weekly `dash-job-audit.timer` with its service, the files
-  `ops job render-audit-units` renders. All three go to `~/.config/systemd/user`. On an enrolled
-  host the role enables the watch and the timer. It never starts either, and it never runs
-  `ops pool init`.
+  `ops job render-audit-units` renders. Beside them, the hourly `gate-launcher-refresh.timer`
+  and its oneshot service, which runs `bin/gate-launcher-refresh.sh` on the launcher checkout
+  (task 6.9). All five go to `~/.config/systemd/user`. On an enrolled host the role enables the
+  watch and both timers. It never starts any of them, and it never runs `ops pool init`.
 - **Packages.** It installs `git`, `jq`, `perl`, `python3-packaging`, `python3-venv`,
   `shellcheck`, `unzip`, `bubblewrap` and `busybox` from Ubuntu apt. The sandbox tools are
   required by existing gate tests; installing them does not grant namespace capability. Docker must already be running. The role does not change Docker,
@@ -236,21 +237,27 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
    `infra/jobs/catalogue.json` and `run_heavy_job`. Ansible never moves its head after the
    clone, so first bring it to current `main` while no job runs from it
    (`git fetch -q origin && git checkout -q --detach origin/main`): h4claw's was found detached at
-   an older SHA (H4-A9). As `puni1`, in `~/puni-00-gate-launcher`, run as one line so the watch
-   starts only on a successful init and before any job:
+   an older SHA (H4-A9). This first move stays manual: the refresh timer runs the script from the
+   checkout itself, so a checkout older than the script cannot refresh itself. As `puni1`, in
+   `~/puni-00-gate-launcher`, run as one line so the watch and the timers start only on a
+   successful init and before any job:
 
    ```sh
-   bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops pool init --config ~/.config/dash/host-pool.json && systemctl --user start dash-resources-watch.service dash-job-audit.timer
+   bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops pool init --config ~/.config/dash/host-pool.json && systemctl --user start dash-resources-watch.service dash-job-audit.timer gate-launcher-refresh.timer
    ```
 
    Prove the restart once: kill the watch process and watch systemd start it again
    (`journalctl --user -u dash-resources-watch.service`). Rerun `--tags validate`.
 
 6. **Observe for a week (6.4).** Every launcher goes through `run_heavy_job` in observe mode. Gates
-   launch from `~/puni-00-gate-launcher`. Its freshness is manual for now (a timer is owed,
-   task 6.9): move its head only while no job runs from it,
-   `git fetch -q origin && git checkout -q --detach origin/main`, then restart the watch, which
-   runs from the same checkout.
+   launch from `~/puni-00-gate-launcher`. From step 5 on, `gate-launcher-refresh.timer` keeps it
+   fresh: hourly, with up to five minutes' random delay and catching up after downtime, it
+   fetches `origin`. If `main` moved, and no process of `puni1` other than the watch's works in
+   the checkout, it checks out `origin/main` detached and runs the frozen install when `bun.lock`
+   changed. Then it restarts the watch, which runs from the same checkout, only if it was
+   running. Otherwise it exits 75 and the next hour retries. A checkout with edited tracked
+   files is refused 65, never moved over. A failed fetch, checkout, install or restart is 70.
+   Read the outcome with `journalctl --user -u gate-launcher-refresh.service`.
 7. **Calibrate and propose (6.4).** Run `ops job calibrate` cold and warm for each type, then
    `ops job propose`, and land the catalogue PRs. Budgets and headroom are pinned at step 5: once
    the pool is initialized, a changed `nproc`, MemTotal GiB, headroom, unit list, enrollment id or

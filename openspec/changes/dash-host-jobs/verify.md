@@ -2629,3 +2629,75 @@ admission of its own`, which lands in the enclosing job's log.
 | `run_heavy_job`'s `DASH_JOB_ID` branch replaced by `if false` | `49a: the payload runs under the derived label: want 'gate:abc/test-queued', got 'gate:abc'`; `49a: the nested call asked Dash again: … --label gate:abc …` |
 | scope comparison replaced by `if false`                       | `49c`/`49d … want exit 70, got 0`, `something ran beside a forged job identity`; 4 checks failed                                                            |
 | exclusive-unit refusal replaced by `if false`                 | `49f … want exit 70, got 0`; the payload ran as `gate:abc/solver-image-publish`; 2 checks failed                                                            |
+
+- **S6D-A4 Who counts as a job launched from the checkout (task 6.9).** It is any live process of
+  `puni1` whose working directory is the checkout or lies under it, except the processes of
+  `dash-resources-watch.service`, which runs there by design and is restarted after the move.
+  - This is the attribution Dash itself uses. `ops job run` reads the catalogue and the payload's
+    revision from the checkout that holds the launcher's working directory (`catalogue.ts`).
+    Every launcher stays alive as the outer shell of its job (J13). The ledger records no
+    checkout for a job (`launcherSha` is null), and the lock's holder record names only a pid and
+    a label, so neither can answer the question.
+  - The scan also catches what neither record would. A Dash waiter would otherwise be refused 64
+    when HEAD moves under it. It also catches a legacy launcher, a `test:queued` run in the
+    checkout, the weekly audit, and an operator's shell.
+  - Other accounts are not read: git refuses a checkout another account owns. A process whose
+    working directory the kernel refuses to `puni1` is skipped. Such a process is more privileged
+    than the account, or already leaving, and no launcher is either. Refusing on it instead
+    refused every run on this workstation, over `ssh-agent` and `systemd --user`.
+  - Busy is exit 75 with one journal line naming the checkout, both commits and each `pid
+command`. The unit lists 75 in `SuccessExitStatus`, so a busy hour is not a failed unit. The
+    next hour retries.
+  - A checkout already at `origin/main` exits 0 and nothing is restarted, so a busy host does not
+    wait on a scan.
+- **S6D-A5 Accepted window.** A launcher can start between the scan and the checkout. It then
+  sees one commit whole, old or new, because git replaces files rather than rewriting them. If
+  its catalogue read and its gate straddle the move, Dash's existing HEAD check refuses it 64,
+  which is loud and rerunnable. The window is the length of a detached checkout. Taking the heavy
+  lock around the move would close it for the legacy queue only. Concurrent-mode admissions do
+  not take that lock first, and a zero-budget caller would be refused 75 at random.
+- **S6D-A6 Restart and install.** The watch is restarted with `try-restart`, so before
+  `ops pool init` a stopped watch stays stopped. A restart while a job from another checkout runs
+  is what the unit is built for: `KillMode=process` keeps the concurrent-mode guard holder alive
+  across it (S6B-A8).
+  - When `bun.lock` changed between the two commits, the checkout's frozen install runs before
+    the restart, because the watch would otherwise start on modules the new commit does not pin.
+    The brief did not ask for this step; it is needed for the restart to be sound.
+  - A failed install returns the checkout to the old commit and reinstalls that commit. The
+    watch, never restarted, keeps running the code that matches, and the next hour retries the
+    whole move. If the return fails as well, the error names the manual steps.
+- **S6D-A7 Installed everywhere, enabled where enrolled, started by the operator.** The role
+  installs `gate-launcher-refresh.service` and `.timer` on every gate host, beside the other Dash
+  units. It enables only the timer, only where `puni_gate_host_pool_enroll` is true, and starts
+  nothing.
+  - gate-hosts.md step 5 starts the timer together with the watch and the audit timer, after the
+    first move. That move stays manual: the service runs the script from the checkout itself, so
+    a checkout older than the script cannot refresh itself.
+  - The timer runs `OnCalendar=hourly`, `RandomizedDelaySec=5min`, `Persistent=true`.
+  - The service is `WorkingDirectory=<home>`, so the refresh is never a process in the checkout.
+  - The script ends in one compound command, so bash has parsed the whole file before the
+    checkout holding it moves.
+  - validate requires both files and the timer enabled.
+- **S6D-A8 CI.** The shell test is a step of its own in `ci.yml`, beside the heavy-lock and gate
+  pinning suites, because no Nx project owns `bin/`. The script and its test are in the fleet
+  check's shellcheck list (`EXTRA_SHELL_SCRIPTS`), since both are executable. No `package.json`
+  script was added: `package.json` is an Nx shared global, and touching it would mark every
+  project affected.
+
+### Faults (6.9)
+
+| ID    | Injected fault                                                                                                 | Observed                                                                                                                                                           |
+| ----- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 6d-F1 | busy refusal (`if [[ -n $workers ]]`) replaced by `if false`                                                   | `1: a process in the checkout refuses the move: want exit 75, got 0`; `1: the checkout did not move` failed; `1b … want exit 75, got 0`                            |
+| 6d-F2 | watch-unit exclusion replaced by `:`                                                                           | `4: a watch process in the checkout does not block the move: want exit 0, got 75`; 2 checks failed                                                                 |
+| 6d-F3 | dirty-checkout refusal replaced by `if false`                                                                  | `5: a dirty checkout is refused: want exit 65, got 0`; the checkout moved, carrying the edit along (git keeps a non-conflicting edit)                              |
+| 6d-F4 | restart status ignored (`systemctl … \|\| :`)                                                                  | `8: a failed watch restart is reported: want exit 70, got 0`; 2 checks failed                                                                                      |
+| 6d-F5 | lockfile install replaced by `if false`                                                                        | `10: the frozen install ran in the checkout: want 'install --frozen-lockfile in <launcher>', got ''`, and 10b's failed install exited 0 with the watch restarted   |
+| 6d-F6 | return after a failed install replaced by `true`                                                               | `10b: the checkout returned to the commit the watch runs` failed; `10c … want exit 70, got 0`; 4 checks failed                                                     |
+| 6d-F7 | service template: `WorkingDirectory` set to the launcher checkout; `SuccessExitStatus=75` dropped              | `gate-host-pool.test.ts` "the launcher refresh runs hourly…": `- "/tmp/gate-host-pool-…"`, `+ ".../puni-00-gate-launcher"`; then `- ["75"]`, `+ undefined`         |
+| 6d-F8 | `host-pool.yml`: refresh service dropped from install; timer dropped from enable; enable task's `when` dropped | `ansible.test.ts` "configures a gate host…" failed each time (33 pass, 1 fail)                                                                                     |
+| 6d-F9 | the skip for a working directory the kernel refuses, replaced by a 70 refusal                                  | every run refused on this workstation: `cannot read the working directory of pid 10816` (`ssh-agent`), then pid 2226 (`systemd --user`, `CapEff 0000000800000000`) |
+
+The controller-image evaluator's E3 now records five unit files and drops each of the eight
+conditions in turn. E4 records them too. E5 adds `refresh timer disabled`, which the probe
+refuses, and removing `failed_when` lets it through. The run's lines are in the commands table.

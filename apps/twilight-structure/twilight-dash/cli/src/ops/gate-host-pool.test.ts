@@ -336,7 +336,11 @@ describe('the gate host role prepares the host pool (dash-host-jobs 6.3, 6.7)', 
     const { home, variables } = enrolledHost();
     // Proof: the renderer's earlier `<checkout>/docs/resources.md` failed this (verify.md
     // Slice 6c, 6c-F16).
-    for (const unit of ['dash-job-audit.service', 'dash-resources-watch.service']) {
+    for (const unit of [
+      'dash-job-audit.service',
+      'dash-resources-watch.service',
+      'gate-launcher-refresh.service',
+    ]) {
       const documentation = unitDirectives(renderTemplate(unit, variables)).get(
         'Unit.Documentation',
       );
@@ -394,6 +398,30 @@ describe('the gate host role prepares the host pool (dash-host-jobs 6.3, 6.7)', 
     const watch = run([process.execPath, ENTRYPOINT, ...words]);
     expect(watch.exitCode).toBe(1);
     expect(watch.stderr).toContain(`ENOENT: no such file or directory, open '${missing}'`);
+  });
+
+  test('the launcher refresh runs hourly from outside the checkout it moves (6.9)', () => {
+    const { home, variables } = enrolledHost();
+    const service = unitDirectives(renderTemplate('gate-launcher-refresh.service', variables));
+    const launcher = join(home, 'puni-00-gate-launcher');
+    // Proof: changing the template's working directory to the launcher checkout, or dropping
+    // `SuccessExitStatus=75`, failed this test (verify.md Slice 6d, 6d-F7).
+    expect(service.get('Service.Type')).toEqual(['oneshot']);
+    expect(service.get('Service.WorkingDirectory')).toEqual([home]);
+    expect(service.get('Service.SuccessExitStatus')).toEqual(['75']);
+    expect(service.get('Service.Environment')).toEqual([
+      `PATH=${home}/.bun-1.4.4/bin:${home}/.node-24.18.1/bin:/usr/local/bin:/usr/bin:/bin`,
+    ]);
+    const exec = service.get('Service.ExecStart')?.[0]?.split(' ') ?? [];
+    expect(exec).toEqual(['/bin/bash', join(launcher, 'bin/gate-launcher-refresh.sh'), launcher]);
+    // The script the unit names is this repository's, at the same path in the checkout.
+    expect(existsSync(exec[1]?.replace(launcher, REPOSITORY) ?? '')).toBe(true);
+    const timer = unitDirectives(renderTemplate('gate-launcher-refresh.timer', variables));
+    expect(timer.get('Timer.OnCalendar')).toEqual(['hourly']);
+    expect(timer.get('Timer.Persistent')).toEqual(['true']);
+    expect(timer.get('Timer.RandomizedDelaySec')).toEqual(['5min']);
+    expect(timer.get('Timer.Unit')).toEqual(['gate-launcher-refresh.service']);
+    expect(timer.get('Install.WantedBy')).toEqual(['timers.target']);
   });
 
   test('the disk probe refuses to clone without room and names the figures', () => {

@@ -245,10 +245,13 @@
       refuses until this is done. Done by J19 (design.md): `resource-holds.test.ts` outside any
       namespace; `ops pool init` now succeeds beside this workstation's own `systemd --user`
       (PID 2327) and `(sd-pam)` (verify.md Slice 6a).
-- [ ] 6.9 A user timer that keeps `~/puni-00-gate-launcher` fresh (`git fetch` and
+- [x] 6.9 A user timer that keeps `~/puni-00-gate-launcher` fresh (`git fetch` and
       `checkout --detach origin/main` while no job runs from it, then a watch restart); until it
       lands that is a manual operator step (`docs/infra/gate-hosts.md`, S6C-A20) — test: the
-      timer refuses while a job launched from the checkout runs.
+      timer refuses while a job launched from the checkout runs. Done (S6D-A4 to S6D-A7):
+      `gate-launcher-refresh.timer` runs `bin/gate-launcher-refresh.sh`; proof: with its refusal
+      removed, `gate-launcher-refresh.test.sh` case 1 moved the checkout under a working process
+      (`want exit 75, got 0`). The host apply that installs it is owed with 6.3e.
 - [x] 6.10 A nested `run_heavy_job` inherits the outer job's `HEAVY_LOCK_LABEL`: a `test:queued`
       or solver publish started inside an admitted gate payload is labelled as the gate, on the
       legacy lock and in Dash alike (found by slice 6c's h2puni gate on 37ca6254a, where

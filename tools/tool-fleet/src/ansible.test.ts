@@ -921,6 +921,40 @@ describe('the Ansible host and k3s contract', () => {
     expect(
       poolTasks.find((candidate) => candidate.name === 'Write the host pool configuration')?.when,
     ).toBe('puni_gate_host_pool_enroll');
+    // The launcher refresh pair (dash-host-jobs 6.9) is installed on every gate host, like the
+    // other Dash units, and only its timer is enabled, and only where the host is enrolled.
+    // Proof: dropping either refresh unit from the install loop, the timer from the enable loop,
+    // or the enable task's `when`, each failed this (verify.md Slice 6d, 6d-F8).
+    const unitTasks = Object.fromEntries(
+      (poolTasks as { name: string; when?: string; loop?: string[] }[])
+        .filter((candidate) =>
+          [
+            'Install the Dash user units',
+            'Enable the Dash user units on an enrolled host',
+          ].includes(candidate.name),
+        )
+        .map((candidate) => [candidate.name, { loop: candidate.loop, when: candidate.when }]),
+    );
+    expect(unitTasks).toEqual({
+      'Install the Dash user units': {
+        loop: [
+          'dash-resources-watch.service',
+          'dash-job-audit.service',
+          'dash-job-audit.timer',
+          'gate-launcher-refresh.service',
+          'gate-launcher-refresh.timer',
+        ],
+        when: undefined,
+      },
+      'Enable the Dash user units on an enrolled host': {
+        loop: [
+          'dash-resources-watch.service',
+          'dash-job-audit.timer',
+          'gate-launcher-refresh.timer',
+        ],
+        when: 'puni_gate_host_pool_enroll',
+      },
+    });
     const poolTemplate = await readFile(
       join(root, 'infra/ansible/roles/gate_host/templates/host-pool.json.j2'),
       'utf8',

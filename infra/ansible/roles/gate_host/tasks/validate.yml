@@ -289,11 +289,13 @@
     - '{{ puni_gate_user_unit_directory }}/dash-resources-watch.service'
     - '{{ puni_gate_user_unit_directory }}/dash-job-audit.service'
     - '{{ puni_gate_user_unit_directory }}/dash-job-audit.timer'
+    - '{{ puni_gate_user_unit_directory }}/gate-launcher-refresh.service'
+    - '{{ puni_gate_user_unit_directory }}/gate-launcher-refresh.timer'
   register: puni_gate_pool_paths
 
 # Proof: in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py, E3) recorded stat results with the root
 # missing, 0755, foreign-owned, or any unit file missing were each refused; each condition
-# removed let its input through (verify.md Slice 6c).
+# removed let its input through (verify.md Slice 6c; the refresh pair, Slice 6d).
 - name: Require the pool root and the Dash user units
   ansible.builtin.assert:
     that:
@@ -303,6 +305,8 @@
       - puni_gate_pool_paths.results[3].stat.isreg | default(false)
       - puni_gate_pool_paths.results[4].stat.isreg | default(false)
       - puni_gate_pool_paths.results[5].stat.isreg | default(false)
+      - puni_gate_pool_paths.results[6].stat.isreg | default(false)
+      - puni_gate_pool_paths.results[7].stat.isreg | default(false)
     fail_msg: >-
       The pool root or a Dash user unit is missing or not as the role writes it:
       {{ puni_gate_pool_paths.results | map(attribute='item') | zip(puni_gate_pool_paths.results
@@ -369,16 +373,22 @@
 # `is-enabled` exits 0 for `static` too, hence the exact pairing.
 # Proof: in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py, E5) a fake `systemctl` printing `enabled
 # static` with exit 0 was refused and `enabled enabled` passed; without `failed_when` the static
-# timer passed (verify.md Slice 6c).
+# timer passed, and so did a disabled refresh timer (verify.md Slice 6c, Slice 6d).
 - name: Read whether the Dash user units are enabled
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:
-    argv: [systemctl, --user, is-enabled, dash-resources-watch.service, dash-job-audit.timer]
+    argv:
+      - systemctl
+      - --user
+      - is-enabled
+      - dash-resources-watch.service
+      - dash-job-audit.timer
+      - gate-launcher-refresh.timer
   environment:
     XDG_RUNTIME_DIR: '/run/user/{{ ansible_facts.getent_passwd[puni_gate_user][1] }}'
   register: puni_gate_unit_probe
   changed_when: false
-  failed_when: puni_gate_unit_probe.stdout_lines != ['enabled', 'enabled']
+  failed_when: puni_gate_unit_probe.stdout_lines != ['enabled', 'enabled', 'enabled']
   when: puni_gate_host_pool_enroll
 
 # Proof: in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py, E6) a recorded ledger ran a fake `bun` for
