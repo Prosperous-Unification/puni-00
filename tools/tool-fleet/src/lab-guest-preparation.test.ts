@@ -264,7 +264,7 @@ try:
     if fault=='source':raise p.raw.PreparationRefusal('changed-source')
     if fault=='raw-replace':
         os.rename(state+'/disk.raw',state+'/disk.raw.retained')
-        replacement=os.open(state+'/disk.raw',os.O_CREAT|os.O_EXCL|os.O_RDWR,0o600);os.posix_fallocate(replacement,0,8192);os.close(replacement)
+        replacement=os.open(state+'/disk.raw',os.O_CREAT|os.O_EXCL|os.O_RDWR,0o600);os.posix_fallocate(replacement,0,8192);os.write(replacement,b'\0'*8192);os.fsync(replacement);os.close(replacement)
     if fault=='iso-replace':
         os.rename(paths['iso'],paths['iso']+'.retained');open(paths['iso'],'wb').write(b'fixture');os.chmod(paths['iso'],0o600)
     os.pwrite(raw_fd,b'guest-write',0);os.fsync(raw_fd)
@@ -539,7 +539,7 @@ for (const [category, script, argument] of watchedGuards) {
       { timeout: 10000, maxBuffer: 65536 },
     );
     expect(invocation.exitCode).not.toBe(0);
-    expect(invocation.stderr.toString()).toMatch(
+    expect(Bun.stripANSI(invocation.stderr.toString())).toMatch(
       /unsafe guest input accepted|unsafe production boundary accepted|foreign predecessor accepted|short-write diagnostic changed/u,
     );
   });
@@ -567,7 +567,7 @@ for (const [category, fault] of [
       },
     );
     expect(invocation.exitCode).not.toBe(0);
-    expect(invocation.stderr.toString()).toContain(
+    expect(Bun.stripANSI(invocation.stderr.toString())).toContain(
       category === 'guest-input-changed'
         ? 'unsafe counter publication'
         : `AssertionError: ${fault}`,
@@ -593,7 +593,7 @@ for (const [name, before, after] of [
       maxBuffer: 65536,
     });
     expect(invocation.exitCode).not.toBe(0);
-    expect(invocation.stderr.toString()).toContain('foreign operation allowed');
+    expect(Bun.stripANSI(invocation.stderr.toString())).toContain('foreign operation allowed');
   });
 }
 
@@ -840,7 +840,7 @@ for (const [category, fault] of [
       },
     );
     expect(invocation.exitCode).not.toBe(0);
-    expect(invocation.stderr.toString()).toContain(`AssertionError: ${fault}`);
+    expect(Bun.stripANSI(invocation.stderr.toString())).toContain(`AssertionError: ${fault}`);
   });
 }
 
@@ -890,7 +890,7 @@ for (const fault of ['transport-stdout', 'transport-stderr']) {
       },
     );
     expect(invocation.exitCode).not.toBe(0);
-    expect(invocation.stderr.toString()).toContain(`AssertionError: ${fault}`);
+    expect(Bun.stripANSI(invocation.stderr.toString())).toContain(`AssertionError: ${fault}`);
   });
 }
 
@@ -1268,7 +1268,7 @@ for (const [name, functionName, category, ordinal, body, arguments_] of selected
       { timeout: 10000, maxBuffer: 65536 },
     );
     expect(invocation.exitCode).not.toBe(0);
-    expect(invocation.stderr.toString()).toContain('unsafe selected guard');
+    expect(Bun.stripANSI(invocation.stderr.toString())).toContain('unsafe selected guard');
   });
 }
 
@@ -1380,7 +1380,7 @@ for (const [name, script, functionName, category, ordinal, argument] of [
       { timeout: 10000, maxBuffer: 65536 },
     );
     expect(invocation.exitCode).not.toBe(0);
-    expect(invocation.stderr.toString()).toContain('unsafe selected guard');
+    expect(Bun.stripANSI(invocation.stderr.toString())).toContain('unsafe selected guard');
   });
 }
 
@@ -1525,7 +1525,7 @@ for (const [name, functionName, category, ordinal, fault, witness] of [
       { timeout: 10000, maxBuffer: 65536 },
     );
     expect(invocation.exitCode).not.toBe(0);
-    expect(invocation.stderr.toString()).toContain(witness);
+    expect(Bun.stripANSI(invocation.stderr.toString())).toContain(witness);
   });
 }
 
@@ -1671,7 +1671,7 @@ for (const [name, script, arguments_, witness] of reviewFaultCases) {
       { timeout: 10000, maxBuffer: 65536 },
     );
     expect(invocation.exitCode).not.toBe(0);
-    expect(invocation.stderr.toString()).toContain(witness);
+    expect(Bun.stripANSI(invocation.stderr.toString())).toContain(witness);
   });
 }
 
@@ -1788,7 +1788,7 @@ for (const [name, script, functionName, category, ordinal, fault, witness] of [
       { timeout: 10000, maxBuffer: 65536 },
     );
     expect(invocation.exitCode).not.toBe(0);
-    expect(invocation.stderr.toString()).toContain(witness);
+    expect(Bun.stripANSI(invocation.stderr.toString())).toContain(witness);
   });
 }
 
@@ -1870,7 +1870,7 @@ for (const [name, category, fault, witness] of [
       { timeout: 10000, maxBuffer: 65536 },
     );
     expect(invocation.exitCode).not.toBe(0);
-    expect(invocation.stderr.toString()).toContain(witness);
+    expect(Bun.stripANSI(invocation.stderr.toString())).toContain(witness);
   });
 }
 
@@ -1950,7 +1950,7 @@ for (const [name, category, ordinal, fault] of [
       { timeout: 10000, maxBuffer: 65536 },
     );
     expect(invocation.exitCode).not.toBe(0);
-    expect(invocation.stderr.toString()).toContain('unsafe selected guard');
+    expect(Bun.stripANSI(invocation.stderr.toString())).toContain('unsafe selected guard');
   });
 }
 
@@ -2121,7 +2121,7 @@ for (const [name, script, functionName, category, ordinal, argument, witness] of
       { timeout: 10000, maxBuffer: 65536 },
     );
     expect(invocation.exitCode).not.toBe(0);
-    expect(invocation.stderr.toString()).toContain(witness);
+    expect(Bun.stripANSI(invocation.stderr.toString())).toContain(witness);
   });
 }
 
@@ -2246,7 +2246,7 @@ for (const fault of ['reopen-inode', 'reopen-access', 'original-fd', 'rebind-ino
       { timeout: 10000, maxBuffer: 65536 },
     );
     expect(changed.exitCode).not.toBe(0);
-    expect(changed.stderr.toString()).toContain(
+    expect(Bun.stripANSI(changed.stderr.toString())).toContain(
       fault === 'reopen-inode' || fault === 'reopen-access'
         ? 'unqualified raw descriptor rebound'
         : 'unsafe raw reopen accepted ' + fault,
@@ -2262,7 +2262,7 @@ confine=p.confine_qemu
 def replace_before_confine(*descriptors):
     os.rename(state+'/disk.raw',state+'/disk.raw.retained')
     replacement=os.open(state+'/disk.raw',os.O_RDWR|os.O_CREAT|os.O_EXCL,0o600)
-    os.posix_fallocate(replacement,0,8192);os.close(replacement)
+    os.posix_fallocate(replacement,0,8192);os.write(replacement,b'\0'*8192);os.fsync(replacement);os.close(replacement)
     confine(*descriptors)
 p.confine_qemu=replace_before_confine`,
   )
@@ -2306,7 +2306,9 @@ exec(compile(ast.fix_missing_locations(_worker),spec.origin,'exec'),p.__dict__)`
     { timeout: 10000, maxBuffer: 65536 },
   );
   expect(invocation.exitCode).not.toBe(0);
-  expect(invocation.stderr.toString()).toContain('QEMU wrote after canonical raw path replacement');
+  expect(Bun.stripANSI(invocation.stderr.toString())).toContain(
+    'QEMU wrote after canonical raw path replacement',
+  );
 });
 
 const geometryPolicy = String.raw`
@@ -2361,7 +2363,10 @@ spec=importlib.util.spec_from_file_location('guest',sys.argv[1]);p=importlib.uti
 complete_provider_import(fixture_import_descriptors)
 fault=sys.argv[2]
 if fault=='architecture':p.os.uname=lambda:types.SimpleNamespace(machine='arm64')
-if fault=='word-size':p.ctypes.sizeof=lambda *args:4
+# Keep ctypes' own structure layout real while changing the provider's ABI observation.
+p.ctypes=types.SimpleNamespace(**vars(p.ctypes))
+original_sizeof=p.ctypes.sizeof
+if fault=='word-size':p.ctypes.sizeof=lambda kind:4 if kind is p.ctypes.c_long else original_sizeof(kind)
 class Native:
     def fstatfs(self,descriptor,pointer):
         fields=ctypes.cast(pointer,ctypes.POINTER(ctypes.c_long))
@@ -2565,7 +2570,7 @@ p.geometry_filter=altered_filter`,
       maxBuffer: 65536,
     });
     expect(invocation.exitCode).not.toBe(0);
-    expect(invocation.stderr.toString()).toMatch(/AssertionError:.*allowed/u);
+    expect(Bun.stripANSI(invocation.stderr.toString())).toMatch(/AssertionError:.*allowed/u);
   });
 }
 
@@ -2576,7 +2581,10 @@ spec=importlib.util.spec_from_file_location('guest',sys.argv[1]);p=importlib.uti
 complete_provider_import(fixture_import_descriptors)
 fault=sys.argv[2]
 p.os.uname=lambda:types.SimpleNamespace(machine='arm64' if fault=='architecture' else 'x86_64',release='unknown' if fault=='kernel' else '7.0.11-76070011-generic')
-if fault=='word-size':p.ctypes.sizeof=lambda *args:4
+# Keep ctypes' own structure layout real while changing the provider's ABI observation.
+p.ctypes=types.SimpleNamespace(**vars(p.ctypes))
+original_sizeof=p.ctypes.sizeof
+if fault=='word-size':p.ctypes.sizeof=lambda kind:4 if kind is p.ctypes.c_long else original_sizeof(kind)
 class Native:
     def prctl(self,operation,*arguments):return -1 if (operation==38 and fault=='no-new-privileges') or (operation==22 and fault=='installation') else 0
 p.ctypes.CDLL=lambda *args,**kwargs:Native()
@@ -2612,7 +2620,7 @@ for (const [fault, category, ordinal] of [
       { timeout: 10000, maxBuffer: 65536 },
     );
     expect(changed.exitCode).not.toBe(0);
-    expect(changed.stderr.toString()).toContain('unconfined exec admitted ' + fault);
+    expect(Bun.stripANSI(changed.stderr.toString())).toContain('unconfined exec admitted ' + fault);
   });
 }
 
@@ -2644,7 +2652,9 @@ for (const [fault, category] of [
       { timeout: 10000, maxBuffer: 65536 },
     );
     expect(invocation.exitCode).not.toBe(0);
-    expect(invocation.stderr.toString()).toContain('unqualified raw geometry admitted ' + fault);
+    expect(Bun.stripANSI(invocation.stderr.toString())).toContain(
+      'unqualified raw geometry admitted ' + fault,
+    );
   });
 }
 
@@ -2665,7 +2675,7 @@ prepared.body.pop(_sites[0])`,
       { timeout: 10000, maxBuffer: 65536 },
     );
     expect(invocation.exitCode).not.toBe(0);
-    expect(invocation.stderr.toString()).toContain(
+    expect(Bun.stripANSI(invocation.stderr.toString())).toContain(
       'untrusted exec reached after ' + fault + ' refusal',
     );
   });
