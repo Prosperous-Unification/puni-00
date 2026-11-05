@@ -1,0 +1,21 @@
+{
+  "file": "postgres-review-cleanup-20261104.json.gz",
+  "sha256": "d8be3b13fdc11fbce7a57409e6701a75bf6eb5f8e28e37ceb0e1e155390e09bb",
+  "bytes": 154008,
+  "originalFiles": 30,
+  "originalBytes": 638821,
+  "reviewedHead": "f1790d53052f6cae9f5f14fadc87d456b0d1b651",
+  "reviewApproved": true,
+  "cleanup": {
+    "owner": "eaf0fb4a-6700-40d5-b686-17cf732437c7",
+    "container": "0ace067c49cefe01c337cecc4e002307b3386a169738135d7a30f254b72d3a2b",
+    "exitCode": 0,
+    "oomKilled": false,
+    "removed": true,
+    "daemonAbsenceVerified": true,
+    "nativeCommands": 7
+  },
+  "allReadbackHashesVerified": true,
+  "earlierAttempt": "A mistaken bun --check syntax-check invocation reached only a sandbox-denied read-only inspect; no stop/remove. Original source and native failure retained; explicit post-review invocation guard added before the successful cleanup.",
+  "scope": "Private component review and exact disposable fixture cleanup only; current-head CI/host gate and full-provider acceptance remain separate."
+}

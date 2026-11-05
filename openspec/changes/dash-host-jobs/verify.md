@@ -2444,3 +2444,64 @@ boolean`. A string `false` from `-e key=value` would make `when: not …` skip t
   printed `FAIL` for both and `{"failures": 2}`, exit 1.
 - Full evaluator after the fixes, digest-locked controller: 74 `ok` lines, `{"failures": 0}`,
   exit 0.
+
+## 2026-11-04 h2puni apply 1 — authorized_keys incident (H2-A7)
+
+Apply 1 of `gate_host` on h2puni (21:16–21:19 UTC) locked out every caller of `puni1` but one
+until the pre-apply backup of `~/.ssh/authorized_keys` was restored by hand as root (private
+`puni-plan` evidence `2026-11-04-h2puni-gate-host-apply.md`). Apply 2 and validate wait on this
+fix.
+
+- **Root cause.** "Install the exact gate authorized keys" wrote `content: |` with
+  `{{ puni_gate_authorized_keys | join('\n') }}`. In that block scalar the `\n` stayed two
+  characters through Ansible's templating, so the five keys became one 528-byte line; sshd
+  honoured the first key and read the other four as its comment. h4claw lists one key, so its
+  applies never showed it. The controller image wrote `a\nb\nc` (backslash-n) for that form and
+  real newlines for a double-quoted string and for a template file (`od -c`, 2026-11-04).
+- **Fix.** The task renders `templates/authorized_keys.j2`, one key and a newline per entry,
+  with the same owner, group and 0600. Validate's new "Fingerprint the gate authorized keys"
+  (`ssh-keygen -lf`, read-only) and "Require one authorized key per listed key" refuse a file
+  whose fingerprint count differs from the list's length, so apply 1 would have stopped at
+  validate instead of passing. `~/.cache` is now created 0700, h2puni's own mode; apply 1 had
+  widened it to 0755.
+- Controller-image evaluator, families E11 and E12, three keys generated per run: the role's
+  task with three keys, one key and a key with a `from=` option passed; a malformed third key
+  was refused with `holds 2 keys, but puni_gate_authorized_keys lists 3`; the reinstated
+  `content: |` task wrote one line and was refused with `holds 1 keys, but
+puni_gate_authorized_keys lists 3`. With the count condition removed both bad files passed
+  (rc 0). The evaluator now runs as `--user 0:0`, because `ssh-keygen` exits 255 under the
+  image's uid 1000, which has no passwd entry. Full run: 81 `ok` lines, `{"failures": 0}`, exit 0.
+- `ansible.test.ts` "writes one authorized key per line and validates the count" pins the
+  template task, the template's bytes, the `~/.cache` mode, the probe argv and the assertion.
+  Restoring the copy task failed it (`- Expected - 7`, `+ Received + 1`), and so did dropping the
+  count condition from validate.yml (`- Expected - 3`, `+ Received + 1`).
+- `docs/infra/gate-hosts.md`: stage the key list from the live file and compare it byte for byte
+  (`cmp`, H2-B1: a trailing space differed between a snapshot and the staged list), and after
+  apply 1 log in from a second session before closing the first.
+- Not done: no host was touched. Apply 2 and validate on h2puni remain task 6.3's operator half.
+
+### Review fixes (Fable, PR #852)
+
+- M2: the keys no longer reach the live file before they are counted. main.yml renders them to
+  `~/.ssh/authorized_keys.staged`, imports `tasks/authorized-keys-count.yml` (the `ssh-keygen -lf`
+  probe and the count assertion) on it, copies it into place with `remote_src: true` and removes
+  it; validate.yml imports the same file against the live `authorized_keys`. The template
+  module's `validate:` cannot do this: `ssh-keygen -lf` exits 0 when any key parses. Staging and
+  removal are `changed_when: false`, so a rerun reports only the install. Evaluator E11 to E13:
+  the role's sequence installed three keys, one key and a key with a `from=` option, and a rerun
+  with the same 0600 file reported `changed=0`; dropping either `changed_when` failed that. The
+  reinstated `content: |` render (E12) and a malformed third key were refused at the staged
+  count, with no `Install the exact gate authorized keys` task in the output and the previous
+  live file unchanged; moving the install before the count overwrote it, and removing the
+  condition let both bad files through. E13 refused a joined live file through validate's import.
+  Full run: 88 `ok` lines, `{"failures": 0}`, exit 0.
+- `ansible.test.ts` "stages the authorized keys, counts them, then installs them" pins the
+  four-task order, the staged template, the import and its `puni_gate_keys_file`, the
+  `remote_src` copy, the removal, validate's import, the probe and the assertion. Restoring the
+  copy task (`- Expected - 7`), moving the install above the count (`- Expected - 1`) and dropping
+  the count condition (`- Expected - 3`) each failed it.
+- M1, M3, L2: gate-hosts.md says what `cmp` proves (a lossless copy and the final newline) and
+  adds a key-count line for comment and blank lines, completes step 0's order through
+  `--tags validate`, and records h4claw's `~/.cache` narrowing to 0700.
+- L1: the assertion's `fail_msg` prints the parsed fingerprints, and the count file says the
+  count is not a login test.

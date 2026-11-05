@@ -637,6 +637,84 @@ describe('the Ansible host and k3s contract', () => {
     expect(prerequisites?.['ansible.builtin.apt']?.name).toContain('busybox');
   });
 
+  // H2-A7 (2026-11-04): `content: |` with `join('\\n')` wrote h2puni's five keys as one line and
+  // locked out every caller but the first; the evaluator's E11 to E13 render both forms. The keys
+  // are staged and counted before they replace the live file, so a bad render never reaches it.
+  // Proof: restoring that copy task failed the staging expectation, moving the install above the
+  // staged count failed the order expectation, and dropping the count condition failed the last.
+  it('stages the authorized keys, counts them, then installs them', async () => {
+    const role = join(import.meta.dir, '../../../infra/ansible/roles/gate_host');
+    interface Task {
+      name: string;
+      changed_when?: boolean;
+      register?: string;
+      vars?: Record<string, string>;
+      'ansible.builtin.import_tasks'?: string;
+      'ansible.builtin.copy'?: Record<string, unknown>;
+      'ansible.builtin.template'?: Record<string, string>;
+      'ansible.builtin.file'?: Record<string, string>;
+      'ansible.builtin.command'?: { argv: string[] };
+      'ansible.builtin.assert'?: { that: string[] };
+    }
+    const tasks = parse(await readFile(join(role, 'tasks/main.yml'), 'utf8')) as Task[];
+    const staged = '{{ puni_gate_home }}/.ssh/authorized_keys.staged';
+    const names = tasks.map(({ name }) => name);
+    const first = names.indexOf('Stage the exact gate authorized keys');
+    expect(names.slice(first, first + 4)).toEqual([
+      'Stage the exact gate authorized keys',
+      'Count the staged gate authorized keys',
+      'Install the exact gate authorized keys',
+      'Remove the staged gate authorized keys',
+    ]);
+    const [stage, count, install, remove] = tasks.slice(first, first + 4);
+    expect(stage['ansible.builtin.template']).toEqual({
+      src: 'authorized_keys.j2',
+      dest: staged,
+      owner: '{{ puni_gate_user }}',
+      group: '{{ puni_gate_user }}',
+      mode: '0600',
+    });
+    expect(count['ansible.builtin.import_tasks']).toBe('authorized-keys-count.yml');
+    expect(count.vars).toEqual({ puni_gate_keys_file: staged });
+    expect(install['ansible.builtin.copy']).toEqual({
+      src: staged,
+      dest: '{{ puni_gate_home }}/.ssh/authorized_keys',
+      remote_src: true,
+      owner: '{{ puni_gate_user }}',
+      group: '{{ puni_gate_user }}',
+      mode: '0600',
+    });
+    expect(remove['ansible.builtin.file']).toEqual({ path: staged, state: 'absent' });
+    expect(await readFile(join(role, 'templates/authorized_keys.j2'), 'utf8')).toBe(
+      '{% for key in puni_gate_authorized_keys %}{{ key }}\n{% endfor %}\n',
+    );
+    // h2puni's own mode; the role had widened it to 0755 on apply 1.
+    expect(
+      tasks.find(({ name }) => name === 'Create the heavy-lock directory')?.[
+        'ansible.builtin.file'
+      ]?.['mode'],
+    ).toBe('0700');
+    const validate = parse(await readFile(join(role, 'tasks/validate.yml'), 'utf8')) as Task[];
+    const live = validate.find(({ name }) => name === 'Count the live gate authorized keys');
+    expect(live?.['ansible.builtin.import_tasks']).toBe('authorized-keys-count.yml');
+    expect(live?.vars).toEqual({
+      puni_gate_keys_file: '{{ puni_gate_home }}/.ssh/authorized_keys',
+    });
+    const counted = parse(
+      await readFile(join(role, 'tasks/authorized-keys-count.yml'), 'utf8'),
+    ) as Task[];
+    expect(counted[0]?.['ansible.builtin.command']?.argv).toEqual([
+      'ssh-keygen',
+      '-lf',
+      '{{ puni_gate_keys_file }}',
+    ]);
+    expect(counted[0]?.register).toBe('puni_gate_keys_probe');
+    expect(counted[0]?.changed_when).toBe(false);
+    expect(counted[1]?.['ansible.builtin.assert']?.that).toEqual([
+      'puni_gate_keys_probe.stdout_lines | length == puni_gate_authorized_keys | length',
+    ]);
+  });
+
   it('requires system resolutions and both literal BusyBox paths in gate validation', async () => {
     const tasks = parse(
       await readFile(

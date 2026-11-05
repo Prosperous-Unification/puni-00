@@ -3,6 +3,13 @@
 # gives a gate, and fails the play when its condition is broken. None of them changes the host,
 # with one exception: on an initialized pool, `ops pool inspect` and `ops job audit` open the
 # ledger, and an open migrates an older ledger version forward in place (resources.md).
+
+# The live file, which main.yml wrote only after the same count passed on its staged copy.
+- name: Count the live gate authorized keys
+  ansible.builtin.import_tasks: authorized-keys-count.yml
+  vars:
+    puni_gate_keys_file: '{{ puni_gate_home }}/.ssh/authorized_keys'
+
 - name: Resolve Bun the way a remote gate does
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:
