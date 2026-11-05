@@ -3057,3 +3057,102 @@ Verdict "merge after fixes", no code defect. Docs, spec and JSDoc only, plus one
   `Received: "…/job-1 missing"`). `/` in a part is not refused by the helper: Dash's
   enrollment and job ids are `Identifier`s (no `/`), and making be-01 throw on a label host
   would answer 500 rather than a modelled refusal.
+
+## Slice 6g: dropping an outbox event WBS refuses for good (task 6.8a)
+
+Branch `feat/host-jobs-outbox-drop` from `main` at `60285da5d`. Nothing here touched a host: no
+ssh, no apply, no enrollment. New command `ops outbox drop --config <path> --event <id>
+--operator <name> --reason <text>` (`ops/commands.ts`, `ResourceRuntime.dropRefusedEvent`),
+tests in `ops/outbox-drop.test.ts`.
+
+### Assumptions (overrulable by id)
+
+- **S6G-A1 The durable refusal record covers the S5-A20 path only.** Each host-job event WBS
+  refuses `400` gets a row in `event_refusals`: event id, sequence, the SHA-256 of the stored
+  event bytes, status, message, first and last refusal time, count. A refusal of other bytes
+  under the same id starts the row again. An accepted publication deletes the row in the
+  transaction that marks the event published. The 30-minute bound keeps its in-process start
+  (a restarted `watch` starts it again), so S5-A20's behaviour does not change. Worktree-use
+  events refused 4xx still stop `watch` at once and get no row, since none of them may be
+  dropped (S6G-A4).
+- **S6G-A2 Ledger version 3, because new tables are unavoidable.** `event_refusals` and
+  `dropped_events` (`sequence`, JSON `record`, like `host_pool_mode_records`). `open` steps 0, 1
+  and 2 forward; version 2 only when its tables are exactly version 2's. `report-capacity`'s
+  reader (`compute/host-pool-ledger.ts`) now expects 3. An older Dash refuses a version-3 ledger:
+  read-only readers name both versions (`ops job admission` exits 70), and `open` refuses
+  "unknown to this Dash". That includes a nested launcher in a gate whose candidate is older
+  than this change, once its host runs the newer Dash. No pool is enrolled yet (task 6.3d/6.3e),
+  so no host has a ledger to migrate.
+- **S6G-A3 Later events take one sequence less.** be-01 ingests only
+  `sequence === acceptedSequence + 1` (`libs/wbs/adapters/store-sqlite/src/resource-runtime.ts`,
+  `409 conflict` otherwise), so leaving a gap would block the next event for good, as the
+  dropped one did. Every later outbox event is behind the refused head. None of them has reached
+  WBS, and WBS keys idempotency by event id only for events it accepted, so rewriting their
+  bytes is safe. The delete, the renumbering, the refusal row's removal and the journal entry
+  commit in one `BEGIN IMMEDIATE`.
+- **S6G-A4 What may be dropped.** Only the outbox head, a host job's event, with a recorded `400`
+  whose digest matches its current bytes, and no later outbox event of the same use (that one's
+  revision would follow one WBS never saw: `409`). Anything else refuses 64 naming why: unknown
+  id, published, not the head, a worktree use's (whose revisions continue through WBS cleanup
+  requests), no matching refusal, a same-use follower. Gap left open: a host job whose
+  `registered` is refused for good while its `release_verified` waits cannot be repaired by this
+  command. S6F-A4's case is a `release_verified`, the last event of its job.
+- **S6G-A5 Locking and the race.** The command opens the pool read-write through `openPool`, as
+  `pool inspect` does: the normal open, migration and eligibility check, then one ledger
+  transaction. It does not take the shell lock, which serializes payloads, not the outbox. The
+  operator stops `watch` first (docs). If WBS accepts the same event while the drop commits,
+  `synchronize` now finds the row it would mark published gone (`changes !== 1`) and throws
+  `resource outbox event … changed while it was published`. It no longer silently publishes the
+  renumbered next event under the sequence WBS just took. That state needs a hand repair, and the
+  docs say so.
+- **S6G-A6 Attribution and visibility.** "Who" is `--operator` plus the Dash account (`deps.user`),
+  as `switch-mode`'s mode records do. The journal record holds the stored bytes and their SHA-256,
+  the refusal, the next event and the renumbered count. No `ops outbox` listing command:
+  operators take the event id from `watch`'s refusal line and read the journal with the `bun -e`
+  one-liner in `docs/resources.md`. WBS keeps the job as its last accepted event left it: a
+  dropped `release_verified` leaves it `registered` there.
+
+### Fault injection
+
+Each fault went in as an exact text replacement through a scratch script outside the
+repository. The script ran the named test file (the ops file inside its private namespace),
+restored the file and checked its SHA-256. Every fault ran against the final code.
+
+| Fault injected                                           | Test that went red (file result)                                                        | Observed                                                              |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| absent refusal defaulted to a `400` of the event's bytes | `an event WBS has not refused is not dropped` (5 pass 1 fail)                           | `"code": 0`, stdout `dropped event … the outbox is now empty`         |
+| refusal check made to pass an absent record              | same test (5 pass 1 fail)                                                               | `TypeError: undefined is not an object (evaluating 'refusal.status')` |
+| missing-row check removed                                | `an id not in the outbox is not dropped` (5 pass 1 fail)                                | `TypeError: undefined is not an object (evaluating 'row.sequence')`   |
+| same-use check removed                                   | `a refused event its own use still follows is not dropped` (5 pass 1 fail)              | `"code": 0`                                                           |
+| later events left at their sequences                     | `a refused event is dropped, journalled, and the next one publishes` (5 pass 1 fail)    | `ResourceWbsRefusal: resource publication HTTP 409 conflict`          |
+| `marked.changes !== 1` check removed                     | `a drop racing the publication of the same event stops the publication` (5 pass 1 fail) | `Received value: "synchronized"`                                      |
+| `recordRefusal` call removed                             | the drop, same-use and race tests (3 pass 3 fail)                                       | no refusal row; the drops refused `has no recorded WBS refusal`       |
+| version-2 table check skipped                            | `refuses a version-2 ledger with unexpected tables` (host-jobs.test.ts, 42 pass 1 fail) | `Received function did not throw`                                     |
+| `--reason` parsed with `flagValue('NAME')`               | `the grammar takes an event id, an operator and a reason` (5 pass 1 fail)               | `Received function did not throw` for a blank reason                  |
+
+The task's negative is the second test: an unrefused head (`release_verified`, nothing of its
+use behind it) refuses 64 and leaves the outbox and journal as they were. With the record
+treated as present, the same command exits 0 and empties the outbox.
+
+### Commands
+
+Fresh on 2026-11-05/06 on the workstation, from the worktree root, `CLAUDECODE` and
+`CLAUDE_CODE_ENTRYPOINT` unset, against `33ec53979` (this section's text was added after).
+
+| Command                                                                                           | Result                                                                                      |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `bun test src/ops/outbox-drop.test.ts` (inside its namespace)                                     | 6 pass, 0 fail; red first (0 pass 6 fail: `Unexpected option or subcommand: outbox`)        |
+| targeted: cli, host-jobs, admission, host-job-publication, report-capacity.host-pool, outbox-drop | 131 pass, 0 fail                                                                            |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                                  | 5720 pass, 53 skip, 0 fail, `Ran 5773 tests across 185 files. [3064.22s]`, exit 0           |
+| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2`                              | `Successfully ran targets lint, typecheck for 7 projects and 1 task they depend on`, exit 0 |
+| `bunx nx format:check --all`                                                                      | exit 0                                                                                      |
+| `bunx openspec validate --all --json`                                                             | 328 passed, 0 failed, exit 0                                                                |
+| Burokrat `check-indexes working <worktree> origin/main`                                           | exit 0 (the two existing review-debt rows: store-memory 53/40, plan-commands 48/40)         |
+
+The 53 skips are the real-scope cases (`systemd-run --user --scope`: `Failed to connect to bus`)
+and the PostgreSQL fixtures, as on `main`. No WBS change, so no be-01 run; no migration lint
+(no SQL migration). `docs/infra/heavy-job-launchers.md` lists no `ops` commands, so it is
+unchanged.
+
+Not done: no host apply, no enrollment, no h2puni gate, no drop against a composed be-01 (the
+fake WBS in the tests applies be-01's sequence adjacency rule).
