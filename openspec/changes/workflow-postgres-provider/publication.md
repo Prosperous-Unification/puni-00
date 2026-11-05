@@ -35,3 +35,7 @@ Integrated code commit`438243f5fc918455dd90197f44626bf7852b6629` preserves all 1
 ## Review and owned fixture cleanup
 
 [Whole-branch review](evidence/postgres-lifecycle-whole-review.md) approved the private prerequisite at `f1790d53052f6cae9f5f14fadc87d456b0d1b651` with no Critical, Important or Minor findings. Its code remains unchanged by the final documentation checkpoint. Root then verified the exact marked disposable container, observed stop exit 0 / no OOM, removed it and confirmed daemon absence. [The cleanup manifest](evidence/postgres-review-cleanup-manifest.json) and [original packet](evidence/postgres-review-cleanup-20261104.json.gz) preserve all native commands and the prior sandbox-denied read-only inspection mistake. That earlier attempt earned no cleanup credit. This is exact fixture closure, not complete provider durability or general remote-process reaping. Current-head hosted CI and canonical host gate remain required before merge.
+
+## Evidence classification CI repair
+
+The original B1 Twilight CI job failed because its ten evidence gzip paths lacked explicit binary declarations. The [narrow repair and native evidence](evidence/postgres-evidence-classification-publication.md) record the reproduced failure, exact policy rows, omission/restoration controls, unchanged pilot assertions and independent review. The original source gate remains scoped to B1; this repair requires its own current-source CI and host acceptance before merge.
