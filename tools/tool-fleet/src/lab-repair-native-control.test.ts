@@ -938,3 +938,71 @@ for (const name of [
     expect(report).toEndWith(`repair-fix ${name}: GREEN metadata boundary\n`);
   });
 }
+
+test('proc-limit column padding preserves exact limits and status refusals', () => {
+  const script = String.raw`
+import importlib.util, pathlib, sys, tempfile
+specification=importlib.util.spec_from_file_location('control',sys.argv[1])
+control=importlib.util.module_from_spec(specification)
+specification.loader.exec_module(control)
+# Captured Linux /proc/limits columns from an ordinary owned process with these limits.
+rows=['Max address space         268435456            268435456            bytes     ',
+      'Max file size             2097152              2097152              bytes     ',
+      'Max open files            64                   64                   files     ',
+      'Max core file size        0                    0                    bytes     ']
+status='Name:\tpython3\nUmask:\t0077\nNoNewPrivs:\t1\n'
+expected={'Max address space':[268435456,268435456],'Max file size':[2097152,2097152],
+          'Max open files':[64,64],'Max core file size':[0,0],'NoNewPrivs':1,'Umask':'0077'}
+actual_open=open
+with tempfile.TemporaryDirectory(prefix='proc-limit-') as directory:
+    root=pathlib.Path(directory)
+    def fixture_open(path,**keywords):
+        assert path in ('/proc/123/limits','/proc/123/status')
+        return actual_open(root/path.rsplit('/',1)[1],**keywords)
+    control.open=fixture_open
+    def observe(selected=rows,selected_status=status):
+        (root/'limits').write_text('Limit                     Soft Limit           Hard Limit           Units\n'+'\n'.join(selected)+'\n',encoding='ascii')
+        (root/'status').write_text(selected_status,encoding='ascii')
+        return control.observe_process_limits(123)
+    def refused(selected=rows,selected_status=status,category='process-effective-limits'):
+        try:observe(selected,selected_status)
+        except control.Refusal as failure:assert str(failure)==category
+        else:raise AssertionError('unsafe '+category+' accepted')
+    for selected in (rows,[row.rstrip() for row in rows],[row.rstrip()+'\t \t' for row in rows]):
+        assert observe(selected)==expected
+    for index,row in enumerate(rows):
+        fields=row.split()
+        soft,hard,unit=fields[-3:]
+        for damaged in (row.replace(soft,str(int(soft)+1),1),
+                        row[:row.index(soft)]+soft+row[row.index(soft)+len(soft):].replace(hard,str(int(hard)+1),1),
+                        row.replace(unit,'seconds'),row.replace(unit,''),
+                        row+'suffix',row.rstrip()+'\v',row.rstrip()+'\f'):
+            refused([*rows[:index],damaged,*rows[index+1:]])
+        refused([*rows[:index],*rows[index+1:]])
+        refused([*rows,row])
+    for damaged in (status.replace('1','0'),status.replace('0077','0022'),
+                    status.replace('NoNewPrivs:\t1\n',''),status.replace('Umask:\t0077\n','')):
+        refused(selected_status=damaged,category='process-no-new-privileges')
+    refused([*rows,'x'*8193],category='process-limit-bound')
+    refused(selected_status=status+'x'*65537,category='process-limit-bound')
+    original_require=control.require
+    control.require=lambda predicate,category:original_require(predicate,category) if category!='process-effective-limits' else None
+    try:
+        observed=observe([rows[0].replace('268435456','268435457',1),*rows[1:]])
+        assert observed['Max address space']==[268435457,268435456]
+    finally:control.require=original_require
+    refused([rows[0].replace('268435456','268435457',1),*rows[1:]])
+print('proc-limit padding: GREEN; watched exact guard removed: RED admitted wrong soft limit; restored refusal')
+`;
+  const child = Bun.spawnSync(['python3', '-I', '-B', '-c', script, harness], {
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+    timeout: 5000,
+  });
+  expect(new TextDecoder().decode(child.stderr)).toBe('');
+  expect(child.exitCode).toBe(0);
+  expect(new TextDecoder().decode(child.stdout)).toBe(
+    'proc-limit padding: GREEN; watched exact guard removed: RED admitted wrong soft limit; restored refusal\n',
+  );
+});

@@ -1583,3 +1583,9 @@ A fresh qualification SHALL fully charge retained provenance and future request/
 - **THEN** capacity arithmetic charges the complete1MiB allowance and refuses a one-byte deficit before client launch
 - **AND** reverting to the old512KiB allowance is caught by a production-path negative
 - **AND** original plaintext provenance remains retained; no archival utility, debt credit, larger runtime/source/output bound or weaker memory/staging/backing floor follows
+
+#### Scenario: Native process-limit columns contain padding
+
+- **WHEN** Linux reports the required exact soft/hard process limits with trailing space or tab column padding
+- **THEN** the existing process-limit reader accepts that same-line formatting while retaining exact values, units, one occurrence and status requirements
+- **AND** wrong/missing/duplicate values, malformed units/suffixes or unsafe process status still refuse before readiness acceptance

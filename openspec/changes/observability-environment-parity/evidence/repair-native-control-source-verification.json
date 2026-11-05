@@ -4,15 +4,15 @@
   "sourcePins": [
     {
       "path": "openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
-      "sha256": "7b46f6f3af2d5598df1c5b875754a5cb2d564838d4d3954f0426b20862cf4989",
+      "sha256": "8b9efd098776b71a578b3d2ef7f4f12dbcbd44fe9488f4f17be2a542dd54ad2b",
       "bytes": 65535,
       "mode": "0644",
       "uid": 1000
     },
     {
       "path": "tools/tool-fleet/src/lab-repair-native-control.test.ts",
-      "sha256": "7284eb46a99b654282d16e416fc2f2e700d05b3401d3fdd6d47ac518b3facfa8",
-      "bytes": 52812,
+      "sha256": "971dd14bd84fb93c719a606f1900728b51961b25edfc7670b972b61273a16474",
+      "bytes": 56833,
       "mode": "0644",
       "uid": 1000
     }
@@ -54,10 +54,10 @@
     "stagingBytes": 10737418240,
     "outsideBytes": 167772160,
     "sourceMaximumBytes": 65536,
-    "testMaximumBytes": 53248
+    "testMaximumBytes": 57344
   },
   "retainedBudgetPreparation": {
-    "state": "1MiB reserve source complete and independently reviewed; fresh actual admission still required",
+    "state": "1MiB source approved; actual new request independently reviewed and attempted once, retained refusal before fixtures; proc-padding source fix pending",
     "reason": "Correct archival tooling/proofs exceed apparent savings; preserve original plaintext history and avoid new delivery bottleneck",
     "extraReservedDiskBytes": 524288,
     "archivalExecuted": false,
@@ -69,5 +69,14 @@
     "review": "SpecPASS/QualityPASS; final owning tsc0/named statics0",
     "capsuleSha256": "2697ae3fbc71726f9821712254883522126ee22896a9b207fbcc6791e56a1d56",
     "capsuleBytes": 4713
+  },
+  "latestAttempt": "native-primitive-attempt-20261105-57240.json",
+  "procLimitPadding": {
+    "state": "source fixed/reviewed, no new runtime acceptance",
+    "scope": "only trailing same-line spaces/tabs after required unit; exact values/status/bounds unchanged",
+    "tests": "1pass/3assert/11filtered;60.15ms test/86ms total; originalpaddedRED andwatchedwrongsoft omission",
+    "review": "SpecPASS/QualityPASS; final owning tsc0/named statics0",
+    "capsuleSha256": "54d8de51c2ffa51101007ca67e75e76089c12af83a4541d801d7a32632d69f58",
+    "capsuleBytes": 6944
   }
 }

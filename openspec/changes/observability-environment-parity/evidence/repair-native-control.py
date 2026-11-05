@@ -63,7 +63,7 @@ try:
     descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
     try:
         before = os.fstat(descriptor)
-        # Proof: worker-bootstrap unsafe-mode fault intercepts the first source payload read.
+        # Proof: worker-bootstrap unsafe-mode fault intercepts first payload read.
         if not (stat.S_ISREG(before.st_mode) and before.st_uid == os.geteuid()
                 and stat.S_IMODE(before.st_mode) == 0o644 and before.st_nlink == 1
                 and 0 < before.st_size <= 65536): raise ValueError('worker-source-refused')
@@ -76,7 +76,7 @@ try:
             and 0 < before.st_size == len(payload) <= 65536
             and mark(before) == mark(os.fstat(descriptor)) == mark(os.lstat(path))
             and hashlib.sha256(payload).hexdigest() == expected)
-        # Proof: worker-bootstrap hash/path substitution negatives; removing valid guard executes bad metadata.
+        # Proof: worker-bootstrap hash/path faults; removed valid guard executes bad metadata.
         if not valid: raise ValueError('worker-source-refused')
     finally: os.close(descriptor)
     compiled = compile(payload, path, 'exec', dont_inherit=True)
@@ -176,7 +176,7 @@ def read_private(path):
 
 
 def check_pin(pin, path, *, is_runtime=False):
-    # Proof: selected empty runtime schema/file pass; source0/runtime-negative refuse; role/guard faults admit source0.
+    # Proof: empty runtime schema/file pass; source0/runtime-negative refuse; role/guard faults admit source0.
     closed(pin, 'path sha256 bytes uid mode', 'pin-schema')
     require(pin['path'] == path and type(pin['sha256']) is str
             and re.fullmatch('[a-f0-9]{64}', pin['sha256'])
@@ -258,7 +258,7 @@ def authorize(path, expected_sha, nonce, root=ROOT):
 def verify_file(pin, *, capture=False, deadline=None):
     """Pinned fixed code/tool bytes are stable, regular, singly linked and unshared for mutation."""
     before = os.lstat(pin['path'])
-    # Proof: metadata-only selfcheck pin-mode/pin-bytes/pin-hash faults protect intercepted launch.
+    # Proof: selfcheck pin-mode/pin-bytes/pin-hash faults protect intercepted launch.
     require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1
             and before.st_uid == pin['uid'] and stat.S_IMODE(before.st_mode) == pin['mode']
             and before.st_size == pin['bytes'] and not before.st_mode & 0o022, 'pin-identity')
@@ -313,7 +313,8 @@ def observe_process_limits(pid):
                                   ('Max file size', 2*MIB, 'bytes'),
                                   ('Max open files', 64, 'files'),
                                   ('Max core file size', 0, 'bytes')):
-        matched = re.findall(r'^' + name + r'\s+([0-9]+)\s+([0-9]+)\s+' + unit + '$', limits, re.M)
+        # Proof: proc-limit padding RED; removed exact guard admits bad soft limit.
+        matched = re.findall(r'^' + name + r'\s+([0-9]+)\s+([0-9]+)\s+' + unit + r'[ \t]*$', limits, re.M)
         require(matched == [(str(expected), str(expected))], 'process-effective-limits')
         observed[name] = [int(matched[0][0]), int(matched[0][1])]
     require(re.search(r'^NoNewPrivs:\s+1$', status, re.M) is not None
@@ -415,7 +416,7 @@ def repository_loader(verified):
     their existing trust boundary; repository bytecode and subsequent path reads are excluded.
     """
     snapshot = types.MappingProxyType(dict(verified))
-    # Proof: source-cache missing-buffer and unselected-sibling guard removal admits unsafe metadata.
+    # Proof: source-cache missing-buffer/unselected-sibling guard removal admits unsafe metadata.
     require(set(snapshot) == {str(ROOT / relative) for relative in SOURCES}
             and all(type(payload) is bytes for payload in snapshot.values()), 'source-buffer-set')
     original = importlib.util.spec_from_file_location
@@ -425,8 +426,8 @@ def repository_loader(verified):
         def create_module(self, _specification):
             return None
         def exec_module(self, module):
-            # Proof: source-cache substitutes every default cache body and rewrites verified paths;
-            # initial and lazy nested imports still execute the same original reviewed byte buffers.
+            # Proof: source-cache replaces every default cache and verified path;
+            # initial/lazy nested imports still execute original reviewed buffers.
             exec(compile(snapshot[self.path], self.path, 'exec', dont_inherit=True), module.__dict__)
     def select_source(name, location, *arguments, **keywords):
         path = str(Path(location).absolute())
