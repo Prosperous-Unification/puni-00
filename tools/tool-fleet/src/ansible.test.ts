@@ -856,6 +856,78 @@ describe('the Ansible host and k3s contract', () => {
         )
         .map(([name]) => name),
     ).toEqual(['h2puni']);
+    // Only h2puni launches from a second checkout: its dev poller runs solver-image-publish from
+    // ~/wbs-dev/src, which `ops pool switch-mode concurrent` must verify (gate-hosts.md, step 0).
+    // Proof: dropping ~/wbs-dev/src from h2puni's list, and giving h4claw the same list, each
+    // failed this.
+    const poolDefaults: Record<string, unknown> = defaults;
+    expect(poolDefaults['puni_gate_pool_launcher_checkouts']).toEqual([
+      '{{ puni_gate_launcher_checkout }}',
+    ]);
+    expect(
+      Object.fromEntries(
+        Object.entries(inventory.all.children['gate_hosts']?.hosts ?? {}).map(([name, host]) => [
+          name,
+          (host as Record<string, unknown> | null)?.['puni_gate_pool_launcher_checkouts'],
+        ]),
+      ),
+    ).toEqual({
+      h4claw: undefined,
+      h2puni: ['/home/puni1/puni-00-gate-launcher', '/home/puni1/wbs-dev/src'],
+    });
+    // The second token unit beside the Dagger one, created and read by the same looped tasks.
+    // Proof: dropping `docker_build` from the exclusive units, and the loop from either task,
+    // each failed this.
+    expect(poolDefaults['puni_gate_pool_exclusive_units']).toEqual({
+      gate_tree: ['{{ puni_gate_checkout }}', '{{ puni_gate_second_checkout }}'],
+      dagger_engine: ['{{ puni_gate_pool_dagger_unit }}'],
+      docker_build: ['{{ puni_gate_pool_docker_build_unit }}'],
+    });
+    expect(defaults['puni_gate_pool_docker_build_unit']).toBe(
+      '{{ puni_gate_pool_units_root }}/docker_build',
+    );
+    expect(poolDefaults['puni_gate_pool_token_units']).toEqual([
+      '{{ puni_gate_pool_dagger_unit }}',
+      '{{ puni_gate_pool_docker_build_unit }}',
+    ]);
+    const tokenTasks = await Promise.all(
+      (
+        [
+          ['host-pool.yml', 'Create the token units'],
+          ['validate.yml', 'Read the token units'],
+        ] as const
+      ).map(async ([file, name]) => {
+        const roleTasks = parse(
+          await readFile(join(root, 'infra/ansible/roles/gate_host/tasks', file), 'utf8'),
+        ) as {
+          name: string;
+          loop?: string;
+          when?: string;
+          'ansible.builtin.command'?: { argv: string[] };
+        }[];
+        const found = roleTasks.find((candidate) => candidate.name === name);
+        return [found?.loop, found?.['ansible.builtin.command']?.argv.at(-1), found?.when];
+      }),
+    );
+    expect(tokenTasks).toEqual([
+      ['{{ puni_gate_pool_token_units }}', '{{ item }}', undefined],
+      ['{{ puni_gate_pool_token_units }}', '{{ item }}', undefined],
+    ]);
+    // The configuration enrolls the host, so only an enrolled host gets it (S6C-A2).
+    // Proof: removing that task's `when` failed this (`Received: undefined`).
+    const poolTasks = parse(
+      await readFile(join(root, 'infra/ansible/roles/gate_host/tasks/host-pool.yml'), 'utf8'),
+    ) as { name: string; when?: string }[];
+    expect(
+      poolTasks.find((candidate) => candidate.name === 'Write the host pool configuration')?.when,
+    ).toBe('puni_gate_host_pool_enroll');
+    const poolTemplate = await readFile(
+      join(root, 'infra/ansible/roles/gate_host/templates/host-pool.json.j2'),
+      'utf8',
+    );
+    expect(poolTemplate).toContain(
+      '"launcherCheckouts": {{ puni_gate_pool_launcher_checkouts | to_json }}',
+    );
     // The non-interactive SSH shell a remote gate runs in stops at the guard, so the pinned PATH
     // has to precede it. Proof: moving the PATH line below the guard failed (351 not < 309).
     expect(bashrc.indexOf('export PATH=')).toBeGreaterThan(-1);

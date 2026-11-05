@@ -431,6 +431,70 @@ family("E13 validate counts the live file", imported("validate.yml", "Count the 
 ], [(drop_that(0), "joined live file")])
 
 
+
+# The token units on a fresh host, a rerun, and validate's read after one unit is broken.
+UNITS = WORK + "/home/units"
+DAGGER, DOCKER = UNITS + "/dagger_engine", UNITS + "/docker_build"
+TOKENS = {"puni_gate_pool_token_units": [DAGGER, DOCKER]}
+BREAK = {"name": "Break a token unit", "changed_when": False,
+         "ansible.builtin.command": {"argv": ["bash", "-c", "{{ puni_eval_break }}"],
+                                     "chdir": UNITS}}
+tokens = [task("host-pool.yml", "Create the token units"),
+          task("host-pool.yml", "Create the token units"), BREAK,
+          task("validate.yml", "Read the token units")]
+
+
+def broken(script):
+    return {**TOKENS, "puni_eval_break": script}
+
+
+def reduce_loop(task_name):
+    def mutate(tasks):
+        found = [t for t in tasks if t["name"] == task_name]
+        if not found:
+            raise SystemExit(f"no {task_name!r} to mutate")
+        for t in found:
+            t["loop"] = "{{ puni_gate_pool_token_units[:1] }}"
+    mutate.label = f"loop of {task_name!r} reduced to dagger_engine"
+    return mutate
+
+
+def drop_changed_when(task_name):
+    def mutate(tasks):
+        for t in tasks:
+            if t["name"] == task_name:
+                del t["changed_when"]
+    mutate.label = f"`changed_when` removed from {task_name!r}"
+    return mutate
+
+
+KEEP = {UNITS + "/.keep": ""}
+NOT_CLEAN = "token unit " + DOCKER + " exists but is not a clean Git tree with a commit"
+READ_FAILED = "failed: [localhost] (item=" + DOCKER + ")"
+family("E14 token units created once and both read by validate", tokens, [
+    ("fresh host converges", broken(":"), None, None, ("tokens", KEEP)),
+    ("docker_build left dirty", broken(":"), None, None,
+     ("refused-pre", {DOCKER + "/stray": ""}, NOT_CLEAN)),
+    ("docker_build dirtied", broken("touch docker_build/stray"), None, None,
+     ("refused-pre", KEEP, READ_FAILED)),
+    ("docker_build without a commit", broken("rm -rf docker_build && git init -q docker_build"),
+     None, None, ("refused-pre", KEEP, READ_FAILED)),
+], [(reduce_loop("Create the token units"), "fresh host converges"),
+    (drop_changed_when("Create the token units"), "fresh host converges"),
+    (reduce_loop("Read the token units"), "docker_build dirtied"),
+    (reduce_loop("Read the token units"), "docker_build without a commit")])
+
+
+def token_tree(path):
+    """A token unit as settlement needs it: the top of a clean Git tree with a commit."""
+    def git(*words):
+        return subprocess.run(["git", "-C", path, *words], capture_output=True, text=True,
+                              check=False)
+    top = git("rev-parse", "--show-toplevel")
+    return top.returncode == 0 and top.stdout.strip() == path and \
+        git("rev-parse", "-q", "--verify", "HEAD").returncode == 0 and \
+        git("status", "--porcelain", "--untracked-files=all").stdout == ""
+
 def recap(output, field):
     """One counter of localhost's PLAY RECAP line; None when the recap is missing."""
     found = re.search(r"^localhost\s*:.*\b" + field + r"=(\d+)", output, re.M)
@@ -463,6 +527,9 @@ def judge(expectation, rc, output):
         return rc == 0 and open(LIVE).read() == expectation[2] and not os.path.exists(STAGED)
     if kind == "converged":
         return judge(("installed", None, expectation[2]), rc, output) and recap(output, "changed") == 0
+    if kind == "tokens":
+        return rc == 0 and recap(output, "changed") == 1 and recap(output, "skipped") == 0 and \
+            all(token_tree(path) for path in (DAGGER, DOCKER))
     if kind == "refused-kept":
         return rc != 0 and expectation[2] in output and INSTALL_TASK not in output and \
             open(LIVE).read() == PREVIOUS
@@ -472,7 +539,7 @@ def judge(expectation, rc, output):
 def pre_of(expectation):
     kind, detail = expectation[:2]
     return detail if kind in ("ran", "skipped", "refused-pre", "accepted-pre", "installed",
-                                "refused-kept", "converged") else None
+                                "refused-kept", "converged", "tokens") else None
 
 
 failures = 0
