@@ -254,7 +254,8 @@
       timer refuses while a job launched from the checkout runs. Done (S6D-A4 to S6D-A7):
       `gate-launcher-refresh.timer` runs `bin/gate-launcher-refresh.sh`; proof: with its refusal
       removed, `gate-launcher-refresh.test.sh` case 1 moved the checkout under a working process
-      (`want exit 75, got 0`). The host apply that installs it is owed with 6.3e.
+      (`want exit 75, got 0`). Owed: one converging role apply per host installs the refresh units;
+      the timer is enabled at enrollment (step 5).
 - [x] 6.10 A nested `run_heavy_job` inherits the outer job's `HEAVY_LOCK_LABEL`: a `test:queued`
       or solver publish started inside an admitted gate payload is labelled as the gate, on the
       legacy lock and in Dash alike (found by slice 6c's h2puni gate on 37ca6254a, where
@@ -264,6 +265,10 @@
       check and watch it record the outer label. Done (S6D-A1): `run_nested_heavy_job` re-labels a
       type without exclusive units and refuses 70 one with units or outside its job's scope; proof:
       with the branch removed, case 49a got `gate:abc` and Dash's `--label gate:abc`.
+  - [ ] 6.10a Check admission, not only placement: the scope check passes a same-account
+        `systemd-run --user --scope --unit dash-job-<id>` (review of #873). Ask the ledger for a
+        running job with that id before running nested — test: a fake scope of that name with no
+        such job is refused.
 - [ ] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
       (slice 3, #809) carries `descriptorDigest` and no durable locator, so this needs a locator
       for the run record and a decision on which digest WBS keeps — test: a returned host job's

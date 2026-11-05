@@ -1604,9 +1604,10 @@ run_job_suite() {
   expect_status 42 "$status" "49b: the nested payload's status is the caller's"
   expect_equal 1 "$(trap_runs)" "49b: the caller's EXIT trap ran once"
 
-  # 49c-49e. The job identity is the kernel's, not the variable's: a DASH_JOB_ID this process's
-  # cgroup does not carry is refused, so setting it is no way around the lock. 49c reads the real
-  # `/proc/self/cgroup`, which no test runner shares with a dash-job scope.
+  # 49c-49e. A DASH_JOB_ID this process's cgroup does not carry is refused, so an inherited or
+  # hand-set one is no way around the lock (placement, not admission: S6D-A1). 49c reads the real
+  # `/proc/self/cgroup`, which no test runner shares with a dash-job scope; it proves the real
+  # path on cgroup-v2 hosts, which CI's ubuntu-24.04 and both gate hosts are.
   local other_scope="/user.slice/user-1000.slice/user@1000.service/app.slice/dash-job-ffffffff-4b5a-4968-8776-a5b4c3d2e1f0.scope"
   local scenario
   for scenario in "49c:$job_id:" "49d:$job_id:$other_scope" "49e:not-a-job-id:$in_scope"; do

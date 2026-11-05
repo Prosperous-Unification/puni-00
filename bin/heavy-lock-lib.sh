@@ -1265,12 +1265,16 @@ run_heavy_job() {
   run_enrolled_heavy_job "$job_type" "$@"
 }
 
-# The cgroup v2 path of this shell, the `0::` line of `/proc/self/cgroup`, or 70 when there is
-# none. Tests reach {@link run_nested_heavy_job}'s admitted branch by redefining this function in
+# The cgroup v2 path of this shell, the `0::` line of `/proc/self/cgroup`, or 70 when that file is
+# unreadable or has no such line. Tests reach {@link run_nested_heavy_job}'s admitted branch by redefining this function in
 # their own shell, as they do the fixed paths: no variable names a cgroup.
 read_own_cgroup() {
   local line
-  if ! line=$(grep -m 1 '^0::' /proc/self/cgroup 2>/dev/null); then
+  if [[ ! -r /proc/self/cgroup ]]; then
+    printf 'heavy job: /proc/self/cgroup is unreadable; cannot tell which Dash job this process runs in\n' >&2
+    return 70
+  fi
+  if ! line=$(grep -m 1 '^0::' /proc/self/cgroup); then
     printf 'heavy job: /proc/self/cgroup has no cgroup v2 entry; cannot tell which Dash job this process runs in\n' >&2
     return 70
   fi
@@ -1289,11 +1293,15 @@ read_own_cgroup() {
 # receipt is written, because no hold is taken (the receipts `release-pin.ts`,
 # `scoping-rollback.ts` and `fleet-check` read carry no label).
 #
-# **The job identity is the kernel's.** `DASH_JOB_ID` is an environment variable anyone can set,
-# and a variable that skips the lock is an opt-out ({@link resolve_heavy_lock_path}). So the id
-# must have a job id's shape and this process must run in that job's scope, `dash-job-<id>.scope`
-# ({@link read_own_cgroup}); otherwise 70. A variable inherited outside its job is refused rather
-# than ignored: the caller unsets it, as `puni-pr-00`'s `build-release.sh` does.
+# **The scope check proves placement, not admission.** `DASH_JOB_ID` is an environment variable
+# anyone can set, and a variable that skips the lock is an opt-out ({@link
+# resolve_heavy_lock_path}). So the id must have a job id's shape and this process must run in a
+# scope named `dash-job-<id>.scope` ({@link read_own_cgroup}); otherwise 70. That refuses an
+# inherited or hand-set `DASH_JOB_ID` outside such a scope, and a launcher that inherited one
+# unsets it before calling (`puni-pr-00`'s `build-release.sh` does, before its `run_heavy_job`).
+# It does not stop a same-account opt-out: `systemd-run --user --scope --unit dash-job-<id>`
+# passes it, as the lock itself is advisory for the account. A real admission check would ask
+# the ledger for a running job with that id (task 6.10 follow-up).
 #
 # **A type that declares an exclusive unit is refused, 70.** Its unit is either the enclosing
 # job's, in use by the payload that started this one, or not held at all; re-labelling cannot

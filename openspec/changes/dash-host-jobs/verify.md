@@ -2610,12 +2610,18 @@ admission of its own`, which lands in the enclosing job's log.
     `DASH_JOB_ID`. Asking again only queued it behind its own enclosing job: an observe-mode
     ticket behind the job's legacy hold, or an admission behind a `gate` that is not
     concurrency-eligible. With a zero budget either refused 75, under the gate's label.
-  - The identity is checked against the kernel. The id must have a job id's shape
+  - The check proves kernel placement, not Dash admission. The id must have a job id's shape
     (`[0-9a-f-]{36}`, as `status.ts` parses it). This process's cgroup v2 path must be, or sit
-    under, `dash-job-<id>.scope` (`scopeUnitOf`). Otherwise the call is refused 70, so an exported
-    `DASH_JOB_ID` cannot opt a run out of the lock. A variable inherited outside its job is
-    refused rather than ignored: the caller unsets it, as puni-pr-00's `build-release.sh` already
-    does before its `run_heavy_job`.
+    under, a scope named `dash-job-<id>.scope` (`scopeUnitOf`). Otherwise the call is refused 70.
+    That refuses an inherited or hand-set `DASH_JOB_ID` outside such a scope; a launcher that
+    inherited one unsets it before calling. It does not stop a same-account opt-out: the review
+    of #873 reproduced `systemd-run --user --scope --unit dash-job-<id> …` passing it. The lock is
+    advisory for the same account anyway. A real admission check would ask the ledger for a
+    running job with that id; it is owed under task 6.10.
+  - Correction to the review: it read puni-pr-00 as not unsetting the variable. Its launcher
+    `deploy/website/dev/build-release.sh` does, at line 77 on `origin/main` `a31b3c5`
+    (`unset DASH_JOB_ID DASH_JOB_TYPE`), before its `run_heavy_job`. Its payload then reads the
+    pair Dash sets, for the bounds, labels and receipt.
   - A type that declares an exclusive unit is refused 70. Its unit is either the enclosing job's,
     in use by the payload that started it, or not held at all. Re-labelling cannot make either
     sound. Today that means every type but `test-queued`: a nested solver publish or release build
@@ -2637,12 +2643,12 @@ admission of its own`, which lands in the enclosing job's log.
   with `read_own_cgroup` redefined in the test shell, the seam this library already uses for its
   fixed paths. Case 49c reads the real `/proc/self/cgroup`.
 - **S6D-A3 Tests that spawn launchers with an inherited environment.** Run inside an enrolled
-  gate, a test that spawns a real launcher with `process.env` now takes the nested path.
+  gate, a test that spawns a real `run_heavy_job` with `process.env` takes the nested path.
   `launchers.test.ts` already removes the job variables (S6C-A25), and `heavy-lock.test.sh`'s job
-  suite now unsets `HEAVY_LOCK_LABEL` and every `DASH_JOB_*` before case 40. The actual-entrypoint
-  cases in `tools/tool-dagger/src/heavy-lock.test.ts` still inherit them. Under an enrolled gate
-  they were already broken: their fixture checkout has no Dash entrypoint, so they get 70. They
-  owe the same cleaning before the first gate runs on an enrolled host.
+  suite now unsets `HEAVY_LOCK_LABEL` and every `DASH_JOB_*` before case 40. Nothing is owed in
+  `tools/tool-dagger/src/heavy-lock.test.ts`: its gate fixture defines
+  `run_heavy_job() { with_heavy_lock; }`, so the nested path is never reached there and the
+  inherited variables are harmless (review of #873).
 
 ### Faults (6.10, `bin/heavy-lock.test.sh`, `HEAVY_LOCK_TEST_SUITES=jobs`)
 
@@ -2719,6 +2725,13 @@ command`. The unit lists 75 in `SuccessExitStatus`, so a busy hour is not a fail
 | 6d-F7 | service template: `WorkingDirectory` set to the launcher checkout; `SuccessExitStatus=75` dropped              | `gate-host-pool.test.ts` "the launcher refresh runs hourly…": `- "/tmp/gate-host-pool-…"`, `+ ".../puni-00-gate-launcher"`; then `- ["75"]`, `+ undefined`         |
 | 6d-F8 | `host-pool.yml`: refresh service dropped from install; timer dropped from enable; enable task's `when` dropped | `ansible.test.ts` "configures a gate host…" failed each time (33 pass, 1 fail)                                                                                     |
 | 6d-F9 | the skip for a working directory the kernel refuses, replaced by a 70 refusal                                  | every run refused on this workstation: `cannot read the working directory of pid 10816` (`ssh-agent`), then pid 2226 (`systemd --user`, `CapEff 0000000800000000`) |
+
+Review of #873 additions: 6d-F10, the checked `HEAD` read in `bin/gate-launcher-refresh.sh`
+dropped, let a checkout with no HEAD commit move on with an empty head:
+`11: a checkout without a HEAD commit is refused: want exit 70, got 0`, then `fatal: Needed a
+single revision`. `read_own_cgroup` now refuses an unreadable `/proc/self/cgroup` with its own
+message, apart from a file with no `0::` line. That branch has no test: an unreadable
+`/proc/self/cgroup` cannot be arranged for an unprivileged test process.
 
 The controller-image evaluator's E3 now records five unit files and drops each of the eight
 conditions in turn. E4 records them too. E5 adds `refresh timer disabled`, which the probe

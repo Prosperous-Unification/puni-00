@@ -242,6 +242,18 @@ status=0
 run_refresh "$launcher" >/dev/null 2>"$scratch/stderr" || status=$?
 expect_status 70 "$status" '9: a failed fetch is refused'
 
+# 11. A checkout with no HEAD commit is refused before anything moves.
+unborn="$scratch/unborn"
+git init -q --initial-branch=main "$unborn"
+git -C "$unborn" remote add origin "$origin"
+status=0
+run_refresh "$unborn" >/dev/null 2>"$scratch/stderr" || status=$?
+expect_status 70 "$status" '11: a checkout without a HEAD commit is refused'
+if grep -q "$unborn has no HEAD commit" "$scratch/stderr"; then pass '11: the refusal names the checkout'
+else fail "11: the refusal did not name it: $(cat "$scratch/stderr")"; fi
+if git -C "$unborn" rev-parse --verify --quiet HEAD >/dev/null; then fail '11: the unborn checkout moved'
+else pass '11: the unborn checkout did not move'; fi
+
 printf '\n'
 if [[ $failures -gt 0 ]]; then
   printf '%d check(s) failed\n' "$failures" >&2

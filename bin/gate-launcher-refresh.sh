@@ -89,7 +89,14 @@ refresh_launcher_checkout() {
     return 70
   fi
   local head target
-  head=$(git -C "$checkout" rev-parse --verify 'HEAD^{commit}')
+  # `set -e` is inert here (the caller runs this with `|| status=$?`), so the read is checked.
+  # Proof (observed 2026-11-05): with the check dropped, a checkout with no HEAD commit moved on
+  # with an empty head — `11: a checkout without a HEAD commit is refused: want exit 70, got 0`
+  # (bin/gate-launcher-refresh.test.sh, case 11).
+  if ! head=$(git -C "$checkout" rev-parse --verify --quiet 'HEAD^{commit}'); then
+    printf 'gate launcher refresh: %s has no HEAD commit\n' "$checkout" >&2
+    return 70
+  fi
   if ! target=$(git -C "$checkout" rev-parse --verify --quiet 'origin/main^{commit}'); then
     printf 'gate launcher refresh: %s has no origin/main after the fetch\n' "$checkout" >&2
     return 70
