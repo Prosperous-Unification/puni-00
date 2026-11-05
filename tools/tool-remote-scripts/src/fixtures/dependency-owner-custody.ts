@@ -1485,3 +1485,798 @@ export async function prepareDependencyOwnerCustody(): Promise<
     }
   }
 }
+
+// The ordinary V1 image is separate from the historical private constructor protocol.
+export interface OrdinaryHoldSourcePinV1 {
+  readonly path: string;
+  readonly bytes: number;
+  readonly sha256: string;
+}
+export interface OrdinaryHoldSourceCutV1 {
+  readonly before: string;
+  readonly after: string;
+  readonly count: number;
+}
+export type OrdinaryHoldSourceMappingV1 =
+  | {
+      readonly mode: 'transform';
+      readonly path: string;
+      readonly inputSha256: string;
+      readonly outputSha256: string;
+      readonly cuts: readonly OrdinaryHoldSourceCutV1[];
+    }
+  | {
+      readonly mode: 'pinned-pass-through' | 'external-unchanged';
+      readonly path: string;
+      readonly sha256: string;
+    };
+export interface OrdinaryHoldImageV1 {
+  readonly format: 'dependency-owner-ordinary-hold-image';
+  readonly version: 1;
+  readonly sourceRoot: string;
+  readonly sourceIdentity: string;
+  readonly sourcePins: readonly OrdinaryHoldSourcePinV1[];
+  readonly mappings: readonly OrdinaryHoldSourceMappingV1[];
+  readonly mappingDigest: string;
+  readonly titleDigest: string;
+}
+
+function ordinaryHoldFields(
+  value: unknown,
+  expected: readonly string[],
+  subject: string,
+): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new Error(`${subject} requires a closed record`);
+  const prototype: unknown = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null)
+    throw new Error(`${subject} record prototype differs`);
+  const keys = Reflect.ownKeys(value);
+  if (
+    keys.length !== expected.length ||
+    keys.some((key) => typeof key !== 'string' || !expected.includes(key))
+  )
+    throw new Error(`${subject} field set differs`);
+  for (const key of expected) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor === undefined || !('value' in descriptor))
+      throw new Error(`${subject} data field absent`);
+  }
+  // The plain record, exact own keys and data descriptors were checked above.
+  return value as Record<string, unknown>;
+}
+function ordinaryHoldSha(value: unknown, subject: string): string {
+  if (typeof value !== 'string' || !/^[a-f0-9]{64}$/.test(value))
+    throw new Error(`${subject} SHA-256 differs`);
+  return value;
+}
+function ordinaryHoldAbsolute(path: unknown, subject: string): string {
+  if (
+    typeof path !== 'string' ||
+    !path.startsWith('/') ||
+    path === '/' ||
+    path.includes('\0') ||
+    path.endsWith('/') ||
+    path.includes('//') ||
+    path.split('/').some((part) => part === '.' || part === '..')
+  )
+    throw new Error(`${subject} requires a canonical absolute path`);
+  return path;
+}
+
+/**
+ * Decodes an inert, closed ordinary image. This structural check grants no build or helper entry:
+ * the later controller must compare actual source bytes, executable, root, maps and title census.
+ */
+export function decodeOrdinaryHoldImageV1(value: unknown): OrdinaryHoldImageV1 {
+  const image = ordinaryHoldFields(
+    value,
+    [
+      'format',
+      'version',
+      'sourceRoot',
+      'sourceIdentity',
+      'sourcePins',
+      'mappings',
+      'mappingDigest',
+      'titleDigest',
+    ],
+    'ordinary HOLD image',
+  );
+  if (image['format'] !== 'dependency-owner-ordinary-hold-image' || image['version'] !== 1)
+    throw new Error('ordinary HOLD image version differs');
+  const sourceRoot = ordinaryHoldAbsolute(image['sourceRoot'], 'ordinary HOLD source root');
+  const sourceIdentity = image['sourceIdentity'];
+  if (typeof sourceIdentity !== 'string' || !/^[a-f0-9]{40}$/.test(sourceIdentity))
+    throw new Error('ordinary HOLD source identity differs');
+  if (
+    !Array.isArray(image['sourcePins']) ||
+    image['sourcePins'].length !== ordinaryHoldModuleModesV1.length
+  )
+    throw new Error('ordinary HOLD source pin roster differs');
+  const sourcePins: OrdinaryHoldSourcePinV1[] = [];
+  const pinPaths = new Set<string>();
+  for (const candidate of image['sourcePins']) {
+    const pin = ordinaryHoldFields(candidate, ['path', 'bytes', 'sha256'], 'ordinary HOLD pin');
+    const path = ordinaryHoldAbsolute(pin['path'], 'ordinary HOLD pin');
+    if (!ordinaryHoldModuleModesV1.some((entry) => path === `${sourceRoot}/${entry.relative}`))
+      throw new Error('ordinary HOLD source pin roster differs');
+    if (pinPaths.has(path)) throw new Error('ordinary HOLD duplicate pin path');
+    if (typeof pin['bytes'] !== 'number' || !Number.isSafeInteger(pin['bytes']) || pin['bytes'] < 1)
+      throw new Error('ordinary HOLD pin byte length differs');
+    pinPaths.add(path);
+    sourcePins.push(
+      Object.freeze({
+        path,
+        bytes: pin['bytes'],
+        sha256: ordinaryHoldSha(pin['sha256'], 'ordinary HOLD pin'),
+      }),
+    );
+  }
+  if (!Array.isArray(image['mappings']) || image['mappings'].length === 0)
+    throw new Error('ordinary HOLD mappings absent');
+  const mappings: OrdinaryHoldSourceMappingV1[] = [];
+  const mappingPaths = new Set<string>();
+  for (const candidate of image['mappings']) {
+    if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate))
+      throw new Error('ordinary HOLD mapping requires a closed record');
+    const modeDescriptor = Object.getOwnPropertyDescriptor(candidate, 'mode');
+    const mode: unknown = modeDescriptor?.value;
+    const mapping = ordinaryHoldFields(
+      candidate,
+      mode === 'transform'
+        ? ['mode', 'path', 'inputSha256', 'outputSha256', 'cuts']
+        : ['mode', 'path', 'sha256'],
+      'ordinary HOLD mapping',
+    );
+    const path = ordinaryHoldAbsolute(mapping['path'], 'ordinary HOLD mapping');
+    if (!pinPaths.has(path)) throw new Error('ordinary HOLD mapping pin absent');
+    if (mappingPaths.has(path)) throw new Error('ordinary HOLD duplicate mapping path');
+    const pin = sourcePins.find((entry) => entry.path === path);
+    if (pin === undefined) throw new Error('ordinary HOLD mapping pin absent');
+    const declared = ordinaryHoldModuleModesV1.find(
+      (entry) => path === `${sourceRoot}/${entry.relative}`,
+    );
+    if (declared?.mode !== mode)
+      throw new Error('ordinary HOLD mapping mode differs from fixed module roster');
+    if (mode === 'transform') {
+      if (pin.sha256 !== mapping['inputSha256'])
+        throw new Error('ordinary HOLD mapping input pin differs');
+      if (!Array.isArray(mapping['cuts']) || mapping['cuts'].length === 0)
+        throw new Error('ordinary HOLD mapping cuts absent');
+      const cuts: OrdinaryHoldSourceCutV1[] = [];
+      for (const candidateCut of mapping['cuts']) {
+        const cut = ordinaryHoldFields(
+          candidateCut,
+          ['before', 'after', 'count'],
+          'ordinary HOLD cut',
+        );
+        if (
+          typeof cut['before'] !== 'string' ||
+          cut['before'].length === 0 ||
+          typeof cut['after'] !== 'string' ||
+          cut['after'] === cut['before'] ||
+          typeof cut['count'] !== 'number' ||
+          !Number.isSafeInteger(cut['count']) ||
+          cut['count'] < 1
+        )
+          throw new Error('ordinary HOLD cut count or text differs');
+        cuts.push(
+          Object.freeze({
+            before: cut['before'],
+            after: cut['after'],
+            count: cut['count'],
+          }),
+        );
+      }
+      mappings.push(
+        Object.freeze({
+          mode,
+          path,
+          inputSha256: pin.sha256,
+          outputSha256: ordinaryHoldSha(mapping['outputSha256'], 'ordinary HOLD mapping output'),
+          cuts: Object.freeze(cuts),
+        }),
+      );
+    } else if (mode === 'pinned-pass-through' || mode === 'external-unchanged') {
+      if (pin.sha256 !== mapping['sha256'])
+        throw new Error('ordinary HOLD pass-through pin differs');
+      mappings.push(Object.freeze({ mode, path, sha256: pin.sha256 }));
+    } else {
+      throw new Error('ordinary HOLD mapping mode differs');
+    }
+    mappingPaths.add(path);
+  }
+  if (mappingPaths.size !== pinPaths.size) throw new Error('ordinary HOLD mapping roster differs');
+  const mappingDigest = ordinaryHoldSha(image['mappingDigest'], 'ordinary HOLD mapping');
+  if (mappingDigest !== createHash('sha256').update(JSON.stringify(mappings)).digest('hex'))
+    throw new Error('ordinary HOLD mapping digest differs');
+  const titleDigest = ordinaryHoldSha(image['titleDigest'], 'ordinary HOLD title');
+  if (
+    titleDigest !== ordinaryHoldTitleDigestV1 ||
+    createHash('sha256').update(JSON.stringify(ordinaryHoldCasesV1)).digest('hex') !==
+      ordinaryHoldTitleDigestV1
+  )
+    throw new Error('ordinary HOLD title roster digest differs');
+  return Object.freeze({
+    format: 'dependency-owner-ordinary-hold-image',
+    version: 1,
+    sourceRoot,
+    sourceIdentity,
+    sourcePins: Object.freeze(sourcePins),
+    mappings: Object.freeze(mappings),
+    mappingDigest,
+    titleDigest,
+  });
+}
+
+/** Applies only reviewed literal cuts to supplied bytes; it never reads or builds a module. */
+export function materializeOrdinaryHoldImageV1(
+  image: OrdinaryHoldImageV1,
+  supplied: ReadonlyMap<string, Uint8Array>,
+): ReadonlyMap<string, Uint8Array> {
+  if (
+    supplied.size !== image.sourcePins.length ||
+    image.mappings.length !== image.sourcePins.length
+  )
+    throw new Error('ordinary HOLD supplied source roster differs');
+  const materialized = new Map<string, Uint8Array>();
+  for (const mapping of image.mappings) {
+    const bytes = supplied.get(mapping.path);
+    const pin = image.sourcePins.find((entry) => entry.path === mapping.path);
+    if (bytes === undefined || pin === undefined)
+      throw new Error('ordinary HOLD source bytes absent');
+    if (
+      bytes.byteLength !== pin.bytes ||
+      createHash('sha256').update(bytes).digest('hex') !== pin.sha256
+    )
+      throw new Error('ordinary HOLD source bytes differ');
+    if (mapping.mode !== 'transform') {
+      if (mapping.sha256 !== pin.sha256)
+        throw new Error('ordinary HOLD unchanged source pin differs');
+      materialized.set(mapping.path, bytes);
+      continue;
+    }
+    if (mapping.inputSha256 !== pin.sha256)
+      throw new Error('ordinary HOLD transformed source pin differs');
+    let source = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+    for (const cut of mapping.cuts) {
+      if (source.split(cut.before).length - 1 !== cut.count)
+        throw new Error('ordinary HOLD source cut cardinality differs');
+      source = source.replaceAll(cut.before, () => cut.after);
+    }
+    const transformed = new TextEncoder().encode(source);
+    if (createHash('sha256').update(transformed).digest('hex') !== mapping.outputSha256)
+      throw new Error('ordinary HOLD transformed source digest differs');
+    materialized.set(mapping.path, transformed);
+  }
+  return materialized;
+}
+
+/** Exact module identities and image modes; arbitrary near-name maps are never accepted. */
+export const ordinaryHoldModuleModesV1 = [
+  { relative: 'tools/tool-remote-scripts/src/lib/edge-ownership.ts', mode: 'transform' },
+  {
+    relative: 'tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts',
+    mode: 'transform',
+  },
+  {
+    relative: 'tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts',
+    mode: 'transform',
+  },
+  { relative: 'tools/tool-remote-scripts/src/lib/lock.ts', mode: 'transform' },
+  { relative: 'tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts', mode: 'transform' },
+  { relative: 'libs/wbs/adapters/store-sqlite/src/db.ts', mode: 'transform' },
+  { relative: 'libs/wbs/adapters/store-sqlite/src/backup.ts', mode: 'transform' },
+  {
+    relative: 'tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts',
+    mode: 'external-unchanged',
+  },
+  {
+    relative: 'tools/tool-remote-scripts/src/fixtures/dependency-participant-restoration.ts',
+    mode: 'transform',
+  },
+  {
+    relative: 'tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts',
+    mode: 'transform',
+  },
+  { relative: 'tools/tool-remote-scripts/src/fixtures/source-startup.ts', mode: 'transform' },
+  {
+    relative: 'tools/tool-remote-scripts/src/fixtures/source-database-binding.ts',
+    mode: 'transform',
+  },
+  {
+    relative: 'tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts',
+    mode: 'transform',
+  },
+  { relative: 'tools/tool-remote-scripts/src/fixtures/namespace-audit.ts', mode: 'transform' },
+  { relative: 'tools/tool-remote-scripts/src/lib/directory-file.ts', mode: 'pinned-pass-through' },
+  { relative: 'libs/wbs/adapters/store-sqlite/src/sqlite-cleanup.ts', mode: 'pinned-pass-through' },
+] as const;
+
+/** Closed ordinary case metadata only; registration and helper execution are later work. */
+export const ordinaryHoldCasesV1 = [
+  {
+    caseId: 'direct-anchor-main-before-native',
+    title: 'UC2 direct anchor-main close before-native retains actual runtime custody',
+  },
+  {
+    caseId: 'direct-anchor-main-after-native-return',
+    title: 'UC2 direct anchor-main close after-native-return retains actual runtime custody',
+  },
+  {
+    caseId: 'direct-capture-read-before-native',
+    title: 'UC2 direct capture-read close before-native retains actual runtime custody',
+  },
+  {
+    caseId: 'direct-capture-read-after-native-return',
+    title: 'UC2 direct capture-read close after-native-return retains actual runtime custody',
+  },
+  {
+    caseId: 'direct-backup-read-before-native',
+    title: 'UC2 direct backup-read close before-native retains actual runtime custody',
+  },
+  {
+    caseId: 'direct-backup-read-after-native-return',
+    title: 'UC2 direct backup-read close after-native-return retains actual runtime custody',
+  },
+  {
+    caseId: 'direct-backup-finalizer-before-native',
+    title: 'UC2 direct backup-finalizer close before-native retains actual runtime custody',
+  },
+  {
+    caseId: 'direct-backup-finalizer-after-native-return',
+    title: 'UC2 direct backup-finalizer close after-native-return retains actual runtime custody',
+  },
+  {
+    caseId: 'direct-database-authority-before-native',
+    title: 'UC2 direct database-authority close before-native retains actual runtime custody',
+  },
+  {
+    caseId: 'direct-database-authority-after-native-return',
+    title: 'UC2 direct database-authority close after-native-return retains actual runtime custody',
+  },
+  {
+    caseId: 'direct-database-backup-before-native',
+    title: 'UC2 direct database-backup close before-native retains actual runtime custody',
+  },
+  {
+    caseId: 'direct-database-backup-after-native-return',
+    title: 'UC2 direct database-backup close after-native-return retains actual runtime custody',
+  },
+  {
+    caseId: 'direct-connection-authority-before-native',
+    title: 'UC2 direct connection-authority close before-native retains actual runtime custody',
+  },
+  {
+    caseId: 'direct-connection-authority-after-native-return',
+    title:
+      'UC2 direct connection-authority close after-native-return retains actual runtime custody',
+  },
+  {
+    caseId: 'direct-anchor-parent-before-native',
+    title: 'UC2 direct anchor-parent close before-native retains actual runtime custody',
+  },
+  {
+    caseId: 'inherited-graph-before-native',
+    title: 'UC2 inherited Graph final-close before-native retains actual runtime custody',
+  },
+  {
+    caseId: 'inherited-graph-after-native-return',
+    title: 'UC2 inherited Graph final-close after-native-return retains actual runtime custody',
+  },
+  {
+    caseId: 'late-state-before-native',
+    title: 'UC2 late state close before-native retains only outer custody',
+  },
+  {
+    caseId: 'late-state-after-native-return',
+    title: 'UC2 late state close after-native-return retains only outer custody',
+  },
+  {
+    caseId: 'late-evidence-before-native',
+    title: 'UC2 late evidence close before-native retains only outer custody',
+  },
+  {
+    caseId: 'late-evidence-after-native-return',
+    title: 'UC2 late evidence close after-native-return retains only outer custody',
+  },
+  {
+    caseId: 'late-graph-before-native',
+    title: 'UC2 late graph close before-native retains only outer custody',
+  },
+  {
+    caseId: 'late-graph-after-native-return',
+    title: 'UC2 late graph close after-native-return retains only outer custody',
+  },
+  {
+    caseId: 'late-scanner-before-native',
+    title: 'UC2 late scanner close before-native retains only outer custody',
+  },
+  {
+    caseId: 'late-scanner-after-native-return',
+    title: 'UC2 late scanner close after-native-return retains only outer custody',
+  },
+  {
+    caseId: 'inherited-sqlite-before-native',
+    title: 'UC2 inherited SQLite initialization before-native retains actual runtime custody',
+  },
+  {
+    caseId: 'inherited-sqlite-after-native-return',
+    title: 'UC2 inherited SQLite initialization after-native-return retains actual runtime custody',
+  },
+  {
+    caseId: 'inherited-snapshot-before-native',
+    title: 'UC2 inherited bounded snapshot close before-native retains actual runtime custody',
+  },
+  {
+    caseId: 'inherited-snapshot-after-native-return',
+    title:
+      'UC2 inherited bounded snapshot close after-native-return retains actual runtime custody',
+  },
+  {
+    caseId: 'runtime-evidence-transfer',
+    title: 'UC2 runtime evidence transfer retains originals until outer cleanup',
+  },
+  {
+    caseId: 'swallowed-release',
+    title: 'UC2 swallowed release failure revokes observation before outer return',
+  },
+  {
+    caseId: 'dropped-preparation-before-native',
+    title: 'UC2 dropped preparation close before-native retains outer custody',
+  },
+  {
+    caseId: 'dropped-preparation-after-native-return',
+    title: 'UC2 dropped preparation close after-native-return retains outer custody',
+  },
+  {
+    caseId: 'expired-preparation-known',
+    title: 'UC2 expired preparation cleanup known never renews work',
+  },
+  {
+    caseId: 'expired-preparation-before-native',
+    title: 'UC2 expired preparation cleanup before-native never renews work',
+  },
+  {
+    caseId: 'expired-preparation-after-native-return',
+    title: 'UC2 expired preparation cleanup after-native-return never renews work',
+  },
+  {
+    caseId: 'storage-operation-refusal',
+    title: 'UC2 genuine storage operation refusal closes originals and releases all locks',
+  },
+  {
+    caseId: 'migrated-anchor-close',
+    title:
+      'initial preparation anchor-close retains commits and closes directly owned original descriptors',
+  },
+  {
+    caseId: 'migrated-operation-two-cleanups',
+    title:
+      'initial preparation operation-two-cleanups retains commits and closes directly owned original descriptors',
+  },
+] as const;
+export type OrdinaryHoldCaseId = (typeof ordinaryHoldCasesV1)[number]['caseId'];
+export const ordinaryHoldTitleDigestV1 =
+  '7b3faabc063d5e2b0511655b313f51926425eb81c15c9e03f5a13c93cf473b16';
+
+export type OrdinaryHoldPlanV1 =
+  | {
+      readonly mode: 'prepare';
+      readonly profile: 'storage-leaf' | 'canonical-remote' | 'local-exact';
+      readonly caseIds: readonly OrdinaryHoldCaseId[];
+      readonly imageDigest: string;
+      readonly titleDigest: string;
+    }
+  | {
+      readonly mode: 'not-selected';
+      readonly profile: 'local-exact';
+      readonly caseIds: readonly [];
+    };
+
+const ORDINARY_HOLD_STORAGE_TEST = 'src/lib/dependency-activation-storage.test.ts';
+const ORDINARY_HOLD_PROJECT = 'tools/tool-remote-scripts';
+const ORDINARY_HOLD_CANONICAL_DISCOVERY = [
+  'src',
+  'test/edge-init.test.ts',
+  'test/solver-drain-transport.test.ts',
+  'test/solver-drain-fixture.test.ts',
+  'test/source-exclusion-transport.test.ts',
+  'test/source-exclusion-topology.test.ts',
+  'test/source-exclusion-native.test.ts',
+  'test/fixture-failure.test.ts',
+] as const;
+const ORDINARY_HOLD_KNOWN_ONLY_TITLE =
+  'initial fenced envelope LF is admitted before the actual fenced publication';
+function ordinaryHoldTokens(actual: readonly string[], expected: readonly string[]): boolean {
+  return (
+    actual.length === expected.length && actual.every((token, index) => token === expected[index])
+  );
+}
+function ordinaryHoldSelectionPattern(title: string): string {
+  if (!/^[A-Za-z0-9 -]+$/.test(title))
+    throw new Error('ordinary HOLD fixed title contains unsupported pattern characters');
+  return `--test-name-pattern=^${title}$`;
+}
+
+/**
+ * Plans only exact source-known Bun vectors from a supplied invocation descriptor. The later
+ * command reader must verify actual kernel argv, executable, config bytes and environment.
+ * This pure plan neither creates an observation nor authorizes helper entry by itself.
+ */
+export function planOrdinaryHoldAdmissionV1(
+  imageValue: unknown,
+  invocationValue: unknown,
+): OrdinaryHoldPlanV1 {
+  const image = decodeOrdinaryHoldImageV1(imageValue);
+  const invocation = ordinaryHoldFields(
+    invocationValue,
+    [
+      'format',
+      'version',
+      'sourceRoot',
+      'cwd',
+      'executable',
+      'executableVersion',
+      'argv',
+      'environment',
+      'configuration',
+    ],
+    'ordinary HOLD invocation',
+  );
+  if (
+    invocation['format'] !== 'dependency-owner-ordinary-hold-invocation' ||
+    invocation['version'] !== 1
+  )
+    throw new Error('ordinary HOLD invocation version differs');
+  const sourceRoot = ordinaryHoldAbsolute(
+    invocation['sourceRoot'],
+    'ordinary HOLD invocation root',
+  );
+  const cwd = ordinaryHoldAbsolute(invocation['cwd'], 'ordinary HOLD invocation cwd');
+  const executable = ordinaryHoldAbsolute(invocation['executable'], 'ordinary HOLD Bun executable');
+  const rawArgv = invocation['argv'];
+  if (!Array.isArray(rawArgv)) throw new Error('ordinary HOLD invocation argument vector differs');
+  const argv: string[] = [];
+  for (const token of rawArgv) {
+    if (typeof token !== 'string')
+      throw new Error('ordinary HOLD invocation argument token differs');
+    argv.push(token);
+  }
+  if (
+    sourceRoot !== image.sourceRoot ||
+    (cwd !== `${sourceRoot}/${ORDINARY_HOLD_PROJECT}` && cwd !== sourceRoot) ||
+    invocation['executableVersion'] !== '1.4.4' ||
+    argv[0] !== executable
+  )
+    throw new Error('ordinary HOLD invocation executable or root differs');
+  const environment = invocation['environment'];
+  if (typeof environment !== 'object' || environment === null || Array.isArray(environment))
+    throw new Error('ordinary HOLD invocation environment differs');
+  if (Object.getPrototypeOf(environment) !== Object.prototype)
+    throw new Error('ordinary HOLD invocation environment prototype differs');
+  // The plain environment record was checked before looking at fixed selection keys.
+  const environmentFields = environment as Record<string, unknown>;
+  for (const name of Reflect.ownKeys(environment)) {
+    if (typeof name !== 'string' || !Object.hasOwn(environment, name))
+      throw new Error('ordinary HOLD invocation environment field differs');
+    const descriptor = Object.getOwnPropertyDescriptor(environment, name);
+    if (
+      descriptor === undefined ||
+      !('value' in descriptor) ||
+      (descriptor.value !== undefined && typeof descriptor.value !== 'string')
+    )
+      throw new Error('ordinary HOLD invocation environment value differs');
+    if (
+      name === 'BUN_OPTIONS' ||
+      name === 'NODE_OPTIONS' ||
+      name.startsWith('BUN_TEST_') ||
+      name.startsWith('PUNI_UC2_') ||
+      (name.startsWith('PUNI_ORDINARY_HOLD_') && name !== 'PUNI_ORDINARY_HOLD_SELECTION')
+    )
+      throw new Error('ordinary HOLD invocation selection override refused');
+  }
+  const configuration = ordinaryHoldFields(
+    invocation['configuration'],
+    ['kind', 'path', 'sha256'],
+    'ordinary HOLD Bun configuration',
+  );
+  const configKind = configuration['kind'];
+  if (configKind !== 'absent' && configKind !== 'empty-explicit')
+    throw new Error('ordinary HOLD Bun configuration mode differs');
+  const configPath = configuration['path'];
+  const configHash = configuration['sha256'];
+  if (configKind === 'absent' && (configPath !== null || configHash !== null))
+    throw new Error('ordinary HOLD unconfigured Bun identity differs');
+  if (configKind === 'empty-explicit') {
+    ordinaryHoldAbsolute(configPath, 'ordinary HOLD empty Bun config');
+    if (configHash !== 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')
+      throw new Error('ordinary HOLD empty Bun config differs');
+  }
+  const hasSelection = Object.hasOwn(environmentFields, 'PUNI_ORDINARY_HOLD_SELECTION');
+  const selection = environmentFields['PUNI_ORDINARY_HOLD_SELECTION'];
+  const normalOptions = ['--preload', '../test/scratch/preload.ts', '--timeout=10000'];
+  const singleton = [executable, 'test', `./${ORDINARY_HOLD_STORAGE_TEST}`, ...normalOptions];
+  const canonical = [
+    executable,
+    'test',
+    ...ORDINARY_HOLD_CANONICAL_DISCOVERY,
+    ...normalOptions,
+    '--path-ignore-patterns=src/lib/initial-handoff-graph.test.ts',
+    '--path-ignore-patterns=acceptance/dependency-owner-custody.test.ts',
+  ];
+  const imageDigest = createHash('sha256').update(JSON.stringify(image)).digest('hex');
+  const fullCaseIds = Object.freeze(ordinaryHoldCasesV1.map((row) => row.caseId));
+  if (
+    cwd === `${sourceRoot}/${ORDINARY_HOLD_PROJECT}` &&
+    configKind === 'absent' &&
+    !hasSelection &&
+    ordinaryHoldTokens(argv, singleton)
+  )
+    return Object.freeze({
+      mode: 'prepare',
+      profile: 'storage-leaf',
+      caseIds: fullCaseIds,
+      imageDigest,
+      titleDigest: image.titleDigest,
+    });
+  if (
+    cwd === `${sourceRoot}/${ORDINARY_HOLD_PROJECT}` &&
+    configKind === 'absent' &&
+    !hasSelection &&
+    ordinaryHoldTokens(argv, canonical)
+  )
+    return Object.freeze({
+      mode: 'prepare',
+      profile: 'canonical-remote',
+      caseIds: fullCaseIds,
+      imageDigest,
+      titleDigest: image.titleDigest,
+    });
+  if (
+    cwd !== sourceRoot ||
+    configKind !== 'empty-explicit' ||
+    typeof configPath !== 'string' ||
+    !hasSelection
+  )
+    throw new Error('ordinary HOLD invocation selection refused');
+  const localPrefix = [
+    executable,
+    'test',
+    '--no-env-file',
+    `--config=${configPath}`,
+    '--preload',
+    './tools/test/scratch/preload.ts',
+    '--timeout=10000',
+    `${ORDINARY_HOLD_PROJECT}/${ORDINARY_HOLD_STORAGE_TEST}`,
+  ];
+  if (
+    selection === 'known-only' &&
+    ordinaryHoldTokens(argv, [
+      ...localPrefix,
+      ordinaryHoldSelectionPattern(ORDINARY_HOLD_KNOWN_ONLY_TITLE),
+    ])
+  )
+    return Object.freeze({ mode: 'not-selected', profile: 'local-exact', caseIds: [] as const });
+  const row = ordinaryHoldCasesV1.find((candidate) => candidate.caseId === selection);
+  if (
+    row === undefined ||
+    !ordinaryHoldTokens(argv, [...localPrefix, ordinaryHoldSelectionPattern(row.title)])
+  )
+    throw new Error('ordinary HOLD invocation selection refused');
+  return Object.freeze({
+    mode: 'prepare',
+    profile: 'local-exact',
+    caseIds: Object.freeze([row.caseId]),
+    imageDigest,
+    titleDigest: image.titleDigest,
+  });
+}
+
+export type OrdinaryHoldOracleFailureV1 =
+  | 'source-image'
+  | 'body-settlement'
+  | 'native-close'
+  | 'lock-exclusion'
+  | 'deadline'
+  | 'publication'
+  | 'original-identity'
+  | 'child-join'
+  | 'stream-join'
+  | 'retirement'
+  | 'safe-failure';
+export interface OrdinaryHoldObservationV1 {
+  readonly format: 'dependency-owner-ordinary-hold';
+  readonly version: 1;
+  readonly invocationId: string;
+  readonly caseId: OrdinaryHoldCaseId;
+  readonly title: string;
+  readonly production: 'known-refusal' | 'known-prepared' | 'runtime-hold' | 'outer-hold';
+  readonly retirement: 'known-originals-closed';
+  readonly failures: readonly OrdinaryHoldOracleFailureV1[];
+  readonly imageDigest: string;
+  readonly titleDigest: string;
+  readonly evidenceDigest: string;
+}
+const ORDINARY_HOLD_ORACLE_CODES = [
+  'source-image',
+  'body-settlement',
+  'native-close',
+  'lock-exclusion',
+  'deadline',
+  'publication',
+  'original-identity',
+  'child-join',
+  'stream-join',
+  'retirement',
+  'safe-failure',
+] as const;
+
+/** Decodes a supplied closed packet; no packet proves its own production or retirement claims. */
+export function decodeOrdinaryHoldObservationV1(value: unknown): OrdinaryHoldObservationV1 {
+  const packet = ordinaryHoldFields(
+    value,
+    [
+      'format',
+      'version',
+      'invocationId',
+      'caseId',
+      'title',
+      'production',
+      'retirement',
+      'failures',
+      'imageDigest',
+      'titleDigest',
+      'evidenceDigest',
+    ],
+    'ordinary HOLD observation',
+  );
+  if (packet['format'] !== 'dependency-owner-ordinary-hold' || packet['version'] !== 1)
+    throw new Error('ordinary HOLD observation version differs');
+  const invocationId = packet['invocationId'];
+  if (
+    typeof invocationId !== 'string' ||
+    !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(invocationId)
+  )
+    throw new Error('ordinary HOLD observation invocation differs');
+  const row = ordinaryHoldCasesV1.find((candidate) => candidate.caseId === packet['caseId']);
+  if (row === undefined || row.title !== packet['title'])
+    throw new Error('ordinary HOLD observation case title differs');
+  const production = packet['production'];
+  if (
+    production !== 'known-refusal' &&
+    production !== 'known-prepared' &&
+    production !== 'runtime-hold' &&
+    production !== 'outer-hold'
+  )
+    throw new Error('ordinary HOLD observation production phase differs');
+  if (packet['retirement'] !== 'known-originals-closed')
+    throw new Error('ordinary HOLD observation retirement differs');
+  const candidates = packet['failures'];
+  if (!Array.isArray(candidates)) throw new Error('ordinary HOLD observation oracle code differs');
+  const failures: OrdinaryHoldOracleFailureV1[] = [];
+  for (let index = 0; index < candidates.length; index++) {
+    if (!Object.hasOwn(candidates, index))
+      throw new Error('ordinary HOLD observation oracle code differs');
+    const code = ORDINARY_HOLD_ORACLE_CODES.find((accepted) => accepted === candidates[index]);
+    if (code === undefined) throw new Error('ordinary HOLD observation oracle code differs');
+    failures.push(code);
+  }
+  const titleDigest = ordinaryHoldSha(packet['titleDigest'], 'ordinary HOLD observation title');
+  if (titleDigest !== ordinaryHoldTitleDigestV1)
+    throw new Error('ordinary HOLD observation title digest differs');
+  return Object.freeze({
+    format: 'dependency-owner-ordinary-hold',
+    version: 1,
+    invocationId,
+    caseId: row.caseId,
+    title: row.title,
+    production,
+    retirement: 'known-originals-closed',
+    failures: Object.freeze([...failures]),
+    imageDigest: ordinaryHoldSha(packet['imageDigest'], 'ordinary HOLD observation image'),
+    titleDigest,
+    evidenceDigest: ordinaryHoldSha(packet['evidenceDigest'], 'ordinary HOLD observation evidence'),
+  });
+}

@@ -432,3 +432,15 @@ adoption and deployment remain separate acceptance obligations.
 [Core and exact policy evidence](verify-uc2-core-20261105.md) separates the two
 accepted policy pairs from the partial owner-core known controls, failed fixture
 history and pending source-review fixes. Full UC2 remains incomplete.
+
+## 2026-11-05 subsequent static protocol and known-refusal checkpoint
+
+The [ordinary V1 static verification](verify-ordinary-hold-static-20261105.md)
+records the inert protocol, exact unchanged historical prefix, original-refusal
+correction, two reviewed parser fixes and final89-test run. The
+[adopted static decisions](ordinary-hold-static-decisions-20261105.md) supersede
+only the draft's image/scanner/admission/projection choices. Actual image,
+controller, finite migrations, full caller integration and guard-specific R5
+remain open. Separate [producer-P execution evidence](verify-producer-p-execution-20261105.md)
+records an actual negative source observation while whole-workflow completion
+and exact restoration/new positive remain pending.

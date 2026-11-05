@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, fstatSync, openSync, renameSync, writeFileSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 
@@ -1347,4 +1348,436 @@ test('UC2 owner observes a discarded original runtime admission before releasing
   expect(String(terminalAtOwnerReturn)).toContain('active');
   for (const name of ['edge.lock', 'deploy.lock'])
     await withLock(`${root}/${name}`, () => Promise.resolve());
+}, 10000);
+
+function makeOrdinaryHoldImage(
+  titleDigest: string,
+  modules: readonly { readonly relative: string; readonly mode: string }[],
+) {
+  const source = new TextEncoder().encode('source');
+  const sourceSha = createHash('sha256').update(source).digest('hex');
+  const sourcePins = modules.map((entry) => ({
+    path: `/ordinary-hold/${entry.relative}`,
+    bytes: source.byteLength,
+    sha256: sourceSha,
+  }));
+  const pin = sourcePins[0];
+  const mapping = {
+    mode: 'transform' as const,
+    path: pin.path,
+    inputSha256: pin.sha256,
+    outputSha256: createHash('sha256').update('observed').digest('hex'),
+    cuts: [{ before: 'source', after: 'observed', count: 1 }],
+  };
+  const mappings = [
+    mapping,
+    ...modules.slice(1).map((entry) =>
+      entry.mode === 'transform'
+        ? {
+            mode: 'transform' as const,
+            path: `/ordinary-hold/${entry.relative}`,
+            inputSha256: sourceSha,
+            outputSha256: mapping.outputSha256,
+            cuts: [{ before: 'source', after: 'observed', count: 1 }],
+          }
+        : {
+            mode: entry.mode as 'pinned-pass-through' | 'external-unchanged',
+            path: `/ordinary-hold/${entry.relative}`,
+            sha256: sourceSha,
+          },
+    ),
+  ];
+  const image = {
+    format: 'dependency-owner-ordinary-hold-image',
+    version: 1,
+    sourceRoot: '/ordinary-hold',
+    sourceIdentity: 'c'.repeat(40),
+    sourcePins,
+    mappings,
+    mappingDigest: createHash('sha256').update(JSON.stringify(mappings)).digest('hex'),
+    titleDigest,
+  };
+  return {
+    image,
+    source,
+    pin,
+    mapping,
+    supplied: new Map(sourcePins.map((entry) => [entry.path, source])),
+  };
+}
+
+test('UC2 ordinary HOLD V1 image rejects malformed source and map metadata before acquisition', async () => {
+  const {
+    decodeOrdinaryHoldImageV1,
+    materializeOrdinaryHoldImageV1,
+    ordinaryHoldCasesV1,
+    ordinaryHoldModuleModesV1,
+    ordinaryHoldTitleDigestV1,
+  } = await import('../fixtures/dependency-owner-custody');
+  const { image, pin, mapping, supplied } = makeOrdinaryHoldImage(
+    ordinaryHoldTitleDigestV1,
+    ordinaryHoldModuleModesV1,
+  );
+  expect(ordinaryHoldCasesV1).toHaveLength(39);
+  expect(createHash('sha256').update(JSON.stringify(ordinaryHoldCasesV1)).digest('hex')).toBe(
+    ordinaryHoldTitleDigestV1,
+  );
+  const decoded = decodeOrdinaryHoldImageV1(image);
+  expect(decoded.mappings).toHaveLength(ordinaryHoldModuleModesV1.length);
+  const materialized = materializeOrdinaryHoldImageV1(decoded, supplied);
+  expect(new TextDecoder().decode(materialized.get(pin.path))).toBe('observed');
+  const scannerPath =
+    '/ordinary-hold/tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts';
+  expect(materialized.get(scannerPath)).toBe(supplied.get(scannerPath));
+  const scannerIndex = image.mappings.findIndex((entry) => entry.path === scannerPath);
+  expect(scannerIndex).toBeGreaterThanOrEqual(0);
+  expect(() =>
+    decodeOrdinaryHoldImageV1({
+      ...image,
+      mappings: image.mappings.map((entry, index) =>
+        index === scannerIndex
+          ? { mode: 'pinned-pass-through', path: scannerPath, sha256: pin.sha256 }
+          : entry,
+      ),
+    }),
+  ).toThrow('mode');
+  expect(() =>
+    materializeOrdinaryHoldImageV1(
+      {
+        ...decoded,
+        mappings: [
+          { ...mapping, cuts: [{ ...mapping.cuts[0], count: 2 }] },
+          ...decoded.mappings.slice(1),
+        ],
+      },
+      supplied,
+    ),
+  ).toThrow('cardinality');
+  expect(() => decodeOrdinaryHoldImageV1({ ...image, version: 2 })).toThrow('version');
+  expect(() => decodeOrdinaryHoldImageV1({ ...image, extra: true })).toThrow('field');
+  expect(() =>
+    decodeOrdinaryHoldImageV1({
+      ...image,
+      sourcePins: [pin, ...image.sourcePins.slice(1, -1), pin],
+    }),
+  ).toThrow('duplicate');
+  expect(() =>
+    decodeOrdinaryHoldImageV1({
+      ...image,
+      mappings: [mapping, ...image.mappings.slice(1, -1), mapping],
+    }),
+  ).toThrow('duplicate');
+  expect(() =>
+    decodeOrdinaryHoldImageV1({
+      ...image,
+      mappings: [{ ...mapping, path: '/ordinary-hold/near-source.ts' }, ...image.mappings.slice(1)],
+    }),
+  ).toThrow('pin');
+  expect(() =>
+    decodeOrdinaryHoldImageV1({
+      ...image,
+      mappings: [
+        { ...mapping, cuts: [{ ...mapping.cuts[0], count: 0 }] },
+        ...image.mappings.slice(1),
+      ],
+    }),
+  ).toThrow('count');
+  expect(() =>
+    decodeOrdinaryHoldImageV1({
+      ...image,
+      mappings: image.mappings.slice(1),
+    }),
+  ).toThrow('roster');
+}, 10000);
+
+test('UC2 ordinary HOLD V1 admission plans exact full and local selections without helper entry', async () => {
+  const {
+    ordinaryHoldCasesV1,
+    ordinaryHoldModuleModesV1,
+    ordinaryHoldTitleDigestV1,
+    planOrdinaryHoldAdmissionV1,
+  } = await import('../fixtures/dependency-owner-custody');
+  const { image } = makeOrdinaryHoldImage(ordinaryHoldTitleDigestV1, ordinaryHoldModuleModesV1);
+  const executable = '/usr/local/bin/bun';
+  const project = '/ordinary-hold/tools/tool-remote-scripts';
+  const normalOptions = ['--preload', '../test/scratch/preload.ts', '--timeout=10000'];
+  const invocation = {
+    format: 'dependency-owner-ordinary-hold-invocation',
+    version: 1,
+    sourceRoot: '/ordinary-hold',
+    cwd: project,
+    executable,
+    executableVersion: '1.4.4',
+    argv: [executable, 'test', './src/lib/dependency-activation-storage.test.ts', ...normalOptions],
+    environment: {},
+    configuration: { kind: 'absent', path: null, sha256: null },
+  };
+  const storage = planOrdinaryHoldAdmissionV1(image, invocation);
+  expect(storage.mode).toBe('prepare');
+  expect(storage.profile).toBe('storage-leaf');
+  expect(storage.caseIds).toHaveLength(39);
+  const discovery = [
+    'src',
+    'test/edge-init.test.ts',
+    'test/solver-drain-transport.test.ts',
+    'test/solver-drain-fixture.test.ts',
+    'test/source-exclusion-transport.test.ts',
+    'test/source-exclusion-topology.test.ts',
+    'test/source-exclusion-native.test.ts',
+    'test/fixture-failure.test.ts',
+  ];
+  const canonical = planOrdinaryHoldAdmissionV1(image, {
+    ...invocation,
+    argv: [
+      executable,
+      'test',
+      ...discovery,
+      ...normalOptions,
+      '--path-ignore-patterns=src/lib/initial-handoff-graph.test.ts',
+      '--path-ignore-patterns=acceptance/dependency-owner-custody.test.ts',
+    ],
+  });
+  expect(canonical.mode).toBe('prepare');
+  expect(canonical.profile).toBe('canonical-remote');
+  expect(canonical.caseIds).toEqual(storage.caseIds);
+  const localPrefix = [
+    executable,
+    'test',
+    '--no-env-file',
+    '--config=/tmp/ordinary-hold-empty-bunfig.toml',
+    '--preload',
+    './tools/test/scratch/preload.ts',
+    '--timeout=10000',
+    'tools/tool-remote-scripts/src/lib/dependency-activation-storage.test.ts',
+  ];
+  const local = {
+    ...invocation,
+    cwd: '/ordinary-hold',
+    configuration: {
+      kind: 'empty-explicit',
+      path: '/tmp/ordinary-hold-empty-bunfig.toml',
+      sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    },
+    environment: { PUNI_ORDINARY_HOLD_SELECTION: ordinaryHoldCasesV1[0].caseId },
+    argv: [...localPrefix, `--test-name-pattern=^${ordinaryHoldCasesV1[0].title}$`],
+  };
+  const selected = planOrdinaryHoldAdmissionV1(image, local);
+  expect(selected.mode).toBe('prepare');
+  expect(selected.caseIds).toEqual([ordinaryHoldCasesV1[0].caseId]);
+  const known = planOrdinaryHoldAdmissionV1(image, {
+    ...local,
+    environment: { PUNI_ORDINARY_HOLD_SELECTION: 'known-only' },
+    argv: [
+      ...localPrefix,
+      '--test-name-pattern=^initial fenced envelope LF is admitted before the actual fenced publication$',
+    ],
+  });
+  expect(known).toEqual({ mode: 'not-selected', profile: 'local-exact', caseIds: [] });
+  expect(() =>
+    planOrdinaryHoldAdmissionV1(image, {
+      ...local,
+      argv: [...localPrefix, '--test-name-pattern=^UC2'],
+    }),
+  ).toThrow('selection');
+  expect(() =>
+    planOrdinaryHoldAdmissionV1(image, {
+      ...invocation,
+      environment: { BUN_TEST_TIMEOUT: '1' },
+    }),
+  ).toThrow('override');
+  expect(() =>
+    planOrdinaryHoldAdmissionV1(image, {
+      ...invocation,
+      environment: { PUNI_ORDINARY_HOLD_SELECTION: undefined },
+    }),
+  ).toThrow('selection');
+  expect(() =>
+    planOrdinaryHoldAdmissionV1(image, {
+      ...invocation,
+      executable: '/foreign/bun',
+    }),
+  ).toThrow('executable');
+}, 10000);
+
+test('UC2 ordinary HOLD V1 packet decoder binds exact case title and invocation grammar', async () => {
+  const { decodeOrdinaryHoldObservationV1, ordinaryHoldCasesV1, ordinaryHoldTitleDigestV1 } =
+    await import('../fixtures/dependency-owner-custody');
+  const row = ordinaryHoldCasesV1[0];
+  const packet = {
+    format: 'dependency-owner-ordinary-hold',
+    version: 1,
+    invocationId: '11111111-1111-4111-8111-111111111111',
+    caseId: row.caseId,
+    title: row.title,
+    production: 'runtime-hold',
+    retirement: 'known-originals-closed',
+    failures: ['native-close'],
+    imageDigest: 'a'.repeat(64),
+    titleDigest: ordinaryHoldTitleDigestV1,
+    evidenceDigest: 'b'.repeat(64),
+  };
+  expect(decodeOrdinaryHoldObservationV1(packet).caseId).toBe(row.caseId);
+  expect(() => decodeOrdinaryHoldObservationV1({ ...packet, title: 'foreign' })).toThrow('title');
+  expect(() => decodeOrdinaryHoldObservationV1({ ...packet, invocationId: 'old' })).toThrow(
+    'invocation',
+  );
+  expect(() => decodeOrdinaryHoldObservationV1({ ...packet, failures: ['raw cause'] })).toThrow(
+    'oracle code',
+  );
+  expect(() => decodeOrdinaryHoldObservationV1({ ...packet, extra: true })).toThrow('field');
+}, 10000);
+
+test('UC2 completion preserves the original body refusal after known cleanup', async () => {
+  const custody = await import('./edge-ownership');
+  const { root, plan } = fixture();
+  const present = `${root}/completion-present.txt`;
+  const absent = `${root}/completion-absent.txt`;
+  writeFileSync(present, 'known completion bytes');
+  let descriptor = -1;
+  await withDependencyOwner(
+    plan,
+    async (owner) => {
+      const preparation = custody.enrollDependencyPreparation(owner, {
+        layouts: plan.layouts,
+        deadline: performance.now() + 10000,
+        purpose: 'fenced',
+      });
+      const body = readFile(absent);
+      expect(custody.bindPreparationComposition(preparation, body)).toBe(body);
+      descriptor = openSync(present, 'r');
+      custody.retainPreparationOriginal(preparation, {
+        kind: 'descriptor',
+        role: 'evidence',
+        descriptor,
+      });
+      const operation = custody.beginPreparationOperation(preparation, 'evidence-inspection');
+      const operationOriginal = readFile(present);
+      expect(custody.bindPreparationOperation(operation, operationOriginal)).toBe(
+        operationOriginal,
+      );
+      let operationBytes: Buffer | undefined;
+      let operationCause: unknown;
+      let operationTerminal = false;
+      const operationObserver = operationOriginal.then(
+        (bytes) => {
+          operationBytes = bytes;
+          operationTerminal = true;
+        },
+        (cause: unknown) => {
+          operationCause = cause;
+          operationTerminal = true;
+        },
+      );
+      let bodyCause: unknown;
+      const projection = body.then(
+        () => {
+          throw new Error('unexpected successful completion body');
+        },
+        async (cause: unknown) => {
+          bodyCause = cause;
+          await custody.assertPreparationCompletion(preparation);
+          throw new Error('unexpected completion acceptance');
+        },
+      );
+      expect(custody.bindPreparationProjection(preparation, projection)).toBe(projection);
+      let projectionCause: unknown;
+      let operationTerminalAtProjection = false;
+      let descriptorClosedAtProjection = false;
+      const projectionObserver = projection.then(
+        () => {
+          projectionCause = new Error('unexpected successful completion projection');
+        },
+        (cause: unknown) => {
+          projectionCause = cause;
+          operationTerminalAtProjection = operationTerminal;
+          try {
+            fstatSync(descriptor);
+          } catch {
+            descriptorClosedAtProjection = true;
+          }
+        },
+      );
+      try {
+        expect(custody.requestPreparationClose(preparation, 'operation')).toBe('deferred');
+        await projectionObserver;
+        expect(bodyCause).toBeInstanceOf(Error);
+        expect(bodyCause).toHaveProperty('code', 'ENOENT');
+        expect(projectionCause).toBe(bodyCause);
+        expect(operationCause).toBeUndefined();
+        expect(operationBytes?.toString()).toBe('known completion bytes');
+        expect(operationTerminalAtProjection).toBe(true);
+        expect(descriptorClosedAtProjection).toBe(true);
+      } finally {
+        await Promise.allSettled([
+          body,
+          operationOriginal,
+          operationObserver,
+          projection,
+          projectionObserver,
+        ]);
+      }
+    },
+    root,
+  );
+  for (const name of ['edge.lock', 'deploy.lock'])
+    await withLock(`${root}/${name}`, () => Promise.resolve());
+}, 10000);
+
+test('UC2 ordinary HOLD literal source cut preserves replacement tokens', async () => {
+  const {
+    decodeOrdinaryHoldImageV1,
+    materializeOrdinaryHoldImageV1,
+    ordinaryHoldModuleModesV1,
+    ordinaryHoldTitleDigestV1,
+  } = await import('../fixtures/dependency-owner-custody');
+  const { image, supplied } = makeOrdinaryHoldImage(
+    ordinaryHoldTitleDigestV1,
+    ordinaryHoldModuleModesV1,
+  );
+  const path = image.sourcePins[0].path;
+  const original = new TextEncoder().encode('aXb');
+  const replacement = "$& $$ $` $'";
+  const expected = new TextEncoder().encode(`a${replacement}b`);
+  const pin = {
+    ...image.sourcePins[0],
+    bytes: original.byteLength,
+    sha256: createHash('sha256').update(original).digest('hex'),
+  };
+  const mapping = {
+    mode: 'transform' as const,
+    path,
+    inputSha256: pin.sha256,
+    outputSha256: createHash('sha256').update(expected).digest('hex'),
+    cuts: [{ before: 'X', after: replacement, count: 1 }],
+  };
+  const mappings = [mapping, ...image.mappings.slice(1)];
+  const decoded = decodeOrdinaryHoldImageV1({
+    ...image,
+    sourcePins: [pin, ...image.sourcePins.slice(1)],
+    mappings,
+    mappingDigest: createHash('sha256').update(JSON.stringify(mappings)).digest('hex'),
+  });
+  const actualSources = new Map(supplied);
+  actualSources.set(path, original);
+  expect(materializeOrdinaryHoldImageV1(decoded, actualSources).get(path)).toEqual(expected);
+}, 10000);
+
+test('UC2 ordinary HOLD packet refuses sparse oracle failures', async () => {
+  const { decodeOrdinaryHoldObservationV1, ordinaryHoldCasesV1, ordinaryHoldTitleDigestV1 } =
+    await import('../fixtures/dependency-owner-custody');
+  const row = ordinaryHoldCasesV1[0];
+  const packet = {
+    format: 'dependency-owner-ordinary-hold',
+    version: 1,
+    invocationId: '11111111-1111-4111-8111-111111111111',
+    caseId: row.caseId,
+    title: row.title,
+    production: 'runtime-hold',
+    retirement: 'known-originals-closed',
+    failures: new Array<string>(1),
+    imageDigest: 'a'.repeat(64),
+    titleDigest: ordinaryHoldTitleDigestV1,
+    evidenceDigest: 'b'.repeat(64),
+  };
+  expect(() => decodeOrdinaryHoldObservationV1(packet)).toThrow('oracle code');
 }, 10000);

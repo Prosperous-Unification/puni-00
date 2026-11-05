@@ -1,5 +1,10 @@
 # Unimplemented ordinary HOLD harness draft
 
+Subsequent [static decisions](ordinary-hold-static-decisions-20261105.md) resolve
+the image, scanner, admission and projection choices below. This preserved report
+retains its original draft attribution; the decisions do not qualify executable
+HOLD containment or complete UC2.
+
 Published to preserve the independent architecture preparation. The following
 report proposes future work; its GO is limited to static preparation. It does
 not mark these choices adopted, completed or execution-qualified. The current
