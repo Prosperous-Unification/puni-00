@@ -202,3 +202,64 @@ OpenSpec validation passed all334entries. The first document checker invocation
 failed in sandbox subprocess output with EPERM; the unrestricted retry exposed
 its modeled refusal for five untracked diagnostic paths. Those new artifacts
 are explicitly staged before rerunning the checker; no check is bypassed.
+
+## Actual sealed compiler qualification
+
+Root executed exactly one compiler-only invocation on clean code commit
+`9f524273041131bbd864270256771d95dcee7836`, already freshly published in draft
+[PR875](https://github.com/Prosperous-Unification/puni-00/pull/875), base PR874.
+The exact preflight review419efbcc binds expected3334ed1c, driver900ac7d and
+launcher79b4d3ea; its owned TMPDIR was empty0700 before entry. A prior unexecuted
+packet omitted TMPDIR; it was retained separately before the reviewed correction.
+All source/install/formatter writer leases ended for the controlled interval.
+
+Actual PID/PGID2423852 exited0, no signal, both original streams at EOF,
+stdout320bytes/stderr0, no postflight error and unchanged source/config/binary/
+driver observations. All46setup originals and observers joined. The separate
+1936closure originals/observers joined:1692fulfilled and244known named ENOENT
+rejections. Independent inspection of their actual retained values recorded
+canonical paths, native stat fields and actual read-byte hashes; scalar source
+metadata alone is not mislabeled as those raw observations.
+
+All44actual callback returns match the presealed independent776d5585 table:
+14transforms,2unchanged modules and28virtual ports, with after-join hashes and
+immutable scalar metadata. The exact284input identities match255pre-existing
+files,28virtuals and this attempt's generated entry. All four actual emitted
+scanner import declarations equal the accepted finite scanner-only bindings.
+The external driver's8real filesystem operations were separately retained and
+joined; they are not hidden in either source ledger budget.
+
+Actual bundle1151983bytes, SHA256
+`c169f04692457915f42ef20bdec9b3d3e7bfa2725a04dd23aa4b00db60a076ad`;
+metadata842420bytes, SHA256
+`5357db7bcf69f6936686e207ff9ab20f231d829f182b1f4e0a30359d28b4d79e`.
+Receipt438ec76e00855256101e2603e4400827f0cb75b4d2a2a5b6ae82ab49550cdce0;
+successf6c76b6a49afc80ee49c59f527df036d953fd55b587c693495d89e7d7f05be4a;
+raw observations51916aca4a4a30aac6c0407c1dfdfc3dcc99992525a3c7831f80ca86657a2122.
+Astra actual review
+`a12df3734664643279955236618993ef577c93f3827731b1c6e0033789d24c8b`
+independently accepted this compiler/input boundary for publication.
+
+This is a controlled frozen build, not an atomic/adversarial snapshot. No output
+image, generated port, scanner function, native fixture or private constructor
+grant ran. All seven displayed execution gaps remain explicit: owner/keeper and
+native-generation/Promise execution, complete body/projection taps, actual setup/
+child/migration behavior, remaining runtime/transitive input closure, broader
+scanner execution context, and actual native/finite HOLD retirement. Parent UC2,
+complete feature, full CI, exact h2 gate, architecture-on-main and deploy remain
+open. Tool Wiki hooks reported inactive/uncertified because their external root
+is not provisioned; migration hooks had no matching files. No hook was bypassed.
+
+## Next coupling preserved as unapplied review data
+
+The [exact prospective archive](prospective-coupling-20261105/README.md) preserves
+two117186/118791-byte patches, manifests, handoffs, static-check sources/output
+and both independent architecture reviews. Revision1SHA1c84c7fe has a concrete
+synchronous-refusal defect; revision2SHA2d9fdbb2 corrects custody binding after
+revocation without granting further work. Astra reviewa814995b accepts revision2
+for data archive publication only. Root independently observed35source/AST
+assertions and a3-file virtual production overlay with0diagnostics/noEmit; no
+proposed module was imported or executed. Actual owner/storage/complete sources
+remain byte-identical to their original pins. Application/executable publication
+await finite controls/HOLD migrations and exact census, with all runtime/R5/gate
+obligations retained.

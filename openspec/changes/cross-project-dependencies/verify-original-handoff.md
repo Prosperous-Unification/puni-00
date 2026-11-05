@@ -492,3 +492,9 @@ actual finite scanner serialization and21guard/restoration pairs. Full owning
 regression and source checks precede a separately reviewed compiler-only run.
 Native/controller/HOLD custody, coupled production enrollment, exact host gate,
 CI acceptance, main architecture adoption and deployment remain required.
+
+The [prospective coupling archive](prospective-coupling-20261105/README.md)
+contains two exact unapplied three-module patches and their independent reviews.
+Revision2 resolves the synchronous-refusal projection custody finding, but
+neither revision is applied or used by the ordinary image. Accepted actual
+compiler receipts remain separate from native/controller/HOLD acceptance.
