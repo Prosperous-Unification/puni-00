@@ -1306,9 +1306,23 @@ The fixed serial-only guest payload SHALL contain no SSH key material, authorize
 - **AND** the host must read through EOF and actual QEMU exit, rejecting extra/missing/failure frames including any failure after measurement
 - **AND** a failed shutdown request, malformed projection, shortened/stale interval or uncertain native completion cannot be accepted
 
+### Requirement: Native guest acceptance retains original host authority
+
+The guest adapter SHALL reuse original-artifact ownership and bounded native lifecycle checks. Serial success SHALL remain provisional until independent host acceptance, and SHALL grant no full-rehearsal or live-cutover authority.
+
+#### Scenario: Durable controls precede mutation and completion
+
+- **WHEN** the fixed-profile guest is admitted
+- **THEN** original request, source, input descriptors, creator, native worker and effective bounds join before the parent admission ACK
+- **AND** only the existing original raw descriptor is writable by QEMU; seed, source and tool inputs remain read-only
+- **AND** six evidence files plus two64KiB control records retain the unchanged11MiB+64KiB aggregate ceiling and16MiB reservation, with request bytes charged separately
+- **AND** counter evidence is durably acknowledged while the original worker is live, after QEMU is reaped
+- **AND** client exit0, fresh original terminal/empty-group observations, final artifact/capacity checks and independent repeated owned cleanup are required
+- **AND** missing, stale, substituted, unbounded, interrupted or uncertain evidence refuses acceptance
+
 ### Requirement: Baseline source CLIs preserve machine-readable output
 
-The raw-allocation, raw-preparation and seed-preparation source CLIs SHALL emit literal machine-readable projections and fixed refusal categories independent of console presentation settings.
+The raw-allocation, raw-preparation, seed-preparation and guest-preparation source CLIs SHALL emit literal machine-readable projections and fixed refusal categories independent of console presentation settings.
 
 #### Scenario: CI colors do not alter protocol bytes
 

@@ -2,6 +2,8 @@ import { join } from 'node:path';
 
 import { expect, test } from 'bun:test';
 
+import { providerStartup } from './lab-provider-startup.test-fixture';
+
 const helper = join(import.meta.dir, 'lab-seed-preparation.py');
 /** Logical provider fixture only: the supported3.12 path names the current process's real inode.
  * This models the fixed provider after native admission; it does not qualify the host interpreter.
@@ -269,12 +271,16 @@ for (const boundary of ['counter', 'creator', 'dependency']) {
 
 const lifecycle = String.raw`
 import hashlib,importlib.util,json,os,shutil,subprocess,sys,tempfile,types
+${providerStartup}
 spec=importlib.util.spec_from_file_location('seed',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+complete_provider_import(fixture_import_descriptors)
 ${providerStat}
 fault=sys.argv[2]
 child_source=r'''
 import importlib.util,json,os,sys
+${providerStartup}
 spec=importlib.util.spec_from_file_location('seed',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+complete_provider_import(fixture_import_descriptors)
 ${providerStat}
 request=json.loads(sys.argv[2]);fault=sys.argv[3]
 calls=0
@@ -430,8 +436,10 @@ for (const fault of [
 }
 
 const nativeControls = String.raw`
-import hashlib,importlib.util,json,os,subprocess,sys,tempfile,time
+import errno,hashlib,importlib.util,json,os,shutil,subprocess,sys,tempfile,time
+${providerStartup}
 spec=importlib.util.spec_from_file_location('seed',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+complete_provider_import(fixture_import_descriptors)
 ${providerStat}
 case=sys.argv[2]
 def refused(operation,category):
@@ -458,26 +466,46 @@ if case=='native':
 elif case=='sandbox':
     with tempfile.TemporaryDirectory() as directory:
         iso=os.open(directory+'/seed.iso',os.O_CREAT|os.O_EXCL|os.O_RDWR,0o600)
-        first=os.open('/usr/bin/true',os.O_RDONLY);second=os.open('/usr/bin/false',os.O_RDONLY)
+        for name,source in [('true','/usr/bin/true'),('false','/usr/bin/false'),('ungranted','/usr/bin/true')]:
+            shutil.copyfile(source,directory+'/'+name);os.chmod(directory+'/'+name,0o500)
+        anchors=[os.stat(directory+'/'+name) for name in ('true','false','ungranted')]
+        assert len({(anchor.st_dev,anchor.st_ino) for anchor in anchors})==3,[(anchor.st_dev,anchor.st_ino,anchor.st_nlink) for anchor in anchors]
+        first=os.open(directory+'/true',os.O_RDONLY);second=os.open(directory+'/false',os.O_RDONLY)
         foreign=directory+'/foreign';open(foreign,'w').write('retain')
         child=os.fork()
         if child==0:
             try:
                 p.raw.confine_writer(iso,first,(second,))
                 os.write(iso,b'owned')
-                for descriptor,exit_code in [(first,0),(second,1)]:
-                    assert subprocess.run(['/proc/self/fd/'+str(descriptor)],pass_fds=(descriptor,),stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE).returncode==exit_code
+                def execute(path,name):
+                    read_fd,write_fd=os.pipe2(os.O_CLOEXEC)
+                    process=os.fork()
+                    if process==0:
+                        os.close(read_fd)
+                        try:os.execve(path,[name],{})
+                        except OSError as failure:
+                            os.write(write_fd,str(failure.errno).encode());os._exit(126)
+                    os.close(write_fd)
+                    try:failure=os.read(read_fd,128)
+                    finally:os.close(read_fd)
+                    _,status=os.waitpid(process,0)
+                    return os.waitstatus_to_exitcode(status),failure
+                for descriptor,name,exit_code in [(first,'true',0),(second,'false',1)]:
+                    execution=execute('/proc/self/fd/'+str(descriptor),name)
+                    assert execution==(exit_code,b''),('granted executable refused',name,execution)
                 for path in [foreign,directory+'/unowned']:
                     try:os.open(path,os.O_CREAT|os.O_WRONLY,0o600)
                     except PermissionError:pass
                     else:raise AssertionError('foreign write allowed')
-                try:subprocess.Popen(['/usr/bin/printf','foreign'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                except PermissionError:pass
-                else:raise AssertionError('unrelated executable allowed')
+                # Proof: isolated raw copy without EXECUTE handling runs this ungranted true clone and fails here.
+                # Omitting the second grant fails its positive above; the live producer source stays unchanged.
+                execution=execute(directory+'/ungranted','true')
+                assert execution==(126,str(errno.EACCES).encode()),('unrelated executable allowed',execution,[(anchor.st_dev,anchor.st_ino) for anchor in anchors])
                 os._exit(0)
             except BaseException:
                 import traceback;traceback.print_exc();os._exit(1)
         assert os.waitpid(child,0)[1]==0
+        assert os.pread(iso,5,0)==b'owned'
         assert open(foreign).read()=='retain' and not os.path.exists(directory+'/unowned')
         for descriptor in [iso,first,second]:os.close(descriptor)
 elif case=='original-inputs':

@@ -2,6 +2,8 @@ import { join } from 'node:path';
 
 import { expect, test } from 'bun:test';
 
+import { providerStartup } from './lab-provider-startup.test-fixture';
+
 const helper = join(import.meta.dir, 'lab-raw-preparation.py');
 /** Logical provider fixture only: the supported3.12 path names the current process's real inode.
  * This models the fixed provider after native admission; it does not qualify the host interpreter.
@@ -293,7 +295,9 @@ ${providerStat}
 fault = sys.argv[2]
 child_source = r'''
 import importlib.util,json,os,sys,time
+${providerStartup}
 spec=importlib.util.spec_from_file_location('producer',sys.argv[1]); p=importlib.util.module_from_spec(spec); spec.loader.exec_module(p)
+complete_provider_import(fixture_import_descriptors)
 ${providerStat}
 state,nonce,digest,source,fault=sys.argv[2:]
 directory=state+'/raw-'+nonce
@@ -402,7 +406,9 @@ const mutation = String.raw`
 import importlib.util,json,os,subprocess,sys,tempfile
 child_source=r'''
 import importlib.util,json,os,sys
+${providerStartup}
 spec=importlib.util.spec_from_file_location('producer',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+complete_provider_import(fixture_import_descriptors)
 ${providerStat}
 state,nonce,fault=sys.argv[2:];source='c'*64;digest='b'*64;calls=0
 request={'state':state,'nonce':nonce,'image':state+'/inputs/source.img'}
@@ -557,11 +563,15 @@ test('raw producer original staging lock refuses occupation and releases read-on
 
 const competition = String.raw`
 import importlib.util,json,os,subprocess,sys,tempfile,types
+${providerStartup}
 spec=importlib.util.spec_from_file_location('producer',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+complete_provider_import(fixture_import_descriptors)
 ${providerStat}
 child_source=r'''
 import importlib.util,os,sys,types
+${providerStartup}
 spec=importlib.util.spec_from_file_location('producer',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+complete_provider_import(fixture_import_descriptors)
 ${providerStat}
 state,nonce,mode=sys.argv[2:]
 request={'state':state,'nonce':nonce,'image':state+'/inputs/source.img'}
@@ -722,5 +732,44 @@ print('verified production provider refuses unsupported and absent3.12')
     expect(invocation.stdout.toString()).toBe(
       'verified production provider refuses unsupported and absent3.12\n',
     );
+  });
+}
+
+const startupDescriptors = String.raw`
+${providerStartup}
+import tempfile
+case=sys.argv[1]
+with tempfile.TemporaryDirectory() as directory:
+    retained=os.open(directory+'/retained',os.O_CREAT|os.O_EXCL|os.O_RDWR,0o600)
+    before=fixture_descriptors()
+    if case=='interpreter':added=os.open('/proc/self/exe',os.O_RDONLY)
+    elif case=='path':added=os.open('/proc/self/exe',os.O_PATH)
+    else:added=os.open(directory+'/foreign',os.O_CREAT|os.O_EXCL|(os.O_RDWR if case=='writable' else os.O_RDONLY),0o600)
+    if case=='interpreter':
+        complete_provider_import(before)
+        try:os.fstat(added)
+        except OSError as failure:assert failure.errno==errno.EBADF
+        else:raise AssertionError('fixture import descriptor remained open')
+    else:
+        try:complete_provider_import(before)
+        except AssertionError as failure:assert str(failure)==('fixture-import-access' if case in ('writable','path') else 'fixture-import-identity'),str(failure)
+        else:raise AssertionError('fixture closed unowned descriptor')
+        assert os.fstat(added).st_ino>0
+        os.close(added)
+    os.write(retained,b'retained')
+    assert os.fstat(retained).st_size==8
+    os.close(retained)
+print('verified fixture import '+case)
+`;
+
+for (const boundary of ['interpreter', 'foreign', 'writable', 'path']) {
+  test(`logical provider startup closes only import-owned read-only interpreter descriptors: ${boundary}`, () => {
+    const invocation = Bun.spawnSync(
+      ['/usr/bin/python3', '-I', '-B', '-c', startupDescriptors, boundary],
+      { timeout: 3000, maxBuffer: 65536 },
+    );
+    expect(invocation.stderr.toString()).toBe('');
+    expect(invocation.exitCode).toBe(0);
+    expect(invocation.stdout.toString()).toBe(`verified fixture import ${boundary}\n`);
   });
 }

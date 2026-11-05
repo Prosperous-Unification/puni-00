@@ -882,10 +882,15 @@ def coordinate_attempt(request, request_path, request_digest, adapter):
                     continue
                 if event.data == 'stderr':
                     stderr_bytes += len(chunk)
-                    require(stderr_bytes <= RECORD_BYTES, 'raw-child-output-bound')
+                    # Proof: guest transport-stderr real-pipe control accepts an over-cap receipt when this check is bypassed; raw/seed retain64KiB.
+                    require(stderr_bytes <= getattr(adapter, 'stderr_limit', RECORD_BYTES), 'raw-child-output-bound')
+                    consume_stderr = getattr(adapter, 'consume_stderr', None)
+                    if consume_stderr is not None:
+                        consume_stderr(chunk)
                     continue
                 total_bytes += len(chunk)
-                require(total_bytes <= 2 * RECORD_BYTES, 'raw-child-output-bound')
+                # Proof: guest transport-stdout real-pipe control accepts an over-cap receipt when this check is bypassed.
+                require(total_bytes <= getattr(adapter, 'stdout_limit', 2 * RECORD_BYTES), 'raw-child-output-bound')
                 pending.extend(chunk)
                 while b'\n' in pending:
                     payload, _, remainder = pending.partition(b'\n')
@@ -898,6 +903,12 @@ def coordinate_attempt(request, request_path, request_digest, adapter):
                         publish('worker-ready.json', frame)
                         send_frame(client.stdin.fileno(), {'bindingDigest': digest_json(binding), 'request': request_digest})
                     else:
+                        consume_output = getattr(adapter, 'consume_output', None)
+                        if consume_output is not None and isinstance(frame, dict) and frame.get('phase') == 'output':
+                            # Proof: guest post-complete control accepted a durable receipt when this guard was bypassed.
+                            require(record is None, 'raw-protocol-invalid')
+                            consume_output(frame, binding)
+                            continue
                         require(record is None and isinstance(frame, dict)
                                 and set(frame) == adapter.completion_fields
                                 and frame['phase'] == 'complete', 'raw-protocol-invalid')
@@ -928,6 +939,9 @@ def coordinate_attempt(request, request_path, request_digest, adapter):
         if adapter.final_cleanup:
             adapter.stop_owned(binding)
         final = adapter.observe_capacity(request['state'], after_allocation=True)
+        finalize_artifact = getattr(adapter, 'finalize_artifact', None)
+        if finalize_artifact is not None:
+            finalize_artifact(binding, terminal, events, final, publish)
         receipt = {'schemaVersion': 1, 'scope': adapter.prefix + '-preparation', 'accepted': True,
                    'guestAuthority': False, 'fullRehearsalAuthority': False,
                    'requestDigest': request_digest, 'sourceDigest': source, 'binding': binding,
