@@ -92,6 +92,18 @@ function roleTask(file: string, name: string): string[] {
   return argv;
 }
 
+/** A token unit task's argv for one unit: the role loops it over `puni_gate_pool_token_units`. */
+function tokenUnitTask(
+  file: string,
+  name: string,
+  unit: string,
+  variables: RoleVariables,
+): string[] {
+  return roleTask(file, name).map((word) =>
+    word === '{{ item }}' ? unit : renderRole(word, variables),
+  );
+}
+
 function renderTemplate(name: string, variables: RoleVariables): string {
   return renderRole(readFileSync(join(ROLE, 'templates', `${name}.j2`), 'utf8'), variables);
 }
@@ -213,6 +225,7 @@ describe('the gate host role prepares the host pool (dash-host-jobs 6.3, 6.7)', 
     expect(configuration.exclusiveUnits).toEqual({
       gate_tree: [join(home, 'puni-00-gate-tbf'), join(home, 'puni-00-gate-tbf2')],
       dagger_engine: [join(home, '.local/share/dash/units/dagger_engine')],
+      docker_build: [join(home, '.local/share/dash/units/docker_build')],
     });
     expect(configuration.enrollmentId).toBe('h4claw-host-pool');
     expect(configuration.launcherCheckouts).toEqual([join(home, 'puni-00-gate-launcher')]);
@@ -245,6 +258,17 @@ describe('the gate host role prepares the host pool (dash-host-jobs 6.3, 6.7)', 
           ...original,
           exclusiveUnits: {
             gate_tree: [join(home, 'puni-00-gate-tbf')],
+            dagger_engine: [join(home, '.local/share/dash/units/dagger_engine')],
+            docker_build: [join(home, '.local/share/dash/units/docker_build')],
+          },
+        },
+      ],
+      [
+        'no docker_build unit',
+        {
+          ...original,
+          exclusiveUnits: {
+            gate_tree: [join(home, 'puni-00-gate-tbf'), join(home, 'puni-00-gate-tbf2')],
             dagger_engine: [join(home, '.local/share/dash/units/dagger_engine')],
           },
         },
@@ -397,32 +421,37 @@ describe('the gate host role prepares the host pool (dash-host-jobs 6.3, 6.7)', 
     expect(present.stdout).toBe('clones=0\n');
   });
 
-  test('the token unit is created once, read back by validate, and never repaired over', () => {
+  test('each token unit is created once, read back by validate, and never repaired over', () => {
     const { home, variables } = enrolledHost();
     mkdirSync(join(home, '.local/share/dash/units'), { recursive: true, mode: 0o700 });
-    const create = roleTask('host-pool.yml', 'Create the Dagger engine token unit').map((word) =>
-      renderRole(word, variables),
-    );
-    const read = roleTask('validate.yml', 'Read the token unit').map((word) =>
-      renderRole(word, variables),
-    );
+    const units = resolveRole(variables['puni_gate_pool_token_units'] ?? null, variables, 0);
+    expect(units).toEqual([
+      join(home, '.local/share/dash/units/dagger_engine'),
+      join(home, '.local/share/dash/units/docker_build'),
+    ]);
     const git = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
-    const unit = join(home, '.local/share/dash/units/dagger_engine');
-    expect(run(create, git)).toEqual({ exitCode: 0, stdout: 'created\n', stderr: '' });
-    expect(run(create, git).stdout).toBe('present\n');
-    expect(run(read, git).exitCode).toBe(0);
-    writeFileSync(join(unit, 'stray'), '');
-    expect(run(read, git).exitCode).not.toBe(0);
-    const refused = run(create, git);
-    expect(refused.exitCode).toBe(70);
-    expect(refused.stderr).toContain(`token unit ${unit} exists but is not a clean Git tree`);
-    // A tree with no commit has no resting commit to settle back to.
-    // Proof: dropping the `rev-parse -q --verify HEAD` condition from the validate probe, or the
-    // token command's commit, failed this test (verify.md Slice 6c, 6c-F6 and 6c-F7).
-    rmSync(unit, { recursive: true });
-    expect(run(['git', 'init', '-q', unit], git).exitCode).toBe(0);
-    expect(run(read, git).exitCode).not.toBe(0);
-    expect(run(create, git).exitCode).toBe(70);
+    for (const unit of units as string[]) {
+      const create = tokenUnitTask('host-pool.yml', 'Create the token units', unit, variables);
+      const read = tokenUnitTask('validate.yml', 'Read the token units', unit, variables);
+      expect(run(create, git)).toEqual({ exitCode: 0, stdout: 'created\n', stderr: '' });
+      expect(fixtureGit(unit, 'log', '--format=%s')).toBe(
+        `${unit.split('/').at(-1) ?? ''} token unit (dash-host-jobs S6-A7)`,
+      );
+      expect(run(create, git).stdout).toBe('present\n');
+      expect(run(read, git).exitCode).toBe(0);
+      writeFileSync(join(unit, 'stray'), '');
+      expect(run(read, git).exitCode).not.toBe(0);
+      const refused = run(create, git);
+      expect(refused.exitCode).toBe(70);
+      expect(refused.stderr).toContain(`token unit ${unit} exists but is not a clean Git tree`);
+      // A tree with no commit has no resting commit to settle back to.
+      // Proof: dropping the `rev-parse -q --verify HEAD` condition from the validate probe, or the
+      // token command's commit, failed this test (verify.md Slice 6c, 6c-F6 and 6c-F7).
+      rmSync(unit, { recursive: true });
+      expect(run(['git', 'init', '-q', unit], git).exitCode).toBe(0);
+      expect(run(read, git).exitCode).not.toBe(0);
+      expect(run(create, git).exitCode).toBe(70);
+    }
   });
 
   test('the linger probe refuses an account without linger', () => {
@@ -466,26 +495,26 @@ describe('the gate host role prepares the host pool (dash-host-jobs 6.3, 6.7)', 
   });
 });
 
-// `ops pool init` against what the role leaves: two clean gate trees and the token unit made by
+// `ops pool init` against what the role leaves: two clean gate trees and the token units made by
 // the role's own command, inside a private namespace so no unrelated process holds a unit.
 if (insideLinuxNamespace(import.meta.path)) {
-  test('a pool the role prepared initializes, token unit included', () => {
+  test('a pool the role prepared initializes, token units included', () => {
     const { home, variables } = enrolledHost();
     for (const directory of ['.local/share/dash/host-pool', '.local/share/dash/units'])
       mkdirSync(join(home, directory), { recursive: true, mode: 0o700 });
     chmodSync(join(home, '.local/share/dash'), 0o700);
     gateTree(join(home, 'puni-00-gate-tbf'));
     gateTree(join(home, 'puni-00-gate-tbf2'));
-    const create = roleTask('host-pool.yml', 'Create the Dagger engine token unit').map((word) =>
-      renderRole(word, variables),
-    );
-    expect(run(create, { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' }).stdout).toBe(
-      'created\n',
-    );
-    const unit = join(home, '.local/share/dash/units/dagger_engine');
-    expect(fixtureGit(unit, 'log', '--format=%s')).toBe(
-      'dagger_engine token unit (dash-host-jobs S6-A7)',
-    );
+    for (const name of ['dagger_engine', 'docker_build']) {
+      const unit = join(home, '.local/share/dash/units', name);
+      const create = tokenUnitTask('host-pool.yml', 'Create the token units', unit, variables);
+      expect(run(create, { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' }).stdout).toBe(
+        'created\n',
+      );
+      expect(fixtureGit(unit, 'log', '--format=%s')).toBe(
+        `${name} token unit (dash-host-jobs S6-A7)`,
+      );
+    }
     const runtime = ResourceRuntime.initialize(
       loadResourceConfiguration(writeConfig(variables)),
       { read: () => Date.parse('2026-11-02T00:00:00Z') },

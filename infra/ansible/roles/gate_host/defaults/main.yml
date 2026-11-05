@@ -62,13 +62,22 @@ puni_gate_clone_floor_bytes: 10737418240
 puni_gate_pool_config: '{{ puni_gate_home }}/.config/dash/host-pool.json'
 puni_gate_pool_root: '{{ puni_gate_home }}/.local/share/dash/host-pool'
 puni_gate_pool_ledger: '{{ puni_gate_pool_root }}/.dash/resources.sqlite'
-# Units must be Git work trees outside the managed root (S6-A7), so the Dagger engine is a token
-# tree: one empty commit, never changed, which settlement finds clean at its resting commit.
+# Units must be Git work trees outside the managed root (S6-A7), so an engine shared by the host
+# is a token tree: one empty commit, never changed, which settlement finds clean at its resting
+# commit. `docker_build` stands for the host daemon's BuildKit cache (J3): puni-pr-00's
+# website-dev-build type declares it, because its three `docker build`s share that cache with
+# release-build and the solver smoke. It serialises only the types that declare it, and this
+# repository's catalogue declares it for none yet; an enrolled host refuses 73 a type naming a
+# unit its pool lacks.
 puni_gate_pool_units_root: '{{ puni_gate_home }}/.local/share/dash/units'
 puni_gate_pool_dagger_unit: '{{ puni_gate_pool_units_root }}/dagger_engine'
+puni_gate_pool_docker_build_unit: '{{ puni_gate_pool_units_root }}/docker_build'
+puni_gate_pool_token_units:
+  ['{{ puni_gate_pool_dagger_unit }}', '{{ puni_gate_pool_docker_build_unit }}']
 puni_gate_pool_exclusive_units:
   gate_tree: ['{{ puni_gate_checkout }}', '{{ puni_gate_second_checkout }}']
   dagger_engine: ['{{ puni_gate_pool_dagger_unit }}']
+  docker_build: ['{{ puni_gate_pool_docker_build_unit }}']
 # Kept back from the host's `nproc` and MemTotal for everything outside host jobs (S6C-A5). The
 # ledger pins it at `ops pool init`: choose it per host before then (h4claw's k3s may want more),
 # because changing it afterwards stops the role (S6C-A15) and needs re-enrollment.
@@ -78,8 +87,8 @@ puni_gate_pool_headroom_bytes: 10737418240
 puni_gate_pool_workspace_slots: 4
 # Pinned in the ledger at `ops pool init`; changing it later makes every open refuse.
 puni_gate_pool_enrollment_id: '{{ inventory_hostname }}-host-pool'
-# What `ops pool switch-mode concurrent` verifies; a host adds its other launcher checkouts
-# (h2puni's ~/wbs-dev/src for solver-image-publish) by overriding the list.
+# What `ops pool switch-mode concurrent` verifies; a host adds its other launcher checkouts by
+# overriding the list in the inventory (h2puni adds ~/wbs-dev/src for solver-image-publish).
 puni_gate_pool_launcher_checkouts: ['{{ puni_gate_launcher_checkout }}']
 # Task 6.5 lists types here per host; a role run never adds one.
 puni_gate_pool_concurrency_eligible: []

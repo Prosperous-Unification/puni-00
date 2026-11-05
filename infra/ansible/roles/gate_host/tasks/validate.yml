@@ -260,8 +260,9 @@
 
 # A unit with no commit has no resting commit to settle back to.
 # Proof: with the HEAD check dropped, the unborn-tree case of gate-host-pool.test.ts failed
-# (verify.md Slice 6c, 6c-F6).
-- name: Read the token unit
+# (verify.md Slice 6c, 6c-F6). In the controller-image evaluator (E14) the loop reduced to
+# `dagger_engine` let a dirty and a commit-less `docker_build` through (verify.md, task 6.3).
+- name: Read the token units
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:
     argv:
@@ -272,7 +273,8 @@
         git -C "$1" rev-parse -q --verify HEAD >/dev/null &&
         [[ -z $(git -C "$1" status --porcelain --untracked-files=all) ]]
       - token-unit
-      - '{{ puni_gate_pool_dagger_unit }}'
+      - '{{ item }}'
+  loop: '{{ puni_gate_pool_token_units }}'
   changed_when: false
 
 - name: Read the host pool paths
@@ -325,8 +327,9 @@
 # discarded, so the credential is never printed.
 # Proof: gate-host-pool.test.ts runs this exact argv against the rendered template and against
 # broken copies (group-readable, no `enrollmentId`, an extra key, another root, one gate tree, a
-# string budget, no launcher checkout, not JSON); dropping the mode, key-set or root check each
-# failed it (verify.md Slice 6c, 6c-F13, 6c-F9, 6c-F8).
+# string budget, no launcher checkout, no `docker_build` unit, not JSON); dropping the mode,
+# key-set or root check each failed it (verify.md Slice 6c, 6c-F13, 6c-F9, 6c-F8), and so did
+# dropping `docker_build` from the expected units (verify.md, task 6.3).
 - name: Require the host pool configuration of an enrolled host
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:
@@ -335,13 +338,15 @@
       - -c
       - >-
         [[ $(stat -c '%a %U' -- "$1") == "600 $2" ]] &&
-        jq -e --arg root "$3" --arg first "$4" --arg second "$5" --arg dagger "$6" --arg launcher "$7"
+        jq -e --arg root "$3" --arg first "$4" --arg second "$5" --arg dagger "$6" --arg docker "$7"
+        --arg launcher "$8"
         '(keys == ["authorityId", "concurrencyEligible", "cpuCores", "credential",
         "diskBudgetUnits", "diskUnitBytes", "enrollmentId", "epoch", "exclusiveUnits", "headroom",
         "headroomBytes", "launcherCheckouts", "mcpResource", "memoryGib", "providerId", "root",
         "schemaVersion", "workspaceSlots"])
         and .schemaVersion == 3 and .root == $root
-        and .exclusiveUnits == {"gate_tree": [$first, $second], "dagger_engine": [$dagger]}
+        and .exclusiveUnits == {"gate_tree": [$first, $second], "dagger_engine": [$dagger],
+        "docker_build": [$docker]}
         and (.launcherCheckouts | type == "array" and any(.[]; . == $launcher))
         and (.concurrencyEligible | type == "array")
         and (.headroom | keys == ["cpuCores", "memoryGib"])
@@ -356,6 +361,7 @@
       - '{{ puni_gate_checkout }}'
       - '{{ puni_gate_second_checkout }}'
       - '{{ puni_gate_pool_dagger_unit }}'
+      - '{{ puni_gate_pool_docker_build_unit }}'
       - '{{ puni_gate_launcher_checkout }}'
   changed_when: false
   when: puni_gate_host_pool_enroll
