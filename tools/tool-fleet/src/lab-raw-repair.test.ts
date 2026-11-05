@@ -920,11 +920,16 @@ const inputControls = String.raw`
 import importlib.util,os,pathlib,sys,types
 spec=importlib.util.spec_from_file_location('repair',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
 fault=sys.argv[2]
+private='/usr/lib/x86_64-linux-gnu/systemd/libsystemd-shared-255.so'
+private_cases={'systemd-selected':private,'systemd-unselected':private,'systemd-extra':'/usr/lib/x86_64-linux-gnu/systemd/libextra.so','systemd-similar':'/usr/lib/x86_64-linux-gnu/systemd/libsystemd-shared-256.so','systemd-foreign':'/foreign/systemd/libsystemd-shared-255.so'}
 root='/selected';state=root+'/.puni/fleet-labs/observability-baseline';p.HELPER=pathlib.Path(root+'/tools/tool-fleet/src/lab-raw-repair.py')
 paths=[str(p.HELPER.with_name(name)) for name in ['lab-raw-repair.py','lab-raw-repair.ts','lab-raw-repair-cli.ts','lab-repair-worker.py','lab-raw-preparation.py','lab-raw-allocation.py','lab-seed-preparation.py','lab-guest-preparation.py']]
 paths+=['/usr/bin/python3.12','/usr/bin/systemd-run','/usr/bin/systemctl','/usr/bin/dpkg-query','/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2','/usr/lib/x86_64-linux-gnu/libfixture.so','/usr/share/doc/linux-image-7.0.11-76070011-generic/changelog.Debian.gz']
+if fault in private_cases:paths.append(private_cases[fault])
 pins=[dict(path=path,sha256='a'*64,bytes=1,uid=os.geteuid(),mode=0o644) for path in paths]
-pins[-1]['sha256']='5b40c328ae4ed4a56d36d73f37f5335136439db093be8033dc4c413f663c7569'
+if fault in ('systemd-selected','systemd-unselected'):
+    next(pin for pin in pins if pin['path']==private).update(sha256='a0dc60917d31782cb5f6c3a91ed3a932953f17327f0c5e53f76e9b5356ae4edc',bytes=3759128,uid=0,mode=0o644)
+next(pin for pin in pins if pin['path'].endswith('changelog.Debian.gz'))['sha256']='5b40c328ae4ed4a56d36d73f37f5335136439db093be8033dc4c413f663c7569'
 request=dict(root=root,state=state,pins=pins)
 for key in ['image','rawRequest','rawReceipt','rawProvenance','priorGuestRequest','priorGuestFailure','postBootEvidence','witness']:
     request[key]=state+'/'+key
@@ -938,12 +943,20 @@ p.os.uname=lambda:types.SimpleNamespace(release='7.0.11-76070011-generic')
 p.raw.read_text=lambda path:'Linux version 7.0.11-76070011-generic 4974880'
 p.verify_history=lambda selected:None
 calls=[]
-p.raw.verify_pin=lambda pin:calls.append(pin['path'])
+forbidden=private_cases.get(fault) if fault!='systemd-selected' else None
+if fault=='credential':forbidden='/unselected/credential'
+def verify_pin(pin):
+    assert pin['path']!=forbidden,'forbidden payload hashed '+pin['path']
+    calls.append(pin['path'])
+p.raw.verify_pin=verify_pin
 if fault=='credential':request['pins'].append(dict(path='/unselected/credential',sha256='a'*64,bytes=1,uid=os.geteuid(),mode=0o600))
 version='linux 7.0.11-76070011.202606011647~1784215097~24.04~4974880\n'*2
 def bounded(arguments,*rest):
     if arguments[0]=='/usr/bin/dpkg-query':return version.encode() if fault!='package' else b'foreign\n'
-    return b' /usr/lib/x86_64-linux-gnu/libfixture.so (0x01)\n' if fault!='closure' else b' /foreign/lib.so (0x01)\n'
+    closure=' /usr/lib/x86_64-linux-gnu/libfixture.so (0x01)\n'
+    if fault in private_cases and fault!='systemd-unselected':closure+=' '+private_cases[fault]+' (0x02)\n'
+    if fault=='credential':closure+=' /unselected/credential (0x03)\n'
+    return closure.encode() if fault!='closure' else b' /foreign/lib.so (0x01)\n'
 p.raw.run_bounded=bounded
 if fault=='missing':request['pins']=pins[1:]
 if fault=='runtime':p.sys.version_info=(3,14)
@@ -954,16 +967,24 @@ if fault=='pin':
     p.raw.verify_pin=changed
 try:
     digest=p.verify_inputs(request)
-    assert fault=='success','unsafe current source launch admitted '+fault
+    assert fault in ('success','systemd-selected'),'unsafe current source launch admitted '+fault
     assert len(digest)==64
-except p.raw.PreparationRefusal:
-    assert fault!='success'
+    if fault=='systemd-selected':assert private in calls
+except p.raw.PreparationRefusal as failure:
+    assert fault not in ('success','systemd-selected')
+    if fault in private_cases:assert str(failure)=='repair-input-role'
+    if fault in ('systemd-extra','systemd-similar','systemd-foreign'):assert not calls,'unsupported private pin reached hash boundary'
     if fault=='credential':assert not calls,'unsupported credential pin hashed before refusal'
 print('inputs '+fault)
 `;
 
 for (const fault of [
   'success',
+  'systemd-selected',
+  'systemd-unselected',
+  'systemd-extra',
+  'systemd-similar',
+  'systemd-foreign',
   'missing',
   'runtime',
   'source',
@@ -976,7 +997,7 @@ for (const fault of [
   test(`repair current inputs ${fault} refuse before service launch`, () => {
     const invocation = Bun.spawnSync(
       [
-        'python3',
+        '/usr/bin/python3.12',
         '-I',
         '-B',
         '-c',

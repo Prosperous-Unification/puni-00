@@ -711,8 +711,10 @@ def verify_inputs(request):
                 'priorGuestRequest', 'priorGuestFailure', 'postBootEvidence', 'witness')}
     changelog = '/usr/share/doc/linux-image-7.0.11-76070011-generic/changelog.Debian.gz'
     fixed = set(required) | {changelog}
-    # Proof: credential-role control refuses a fictional unselected private path before any hash/read.
+    # Proof: deleting this role guard makes systemd-extra/similar/foreign and credential controls
+    # reach their forbidden payload hash witnesses; deleting the literal alternative fails systemd-selected.
     require(all(path in fixed or path.startswith(request['state'] + '/') or
+                path == '/usr/lib/x86_64-linux-gnu/systemd/libsystemd-shared-255.so' or
                 re.fullmatch(r'/usr/lib/x86_64-linux-gnu/lib[A-Za-z0-9_.+-]+[.]so[.0-9]*', path)
                 for path in pins), 'repair-input-role')
     guest_request = seed.read_pinned_json(request, request['priorGuestRequest'])
@@ -730,6 +732,7 @@ def verify_inputs(request):
                 and all(os.path.realpath(path) in pins for path in selected_libraries), 'repair-runtime-closure')
         libraries |= {os.path.realpath(path) for path in selected_libraries}
     # Only actual ELF dependencies and selected historical metadata may accompany fixed current source.
+    # Proof: removing exact equality makes systemd-unselected reach its forbidden private-library hash.
     require(set(pins) == fixed | metadata | libraries, 'repair-input-role')
     for pin in request['pins']:
         raw.verify_pin(pin)
