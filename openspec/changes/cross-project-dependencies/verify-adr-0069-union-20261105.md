@@ -23,3 +23,14 @@ unchanged. This is a documentation identity repair, not architecture adoption.
 
 The after-fix existing consumer and committed-tree document-target integration
 results will be recorded only after their original execution completes.
+
+## Committed-tree verification
+
+Against committed086ecab09, the unchanged ADR-index and full actual-document-
+target test files completed7pass/0fail/41assertions in73.49s. All six target
+controls ran, including actual configured target success and local-link, ADR,
+retired-root and root-payload negative cases. Original session13705 exited0
+and scratch teardown returned. The60-second case annotations were preserved;
+CLI default remained10000ms. This is the repaired committed tree, not a pass
+inferred from the working-copy index. Normal commit hooks and the current
+document/index checker passed. Broader CI remains independently required.
