@@ -2904,7 +2904,7 @@ h4claw when their launcher checkouts move to a commit carrying it (the hourly re
 
 The F3 marker contract is now one sentence each in `docs/resources.md` (the `TMPDIR` bullet of
 `ops job run`) and `docs/infra/heavy-job-launchers.md`. F4 adds the nested-call requirement to
-the `heavy-lock-queue` delta, with five scenarios. F6: the state text is `(.state // "none" | tostring)`.
+the `heavy-lock-queue` delta, with four scenarios. F6: the state text is `(.state // "none" | tostring)`.
 
 After the review fixes, fresh on this workstation: `bunx nx run twilight-dash:test
 --skip-nx-cache` 5717 pass, 53 skip, 0 fail across 184 files (3057 s), exit 0. Also:
