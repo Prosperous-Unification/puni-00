@@ -2374,7 +2374,8 @@ async function observeActualPrehelperBuild(): Promise<ActualPrehelperBuild> {
 import {mkdtemp,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-interface CustodyObservation {pass:boolean;oracle:string;}`,
+interface CustodyObservation {pass:boolean;oracle:string;}
+const process={platform:globalThis.process.platform,stderr:globalThis.process.stderr,env:{} as Record<string,string>};`,
     between('interface ParentPipe {', '\nfunction stop('),
     between('function stop(', 'function replaceOnce('),
     between('const prehelperWriteSync = writeSync;', 'const PARENT_CAPS:'),
@@ -2404,7 +2405,15 @@ buildObserver=record.observer;
 await buildPromise;
 return await stop(new Error('UC2 actual invalid build did not reject'));`,
     catchFinally,
-    `try{await execute();}catch(failure){cause=failure;}
+    `const uptime=readFileSync('/proc/uptime');
+const fields=/^([0-9]{1,20})\\.([0-9]{2}) ([0-9]{1,20})\\.([0-9]{2})\\n$/.exec(uptime.toString('latin1'));
+if(uptime.length>128||fields===null)throw new Error('UC2 ordinary allocation kernel sample malformed');
+const start=BigInt(fields[1])*100n+BigInt(fields[2]);
+// Proof: omitting only this fixture START refused admission before all original operations and clocks.
+process.env['PUNI_UC2_ALLOCATION_START_CS']=String(start);
+process.env['PUNI_UC2_ALLOCATION_END_CS']=String(start+18000n);
+process.env['PUNI_UC2_ALLOCATION_LOWER_CS']=String(start);
+try{await execute();}catch(failure){cause=failure;}
 return {cause,root,marker,entry,priorBytes,invalidBytes,buildPromise,buildObserver,
 operations:parent.operations,clocks:parent.clockOperations,stopped:parent.stopped,
 terminal:parent.prehelperRefusalTerminal,spawnEntered:parent.spawnEntered,

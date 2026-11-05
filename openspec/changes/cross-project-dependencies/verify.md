@@ -7866,3 +7866,5 @@ Actual component tests keep their original epochs: harmless80, real Graph202/11/
 2026-11-05: [restoration store-observer lifetime repair](verify-restoration-readback-20261105.md) records the new hosted failure, unchanged reproduction, exact-restored private diagnosis and reviewed ordinary/initial-handoff proof boundaries.
 
 2026-11-05: [ordinary initial-handoff fixture layout correction](verify-initial-fixture-layouts-20261105.md) records the independent canonical-provider binding, original callback preservation, actual guard/restoration negatives and focused restored checks. Full storage/CI/host and private acceptance remain separate.
+
+2026-11-05: [ordinary extracted pre-helper allocation inputs](verify-prehelper-allocation-20261105.md) records the observed missing-input refusal, narrowly lexical ordinary control, actual START omission and exact restored checks without private grant or production changes.
