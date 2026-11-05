@@ -1974,3 +1974,45 @@ describe('Task3 exact write recovery policy', () => {
       30000,
     );
 });
+
+it('Dash API recovery fixture reaches only accepted binding contracts', async () => {
+  const path =
+    'apps/twilight-structure/twilight-dash/cli/src/runs/testing/api-recovery-contract.ts';
+  const peer =
+    'apps/twilight-structure/twilight-dash/cli/src/runs/testing/execution-history-contract.ts';
+  async function checkImport(target: string, alias: string) {
+    const reports = await lint.lintText('await import(' + JSON.stringify(alias) + ');', {
+      filePath: target,
+    });
+    const report = reports.at(0);
+    if (report === undefined) throw new Error('API recovery import report missing');
+    expect(report.fatalErrorCount, target + ' ' + alias + ' parses').toBe(0);
+    return report.messages.map((message) => message.ruleId);
+  }
+  expect(
+    await checkImport(path, '@twilight-burokrat/contracts'),
+    'exact fixture admission',
+  ).not.toContain('@nx/enforce-module-boundaries');
+  for (const alias of [
+    '@twilight-burokrat/judge',
+    '@wbs/contracts',
+    relative(dirname(path), 'apps/twilight-structure/twilight-burokrat/cli/src/contracts/index.ts'),
+  ])
+    expect(await checkImport(path, alias), 'fixture denies ' + alias).toContain(
+      '@nx/enforce-module-boundaries',
+    );
+  await readFile(join(workspace, peer), 'utf8');
+  expect(
+    await checkImport(peer, '@twilight-burokrat/contracts'),
+    'unlisted fixture peer',
+  ).toContain('@nx/enforce-module-boundaries');
+  const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
+  if (!isRecord(options)) throw new Error('API recovery fixture policy malformed');
+  expect(options['allow']).toEqual(['^@twilight-burokrat/contracts$']);
+  const source = await readFile(join(workspace, path), 'utf8');
+  const reports = await lint.lintText(source, { filePath: path });
+  const actual = reports.at(0);
+  if (actual === undefined) throw new Error('API recovery source lint report missing');
+  expect(actual.fatalErrorCount).toBe(0);
+  expect(actual.messages).toEqual([]);
+}, 60_000);
