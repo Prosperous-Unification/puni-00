@@ -1642,3 +1642,24 @@ The coordinator SHALL sample an admitted raw target through descriptors bound to
 - **WHEN** path/descriptor identity, ownership, private mode, regular type, single link, fixed length, allocation bound or readonly open is violated
 - **THEN** sampling refuses before unsafe authority reaches the profile/capacity boundary and every acquired descriptor closes
 - **AND** deleting each new guard or breaking its dependency exposes the named forbidden witness
+
+### Requirement: Failed-repair staging ownership survives handoff
+
+A future failed-reservation drainer SHALL receive the same already-locked staging open-file description through a bounded one-shot channel queued before launch. Coordinator and recipient references SHALL preserve exclusion while either process can still act. Closing one reference MUST NOT explicitly unlock the others. This ownership prerequisite SHALL NOT confer drain, reservation release, repair, guest or full-rehearsal authority.
+
+#### Scenario: Startup and process exit preserve exclusion
+
+- **WHEN** the original coordinator exits while its locked descriptor remains queued on inherited service stdin or held by the recipient
+- **THEN** a competing staging acquisition refuses until the last owned reference closes
+- **AND** recipient exit leaves the coordinator's retained reference locked through later publication
+
+#### Scenario: A foreign or malformed handoff cannot supply ownership
+
+- **WHEN** the bounded frame, kernel per-message credentials, original sender start, original private directory identity, transferred rights or actual lock ownership do not join
+- **THEN** receive refuses before any protected action and every acquired descriptor closes
+- **AND** socketpair creator credentials cannot stand in for the eventual worker identity
+
+#### Scenario: Source ownership proof does not imply native settlement
+
+- **WHEN** ordinary process tests establish transfer and cleanup semantics
+- **THEN** actual systemd stdio handoff, physical/transient budget qualification and the separate drain/publication/cleanup certificate remain required before any debt credit

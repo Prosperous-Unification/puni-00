@@ -997,7 +997,7 @@ for (const fault of [
   test(`repair current inputs ${fault} refuse before service launch`, () => {
     const invocation = Bun.spawnSync(
       [
-        '/usr/bin/python3.12',
+        '/usr/bin/python3',
         '-I',
         '-B',
         '-c',

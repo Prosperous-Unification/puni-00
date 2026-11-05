@@ -237,7 +237,7 @@ for (const scenario of ['coordinator', 'worker', 'lazy']) {
   for (const fault of ['valid', 'absent-request']) {
     test(`repair production ${scenario} ${fault} excludes substituted repository caches`, () => {
       const invocation = Bun.spawnSync(
-        ['/usr/bin/python3.12', '-I', '-B', '-c', startup, import.meta.dir, scenario, fault],
+        ['/usr/bin/python3', '-I', '-B', '-c', startup, import.meta.dir, scenario, fault],
         { stdout: 'pipe', stderr: 'pipe', timeout: 15000 },
       );
       expect(invocation.exitCode).toBe(0);
@@ -264,7 +264,7 @@ for (const scenario of ['coordinator', 'worker', 'lazy']) {
 
 function observeStartup(scenario: string, fault: string, omission = '') {
   const invocation = Bun.spawnSync(
-    ['/usr/bin/python3.12', '-I', '-B', '-c', startup, import.meta.dir, scenario, fault, omission],
+    ['/usr/bin/python3', '-I', '-B', '-c', startup, import.meta.dir, scenario, fault, omission],
     { stdout: 'pipe', stderr: 'pipe', timeout: 15000 },
   );
   expect(invocation.stderr.toString()).toBe('');

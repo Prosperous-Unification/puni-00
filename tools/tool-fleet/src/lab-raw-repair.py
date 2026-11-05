@@ -1,3 +1,4 @@
+import array
 import ctypes
 import fcntl
 import hashlib
@@ -9,6 +10,8 @@ import platform
 import re
 import resource
 import signal
+import socket
+import struct
 import stat
 import subprocess
 import sys
@@ -237,6 +240,181 @@ def unsigned(value):
     require(type(value) is str and re.fullmatch(r'0|[1-9][0-9]{0,19}', value) is not None
             and int(value) <= 2**64 - 1, 'repair-integer-invalid')
     return int(value)
+
+
+_STAGING_FRAME_BYTES = 4096
+_STAGING_RIGHTS = 16
+
+
+def _close_staging_resources(resources, failure=None):
+    """Attempt every owned close, retaining the primary failure alongside cleanup failures."""
+    failures = [] if failure is None else [failure]
+    # Proof: owner/received close failures still attempt every descriptor and retain both failure causes.
+    for resource in resources:
+        try:
+            if isinstance(resource, int):
+                os.close(resource)
+            else:
+                resource.close()
+        except BaseException as close_failure:
+            failures.append(close_failure)
+    if len(failures) == 1:
+        raise failures[0]
+    if failures:
+        raise BaseExceptionGroup('staging channel cleanup failed', failures)
+
+
+class StagingChannel:
+    """Own both one-shot endpoints and the original flock; closing never issues LOCK_UN.
+
+    After launch the coordinator closes its recipient copy, retaining control and staging
+    until publication finishes. A queued right holds the shared open-file description.
+    This adapter conveys exclusion only, without granting repair or settlement authority.
+    """
+
+    def __init__(self, control, recipient, staging_fd):
+        self.control = control
+        self.recipient = recipient
+        self.staging_fd = staging_fd
+
+    def close_recipient(self):
+        """Close the sender's launch copy once; retained coordinator ownership is untouched."""
+        # Proof: recipient-closed omission loses the controlled refusal on second launch-copy close.
+        require(self.recipient is not None, 'repair-channel-recipient-closed')
+        recipient, self.recipient = self.recipient, None
+        recipient.close()
+
+    def close(self):
+        """Close all remaining ownership, attempting every close even on a syscall failure."""
+        resources = [owned for owned in (self.recipient, self.control, self.staging_fd)
+                     if owned is not None]
+        self.recipient = self.control = self.staging_fd = None
+        # Proof: cleanup-close omission leaves a real competing acquisition occupied after final close.
+        _close_staging_resources(resources)
+
+
+def _staging_binding(nonce, request_digest):
+    # Proof: binding omission admits wrong/overwidth nonce and digest at the real receive boundary.
+    require(type(nonce) is str and re.fullmatch('[a-f0-9]{32}', nonce) is not None
+            and type(request_digest) is str and re.fullmatch('[a-f0-9]{64}', request_digest) is not None,
+            'repair-channel-binding')
+
+
+def open_staging_channel(state, nonce, request_digest):
+    """Acquire original staging ownership and prequeue exactly one bounded shared-OFD transfer.
+
+    The recipient endpoint can become a future child's stdin. The selected native service
+    transport needs separate qualification; these Linux primitives do not qualify systemd.
+    Failed construction closes all acquired ownership and propagates syscall failures.
+    """
+    _staging_binding(nonce, request_digest)
+    resources = []
+    try:
+        staging_fd = raw.acquire_staging(state)
+        resources.append(staging_fd)
+        control, recipient = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET | socket.SOCK_CLOEXEC)
+        resources.extend((control, recipient))
+        # Proof: passcred dependency omission produces a real packet lacking authenticated credentials.
+        recipient.setsockopt(socket.SOL_SOCKET, socket.SO_PASSCRED, 1)
+        named = os.fstat(staging_fd)
+        frame = dict(schemaVersion=1, nonce=nonce, requestDigest=request_digest,
+                     pid=str(os.getpid()), start=raw.process_start(os.getpid()),
+                     uid=str(os.geteuid()), gid=str(os.getegid()),
+                     device=str(named.st_dev), inode=str(named.st_ino), mode='0700')
+        payload = raw.encode_json(frame)
+        # Proof: send-bound fault lowers the cap before sendmsg; omission queues the forbidden frame.
+        require(len(payload) <= _STAGING_FRAME_BYTES, 'repair-channel-bound')
+        sent = control.sendmsg([payload], [(socket.SOL_SOCKET, socket.SCM_RIGHTS,
+                                          array.array('i', [staging_fd]))], socket.MSG_DONTWAIT)
+        # Proof: short-send dependency fault refuses construction and releases the acquired staging lock.
+        require(sent == len(payload), 'repair-channel-send')
+        return StagingChannel(control, recipient, staging_fd)
+    except BaseException as failure:
+        _close_staging_resources(reversed(resources), failure)
+
+
+def receive_staging_channel(endpoint, state, nonce, request_digest):
+    """Borrow a socket, consume one queued packet without waiting and return its owned lock FD.
+
+    Authenticate per-message credentials and the live original sender, never SO_PEERCRED.
+    A separately reopened same inode has no shared flock in its fdinfo and refuses.
+    Every received right closes on any refusal, even when another close fails.
+    """
+    rights = []
+    try:
+        # Proof: recv-flags omission exposes missing nonblocking/cloexec protection at real recvmsg.
+        payload, ancillary, flags, address = endpoint.recvmsg(_STAGING_FRAME_BYTES + 1,
+            socket.CMSG_SPACE(_STAGING_RIGHTS * array.array('i').itemsize) + socket.CMSG_SPACE(12),
+            socket.MSG_DONTWAIT | socket.MSG_CMSG_CLOEXEC)
+        credentials = []
+        shape = True
+        for level, kind, content in ancillary:
+            if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:
+                descriptors = array.array('i')
+                width = descriptors.itemsize
+                descriptors.frombytes(content[:len(content) - len(content) % width])
+                rights.extend(descriptors)
+                shape = shape and len(content) % width == 0
+            elif level == socket.SOL_SOCKET and kind == socket.SCM_CREDENTIALS and len(content) == 12:
+                credentials.append(struct.unpack('iII', content))
+            else:
+                shape = False
+        # Proof: ancillary omission admits absent/extra rights or credentials; all rejected rights close.
+        require(shape and len(ancillary) == 2 and len(rights) == 1 and len(credentials) == 1,
+                'repair-channel-ancillary')
+        # Proof: packet omission admits actual MSG_TRUNC/MSG_CTRUNC and oversized or empty frames.
+        require(not flags & (socket.MSG_TRUNC | socket.MSG_CTRUNC)
+                and 0 < len(payload) <= _STAGING_FRAME_BYTES, 'repair-channel-packet')
+        try:
+            frame = json.loads(payload)
+        except (ValueError, UnicodeError, RecursionError) as failure:
+            raise raw.PreparationRefusal('repair-channel-json') from failure
+        # Proof: canonical omission admits duplicate/alternate JSON bytes before lock adoption.
+        require(payload == raw.encode_json(frame), 'repair-channel-canonical')
+        # Proof: frame-shape omission admits extra/missing fields and bool schema before lock adoption.
+        require(type(frame) is dict and set(frame) == set(('schemaVersion nonce requestDigest pid start '
+                'uid gid device inode mode').split()) and type(frame['schemaVersion']) is int
+                and frame['schemaVersion'] == 1, 'repair-channel-shape')
+        # Proof: decimal omission admits alternate and uint64-overflow native identities.
+        require(all(type(frame[field]) is str
+                    and re.fullmatch(r'0|[1-9][0-9]{0,19}', frame[field]) is not None
+                    and int(frame[field]) <= 2**64 - 1
+                    for field in ('pid', 'start', 'uid', 'gid', 'device', 'inode')),
+                'repair-channel-decimal')
+        _staging_binding(frame['nonce'], frame['requestDigest'])
+        _staging_binding(nonce, request_digest)
+        # Proof: request omission adopts a real transfer for a different nonce or request digest.
+        require(frame['nonce'] == nonce and frame['requestDigest'] == request_digest,
+                'repair-channel-request')
+        pid, uid, gid = credentials[0]
+        # Proof: credentials omission adopts payload PID/UID/GID differing from kernel SCM_CREDENTIALS.
+        require((str(pid), str(uid), str(gid)) == (frame['pid'], frame['uid'], frame['gid'])
+                and uid == os.geteuid() and gid == os.getegid(), 'repair-channel-credentials')
+        # Proof: start omission adopts a live PID with a stale original start; dead senders refuse too.
+        require(raw.process_start(pid) == frame['start'], 'repair-channel-start')
+        descriptor = rights[0]
+        held, named = os.fstat(descriptor), os.lstat(state)
+        # Proof: identity omission adopts a different state/path/inode or unsafe directory mode/owner.
+        require(stat.S_ISDIR(held.st_mode) and stat.S_ISDIR(named.st_mode)
+                and held.st_uid == named.st_uid == uid
+                and stat.S_IMODE(held.st_mode) == stat.S_IMODE(named.st_mode) == 0o700
+                and frame['mode'] == '0700'
+                and (str(held.st_dev), str(held.st_ino)) == (frame['device'], frame['inode'])
+                == (str(named.st_dev), str(named.st_ino)), 'repair-channel-identity')
+        # Proof: access omission adopts an O_PATH same-inode descriptor; cloexec fault is independently refused.
+        require(fcntl.fcntl(descriptor, fcntl.F_GETFL) & (os.O_ACCMODE | os.O_PATH) == os.O_RDONLY
+                and fcntl.fcntl(descriptor, fcntl.F_GETFD) & fcntl.FD_CLOEXEC,
+                'repair-channel-access')
+        info = raw.read_text(f'/proc/self/fdinfo/{descriptor}', 4096)
+        lock = (r'(?m)^lock:\s+[0-9]+: FLOCK\s+ADVISORY\s+WRITE\s+' + str(pid)
+                + r'\s+' + format(os.major(held.st_dev), '02x') + ':'
+                + format(os.minor(held.st_dev), '02x') + ':' + str(held.st_ino) + r'\s+0 EOF$')
+        # Proof: flock omission adopts an independently reopened same-inode FD with no owned flock.
+        require(re.search(lock, info) is not None, 'repair-channel-lock')
+        return descriptor
+    except BaseException as failure:
+        # Proof: refusal-close omission leaks the real received right at the protected receive boundary.
+        _close_staging_resources(rights, failure)
 
 
 def check_snapshot(expected, observed):

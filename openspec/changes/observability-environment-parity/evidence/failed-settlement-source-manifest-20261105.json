@@ -1,0 +1,44 @@
+{
+  "scope": "fixed-record-budget-primary-source-cache",
+  "commit": "49748809f7e18ca62f2e054523f1e2c0eb7a88ad",
+  "files": [
+    {
+      "path": "fs/ext4/namei.c",
+      "bytes": 113382,
+      "gitBlob": "c4b5e252af0efbfcbaf83688a32d445327a74a02",
+      "sha256": "72e5348eea92c16dffa659c87040ebb630e736697a6bd77137fbde404a80b6e9",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/fs/ext4/namei.c"
+    },
+    {
+      "path": "fs/ext4/ialloc.c",
+      "bytes": 45697,
+      "gitBlob": "b1bc1950c9f03b9dca9729cfac532ff95d504948",
+      "sha256": "23a9ee8afe8508b10db326c017e024263dce6dfaaaa6b2fb43a8dbb782b4e581",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/fs/ext4/ialloc.c"
+    },
+    {
+      "path": "fs/ext4/xattr.c",
+      "bytes": 86162,
+      "gitBlob": "a4eaee58e54503cb26b4609db1ddc7e314991a41",
+      "sha256": "2139f0bd4eb0fdb7d44cc95131bf6a16db889c72d92fb9229e5da8b5dc411e5e",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/fs/ext4/xattr.c"
+    },
+    {
+      "path": "fs/ext4/mballoc.c",
+      "bytes": 209784,
+      "gitBlob": "bb58eafb87bcd6d865f63135f4df03d586a15523",
+      "sha256": "ff5c47fbbbe353356752b7f0628abe06ebdacadfbdb803fd90d853447b53892f",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/fs/ext4/mballoc.c"
+    },
+    {
+      "path": "fs/ext4/inode.c",
+      "bytes": 199266,
+      "gitBlob": "1123d995494b588744ba47fcee88e9cd0cc992dd",
+      "sha256": "b2d4455d86ab2ce5c049ec42856352a2e28220ff2555334f47d47e051a9b4e99",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/fs/ext4/inode.c"
+    }
+  ],
+  "totalBytes": 654291,
+  "runtimeAuthority": false,
+  "budgetQualified": false
+}

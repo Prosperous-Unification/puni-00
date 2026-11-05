@@ -208,7 +208,7 @@ print('accepted ' + scenario)
 
 function run(scenario: string, omission = 'none') {
   return Bun.spawnSync(
-    ['/usr/bin/python3.12', '-I', '-B', '-c', program, import.meta.dir, scenario, omission],
+    ['/usr/bin/python3', '-I', '-B', '-c', program, import.meta.dir, scenario, omission],
     { stdout: 'pipe', stderr: 'pipe', timeout: 10000 },
   );
 }
