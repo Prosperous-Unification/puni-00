@@ -23,6 +23,8 @@ import { Writable } from 'node:stream';
 
 import { parseSecretsOrThrow, type } from '@shared/validation';
 import {
+  hostJobRunRecordAbsence,
+  hostJobRunRecordLocator,
   resourceCleanupRequest,
   type ResourceRuntimeAdmission,
   resourceRuntimeAdmission,
@@ -46,6 +48,7 @@ import {
   TICKET_RECLAIM_AFTER_MS,
   vectorFits,
 } from './host-pool';
+import { readRunRecordStart, runRecordDigestOf } from './run-record-file';
 
 const Identifier = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 const Configuration = type({
@@ -2827,11 +2830,13 @@ export class ResourceRuntime {
    * `resourceRuntimeUse` v2 (`dash-host-jobs` J10), oldest first and in one transaction, so they
    * take the authority's one sequence beside the worktree uses' events: `admitted` becomes
    * `registered`; the settlement that leaves every entry released becomes `release_verified`
-   * with its evidence (J2'): the SHA-256 of that ledger row, its durable locator and disposition
-   * `returned`. A launch, a partial settlement or a blocked retry stays local. A moved row is
+   * with its evidence (J2', {@link settlementEvidence}): the run record's locator and the SHA-256
+   * of its gate entry, `returned`, or `not_created` for a job whose gate never opened. A launch,
+   * a partial settlement or a blocked retry stays local. A moved row is
    * `published=1`; from there its delivery is the outbox's. The host pool admitted the job
    * already, so nothing here waits on WBS.
-   * @throws when a row or its job is malformed: only this class writes the owner-only ledger.
+   * @throws when a row or its job is malformed: only this class writes the owner-only ledger;
+   * or when the run records cannot be read, which leaves every row unmoved.
    */
   private moveHostJobEvents(): void {
     this.transaction(() => {
@@ -2875,12 +2880,7 @@ export class ResourceRuntime {
             use: hostJobDeclaration(job, this.configuration.enrollmentId),
             ...(kind === 'release_verified'
               ? {
-                  evidence: {
-                    digest: createHash('sha256').update(row.event).digest('hex'),
-                    locator: `dash-host-job://${this.configuration.authorityId}/${job.id}/${String(change.revision)}`,
-                    disposition: 'returned' as const,
-                    reclaimedBytes: null,
-                  },
+                  evidence: this.settlementEvidence(job.id),
                 }
               : {}),
           };
@@ -2891,6 +2891,41 @@ export class ResourceRuntime {
         this.db.query('UPDATE host_job_events SET published=1 WHERE sequence=?').run(row.sequence);
       }
     });
+  }
+  /**
+   * The settlement evidence of a returned host job (`dash-host-jobs` task 6.8, S6F-A1): its run
+   * record's locator ({@link hostJobRunRecordLocator}, this pool's `enrollmentId` as host) and
+   * the SHA-256 of that record's gate entry, disposition `returned`. A job with no run
+   * record (its launcher never wrote the gate entry) is `not_created`, digesting
+   * {@link hostJobRunRecordAbsence}; a job refused after `begin` (a late SIGINT) has one and is
+   * `returned`. The gate
+   * entry is written before the payload runs and the gated shell cannot exit before it, so a
+   * released job without one never ran its payload. One window is admitted: a scope killed from
+   * outside after the gate sample and before `begin` can be settled and moved by `watch` as
+   * `not_created` while `begin` then writes `start`, so WBS holds `not_created` for a record that
+   * exists; it is a few milliseconds long and loses no state.
+   * @throws when the run records are missing, a link, not owner-only or of another schema.
+   */
+  private settlementEvidence(jobId: string): NonNullable<ResourceEvent['evidence']> {
+    const locator = hostJobRunRecordLocator(this.configuration.enrollmentId, jobId);
+    const start = readRunRecordStart(this.configuration.root, jobId);
+    // Proof: with the gate entry treated as absent, `a gate run while WBS is down publishes
+    // registered then returned, in order` (host-job-publication.test.ts) and `a returned gate
+    // digests its run record's gate entry…` (job-run.test.ts) received `not_created` and the
+    // absence digest for the run record's (2026-11-05, task 6.8).
+    return start === null
+      ? {
+          digest: createHash('sha256').update(hostJobRunRecordAbsence(locator)).digest('hex'),
+          locator,
+          disposition: 'not_created',
+          reclaimedBytes: null,
+        }
+      : {
+          digest: runRecordDigestOf(start),
+          locator,
+          disposition: 'returned',
+          reclaimedBytes: null,
+        };
   }
   /** Host-job events not yet moved to the authority outbox, oldest first ({@link moveHostJobEvents}). */
   hostJobOutbox(): { sequence: number; event: unknown }[] {

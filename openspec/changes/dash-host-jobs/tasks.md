@@ -277,7 +277,15 @@
         running job with that id before running nested — test: a fake scope of that name with no
         such job is refused. Done in slice 6e: `ops job admission` (`ops/admission.test.ts`) and
         `bin/heavy-lock.test.sh` cases 49h–49k (S6E-A3).
-- [ ] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
+- [x] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
       (slice 3, #809) carries `descriptorDigest` and no durable locator, so this needs a locator
       for the run record and a decision on which digest WBS keeps — test: a returned host job's
       evidence names the run record; negative: send the ledger-row digest and watch WBS refuse it.
+      Done in slice 6f (S6F-A1): locator `dash-host-job-run://<enrollmentId>/<jobId>`, digest the
+      SHA-256 of the record's stored gate entry, `not_created` for a job with no run record;
+      be-01 refuses the ledger-row evidence `400 invalid_body`.
+  - [ ] 6.8a An operator command that drops one permanently refused event from the authority
+        outbox, naming it and the refusal (pre-existing gap; S6F-A4: a moved old-shape host-job
+        event refused by a newer be-01 otherwise blocks every later event of the authority) —
+        test: a refused event is dropped and the next one publishes; negative: the command
+        refuses an event WBS has not refused.
