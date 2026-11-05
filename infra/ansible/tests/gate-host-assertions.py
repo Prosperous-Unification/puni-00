@@ -4,10 +4,11 @@ Runs each named task of `roles/gate_host/tasks/*.yml` unchanged against localhos
 registered values it reads recorded through `set_fact` (or produced by fake commands first on
 PATH), then once per fault with one condition removed, and requires the fault's bad input to get
 through. Prints one line per case and exits 1 if any expectation fails. Run from the repository
-root with the digest-locked controller (see tools/tool-fleet/src/check.ts):
+root with the digest-locked controller (see tools/tool-fleet/src/check.ts), as root because
+`ssh-keygen` refuses the image's uid 1000, which has no passwd entry (E11 to E13):
 
     docker run --rm --network none --read-only --tmpfs /tmp:exec --tmpfs /runner/.ansible \\
-      -v "$PWD/infra/ansible:/work/ansible:ro" --entrypoint python3 \\
+      --user 0:0 -v "$PWD/infra/ansible:/work/ansible:ro" --entrypoint python3 \\
       ghcr.io/prosperous-unification/fleet-controller:0.1.0 /work/ansible/tests/gate-host-assertions.py
 
 Results and the fault table are in openspec/changes/dash-host-jobs/verify.md, Slice 6c.
@@ -66,9 +67,12 @@ def run(tasks, variables, facts=None, fake=None, pre=None):
             handle.write("#!/bin/sh\n" + body + "\n")
         os.chmod(path, 0o755)
     for path, body in (pre or {}).items():
+        body, mode = body if isinstance(body, tuple) else (body, None)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as handle:
             handle.write(body)
+        if mode is not None:
+            os.chmod(path, mode)
     setup = [{"name": "Read the evaluating account", "ansible.builtin.getent":
               {"database": "passwd", "key": "root"}}]
     if facts:
@@ -328,6 +332,105 @@ family("E10 sudo exception is a boolean", gate_inputs, [
 ], [(drop_condition("puni_gate_account_may_sudo is boolean"), "string false")])
 
 
+# Throwaway keys made for this run, outside WORK, which every `run` clears.
+KEYS_DIR = "/tmp/gate-host-keys"
+shutil.rmtree(KEYS_DIR, ignore_errors=True)
+os.makedirs(KEYS_DIR)
+
+
+def public_key(comment):
+    path = os.path.join(KEYS_DIR, comment.split("@")[0])
+    subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", comment, "-f", path],
+                   check=True)
+    return open(path + ".pub").read().strip()
+
+
+KEYS = [public_key(c) for c in ("laptop-a@example.invalid", "laptop-b@example.invalid",
+                                "deploy@example.invalid")]
+
+
+def imported(file, name):
+    """The tasks an `import_tasks` task of `file` named `name` brings in, each carrying the
+    import's vars: the play here is not in the role, so the import itself cannot resolve."""
+    found = task(file, name)
+    tasks = copy.deepcopy(yaml.safe_load(open(os.path.join(ROLE, found["ansible.builtin.import_tasks"]))))
+    for t in tasks:
+        t["vars"] = {**found.get("vars", {}), **t.get("vars", {})}
+    return tasks
+
+
+def install_keys(render):
+    """main.yml's staging, staged count, install and removal, with `render` as the staging task."""
+    return [render, *imported("main.yml", "Count the staged gate authorized keys"),
+            task("main.yml", "Install the exact gate authorized keys"),
+            task("main.yml", "Remove the staged gate authorized keys")]
+
+
+def staged_template():
+    """The role's staging task with an absolute template path: the play is not in the role."""
+    t = task("main.yml", "Stage the exact gate authorized keys")
+    t["ansible.builtin.template"]["src"] = ROLE + "/../templates/authorized_keys.j2"
+    return t
+
+
+# The form h2puni's apply 1 ran on 2026-11-04 (H2-A7), parsed from its YAML text and aimed at the
+# staged path the role now writes first.
+JOINED = yaml.safe_load(r"""
+name: Stage the exact gate authorized keys
+ansible.builtin.copy:
+  dest: '{{ puni_gate_home }}/.ssh/authorized_keys.staged'
+  content: |
+    {{ puni_gate_authorized_keys | join('\n') }}
+  mode: '0600'
+""")
+LIVE = WORK + "/home/.ssh/authorized_keys"
+STAGED = LIVE + ".staged"
+PREVIOUS = "ssh-ed25519 AAAAprevious previous@example.invalid\n"
+SSH_DIR = {LIVE: PREVIOUS}
+COUNTED = "keys, but puni_gate_authorized_keys lists"
+INSTALL_TASK = "TASK [Install the exact gate authorized keys]"
+
+
+def lines(keys):
+    return "".join(key + "\n" for key in keys)
+
+
+def install_before_count(tasks):
+    """The placement before the review fix: the live file is written before anything counts it."""
+    install = next(t for t in tasks if t["name"] == "Install the exact gate authorized keys")
+    tasks.remove(install)
+    tasks.insert(1, install)
+
+
+install_before_count.label = "install moved before the staged count"
+OPTIONS = ['from="192.0.2.0/24" ' + KEYS[0], *KEYS[1:]]
+MALFORMED = [*KEYS[:2], "ssh-ed25519 AAAAnot-a-key x@y"]
+family("E11 staged keys counted before they replace the live file", install_keys(staged_template()), [
+    ("three keys", {"puni_gate_authorized_keys": KEYS}, None, None,
+     ("installed", SSH_DIR, lines(KEYS))),
+    ("one key", {"puni_gate_authorized_keys": KEYS[:1]}, None, None,
+     ("installed", SSH_DIR, lines(KEYS[:1]))),
+    ("key with options", {"puni_gate_authorized_keys": OPTIONS}, None, None,
+     ("installed", SSH_DIR, lines(OPTIONS))),
+    ("malformed key", {"puni_gate_authorized_keys": MALFORMED}, None, None,
+     ("refused-kept", SSH_DIR, "holds 2 " + COUNTED + " 3")),
+    ("rerun converges", {"puni_gate_authorized_keys": KEYS}, None, None,
+     ("converged", {LIVE: (lines(KEYS), 0o600)}, lines(KEYS))),
+], [(drop_that(0), "malformed key"),
+    (drop_key("changed_when", "Stage the exact gate authorized keys"), "rerun converges"),
+    (drop_key("changed_when", "Remove the staged gate authorized keys"), "rerun converges")])
+family("E12 the joined block-scalar form is refused before the install", install_keys(JOINED), [
+    ("three keys joined", {"puni_gate_authorized_keys": KEYS}, None, None,
+     ("refused-kept", SSH_DIR, "holds 1 " + COUNTED + " 3")),
+], [(drop_that(0), "three keys joined"), (install_before_count, "three keys joined")])
+JOINED_FILE = "\\n".join(KEYS) + "\n"
+family("E13 validate counts the live file", imported("validate.yml", "Count the live gate authorized keys"), [
+    ("three keys", {"puni_gate_authorized_keys": KEYS}, None, None, ("accepted-pre", {LIVE: lines(KEYS)})),
+    ("joined live file", {"puni_gate_authorized_keys": KEYS}, None, None,
+     ("refused-pre", {LIVE: JOINED_FILE}, "holds 1 " + COUNTED + " 3")),
+], [(drop_that(0), "joined live file")])
+
+
 def recap(output, field):
     """One counter of localhost's PLAY RECAP line; None when the recap is missing."""
     found = re.search(r"^localhost\s*:.*\b" + field + r"=(\d+)", output, re.M)
@@ -335,7 +438,7 @@ def recap(output, field):
 
 
 def judge(expectation, rc, output):
-    kind, detail = expectation
+    kind, detail = expectation[:2]
     log = WORK + "/bun.log"
     if kind == "accepted":
         return rc == 0 and recap(output, "skipped") == 0
@@ -351,13 +454,25 @@ def judge(expectation, rc, output):
     if kind == "skipped":
         return rc == 0 and SKIP in output and not os.path.exists(log)
     if kind == "refused-pre":
-        return rc != 0 and "Inspect the host pool and audit its envelopes" in output
+        message = expectation[2] if len(expectation) > 2 else \
+            "Inspect the host pool and audit its envelopes"
+        return rc != 0 and message in output
+    if kind == "accepted-pre":
+        return rc == 0 and recap(output, "skipped") == 0
+    if kind == "installed":
+        return rc == 0 and open(LIVE).read() == expectation[2] and not os.path.exists(STAGED)
+    if kind == "converged":
+        return judge(("installed", None, expectation[2]), rc, output) and recap(output, "changed") == 0
+    if kind == "refused-kept":
+        return rc != 0 and expectation[2] in output and INSTALL_TASK not in output and \
+            open(LIVE).read() == PREVIOUS
     raise SystemExit(kind)
 
 
 def pre_of(expectation):
-    kind, detail = expectation
-    return detail if kind in ("ran", "skipped", "refused-pre") else None
+    kind, detail = expectation[:2]
+    return detail if kind in ("ran", "skipped", "refused-pre", "accepted-pre", "installed",
+                                "refused-kept", "converged") else None
 
 
 failures = 0
