@@ -1447,3 +1447,20 @@ The fixed repair adapter SHALL preserve existing memory, inode-staging, outside 
 - **THEN** its trusted worker validates exact sequence/offset/count and canonical initialized range before the next private acknowledgement
 - **AND** short I/O, failed sync, uninitialized range, stale/replayed completion or unsupported profile refuses without retry or another write
 - **AND** the outer coordinator keeps its existing frame/output bounds and captures authentic counters only after child reap
+
+### Requirement: Reclamation credit requires durable ordered proof
+
+Repair debt SHALL remain pending until a separately qualified release proof binds quiesced writers, original reservations, the supported writable journal and actual ordered exclusive counter/artifact publication with original-directory full commits. A later full commit SHALL establish prior callback completion. Existing files alone SHALL NOT release debt, and reservations SHALL remain immutable.
+
+#### Scenario: Ordered publications can establish release
+
+- **WHEN** all selected repair writers and I/O are quiesced and the fixed qualified adapter completes counter publication before creating and fully publishing its distinct artifact
+- **THEN** only a subsequently durable source/profile/reservation/artifact-bound proof may permit credit after required acceptance and cleanup joins
+- **AND** no extra marker, global filesystem flush or timeout increase is substituted
+
+#### Scenario: Incomplete release evidence retains debt
+
+- **WHEN** either directory barrier is missing, reordered or failed, the second file was precreated, identity/profile changes, a writer remains live, or proof is premature, foreign, partial or replayed
+- **THEN** credit refuses and original reservations remain charged
+- **AND** absent optional proof means pending debt, while unreadable or malformed trusted proof cannot become released
+- **AND** a prior failed attempt requires independent terminal/drain proof before inclusion
