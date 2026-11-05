@@ -147,6 +147,11 @@ open; the earlier accepted storage packet does not prove this newly observed edg
       The approved [logical recovery packet](recovery-tasks.md) implements authority/claim
       journals, fences and atomic closure first. Complete write recovery and physical
       continuation remain required before this parent task can close.
+      Component progress (2026-11-05): the reviewed [actual API unsupported-recovery operation](api-recovery-tasks.md)
+      now has a [finite evidence packet and verification](api-recovery-verify.md#finite-reviewed-component-publication--2026-11-05),
+      including the original I1 finding and approved reply-detachment proofs. It retains uncertainty,
+      historical checkpoints and occupied capacity; full startup composition, positive physical
+      continuation, additional durable provider/transfer proof and this parent task remain open.
 - [ ] 6a.8 Provide run-coordinator, inspect-runs, resume-attempt, cancel-attempt and
       reconcile-attempt operations over adapter configuration and the guarded WBS bridge.
       Demonstrate safe compatibility
