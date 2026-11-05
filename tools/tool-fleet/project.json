@@ -32,7 +32,9 @@
         "{workspaceRoot}/infra/**/*",
         "{workspaceRoot}/deploy/k8s/**/*",
         "{workspaceRoot}/openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
-        "{workspaceRoot}/openspec/changes/observability-environment-parity/evidence/staging-native-control.py"
+        "{workspaceRoot}/openspec/changes/observability-environment-parity/evidence/staging-native-control.py",
+        "{workspaceRoot}/openspec/changes/observability-environment-parity/evidence/staging-native-prepare-draft.py",
+        "{workspaceRoot}/openspec/changes/observability-environment-parity/evidence/staging-native-prepare-bootstrap.py"
       ]
     },
     "lint": {

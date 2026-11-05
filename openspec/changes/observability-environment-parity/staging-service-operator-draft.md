@@ -1,166 +1,51 @@
-Publication status: unexecuted operator draft. The three original source findings are closed by the [scoped source fix review](staging-service-fix-review-20261105.md); the separate [operator review](staging-service-operator-review-20261105.md) requires four draft corrections before preparation or native execution. The preserved builder is [staging-native-prepare-draft.py](evidence/staging-native-prepare-draft.py); its commit/hash placeholders intentionally prevent use. This publication changes repository inventory, so every future request needs a fresh inventory and metadata calculation. Historical draft figures and source hashes are not launch authority.
+# Task110 one-attempt operator recipe — not executed
 
-# Task110 one-attempt operator recipe — DRAFT, NOT RUN
+The source handoff findings are closed by the [source fix review](staging-service-fix-review-20261105.md). Operator source qualification is approved by the [scoped fix review](staging-service-operator-fix-review-20261105.md), closing the [combined review](staging-service-operator-combined-review-20261105.md) findings. [Qualification evidence](staging-service-operator-qualification-20261105.md) records the real scratch faults and guard proofs. Concrete command review, final source commit and fresh host admission still precede operational use. This document grants no native approval.
 
-Scope: staging service handoff qualification only. Preserve the failed a2f repair,
-all old requests/fixtures/evidence, and full G141754548224. No raw/ISO payload,
-drain, settlement, release, guest, engine, API, deployment or full-stack activity.
+Qualify only the live and dead-sender staging handoff through two fresh sequential services. Preserve all old requests, fixtures, evidence and the failed a2f raw inode. Full old G141754548224 remains charged exactly once in the complete ledger. No raw/ISO payload, inode drain, settlement, repair retry, guest, production activation or dev cutover belongs to this attempt. Canonical acceptance stays4/11; Task97 and Task110 remain open until their actual criteria pass.
 
-This plan and `/tmp/puni-staging110-prepare.py` are review drafts. They have not
-constructed a request, created fixtures, inventoried current state, run helper
-preflight, launched services, or been dynamically tested. Their checks are not
-claimed proved. The script must refuse with its placeholders intact.
+## Freeze and capture the reviewed source
 
-## Source freeze is a prerequisite
+Use the existing source/state owner, UID1000, and the existing user manager. Keep C locale, exact Python3.12, -I and -B. Preserve the real XDG_RUNTIME_DIR and DBUS_SESSION_BUS_ADDRESS. The working directory is /home/df/.codex/worktrees/aa39/puni-00. Installed tools/runtime must retain their root-owned identities; source and fixtures retain the operator's ownership.
 
-Root completes the narrow coordinator fix that acquires the actual request.state
-admission lock before exact inventory/whole-ledger/capacity admission and holds it
-across both cases, counter durability and cleanup. The exact owned dead child
-must close its inherited duplicate. Complete the scoped negatives, R5 proofs,
-typing, source review and normal source commit before any builder execution.
+Finish source tests, scoped review, owning typing and normal source commits before preparing a request. Fill only EXPECTED_SOURCE_COMMIT, EXPECTED_SHARED_SHA and EXPECTED_THIN_SHA in a private copy of [the reviewed builder template](evidence/staging-native-prepare-draft.py). Check the substitutions reproduce the reviewed template except those three literal assignments. The private copy is /tmp/puni-staging110-prepare.py,0600,single-link. Record its exact SHA. Preserve any existing known draft before writing; unexpected files or existing preparation/review/approval/attempt/capture markers require provenance inspection and refusal, never unattended replacement.
 
-Root then fills only these three draft constants from that reviewed commit:
-`EXPECTED_SOURCE_COMMIT`, `EXPECTED_SHARED_SHA`, `EXPECTED_THIN_SHA`. Record the
-final builder SHA256 for independent review. The six other fixed helper hashes
-are already explicit; a changed helper requires a newly reviewed recipe, never
-an automatic refresh. There are exactly eight source roles and seven fixed tools.
+Capture and hash the exact reviewed [bootstrap](evidence/staging-native-prepare-bootstrap.py) once through a read-only tool before operational freeze. Cache those exact bytes. The short trusted root command embeds that buffer after a prefix establishing OPERATOR_DEADLINE and an exception timer, then passes the reviewed private builder SHA and one action as argv. Execute with Python3.12 -I -B -c. This preserves a **main** without **file**; the operational child executes the captured bootstrap buffer and does not reopen its pathname. Do not execute the builder directly. The old direct-builder commands are obsolete.
 
-The earlier shared92c5011d/thin7db65c85 freezes precede the admission-lock fix;
-they are historical facts, not final launch authority. The script captures and
-SHA/Git-verifies all eight source buffers before executing shared helpers. It
-refuses a thin entry exceeding the reserved32768-byte capture envelope; root must
-review a larger physical envelope before attempting preparation in that case.
-Shared public cap remains98304 and its full32768-byte revision is charged.
+The concrete prefix, cached bootstrap SHA, private filled builder SHA and source commit receive independent execution-plan review. The prefix starts the45s hard envelope; work reserves bounded cleanup/publication time inside it. Native/service limits stay unchanged. No recursive launcher or caller-selected executable is permitted.
 
-## Prepare once on the proper host
+## Prepare one canonical request
 
-Use the existing source/state owner and user manager, currently uid1000; do not
-sudo the process to uid0. Root here means the coordinating operator, not Unix
-ownership. Source, request, fixtures and both inventory roots must belong to the
-effective operator. Installed runtime/tool pins must be root-owned.
+The reviewed builder captures and hashes the fixed8source and7tool roles, verifies Git commit/blobs and a clean source tree, and loads verified helper buffers. Its complete runtime closure comes from producer-used imports/maps after helper loading. Actual kernel/runtime/source pins replace historical observations. Required Git output is consumed under live bounds.
 
-Use the exact working directory below and retain the real XDG_RUNTIME_DIR and
-DBUS_SESSION_BUS_ADDRESS. C locale, Python3.12 isolation and no-bytecode mode are
-mandatory. The builder runs as `python -c`, so its `/tmp` pathname does not become
-an uncovered `__main__.__file__`. No datetime/secrets/tempfile/extra discovery
-imports are used; nonce generation is one `os.urandom(16).hex()` call.
+Hold the original state admission FD and rejoin its PID/start/path/inode/flock around ledger, inventory, capacity and retained-write boundaries. Never acquire a replacement root as recovery. Require the original a2f reservation and provenance exactly once while retaining every additional pending debt.
 
-```sh
-cd /home/df/.codex/worktrees/aa39/puni-00
-LANG=C LC_ALL=C /usr/bin/python3.12 -I -B -c 'exec(compile(open("/tmp/puni-staging110-prepare.py", "rb").read(), "<staging110-operator>", "exec"), {"__name__": "__main__"})' prepare
-```
+Before retained creation, measure complete packet allocation. Only the12 exact old terminal-receipt-bound fixture file inodes totaling1544192bytes are exempted from packet metadata; every directory, symlink and other file is charged. Those fixture bytes remain in the2MiB fixture bucket, whole inventory and backing-space accounting.
 
-Do not run this until the source and builder have been reviewed and the proper
-host execution is authorized. There is no attempt to execute it in this draft.
-Existing `/tmp/puni-staging110-prepared.json` causes refusal: inspect provenance
-instead of removing/replacing it unattended.
+The authoritative future charges are the builder's FUTURE entries. They include native projections/tails, shared and thin source captures, bounded records, operator builder/bootstrap and one bounded qualification record. Creation additionally reserves65536bytes request,2*4096 empty directories and16384 packet growth. Require measured metadata plus every future/creation reserve to fit1048576bytes. Source size limits alone do not certify physical allocation. Any additional retained test/log/report copy needs its own charge.
 
-Preparation first captures sources/tools, checks exact commit/Git blobs and a
-tracked-clean tree, and loads only verified source buffers. Git status disables
-threaded index/preload/fsmonitor and optional locks under128MiB address space;
-the production helper's own rev-parse/ls-tree checks stay unchanged. It then
-holds the actual state admission lock while reading the complete ledger and
-early two-root inventory/capacity. Original a2f G is required exactly once in
-that complete ledger; it is never separately added a second time or credited.
+The dated diagnostic measured503808bytes of packet metadata; it is not current admission. Preserve the unchanged1MiB metadata,2MiB fixtures,128MiB coordinator/client,256MiB service,1CPU/pids32,12s coordinator work and20s native hard wall. Initial/live memory floors stay2.625/2GiB; backing floors50/40GiB plus the complete G and future reserve; staging10GiB and outside160MiB remain. Full-platform16GiB acceptance is a separate condition.
 
-Before any retained creation, measured packet metadata plus all new/future
-allocation reserves must fit1MiB. The sole fixture subtraction is12 exact old
-terminal-receipt-bound unchanged fixture file inodes totaling1544192bytes;
-every directory, symlink, other file and every historical artifact stays charged.
-The2MiB fixture bucket remains enforced. Both buckets remain charged in the
-complete state/outside inventory and physical floors.
+One nonce comes from os.urandom16. Create only two exclusive empty0700 directories, staging-NONCE-live/dead. Bind their actual path/device/inode/owner/mode; the exclusive-mkdir preparation record supplies lineage. No asserted creator PID substitutes for observation.
 
-The fresh request goes only to the existing packet as request-NEWNONCE.json.
-Two exclusive empty0700 directories are staging-NEWNONCE-live/dead. Their
-observed fixed path/device/inode/owner/mode are the exact v2 request fields.
-The `/tmp` preparation record supplies exclusive-mkdir lineage; no unverifiable
-creator assertion is accepted.
+Write/fsync the request first as65536spaces. Inventory its original inode/blocks and complete roots, then finalize padded canonical JSON through that same FD. Require unchanged inode/size/blocks and unchanged final inventory. Only the exact request's timestamps are exempted from content self-reference. All other timestamps remain bound. Never rewrite the original accepted request.
 
-The request is first allocated/written/fsynced as65536bytes of spaces. After
-directory/packet sync and the final whole-ledger join, inventory freezes its
-inode/blocks. Final JSON is padded and written once through the same descriptor;
-size/inode/allocation must stay exact. Only this canonical request path omits
-mtime/ctime in inventory. All other entry timestamps remain bound, including
-the old accepted request, which is never rewritten or executed.
+## Review the frozen request and launch once
 
-The future budget explicitly reserves65536bytes total projections,5*4096 tails,
-32768 shared capture growth,32768 thin capture,32768 preparation/approval/attempt,16384 plan,
-8192 review,16384 execution capture,16384 journal, and16384 directory/rounding.
-Before creation it additionally reserves the65536 request,2*4096 empty directory
-blocks and16384 preparation packet growth. After creation actual allocations
-replace those last three projections. Actual measured totals govern refusal.
-No size cap alone certifies an artifact's physical allocation.
+After final inventory, make no writes below .puni or .superpowers until the sole source CLI is terminal. Finish tests, source commits, planning copies and progress updates first. Independent review writes only under /tmp. Preparation/review/approval/attempt/capture markers are exclusive; preserve every failure and do not replay a nonce.
 
-## Freeze, independently review, then invoke once
+Run the same captured bootstrap with action review. This uses actual authorize, verify_environment, check_loaded_runtime, inventory, reservation, capacity, fixture and native-unit observers. Its output is technical preflight. Independent approval still needs the exact request/SHA/inode, both fixture identities and creation lineage, source commit/Git blobs,8+7roles, root-owned runtime/kernel pins, both complete root inventories, complete ledger/G, current floors and metadata projection. New unit names must be absent.
 
-After final binding, make no `.puni` or `.superpowers` writes until the source
-invocation's terminal outcome. Do not copy this plan/reports, append logs, format,
-test, commit, push, update task files, rewrite requests or produce packet captures
-in that interval. Independent review writes only under `/tmp`.
+After independent approval, write one private bounded /tmp/puni-staging110-approved.json with exactly schemaVersion1,sourceCommit,builderSha256,nonce,requestSha256,approved=true. Values must match the reviewed preparation; preserve request bytes. The independent review is at most8192bytes; the plan at most16384. A larger artifact requires a newly reviewed envelope before preparation.
 
-```sh
-LANG=C LC_ALL=C /usr/bin/python3.12 -I -B -c 'exec(compile(open("/tmp/puni-staging110-prepare.py", "rb").read(), "<staging110-operator>", "exec"), {"__name__": "__main__"})' review
-```
+Use action launch on the same cached bootstrap/private builder SHA. It repeats preflight under the original operator lock, persists the one-use attempt marker, then closes that original preflight FD. The source CLI independently acquires and retains its own actual state lock across both cases. No wrapper-held substitute authorizes it.
 
-This writes bounded `/tmp/puni-staging110-review.json` using actual existing
-`authorize`, `verify_environment`, `check_loaded_runtime`, `inventory_roots`,
-`read_reservations`, `observe_capacity`, `check_fixture` and `observe_unit` helpers.
-It is a fresh technical preflight, not independent approval by itself. An
-independent reviewer must inspect builder and source commit, all8 source and7
-tool roles, fresh root-owned actual runtime closure, kernel, original padded FD
-identity, both fixture identities/lineage, two-root digest, complete ledger/G,
-50GiB+G+future backing,160MiB outside,10GiB staging and2.625GiB initial memory
-floors, and the complete1MiB metadata projection. Runtime closure comes from
-actual producer-used imports/maps after verified helper loading, never old pins.
+The sole original CLI receives a21s transport bound and4096bytes joint stream allowance; capture allocation is at most16384. The overall operator stays within45s including reserved cleanup/publication. Overflow, timeout, nonzero exit, unexpected stdout or any stderr refuses. Preserve body, cleanup and publication failures together. Failed kernel kill/wait outcomes remain explicit uncertainty; no false terminal or capture success is permitted. Source owns native-unit cleanup. Stop on refusal; no automatic retry.
 
-After approval, root writes one private bounded `/tmp/puni-staging110-approved.json`
-with exactly the following fields, substituting the reviewed values from the
-preparation record: schemaVersion1, sourceCommit, nonce, requestSha256,
-approved=true. Require0600 and single-link ownership; no request bytes change.
-Keep the review report within8192bytes. If root wants more retained review text,
-stop and revise/review the envelope before preparing any request.
+## Audit the actual terminal outcome
 
-```sh
-LANG=C LC_ALL=C /usr/bin/python3.12 -I -B -c 'exec(compile(open("/tmp/puni-staging110-prepare.py", "rb").read(), "<staging110-operator>", "exec"), {"__name__": "__main__"})' launch
-```
+Join all four live/dead durable/terminal projections to the exact request/source/unit/PID/start/invocation/cgroup. Verify real message credentials, queued exclusion, live adoption/dead-sender refusal, original limits, authentic pre-exit counters, durable publication before ACK, original client exit, terminal empty groups and repeated original-owned cleanup. Missing provider/post-collection counters remain unavailable. Use lossless Python/canonical bytes for wide values; new summaries use decimal strings.
 
-The launcher freshly repeats actual preflight while holding its own admission
-lock, writes a one-use exclusive `/tmp` attempted marker, closes its own original
-lock FD and invokes the corrected thin source CLI exactly once. The CLI must
-independently acquire the actual state admission lock before its exact admission
-and retain it through both sequential fresh units. No external wrapper substitutes
-for this source safety property. Normal source races remain refusal, never retry.
+Exit0 or a qualification marker alone is insufficient. Record timings, every refusal, stream absence and any unavailable observation. A journal capture, if needed, is bounded to16384bytes for the exact two units.
 
-The outer capture has4096bytes joint stream payload/16384bytes JSON allocation
-envelope and21s transport timeout; source has its existing12s work/20s hard wall.
-Output overflow, timeout, nonzero exit, unexpected stdout or any stderr refuses.
-Only the original spawned CLI is killed/reaped by the outer capture. Native unit
-cleanup belongs to the verified source's original-owned lifecycle. The output
-capture is `/tmp/puni-staging110-capture.json`; it does not certify native success
-by itself. Stop on every refusal; preserve all files and never replay this nonce.
-
-## Terminal audit and publication
-
-After terminal, independently join the two cases' durable/terminal projections
-to the exact request/source/unit/PID/start/invocation/cgroup, real credentials,
-queue exclusion/adoption/dead-sender refusal, process/native caps, authentic
-pre-exit counter bodies, publication-before-ACK, original client exits, terminal
-empty groups and repeated original-owned cleanup. Absent post-collection/provider
-counters remain explicitly unavailable. Inspect actual timings and private stream
-absence. Do not infer these outcomes from exit0 or a qualification marker alone.
-
-Only then may root retain the bounded plan/preparation/review/capture/journal
-artifacts in the packet, verifying actual allocated metadata stays under1MiB
-and full two-root/G/floors still hold. A journal capture, if collected for the
-two exact fresh units after terminal, has16384bytes total physical allowance;
-bounded absence/unavailability is recorded explicitly and never zeroed. No
-unbounded output or extra artifacts fit automatically. Preserve old evidence.
-The25600-byte-scale builder stays under `/tmp`; its exact reviewed SHA is recorded
-with preparation. Copying it into retained roots needs its own additional charge.
-Record native outcome separately, normal commit and freshly push all work.
-Service-handoff qualification alone leaves failed-settlement producer/reader,
-old-inode drain, Task97 and canonical runtime acceptance4/11 outstanding.
-
-## Operator review prerequisites
-
-The [2026-11-05 operator review](staging-service-operator-review-20261105.md) requires four corrections before real preparation: preserve original admission-lock/path identity through builder observations; protect the original CLI immediately after spawn, including outer timeout cleanup; bind the exact reviewed executable builder buffer; and start wall/output bounds before bootstrap I/O. No preparation, request creation or native execution is authorized by this draft. Its source remains deliberately placeholder-blocked. The early metadata projection must be remeasured rather than copied from historical figures.
+After terminal, retain only explicitly charged artifacts and recheck actual allocation. One compact qualification record may bind the public full report by SHA/path within its reserved slot; do not silently copy an oversized report. Preserve original evidence, normal-commit new outcome artifacts and freshly push every source/OpenSpec change to PR760. Service handoff qualification leaves the settlement producer/reader, old-inode drain and full observability acceptance open.
