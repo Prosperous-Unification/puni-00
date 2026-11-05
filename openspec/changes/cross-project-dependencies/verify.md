@@ -7870,3 +7870,9 @@ Actual component tests keep their original epochs: harmless80, real Graph202/11/
 2026-11-05: [ordinary extracted pre-helper allocation inputs](verify-prehelper-allocation-20261105.md) records the observed missing-input refusal, narrowly lexical ordinary control, actual START omission and exact restored checks without private grant or production changes.
 
 2026-11-05: [ordinary cleanup descriptor targeting](verify-cleanup-descriptor-20261105.md) records the confirmed transient-FD selection, safe first-close retirement, preserved original fault oracles and exact restored checks. Full-source/runtime and private qualification remain separate.
+
+## Private main integration — 2026-11-05
+
+[Exact integration and dependency evidence](verify-main-20261105.md) records the
+reviewed main union, owned frozen CTT0.13 install and focused actual consumers.
+Frontend response/custody, full gates, private acceptance and delivery remain open.

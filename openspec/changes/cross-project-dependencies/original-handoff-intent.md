@@ -2,7 +2,7 @@
 
 ## Problem
 
-Actual policy restoration still returns with ingress and controllers fenced. Stored initial graph fixtures do not establish a live producer, and the current owner assertion requires a pending pathname that terminal retirement must remove. Reopening ingress without compatible installed controllers would strand the activated deployment.
+Policy restoration returns with ingress/controllers fenced. Stored graph fixtures prove no live producer; the owner requires a pending pathname terminal retirement removes. Reopening ingress without compatible installed controllers would strand the activated deployment.
 
 ## Outcome
 
@@ -10,11 +10,11 @@ One original activation invocation retains its owner, prepared context, deadline
 
 ## Non-goals
 
-This packet does not authorize hosts, native images, main adoption, deployment or held proofs. It neither invents successor approval from the initial graph nor reinterprets old same-source hashes. The separate selected-successor protocol and real deploy/sync implementation remain mandatory pre-exposure dependencies, not features supplied by refusal-only JC or this publisher.
+This packet does not authorize hosts, native images, main adoption, deployment or held proofs. It neither invents successor approval from the initial graph nor reinterprets old same-source hashes. The selected-successor protocol and real deploy/sync remain mandatory before exposure, outside refusal-only JC and this publisher.
 
 ## Constraints
 
-Preserve accepted V5 graph grammar, independent runtime-launch pins, twelve writer slots, exact original context and existing whole observations. An exposed record follows actual exposure/readback; eligibility precedes exposure and cannot depend on the future complete pointer. All H0–H8 work uses the original absolute deadline with no reset. Ordinary owner effects stop at terminal reservation; only enumerated archive/publication and original-bound read-only observations remain. Unknown child/read disposition retains original custody and locks. After possible exposure, preserve current storage/evidence and require attended compatible recovery. No rollback, recapture, automatic retry or callback-based success. Full graph/solver qualification, compatible successor consumers, controller prerequisite, native/capacity and current exact-source validation remain explicit gates. This is a draft for independent review, not a code lease or completion claim.
+Preserve accepted V5 graph grammar, independent runtime-launch pins, twelve writer slots, exact original context and existing whole observations. An exposed record follows actual exposure/readback; eligibility precedes exposure and cannot depend on the future complete pointer. All H0–H8 work uses the original absolute deadline with no reset. Ordinary owner effects stop at terminal reservation; only enumerated archive/publication and original-bound read-only observations remain. Unknown child/read disposition retains original custody and locks. After possible exposure, preserve current storage/evidence and require attended compatible recovery. No rollback, recapture, automatic retry or callback-based success. Full graph/solver qualification, compatible successor consumers, controller prerequisite, native/capacity and current exact-source validation remain explicit gates. Independent review and execution grants remain separate.
 
 ## Bounded UC2 R2 source staging — 2026-11-02
 
@@ -22,4 +22,4 @@ Permit source staging of the two UC2 owning tests and one private dependency-own
 
 ## UC2 refinement
 
-Select exact directories. Proven terminal setup/reporting failures retire parent timers and throw; unknown originals retain HOLD.
+Retain original preparation resources and Promises through failure, expiry and discarded objects. UNKNOWN revokes work and retains actual locks. The dated eight-path design supersedes historical staging. Executable publication requires contained ordinary tests; consumed constructor grants remain consumed.

@@ -152,3 +152,145 @@ configured checks, independent source review and fresh publication. Record exact
 commands/hashes and every skipped/unobserved boundary here when they occur.
 Current response qualification remains the separate hosted actual-producer
 obligation; no closed Source4/native campaign or consumed private grant is reused.
+
+## Fourth epoch implementation and physical proof — 2026-11-05
+
+On private main-union930d, the measured4992/534113 package/lock pair now appears
+as `fresh-main-20261105-ctt-0.13.0` in all three independent admission tables.
+The old three pairs and common16 remain. Current test selection and both HTTP
+epoch assertions now select the fourth pair. Both historical reconstruction
+consumers uniquely reverse the exact0.13 pin/root-lock/resolved-lock hunks,
+validate the full20261104 intermediate, then preserve the originalctt0.12 and
+before-ctt checks. Wire-v1, complete inspectors and generated Node program remain
+unchanged. Source review found no material correction.
+
+The new exact direct test constructs a real owned artifact, materializes actual
+inputs, commits it with ordinary joined Git fixtures, constructs/decodes the
+canonical manifest, and invokes the actual selector. It does not invoke the
+Vite producer, Node/server/private helper, or a successful modeled response.
+TDD first failed in the materializer; adding only that pair exposed a distinct
+actual selector refusal after four assertions. Adding the selector pair made
+that same test pass with five assertions.
+
+Actual owning source checks:128 profile cases/475 assertions and3 finite HTTP
+cases/43 assertions passed. The HTTP selection includes the new direct case and
+two existing mixed-pair producer refusals before consumer/runtime. No whole HTTP
+or actual Vite case ran locally. Exact original command receipts follow; they
+used umask022, cleared environment with actual HOME, pinned Bun/Node PATH and
+owned frontend-ctt13 TMPDIR, empty bunfig and scratch preload:
+
+```sh
+/home/df/.bun/bin/bun test --no-env-file --config=/tmp/puni-initial-empty-bunfig.toml --preload ./tools/test/scratch/preload.ts tools/tool-remote-scripts/src/lib/source-frontend-http.test.ts '--test-name-pattern=^fourth current frontend pair materializes and selects without Vite$'
+```
+
+TDD materializer RED: exit1; 0 pass, 1 fail at materializer unsupported; scratch afterAll returned.
+
+```sh
+/home/df/.bun/bin/bun test --no-env-file --config=/tmp/puni-initial-empty-bunfig.toml --preload ./tools/test/scratch/preload.ts tools/tool-remote-scripts/src/lib/source-frontend-http.test.ts '--test-name-pattern=^fourth current frontend pair materializes and selects without Vite$'
+```
+
+TDD selector RED: exit1; 0 pass, 1 fail, 4 assertions at selector unsupported; scratch afterAll returned.
+
+```sh
+/home/df/.bun/bin/bun test --no-env-file --config=/tmp/puni-initial-empty-bunfig.toml --preload ./tools/test/scratch/preload.ts tools/tool-remote-scripts/src/lib/source-frontend-profile.test.ts --timeout=30000
+```
+
+finite profile final GREEN: exit0; 128 pass, 0 fail, 475 assertions; scratch afterAll returned.
+
+```sh
+/home/df/.bun/bin/bun test --no-env-file --config=/tmp/puni-initial-empty-bunfig.toml --preload ./tools/test/scratch/preload.ts tools/tool-remote-scripts/src/lib/source-frontend-http.test.ts '--test-name-pattern=fourth current frontend pair materializes and selects without Vite|producer fixed-root boundary refuses mixed historical'
+```
+
+selected HTTP finite GREEN: exit0; 3 pass, 33 filtered out, 0 fail, 43 assertions; scratch afterAll returned.
+
+```sh
+/home/df/.bun/bin/bunx tsc --build --force tools/tool-remote-scripts/tsconfig.json
+```
+
+configured remote TSC: exit0; tool session 3391 terminal exit 0, empty stdout/stderr log.
+
+```sh
+/home/df/.bun/bin/bunx nx show projects
+```
+
+private Nx graph: exit0; tool chunk 3d5224 terminal exit 0; graph populated.
+
+```sh
+/home/df/.bun/bin/bunx eslint tools/tool-remote-scripts/src/lib/source-frontend-profile.ts tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts tools/tool-remote-scripts/src/fixtures/source-frontend-producer.ts tools/tool-remote-scripts/src/lib/source-frontend-profile.test.ts tools/tool-remote-scripts/src/lib/source-frontend-http.test.ts
+```
+
+five-file ESLint final: exit0; tool session 86890 terminal exit 0, empty log; populated private Nx graph.
+
+Two independently reviewed physical dependencies ran in separate before/mutant/
+exact-restored triplets. M removed only the fourth materializer pair: the actual
+materializer refused before current composition. S removed only the fourth
+selector pair: the actual canonical fixture reached selector refusal after four
+assertions. Each mutant exited1 with one selected failing case/35 filtered;
+each intact/restored run exited0 with one pass/five assertions. All six original
+children/exits and stdout/stderr EOFs joined, scratch cleanup returned, no timeout
+or signal was needed, and all five source bytes/modes0664 matched after each pair.
+
+Corrected manifest `r5-ms-corrected/manifest.json` in the local packet has SHA256
+`d0b3c161ab3ec44e9fb7165d3a994faa3989c2610cca884915881f33721635bd`;
+driver SHA256 `6ec8f6d362490f5b9fb2097c1704f3d313ee65321ad0153e70d507c79bd3a9b8`.
+The earlier matcher attempt stopped after intact M-before, before any source
+write: its regex expected9 interior lines rather than the actual8/11total.
+That attempt remains separately retained and earns no mutation/RED credit.
+A corrected driver/manifest began with a fresh M-before. Astra inspected all12
+stream hashes and all six final OUTER summaries. Only the two actual PAIRS
+entries receive adjacent Proof comments, added after exact restoration.
+
+Private implementation receipt `/tmp/puni-frontend-ctt13-implementation-20261105.json`
+SHA256 `bdef9d1ac34f30973a03c9d9331de82f6c4c249247c86497a9d21b0659c8014f`.
+Raw packet is `tmp/puni-delivery-evidence/20261105/frontend-ctt13/`.
+These are retained local evidence paths, not committed logs or availability
+promises on other hosts. Empty TSC/lint logs are supported by their original
+terminal tool exits above; emptiness alone is not a success receipt.
+
+FEP7 implementation is recorded; FEP8 remains incomplete: physical producer
+fourth-pair omission has no safe local positive witness and remains pending.
+Reconstruction assertions are test-only compatibility checks, without claimed
+independent production-guard necessity. Coupled selection logic was unchanged;
+mixed negatives do not create new predicate-necessity credit. FEP9 requires
+actual current Vite output/captured inputs/canonical manifest/both inspectors in
+the hosted source lane. No old response receipt qualifies this epoch. No private
+constructor grant is replayed. Full storage/rest/peers/aggregate, h2 gate, UC2,
+native, architectural main adoption and deployment remain open.
+
+### Root final source checks
+
+After the two factual Proof comments and exact source restoration, Root ran the
+same128 profile and3 safe HTTP cases with `--timeout=10000` (the canonical default)
+and the existing per-case annotations, empty bunfig and scratch preload.
+Original session72780 exited0:128/0/475 and3/0/43, both scratch cleanups returned.
+The five source files otherwise match the reviewed proof epoch; stripping only
+the two exact comments reconstructs its original selector/materializer hashes.
+No actual Vite/private helper ran. Final configured uncached remote typecheck
+and lint also passed, original session27089 exit0,24.5s:
+
+```sh
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false node node_modules/nx/dist/bin/nx.js run-many -p tool-remote-scripts -t typecheck,lint --parallel=2 --skip-nx-cache
+```
+
+Owned frontend-ctt13 Nx workspace/cache and pinned Bun/Node PATH were used.
+Final raw log hashes:
+
+- `root-final-profile.log`: `1ef556b8bdce9f477c248e4602ccef4c7c67f57d859945a7de876df983fca897`.
+- `root-final-http.log`: `7f018e01b0b611e2775812e9349a4b40fe7feda02684f7deb8e92d214e56c501`.
+- `root-final-statics.log`: `74294c2839567b24421fdec2342463a6f6aa7934c03605a013bd10005624e783`.
+
+Final five source SHA256 values (after comments):
+
+- `lib/source-frontend-profile.ts`: `11b60f2a789e11175f9fe43423ed83f9a2d4e59ff1d92b6b82c80345a56a4957`.
+- `fixtures/source-frontend-profile.ts`: `a4f9378c421110a43d2a2db51edb9e56afc38cbb6bfc74f954322b2810d196c0`.
+- `fixtures/source-frontend-producer.ts`: `e97d58108a9f88282c41fbfba84cf0549a5aa9193d27a5bf712250e13c9eb2c3`.
+- `lib/source-frontend-profile.test.ts`: `ba9b8660670b0c0bb252877554c446e28ec52587be06ed2addb387c35008a1ba`.
+- `lib/source-frontend-http.test.ts`: `1906e4752587a2589325dfb61de4fd35fdba746afa639a6fcb6c57ad339de240`.
+
+Astra final proof review SHA256 `a713388b17b7f8a4dac1a1a347e0e53beb9974337eada957ed93ce0ab2e94b7f`.
+FEP8 producer proof and FEP9 actual current response remain open.
+
+Final staged document/index checks and `openspec validate --all --json` passed
+334/334 entries (314 changes,20 specs); formatting and staged diff checks passed.
+Astra materialization review aligned the composition-slot sentence to the
+corrected design; UC2 implementation/proofs remain prospective.

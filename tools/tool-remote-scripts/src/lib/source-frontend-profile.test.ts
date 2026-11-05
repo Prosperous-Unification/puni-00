@@ -71,6 +71,17 @@ const PAIRS = [
       sha256: '129512f0a0fc719b814e7998353190f8827d96085f99000c418c6988ebbbb728',
     },
   },
+  {
+    epoch: 'fresh-main-20261105-ctt-0.13.0',
+    'package.json': {
+      bytes: 4992,
+      sha256: '0b635ebde6513e9bce36d000bbd04fc3cc817ff49074af8e5e3219910a97f131',
+    },
+    'bun.lock': {
+      bytes: 534113,
+      sha256: '48b5cea4e2ac740d300f4e41cc705dfb5213210c4db378f8cdf65640fb695adb',
+    },
+  },
 ];
 
 let current: SourceStartupManifest;
@@ -130,7 +141,7 @@ for (const pair of PAIRS)
     beforeAll(() => {
       // Historical pair is modeled canonical selection metadata, not freshly produced Vite output.
       manifest =
-        pair.epoch === 'fresh-main-20261104'
+        pair.epoch === 'fresh-main-20261105-ctt-0.13.0'
           ? current
           : canonical({
               ...current,
@@ -327,6 +338,24 @@ for (const historical of PAIRS.slice(0, -1))
     },
   );
 
+for (const historical of PAIRS.slice(0, -1))
+  test.each(['package.json', 'bun.lock'] as const)(
+    `mixed frontend pair refuses current ${historical.epoch} %s alone`,
+    (path) => {
+      const currentPair = PAIRS.at(-1);
+      if (currentPair === undefined) throw new Error('current pair expectation absent');
+      const historicalEntries = current.entries.map((entry) => {
+        if (entry.root !== 'source' || entry.kind !== 'file') return entry;
+        if (entry.path !== 'package.json' && entry.path !== 'bun.lock') return entry;
+        const expected = entry.path === path ? currentPair[path] : historical[entry.path];
+        return { ...entry, size: expected.bytes, sha256: expected.sha256 };
+      });
+      expect(() =>
+        selectSourceFrontendProfile(canonical({ ...current, entries: historicalEntries })),
+      ).toThrow('source frontend input profile unsupported');
+    },
+  );
+
 test.each(['package.json', 'bun.lock'] as const)(
   'actual committed same-length %s drift reaches selector refusal',
   async (path) => {
@@ -403,7 +432,27 @@ test.each(['package.json', 'bun.lock'] as const)(
   },
   30000,
 );
-/** Exact reverse of the pinned fresh-main package/lock changes; no Git history is read by this test. */
+/** Reverses only the exact current CTT pin and resolved lock identity before older private-pair hunks. */
+const CURRENT_REVERSALS = {
+  'package.json': [
+    [
+      '    "configurable-tree-traversal": "0.13.0",\n',
+      '    "configurable-tree-traversal": "0.12.0",\n',
+    ],
+  ],
+  'bun.lock': [
+    [
+      '        "configurable-tree-traversal": "0.13.0",\n',
+      '        "configurable-tree-traversal": "0.12.0",\n',
+    ],
+    [
+      '    "configurable-tree-traversal": ["configurable-tree-traversal@0.13.0", "", { "dependencies": { "uuid": "^14.0.3" } }, "sha512-7bEo36spuSbjIvDflzcr+DrZ9MQhZeYHRPW72rtQuL0KfgD5VGzIEMENLsgVTkn+JzqXIT/7qvl+J3Lbbl8vNA=="],\n',
+      '    "configurable-tree-traversal": ["configurable-tree-traversal@0.12.0", "", { "dependencies": { "uuid": "^14.0.3" } }, "sha512-AsAFLmDPdtEvYZ0sQPIgavYba8SKUgLqS+snyW0DlPE7wwYuXguj+UdvQRgbfPRvjWHVowFxaBowDX2otO+rlQ=="],\n',
+    ],
+  ],
+} as const;
+
+/** Exact reverse of the pinned older fresh-main package/lock changes; no Git history is read. */
 const HISTORICAL_REVERSALS = {
   'package.json': [
     ['  "name": "@puni-mono/workspace",\n', '  "name": "@puni/workspace",\n'],
@@ -462,18 +511,33 @@ const HISTORICAL_REMOVALS = {
 };
 
 function reconstructHistoricalInput(path: 'package.json' | 'bun.lock', bytes: Uint8Array): Buffer {
-  const current = PAIRS.at(2);
+  const current = PAIRS.at(3);
+  const previous = PAIRS.at(2);
   const ctt = PAIRS.at(1);
   const historical = PAIRS.at(0);
-  if (current === undefined || ctt === undefined || historical === undefined)
+  if (
+    current === undefined ||
+    previous === undefined ||
+    ctt === undefined ||
+    historical === undefined
+  )
     throw new Error('independent pair expectations absent');
   expect({
     bytes: bytes.byteLength,
     sha256: createHash('sha256').update(bytes).digest('hex'),
   }).toEqual(current[path]);
+  // Every exact current hunk occurs once before the complete older-main identity is accepted.
+  let contents = Buffer.from(bytes).toString('utf8');
+  for (const [present, prior] of CURRENT_REVERSALS[path]) {
+    expect(contents.split(present).length - 1).toBe(1);
+    contents = contents.replace(present, prior);
+  }
+  expect({
+    bytes: Buffer.byteLength(contents),
+    sha256: createHash('sha256').update(contents).digest('hex'),
+  }).toEqual(previous[path]);
   // Restore the exact reviewed private pair with pinned literal reverse hunks.
   // Each hunk must occur once; the intermediate hash proves no other bytes changed.
-  let contents = Buffer.from(bytes).toString('utf8');
   for (const [present, prior] of HISTORICAL_REVERSALS[path]) {
     expect(contents.split(present).length - 1).toBe(1);
     contents = contents.replace(present, prior);

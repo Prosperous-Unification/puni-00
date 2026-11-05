@@ -2755,3 +2755,27 @@ reported as constructor qualification or full-goal/release readiness.
 
 - **WHEN** the ownership split is reviewed
 - **THEN** the same three constructor callback bodies and admission helper remain, the entry is typechecked and linted, and ordinary CI alone leaves native and release acceptance open
+
+### Requirement: Preparation cleanup joins original asynchronous work
+
+The original owner SHALL enroll preparation before acquisition, retaining actual originals and original composition/operation Promises independently of returned objects/errors. One unfinished composition per owner SHALL include post-runtime finalization until its original body Promise is observed settled and the capsule is finalized prepared or known closed; owner finalization SHALL separately join its actual projection. Finalized prepared capabilities may coexist. Copies, cleanup callbacks and completion flags SHALL NOT mint authority.
+
+#### Scenario: Synchronous release races original work
+
+- **WHEN** evidence/store inspection, consume or context assertion has an admitted original pending Promise
+- **THEN** release revokes further work, refuses safely with cleanup deferred, retains the actual Promise and observer, and closes no resources beneath it
+- **AND** owner finalization joins actual originals before cleanup; expiry, timeouts and synthetic completion cannot establish settlement
+
+#### Scenario: Runtime transfer and owner return retain original obligations
+
+- **WHEN** the real nested runtime callback succeeds with explicit evidence transfer and known transient closes
+- **THEN** evidence remains usable for original post-runtime finalization and prepared mint after actual runtime release
+- **AND** later UNKNOWN retains only actual still-held outer locks, never a reacquired or fictional runtime lock
+- **AND** discarded preparations/operations remain owner obligations, with known closes once or permanent strong UNKNOWN custody
+
+#### Scenario: Ordinary HOLD tests accompany executable publication
+
+- **WHEN** executable custody changes can hold an existing ordinary throwing-close case
+- **THEN** accepted finite containment and exact required census updates accompany publication before automatic PR CI executes those cases
+- **AND** draft state, skipped tests, fixture native-return knowledge and consumed constructor grants cannot discharge production UNKNOWN
+- **AND** an intermediate unapplied patch may be preserved for review while executable bytes remain at the prior runnable epoch

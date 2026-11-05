@@ -412,3 +412,17 @@ Earlier pure RED was observed in the original command transcript. Its old tempor
 raw files are now absent; they must not be represented as currently retained evidence.
 The current source driver and GREEN logs remain in ignored worktree evidence storage.
 Full module/native compatibility and full CI remain open. This is a draft checkpoint.
+
+## Corrected UC2 implementation preparation — 2026-11-05
+
+[The portable design](original-handoff-design.md#uc2-preparation-custody-implementation--2026-11-05)
+embeds the full typed architecture and its superseding corrections. Root verified
+unchanged owner/storage/complete hashes on main-union930d. Independent review
+required two named import-policy paths, coupled finite-containment publication,
+one composition slot through post-runtime finalization, and original Promise
+settlement ownership; the addendum supplies these before any source lease.
+Parent UC2/UC4/UC5 and UC2A–UC2F remain unchecked. Historical storage65/4 and
+pushed fixture repairs retain their epochs; no new storage/HOLD/constructor run
+or native grant follows. Actual commands, source identities and proof limits
+must be recorded per implemented slice. Current ordinary/source/gate/native/main
+adoption and deployment remain separate acceptance obligations.
