@@ -48,15 +48,15 @@ test('ordinary storage callbacks retain their bodies without native owner bootst
   expect(callbacks).toHaveLength(42);
   if (callbacks.some((call) => call.arguments.length < 2))
     throw new Error('ordinary test callback absent');
-  // 2026-11-05 fixture-layout repair: 12 explicit bindings and leading provider restoration only.
-  // Independent AST removal retained all original callback, cleanup and four-route loop hashes.
+  // 2026-11-05 cleanup targeting changes one callback after the fixture-layout repair.
+  // Independent preservation proof retains all other41 bodies, old assertions, cleanup and owner loop.
   expect(
     sha256(
       callbacks
         .map((call) => `${call.arguments[0].getText(source)}\0${call.arguments[1].getText(source)}`)
         .join('\0'),
     ),
-  ).toBe('629beecfe907fabc61ecb96435baf8e910af0b82c2083a5069cb6e561504365e');
+  ).toBe('d9fe432a91cc5c5d514647e08b09f530fff7c0d34cb40cd7526146c040bcfc0d');
   const cleanup = callsNamed(source, 'afterEach');
   expect(cleanup).toHaveLength(1);
   if (cleanup[0].arguments.length !== 1) throw new Error('ordinary cleanup callback absent');
