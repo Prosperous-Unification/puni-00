@@ -189,7 +189,7 @@ UNIT = stat("unit", isreg=True)
 NONE = stat("absent")
 
 
-def recorded(root=ROOT, units=(UNIT, UNIT, UNIT)):
+def recorded(root=ROOT, units=(UNIT, UNIT, UNIT, UNIT, UNIT)):
     return {"puni_gate_pool_paths": {"results": [root, NONE, NONE, *units]}}
 
 
@@ -201,12 +201,18 @@ family("E3 pool root and unit files", paths, [
      refused(PATHS)),
     ("root foreign", {}, recorded(root=stat("root", isdir=True, mode="0700", pw_name="nobody")), None,
      refused(PATHS)),
-    ("watch unit missing", {}, recorded(units=(NONE, UNIT, UNIT)), None, refused(PATHS)),
-    ("audit service missing", {}, recorded(units=(UNIT, NONE, UNIT)), None, refused(PATHS)),
-    ("audit timer missing", {}, recorded(units=(UNIT, UNIT, NONE)), None, refused(PATHS)),
+    ("watch unit missing", {}, recorded(units=(NONE, UNIT, UNIT, UNIT, UNIT)), None, refused(PATHS)),
+    ("audit service missing", {}, recorded(units=(UNIT, NONE, UNIT, UNIT, UNIT)), None,
+     refused(PATHS)),
+    ("audit timer missing", {}, recorded(units=(UNIT, UNIT, NONE, UNIT, UNIT)), None, refused(PATHS)),
+    ("refresh service missing", {}, recorded(units=(UNIT, UNIT, UNIT, NONE, UNIT)), None,
+     refused(PATHS)),
+    ("refresh timer missing", {}, recorded(units=(UNIT, UNIT, UNIT, UNIT, NONE)), None,
+     refused(PATHS)),
 ], [(drop_that(0), "root missing"), (drop_that(1), "root 0755"), (drop_that(2), "root foreign"),
     (drop_that(3), "watch unit missing"), (drop_that(4), "audit service missing"),
-    (drop_that(5), "audit timer missing")])
+    (drop_that(5), "audit timer missing"), (drop_that(6), "refresh service missing"),
+    (drop_that(7), "refresh timer missing")])
 
 unenrolled = [task("validate.yml", "Require no host pool state on a host that is not enrolled")]
 
@@ -214,7 +220,7 @@ unenrolled = [task("validate.yml", "Require no host pool state on a host that is
 def state(config, ledger):
     return {"puni_gate_pool_paths": {"results": [ROOT, stat("c", isreg=True) if config else NONE,
                                                  stat("l", isreg=True) if ledger else NONE,
-                                                 UNIT, UNIT, UNIT]}}
+                                                 UNIT, UNIT, UNIT, UNIT, UNIT]}}
 
 
 STATE = "puni_gate_host_pool_enroll is false, but the configuration exists"
@@ -235,13 +241,18 @@ def systemctl(states, rc):
 
 
 family("E5 user units enabled", enabled, [
-    ("both enabled", {"puni_gate_host_pool_enroll": True}, None, systemctl(["enabled", "enabled"], 0),
-     ACCEPTED),
+    ("all enabled", {"puni_gate_host_pool_enroll": True}, None,
+     systemctl(["enabled", "enabled", "enabled"], 0), ACCEPTED),
     ("unenrolled skips", {"puni_gate_host_pool_enroll": False}, None,
-     systemctl(["disabled", "disabled"], 1), SKIPPED),
-    ("timer static", {"puni_gate_host_pool_enroll": True}, None, systemctl(["enabled", "static"], 0),
+     systemctl(["disabled", "disabled", "disabled"], 1), SKIPPED),
+    ("timer static", {"puni_gate_host_pool_enroll": True}, None,
+     systemctl(["enabled", "static", "enabled"], 0),
      refused("Read whether the Dash user units are enabled")),
-], [(drop_key("failed_when"), "timer static"), (drop_key("when"), "unenrolled skips")])
+    ("refresh timer disabled", {"puni_gate_host_pool_enroll": True}, None,
+     systemctl(["enabled", "enabled", "disabled"], 0),
+     refused("Read whether the Dash user units are enabled")),
+], [(drop_key("failed_when"), "timer static"), (drop_key("failed_when"), "refresh timer disabled"),
+    (drop_key("when"), "unenrolled skips")])
 
 dash = [task("validate.yml", "Name the Dash probes this host skips"),
         task("validate.yml", "Inspect the host pool and audit its envelopes")]
@@ -254,7 +265,7 @@ LAUNCHER = {"puni_gate_launcher_checkout": WORK + "/home/launcher"}
 def ledger(exists, audit_rc=0):
     pre = {**BASHRC, WORK + "/audit-rc": str(audit_rc)}
     return {"puni_gate_pool_paths": {"results": [ROOT, NONE, stat("l", isreg=True) if exists else NONE,
-                                                 UNIT, UNIT, UNIT]}}, pre
+                                                 UNIT, UNIT, UNIT, UNIT, UNIT]}}, pre
 
 
 SKIP = "Skipped `ops pool inspect` and `ops job audit`"

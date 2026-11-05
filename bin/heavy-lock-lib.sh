@@ -1243,6 +1243,18 @@ run_heavy_job() {
       "$job_type" >&2
     return 64
   fi
+  # Inside an admitted job the payload already runs on that job's admission, measured in its
+  # scope; asking again would queue behind its own enclosing job (`dash-host-jobs` 6.10, S6D-A1).
+  # Set-but-empty counts as set, so a cleared variable is refused as malformed, not ignored.
+  # Proof (observed 2026-11-05): with this branch removed, a launcher inside a fake admitted job
+  # asked Dash again under the outer label — `49a: the payload runs under the derived label: want
+  # 'gate:abc/test-queued', got 'gate:abc'`, Dash's argv `--label gate:abc`
+  # (bin/heavy-lock.test.sh, case 49).
+  if [[ -n ${DASH_JOB_ID+set} ]]; then
+    local nested_status=0
+    run_nested_heavy_job "$job_type" "$@" || nested_status=$?
+    return "$nested_status"
+  fi
   local enrollment
   enrollment=$(read_host_pool_enrollment) || return $?
   if [[ $enrollment == unenrolled ]]; then
@@ -1251,6 +1263,107 @@ run_heavy_job() {
     return "$legacy_status"
   fi
   run_enrolled_heavy_job "$job_type" "$@"
+}
+
+# The cgroup v2 path of this shell, the `0::` line of `/proc/self/cgroup`, or 70 when that file is
+# unreadable or has no such line. Tests reach {@link run_nested_heavy_job}'s admitted branch by redefining this function in
+# their own shell, as they do the fixed paths: no variable names a cgroup.
+read_own_cgroup() {
+  local line
+  if [[ ! -r /proc/self/cgroup ]]; then
+    printf 'heavy job: /proc/self/cgroup is unreadable; cannot tell which Dash job this process runs in\n' >&2
+    return 70
+  fi
+  if ! line=$(grep -m 1 '^0::' /proc/self/cgroup); then
+    printf 'heavy job: /proc/self/cgroup has no cgroup v2 entry; cannot tell which Dash job this process runs in\n' >&2
+    return 70
+  fi
+  printf '%s\n' "${line#0::}"
+}
+
+# Run `command [arg ...]`, a launcher's payload of type $1, inside the admitted Dash job that
+# `DASH_JOB_ID` names, under the label `<outer label>/<type>` (`dash-host-jobs` 6.10, S6D-A1).
+#
+# **No lock and no admission of its own.** The enclosing job holds the host for it: its scope
+# measures and caps the nested work, and Dash attributes every process carrying its
+# `DASH_JOB_ID`. Asking again would queue behind that same job, as the observe-mode ticket and
+# the concurrent-mode admission both would, so a nested `test:queued` used to wait out its
+# budget under the outer job's own label. The derived label is what the payload's
+# `HEAVY_LOCK_LABEL` carries and what the one stderr line names; no holder record, ticket or
+# receipt is written, because no hold is taken (the receipts `release-pin.ts`,
+# `scoping-rollback.ts` and `fleet-check` read carry no label).
+#
+# **The scope check proves placement, not admission.** `DASH_JOB_ID` is an environment variable
+# anyone can set, and a variable that skips the lock is an opt-out ({@link
+# resolve_heavy_lock_path}). So the id must have a job id's shape and this process must run in a
+# scope named `dash-job-<id>.scope` ({@link read_own_cgroup}); otherwise 70. That refuses an
+# inherited or hand-set `DASH_JOB_ID` outside such a scope, and a launcher that inherited one
+# unsets it before calling (`puni-pr-00`'s `build-release.sh` does, before its `run_heavy_job`).
+# It does not stop a same-account opt-out: `systemd-run --user --scope --unit dash-job-<id>`
+# passes it, as the lock itself is advisory for the account. A real admission check would ask
+# the ledger for a running job with that id (task 6.10 follow-up).
+#
+# **A type that declares an exclusive unit is refused, 70.** Its unit is either the enclosing
+# job's, in use by the payload that started this one, or not held at all; re-labelling cannot
+# make either sound. Today that is every type but `test-queued`.
+#
+# The payload runs as a foreground child and its status is returned; a signal reaches it through
+# the job's scope, which Dash signals as a whole. Exit codes: the payload's, 64 for a type the
+# catalogue does not name, 70 for an identity outside its scope, a catalogue that cannot be read,
+# or a type with an exclusive unit.
+#
+# Proof (observed 2026-11-05): with the scope comparison replaced by `false`, a `DASH_JOB_ID`
+# naming another job's scope ran the payload unlocked — `49d … want exit 70, got 0`; with the
+# exclusive-unit refusal removed, a nested `solver-image-publish` ran inside the gate's job —
+# `49f … want exit 70, got 0` (bin/heavy-lock.test.sh, case 49).
+run_nested_heavy_job() {
+  local job_type=$1
+  shift
+  local job_id=$DASH_JOB_ID
+  if [[ ! $job_id =~ ^[0-9a-f-]{36}$ ]]; then
+    printf 'heavy job: DASH_JOB_ID is %q, not a Dash job id; unset it to run %s as a job of its own\n' \
+      "$job_id" "$job_type" >&2
+    return 70
+  fi
+  local cgroup scope="dash-job-$job_id.scope"
+  cgroup=$(read_own_cgroup) || return $?
+  if [[ $cgroup != */"$scope" && $cgroup != */"$scope"/* ]]; then
+    printf 'heavy job: DASH_JOB_ID is %s, but this process runs in cgroup %s, outside that job'\''s scope %s; unset it to run %s as a job of its own\n' \
+      "$job_id" "$cgroup" "$scope" "$job_type" >&2
+    return 70
+  fi
+  local catalogue="$heavy_lock_checkout/infra/jobs/catalogue.json" matches exclusive
+  if ! command -v jq >/dev/null 2>&1; then
+    printf 'heavy job: jq is not on PATH; it reads the exclusive units of %s from %s\n' "$job_type" "$catalogue" >&2
+    return 70
+  fi
+  if ! matches=$(jq -e --arg type "$job_type" '[.jobs[] | select(.id == $type)] | length' "$catalogue" 2>/dev/null); then
+    printf 'heavy job: cannot read the job types of %s\n' "$catalogue" >&2
+    return 70
+  fi
+  if [[ $matches == 0 ]]; then
+    printf 'heavy job: %s is not a job type in %s\n' "$job_type" "$catalogue" >&2
+    return 64
+  fi
+  if [[ $matches != 1 ]] ||
+    ! exclusive=$(jq -er --arg type "$job_type" \
+      '.jobs[] | select(.id == $type) | .envelope.exclusive | if type == "array" then join(",") else error("no exclusive list") end' \
+      "$catalogue" 2>/dev/null); then
+    printf 'heavy job: %s does not declare %s exactly once with an exclusive unit list\n' "$catalogue" "$job_type" >&2
+    return 70
+  fi
+  local outer_label=${HEAVY_LOCK_LABEL:-unlabeled}
+  if [[ -n $exclusive ]]; then
+    printf 'heavy job: %s declares the exclusive unit %s; inside dash job %s (%s) it would share that job'\''s unit or hold none, so it runs only as a job of its own, outside %s\n' \
+      "$job_type" "$exclusive" "$job_id" "$outer_label" "$outer_label" >&2
+    return 70
+  fi
+  local nested_label="$outer_label/$job_type"
+  printf 'heavy job: %s runs inside dash job %s on that job'\''s admission; no lock or admission of its own\n' \
+    "$nested_label" "$job_id" >&2
+  local payload_status=0
+  HEAVY_LOCK_LABEL=$nested_label "$@" || payload_status=$?
+  return "$payload_status"
 }
 
 # Run `command [arg ...]` through `ops job run --type $1` and return its status (J13).

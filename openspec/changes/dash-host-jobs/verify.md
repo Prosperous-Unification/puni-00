@@ -2591,3 +2591,167 @@ enrolled. Private `puni-plan` evidence: `evidence/2026-11-05-token-unit-apply.md
 - The `ops job audit` probe under validate was among the 4 skips on both hosts (no ledger yet); it
   stays unexercised live until 6.4. h2puni had 23 GiB free before each apply (role floor 20 GiB).
 - **H2-A12 / H4-A11** The token unit was the only drift on either host.
+
+## Slice 6d: nested heavy jobs and launcher freshness (tasks 6.10, 6.9)
+
+Branch `feat/host-jobs-nested-label-and-launcher-timer` from `main` at `5150237fc`. Nothing here
+touched a host: no ssh, no apply, no enrollment.
+
+### Assumptions (overrulable by id)
+
+- **S6D-A1 A nested call is re-labelled, on its enclosing job's admission, when that is sound
+  (task 6.10).** `run_heavy_job` with `DASH_JOB_ID` set calls `run_nested_heavy_job`, which takes
+  no lock, writes no ticket and asks Dash nothing. It runs the payload with
+  `HEAVY_LOCK_LABEL=<outer label>/<type>` and prints one stderr line,
+  `heavy job: <derived label> runs inside dash job <id> on that job's admission; no lock or
+admission of its own`, which lands in the enclosing job's log.
+  - Why re-label rather than refuse: the nested work is already inside an admitted scope, which
+    measures and caps it, and Dash attributes every process that carries the job's
+    `DASH_JOB_ID`. Asking again only queued it behind its own enclosing job: an observe-mode
+    ticket behind the job's legacy hold, or an admission behind a `gate` that is not
+    concurrency-eligible. With a zero budget either refused 75, under the gate's label.
+  - The check proves kernel placement, not Dash admission. The id must have a job id's shape
+    (`[0-9a-f-]{36}`, as `status.ts` parses it). This process's cgroup v2 path must be, or sit
+    under, a scope named `dash-job-<id>.scope` (`scopeUnitOf`). Otherwise the call is refused 70.
+    That refuses an inherited or hand-set `DASH_JOB_ID` outside such a scope; a launcher that
+    inherited one unsets it before calling. It does not stop a same-account opt-out: the review
+    of #873 reproduced `systemd-run --user --scope --unit dash-job-<id> …` passing it. The lock is
+    advisory for the same account anyway. A real admission check would ask the ledger for a
+    running job with that id; it is owed under task 6.10.
+  - Correction to the review: it read puni-pr-00 as not unsetting the variable. Its launcher
+    `deploy/website/dev/build-release.sh` does, at line 77 on `origin/main` `a31b3c5`
+    (`unset DASH_JOB_ID DASH_JOB_TYPE`), before its `run_heavy_job`. Its payload then reads the
+    pair Dash sets, for the bounds, labels and receipt.
+  - A type that declares an exclusive unit is refused 70. Its unit is either the enclosing job's,
+    in use by the payload that started it, or not held at all. Re-labelling cannot make either
+    sound. Today that means every type but `test-queued`: a nested solver publish or release build
+    is refused with the unit named. It could not run before either: it queued behind the gate.
+    An uncatalogued type is 64, as Dash refuses it.
+  - The `/` separator is kept. The receipts that `release-pin.ts`, `scoping-rollback.ts`
+    (`heavy-lock-claim.ts`) and puni-fleet `fleet-check` read are
+    `<library> heavy lock: waited <n>s behind <k> tickets` or
+    `dash job <id> type website-dev-build`, and neither form carries a label. A ticket's
+    `label` line takes any text. `status.ts` parses a holder label only up to the space after
+    `dash-job-<id>`. A nested call writes none of these.
+  - The legacy lock is unchanged. On an unenrolled host there is no admitted job, so no
+    `DASH_JOB_ID`, and a nested launcher queues behind its parent's lock as before.
+- **S6D-A2 No Dash-side assertion in `launchers.test.ts`.** Its fake scope seam
+  (`fakeSystemdRun` `exec`, `fakeScopeTelemetry`) runs the payload outside any
+  `dash-job-<id>.scope`. A nested launcher there would be refused by the cgroup check, which is the
+  check doing its job. The derived label, the absence of a lock and of a second admission, the
+  status pass-through and the kernel identity are pinned in `bin/heavy-lock.test.sh` case 49,
+  with `read_own_cgroup` redefined in the test shell, the seam this library already uses for its
+  fixed paths. Case 49c reads the real `/proc/self/cgroup`.
+- **S6D-A3 Tests that spawn launchers with an inherited environment.** Run inside an enrolled
+  gate, a test that spawns a real `run_heavy_job` with `process.env` takes the nested path.
+  `launchers.test.ts` already removes the job variables (S6C-A25), and `heavy-lock.test.sh`'s job
+  suite now unsets `HEAVY_LOCK_LABEL` and every `DASH_JOB_*` before case 40. Nothing is owed in
+  `tools/tool-dagger/src/heavy-lock.test.ts`: its gate fixture defines
+  `run_heavy_job() { with_heavy_lock; }`, so the nested path is never reached there and the
+  inherited variables are harmless (review of #873).
+
+### Faults (6.10, `bin/heavy-lock.test.sh`, `HEAVY_LOCK_TEST_SUITES=jobs`)
+
+| Injected fault                                                | Observed                                                                                                                                                    |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `run_heavy_job`'s `DASH_JOB_ID` branch replaced by `if false` | `49a: the payload runs under the derived label: want 'gate:abc/test-queued', got 'gate:abc'`; `49a: the nested call asked Dash again: … --label gate:abc …` |
+| scope comparison replaced by `if false`                       | `49c`/`49d … want exit 70, got 0`, `something ran beside a forged job identity`; 4 checks failed                                                            |
+| exclusive-unit refusal replaced by `if false`                 | `49f … want exit 70, got 0`; the payload ran as `gate:abc/solver-image-publish`; 2 checks failed                                                            |
+
+- **S6D-A4 Who counts as a job launched from the checkout (task 6.9).** It is any live process of
+  `puni1` whose working directory is the checkout or lies under it, except the processes of
+  `dash-resources-watch.service`, which runs there by design and is restarted after the move.
+  - This is the attribution Dash itself uses. `ops job run` reads the catalogue and the payload's
+    revision from the checkout that holds the launcher's working directory (`catalogue.ts`).
+    Every launcher stays alive as the outer shell of its job (J13). The ledger records no
+    checkout for a job (`launcherSha` is null), and the lock's holder record names only a pid and
+    a label, so neither can answer the question.
+  - The scan also catches what neither record would. A Dash waiter would otherwise be refused 64
+    when HEAD moves under it. It also catches a legacy launcher, a `test:queued` run in the
+    checkout, the weekly audit, and an operator's shell.
+  - Other accounts are not read: git refuses a checkout another account owns. A process whose
+    working directory the kernel refuses to `puni1` is skipped. Such a process is more privileged
+    than the account, or already leaving, and no launcher is either. Refusing on it instead
+    refused every run on this workstation, over `ssh-agent` and `systemd --user`.
+  - Busy is exit 75 with one journal line naming the checkout, both commits and each `pid
+command`. The unit lists 75 in `SuccessExitStatus`, so a busy hour is not a failed unit. The
+    next hour retries.
+  - A checkout already at `origin/main` exits 0 and nothing is restarted, so a busy host does not
+    wait on a scan.
+- **S6D-A5 Accepted window.** A launcher can start between the scan and the checkout. It then
+  sees one commit whole, old or new, because git replaces files rather than rewriting them. If
+  its catalogue read and its gate straddle the move, Dash's existing HEAD check refuses it 64,
+  which is loud and rerunnable. The window is the length of a detached checkout. Taking the heavy
+  lock around the move would close it for the legacy queue only. Concurrent-mode admissions do
+  not take that lock first, and a zero-budget caller would be refused 75 at random.
+- **S6D-A6 Restart and install.** The watch is restarted with `try-restart`, so before
+  `ops pool init` a stopped watch stays stopped. A restart while a job from another checkout runs
+  is what the unit is built for: `KillMode=process` keeps the concurrent-mode guard holder alive
+  across it (S6B-A8).
+  - When `bun.lock` changed between the two commits, the checkout's frozen install runs before
+    the restart, because the watch would otherwise start on modules the new commit does not pin.
+    The brief did not ask for this step; it is needed for the restart to be sound.
+  - A failed install returns the checkout to the old commit and reinstalls that commit. The
+    watch, never restarted, keeps running the code that matches, and the next hour retries the
+    whole move. If the return fails as well, the error names the manual steps.
+- **S6D-A7 Installed everywhere, enabled where enrolled, started by the operator.** The role
+  installs `gate-launcher-refresh.service` and `.timer` on every gate host, beside the other Dash
+  units. It enables only the timer, only where `puni_gate_host_pool_enroll` is true, and starts
+  nothing.
+  - gate-hosts.md step 5 starts the timer together with the watch and the audit timer, after the
+    first move. That move stays manual: the service runs the script from the checkout itself, so
+    a checkout older than the script cannot refresh itself.
+  - The timer runs `OnCalendar=hourly`, `RandomizedDelaySec=5min`, `Persistent=true`.
+  - The service is `WorkingDirectory=<home>`, so the refresh is never a process in the checkout.
+  - The script ends in one compound command, so bash has parsed the whole file before the
+    checkout holding it moves.
+  - validate requires both files and the timer enabled.
+- **S6D-A8 CI.** The shell test is a step of its own in `ci.yml`, beside the heavy-lock and gate
+  pinning suites, because no Nx project owns `bin/`. The script and its test are in the fleet
+  check's shellcheck list (`EXTRA_SHELL_SCRIPTS`), since both are executable. No `package.json`
+  script was added: `package.json` is an Nx shared global, and touching it would mark every
+  project affected.
+
+### Faults (6.9)
+
+| ID    | Injected fault                                                                                                 | Observed                                                                                                                                                           |
+| ----- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 6d-F1 | busy refusal (`if [[ -n $workers ]]`) replaced by `if false`                                                   | `1: a process in the checkout refuses the move: want exit 75, got 0`; `1: the checkout did not move` failed; `1b … want exit 75, got 0`                            |
+| 6d-F2 | watch-unit exclusion replaced by `:`                                                                           | `4: a watch process in the checkout does not block the move: want exit 0, got 75`; 2 checks failed                                                                 |
+| 6d-F3 | dirty-checkout refusal replaced by `if false`                                                                  | `5: a dirty checkout is refused: want exit 65, got 0`; the checkout moved, carrying the edit along (git keeps a non-conflicting edit)                              |
+| 6d-F4 | restart status ignored (`systemctl … \|\| :`)                                                                  | `8: a failed watch restart is reported: want exit 70, got 0`; 2 checks failed                                                                                      |
+| 6d-F5 | lockfile install replaced by `if false`                                                                        | `10: the frozen install ran in the checkout: want 'install --frozen-lockfile in <launcher>', got ''`, and 10b's failed install exited 0 with the watch restarted   |
+| 6d-F6 | return after a failed install replaced by `true`                                                               | `10b: the checkout returned to the commit the watch runs` failed; `10c … want exit 70, got 0`; 4 checks failed                                                     |
+| 6d-F7 | service template: `WorkingDirectory` set to the launcher checkout; `SuccessExitStatus=75` dropped              | `gate-host-pool.test.ts` "the launcher refresh runs hourly…": `- "/tmp/gate-host-pool-…"`, `+ ".../puni-00-gate-launcher"`; then `- ["75"]`, `+ undefined`         |
+| 6d-F8 | `host-pool.yml`: refresh service dropped from install; timer dropped from enable; enable task's `when` dropped | `ansible.test.ts` "configures a gate host…" failed each time (33 pass, 1 fail)                                                                                     |
+| 6d-F9 | the skip for a working directory the kernel refuses, replaced by a 70 refusal                                  | every run refused on this workstation: `cannot read the working directory of pid 10816` (`ssh-agent`), then pid 2226 (`systemd --user`, `CapEff 0000000800000000`) |
+
+Review of #873 additions: 6d-F10, the checked `HEAD` read in `bin/gate-launcher-refresh.sh`
+dropped, let a checkout with no HEAD commit move on with an empty head:
+`11: a checkout without a HEAD commit is refused: want exit 70, got 0`, then `fatal: Needed a
+single revision`. `read_own_cgroup` now refuses an unreadable `/proc/self/cgroup` with its own
+message, apart from a file with no `0::` line. That branch has no test: an unreadable
+`/proc/self/cgroup` cannot be arranged for an unprivileged test process.
+
+The controller-image evaluator's E3 now records five unit files and drops each of the eight
+conditions in turn. E4 records them too. E5 adds `refresh timer disabled`, which the probe
+refuses, and removing `failed_when` lets it through. The run's lines are in the commands table.
+
+### Commands (fresh, 2026-11-05, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, this workstation)
+
+| Command                                                                             | Result                                                                           |
+| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `bash bin/heavy-lock.test.sh`                                                       | `all heavy-lock checks passed`, cases 49a–49g included                           |
+| `bash bin/gate-launcher-refresh.test.sh`                                            | `all gate launcher refresh checks passed`                                        |
+| `bash bin/h2puni-gate.test.sh`                                                      | exit 0, `all cases passed`                                                       |
+| evaluator (`gate-host-assertions.py`, controller `@sha256:372f6f43…`, `--user 0:0`) | 102 `ok`, `{"failures": 0}`, exit 0                                              |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                    | 5714 pass, 53 skip, 0 fail across 183 files; exit 0                              |
+| `bunx nx run tool-fleet:check --skip-nx-cache`                                      | 604 pass, 0 fail; `shellcheck 0.11.0: 14 scripts`, `every family passed`, exit 0 |
+| `bunx nx format:check --all`                                                        | exit 0                                                                           |
+| `bunx openspec validate --all --json`                                               | 328 passed, 0 failed, exit 0                                                     |
+| Burokrat `check-indexes working <worktree> origin/main`                             | exit 0 (two pre-existing review-debt rows)                                       |
+| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2`                | 10 projects, exit 0                                                              |
+
+Not done: no host apply, so the units are not installed on h2puni or h4claw. That apply is owed
+with 6.3e's converging apply, and the timer starts at step 5 of the enrollment. No gate ran on a
+host.
