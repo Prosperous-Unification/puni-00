@@ -1,0 +1,391 @@
+{
+  "schemaVersion": 1,
+  "scope": "native systemd user-service staging channel qualification only",
+  "status": "qualified",
+  "nonce": "b9e947f9160280e3160eb81fc3934d00",
+  "sourceCommit": "9c4f86db239974ffddc94f35120af0c90995d254",
+  "sourceDigest": "5344e93ebe19171bb46e35cb94ec5ed5b65e8d3bb05d5ee70a3ae4db34f111f6",
+  "request": {
+    "sha256": "185431eac16f2aee6812526106c872cd5166001255d165761f975931e01bdcd5",
+    "bytes": 65536,
+    "identity": {
+      "allocatedBytes": 65536,
+      "bytes": 65536,
+      "device": "66307",
+      "inode": "18897976",
+      "mode": "0600",
+      "owner": 1000
+    },
+    "schemaVersion": 2,
+    "purpose": "staging-channel",
+    "pins": 15,
+    "runtimePins": 71,
+    "kernel": {
+      "machine": "x86_64",
+      "release": "7.0.11-76070011-generic",
+      "version": "#202606011647~1784215097~24.04~4974880 SMP PREEMPT_DYNAMIC Thu J"
+    },
+    "initialInventory": {
+      "digest": "cd54cde69b57acdd5ac004c60965ad4790889690f2f9f1d77c4489bb52c6ec05",
+      "entries": 6401,
+      "outsideBytes": 110194688,
+      "retainedBytes": 9496350720
+    },
+    "initialLedger": {
+      "digest": "aacf447c85e7d99f92a2276621618e452d6be8935e9c273f008e4cd135250e10",
+      "grossBytes": 141754548224,
+      "records": 1
+    },
+    "directoryPreparation": [
+      {
+        "allocatedBytes": 4096,
+        "identity": {
+          "device": "66307",
+          "inode": "18897972",
+          "mode": "0700",
+          "owner": 1000,
+          "path": "/home/df/.codex/worktrees/aa39/puni-00/.superpowers/sdd/observability-environment-parity/repair-native-controls/staging-b9e947f9160280e3160eb81fc3934d00-live"
+        },
+        "label": "live",
+        "observedNs": "1793914944119788530",
+        "operation": "exclusive-mkdir"
+      },
+      {
+        "allocatedBytes": 4096,
+        "identity": {
+          "device": "66307",
+          "inode": "18897974",
+          "mode": "0700",
+          "owner": 1000,
+          "path": "/home/df/.codex/worktrees/aa39/puni-00/.superpowers/sdd/observability-environment-parity/repair-native-controls/staging-b9e947f9160280e3160eb81fc3934d00-dead"
+        },
+        "label": "dead",
+        "observedNs": "1793914944119842389",
+        "operation": "exclusive-mkdir"
+      }
+    ]
+  },
+  "operator": {
+    "privateBuilderSha256": "780c6926913173b5a2708826bf0aae94e5d9d46598d16fda581d20b1b9f6ee76",
+    "bootstrapSha256": "7c23633b8e693fb5406f8947c0999fb21ddf286bc6085e75b1cb84089f9d0f03",
+    "cachedCommandSha256": "277640069046a91f6fc7ec7bd93686528778aa2183041fb553f034213d7b8b06",
+    "originalOperatorSession": 95183,
+    "originalOperatorExitCode": 0,
+    "originalSourceExitCode": 0,
+    "sourceTransportComplete": true,
+    "sourceStdoutHex": "7b227068617365223a227175616c69666965642d73746167696e672d6368616e6e656c2d6f6e6c79227d0a",
+    "sourceStderrHex": "",
+    "capture": {
+      "bytes": 937,
+      "sha256": "3f808815d6d1cc3f70bdbd11ae983ad1049669a0eed809d50ad6244f0d5cc024"
+    },
+    "initialReview": {
+      "bytes": 5045,
+      "sha256": "6e184a1c1af1632e385109f3f2bdf0cc5f7a41755621da22c77397d021f1c912"
+    },
+    "admissionReview": {
+      "bytes": 7703,
+      "sha256": "5c914ce7ba846eb387850afa5b9d15eef276b48b54e78beb9b88a979cd952c84"
+    },
+    "terminalAudit": {
+      "bytes": 7226,
+      "sha256": "cb439136cd9e9d1098976c1c45e2482c8b1d452b5b0f8c65884bca8ed54a94b1"
+    },
+    "technicalReviewToolElapsedSeconds": "0.571840135",
+    "prepareFullExecutionDuration": "unavailable; original prepare handle70736 first yielded after1.001794741s then observed terminal0; no precise full-duration claim",
+    "sourceCoordinatorFinalElapsedMilliseconds": "3976"
+  },
+  "cases": {
+    "live": {
+      "unit": "puni-staging-live-b9e947f9160280e3160eb81fc3934d00.service",
+      "pid": 3332679,
+      "start": "9984621",
+      "invocation": "575d4f84d6b24111b5aeecb8ee68019a",
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/puni-staging-live-b9e947f9160280e3160eb81fc3934d00.service",
+      "sender": {
+        "pid": "3332665",
+        "start": "9984514"
+      },
+      "outcome": "adopted",
+      "counterStartedNs": "1793916115668263684",
+      "counterFinishedNs": "1793916115681641273",
+      "controlledIntervalNs": "13377589",
+      "cpuUsageUsecAtCapture": "245291",
+      "memoryCurrentBytesAtCapture": "18231296",
+      "memoryPeakBytesAtCapture": "19574784",
+      "pidsCurrentAtCapture": "1",
+      "oomAtCapture": 0,
+      "oomKillsAtCapture": 0,
+      "pidsLimitEventsAtCapture": 0,
+      "effectiveCaps": {
+        "cpu.max": "100000 100000",
+        "memory.max": "268435456",
+        "memory.swap.max": "0",
+        "pids.max": "32"
+      },
+      "effectiveProcessLimits": {
+        "Max address space": [268435456, 268435456],
+        "Max core file size": [0, 0],
+        "Max file size": [2097152, 2097152],
+        "Max open files": [64, 64],
+        "NoNewPrivs": 1,
+        "Umask": "0077"
+      },
+      "historicalCounterValidationAtTerminalMtimeNs": "1793916116204439655",
+      "freshTerminal": {
+        "MainPID": "0",
+        "Result": "success",
+        "ExecMainStatus": "0",
+        "ControlGroup": "",
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "SubState": "dead",
+        "InvocationID": ""
+      },
+      "freshGroupEvents": null,
+      "postCollectionCounters": "unavailable after collection",
+      "originalWorkerIdentityAbsent": true,
+      "fixtureLockReacquiredAndClosed": true,
+      "sourceRepeatedOwnedCleanup": true,
+      "sourceElapsedMilliseconds": "2305"
+    },
+    "dead": {
+      "unit": "puni-staging-dead-b9e947f9160280e3160eb81fc3934d00.service",
+      "pid": 3332708,
+      "start": "9984793",
+      "invocation": "5924b2b28a994b7e9cd2241ce7661d57",
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/puni-staging-dead-b9e947f9160280e3160eb81fc3934d00.service",
+      "sender": {
+        "pid": "3332706",
+        "start": "9984790"
+      },
+      "outcome": "dead-sender-refused",
+      "counterStartedNs": "1793916117364643922",
+      "counterFinishedNs": "1793916117379486806",
+      "controlledIntervalNs": "14842884",
+      "cpuUsageUsecAtCapture": "239475",
+      "memoryCurrentBytesAtCapture": "17625088",
+      "memoryPeakBytesAtCapture": "18558976",
+      "pidsCurrentAtCapture": "1",
+      "oomAtCapture": 0,
+      "oomKillsAtCapture": 0,
+      "pidsLimitEventsAtCapture": 0,
+      "effectiveCaps": {
+        "cpu.max": "100000 100000",
+        "memory.max": "268435456",
+        "memory.swap.max": "0",
+        "pids.max": "32"
+      },
+      "effectiveProcessLimits": {
+        "Max address space": [268435456, 268435456],
+        "Max core file size": [0, 0],
+        "Max file size": [2097152, 2097152],
+        "Max open files": [64, 64],
+        "NoNewPrivs": 1,
+        "Umask": "0077"
+      },
+      "historicalCounterValidationAtTerminalMtimeNs": "1793916117875426139",
+      "freshTerminal": {
+        "MainPID": "0",
+        "Result": "success",
+        "ExecMainStatus": "0",
+        "ControlGroup": "",
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "SubState": "dead",
+        "InvocationID": ""
+      },
+      "freshGroupEvents": null,
+      "postCollectionCounters": "unavailable after collection",
+      "originalWorkerIdentityAbsent": true,
+      "fixtureLockReacquiredAndClosed": true,
+      "sourceRepeatedOwnedCleanup": true,
+      "sourceElapsedMilliseconds": "3976"
+    }
+  },
+  "sourceProjections": [
+    {
+      "name": "observation-b9e947f9160280e3160eb81fc3934d00-live-durable.json",
+      "bytes": 7147,
+      "allocatedBytes": 8192,
+      "sha256": "3e52bb23026f3968a7fa2c61b6b75310a70e24f5c048091d9c1546392ed687d1"
+    },
+    {
+      "name": "observation-b9e947f9160280e3160eb81fc3934d00-live-terminal.json",
+      "bytes": 1666,
+      "allocatedBytes": 4096,
+      "sha256": "3148ec1d1548886a411d9fc95d45086f7733e89d96015009b86dc9488fb2ff55"
+    },
+    {
+      "name": "observation-b9e947f9160280e3160eb81fc3934d00-dead-durable.json",
+      "bytes": 7156,
+      "allocatedBytes": 8192,
+      "sha256": "669d2d601c6c7680dc98167d607edbe7fc2f3142bd1677c93edc81c5df7a0982"
+    },
+    {
+      "name": "observation-b9e947f9160280e3160eb81fc3934d00-dead-terminal.json",
+      "bytes": 1666,
+      "allocatedBytes": 4096,
+      "sha256": "fc5b8e36c250a474832aa6688a61976c8df3f2bc9de2eb78ae7634933054a872"
+    }
+  ],
+  "projectionBytes": 17635,
+  "projectionAllocatedBytes": 24576,
+  "freshPostNativeCapacity": {
+    "inventory": {
+      "digest": "178a97a9a59b25def90871ce117a28b4c3f5ba894f967a07c89b693f4f72e53b",
+      "entries": 6405,
+      "retainedBytes": 9496350720,
+      "outsideBytes": 110219264
+    },
+    "ledger": {
+      "digest": "aacf447c85e7d99f92a2276621618e452d6be8935e9c273f008e4cd135250e10",
+      "records": 1,
+      "grossBytes": 141754548224
+    },
+    "availableMemoryBytes": 19653976064,
+    "freeBytes": 212470984704,
+    "initial": false
+  },
+  "packetBudgetBeforeRetention": {
+    "metadataAllocatedBytes": 602112,
+    "fixtureAllocatedBytes": 1544192,
+    "futureAllocatedBytes": {
+      "reviewedOperatorBuilder": 49152,
+      "fixedOperatorBootstrap": 8192,
+      "operatorQualificationRecord": 16384,
+      "jointNativeProjections": 65536,
+      "fiveProjectionAllocationTails": 20480,
+      "sharedCaptureRevision": 32768,
+      "thinCapture": 32768,
+      "preparationApprovalAndAttemptRecords": 32768,
+      "operatorPlan": 16384,
+      "independentReview": 8192,
+      "executionCapture": 16384,
+      "terminalJournal": 16384,
+      "directoryGrowthAndAllocationTails": 16384
+    },
+    "projectedMetadataBytes": 933888,
+    "metadataLimitBytes": 1048576,
+    "entries": 60,
+    "fixtureExemption": "only twelve exact original terminal-receipt-bound file inodes; directories charged"
+  },
+  "retention": {
+    "manifest": {
+      "bytes": 3185,
+      "sha256": "6e889a48f73639cac601e7dbd991601f4b478a2590745d809fd197810480f7fe"
+    },
+    "copies": [
+      {
+        "name": "operator-b9e947f9160280e3160eb81fc3934d00-builder.py",
+        "bytes": 33268,
+        "allocatedBytes": 36864,
+        "sha256": "780c6926913173b5a2708826bf0aae94e5d9d46598d16fda581d20b1b9f6ee76"
+      },
+      {
+        "name": "operator-b9e947f9160280e3160eb81fc3934d00-bootstrap-command.py",
+        "bytes": 3523,
+        "allocatedBytes": 4096,
+        "sha256": "277640069046a91f6fc7ec7bd93686528778aa2183041fb553f034213d7b8b06"
+      },
+      {
+        "name": "operator-b9e947f9160280e3160eb81fc3934d00-initial-plan.json",
+        "bytes": 2992,
+        "allocatedBytes": 4096,
+        "sha256": "1133c9cde75fe593590d1aa8f80d23559274e74764e5a73ae5b3bf500481db48"
+      },
+      {
+        "name": "operator-b9e947f9160280e3160eb81fc3934d00-launch-plan.json",
+        "bytes": 6210,
+        "allocatedBytes": 8192,
+        "sha256": "d82c5ca9a47fdbcd1c92b21d1a11c108df9178506d47560fadc485958dc279df"
+      },
+      {
+        "name": "operator-b9e947f9160280e3160eb81fc3934d00-prepared.json",
+        "bytes": 5683,
+        "allocatedBytes": 8192,
+        "sha256": "35cfd81a4313fb1732a9cc9a15fb2b768ec0fb411945eda44c8c29f5c17a4175"
+      },
+      {
+        "name": "operator-b9e947f9160280e3160eb81fc3934d00-review.json",
+        "bytes": 2038,
+        "allocatedBytes": 4096,
+        "sha256": "d2ba97819c42a300c6e5c4ea23f444bbb44ffcdaf78930b68a83e45b2575cb00"
+      },
+      {
+        "name": "operator-b9e947f9160280e3160eb81fc3934d00-approved.json",
+        "bytes": 303,
+        "allocatedBytes": 4096,
+        "sha256": "965fa0f658c4c40d4641f1d28b5ab4e566b0a131bb9202120e73e1b307333bad"
+      },
+      {
+        "name": "operator-b9e947f9160280e3160eb81fc3934d00-launched.json",
+        "bytes": 1632,
+        "allocatedBytes": 4096,
+        "sha256": "b655b860fa22cf8578c5a1ba8f3d8cea492f01fcd1f8ea97e003c840d28424f8"
+      },
+      {
+        "name": "operator-b9e947f9160280e3160eb81fc3934d00-capture.json",
+        "bytes": 937,
+        "allocatedBytes": 4096,
+        "sha256": "3f808815d6d1cc3f70bdbd11ae983ad1049669a0eed809d50ad6244f0d5cc024"
+      },
+      {
+        "name": "operator-b9e947f9160280e3160eb81fc3934d00-admission.md",
+        "bytes": 7703,
+        "allocatedBytes": 8192,
+        "sha256": "5c914ce7ba846eb387850afa5b9d15eef276b48b54e78beb9b88a979cd952c84"
+      },
+      {
+        "name": "operator-b9e947f9160280e3160eb81fc3934d00-terminal-audit.json",
+        "bytes": 7226,
+        "allocatedBytes": 8192,
+        "sha256": "cb439136cd9e9d1098976c1c45e2482c8b1d452b5b0f8c65884bca8ed54a94b1"
+      },
+      {
+        "name": "operator-b9e947f9160280e3160eb81fc3934d00-qualification.json",
+        "bytes": 1337,
+        "allocatedBytes": 4096,
+        "sha256": "37fa8379041f7bf255006ad9ca1d6de829b6b04fa420ba4b6211a784e7131193"
+      }
+    ],
+    "after": {
+      "metadataAllocatedBytes": 700416,
+      "fixtureAllocatedBytes": 1544192,
+      "entries": 72
+    },
+    "fullFutureStillChargedBytes": 331776,
+    "conservativeProjectedMetadataBytes": 1032192,
+    "metadataLimitBytes": 1048576
+  },
+  "globalStateLockReacquiredAndClosed": true,
+  "retainedRawMetadata": {
+    "device": "66307",
+    "inode": "21891946",
+    "uid": 1000,
+    "mode": "0o600",
+    "links": 1,
+    "bytes": "8589934592",
+    "allocatedBytes": "8443179008",
+    "mtimeNs": "1793896845147553815",
+    "ctimeNs": "1793896845147553815"
+  },
+  "retainedRawMatchesAfterA2fSnapshot": true,
+  "noRawOrIsoPayloadAccess": true,
+  "oldGrossBytesStillCharged": "141754548224",
+  "debtCredit": false,
+  "settlementQualified": false,
+  "rawRepairQualified": false,
+  "devCutover": false,
+  "fullStackAcceptance": "4/11",
+  "task97": "open",
+  "task110": "complete",
+  "limitations": [
+    "Source coordinator elapsed milliseconds cover its own lifecycle, not the entire operator or platform deployment.",
+    "CPU usage is cumulative at pre-exit capture; controlledIntervalNs is a separate measured interval.",
+    "Counters after collection are unavailable, not zero; pre-exit counters remain preserved.",
+    "The full-platform16GiB floor and all other capacity limits remain unchanged.",
+    "Full failed-settlement publisher/consumer and physical/transient qualification remain separate.",
+    "No production activation, persistent Secret change, destructive retirement or implementation merge."
+  ]
+}

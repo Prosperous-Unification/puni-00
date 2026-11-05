@@ -49,3 +49,7 @@ Join all four live/dead durable/terminal projections to the exact request/source
 Exit0 or a qualification marker alone is insufficient. Record timings, every refusal, stream absence and any unavailable observation. A journal capture, if needed, is bounded to16384bytes for the exact two units.
 
 After terminal, retain only explicitly charged artifacts and recheck actual allocation. One compact qualification record may bind the public full report by SHA/path within its reserved slot; do not silently copy an oversized report. Preserve original evidence, normal-commit new outcome artifacts and freshly push every source/OpenSpec change to PR760. Service handoff qualification leaves the settlement producer/reader, old-inode drain and full observability acceptance open.
+
+## Recorded one-attempt outcome
+
+The [b9 actual attempt](evidence/staging-attempt-20261105-b9.json) qualified both native cases on source9c4f86db239974ffddc94f35120af0c90995d254. The exact request received separate command and fresh admission reviews. Both original units and workers are gone, fixture/global locks can be reacquired, all four original durable/terminal projections and actual counters are retained. Final coordinator checkpoint3976ms; this is not full-platform deployment time. Budgeted retention is700416metadata bytes plus the full331776future charge=1032192/1048576, with old1544192fixture bytes separate and full oldG unchanged. This is historical proof for this nonce only; do not replay its request or launch markers.
