@@ -1589,3 +1589,27 @@ A fresh qualification SHALL fully charge retained provenance and future request/
 - **WHEN** Linux reports the required exact soft/hard process limits with trailing space or tab column padding
 - **THEN** the existing process-limit reader accepts that same-line formatting while retaining exact values, units, one occurrence and status requirements
 - **AND** wrong/missing/duplicate values, malformed units/suffixes or unsafe process status still refuse before readiness acceptance
+
+### Requirement: Repair executes the admitted repository source
+
+The production repair coordinator SHALL verify the bounded private request and capture the fixed repository Python source set from original SHA-verified descriptors before importing any repository helper. Initial, transitive and lazy repository imports SHALL compile only those immutable captured bytes. Owner-controlled bytecode caches and later path replacements SHALL NOT supply executable bytes. Root-installed Python runtime/stdlib remain the explicit system trust boundary; the coordinator's directly executed entry and existing Bun launcher remain the trusted entry boundary. The worker SHALL verify and capture its pinned entry before executing it and SHALL enforce the same helper-source admission.
+
+#### Scenario: A valid source pin accompanies a substituted cache
+
+- **WHEN** owned scratch copies retain their pinned source bytes but a helper bytecode cache contains a harmless execution marker
+- **THEN** the real production coordinator and worker startup and a lazy nested helper import execute the admitted source buffers without executing the marker
+- **AND** a watched loader omission executes the forbidden marker, proving the control at the protected import
+
+#### Scenario: Source or request admission is incomplete
+
+- **WHEN** a required request/source is absent, unreadable, malformed, unsafe, duplicated, unpinned, changed during capture or differs from its declared digest
+- **THEN** the production entry refuses before repository helper execution or service launch
+- **AND** unknown sibling imports refuse rather than fall back to a repository file or cache
+
+#### Scenario: Source paths change after successful capture
+
+- **WHEN** a required source path or its cache changes after successful capture but before initial or lazy execution
+- **THEN** execution uses the exact previously verified immutable bytes and the existing later source/identity checks still refuse drift before mutation authority
+- **AND** worker startup cannot execute an unverified replacement of its own entry
+
+The existing request/envelope versions, fixed source roles, service/process and physical capacity floors, history, reservation/release and native writer functions SHALL remain unchanged. Each captured Python source is at most131072bytes; the six fixed Python sources together are at most786432bytes, within the existing coordinator/service limits. These are source-capture bounds, not larger runtime or evidence allowances. Component source verification grants no retained-disk repair, new guest or full observability acceptance.
