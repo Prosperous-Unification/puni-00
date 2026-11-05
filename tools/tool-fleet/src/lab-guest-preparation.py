@@ -1,4 +1,5 @@
 import ctypes
+import fcntl
 import hashlib
 import importlib.util
 import json
@@ -215,6 +216,7 @@ def confine_qemu(raw_fd, executable_fd, kvm_fd, null_fd):
     Call in CPython preexec before close_fds, while the original device FDs remain open.
     These character grants support QEMU's KVM/null opens without granting regular-file writes.
     """
+    original = os.fstat(raw_fd)
     libc = ctypes.CDLL(None, use_errno=True)
     syscall = libc.syscall
     syscall.restype = ctypes.c_long
@@ -238,6 +240,35 @@ def confine_qemu(raw_fd, executable_fd, kvm_fd, null_fd):
     finally:
         os.close(loader)
         os.close(descriptor)
+    reopen_confined_raw(raw_fd, original)
+
+
+def reopen_confined_raw(descriptor, original):
+    """Replace the child's pre-domain description with the same inode opened under Landlock.
+
+    The proc link denotes only the retained descriptor, not an operator-selected pathname.
+    Opening after restrict_self binds the denied TRUNCATE right to the new description;
+    dup2 keeps the existing pass_fds number and closes the child's original description.
+    This does not constrain arbitrary fallocate operations or grant full rehearsal authority.
+    """
+    reopened = os.open(f'/proc/self/fd/{descriptor}', os.O_RDWR | os.O_CLOEXEC)
+    try:
+        opened = os.fstat(reopened)
+        retained = os.fstat(descriptor)
+        # Proof: guest fdset guard reopen-inode/reopen-access observes unqualified dup2 when this check is removed; original-fd observes invalid validator acceptance.
+        require(raw.stable_identity(opened) == raw.stable_identity(original) == raw.stable_identity(retained)
+                and opened.st_blocks == original.st_blocks == retained.st_blocks
+                and fcntl.fcntl(reopened, fcntl.F_GETFL) & os.O_ACCMODE == os.O_RDWR,
+                'guest-raw-reopen-changed')
+        # Proof: guest fdset reopen RED allowed actual inherited-FD ftruncate; GREEN denies it and retains original writes and the metadata pipe.
+        os.dup2(reopened, descriptor, inheritable=True)
+        # Proof: guest fdset guard rebind-inode substitutes the dup2 destination; removing this check accepts the foreign descriptor.
+        require(raw.stable_identity(os.fstat(descriptor)) == raw.stable_identity(original)
+                and os.fstat(descriptor).st_blocks == original.st_blocks
+                and fcntl.fcntl(descriptor, fcntl.F_GETFL) & os.O_ACCMODE == os.O_RDWR,
+                'guest-raw-rebind-changed')
+    finally:
+        os.close(reopened)
 
 CAPS = dict(raw.CAPS, **{'memory.max': '1610612736'})
 SERVICE_LIMITS = dict(raw.SERVICE_LIMITS, LimitNOFILE='64', LimitCORE='0', Restart='no')
@@ -524,7 +555,11 @@ def verify_inputs(request):
 
 
 def qemu_arguments(request, predecessor, descriptors):
-    """Foreground raw/ISO FD interfaces; one CPU, no network, overlay, monitor or file console."""
+    """Foreground raw/ISO FD interfaces; explicit RW matches the original raw fdset access mode.
+
+    Automatic readonly opens request O_RDONLY before a writer attaches; QEMU fdsets require
+    an exact O_ACCMODE match, so the sole O_RDWR raw descriptor cannot satisfy that probe.
+    """
     import uuid
     prefix = request['state'] + '/tools-root'
     return [f"/proc/self/fd/{descriptors['qemu']}", '-name', 'puni-guest-' + request['nonce'],
@@ -535,7 +570,8 @@ def qemu_arguments(request, predecessor, descriptors):
             '-smbios', 'type=1,manufacturer=QEMU,product=Puni bounded baseline,uuid=' + str(uuid.UUID(predecessor['nonce'])),
             '-add-fd', f"fd={descriptors['raw']},set=1,opaque=raw",
             '-add-fd', f"fd={descriptors['iso']},set=2,opaque=seed",
-            '-drive', 'file=/dev/fdset/1,if=virtio,format=raw,cache=none,aio=threads,discard=ignore,detect-zeroes=off',
+            # Proof: fdset-fix/red.json has automatic readonly and the pinned QEMU refuses flags 0x4000; green-final.json opens RW with O_DIRECT under unchanged confinement.
+            '-drive', 'file=/dev/fdset/1,if=virtio,format=raw,readonly=off,auto-read-only=off,cache=none,aio=threads,discard=ignore,detect-zeroes=off',
             '-drive', 'file=/dev/fdset/2,if=ide,index=0,media=cdrom,format=raw,readonly=on,discard=ignore,detect-zeroes=off']
 
 
@@ -700,6 +736,8 @@ def worker(request, request_digest):
             check_input_descriptors(binding, request)
             check_kvm(descriptors['kvm'], request['kvm'])
             confine_qemu(descriptors['raw'], descriptors['qemu'], descriptors['kvm'], descriptors['null'])
+            # Proof: guest fdset caller revalidates canonical raw path; removing this call admits an actual write after pathname substitution.
+            check_original_raw(descriptors['raw'], predecessor['raw'], predecessor['rawIdentity'])
             # CPython preexec precedes close_fds: close only this child's known worker-only copies.
             for descriptor in (staging_fd, directory_fd, descriptors['kvm'], descriptors['null']):
                 os.close(descriptor)

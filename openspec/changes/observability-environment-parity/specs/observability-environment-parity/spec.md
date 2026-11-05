@@ -1316,6 +1316,7 @@ The guest adapter SHALL reuse original-artifact ownership and bounded native lif
 - **THEN** original request, source, input descriptors, creator, native worker and effective bounds join before the parent admission ACK
 - **AND** only the existing original raw descriptor is writable by QEMU; seed, source and tool inputs remain read-only
 - **AND** six evidence files plus two64KiB control records retain the unchanged11MiB+64KiB aggregate ceiling and16MiB reservation, with request bytes charged separately
+- **AND** direct operator stdout/stderr captures are separate exclusive0600 files capped at8MiB each; fresh outside-plan bytes plus32MiB+64KiB future evidence/capture/record allowance must fit the unchanged160MiB nonraw reservation
 - **AND** counter evidence is durably acknowledged while the original worker is live, after QEMU is reaped
 - **AND** client exit0, fresh original terminal/empty-group observations, final artifact/capacity checks and independent repeated owned cleanup are required
 - **AND** missing, stale, substituted, unbounded, interrupted or uncertain evidence refuses acceptance

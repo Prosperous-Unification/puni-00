@@ -2113,3 +2113,187 @@ for (const [name, script, functionName, category, ordinal, argument, witness] of
     expect(invocation.stderr.toString()).toContain(witness);
   });
 }
+
+const fdsetReopen = String.raw`
+import errno,fcntl,importlib.util,os,resource,sys,tempfile
+${providerStartup}
+spec=importlib.util.spec_from_file_location('guest',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+complete_provider_import(fixture_import_descriptors)
+resource.setrlimit(resource.RLIMIT_AS,(128*1024**2,)*2)
+resource.setrlimit(resource.RLIMIT_CPU,(5,5))
+resource.setrlimit(resource.RLIMIT_FSIZE,(2*1024**2,)*2)
+resource.setrlimit(resource.RLIMIT_NOFILE,(64,64))
+resource.setrlimit(resource.RLIMIT_CORE,(0,0))
+with tempfile.TemporaryDirectory() as directory:
+    path=directory+'/raw'
+    raw_fd=os.open(path,os.O_RDWR|os.O_CREAT|os.O_EXCL,0o600)
+    os.posix_fallocate(raw_fd,0,8192);os.write(raw_fd,b'X'*8192);os.fsync(raw_fd)
+    original=os.fstat(raw_fd)
+    tool_fd=os.open('/proc/self/exe',os.O_RDONLY);null_fd=os.open('/dev/null',os.O_RDWR)
+    metadata_read,metadata_write=os.pipe()
+    pid=os.fork()
+    if pid==0:
+        try:
+            p.confine_qemu(raw_fd,tool_fd,null_fd,null_fd)
+            assert fcntl.fcntl(raw_fd,fcntl.F_GETFL)&os.O_ACCMODE==os.O_RDWR
+            assert (os.fstat(raw_fd).st_dev,os.fstat(raw_fd).st_ino)==(original.st_dev,original.st_ino)
+            assert os.pwrite(raw_fd,b'allowed!',0)==8
+            try:os.ftruncate(raw_fd,4096)
+            except OSError as failure:assert failure.errno in (errno.EACCES,errno.EPERM)
+            else:raise AssertionError('inherited FD truncated original raw')
+            assert os.fstat(raw_fd).st_size==8192
+            # The original description is closed: no second descriptor may retain truncate authority.
+            for name in os.listdir('/proc/self/fd'):
+                descriptor=int(name)
+                if descriptor in (raw_fd,):continue
+                try:opened=os.fstat(descriptor)
+                except OSError as failure:
+                    assert failure.errno==errno.EBADF
+                    continue
+                assert (opened.st_dev,opened.st_ino)!=(original.st_dev,original.st_ino),'preconfinement description retained'
+            assert os.write(metadata_write,b'kept')==4
+            os._exit(0)
+        except BaseException:
+            import traceback;traceback.print_exc();os._exit(1)
+    _,status=os.waitpid(pid,0)
+    assert os.waitstatus_to_exitcode(status)==0,'confined child violated original raw authority'
+    assert os.read(metadata_read,4)==b'kept'
+    assert os.fstat(raw_fd).st_size==8192 and os.fstat(raw_fd).st_blocks==original.st_blocks
+    # Parent's independently retained description is neither replaced nor closed by child dup2.
+    assert os.pread(raw_fd,8,0)==b'allowed!'
+    for descriptor in (raw_fd,tool_fd,null_fd,metadata_read,metadata_write):os.close(descriptor)
+print('verified confined raw FD reopen')
+`;
+
+test('guest fdset reopen denies inherited FD truncation while retaining original writes', () => {
+  const invocation = Bun.spawnSync(['/usr/bin/python3', '-I', '-B', '-c', fdsetReopen, helper], {
+    timeout: 10000,
+    maxBuffer: 65536,
+  });
+  expect(invocation.stderr.toString()).toBe('');
+  expect(invocation.exitCode).toBe(0);
+  expect(invocation.stdout.toString()).toBe('verified confined raw FD reopen\n');
+});
+
+const rawReopenBoundary = String.raw`
+import errno,fcntl,importlib.util,os,sys,tempfile
+${providerStartup}
+spec=importlib.util.spec_from_file_location('guest',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+complete_provider_import(fixture_import_descriptors)
+fault=sys.argv[2]
+with tempfile.TemporaryDirectory() as directory:
+    path=directory+'/raw';foreign=directory+'/foreign'
+    for name in (path,foreign):
+        with open(name,'wb') as stream:stream.write(b'X'*8192)
+        os.chmod(name,0o600)
+    raw_fd=os.open(path,os.O_RDWR);foreign_fd=os.open(foreign,os.O_RDWR)
+    original=os.fstat(raw_fd);open_file=os.open;duplicate=os.dup2
+    def reopen(path,flags,*args,**kwargs):
+        if path=='/proc/self/fd/'+str(raw_fd):
+            if fault=='reopen-inode':return os.dup(foreign_fd)
+            opened=open_file(path,os.O_RDONLY if fault=='reopen-access' else flags,*args,**kwargs)
+            if fault=='original-fd':duplicate(foreign_fd,raw_fd)
+            return opened
+        return open_file(path,flags,*args,**kwargs)
+    os.open=reopen
+    rebind_calls=[]
+    def rebind(source,target,**keywords):
+        rebind_calls.append((source,target))
+        return duplicate(foreign_fd if fault=='rebind-inode' else source,target,**keywords)
+    os.dup2=rebind
+    before=set(os.listdir('/proc/self/fd'))
+    try:p.reopen_confined_raw(raw_fd,original)
+    except p.raw.PreparationRefusal as failure:
+        if fault in ('reopen-inode','reopen-access'):assert not rebind_calls,'unqualified raw descriptor rebound'
+        assert str(failure)==('guest-raw-rebind-changed' if fault=='rebind-inode' else 'guest-raw-reopen-changed'),failure
+    else:raise AssertionError('unsafe raw reopen accepted '+fault)
+    assert set(os.listdir('/proc/self/fd'))==before,'temporary reopen FD leaked on refusal'
+    for descriptor in (raw_fd,foreign_fd):os.close(descriptor)
+print('verified raw reopen boundary '+fault)
+`;
+
+for (const fault of ['reopen-inode', 'reopen-access', 'original-fd', 'rebind-inode']) {
+  test(`guest fdset guard ${fault} rejects a substituted raw description`, () => {
+    const category =
+      fault === 'rebind-inode' ? 'guest-raw-rebind-changed' : 'guest-raw-reopen-changed';
+    const ordinary = Bun.spawnSync(
+      ['/usr/bin/python3', '-I', '-B', '-c', rawReopenBoundary, helper, fault],
+      { timeout: 10000, maxBuffer: 65536 },
+    );
+    expect(ordinary.stderr.toString()).toBe('');
+    expect(ordinary.exitCode).toBe(0);
+    const changed = Bun.spawnSync(
+      [
+        '/usr/bin/python3',
+        '-I',
+        '-B',
+        '-c',
+        bypassSelectedGuard(rawReopenBoundary, 'reopen_confined_raw', category, 0),
+        helper,
+        fault,
+      ],
+      { timeout: 10000, maxBuffer: 65536 },
+    );
+    expect(changed.exitCode).not.toBe(0);
+    expect(changed.stderr.toString()).toContain(
+      fault === 'reopen-inode' || fault === 'reopen-access'
+        ? 'unqualified raw descriptor rebound'
+        : 'unsafe raw reopen accepted ' + fault,
+    );
+  });
+}
+
+const confinedPath = workerLifecycle
+  .replace(
+    'p.drain_qemu=harmless',
+    String.raw`p.drain_qemu=harmless
+confine=p.confine_qemu
+def replace_before_confine(*descriptors):
+    os.rename(state+'/disk.raw',state+'/disk.raw.retained')
+    replacement=os.open(state+'/disk.raw',os.O_RDWR|os.O_CREAT|os.O_EXCL,0o600)
+    os.posix_fallocate(replacement,0,8192);os.close(replacement)
+    confine(*descriptors)
+p.confine_qemu=replace_before_confine`,
+  )
+  .replace(
+    "expected={'descriptor'",
+    "expected={'confined-path':'raw-protocol-incomplete','descriptor'",
+  )
+  .replace(
+    "assert failure['category']==expected[fault],(fault,failure)",
+    "assert failure['category'] in (expected[fault],'guest-raw-changed'),(fault,failure)",
+  )
+  .replace(
+    "print('verified guest lifecycle '+fault)",
+    "    assert open(state+'/disk.raw.retained','rb').read(11)==b'\\0'*11,'QEMU wrote after canonical raw path replacement'\nprint('verified guest lifecycle '+fault)",
+  );
+
+test('guest fdset caller revalidates canonical raw path after confinement', () => {
+  const ordinary = Bun.spawnSync(
+    ['/usr/bin/python3', '-I', '-B', '-c', confinedPath, helper, 'confined-path'],
+    { timeout: 10000, maxBuffer: 65536 },
+  );
+  expect(ordinary.stderr.toString()).toBe('');
+  expect(ordinary.exitCode).toBe(0);
+  const changed = confinedPath.replaceAll(
+    'spec.loader.exec_module(p)',
+    `spec.loader.exec_module(p)
+import ast,inspect
+_worker=ast.parse(inspect.getsource(p.worker))
+_preparations=[node for node in ast.walk(_worker) if isinstance(node,ast.FunctionDef) and node.name=='prepare']
+assert len(_preparations)==1
+_preparation=_preparations[0]
+def named_call(statement,name):
+    return isinstance(statement,ast.Expr) and isinstance(statement.value,ast.Call) and isinstance(statement.value.func,ast.Name) and statement.value.func.id==name
+_sites=[index for index,statement in enumerate(_preparation.body) if index>0 and named_call(statement,'check_original_raw') and named_call(_preparation.body[index-1],'confine_qemu')]
+assert len(_sites)==1,'expected exactly one canonical raw check immediately after confinement'
+del _preparation.body[_sites[0]]
+exec(compile(ast.fix_missing_locations(_worker),spec.origin,'exec'),p.__dict__)`,
+  );
+  const invocation = Bun.spawnSync(
+    ['/usr/bin/python3', '-I', '-B', '-c', changed, helper, 'confined-path'],
+    { timeout: 10000, maxBuffer: 65536 },
+  );
+  expect(invocation.exitCode).not.toBe(0);
+  expect(invocation.stderr.toString()).toContain('QEMU wrote after canonical raw path replacement');
+});
