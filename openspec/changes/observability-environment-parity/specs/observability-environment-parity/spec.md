@@ -1626,3 +1626,19 @@ The existing request/envelope versions, fixed source roles, service/process and 
 - **WHEN** the fixed installed tool's actual ELF dependency closure includes its supported private library path
 - **THEN** repair input admission accepts that selected, pinned library while retaining exact equality with the complete actual dependency set
 - **AND** an extra or foreign library refuses before its payload is read; no credential or arbitrary directory becomes an allowed input role
+
+### Requirement: Observe an admitted changing raw inode
+
+The coordinator SHALL sample an admitted raw target through descriptors bound to its original private inode. Expected timestamp/allocation changes SHALL remain valid during owned mutation. Device, inode, owner, mode, type, links, length, readonly access and path/descriptor joins MUST remain enforced. Pre-admission snapshots and final artifact checks MUST stay exact.
+
+#### Scenario: The admitted worker changes timestamps during open
+
+- **WHEN** its original raw inode's timestamps change between path inspection and descriptor capture
+- **THEN** live capacity sampling succeeds with the original inode and current capacity facts, without reading payload or changing debt
+- **AND** immutable request/state admission still rejects that same timestamp race
+
+#### Scenario: A live target is substituted or unsafe
+
+- **WHEN** path/descriptor identity, ownership, private mode, regular type, single link, fixed length, allocation bound or readonly open is violated
+- **THEN** sampling refuses before unsafe authority reaches the profile/capacity boundary and every acquired descriptor closes
+- **AND** deleting each new guard or breaking its dependency exposes the named forbidden witness
