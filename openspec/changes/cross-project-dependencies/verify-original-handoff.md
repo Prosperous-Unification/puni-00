@@ -444,3 +444,15 @@ controller, finite migrations, full caller integration and guard-specific R5
 remain open. Separate [producer-P execution evidence](verify-producer-p-execution-20261105.md)
 records an actual negative source observation while whole-workflow completion
 and exact restoration/new positive remain pending.
+
+## Ordinary image builder draft checkpoint — 2026-11-05
+
+The [ordinary image design](ordinary-image-build-design-20261105.md) and
+[actual source/SDK/build observations](verify-ordinary-image-build-20261105.md)
+retain the first builder slice above the static protocol. The first actual
+compiler invocation failed normally after41 joined setup operations; no emitted
+output ran. A narrow alias correction is included as source-level TDD work.
+The builder remains unqualified and unwired. Actual successful compilation,
+controller and coupled enrollment remain required. The separate producer-P
+record now includes the terminal mutant workflow, exact restoration push and
+new restored workflow; restored-positive acceptance remains pending.
