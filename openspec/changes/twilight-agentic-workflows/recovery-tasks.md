@@ -26,6 +26,10 @@
 
 ---
 
+## Runtime-write follow-up checkpoint (2026-11-05)
+
+The subsequent runtime-write packet was merged as PR 787, candidate 991 / actual 645; original hosted/canonical acceptance and successful merge CI are retained in the [runtime-write reconciliation](../runtime-write-delivery/evidence/runtime-write-acceptance-reconciliation-20261105.md). Reviewed supplemental C01–C03 resolve the three later named cancellation/held-verification proof gaps on both actual providers. The new acceptance-test source still awaits its complete current RunStore cohort, final publication review and source-specific release gates. Historical logical-recovery and native-close limits remain unchanged. Full outcome/physical continuation, remaining adapters, second durable provider, transfer and full S0/S7a remain required; no parent checkbox is closed by this checkpoint.
+
 ## Execution and evidence rules
 
 Baseline is `bb14bb1cf3afc0559e4d0864374e11c652751751`, branch `feat/agentic-recovery-r2-20261028`, worktree `/tmp/puni-agentic-runtime-dispatch-20261026`. The source inventories are `/tmp/puni-r2-store-inventory-20261028.md` and `/tmp/puni-r2-migration-inventory-20261028.md`; their source observations are preparation, not passing tests. All checkboxes start uncompleted.

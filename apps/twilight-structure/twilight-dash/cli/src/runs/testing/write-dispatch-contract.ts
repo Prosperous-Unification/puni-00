@@ -3,18 +3,20 @@ import { rejects } from 'node:assert/strict';
 import { describe, expect, test } from 'bun:test';
 
 import { createRuntimeClient, type RuntimeClient } from '../../bridge/runtime-client';
+import type { ArtifactStore } from '../artifact-store';
 import { readExecutionHistory } from '../claim-history';
 import { deliverOutcome } from '../deliver-outcome';
 import { retainRuntimeReceipt } from '../retain-runtime-receipt';
-import type { RunStore } from '../run-store';
+import type { RunStore, StoreReply } from '../run-store';
 import { readRuntimeRequest } from '../runtime-codecs';
 import { RuntimeDispatchError } from '../runtime-dispatch-error';
 import { verifyRuntimeReceipt } from '../runtime-receipt';
 import { executionCommandId, ownerId } from '../value-codecs';
 import { stageWriteRequest } from '../write-history';
+import type { WriteStageAck } from '../write-records';
 import type { OutcomeFixture } from './fixtures';
 import { unwrapReply } from './fixtures';
-import { waitForReceiver } from './recovery-receiver';
+import { closeRecoveryResources, waitForReceiver } from './recovery-receiver';
 import { createWriteFixture } from './write-fixture';
 import { retainWriteReceipt } from './write-store-contract';
 
@@ -90,6 +92,39 @@ async function pending(setup: Setup) {
     writeObligations: [{ disposition: { kind: 'pending' } }],
     writeReceipts: [],
   });
+}
+async function readPendingCompletion(setup: Setup) {
+  await pending(setup);
+  const snapshot = await setup.runs.readRun(setup.guard.runId);
+  if (snapshot.version !== 4) throw Error('write snapshot missing');
+  const history = await readExecutionHistory(
+    setup.runs,
+    setup.artifacts,
+    setup.guard.runId,
+    setup.guard.attemptId,
+  );
+  if (history.version !== 3 || history.writes[0]?.kind !== 'stage_write')
+    throw Error('original write stage missing');
+  expect(history.writes).toHaveLength(1);
+  expect(history.writes[0].command).toEqual(setup.command);
+  expect(history.attempt).toMatchObject({
+    holdsCapacity: false,
+    state: {
+      kind: 'write_pending',
+      stageCommandId: 'stage-write',
+      outcome: { kind: 'succeeded', summary: 'validated output' },
+    },
+  });
+  if (history.attempt.state.kind !== 'write_pending') throw Error('pending attempt missing');
+  expect(history.attempt.state.outcome).toEqual(setup.completion.outcome);
+  expect(snapshot.writeObligations).toEqual([history.writes[0].reply.obligation]);
+  expect(snapshot.writeObligations[0]).toMatchObject({
+    stageCommandId: 'stage-write',
+    completion: setup.completion,
+    intent: { commandId: 'wire-write', canonicalRequest: setup.canonicalRequest },
+    disposition: { kind: 'pending' },
+  });
+  return { snapshot, history, scope: await setup.runs.readRuntimeScope(setup.guard.scope) };
 }
 /** Uses real provider staging/closure and the actual Response-capturing validated client. */
 export function writeDispatchContract(name: string, create: () => Promise<OutcomeFixture>) {
@@ -190,6 +225,107 @@ export function writeDispatchContract(name: string, create: () => Promise<Outcom
           await Promise.allSettled(duplicate === undefined ? [first] : [first, duplicate]);
         }
         expect((await first).kind).toBe('accepted');
+      }));
+    test('held verification duplicate retains original stage acknowledgement and only applied peer sends', () =>
+      fixture(async (setup) => {
+        // Fault: electing a duplicate stage sends again after the peer has already accepted.
+        const reading = held(),
+          release = held();
+        let isHeld = false;
+        const artifacts: ArtifactStore = {
+          ...setup.artifacts,
+          async readArtifact(reference) {
+            const bytes = await setup.artifacts.readArtifact(reference);
+            if (!isHeld && reference.digest === setup.stateEvidence.digest) {
+              isHeld = true;
+              reading.resolve();
+              await waitForReceiver(release.promise);
+            }
+            return bytes;
+          },
+        };
+        const stages: StoreReply<WriteStageAck>[] = [];
+        const runs: RunStore = {
+          ...setup.runs,
+          async stageWrite(guard, command) {
+            const staged = await setup.runs.stageWrite(guard, command);
+            stages.push(structuredClone(staged));
+            return staged;
+          },
+        };
+        const receiver = remote(setup);
+        const first = deliverOutcome(
+          runs,
+          artifacts,
+          receiver.client,
+          setup.guard,
+          setup.input,
+          signal(),
+        );
+        let peer: ReturnType<typeof dispatch> | undefined;
+        try {
+          await waitForReceiver(reading.promise);
+          expect(stages).toEqual([]);
+          expect(receiver.sent).toEqual([]);
+          // The peer uses the actual unwrapped artifact store and can finish before release.
+          peer = dispatch(setup, receiver.client, runs);
+          const accepted = await waitForReceiver(peer);
+          expect(accepted.kind).toBe('accepted');
+          if (accepted.kind !== 'accepted') throw Error('peer acceptance missing');
+          const original = stages.at(0);
+          if (original?.kind !== 'applied') throw Error('peer did not win stage election');
+          expect(stages).toHaveLength(1);
+          expect(original.value).toMatchObject({
+            kind: 'write_staged',
+            intent: { commandId: 'wire-write', canonicalRequest: setup.canonicalRequest },
+            attempt: {
+              holdsCapacity: false,
+              state: {
+                kind: 'write_pending',
+                outcome: { kind: 'succeeded', summary: 'validated output' },
+              },
+            },
+          });
+          expect(original.value.obligation.completion).toEqual(setup.completion);
+          expect(accepted.ack.attempt.state.kind).toBe('write_terminal');
+          const terminal = await setup.runs.readRun(setup.guard.runId);
+          expect(terminal).toMatchObject({
+            capacity: { reserved: 0 },
+            writeObligations: [],
+            writeReceipts: [accepted.ack.receipt],
+          });
+          release.resolve();
+          expect(await waitForReceiver(first)).toEqual(accepted);
+          expect(stages).toEqual([original, { kind: 'duplicate', value: original.value }]);
+          expect(receiver.sent).toEqual(['applyRuntimeCommands']);
+          expect(receiver.bodies).toEqual([
+            { ...readRuntimeRequest(setup.canonicalRequest).operation, personId: 'person' },
+          ]);
+          expect(receiver.bodies[0]).toMatchObject({
+            commandId: 'wire-write',
+            expectedLedgerId: 'ledger',
+            action: {
+              kind: 'write',
+              commands: [
+                { kind: 'setProgress', workItemId: 'work', stepId: 'step', state: 'done' },
+                {
+                  kind: 'releaseWorkItem',
+                  workItemId: 'work',
+                  personId: 'person',
+                  steps: ['step'],
+                },
+              ],
+            },
+          });
+          expect(await setup.runs.readRun(setup.guard.runId)).toEqual(terminal);
+          console.log(
+            'Task1 held-verification trace ' +
+              JSON.stringify({ stages, accepted, sent: receiver.sent }),
+          );
+        } finally {
+          release.resolve();
+          await closeRecoveryResources([], peer === undefined ? [first] : [first, peer]);
+        }
       }));
     test('duplicate winner independently rereads original acceptance evidence', () =>
       fixture(async (setup) => {
@@ -436,16 +572,108 @@ export function writeDispatchContract(name: string, create: () => Promise<Outcom
         });
         expect(receiver.sent).toEqual(['applyRuntimeCommands', 'lookupRuntimeReceipt']);
       }));
-    test('pre-aborted outcome stages unchanged without POST', () =>
+    test('pre-aborted outcome retains completion without extending ownership or entering client', () =>
       fixture(async (setup) => {
+        // Fault: dropping the early cancellation check extends the actual lease unnecessarily.
         const controller = new AbortController();
         controller.abort();
+        let renewals = 0,
+          applications = 0;
         const receiver = remote(setup);
-        expect(await dispatch(setup, receiver.client, setup.runs, controller.signal)).toMatchObject(
-          { kind: 'pending', observation: { kind: 'cancelled_before_dispatch' } },
+        const client: RuntimeClient = {
+          ...receiver.client,
+          async applyCommands(input) {
+            applications++;
+            return await receiver.client.applyCommands(input);
+          },
+        };
+        const runs: RunStore = {
+          ...setup.runs,
+          async renewOwnership(ownership) {
+            renewals++;
+            return await setup.runs.renewOwnership(ownership);
+          },
+        };
+        const scope = await setup.runs.readRuntimeScope(setup.guard.scope);
+        setup.clock.advance(50);
+        expect(await dispatch(setup, client, runs, controller.signal)).toMatchObject({
+          kind: 'pending',
+          observation: { kind: 'cancelled_before_dispatch' },
+        });
+        const retained = await readPendingCompletion(setup);
+        expect(retained.scope.kind).toBe('pinned');
+        if (retained.scope.kind !== 'pinned' || scope.kind !== 'pinned')
+          throw Error('scope missing');
+        expect(retained.scope.acceptances).toEqual(scope.acceptances);
+        setup.clock.advance(51);
+        const takeover = await setup.runs.acquireOwnership(
+          ownerId('after-cancellation'),
+          setup.ownership.epoch,
         );
-        await pending(setup);
+        console.log(
+          'Task1 pre-aborted trace ' +
+            JSON.stringify({ renewals, applications, takeover, sent: receiver.sent }),
+        );
+        expect(takeover.kind).toBe('applied');
+        expect(renewals).toBe(0);
+        expect(applications).toBe(0);
         expect(receiver.sent).toEqual([]);
+        const afterTakeover = await readPendingCompletion(setup);
+        expect(afterTakeover.snapshot).toEqual(retained.snapshot);
+        expect(afterTakeover.history).toEqual(retained.history);
+        if (afterTakeover.scope.kind !== 'pinned') throw Error('scope missing after takeover');
+        expect(afterTakeover.scope.acceptances).toEqual(retained.scope.acceptances);
+        expect(afterTakeover.scope.intents).toEqual(retained.scope.intents);
+      }));
+    test('abort during held renewal retains completion before entering the validated client', () =>
+      fixture(async (setup) => {
+        // Fault: dropping the post-renewal check enters the client and misclassifies observed cancellation.
+        const renewing = held(),
+          release = held();
+        const controller = new AbortController();
+        const receiver = remote(setup);
+        let applications = 0;
+        const client: RuntimeClient = {
+          ...receiver.client,
+          async applyCommands(input) {
+            applications++;
+            return await receiver.client.applyCommands(input);
+          },
+        };
+        const runs: RunStore = {
+          ...setup.runs,
+          async renewOwnership(ownership) {
+            const renewed = await setup.runs.renewOwnership(ownership);
+            if (renewed.kind !== 'applied') throw Error('actual ownership renewal refused');
+            renewing.resolve();
+            await waitForReceiver(release.promise);
+            return renewed;
+          },
+        };
+        const delivery = dispatch(setup, client, runs, controller.signal);
+        try {
+          await waitForReceiver(renewing.promise);
+          const staged = await readPendingCompletion(setup);
+          expect(applications).toBe(0);
+          expect(receiver.sent).toEqual([]);
+          controller.abort();
+          release.resolve();
+          const reply = await waitForReceiver(delivery);
+          console.log(
+            'Task1 held-renewal trace ' +
+              JSON.stringify({ reply, applications, sent: receiver.sent }),
+          );
+          expect(reply).toMatchObject({
+            kind: 'pending',
+            observation: { kind: 'cancelled_before_dispatch' },
+          });
+          expect(applications).toBe(0);
+          expect(receiver.sent).toEqual([]);
+          expect(await readPendingCompletion(setup)).toEqual(staged);
+        } finally {
+          release.resolve();
+          await closeRecoveryResources([], [delivery]);
+        }
       }));
     test('takeover during renewal leaves original completion pending', () =>
       fixture(async (setup) => {
