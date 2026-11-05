@@ -42,6 +42,11 @@ FUTURE_GUEST = 33619968
 FIXTURE_LIMIT = 2 * 1024**2
 METADATA_LIMIT = 512 * 1024
 OUTPUT_LIMIT = 65536
+WORKER_REFUSALS = frozenset(('raw-staging-occupied raw-staging-changed raw-state-absent '
+    'raw-state-unreadable raw-state-unsafe raw-child-timeout raw-child-output-bound raw-child-failed '
+    'raw-unit-malformed raw-unit-binding raw-native-caps raw-service-limits raw-ack-missing '
+    'raw-ack-invalid source-binding control-deadline worker-native-binding worker-staging-binding '
+    'helper-refused-unavailable').split())
 GIB = 1024**3
 MIB = 1024**2
 FIXTURES = {'direct': MIB, 'allocation': 0,
@@ -90,6 +95,21 @@ class Refusal(Exception):
 def require(predicate, category):
     if not predicate:
         raise Refusal(category)
+
+
+@contextmanager
+def helper_refusals(raw):
+    """Bridge modeled helper refusals."""
+    try:
+        yield
+    except raw.PreparationRefusal as failure:
+        # Proof: modeled/unknown helper faults preserve only fixed codes.
+        category = str(failure)
+        raise Refusal(category if category in WORKER_REFUSALS else 'helper-refused-unavailable') from None
+
+
+def cancel(_number, _frame):
+    raise Refusal('control-cancelled')
 
 
 def encode(record):
@@ -625,6 +645,40 @@ def receive_frame(raw, descriptor, deadline):
     return frame
 
 
+def read_service(invocation, streams, deadline, drain=False):
+    """Bound pipes; stderr stays tainted."""
+    payload = bytearray()
+    with selectors.DefaultSelector() as selector:
+        for name in streams:
+            if not streams[name]['complete']:
+                selector.register(getattr(invocation, name), selectors.EVENT_READ, name)
+        while selector.get_map():
+            if drain and time.monotonic() >= deadline:
+                return None
+            assert_deadline(deadline)
+            for entry, _ in selector.select(min(.05, max(0, deadline-time.monotonic()))):
+                name = entry.data
+                observed = streams[name]
+                total = sum(stream['bytes'] for stream in streams.values())
+                chunk = os.read(entry.fd, 1 if name == 'stdout' and not drain else min(4096, max(1, OUTPUT_LIMIT+1-total)))
+                if not chunk:
+                    observed['complete'] = True
+                    selector.unregister(entry.fileobj)
+                    continue
+                observed['bytes'] += len(chunk)
+                observed['hash'].update(chunk)
+                if drain and total + len(chunk) > OUTPUT_LIMIT:
+                    return None
+                # Proof: overflow-fault bypass accepts oversized output.
+                require(total + len(chunk) <= OUTPUT_LIMIT, 'service-output-bound')
+                if name == 'stdout' and not drain:
+                    if chunk == b'\n':
+                        return decode(payload)
+                    payload.extend(chunk)
+    if not drain:
+        raise Refusal('service-frame-eof')
+
+
 def child_case(callback, helpers, deadline):
     """One direct owned child with actual FIFO stdio; no discovery or foreign PID signaling."""
     assert_deadline(deadline)
@@ -986,7 +1040,7 @@ def persist_projection(packet, nonce, projection, budget, deadline):
     assert_deadline(deadline)
     payload = encode(projection) + b'\n'
     require(len(payload) <= budget, 'projection-total-bound')
-    path = Path(packet) / ('observation-' + nonce + ('-durable' if projection['phase'] == 'durable' else '-terminal') + '.json')
+    path = Path(packet) / ('observation-' + nonce + '-' + projection['phase'] + '.json')
     assert_deadline(deadline)
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
     try:
@@ -1020,7 +1074,7 @@ def run_control(request, path, request_sha, nonce):
     source, verified = verify_environment(request, deadline)
     with repository_loader(verified):
         helpers = load_helpers()
-        with bounded_observations(helpers['raw'], deadline) as probe_cutoff:
+        with helper_refusals(helpers['raw']), bounded_observations(helpers['raw'], deadline) as probe_cutoff:
             coordinate_controls(request, path, request_sha, nonce, source, helpers, started, deadline, probe_cutoff)
 
 
@@ -1048,17 +1102,33 @@ def coordinate_controls(request, path, request_sha, nonce, source, helpers, star
                                   stderr=subprocess.PIPE, env=fixed_environment(), preexec_fn=raw.client_limits)
     binding = None
     accepted = False
+    stage = 'awaiting-ready'
+    published = 0
+    streams = {name: {'bytes': 0, 'hash': hashlib.sha256(), 'complete': False}
+               for name in ('stdout', 'stderr')}
     try:
-        ready = receive_frame(raw, invocation.stdout.fileno(), deadline)
+        ready = read_service(invocation, streams, min(deadline, time.monotonic()+3))
+        stage = 'ready-received'
+        if type(ready) is dict and ready.get('phase') == 'refused':
+            closed(ready, 'phase category request nonce source', 'worker-refusal-schema')  # Proof: schema-fault accepts extra field.
+            # Proof: join-fault accepts a foreign request.
+            require(ready['request'] == request_sha and ready['nonce'] == nonce
+                    and ready['source'] == source, 'worker-refusal-provenance')
+            # Proof: code-fault leaks private-token.
+            require(type(ready['category']) is str and ready['category'] in WORKER_REFUSALS, 'worker-refusal-cat')
+            raise Refusal(ready['category'])
         binding = check_ready(ready, request, request_sha, source, helpers, deadline)
         require(verify_environment(request, deadline)[0] == source, 'source-binding')
         observe_capacity(request, helpers, deadline, exact=True)
+        stage = 'ready-verified'
         admission = {'phase': 'admitted', 'binding': binding}
         admission_bytes = len(encode(admission)) + 1
         assert_deadline(deadline)
         send_frame(1, admission)
+        published = admission_bytes
         send_ack(raw, invocation.stdin.fileno(), binding, request_sha, deadline)
-        complete = raw.receive_frame(invocation.stdout.fileno(), seconds=remaining_time(deadline))
+        stage = 'admitted'
+        complete = read_service(invocation, streams, deadline)
         assert_deadline(deadline)
         require(len(encode(ready)) + len(encode(complete)) + 2 <= OUTPUT_LIMIT, 'service-output-total')
         closed(complete, 'phase binding counter cases initialCapacity finalCapacity', 'complete-schema')
@@ -1072,12 +1142,17 @@ def coordinate_controls(request, path, request_sha, nonce, source, helpers, star
         durable_bytes = persist_projection(request['packet'], nonce,
                                           {'phase': 'durable', 'request': request_sha, 'ready': ready,
                                            'complete': complete, 'command': command}, OUTPUT_LIMIT-admission_bytes, deadline)
+        published += durable_bytes
+        stage = 'durable'
         send_ack(raw, invocation.stdin.fileno(), binding, request_sha, deadline)
         invocation.stdin.close()
         require(invocation.wait(timeout=min(2, remaining_time(deadline))) == 0,
                 'service-client-exit')
-        require(invocation.stdout.read(OUTPUT_LIMIT + 1) == b''
-                and invocation.stderr.read(OUTPUT_LIMIT + 1) == b'', 'service-trailing-output')
+        before = sum(stream['bytes'] for stream in streams.values())
+        read_service(invocation, streams, deadline, drain=True)
+        require(all(stream['complete'] for stream in streams.values())
+                and sum(stream['bytes'] for stream in streams.values()) == before
+                and streams['stderr']['bytes'] == 0, 'service-trailing-output')
         assert_deadline(deadline)
         probe_cutoff[0] = started + 20
         terminal = raw.observe_unit(unit)
@@ -1104,6 +1179,32 @@ def coordinate_controls(request, path, request_sha, nonce, source, helpers, star
                             'elapsedMilliseconds': int((time.monotonic()-started)*1000)},
                            OUTPUT_LIMIT-durable_bytes-admission_bytes-80, deadline)
         accepted = True
+    except BaseException as failure:
+        probe_cutoff[0] = started + 20
+        try:
+            # Wait only for the owned client.
+            try:
+                invocation.wait(timeout=min(.1, remaining_time(started+20)))
+            except subprocess.TimeoutExpired:
+                pass  # Running is modeled.
+            read_service(invocation, streams, min(started+20, time.monotonic()+.1), drain=True)
+            category = str(failure) if isinstance(failure, Refusal) else 'failure-unavailable'
+            if isinstance(failure, raw.PreparationRefusal) and str(failure) in WORKER_REFUSALS:
+                category = str(failure)
+            if re.fullmatch('[a-z0-9-]{1,64}', category) is None:
+                category = 'failure-unavailable'
+            # Proof: publication fsync fault still closes/reaps.
+            persist_projection(request['packet'], nonce,
+                {'phase': 'failure', 'accepted': False, 'request': request_sha, 'stage': stage,
+                 'category': category, 'workerBinding': 'unavailable' if binding is None else binding,
+                 'counter': 'unavailable', 'client': {'pid': invocation.pid, 'exitCode': invocation.poll(),
+                            'status': 'exited' if invocation.returncode is not None else 'unavailable-running'},
+                 'streams': {name: {'bytes': stream['bytes'], 'sha256': stream['hash'].hexdigest(),
+                                    'complete': stream['complete']} for name, stream in streams.items()}},
+                OUTPUT_LIMIT-published, started+20)
+        except Exception:
+            raise Refusal('failure-publication') from None
+        raise
     finally:
         probe_cutoff[0] = started + 20
         try:
@@ -1131,8 +1232,14 @@ def entry(arguments):
         source, verified = verify_environment(request, deadline)
         with repository_loader(verified):
             helpers = load_helpers()
-            with bounded_observations(helpers['raw'], deadline):
-                worker_control(request, request_sha, helpers, source, deadline)
+            try:
+                with helper_refusals(helpers['raw']), bounded_observations(helpers['raw'], deadline):
+                    worker_control(request, request_sha, helpers, source, deadline)
+            except Refusal as failure:
+                category = str(failure)
+                send_frame(1, {'phase': 'refused', 'request': request_sha, 'nonce': nonce, 'source': source,
+                    'category': category if category in WORKER_REFUSALS else 'helper-refused-unavailable'})
+                raise
 
 
 
@@ -1148,6 +1255,8 @@ if __name__ == '__main__':
             print('repair-native-control: AST-valid')
         else:
             signal.signal(signal.SIGALRM, hard_timeout)
+            signal.signal(signal.SIGINT, cancel)
+            signal.signal(signal.SIGTERM, cancel)
             signal.alarm(20)
             entry(sys.argv[1:])
             signal.alarm(0)

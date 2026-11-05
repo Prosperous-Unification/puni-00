@@ -704,7 +704,7 @@ elif case=='deadline':
         clock[0]=0.
         events=[]
         raw=types.SimpleNamespace(
-            run_bounded=lambda *arguments,**keywords:b'',
+            PreparationRefusal=control.Refusal,run_bounded=lambda *arguments,**keywords:b'',
             observe_unit=lambda unit:{'LoadState':'not-found'},
             receive_frame=lambda *arguments,**keywords:complete,
             send_frame=lambda *arguments:events.append('ACK'),digest_json=lambda _: 'digest',
@@ -718,7 +718,9 @@ elif case=='deadline':
         control.check_loaded_runtime=lambda *arguments:None
         control.check_directory=lambda *arguments,**keywords:None
         control.observe_capacity=lambda *arguments,**keywords:{}
-        control.receive_frame=lambda *arguments,**keywords:{'observedNs':1}
+        frames=iter([{'observedNs':1},complete])
+        control.read_service=lambda *a,**k:None if k else next(frames)
+        Process.pid=1
         control.check_ready=lambda *arguments,**keywords:binding
         def verify(*arguments):
             if stage=='source':clock[0]=12.
@@ -726,8 +728,8 @@ elif case=='deadline':
         control.verify_environment=verify
         control.send_frame=lambda *arguments:events.append('admission-output')
         def persist(*arguments):
-            events.append('durable-publication')
-            if stage=='durable':clock[0]=12.
+            events.append(arguments[2]['phase']+'-publication')
+            if stage=='durable' and arguments[2]['phase']!='failure':clock[0]=12.
             return 1
         control.persist_projection=persist
         def launch(command,**keywords):
@@ -791,6 +793,66 @@ elif case=='deadline':
         control.os.lstat=os.lstat=original_lstat
         control.os.close=os.close=original_close
     print('deadline controlled source/probe/fsync/worker crossings: no late ACK/write; owned cleanup entered')
+elif case=='failure':
+ import json,signal,subprocess,time
+ c=control;raw=c.load_helpers()['raw'];P=subprocess.Popen
+ c.check_loaded_runtime=lambda *a:None
+ c.check_directory=lambda *a,**k:None
+ c.observe_capacity=lambda *a,**k:{}
+ raw.observe_unit=lambda _: {'LoadState':'not-found'}
+ forbidden=[];raw.stop_owned=raw.send_frame=lambda *a:forbidden.append(1)
+ req=c.require;sync=os.fsync
+ codes={'overflow':'service-output-bound','join':'worker-refusal-provenance','code':'worker-refusal-cat','schema':'worker-refusal-schema','modeled':'raw-staging-occupied','unknown':'helper-refused-unavailable','deadline':'control-deadline','publication':'failure-publication','ready':'ready-schema'}
+ for mode in ('eof','private','overflow','ready','modeled','unknown','join','code','schema','deadline','SIGINT','SIGTERM','publication','overflow-fault','join-fault','code-fault','schema-fault','SIGINT-fault','SIGTERM-fault'):
+  base=mode.split('-')[0];fault='-' in mode
+  want='control-cancelled' if base.startswith('SIG') else codes.get(base,'service-frame-eof')
+  c.require=lambda p,k:req(p,k) if not fault or k!=want else None
+  os.fsync=sync
+  f={'phase':'refused','category':'raw-staging-occupied','request':'q'*64,'nonce':'a'*32,'source':'source'}
+  if base=='join':f['request']='z'*64
+  if base=='code':f['category']='private-token'
+  if base=='schema':f['extra']=True
+  body='pass'
+  if base=='private':body="os.write(2,b'repair-native-control: private-token\\n')"
+  if base=='overflow':body="os.write(2,b'X'*65537)"
+  if base=='ready':body="print('{\"phase\":\"ready\",\"binding\":{\"pid\":2226}}',flush=True)"
+  if base in ('join','code','schema'):body='print('+repr(json.dumps(f))+',flush=True)'
+  if base in ('modeled','unknown'):
+   code='raw-staging-occupied' if base=='modeled' else 'private-token'
+   body="import contextlib,importlib.util as i;s=i.spec_from_file_location('c',"+repr(sys.argv[1])+");c=i.module_from_spec(s);s.loader.exec_module(c);c.authorize=c.verify_environment=lambda *a:('source',{});c.repository_loader=contextlib.nullcontext;c.worker_control=lambda *a:(_ for _ in ()).throw(a[2]['raw'].PreparationRefusal("+repr(code)+"));c.entry(['worker','unused','q'*64,'a'*32])"
+  if base=='deadline':body='time.sleep(2)'
+  if base.startswith('SIG'):
+   # Actual production main runs with only work entry/alarm made inert.
+   number=getattr(signal,base)
+   signal.signal(number,lambda *a:(_ for _ in ()).throw(c.Refusal('omitted-handler')))
+   text=pathlib.Path(sys.argv[1]).read_text()
+   if fault:text=text.replace('signal.signal(signal.'+base+', cancel)','pass')
+   alarm=signal.alarm;signal.alarm=lambda *a:0
+   try:exec(compile(c.ast.Module(body=[c.ast.parse(text).body[-1]],type_ignores=[]),'production-main','exec'),dict(c.__dict__,__name__='__main__',entry=lambda *a:None))
+   finally:signal.alarm=alarm
+   body='os.kill(os.getppid(),'+str(number)+');time.sleep(2)'
+  if base=='publication':os.fsync=lambda _:(_ for _ in ()).throw(OSError('private-token'))
+  with tempfile.TemporaryDirectory() as d:
+   ls=[]
+   def launch(*a,**k):
+    child=P([sys.executable,'-I','-B','-c','import os,signal,time;'+body+';raise SystemExit(23)'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    ls.append(child);return child
+   c.subprocess.Popen=launch
+   t0=time.monotonic();t1=t0+(.06 if base=='deadline' else 2)
+   try:c.coordinate_controls({'packet':d,'state':'/unopened','pins':[source_pin]},'/request','q'*64,'a'*32,'source',{'raw':raw},t0,t1,[t1])
+   except c.Refusal as failure:cat=str(failure)
+   else:raise AssertionError('accepted')
+   if fault and base in ('schema','SIGINT','SIGTERM'):assert cat==('raw-staging-occupied' if base=='schema' else 'omitted-handler')
+   assert (cat!=want)==fault and ls[0].stdout.closed and ls[0].stderr.closed and ls[0].poll() is not None and not forbidden
+   if base=='publication':continue
+   e=pathlib.Path(d)/('observation-'+'a'*32+'-failure.json');r=json.loads(e.read_bytes())
+   assert r['category']==cat and r['accepted'] is False and r['workerBinding']=='unavailable' and r['counter']=='unavailable'
+   if not fault:assert 'private-token' not in e.read_text()
+   if base in ('eof','private','ready'):assert r['client']['exitCode']==23
+   if base=='private':assert r['streams']['stderr']==dict(bytes=37,sha256=hashlib.sha256(b'repair-native-control: private-token\n').hexdigest(),complete=True)
+   if base=='ready':assert r['stage']=='ready-received'
+   if fault:print('watched '+mode+': '+cat)
+ print('watched failures')
 else:raise AssertionError('unknown metadata case')
 print('repair-fix '+case+': GREEN metadata boundary')
 `;
@@ -803,6 +865,7 @@ for (const name of [
   'deadline',
   'staging',
   'runtime-closure',
+  'failure',
 ]) {
   test(`repair fixes ${name} preserve reviewed metadata boundaries`, () => {
     const child = Bun.spawnSync(['python3', '-I', '-B', '-c', repairFixes, harness, name], {

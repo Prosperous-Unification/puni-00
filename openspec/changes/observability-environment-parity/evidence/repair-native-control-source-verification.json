@@ -1,18 +1,18 @@
 {
   "schemaVersion": 1,
-  "scope": "Task100 source preparation and first failed pre-admission native attempt",
+  "scope": "Task100 source and first unaccepted native attempt; Task102 bounded failure retention source",
   "sourcePins": [
     {
       "path": "openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
-      "sha256": "2fc3cf19ffde9b32c39b1291339177c71621b9596a2703ce604d0bbb3cb58bc5",
-      "bytes": 59739,
+      "sha256": "bab0b66375563d615dfbef1f968cfc356ba4548a466ebd75e9cadb0c969e1952",
+      "bytes": 65536,
       "mode": "0644",
       "uid": 1000
     },
     {
       "path": "tools/tool-fleet/src/lab-repair-native-control.test.ts",
-      "sha256": "7b7408c8a232b6c5226eadba3ea8942100a642dd46c33bbcaf4bf965fd0bbee5",
-      "bytes": 45011,
+      "sha256": "6ea6e0e01c277550d6735d68bf4b3b717a9ceee3247200d13bf8bf006ba5917f",
+      "bytes": 49680,
       "mode": "0644",
       "uid": 1000
     }
@@ -167,5 +167,47 @@
     "requestSha256": "2a0bc82b930bdb5bf075fcb81eefc1ab445f9e29c7243ced13613253ef6e30b3",
     "counter": "unavailable",
     "retryPerformed": false
+  },
+  "startupFailureRetention": {
+    "base": "a29ab7e910a97af25c3e54fa95a584388893f717",
+    "scope": "Source only; ordinary owned subprocess and pipe fixtures",
+    "behavior": "Closed safe worker refusal frames; bounded stream counts/digests/completeness; original client state and distinct failure evidence before closure; modeled cancellation and original-owned cleanup",
+    "red": "Actual caller with owned Python child exit23 failed because failure evidence was absent before stream closure",
+    "green": "3 targeted cases,12 Bun assertions,19 owned-child failure/signal variants,7 filtered; exit0 in2.21s",
+    "command": "CI=true FORCE_COLOR=1 TERM=xterm env -u NO_COLOR bun test tools/tool-fleet/src/lab-repair-native-control.test.ts -t 'repair fixes (failure|worker-bootstrap|deadline)'",
+    "negativeProofs": "Watched output-bound, provenance, safe-category and closed-schema omissions; both actual production signal registrations with individual omission witnesses; exact deadline/cancellation categories; publication fsync fault throws while cleanup runs",
+    "statics": "Final named ESLint, Prettier, Python AST and whitespace exit0; owning Fleet tsc --build exit0/no diagnostics after final source freeze",
+    "review": "Independent scoped spec and quality approved after fix round1; both proof gaps addressed, no new regression; final source/test and patch hashes verified",
+    "nativeExecuted": false,
+    "oldAttemptCause": "Unavailable; historical request never retried",
+    "reviewPackage": {
+      "path": "repair-native-controls/task-102-review.patch.gz",
+      "bytes": 7809,
+      "sha256": "da8ebdd39a15fea862dd6e6bd3bdfe7f01efcbe994631d50ae906e6d77878e0a"
+    },
+    "report": {
+      "path": "repair-native-controls/task-102-report.md",
+      "bytes": 7806,
+      "sha256": "67473c11b1d90f7a631ed7e283868cf65eba61ac754fa7e3c24e02dbefa5728a",
+      "scope": "Immutable initial report; final fix verification in verify.md"
+    },
+    "fixReviewPackage": {
+      "path": "repair-native-controls/task-102-fix1-review.patch.gz",
+      "bytes": 8078,
+      "sha256": "ed61da5cc7b06d16eeb54ec5fcfac7f15b8f0490077d7c21fed9b421cbb23490"
+    },
+    "sourceAllocatedGrowthBytes": 12288,
+    "testSourceMaximumBytes": 53248
+  },
+  "retainedBudgetPreparation": {
+    "operationPerformed": false,
+    "plaintextAllocatedBytes": 126976,
+    "archiveProjectedAllocatedBytes": 32768,
+    "completeEnvelopeProjectedBytes": 512000,
+    "coexistenceProjectedBytes": 520192,
+    "freshRequestPaddedBytes": 32768,
+    "requestMaximumBytes": 65536,
+    "metadataMaximumBytes": 524288,
+    "status": "Read-only planning projections; final test/review packaging changed. Fresh complete actual accounting and reviewed implementation required; no admission or credit"
   }
 }

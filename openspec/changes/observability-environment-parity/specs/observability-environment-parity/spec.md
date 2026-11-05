@@ -1563,3 +1563,16 @@ A fresh native qualification request SHALL charge retained failed-attempt proven
 - **THEN** admission refuses until a reviewed exact lossless static-patch archival and fresh full accounting fit
 - **AND** absent/changed/unreadable input, corrupt archives, incomplete publication or insufficient budget refuse before original plaintext retirement
 - **AND** a separately reviewed fresh nonce is required; no automatic retry or debt credit follows
+
+#### Scenario: Worker emits a modeled refusal frame
+
+- **WHEN** the trusted worker emits a closed failure-only frame carrying a fixed safe category before admission
+- **THEN** the caller retains only bounded diagnostic provenance and refuses without a mutation ACK or binding/cleanup authority from that frame
+- **AND** arbitrary stderr or unknown categories cannot become public diagnostic plaintext by matching a prefix or regular expression
+- **AND** refusal evidence has a distinct failure identity and never substitutes for a terminal/counter receipt
+
+#### Scenario: Cancellation preserves bounded refusal handling
+
+- **WHEN** SIGINT or SIGTERM cancels the controller before acceptance
+- **THEN** controlled cancellation retains bounded stage state and performs only original-owned cleanup
+- **AND** the hard 20-second alarm and service/resource limits remain unchanged
