@@ -2,6 +2,7 @@ import { chmod, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { clearCaches } from '@typescript-eslint/parser';
 import { describe, expect, it } from 'bun:test';
 import { ESLint } from 'eslint';
 
@@ -2010,6 +2011,9 @@ it('Dash API recovery fixture reaches only accepted binding contracts', async ()
   if (!isRecord(options)) throw new Error('API recovery fixture policy malformed');
   expect(options['allow']).toEqual(['^@twilight-burokrat/contracts$']);
   const source = await readFile(join(workspace, path), 'utf8');
+  // Synthetic real-path imports leave virtual snapshots; isolate the actual-source oracle.
+  // Proof: removing this reset gave seven peer passes and this failure; restoring gave eight passes.
+  clearCaches();
   const reports = await lint.lintText(source, { filePath: path });
   const actual = reports.at(0);
   if (actual === undefined) throw new Error('API recovery source lint report missing');
