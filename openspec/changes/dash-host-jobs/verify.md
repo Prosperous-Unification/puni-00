@@ -2569,3 +2569,23 @@ puni_gate_authorized_keys lists 3`. With the count condition removed both bad fi
 | `bunx nx affected -t lint typecheck test --base=origin/main --parallel=2`           | 8 projects, exit 0                            |
 
 No host was touched: the converging apply of this change on h2puni and h4claw is owed (task 6.3e).
+
+## 2026-11-05 token-unit apply converged on both hosts
+
+`gate_host` at `main` `5150237fc` (task 6.3e) was applied to h2puni and then h4claw, neither
+enrolled. Private `puni-plan` evidence: `evidence/2026-11-05-token-unit-apply.md`.
+
+- Each host: apply 1 `ok=66 changed=1`, the one change "Create the token units" for the
+  `docker_build` item; apply 2 `ok=66 changed=0`; `--tags validate`
+  `ok=30 changed=0 failed=0 skipped=4`.
+- Validate on each host: "Require one authorized key per listed key" passed and "Read the token
+  units" was ok for both units. The sudo assertions matched each host: on h2puni the exception
+  assertion passed and the strict one was skipped; on h4claw the strict one passed and the
+  exception was skipped.
+- A second-session `puni1` login was verified after apply 1 on both hosts, and the root
+  safety-net session was held as a background job throughout (the H4-A10 shape).
+- Neither host is enrolled: no `host-pool.json`, no ledger. `docker_build` is a clean
+  one-commit tree.
+- **H2-A11** A `pgrep -f` probe over ssh matches its own remote shell, whose command line carries
+  the pattern; filter it with `grep -v pgrep` or a bracket pattern (gate-hosts.md, step 0).
+- **H2-A12 / H4-A11** The token unit was the only drift on either host.

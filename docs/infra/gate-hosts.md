@@ -209,8 +209,10 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
      pins, so applying with too little disk half-configures the host. The order is: disk
      (step 1); the backup; the key list staged from the live file and checked with `cmp` and the
      key count ([Add a gate host](#add-a-gate-host) step 2); `bin/with-heavy-lock.sh status`
-     reading `holder none`; apply 1; a `puni1` login from a second session before closing the
-     first; apply 2, with `changed=0`; then `--tags validate`.
+     reading `holder none` and the dev poller idle (a `pgrep -f` probe over ssh matches its own
+     remote shell, H2-A11, so filter it with `grep -v pgrep` or a bracket pattern); apply 1; a
+     `puni1` login from a second session before closing the first; apply 2, with `changed=0`;
+     then `--tags validate`.
 1. **Disk.** On h2puni, free space before step 0's apply: the recorded cleanup order is the "h2puni DISK, FOR DANY"
    entry of 2026-11-02 in the private `puni-plan` `RESUME.md`, and Dany approves it. The role
    refuses to clone below 5 GiB per missing checkout plus 10 GiB. On h2puni, which lacks two
