@@ -282,7 +282,7 @@
       for the run record and a decision on which digest WBS keeps — test: a returned host job's
       evidence names the run record; negative: send the ledger-row digest and watch WBS refuse it.
       Done in slice 6f (S6F-A1): locator `dash-host-job-run://<enrollmentId>/<jobId>`, digest the
-      SHA-256 of the record's stored gate entry, `not_created` for a job whose gate never opened;
+      SHA-256 of the record's stored gate entry, `not_created` for a job with no run record;
       be-01 refuses the ledger-row evidence `400 invalid_body`.
   - [ ] 6.8a An operator command that drops one permanently refused event from the authority
         outbox, naming it and the refusal (pre-existing gap; S6F-A4: a moved old-shape host-job
