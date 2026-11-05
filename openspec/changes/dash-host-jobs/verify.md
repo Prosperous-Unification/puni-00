@@ -2505,3 +2505,36 @@ puni_gate_authorized_keys lists 3`. With the count condition removed both bad fi
   `--tags validate`, and records h4claw's `~/.cache` narrowing to 0700.
 - L1: the assertion's `fail_msg` prints the parsed fingerprints, and the count file says the
   count is not a login test.
+
+## 2026-11-05 role converged on both hosts (task 6.3, operator half)
+
+`gate_host` at `main` `149e6e85b` converged on both gate hosts, neither enrolled. Private
+`puni-plan` evidence: `evidence/2026-11-05-h2puni-gate-host-apply.md` and
+`evidence/2026-11-05-h4claw-gate-host-reapply.md`.
+
+- h2puni: apply 1 `ok=66 changed=1` (`~/.cache` 0755 to 0700), apply 2 `changed=0`, validate
+  `ok=30 failed=0`.
+- h4claw: apply 1 `ok=66 changed=1` (`~/.cache` 0755 to 0700), apply 2 `changed=0`, validate
+  `ok=30 failed=0`.
+- **H2-A8** `~/puni-00-gate-tbf2` is detached at the night's last gate SHA: the gate script moved
+  it, not the role (J15), and validate's clean, canonical and full checks passed on it.
+- **H2-A9** The root safety-net ControlMaster did not survive the harness: it was gone minutes
+  after it started, so the root path was verified but not held during the applies.
+- **H2-A10** `~/.cache` was 0755 from H2-A7's apply until apply 1, which restored 0700.
+- **H4-A8** Only `~/.cache` changed: the 2026-11-02 apply had brought everything else to the pins.
+- **H4-A9** `~/puni-00-gate-launcher` is detached at `75a78ff3b`, older than `149e6e85b`; the role
+  never moves a head, so move it to current `main` before `ops pool init` (gate-hosts.md, step 5).
+- **H4-A10** A background `sleep` root session did survive the harness across every step, as
+  `ps` showed between steps.
+
+## 2026-11-05 `docker_build` token unit and h2puni's launcher checkouts (task 6.3e)
+
+- The role's token-unit tasks ("Create the token units", "Read the token units") loop over
+  `puni_gate_pool_token_units`, `dagger_engine` and the new `docker_build`; the commit subject is
+  `<unit> token unit (dash-host-jobs S6-A7)`, so `dagger_engine`'s is unchanged. `exclusiveUnits`
+  gains `docker_build`, and validate's shape probe requires it.
+- h2puni's inventory sets `puni_gate_pool_launcher_checkouts` to `/home/puni1/puni-00-gate-launcher`
+  and `/home/puni1/wbs-dev/src`; h4claw keeps the default.
+- Open: no type in this repository's catalogue declares `docker_build` yet, so the unit
+  serialises `website-dev-build` runs with each other only, not with `release-build` or the gate's
+  solver smoke, which share the same BuildKit cache.
