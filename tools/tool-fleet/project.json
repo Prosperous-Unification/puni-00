@@ -34,7 +34,9 @@
         "{workspaceRoot}/openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
         "{workspaceRoot}/openspec/changes/observability-environment-parity/evidence/staging-native-control.py",
         "{workspaceRoot}/openspec/changes/observability-environment-parity/evidence/staging-native-prepare-draft.py",
-        "{workspaceRoot}/openspec/changes/observability-environment-parity/evidence/staging-native-prepare-bootstrap.py"
+        "{workspaceRoot}/openspec/changes/observability-environment-parity/evidence/staging-native-prepare-bootstrap.py",
+        "{workspaceRoot}/openspec/changes/observability-environment-parity/evidence/audit-status-inspection.py",
+        "{workspaceRoot}/openspec/changes/observability-environment-parity/audit-status-inspection-proposal.md"
       ]
     },
     "lint": {

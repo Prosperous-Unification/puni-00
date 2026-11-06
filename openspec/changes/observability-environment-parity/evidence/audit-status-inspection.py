@@ -60,6 +60,7 @@ def unavailable(stage, number=None, **details):
 
 def emit(observation):
     encoded = (json.dumps(observation, sort_keys=True) + '\n').encode('utf-8')
+    # Proof: serialization-cap refuses 65537 bytes; serialization omission writes it.
     if len(encoded) > STREAM_BYTES:
         raise RuntimeError('diagnostic serialization exceeds65536-byte cap')
     sys.stdout.buffer.write(encoded)
@@ -81,12 +82,16 @@ def inspect_status():
     one explicit audit_close on normal exit; external termination reclaims FDs.
     """
     identity = os.stat(LIBRARY, follow_symlinks=False)
+    # Proof: library-directory/symlink refuse before CDLL; library-regular omission reaches fake open.
     if not stat.S_ISREG(identity.st_mode):
         return unavailable('library-not-regular', path=LIBRARY)
+    # Proof: library-owner/group-write/other-write refuse; library-owner omission reaches fake open.
     if identity.st_uid != 0 or identity.st_mode & 0o022:
         return unavailable('library-owner-or-write-mode', path=LIBRARY)
+    # Proof: Header/Status size faults refuse before CDLL; uapi-size omission reaches fake open.
     if ctypes.sizeof(Header) != 16 or ctypes.sizeof(Status) != 44:
         return unavailable('unexpected-uapi-structure-size')
+    # Proof: Message/Reply size faults refuse before CDLL; reply-size omission reaches fake open.
     if ctypes.sizeof(Message) != 8988 or ctypes.sizeof(Reply) != 9016:
         return unavailable('unexpected-v3.1.2-reply-abi-size')
 
@@ -103,18 +108,22 @@ def inspect_status():
     audit.audit_get_reply.restype = ctypes.c_int
 
     descriptor = audit.audit_open()
+    # Proof: open-failure preserves EACCES and never closes; open-failure omission uses fake fd -1.
     if descriptor < 0:
         return unavailable('audit_open', ctypes.get_errno(), openReturn=descriptor)
     try:
         # Exactly one request. The native function sends AUDIT_GET,NULL,0.
         sequence = audit.audit_request_status(descriptor)
+        # Proof: request-negative keeps EPERM despite stale errno; omission reads a fake reply.
         if sequence < 0:
             return unavailable('audit_request_status', -sequence,
                                openReturn=descriptor, requestReturn=sequence)
+        # Proof: request-zero refuses before reply; request-zero omission reads a fake reply.
         if sequence == 0:
             return unavailable('request-short-return', requestReturn=sequence)
 
         deadline = time.monotonic() + REPLY_SECONDS
+        # Proof: count stops at four ACKs; count mutation accepts the fifth fake frame.
         for _ in range(REPLY_COUNT):
             selector = selectors.DefaultSelector()
             try:
@@ -122,32 +131,43 @@ def inspect_status():
                 ready = selector.select(max(0.0, deadline - time.monotonic()))
             finally:
                 selector.close()
-            if not ready:
+            # Proof: timeout/late-ready refuse; omission accepts a late fake status.
+            if not ready or time.monotonic() >= deadline:
                 return unavailable('status-reply-timeout')
 
             reply = Reply()
             # GET_REPLY_NONBLOCKING=1; peek=0. Status/ACK only, no subscription.
             received = audit.audit_get_reply(descriptor, ctypes.byref(reply), 1, 0)
+            # Proof: late-get/deadline-ack fail without this post-reply deadline check.
+            if time.monotonic() >= deadline:
+                return unavailable('status-reply-timeout')
+            # Proof: get-negative keeps EBADF despite stale errno; omission changes refusal.
             if received < 0:
                 return unavailable('audit_get_reply', -received)
             header = reply.message.header
+            # Proof: received/header short, overrun and sequence cases refuse; header omission accepts wrong sequence.
             if (received < 16 or header.length < 16
                     or header.length > received or header.sequence != sequence):
                 return unavailable('invalid-status-header')
             if header.kind == NLMSG_ERROR:
+                # Proof: short-error refuses; short-error omission consumes the unchecked ACK.
                 if header.length < 20:
                     return unavailable('short-netlink-status-error')
                 native_error = ctypes.c_int.from_address(
                     ctypes.addressof(reply.message) + 16
                 ).value
+                # Proof: negative-error keeps EPERM; negative-error omission changes refusal.
                 if native_error < 0:
                     return unavailable('kernel-status-response', -native_error)
+                # Proof: positive-error refuses; positive-error omission consumes malformed ACK.
                 if native_error > 0:
                     return unavailable('invalid-positive-netlink-error')
                 continue
+            # Proof: kind refuses 1001; kind omission admits fake status under the wrong type.
             if header.kind != AUDIT_GET:
                 return unavailable('unexpected-response-type',
                                    responseType=header.kind)
+            # Proof: short-status refuses 59 bytes; short-status omission copies unchecked status.
             if header.length < 16 + ctypes.sizeof(Status):
                 return unavailable('short-audit-status')
             # The checked status frame is copied; pointer union is never read.
@@ -162,6 +182,7 @@ def inspect_status():
     finally:
         # Each successful audit_open has one explicit close on normal exit.
         # If the external deadline terminates this process, the kernel reclaims its FD.
+        # Proof: success and all successful-open failures count one close; close omission fails success.
         audit.audit_close(descriptor)
 
 
@@ -184,6 +205,7 @@ def run_worker():
 
 
 if __name__ == '__main__':
+    # Proof: main-arguments refuses without CDLL; arguments omission reaches fake status query.
     if sys.argv[1:]:
         emit(unavailable('unsupported-arguments'))
         sys.exit(2)
