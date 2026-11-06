@@ -428,6 +428,8 @@ function opsParserWords(): string[] {
     if (first?.type === 'exclusive') return first.terms.flatMap((branch) => paths(branch, prefix));
     if (first?.type !== 'command') return [];
     const words = [...prefix, first.name];
+    // A namespace with one command (`ops outbox drop`) nests it directly, without an `or`.
+    if (second?.type === 'command') return paths(terms.slice(1), words);
     return second?.type === 'exclusive' ? paths([second], words) : [words.join(' ')];
   };
   const branches = dashParser.usage.flatMap((term) =>
@@ -453,6 +455,7 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
       'job render-audit-units',
       'job run',
       'job status',
+      'outbox drop',
       'pool init',
       'pool inspect',
       'pool switch-mode',
@@ -667,6 +670,7 @@ describe('typed command grammars (tasks 1.5–1.9)', () => {
       'ops job render-audit-units',
       'ops job run',
       'ops job status',
+      'ops outbox drop',
       'ops pool init',
       'ops pool inspect',
       'ops pool switch-mode',

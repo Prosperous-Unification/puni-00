@@ -146,7 +146,7 @@ if (insideOpsNamespace(import.meta.path))
       const ledger = join(root, '.dash', 'resources.sqlite');
       const db = new Database(ledger);
       db.run(
-        'DROP TABLE host_pool_mode_records; ALTER TABLE host_pool DROP COLUMN guard; ALTER TABLE host_pool DROP COLUMN guard_holder; ALTER TABLE host_pool DROP COLUMN switching; ALTER TABLE host_pool DROP COLUMN hold_corruption; PRAGMA user_version=1',
+        'DROP TABLE host_pool_mode_records; DROP TABLE event_refusals; DROP TABLE dropped_events; ALTER TABLE host_pool DROP COLUMN guard; ALTER TABLE host_pool DROP COLUMN guard_holder; ALTER TABLE host_pool DROP COLUMN switching; ALTER TABLE host_pool DROP COLUMN hold_corruption; PRAGMA user_version=1',
       );
       db.close();
       const stderr: string[] = [];
@@ -173,7 +173,7 @@ if (insideOpsNamespace(import.meta.path))
         },
       );
       expect(code).toBe(70);
-      expect(stderr.join('')).toContain('resource ledger version 1 is not 2');
+      expect(stderr.join('')).toContain('resource ledger version 1 is not 3');
       const after = new Database(ledger, { readonly: true });
       expect(
         after.query<{ user_version: number }, []>('PRAGMA user_version').get()?.user_version,
@@ -184,6 +184,9 @@ if (insideOpsNamespace(import.meta.path))
     test('the grammar takes only a job id', () => {
       expect(() =>
         parseDashCommand(['ops', 'job', 'admission', '--config', '/c', '--job', 'gate']),
+      ).toThrow();
+      expect(() =>
+        parseDashCommand(['ops', 'job', 'admission', '--config', '/c', '--job', '-'.repeat(36)]),
       ).toThrow();
       expect(
         parseDashCommand([

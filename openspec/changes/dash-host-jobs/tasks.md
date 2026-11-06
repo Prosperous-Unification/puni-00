@@ -284,8 +284,14 @@
       Done in slice 6f (S6F-A1): locator `dash-host-job-run://<enrollmentId>/<jobId>`, digest the
       SHA-256 of the record's stored gate entry, `not_created` for a job with no run record;
       be-01 refuses the ledger-row evidence `400 invalid_body`.
-  - [ ] 6.8a An operator command that drops one permanently refused event from the authority
+  - [x] 6.8a An operator command that drops one permanently refused event from the authority
         outbox, naming it and the refusal (pre-existing gap; S6F-A4: a moved old-shape host-job
         event refused by a newer be-01 otherwise blocks every later event of the authority) —
         test: a refused event is dropped and the next one publishes; negative: the command
-        refuses an event WBS has not refused.
+        refuses an event WBS has not refused. Done in slice 6g: `ops outbox drop` and ledger
+        version 3 (`event_refusals`, `dropped_events`); later events take one sequence less
+        (S6G-A1 to A6, `ops/outbox-drop.test.ts`).
+    - [ ] 6.8b Re-send the named event once and require a fresh `400` before dropping it (review
+          of #878 F1): the stored refusal row is the only evidence today, and a `watch` that
+          crashes between WBS accepting the event and the publish mark leaves it stale — test:
+          an event WBS now accepts is published by the drop's re-send, not dropped.

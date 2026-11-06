@@ -510,6 +510,79 @@ const ModeRecordShape = type({
   evidence: 'string[]',
 }).onUndeclaredKey('reject');
 
+/** Text with at least one non-space character: a drop's operator and reason. */
+const NonBlank = /\S/;
+
+/**
+ * The last WBS refusal of one host-job outbox event (task 6.8a), kept durably beside the S5-A20
+ * retry bound: which bytes (`digest`, the SHA-256 of the stored event), the status and message,
+ * when it was first and last refused, how often. A publication WBS accepts deletes it.
+ */
+export interface OutboxRefusal {
+  eventId: string;
+  sequence: number;
+  digest: string;
+  status: number;
+  error: string;
+  firstRefusedAt: number;
+  lastRefusedAt: number;
+  refusals: number;
+}
+
+/**
+ * One operator drop of a refused outbox event (task 6.8a): who and when, why, the event's
+ * stored bytes and their SHA-256, the refusal that justified it, the event next in line and
+ * how many later events took one sequence less.
+ */
+export interface OutboxDrop {
+  sequence: number;
+  at: number;
+  operator: string;
+  account: string;
+  reason: string;
+  eventId: string;
+  eventSequence: number;
+  useId: string;
+  kind: string;
+  digest: string;
+  bytes: string;
+  refusal: Omit<OutboxRefusal, 'eventId' | 'sequence' | 'digest'>;
+  next: { eventId: string; sequence: number } | null;
+  renumbered: number;
+}
+const OutboxDropShape = type({
+  at: 'number',
+  operator: NonBlank,
+  account: 'string > 0',
+  reason: NonBlank,
+  eventId: 'string > 0',
+  eventSequence: 'number.integer > 0',
+  useId: 'string > 0',
+  kind: 'string > 0',
+  digest: /^[a-f0-9]{64}$/,
+  bytes: 'string > 0',
+  refusal: type({
+    status: 'number.integer',
+    error: 'string',
+    firstRefusedAt: 'number',
+    lastRefusedAt: 'number',
+    refusals: 'number.integer > 0',
+  }).onUndeclaredKey('reject'),
+  next: type({ eventId: 'string > 0', sequence: 'number.integer > 0' })
+    .onUndeclaredKey('reject')
+    .or('null'),
+  renumbered: 'number.integer >= 0',
+}).onUndeclaredKey('reject');
+
+/**
+ * An outbox drop the ledger refuses (task 6.8a), before it changes anything: the event is not
+ * in the outbox, not its head, not a host job's, carries no refusal of its current bytes, or a
+ * later event of its own use still waits.
+ */
+export class OutboxDropRefusal extends Error {
+  override readonly name = 'OutboxDropRefusal';
+}
+
 /** The pool's transition state as status shows it; `live` says whether the process still runs. */
 export interface HostPoolTransition {
   mode: HostPoolModeName;
@@ -630,8 +703,8 @@ function settlementOf(job: HostJob): string {
   ]);
 }
 
-/** The ledger schema this Dash writes; {@link ResourceRuntime.open} steps 0 and 1 forward to it. */
-const LEDGER_VERSION = 2;
+/** The ledger schema this Dash writes; {@link ResourceRuntime.open} steps 0, 1 and 2 forward to it. */
+const LEDGER_VERSION = 3;
 const LEDGER_V0_TABLES = ['binding', 'cursor', 'events', 'sqlite_sequence', 'uses'];
 const LEDGER_V1_TABLES = [
   'binding',
@@ -644,6 +717,15 @@ const LEDGER_V1_TABLES = [
   'sqlite_sequence',
   'uses',
 ];
+/** What each version step adds, by the version it starts from; the migration line names them. */
+const LEDGER_STEPS = ['host pool', 'mode lifecycle', 'outbox refusals and drop journal'];
+const LEDGER_V2_TABLES = [...LEDGER_V1_TABLES, 'host_pool_mode_records'].sort();
+/**
+ * Version 3 (`dash-host-jobs` task 6.8a): the last WBS refusal of each host-job outbox event
+ * (S5-A20) and the operator's journal of dropped events ({@link ResourceRuntime.dropRefusedEvent}).
+ */
+const OUTBOX_REPAIR_SCHEMA =
+  'CREATE TABLE event_refusals (event_id TEXT PRIMARY KEY, sequence INTEGER NOT NULL, digest TEXT NOT NULL, status INTEGER NOT NULL, error TEXT NOT NULL, first_refused_at INTEGER NOT NULL, last_refused_at INTEGER NOT NULL, refusals INTEGER NOT NULL); CREATE TABLE dropped_events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, record TEXT NOT NULL)';
 /**
  * Version 2 (`dash-host-jobs` J12): the singleton guard's state and holder, the fence of a
  * `switch-mode` in progress, and the operator's mode records. A ledger reaching version 2 from
@@ -1521,7 +1603,7 @@ export class ResourceRuntime {
     writeFileSync(path, '', { flag: 'wx', mode: 0o600 });
     const db = new Database(path);
     db.run(
-      `PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; CREATE TABLE binding (identity TEXT NOT NULL); CREATE TABLE uses (id TEXT PRIMARY KEY, snapshot TEXT NOT NULL); CREATE TABLE events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, event TEXT NOT NULL, published INTEGER NOT NULL DEFAULT 0); CREATE TABLE cursor (id INTEGER PRIMARY KEY CHECK(id=1), value INTEGER NOT NULL); INSERT INTO cursor VALUES (1,0); ${HOST_POOL_SCHEMA}; ${HOST_POOL_TRANSITION_SCHEMA}; PRAGMA user_version=${String(LEDGER_VERSION)}`,
+      `PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; CREATE TABLE binding (identity TEXT NOT NULL); CREATE TABLE uses (id TEXT PRIMARY KEY, snapshot TEXT NOT NULL); CREATE TABLE events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, event TEXT NOT NULL, published INTEGER NOT NULL DEFAULT 0); CREATE TABLE cursor (id INTEGER PRIMARY KEY CHECK(id=1), value INTEGER NOT NULL); INSERT INTO cursor VALUES (1,0); ${HOST_POOL_SCHEMA}; ${HOST_POOL_TRANSITION_SCHEMA}; ${OUTBOX_REPAIR_SCHEMA}; PRAGMA user_version=${String(LEDGER_VERSION)}`,
     );
     const root = lstatSync(configuration.root);
     db.query('INSERT INTO binding VALUES (?)').run(
@@ -1646,7 +1728,9 @@ export class ResourceRuntime {
    * Version 0 (no `user_version`, the four `dash-resource-cleanup` tables) gains the host pool
    * tables in mode `observe` and the extended binding, only when its binding is exactly this
    * configuration's version-0 binding; version 1 (those tables) gains the transition state of
-   * J12, only when its tables are exactly version 1's. A version this Dash does not know is
+   * J12, only when its tables are exactly version 1's; version 2 gains the outbox refusals and
+   * the drop journal (task 6.8a), only when its tables are exactly version 2's. A version this
+   * Dash does not know is
    * refused: it may be a newer schema, and nothing here can step it back.
    */
   private static migrate(
@@ -1666,7 +1750,7 @@ export class ResourceRuntime {
         if (found === LEDGER_VERSION) return null;
         // Proof: without it, `refuses a ledger version it does not know` (host-jobs.test.ts)
         // treated version 9 as version 0 and refused only on its tables (2026-11-01, Slice 2).
-        if (found !== 0 && found !== 1)
+        if (found !== 0 && found !== 1 && found !== 2)
           throw new Error(
             `resource ledger version ${String(found)} is unknown to this Dash; refusing to guess its schema`,
           );
@@ -1678,8 +1762,10 @@ export class ResourceRuntime {
           .map((table) => table.name);
         // Proof: without it `refuses a version-0 ledger with unexpected tables`
         // (host-jobs.test.ts) migrated a ledger it did not write (2026-11-01, verify.md Slice 2);
-        // for version 1, `refuses a version-1 ledger with unexpected tables` (2026-11-02, Slice 6b).
-        const expected = found === 0 ? LEDGER_V0_TABLES : LEDGER_V1_TABLES;
+        // for version 1, `refuses a version-1 ledger with unexpected tables` (2026-11-02, Slice 6b);
+        // for version 2, `refuses a version-2 ledger with unexpected tables` (2026-11-05, Slice 6g).
+        const expected =
+          found === 0 ? LEDGER_V0_TABLES : found === 1 ? LEDGER_V1_TABLES : LEDGER_V2_TABLES;
         if (JSON.stringify(tables) !== JSON.stringify(expected))
           throw new Error(
             `resource ledger version ${String(found)} has unexpected tables: ${tables.join(', ')}`,
@@ -1697,7 +1783,8 @@ export class ResourceRuntime {
             JSON.stringify(ResourceRuntime.binding(configuration, root)),
           );
         }
-        db.run(HOST_POOL_TRANSITION_SCHEMA);
+        if (found !== 2) db.run(HOST_POOL_TRANSITION_SCHEMA);
+        db.run(OUTBOX_REPAIR_SCHEMA);
         db.run(`PRAGMA user_version=${String(LEDGER_VERSION)}`);
         return found;
       })
@@ -1705,7 +1792,7 @@ export class ResourceRuntime {
     // `open` has no report sink and this happens once per ledger: say it on stderr.
     if (migrated !== null)
       process.stderr.write(
-        `resources: migrated ledger ${join(configuration.root, '.dash', 'resources.sqlite')} from version ${String(migrated)} to ${String(LEDGER_VERSION)} (host pool)\n`,
+        `resources: migrated ledger ${join(configuration.root, '.dash', 'resources.sqlite')} from version ${String(migrated)} to ${String(LEDGER_VERSION)} (${LEDGER_STEPS.slice(migrated).join(', ')})\n`,
       );
   }
   /** Close this connection without altering durable obligations. */
@@ -2588,9 +2675,18 @@ export class ResourceRuntime {
       )
         throw new Error('resource publication acknowledgment mismatch');
       this.transaction(() => {
-        this.db
+        const marked = this.db
           .query('UPDATE events SET published=1 WHERE sequence=? AND event=?')
           .run(event.sequence, JSON.stringify(event));
+        // An operator's drop (task 6.8a) can remove or renumber the row while WBS answers: the
+        // outbox then no longer holds what WBS accepted, and publishing on would reuse its sequence.
+        // Proof: without it `a drop racing the publication of the same event stops the
+        // publication` (outbox-drop.test.ts) saw it resolve `synchronized` (2026-11-05, Slice 6g).
+        if (marked.changes !== 1)
+          throw new Error(
+            `resource outbox event ${event.eventId} (sequence ${String(event.sequence)}) changed while it was published; another process dropped or rewrote it`,
+          );
+        this.db.query('DELETE FROM event_refusals WHERE event_id=?').run(event.eventId);
       });
     }
     const page = type({
@@ -2649,6 +2745,9 @@ export class ResourceRuntime {
       const now = this.clock.read();
       const first = this.hostJobRefusals.get(event.eventId) ?? now;
       this.hostJobRefusals.set(event.eventId, first);
+      // Proof: without it `a refused event is dropped, journalled, and the next one publishes`
+      // (outbox-drop.test.ts) found no refusal record (2026-11-05, verify.md Slice 6g).
+      this.recordRefusal(event, cause, now);
       // Proof: with the bound check made `true`, `a host-job event refused past the bound stops
       // watch` (host-job-publication.test.ts) kept retrying, ResourceWbsUnavailable for the
       // refusal (2026-11-02, verify.md Slice 5 review fixes).
@@ -2661,6 +2760,201 @@ export class ResourceRuntime {
       // (2026-11-02, verify.md Slice 5 review fixes).
       throw new ResourceWbsUnavailable(`${cause.message}; retried as a host-job event`, { cause });
     }
+  }
+  /**
+   * Keep `cause` as `event`'s last refusal (task 6.8a), keyed by event id and the SHA-256 of its
+   * stored bytes; a refusal of other bytes under the same id starts the record again.
+   */
+  private recordRefusal(event: ResourceEvent, cause: ResourceWbsRefusal, at: number): void {
+    const bytes = JSON.stringify(event);
+    const digest = createHash('sha256').update(bytes).digest('hex');
+    this.transaction(() => {
+      // An operator's drop may have removed or renumbered the event while WBS answered: a row
+      // for it then names nothing, or the sequence the next event now holds (review of #878 F2).
+      // Proof: without it `a refusal answered after a drop records no ghost row`
+      // (outbox-drop.test.ts) kept a row for the dropped event (2026-11-06, Slice 6g review).
+      const present = this.db
+        .query<{ sequence: number }, [number, string]>(
+          'SELECT sequence FROM events WHERE sequence=? AND event=? AND published=0',
+        )
+        .get(event.sequence, bytes);
+      if (present === null) return;
+      this.db
+        .query(
+          'INSERT INTO event_refusals VALUES (?,?,?,?,?,?,?,1) ON CONFLICT(event_id) DO UPDATE SET sequence=excluded.sequence, status=excluded.status, error=excluded.error, last_refused_at=excluded.last_refused_at, first_refused_at=CASE WHEN digest=excluded.digest THEN first_refused_at ELSE excluded.first_refused_at END, refusals=CASE WHEN digest=excluded.digest THEN refusals+1 ELSE 1 END, digest=excluded.digest',
+        )
+        .run(event.eventId, event.sequence, digest, cause.status, cause.message, at, at);
+    });
+  }
+  /** Every recorded refusal of an outbox event, by sequence ({@link recordRefusal}). */
+  outboxRefusals(): OutboxRefusal[] {
+    return this.db
+      .query<
+        {
+          event_id: string;
+          sequence: number;
+          digest: string;
+          status: number;
+          error: string;
+          first_refused_at: number;
+          last_refused_at: number;
+          refusals: number;
+        },
+        []
+      >('SELECT * FROM event_refusals ORDER BY sequence')
+      .all()
+      .map((row) => ({
+        eventId: row.event_id,
+        sequence: row.sequence,
+        digest: row.digest,
+        status: row.status,
+        error: row.error,
+        firstRefusedAt: row.first_refused_at,
+        lastRefusedAt: row.last_refused_at,
+        refusals: row.refusals,
+      }));
+  }
+  /** Every operator drop of an outbox event, oldest first ({@link dropRefusedEvent}). */
+  outboxDrops(): OutboxDrop[] {
+    return this.db
+      .query<{ sequence: number; record: string }, []>(
+        'SELECT sequence, record FROM dropped_events ORDER BY sequence',
+      )
+      .all()
+      .map((row) => ({
+        sequence: row.sequence,
+        ...OutboxDropShape.assert(JSON.parse(row.record)),
+      }));
+  }
+  /**
+   * Drop the host-job event at the head of the authority outbox that WBS refused `400` and will
+   * keep refusing (task 6.8a, S6F-A4), in one transaction: delete it, give every later event one
+   * sequence less (WBS takes only the authority's next sequence), forget its refusal and journal
+   * the drop. The dropped event never reaches WBS: WBS keeps the use as its last accepted event
+   * left it.
+   * @throws OutboxDropRefusal, changing nothing, when the event is not in the outbox, is not its
+   * head, is not a host job's, has no recorded `400` of its current bytes, or a later outbox
+   * event of the same use waits behind it (that one's revision would never be accepted), or,
+   * in concurrent mode with the guard on, while the singleton guard's holder is live.
+   * @throws Error when a published event follows the head: only this class writes the ledger.
+   */
+  dropRefusedEvent(
+    eventId: string,
+    attribution: { operator: string; account: string; reason: string },
+  ): OutboxDrop {
+    return this.transaction(() => {
+      const pool = this.poolRow();
+      // The guard's holder lives while `watch` serves demand in concurrent mode; observe mode and
+      // a released guard have no such signal (review of #878 F1).
+      // Proof: without it `a live singleton guard refuses the drop` (host-pool-mode.test.ts)
+      // went past the guard to `is not in the outbox` (2026-11-06, Slice 6g review).
+      if (pool.mode === 'concurrent' && pool.guard === 'on' && this.guardHeld(pool.guardHolder))
+        throw new OutboxDropRefusal(
+          `the singleton guard's holder (pid ${String(pool.guardHolder?.pid)}) is live in concurrent mode, so resources watch may be publishing; stop dash-resources-watch.service, end that holder if it outlives watch, and retry`,
+        );
+      const authority = this.configuration.authorityId;
+      const target = this.db
+        .query<{ sequence: number; event: string; published: number }, [string]>(
+          "SELECT sequence, event, published FROM events WHERE json_extract(event,'$.eventId')=? ORDER BY sequence",
+        )
+        .all(eventId);
+      // Proof: without it `an id not in the outbox is not dropped` (outbox-drop.test.ts)
+      // threw a TypeError reading the absent row (2026-11-05, verify.md Slice 6g).
+      const row = target.at(0);
+      if (row === undefined || target.length !== 1)
+        throw new OutboxDropRefusal(
+          target.length > 1
+            ? `event ${eventId} names ${String(target.length)} outbox rows`
+            : `event ${eventId} is not in the outbox of authority ${authority}`,
+        );
+      const at = `event ${eventId} (sequence ${String(row.sequence)})`;
+      if (row.published !== 0)
+        throw new OutboxDropRefusal(
+          `event ${eventId} was published (sequence ${String(row.sequence)}); nothing to drop`,
+        );
+      const event = resourceRuntimeEvent.assert(JSON.parse(row.event));
+      const pending = this.outbox();
+      if (pending.at(0)?.eventId !== eventId)
+        throw new OutboxDropRefusal(
+          `${at} is not the head of the outbox; only the event blocking it can be dropped`,
+        );
+      if (event.use.kind !== 'host_job')
+        throw new OutboxDropRefusal(
+          `${at} is a ${event.use.kind} use's; only a host job's event can be dropped`,
+        );
+      const digest = createHash('sha256').update(row.event).digest('hex');
+      const refusal = this.outboxRefusals().find((recorded) => recorded.eventId === eventId);
+      // Proof: with an absent record defaulted to a `400` of these bytes, `an event WBS has not
+      // refused is not dropped` (outbox-drop.test.ts) exited 0 and emptied the outbox; with this
+      // check passing an absent record it threw a TypeError, not 64 (2026-11-05, Slice 6g).
+      if (refusal?.status !== 400 || refusal.digest !== digest)
+        throw new OutboxDropRefusal(
+          `${at} has no recorded WBS refusal; only an event WBS refused 400 can be dropped`,
+        );
+      const sameUse = pending.slice(1).find((later) => later.useId === event.useId);
+      // Proof: with this check removed, `a refused event its own use still follows is not
+      // dropped` (outbox-drop.test.ts) exited 0 (2026-11-05, verify.md Slice 6g).
+      if (sameUse !== undefined)
+        throw new OutboxDropRefusal(
+          `${at} is followed by event ${sameUse.eventId} (sequence ${String(sameUse.sequence)}) of the same use ${event.useId}; dropping it would strand that use's later revisions`,
+        );
+      const published = this.db
+        .query<{ count: number }, [number]>(
+          'SELECT COUNT(*) AS count FROM events WHERE published=1 AND sequence>?',
+        )
+        .get(row.sequence);
+      if (published?.count !== 0)
+        throw new Error(`resource outbox publishes past its head ${String(row.sequence)}`);
+      this.db.query('DELETE FROM events WHERE sequence=?').run(row.sequence);
+      // Proof: with the later events left at their sequences, `a refused event is dropped,
+      // journalled, and the next one publishes` (outbox-drop.test.ts) stopped on the fake
+      // be-01's `409 conflict` for sequence 3 after 1 (2026-11-05, verify.md Slice 6g).
+      for (const later of pending.slice(1)) {
+        const renumbered = resourceRuntimeEvent.assert({ ...later, sequence: later.sequence - 1 });
+        this.db
+          .query('UPDATE events SET sequence=?, event=? WHERE sequence=?')
+          .run(renumbered.sequence, JSON.stringify(renumbered), later.sequence);
+      }
+      // Also any row a refusal left for an event no longer waiting (review of #878 F2).
+      // It is the only delete here, the dropped event's own row included. Proof: without it
+      // `a drop purges refusal rows of events no longer waiting` and the happy-path test
+      // (outbox-drop.test.ts) kept rows (2026-11-06, Slice 6g review).
+      this.db
+        .query(
+          "DELETE FROM event_refusals WHERE event_id NOT IN (SELECT json_extract(event,'$.eventId') FROM events WHERE published=0)",
+        )
+        .run();
+      const following = pending.at(1);
+      const record: Omit<OutboxDrop, 'sequence'> = {
+        at: this.clock.read(),
+        ...attribution,
+        eventId,
+        eventSequence: row.sequence,
+        useId: event.useId,
+        kind: event.kind,
+        digest,
+        bytes: row.event,
+        refusal: {
+          status: refusal.status,
+          error: refusal.error,
+          firstRefusedAt: refusal.firstRefusedAt,
+          lastRefusedAt: refusal.lastRefusedAt,
+          refusals: refusal.refusals,
+        },
+        next:
+          following === undefined
+            ? null
+            : { eventId: following.eventId, sequence: following.sequence - 1 },
+        renumbered: pending.length - 1,
+      };
+      const inserted = this.db
+        .query<{ sequence: number }, [string]>(
+          'INSERT INTO dropped_events(record) VALUES (?) RETURNING sequence',
+        )
+        .get(JSON.stringify(OutboxDropShape.assert(record)));
+      if (inserted === null) throw new Error('resource outbox drop record unwritten');
+      return { sequence: inserted.sequence, ...record };
+    });
   }
   /** What a calibration reserves: all of `allocatable`, its disk budget also in whole GiB. */
   private wholePool(): HostJobReservation {
