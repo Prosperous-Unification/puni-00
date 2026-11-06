@@ -1,0 +1,79 @@
+{
+  "accepted": false,
+  "diagnosticOnlyScript": {
+    "authority": "No admin execution authorized; never part of six-role native runtime closure.",
+    "bytes": 7377,
+    "executed": false,
+    "path": "audit-status-inspection.py",
+    "sha256": "ae7f11ccf537486196c44554ab2606d457e179d90c8dea9602a1d49e209cfa49"
+  },
+  "factFiles": [
+    {
+      "originalBytes": 49259,
+      "originalSha256": "8e3750f48835d49ace8af20f9a51f4267fd1e7eb8565dfbbc08a76acfed5bde4",
+      "public": "openspec/changes/observability-environment-parity/evidence/settlement-launch-input-facts-20261106.json",
+      "publishedBytes": 69977,
+      "publishedSha256": "dda16ea61f4d9957a8dfe718c8c3cba9308c7925f9baf4e767f63b653a349615",
+      "source": "puni-task116-launch-facts.json"
+    },
+    {
+      "originalBytes": 12447,
+      "originalSha256": "5c4e4ff39fc50a1da36a31c9c2f33b535a5ed8253bebff3ad4c334e036cd6351",
+      "public": "openspec/changes/observability-environment-parity/evidence/settlement-launch-input-facts-20261106.md",
+      "publishedBytes": 12757,
+      "publishedSha256": "2d9722776ab834e8daa9cb26c7d5c7208102177629746885aa0092fa9f7758b7",
+      "source": "puni-task116-launch-facts.md"
+    },
+    {
+      "originalBytes": 31748,
+      "originalSha256": "da5f20e2f28ce7706a258aa41e68c56b032c58d8f2e7f8a020889e39f563c7bc",
+      "public": "openspec/changes/observability-environment-parity/evidence/settlement-consumer-facts-20261106.json",
+      "publishedBytes": 31628,
+      "publishedSha256": "a77f2aed7da6508849571d1a4ddbc374a3071f430cb8f97e151f47e425276208",
+      "source": "puni-task116-consumer-facts.json"
+    },
+    {
+      "originalBytes": 10201,
+      "originalSha256": "7c28a641d2bb0623707e627e97cc7e1b9f65bbd8cbcb6902ee42afc96a512736",
+      "public": "openspec/changes/observability-environment-parity/evidence/settlement-consumer-facts-20261106.md",
+      "publishedBytes": 14306,
+      "publishedSha256": "b19e45b551eea5c155e1665b53a251eeb15391b7c2cf0aabdb0e3feee6e23d8d",
+      "source": "puni-task116-consumer-facts.md"
+    },
+    {
+      "originalBytes": 42696,
+      "originalSha256": "8a1de02ecbeaa11a451f97bbcab5b341eec181a77cda2f5f8babc5dd1c4662bc",
+      "public": "openspec/changes/observability-environment-parity/evidence/settlement-input-xattr-names-20261106.json",
+      "publishedBytes": 68735,
+      "publishedSha256": "4aff2af87e5ff561a2d7581dc91f3bb231c9f79cdb951a21a068fb64e31b362a",
+      "source": "puni-task116-input-xattr-names.json"
+    },
+    {
+      "originalBytes": 2542,
+      "originalSha256": "7e7437e072629d01053bc807acdf46be18a71407d73d37edd24a4b3d243f8b7e",
+      "public": "openspec/changes/observability-environment-parity/evidence/settlement-input-xattr-names-20261106.md",
+      "publishedBytes": 2825,
+      "publishedSha256": "256a559c1e5d7d7610fc505036ef4ddd0670a2b7451b902272094b63da48831f",
+      "source": "puni-task116-input-xattr-names.md"
+    }
+  ],
+  "limits": [
+    "No actual settlement/qualification",
+    "Two named host access denials stopped: AUDIT_GET EPERM1 and rsyslog spool EACCES13",
+    "Temporary launch projection90034B exceeded65535cap; removed; final data do not assert fully compliant acquisition",
+    "No policy/privilege/service/Secret/storage changes"
+  ],
+  "proposedCommand": {
+    "executed": false,
+    "hashScope": "complete unexecuted shell command including final newline",
+    "needsSeparateAdministratorAuthorization": true,
+    "publishedProposalSha256": "a9f419e96974e3d5fcfe9321fafcfd072453bb2d14ab717ccea3250513f35878",
+    "review": "audit-status-inspection-review.md",
+    "reviewSha256": "676bbf670fde2619bc8c232f1637f4e8e8b0947fcfadb10271deea9f242ec434",
+    "sha256": "85a420ad3576fd81edc8308b991982d38c0f59d9ee49cbee8421eac6c9db268c",
+    "source": "audit-status-inspection-proposal.md",
+    "state": "approved for administrator presentation only; no execution authorization"
+  },
+  "representation": "Original hashes identify bounded diagnostic outputs; public JSON may be Markdown/Prettier formatted and is not a runtime qualification record.",
+  "sourceCommit": "42e1c6cccef285a288f7a5ee7693cf6695cc3d54"
+}

@@ -94,6 +94,24 @@ with tempfile.TemporaryDirectory(prefix='puni-settlement-chain113-') as scratch:
             bytes=observation.st_size,uid=observation.st_uid,mode=stat.S_IMODE(observation.st_mode))
     def pins(paths):return [pin(path) for path in paths]
     # Only native-size metadata is modeled: real tiny inodes, open flags, syscalls, IPC, records and readers remain production.
+    native_raw_bytes=raw.RAW_BYTES
+    native_worker_limits=raw.worker_limits
+    def worker_limits():
+        logical_raw_bytes=raw.RAW_BYTES
+        raw.RAW_BYTES=native_raw_bytes
+        try:native_worker_limits()
+        finally:raw.RAW_BYTES=logical_raw_bytes
+        if scenario=='worker-runtime':
+            # Proof: a 16MiB ordinary allocation exposed 4096-byte fixture RLIMIT_AS as MemoryError/client EOF.
+            runtime_reserve=bytearray(16*1024**2)
+            import resource
+            assert resource.getrlimit(resource.RLIMIT_AS)==(native_raw_bytes,)*2
+            assert resource.getrlimit(resource.RLIMIT_FSIZE)==(native_raw_bytes,)*2
+            assert resource.getrlimit(resource.RLIMIT_NOFILE)==(64,64)
+            assert resource.getrlimit(resource.RLIMIT_CPU)==(900,900)
+            assert resource.getrlimit(resource.RLIMIT_CORE)==(0,0)
+            assert len(runtime_reserve)==16*1024**2
+    raw.worker_limits=worker_limits
     raw.RAW_BYTES=4096
     native_snapshot=repair.snapshot_file
     def snapshot(observation):return dict(native_snapshot(observation),logicalBytes='8589934592')
@@ -288,6 +306,16 @@ with tempfile.TemporaryDirectory(prefix='puni-settlement-chain113-') as scratch:
         global latest_child
         latest_child=OwnedChild(channel.recipient);return latest_child
     writer.SettlementContext.launch_worker=launch
+    class DiagnosticPipe(writer.SettlementPipe):
+        def diagnose(self,operation,*arguments):
+            try:return operation(*arguments)
+            except BaseException as failure:
+                diagnostics=bytes(self.payloads['stderr'])[:8192]
+                if diagnostics:failure.add_note('disposable worker stderr: '+diagnostics.decode('utf-8','replace'))
+                raise
+        def frame(self,phase):return self.diagnose(super().frame,phase)
+        def finish(self):return self.diagnose(super().finish)
+    writer.SettlementPipe=DiagnosticPipe
     native_call=writer.native_call
     publishing=None
     lost_lifetime=False
@@ -605,7 +633,13 @@ with tempfile.TemporaryDirectory(prefix='puni-settlement-chain113-') as scratch:
     print('accepted-G-only-K-retained')
 `;
 
-for (const scenario of ['complete', 'consumed-exited', 'unqualified', 'attempt-unqualified']) {
+for (const scenario of [
+  'complete',
+  'worker-runtime',
+  'consumed-exited',
+  'unqualified',
+  'attempt-unqualified',
+]) {
   test(`conditional production settlement chain ${scenario}`, () => {
     const invocation = Bun.spawnSync(
       ['/usr/bin/python3', '-I', '-B', '-c', integration, import.meta.dir, scenario],
@@ -614,12 +648,28 @@ for (const scenario of ['complete', 'consumed-exited', 'unqualified', 'attempt-u
     expect(invocation.stderr.toString()).toBe('');
     expect(invocation.exitCode).toBe(0);
     expect(invocation.stdout.toString().trim()).toBe(
-      scenario === 'complete' || scenario === 'consumed-exited'
+      scenario === 'complete' || scenario === 'worker-runtime' || scenario === 'consumed-exited'
         ? 'accepted-G-only-K-retained'
         : 'refused-before-publication',
     );
   }, 25000);
 }
+
+test('settlement tiny geometry cannot replace original worker process limits', () => {
+  const logicalLimits = integration.replace(
+    'raw.RAW_BYTES=native_raw_bytes',
+    'raw.RAW_BYTES=logical_raw_bytes',
+  );
+  expect(logicalLimits).not.toBe(integration);
+  const invocation = Bun.spawnSync(
+    ['/usr/bin/python3', '-I', '-B', '-c', logicalLimits, import.meta.dir, 'worker-runtime'],
+    { stdout: 'pipe', stderr: 'pipe', timeout: 20000 },
+  );
+  expect(invocation.exitCode).not.toBe(0);
+  const diagnostics = Bun.stripANSI(invocation.stderr.toString());
+  expect(diagnostics).toContain('settlement-client-eof');
+  expect(diagnostics).toContain('MemoryError');
+});
 
 for (const role of [
   'request',

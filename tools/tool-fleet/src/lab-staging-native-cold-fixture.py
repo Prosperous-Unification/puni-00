@@ -38,6 +38,19 @@ os.open=lambda path,*args,**kwargs:installed_open(map_runtime_path(path,True),*a
 io.open=lambda path,*args,**kwargs:installed_io_open(map_runtime_path(path,True),*args,**kwargs)
 Path.resolve=lambda path,*args,**kwargs:Path(map_runtime_path(installed_resolve(Path(map_runtime_path(path,True)),*args,**kwargs)))
 
+# Proof: foreign-runtime lacked its rejected path until this test-only context was added.
+def observed_runtime(control):
+    try:return control.runtime_paths()
+    except control.Refusal as failure:
+        if str(failure)=='runtime-mapping':
+            trace=failure.__traceback__
+            while trace.tb_frame.f_code.co_name!='runtime_paths':trace=trace.tb_next
+            scope=trace.tb_frame.f_locals
+            paths=scope['paths'] if 'paths' in scope else {scope['fields'][5]}
+            rejected=sorted(path for path in paths if not control.is_runtime_path(path) or path.endswith(' (deleted)'))
+            failure.add_note('fixture runtime count='+str(len(paths))+' rejected: '+repr([path[:256] for path in rejected[:16]]))
+        raise
+
 # Worker entry follows the runtime provider.
 import hashlib, importlib.util, json, os, signal, stat, sys, types
 from pathlib import Path

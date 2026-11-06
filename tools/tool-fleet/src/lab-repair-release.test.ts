@@ -25,7 +25,8 @@ if fault=='source-change':
     current_source=pathlib.Path(state.split('/.puni/')[0])/'tools/tool-fleet/src/current.py';binding['inputs']={str(current_source):p.raw.stable_identity(current_source.stat())}
 ready=time.time_ns();p.raw.send_frame(1,dict(phase='ready',binding=binding,observedNs=ready,reservation=reservation,snapshot=snapshot,mapDigest='f'*64));p.raw.receive_ack(0,binding,'b'*64)
 assert json.load(open(directory+'/reservation.json'))==reservation
-pathlib.Path(directory+'/ack-before-mutation').write_text('metadata-only fixture')
+# Proof: success/order formerly refused the instrumentation file in the closed repair namespace.
+(pathlib.Path(state).parents[2]/'ack-before-mutation').write_text('metadata-only fixture')
 allocation=dict(identity={key:snapshot[key] for key in ('device','inode','owner','mode','links','mtimeNs','ctimeNs')},expectedBytes=16384,coverageBytes=16384,allocatedBytes=int(snapshot['allocatedBytes']),mapDigest='f'*64)
 sha=hashlib.sha256(os.pread(raw_fd,16384,0)).hexdigest()
 artifact=dict(schemaVersion=1,lineage='continued-guest',before=snapshot,after=snapshot,logicalSha256Before=sha,logicalSha256After=sha,readBytes='16384',rewrittenBytes='16384',allocation=allocation)
@@ -268,7 +269,7 @@ with tempfile.TemporaryDirectory() as root:
             except p.raw.PreparationRefusal as failure:assert str(failure)=='raw-state-absent'
             else:raise AssertionError('certificate credited without accepted receipt')
         assert os.path.exists(directory+'/reservation.json')
-        if fault=='reservation-sync':assert not os.path.exists(directory+'/ack-before-mutation'),'mutation sentinel before reservation fsync'
+        if fault=='reservation-sync':assert not os.path.exists(root+'/ack-before-mutation'),'mutation sentinel before reservation fsync'
     assert child.poll() is not None,'original service client orphaned'
 print('release '+scenario)
 `;

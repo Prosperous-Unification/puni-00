@@ -439,7 +439,7 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
         # Prime the real helper/runtime closure before request binding, as native preparation does.
         captures = {str(root/relative):(root/relative).read_bytes() for relative in control.select_sources()}
         with control.repository_loader(captures): helpers = control.load_helpers()
-        runtime = control.runtime_paths()
+        runtime = observed_runtime(control)
         request['runtimePins'] = [pin(path) for path in sorted(runtime)]
         request_sha = write_request()
         request['inventory'] = control.inventory_roots(request)
@@ -494,8 +494,10 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
             specification.loader.exec_module(module)
             original_require=control.require
             try:
-                try:control.runtime_paths()
-                except control.Refusal as failure:assert str(failure)=='runtime-mapping'
+                try:observed_runtime(control)
+                except control.Refusal as failure:
+                    assert str(failure)=='runtime-mapping'
+                    assert any(str(foreign) in note for note in failure.__notes__)
                 else:raise AssertionError('foreign startup hook entered native runtime')
                 control.require=lambda predicate,code:original_require(predicate,code) if code!='runtime-mapping' else None
                 assert str(foreign) in control.runtime_paths(),'omitted runtime guard failed to expose foreign hook'

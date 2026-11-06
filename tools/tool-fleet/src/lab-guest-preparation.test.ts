@@ -1976,14 +1976,16 @@ with tempfile.TemporaryDirectory() as directory:
 const capacityParserControl =
   requireSelectedRefusal +
   String.raw`
-import importlib.util,os,sys,types
+import importlib.util,os,sys,tempfile,types
 ${providerStartup}
 spec=importlib.util.spec_from_file_location('guest',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
 complete_provider_import(fixture_import_descriptors)
 p.raw.read_text=lambda path:'MemAvailable: 99999999 kB\nMemAvailable: 99999998 kB\n'
 p.os.statvfs=lambda path:types.SimpleNamespace(f_bavail=50*1024**3,f_frsize=1)
 p.raw.allocated_bytes=lambda state:0
-refuse_selected(lambda:p.observe_capacity('/qualified-state',initial=True))
+# Proof: the nonexistent synthetic state hid parser-guard removal behind a later path refusal.
+with tempfile.TemporaryDirectory() as state:
+    refuse_selected(lambda:p.observe_capacity(state,initial=True))
 `;
 
 const freshSourceControl = lifecycle

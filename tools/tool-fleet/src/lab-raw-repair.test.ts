@@ -1032,7 +1032,8 @@ reservation=p.make_reservation(nonce,'b'*64,'c'*64,snapshot,0)
 binding=dict(pid=os.getpid(),start=p.raw.process_start(os.getpid()),unit='puni-raw-repair-'+nonce+'.service',invocation='e'*32,cgroup='/fixture',nonce=nonce,creator=p.raw.identity(os.fstat(creator)),originalCreator=p.raw.identity(os.fstat(original)),originalFd=original,raw=p.raw.identity(os.fstat(raw_fd)),rawFd=raw_fd,rawPath=path,staging=p.raw.identity(os.fstat(staging)),stagingFd=staging,python=p.raw.stable_identity(os.stat('/proc/self/exe')),inputs={},evidence={},source='c'*64,request='b'*64,reservationDigest=p.raw.digest_json(reservation))
 ready=time.time_ns();p.raw.send_frame(1,dict(phase='ready',binding=binding,observedNs=ready,reservation=reservation,snapshot=snapshot,mapDigest='f'*64));p.raw.receive_ack(0,binding,'b'*64)
 assert json.load(open(directory+'/reservation.json'))==reservation
-pathlib.Path(directory+'/ack-before-mutation').write_text('metadata-only fixture')
+# Proof: success/order formerly refused the instrumentation file in the closed repair namespace.
+(pathlib.Path(state).parents[2]/'ack-before-mutation').write_text('metadata-only fixture')
 allocation=dict(identity={key:snapshot[key] for key in ('device','inode','owner','mode','links','mtimeNs','ctimeNs')},expectedBytes=16384,coverageBytes=16384,allocatedBytes=int(snapshot['allocatedBytes']),mapDigest='f'*64)
 sha=hashlib.sha256(os.pread(raw_fd,16384,0)).hexdigest()
 artifact=dict(schemaVersion=1,lineage='continued-guest',before=snapshot,after=snapshot,logicalSha256Before=sha,logicalSha256After=sha,readBytes='16384',rewrittenBytes='16384',allocation=allocation)
@@ -1113,7 +1114,7 @@ with tempfile.TemporaryDirectory() as root:
         assert fault!='success'
         assert not os.path.exists(directory+'/receipt.json')
         assert os.path.exists(directory+'/reservation.json')
-        if fault=='reservation-sync':assert not os.path.exists(directory+'/ack-before-mutation'),'mutation sentinel before reservation fsync'
+        if fault=='reservation-sync':assert not os.path.exists(root+'/ack-before-mutation'),'mutation sentinel before reservation fsync'
     assert child.poll() is not None,'original service client orphaned'
 print('outer '+fault)
 `;
