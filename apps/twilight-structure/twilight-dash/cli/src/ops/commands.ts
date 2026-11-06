@@ -1,5 +1,7 @@
 import type { DashCommand, ReleaseCommand } from '../cli-parser';
 import type { Monotonic, WallClock } from '../clock';
+import type { ApiKey, McpEndpoint } from '../mcp/machine-token';
+import type { WbsTools } from '../mcp/wbs-tools';
 import {
   legacyHoldDirectory,
   type LegacyLock,
@@ -12,6 +14,8 @@ import {
   loadResourceConfiguration,
   OutboxDropRefusal,
   ResourceRuntime,
+  ResourceWbsRefusal,
+  ResourceWbsUnavailable,
 } from '../resources/runtime';
 import { auditDrift } from './audit';
 import { renderAuditUnits, writeAuditUnits } from './audit-units';
@@ -40,6 +44,11 @@ export interface OpsDependencies {
   readonly user: string;
   /** The shell lock (J12), resolved only by the commands that take or read it. */
   readonly legacyLock: () => LegacyLock;
+  /**
+   * WBS's tools for the pool configuration's MCP endpoint and key, the client `resources`
+   * publishes the outbox with; `ops outbox drop` re-sends through it (task 6.8b).
+   */
+  readonly connect: (endpoint: McpEndpoint, key: ApiKey) => WbsTools;
 }
 
 /**
@@ -371,26 +380,52 @@ export const opsHandlers: OpsHandlers = {
       runtime.close();
     }
   },
-  'outbox drop': (command, deps) => {
+  'outbox drop': async (command, deps) => {
     const runtime = openPool(command.config, deps.clock, 'ops outbox drop');
+    const tools = deps.connect(runtime.configuration.endpoint, runtime.configuration.credential);
     try {
-      let drop;
+      let dropped;
       try {
-        drop = runtime.dropRefusedEvent(command.event, {
-          operator: command.operator,
-          account: deps.user,
-          reason: command.reason,
-        });
+        dropped = await runtime.dropRefusedEvent(
+          command.event,
+          { operator: command.operator, account: deps.user, reason: command.reason },
+          tools,
+        );
       } catch (cause) {
-        if (!(cause instanceof OutboxDropRefusal)) throw cause;
-        throw new OpsRefusal(64, `ops outbox drop: ${cause.message}`, { cause });
+        if (cause instanceof OutboxDropRefusal)
+          throw new OpsRefusal(64, `ops outbox drop: ${cause.message}`, { cause });
+        // Only a fresh 400 is evidence (task 6.8b); no answer, or another refusal, is none.
+        // Proof: without it `a re-send WBS does not answer, or refuses but 400 or 409, …`
+        // (outbox-drop.test.ts) saw ResourceWbsUnavailable thrown out of runOps, not 70
+        // (2026-11-06, verify.md Slice 6h).
+        if (cause instanceof ResourceWbsUnavailable || cause instanceof ResourceWbsRefusal)
+          throw new OpsRefusal(
+            70,
+            `ops outbox drop: could not confirm WBS still refuses event ${command.event}: ${cause.message}; nothing was dropped`,
+            { cause },
+          );
+        throw cause;
       }
+      const next = dropped.outcome === 'dropped' ? dropped.drop.next : dropped.next;
+      const nextLine =
+        next === null
+          ? 'the outbox is now empty'
+          : `next in line: event ${next.eventId} (sequence ${String(next.sequence)})`;
+      if (dropped.outcome === 'published') {
+        const event = dropped.event;
+        deps.stdout(
+          `ops outbox: WBS accepted event ${event.eventId} (sequence ${String(event.sequence)}, host job ${event.useId} ${event.kind}) on re-send; marked it published, nothing was dropped; ${nextLine}\n`,
+        );
+        return 0;
+      }
+      const drop = dropped.drop;
       deps.stdout(
-        `ops outbox: dropped event ${drop.eventId} (sequence ${String(drop.eventSequence)}, host job ${drop.useId} ${drop.kind}, refused HTTP ${String(drop.refusal.status)} at ${new Date(drop.refusal.lastRefusedAt).toISOString()}); ${drop.next === null ? 'the outbox is now empty' : `next in line: event ${drop.next.eventId} (sequence ${String(drop.next.sequence)})`}\n`,
+        `ops outbox: dropped event ${drop.eventId} (sequence ${String(drop.eventSequence)}, host job ${drop.useId} ${drop.kind}, refused HTTP ${String(drop.refusal.status)} again on re-send at ${new Date(drop.refusal.confirmedAt).toISOString()}); ${nextLine}\n`,
       );
       return 0;
     } finally {
       runtime.close();
+      await tools.close();
     }
   },
 };

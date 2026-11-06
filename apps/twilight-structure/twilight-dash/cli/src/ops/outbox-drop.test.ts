@@ -9,7 +9,7 @@ import { parseDashCommand } from '../cli-parser';
 import { monotonicClock } from '../clock';
 import { fakeCredential } from '../compute/testing/credential';
 import { scriptedTools, type ToolCall } from '../mcp/testing/scripted-tools';
-import type { ToolAnswer } from '../mcp/wbs-tools';
+import { type ToolAnswer, type WbsTools, WbsUnreachable } from '../mcp/wbs-tools';
 import { ampleHost, build, hostPoolFixture } from '../resources/host-pool.test.fixture';
 import { privateLegacyLock } from '../resources/legacy-lock.test.fixture';
 import {
@@ -36,10 +36,11 @@ const SentEvent = type({
 /**
  * `dash-host-jobs` task 6.8a (S6F-A4): `ops outbox drop` removes the one host-job event WBS
  * refuses `400` for good from the head of the authority outbox, journals it, and lets the next
- * event publish in the authority's one sequence.
+ * event publish in the authority's one sequence. Task 6.8b: it first re-sends the event and
+ * drops it only on a fresh `400`.
  */
 if (insideOpsNamespace(import.meta.path))
-  describe('ops outbox drop (task 6.8a)', () => {
+  describe('ops outbox drop (tasks 6.8a, 6.8b)', () => {
     const cleanups: (() => void)[] = [];
     afterEach(() => {
       for (const cleanup of cleanups.splice(0)) cleanup();
@@ -82,33 +83,56 @@ if (insideOpsNamespace(import.meta.path))
     }
 
     /**
-     * WBS as be-01 ingests (`libs/wbs/adapters/store-sqlite/src/resource-runtime.ts`): each
-     * event must be the authority's next sequence (`409 conflict` otherwise), and `refuses`
-     * picks the events it refuses `400 invalid_body` for good.
+     * WBS as be-01 ingests (`libs/wbs/adapters/store-sqlite/src/resource-runtime.ts`): an event
+     * id it accepted answers its first acknowledgment again for the same bytes (`409 conflict`
+     * for others); a new event must be the authority's next sequence (`409 conflict`
+     * otherwise); and `refuses` picks the events it refuses `400 invalid_body`. `skipTo` moves
+     * its accepted sequence, as a WBS ahead of the outbox holds it.
      */
     function wbs(refuses: (event: { eventId: string; kind: string; useId: string }) => boolean) {
       let acceptedSequence = 0;
-      return scriptedTools((call: ToolCall): ToolAnswer => {
+      const prior = new Map<string, { bytes: string; body: unknown }>();
+      const tools = scriptedTools((call: ToolCall): ToolAnswer => {
         if (call.name === REQUESTS_TOOL)
           return { kind: 'answered', body: { requests: [], nextCursor: null } };
         if (call.name !== EVENT_TOOL) throw new Error(`unexpected tool ${call.name}`);
         const event = SentEvent.assert(call.input);
-        if (refuses(event))
-          return { kind: 'refused', status: 400, error: 'invalid_body', body: {} };
+        const bytes = JSON.stringify(call.input);
+        const known = prior.get(event.eventId);
+        if (known !== undefined)
+          return known.bytes === bytes
+            ? { kind: 'answered', body: known.body }
+            : { kind: 'refused', status: 409, error: 'conflict', body: {} };
         if (event.sequence !== acceptedSequence + 1)
           return { kind: 'refused', status: 409, error: 'conflict', body: {} };
+        if (refuses(event))
+          return { kind: 'refused', status: 400, error: 'invalid_body', body: {} };
         acceptedSequence = event.sequence;
-        return {
-          kind: 'answered',
-          body: { acceptedSequence: event.sequence, useId: event.useId, revision: event.revision },
+        const body = {
+          acceptedSequence: event.sequence,
+          useId: event.useId,
+          revision: event.revision,
         };
+        prior.set(event.eventId, { bytes, body });
+        return { kind: 'answered', body };
+      });
+      return Object.assign(tools, {
+        skipTo: (sequence: number) => {
+          acceptedSequence = sequence;
+        },
       });
     }
+
+    /** WBS calls nobody expects: the drop refused before its re-send. */
+    const unreached = () =>
+      scriptedTools((call) => {
+        throw new Error(`unexpected WBS call ${call.name}`);
+      });
 
     const accepted = (calls: ToolCall[]) =>
       calls.filter((call) => call.name === EVENT_TOOL).map((call) => SentEvent.assert(call.input));
 
-    function deps(stdout: string[], stderr: string[]): OpsDependencies {
+    function deps(stdout: string[], stderr: string[], tools: WbsTools): OpsDependencies {
       return {
         clock,
         monotonic: monotonicClock(),
@@ -120,10 +144,11 @@ if (insideOpsNamespace(import.meta.path))
         host: ampleHost,
         user: 'puni1',
         legacyLock: () => privateLegacyLock('/nonexistent'),
+        connect: () => tools,
       };
     }
 
-    async function drop(config: string, event: string) {
+    async function drop(config: string, event: string, tools: WbsTools) {
       const stdout: string[] = [];
       const stderr: string[] = [];
       const code = await runOps(
@@ -135,7 +160,7 @@ if (insideOpsNamespace(import.meta.path))
           operator: 'dany',
           reason: 'old-shape evidence a newer be-01 refuses (S6F-A4)',
         },
-        deps(stdout, stderr),
+        deps(stdout, stderr, tools),
       );
       return { code, stdout: stdout.join(''), stderr: stderr.join('') };
     }
@@ -176,12 +201,17 @@ if (insideOpsNamespace(import.meta.path))
       const behind = runtime.outbox().at(1);
       if (behind === undefined) throw new Error('nothing waits behind the refused event');
       now += 1_000;
-      const dropped = await drop(config, head.eventId);
+      const resent = first.calls.length;
+      const dropped = await drop(config, head.eventId, first);
       expect(dropped.stderr).toBe('');
       expect(dropped.code).toBe(0);
       expect(dropped.stdout).toBe(
-        `ops outbox: dropped event ${head.eventId} (sequence 2, host job ${blocked} release_verified, refused HTTP 400 at ${new Date(now - 1_000).toISOString()}); next in line: event ${behind.eventId} (sequence 2)\n`,
+        `ops outbox: dropped event ${head.eventId} (sequence 2, host job ${blocked} release_verified, refused HTTP 400 again on re-send at ${new Date(now).toISOString()}); next in line: event ${behind.eventId} (sequence 2)\n`,
       );
+      // The re-send is the stored bytes once, through the outbox's own tool and authority.
+      expect(
+        first.calls.slice(resent).map((call) => [call.name, JSON.stringify(call.input)]),
+      ).toEqual([[EVENT_TOOL, JSON.stringify({ authorityId: 'runtime-one', ...head })]]);
       // The journal keeps who, when, why and the dropped bytes with their digest.
       expect(runtime.outboxDrops()).toEqual([
         {
@@ -200,8 +230,9 @@ if (insideOpsNamespace(import.meta.path))
             status: 400,
             error: 'resource publication HTTP 400 invalid_body',
             firstRefusedAt: now - 61_000,
-            lastRefusedAt: now - 1_000,
-            refusals: 2,
+            lastRefusedAt: now,
+            refusals: 3,
+            confirmedAt: now,
           },
           next: { eventId: behind.eventId, sequence: 2 },
           renumbered: 2,
@@ -240,7 +271,7 @@ if (insideOpsNamespace(import.meta.path))
       const head = before.at(0);
       if (head === undefined) throw new Error('nothing in the outbox');
       expect(runtime.outboxRefusals()).toEqual([]);
-      const refused = await drop(config, head.eventId);
+      const refused = await drop(config, head.eventId, unreached());
       expect(refused).toEqual({
         code: 64,
         stdout: '',
@@ -254,7 +285,7 @@ if (insideOpsNamespace(import.meta.path))
       const { runtime, config } = pool();
       withdrawn(runtime, 'gate:fine');
       const missing = '0f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0';
-      expect(await drop(config, missing)).toEqual({
+      expect(await drop(config, missing, unreached())).toEqual({
         code: 64,
         stdout: '',
         stderr: `error: ops outbox drop: event ${missing} is not in the outbox of authority runtime-one\n`,
@@ -264,7 +295,7 @@ if (insideOpsNamespace(import.meta.path))
       await runtime.synchronize(up);
       const published = accepted(up.calls).at(0);
       if (published === undefined) throw new Error('nothing published');
-      expect(await drop(config, published.eventId)).toEqual({
+      expect(await drop(config, published.eventId, unreached())).toEqual({
         code: 64,
         stdout: '',
         stderr: `error: ops outbox drop: event ${published.eventId} was published (sequence 1); nothing to drop\n`,
@@ -279,7 +310,7 @@ if (insideOpsNamespace(import.meta.path))
       expect(await outcomeOf(runtime.synchronize(tools))).toBeInstanceOf(ResourceWbsUnavailable);
       const [head, settlement] = [runtime.outbox().at(0), runtime.outbox().at(1)];
       if (head === undefined || settlement === undefined) throw new Error('outbox too short');
-      expect(await drop(config, head.eventId)).toEqual({
+      expect(await drop(config, head.eventId, unreached())).toEqual({
         code: 64,
         stdout: '',
         stderr: `error: ops outbox drop: event ${head.eventId} (sequence 1) is followed by event ${settlement.eventId} (sequence 2) of the same use ${job}; dropping it would strand that use's later revisions\n`,
@@ -298,12 +329,20 @@ if (insideOpsNamespace(import.meta.path))
       expect(await outcomeOf(runtime.synchronize(first))).toBeInstanceOf(ResourceWbsUnavailable);
       const head = runtime.outbox().at(0);
       if (head === undefined) throw new Error('nothing in the outbox');
-      // WBS accepts the event this time, and the operator drops it while the answer is in flight.
-      refuse = false;
+      // The drop's re-send is refused again, then WBS accepts the event from watch, and the
+      // drop commits while that answer is in flight.
       const raced: Promise<{ code: number }>[] = [];
-      const racing = scriptedTools((call: ToolCall): ToolAnswer => {
-        if (call.name === EVENT_TOOL && call.input['eventId'] === head.eventId)
-          if (raced.length === 0) raced.push(drop(config, head.eventId));
+      const racing = scriptedTools(async (call: ToolCall): Promise<ToolAnswer> => {
+        if (
+          call.name === EVENT_TOOL &&
+          call.input['eventId'] === head.eventId &&
+          raced.length === 0
+        ) {
+          const dropping = drop(config, head.eventId, first);
+          raced.push(dropping);
+          await dropping;
+          refuse = false;
+        }
         if (call.name === REQUESTS_TOOL)
           return { kind: 'answered', body: { requests: [], nextCursor: null } };
         const event = SentEvent.assert(call.input);
@@ -332,9 +371,11 @@ if (insideOpsNamespace(import.meta.path))
       if (head === undefined) throw new Error('nothing in the outbox');
       // A watch tick sends the head again; the operator drops it while WBS's 400 is in flight.
       const drops: Promise<{ code: number }>[] = [];
-      const racing = scriptedTools((call: ToolCall): ToolAnswer => {
+      const racing = scriptedTools(async (call: ToolCall): Promise<ToolAnswer> => {
         if (call.name === EVENT_TOOL && call.input['eventId'] === head.eventId) {
-          drops.push(drop(config, head.eventId));
+          const dropping = drop(config, head.eventId, first);
+          drops.push(dropping);
+          await dropping;
           return { kind: 'refused', status: 400, error: 'invalid_body', body: {} };
         }
         throw new Error(`unexpected call ${call.name}`);
@@ -359,8 +400,145 @@ if (insideOpsNamespace(import.meta.path))
         .run(randomUUID(), 3, 'e'.repeat(64), 400, 'stale', now, now);
       ledger.close();
       expect(runtime.outboxRefusals()).toHaveLength(2);
-      expect((await drop(config, head.eventId)).code).toBe(0);
+      expect((await drop(config, head.eventId, tools)).code).toBe(0);
       expect(runtime.outboxRefusals()).toEqual([]);
+    });
+
+    /** Two withdrawn jobs, the first's settlement refused `400` twice at the outbox head. */
+    async function refusedHead() {
+      const fixture = pool();
+      const blocked = withdrawn(fixture.runtime, 'gate:refused');
+      const following = withdrawn(fixture.runtime, 'gate:after');
+      let refuse = true;
+      const tools = wbs(
+        (event) => refuse && event.useId === blocked && event.kind === 'release_verified',
+      );
+      expect(await outcomeOf(fixture.runtime.synchronize(tools))).toBeInstanceOf(
+        ResourceWbsUnavailable,
+      );
+      now += 60_000;
+      expect(await outcomeOf(fixture.runtime.synchronize(tools))).toBeInstanceOf(
+        ResourceWbsUnavailable,
+      );
+      const head = fixture.runtime.outbox().at(0);
+      if (head === undefined) throw new Error('nothing in the outbox');
+      return {
+        ...fixture,
+        tools,
+        blocked,
+        following,
+        head,
+        accept: () => {
+          refuse = false;
+        },
+      };
+    }
+
+    test('an event WBS accepted before a crash is published by the re-send, not dropped', async () => {
+      const { runtime, config, tools, blocked, following, head, accept } = await refusedHead();
+      // A watch sent the head, WBS accepted it, and the watch died before marking it published:
+      // the stored row still says 400.
+      accept();
+      expect(await tools.call(EVENT_TOOL, { authorityId: 'runtime-one', ...head })).toMatchObject({
+        kind: 'answered',
+      });
+      expect(runtime.outboxRefusals()).toMatchObject([{ eventId: head.eventId, status: 400 }]);
+      const behind = runtime.outbox().at(1);
+      if (behind === undefined) throw new Error('nothing waits behind the head');
+      // Proof: with the re-send skipped (its answer taken as the stored 400), this drop exited 0
+      // `dropped event …`, next in line renumbered to sequence 2, which WBS already holds
+      // (2026-11-06, verify.md Slice 6h).
+      expect(await drop(config, head.eventId, tools)).toEqual({
+        code: 0,
+        stdout: `ops outbox: WBS accepted event ${head.eventId} (sequence 2, host job ${blocked} release_verified) on re-send; marked it published, nothing was dropped; next in line: event ${behind.eventId} (sequence 3)\n`,
+        stderr: '',
+      });
+      expect(runtime.outboxDrops()).toEqual([]);
+      expect(runtime.outboxRefusals()).toEqual([]);
+      expect(runtime.outbox().map((event) => event.sequence)).toEqual([3, 4]);
+      const sent = tools.calls.length;
+      expect(await outcomeOf(runtime.synchronize(tools))).toBe('synchronized');
+      expect(
+        accepted(tools.calls.slice(sent)).map((event) => [event.sequence, event.useId, event.kind]),
+      ).toEqual([
+        [3, following, 'registered'],
+        [4, following, 'release_verified'],
+      ]);
+    });
+
+    test('a re-send WBS answers 409 refuses the drop, naming the sequence state', async () => {
+      const { runtime, config, tools, head } = await refusedHead();
+      const before = { outbox: runtime.outbox(), refusals: runtime.outboxRefusals() };
+      // WBS holds a later sequence than the outbox knows, as a restored or hand-repaired one would.
+      tools.skipTo(5);
+      expect(await drop(config, head.eventId, tools)).toEqual({
+        code: 64,
+        stdout: '',
+        stderr: `error: ops outbox drop: WBS answered HTTP 409 conflict to the re-send of event ${head.eventId} (sequence 2): its accepted sequence for authority runtime-one is not 1, or it holds other bytes under this event id, so WBS is ahead of or behind the outbox; nothing was dropped. Repair by hand: read the authority's acceptedSequence (getApiOrganizationResourceAuthoritiesByAuthorityId) and reconcile the outbox with it before any drop\n`,
+      });
+      expect({ outbox: runtime.outbox(), refusals: runtime.outboxRefusals() }).toEqual(before);
+      expect(runtime.outboxDrops()).toEqual([]);
+    });
+
+    test('a re-send WBS does not answer, or refuses but 400 or 409, refuses the drop as unconfirmed', async () => {
+      const { runtime, config, head } = await refusedHead();
+      const before = { outbox: runtime.outbox(), refusals: runtime.outboxRefusals() };
+      const down = scriptedTools((): ToolAnswer => ({
+        kind: 'not_called',
+        reason: 'server_error',
+      }));
+      const unreachable = scriptedTools(() => {
+        throw new WbsUnreachable(EVENT_TOOL, { cause: new Error('connection refused') });
+      });
+      const forbidden = scriptedTools((): ToolAnswer => ({
+        kind: 'refused',
+        status: 403,
+        error: 'forbidden',
+        body: {},
+      }));
+      for (const [tools, reason] of [
+        [down, `resource publication not completed: server_error`],
+        [unreachable, `resource publication: WBS unreachable`],
+        [forbidden, `resource publication HTTP 403 forbidden`],
+      ] as const)
+        expect(await drop(config, head.eventId, tools)).toEqual({
+          code: 70,
+          stdout: '',
+          stderr: `error: ops outbox drop: could not confirm WBS still refuses event ${head.eventId}: ${reason}; nothing was dropped\n`,
+        });
+      expect({ outbox: runtime.outbox(), refusals: runtime.outboxRefusals() }).toEqual(before);
+      expect(runtime.outboxDrops()).toEqual([]);
+    });
+
+    test('two drops of the same event drop it once', async () => {
+      const { runtime, config, tools, head, following } = await refusedHead();
+      // Both re-sends are answered only once both are in flight, so each drop holds a fresh 400
+      // before either commits.
+      let release = (): void => undefined;
+      const bothSent = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let inFlight = 0;
+      const gated = scriptedTools(async (call: ToolCall): Promise<ToolAnswer> => {
+        inFlight += 1;
+        if (inFlight === 2) release();
+        await bothSent;
+        return tools.call(call.name, call.input);
+      });
+      const outcomes = await Promise.all([
+        drop(config, head.eventId, gated),
+        drop(config, head.eventId, gated),
+      ]);
+      expect(outcomes.map((outcome) => outcome.code).sort()).toEqual([0, 64]);
+      expect(outcomes.map((outcome) => outcome.stderr).sort()).toEqual([
+        '',
+        `error: ops outbox drop: event ${head.eventId} is not in the outbox of authority runtime-one\n`,
+      ]);
+      expect(runtime.outboxDrops()).toHaveLength(1);
+      expect(runtime.outbox().map((event) => [event.sequence, event.useId, event.kind])).toEqual([
+        [2, following, 'registered'],
+        [3, following, 'release_verified'],
+      ]);
     });
 
     test('the grammar takes an event id, an operator and a reason', () => {

@@ -85,6 +85,9 @@ if (insideOpsNamespace(import.meta.path))
         host: ampleHost,
         user: 'puni1',
         legacyLock: () => privateLegacyLock('/nonexistent'),
+        connect: () => {
+          throw new Error('no WBS call expected');
+        },
       };
       expect(
         opsHandlers['job admission']({ command: 'ops', words: 'job admission', config, job }, deps),
@@ -170,6 +173,9 @@ if (insideOpsNamespace(import.meta.path))
           host: ampleHost,
           user: 'puni1',
           legacyLock: () => privateLegacyLock('/nonexistent'),
+          connect: () => {
+            throw new Error('no WBS call expected');
+          },
         },
       );
       expect(code).toBe(70);
