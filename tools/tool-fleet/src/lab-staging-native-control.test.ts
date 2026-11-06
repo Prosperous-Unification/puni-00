@@ -11,7 +11,7 @@ const source = fileURLToPath(
 );
 
 test('finite staging entry compiles before importing its native helpers', () => {
-  const child = Bun.spawnSync(['/usr/bin/python3', '-I', '-B', source, 'ast-check'], {
+  const child = Bun.spawnSync(['/usr/bin/python3', '-I', '-S', '-B', source, 'ast-check'], {
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
@@ -541,7 +541,8 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
                 assert ctypes.CDLL(None).prctl(38,1,0,0,0)==0
             def cold(phase,omitted,endpoint=None,mapped='-'):
                 arguments=[str(root),str(request_path),request_sha,nonce,phase,'yes' if omitted else 'no',mapped,bootstrap,str(root),request['pins'][7]['sha256'],str(request_path),request_sha,nonce,str(os.getpid()),helpers['raw'].process_start(os.getpid())]
-                return real_popen(['/usr/bin/python3','-I','-B','-c',sys.argv[3],*arguments],stdin=subprocess.DEVNULL if endpoint is None else endpoint,stdout=subprocess.PIPE,stderr=subprocess.PIPE,bufsize=0,preexec_fn=service_limits)
+                # Proof: omitting -S refused cold capture at runtime-mapping before started.
+                return real_popen(['/usr/bin/python3','-I','-S','-B','-c',sys.argv[3],*arguments],stdin=subprocess.DEVNULL if endpoint is None else endpoint,stdout=subprocess.PIPE,stderr=subprocess.PIPE,bufsize=0,preexec_fn=service_limits)
             capture=cold('capture',False);output,errors=capture.communicate(timeout=3)
             assert capture.returncode==0 and errors==b'',errors
             closure=json.loads(output);platform_path='/usr/lib/python3.12/platform.py'
@@ -867,8 +868,9 @@ for (const mode of [
   'omit-dead-foreign-enoent',
 ]) {
   test(`native staging source ${mode} uses bounded ordinary ownership`, () => {
+    // Proof: omitting -S restored .pth auto-import and runtime-mapping in the positive fixture.
     const child = Bun.spawnSync(
-      ['/usr/bin/python3', '-I', '-B', '-c', fixture, source, mode, coldWorker],
+      ['/usr/bin/python3', '-I', '-S', '-B', '-c', fixture, source, mode, coldWorker],
       {
         stdin: 'ignore',
         stdout: 'pipe',

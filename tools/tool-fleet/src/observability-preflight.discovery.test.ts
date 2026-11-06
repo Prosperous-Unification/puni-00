@@ -27,14 +27,14 @@ for (const [label, definitions, customKinds] of [
   ['none', [], []],
 ] as const) {
   it(`first inventory queries exactly discovered custom APIs: ${label}`, async () => {
+    const definitionNames = new Set<string>(definitions);
     const setup = await fixture();
     setup.request.phase = 'inventory';
     setup.request.resources = [];
     setup.request.candidate = [];
     setup.snapshot.resources = setup.snapshot.resources.filter(
       (resource) =>
-        resource.kind !== 'CustomResourceDefinition' ||
-        (definitions as readonly string[]).includes(resource.name),
+        resource.kind !== 'CustomResourceDefinition' || definitionNames.has(resource.name),
     );
     for (const kind of ['DaemonSet', 'ReplicaSet', 'StatefulSet', 'Elasticsearch', 'Kibana'])
       setup.snapshot.resources.push({
@@ -47,15 +47,15 @@ for (const [label, definitions, customKinds] of [
     expect(receipt.customWorkloadAPIs).toMatchObject([
       {
         resourceType: elasticsearch,
-        state: (definitions as readonly string[]).includes(elasticsearch) ? 'present' : 'absent',
+        state: definitionNames.has(elasticsearch) ? 'present' : 'absent',
       },
       {
         resourceType: kibana,
-        state: (definitions as readonly string[]).includes(kibana) ? 'present' : 'absent',
+        state: definitionNames.has(kibana) ? 'present' : 'absent',
       },
       {
         resourceType: helm,
-        state: (definitions as readonly string[]).includes(helm) ? 'present' : 'absent',
+        state: definitionNames.has(helm) ? 'present' : 'absent',
       },
     ]);
     expect(receipt.inventoryComplete).toBe(true);
