@@ -486,6 +486,9 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
         legacyLock: () => {
           throw new Error('no ops command ran');
         },
+        connect: () => {
+          throw new Error('no ops command ran');
+        },
       });
     } catch (cause) {
       refusal = cause;

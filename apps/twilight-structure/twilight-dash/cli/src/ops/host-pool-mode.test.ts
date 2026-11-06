@@ -137,6 +137,11 @@ if (insideOpsNamespace(import.meta.path)) {
       host: ampleHost,
       user: 'puni1',
       legacyLock: () => privateLegacyLock(join(cwd, '..')),
+      // The drop's guard refusal comes before its re-send (task 6.8b): no WBS call is expected.
+      connect: () => ({
+        call: (name) => Promise.reject(new Error(`unexpected WBS call ${name}`)),
+        close: () => Promise.resolve(),
+      }),
     };
   }
 

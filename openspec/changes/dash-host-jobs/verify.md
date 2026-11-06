@@ -3104,10 +3104,10 @@ tests in `ops/outbox-drop.test.ts`.
   `synchronize` now finds the row it would mark published gone (`changes !== 1`) and throws
   `resource outbox event … changed while it was published`. It no longer silently publishes the
   renumbered next event under the sequence WBS just took. That state needs a hand repair, and the
-  docs say so. The stored row is the only evidence WBS still refuses the event: a `watch` that
+  docs say so. The stored row was the only evidence WBS still refuses the event: a `watch` that
   crashes between WBS accepting it and the publish mark leaves a stale `400` row, and a drop then
-  renumbers the next event onto a sequence WBS holds (`409` for good). The docs tell the operator
-  to check the row is recent and repeating; re-sending for a fresh `400` is task 6.8b. In
+  renumbers the next event onto a sequence WBS holds (`409` for good). Task 6.8b (Slice 6h,
+  S6H-A1) closes it: the drop re-sends the event and drops only on a fresh `400`. In
   concurrent mode with the guard on, the drop refuses 64 while the guard's holder is live (review
   of #878 F1). The holder can outlive a stopped `watch`, and observe mode and a released guard
   give no such signal.
@@ -3202,3 +3202,105 @@ host-pool-mode (45 pass), cli, host-job-publication and report-capacity.host-poo
 `Ran 5773 tests across 185 files. [3064.86s]`, exit 0; `bunx nx affected -t lint typecheck
 --base=origin/main --parallel=2` 7 projects, exit 0; `bunx nx format:check --all` exit 0;
 `bunx openspec validate --all --json` 328 passed; Burokrat `check-indexes` exit 0.
+
+## Slice 6h: the drop re-sends the event for a fresh refusal (task 6.8b)
+
+Branch `feat/host-jobs-outbox-drop-resend` from `main` at `45252b24a`. Nothing here touched a
+host: no ssh, no apply, no enrollment. `ResourceRuntime.dropRefusedEvent` is now async and takes
+the outbox's WBS tools; `ops outbox drop` builds them through the new `OpsDependencies.connect`,
+which `cli.ts` composes with the same `resourceTools` factory `resources` uses. Tests in
+`ops/outbox-drop.test.ts`; the fake WBS there now also answers be-01's idempotent replay (an
+accepted event id with the same bytes answers its first acknowledgment again, other bytes `409`).
+
+### Assumptions (overrulable by id)
+
+- **S6H-A1 Re-send rather than trust the row.** The refusal row records what WBS answered at
+  some earlier moment; it cannot tell a refusal that still holds from one WBS has since
+  superseded by accepting the same bytes (the crash window of S6G-A5), nor from a WBS whose
+  sequence moved by a restore or a hand repair. Asking WBS the same question again, with the
+  same bytes, client, endpoint, key, authority and 15-second deadline, is the only evidence that
+  is current, and it is safe: be-01 keys idempotency by event id, so a re-send of an accepted
+  event answers its first acknowledgment again and changes nothing there. Reading the
+  authority's `acceptedSequence` instead was rejected: it needs the organization-admin read
+  (`getApiOrganizationResourceAuthoritiesByAuthorityId`), a second auth path the
+  outbox does not use today, and it answers "where WBS is", not "does WBS refuse these bytes".
+- **S6H-A2 Outcomes.** A fresh `400` drops (the journal's new `refusal.confirmedAt` is its time,
+  and the refusal row is updated by the same `recordRefusal` the publication path uses). A `2xx`
+  marks the event published through the publication path's own `markPublished` (acknowledgment
+  check, `changes === 1`, refusal row deleted, one transaction), drops nothing and exits 0. `409`
+  refuses 64 naming the expected predecessor sequence and the hand repair. No answer
+  (`ResourceWbsUnavailable`: unreachable, `429`, uncompleted) and every other refusal status
+  refuse 70 `could not confirm`: neither is evidence. A refused credential throws as it does for
+  `watch` (exit 1). Nothing is renumbered or deleted before the fresh `400`.
+- **S6H-A3 Checks run twice.** Every ledger check (guard holder, presence, head, host job,
+  recorded `400` of these bytes, same-use follower) runs before the re-send, so a refused drop
+  sends nothing, and again inside the commit transaction, since another drop or a publication
+  can commit while WBS answers. Two concurrent drops of one event drop it once; the second
+  refuses 64 `not in the outbox`.
+- **S6H-A4 What remains.** A WBS that accepts the same event from another sender between the
+  re-send's `400` and the drop's commit. Only a running `watch` sends it, the docs say to stop it
+  first, and in concurrent mode a live guard holder refuses the drop before the re-send. The
+  journal shape gained a required `refusal.confirmedAt`; no pool is enrolled, so no ledger holds
+  a version-3 drop record without it (no compatibility read, as before users).
+
+### Fault injection
+
+Each fault went in as an exact text replacement through a scratch script outside the
+repository. The script ran the named test file inside its private namespace, restored the file
+and checked its content. Every fault ran against the final code (`5478879f7`).
+
+| Fault injected                                             | Test that went red (file result)                                                                            | Observed                                                                                             |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| re-send replaced by the stored `400` (the task's negative) | `an event WBS accepted before a crash is published by the re-send, not dropped`, and 3 more (8 pass 4 fail) | `dropped event …`, next in line renumbered to sequence 2, which WBS holds; the 409 test exited 0 too |
+| `409` check removed                                        | `a re-send WBS answers 409 refuses the drop, naming the sequence state` (11 pass 1 fail)                    | `code: 70`, `could not confirm … HTTP 409 conflict`                                                  |
+| exit-70 mapping in `ops/commands.ts` removed               | `a re-send WBS does not answer, or refuses but 400 or 409, …` (11 pass 1 fail)                              | `ResourceWbsUnavailable: resource publication not completed: server_error` thrown out of `runOps`    |
+| `cause.status !== 400` check removed                       | same test (11 pass 1 fail)                                                                                  | the `403` stored as the refusal, `code: 64` `has no recorded WBS refusal`, not 70                    |
+| fresh `recordRefusal` removed                              | `a refused event is dropped, journalled, and the next one publishes` (11 pass 1 fail)                       | journal `refusals: 2`, `lastRefusedAt` the last watch refusal                                        |
+| commit reuses the checks made before the re-send           | `two drops of the same event drop it once` and the happy path (10 pass 2 fail)                              | both drops exit 0; the journal kept the stale refusal                                                |
+| `markPublished` on `2xx` removed                           | `an event WBS accepted before a crash is published by the re-send, not dropped` (11 pass 1 fail)            | next in line printed as the accepted event itself (sequence 2)                                       |
+| guard check removed                                        | `a live singleton guard refuses the drop` (host-pool-mode.test.ts, 44 pass 1 fail)                          | stderr `… is not in the outbox of authority runtime-one`                                             |
+
+The red run before the implementation: 7 pass 4 fail (the happy path's stdout, the `2xx`, `409`
+and unavailable tests).
+
+### Commands
+
+Fresh on 2026-11-06 on the workstation, from the worktree root, `CLAUDECODE` and
+`CLAUDE_CODE_ENTRYPOINT` unset, against `5478879f7` (code; this section's text was added after).
+
+| Command                                                                                                                   | Result                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `bun test src/ops/outbox-drop.test.ts` (inside its namespace)                                                             | 12 pass, 0 fail; red first (7 pass 4 fail)                                                  |
+| targeted: cli, host-jobs, admission, host-job-publication, report-capacity.host-pool, outbox-drop, host-pool-mode, status | 133 pass, 0 fail across 8 files                                                             |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                                                          | 5720 pass, 53 skip, 0 fail, `Ran 5773 tests across 185 files. [3068.05s]`, exit 0           |
+| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2`                                                      | `Successfully ran targets lint, typecheck for 7 projects and 1 task they depend on`, exit 0 |
+| `bunx nx format:check --all`                                                                                              | exit 0                                                                                      |
+| `bunx openspec validate --all --json`                                                                                     | 328 passed, 0 failed, exit 0                                                                |
+| Burokrat `check-indexes working <worktree> origin/main`                                                                   | exit 0 (the two existing review-debt rows: store-memory 53/40, plan-commands 48/40)         |
+
+The 53 skips are the real-scope cases and the PostgreSQL fixtures, as on `main`. A first full
+run was stopped and discarded because the fault script edited sources while it ran; the run above
+started after every file was restored to the commit. No WBS change, so no be-01 run; no migration
+lint (no SQL migration). Not done: no host apply, no enrollment, no h2puni gate, no drop against a composed be-01 (the fake WBS applies be-01's
+sequence adjacency and idempotent replay).
+
+### Review notes (Fable, #879)
+
+Verdict "merge as is"; four low items folded in:
+
+- **L1.** be-01 also answers `409` for an epoch mismatch and for host-job state conflicts in
+  `ingestHostJob` (second registration, declaration or incarnation mismatch, not `registered`).
+  The refusal and `docs/resources.md` now name those too, and the hand repair reads the epoch and
+  the host job's state, not only `acceptedSequence`.
+- **L2.** A `2xx` is also a fresh acceptance (a be-01 redeployed with a fix, a healed
+  `observedAt` skew), not only a stale row: docs and the spec scenario say so.
+- **L3.** `deps.connect` moved inside the handler's `try`, so a throwing `connect` still closes
+  the ledger.
+- **L5.** `two drops of the same event drop it once` also asserts no refusal row is left.
+
+Commands after the fixes, fresh on 2026-11-06 (`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT`
+unset): `bun test src/ops/outbox-drop.test.ts src/cli.test.ts` 127 pass, 0 fail (12 pass inside
+the namespace); `bunx nx run twilight-dash:typecheck --skip-nx-cache` exit 0;
+`bunx nx format:check --all` exit 0; `bunx openspec validate --all --json` 328 passed; Burokrat
+`check-indexes` exit 0. No full-suite rerun: the changes are message strings, docs, one
+assertion and a `try` move.

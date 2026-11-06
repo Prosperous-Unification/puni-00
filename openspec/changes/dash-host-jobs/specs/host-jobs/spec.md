@@ -249,10 +249,12 @@ unchanged. A deleted planning link SHALL NOT strand the use. No WBS write SHALL 
 end a host job. The outbox SHALL keep each host-job event's last WBS refusal (status, message,
 first and last refusal time, count, the SHA-256 of the refused bytes) durably. An operator SHALL
 be able to drop the host-job event at the head of the outbox that WBS refused `400` for its
-current bytes, when no later outbox event belongs to the same use; the drop SHALL journal the
-operator, account, time, reason, the event's bytes and their SHA-256, and SHALL give every later
-event one sequence less in the same transaction, so the next event publishes. Every other drop
-SHALL be refused, changing nothing.
+current bytes, when no later outbox event belongs to the same use. Before dropping, the command
+SHALL re-send the event's stored bytes once through the outbox's own WBS client and authority and
+SHALL drop it only on a fresh `400`; a `2xx` SHALL mark it published and drop nothing. The drop
+SHALL journal the operator, account, time, reason, the event's bytes and their SHA-256 and the
+fresh refusal's time, and SHALL give every later event one sequence less in the same
+transaction, so the next event publishes. Every other drop SHALL be refused, changing nothing.
 
 #### Scenario: Reserved by two jobs
 
@@ -284,16 +286,34 @@ SHALL be refused, changing nothing.
 - **WHEN** an old Dash moved a host job's `release_verified` with `dash-host-job://…` evidence,
   a newer be-01 refuses it `400 invalid_body` on every retry, and the operator runs
   `ops outbox drop --event <its id> --operator <name> --reason <text>`
-- **THEN** the event leaves the outbox, the drop record names the operator, the account, the
-  reason, the refusal and the event's SHA-256, the command prints the dropped event and the next
-  in line, and the next synchronize publishes that next event under the dropped one's sequence
+- **THEN** the command re-sends the event, WBS refuses it `400` again, the event leaves the
+  outbox, the drop record names the operator, the account, the reason, the refusal with the
+  re-send's time and the event's SHA-256, the command prints the dropped event and the next in
+  line, and the next synchronize publishes that next event under the dropped one's sequence
+
+#### Scenario: An event WBS accepted before a crash is published, not dropped
+
+- **WHEN** WBS had accepted the head event but `watch` died before marking it published, so its
+  stored refusal is a stale `400`, or WBS accepts it now, and the operator runs
+  `ops outbox drop` for it
+- **THEN** WBS answers the re-send `2xx`, the event is marked published, nothing is dropped or
+  renumbered, the command exits 0 saying nothing was dropped, and the next synchronize publishes
+  the following event under its own sequence
+
+#### Scenario: A re-send WBS does not refuse 400 is not dropped
+
+- **WHEN** WBS answers the drop's re-send `409 conflict`, does not answer, or refuses it with any
+  status but `400`
+- **THEN** `ops outbox drop` exits 64 for the `409`, naming the sequence state and the hand
+  repair, and 70 `could not confirm` otherwise, and the outbox and the journal are unchanged
 
 #### Scenario: An event WBS has not refused is not dropped
 
 - **WHEN** the operator names an event that is not in the outbox, was published, is not the
   head, carries no recorded `400` of its current bytes, or is followed by an event of its own use,
   or the pool is concurrent with the guard on and the guard's holder is live
-- **THEN** `ops outbox drop` exits 64 naming why, and the outbox and the journal are unchanged
+- **THEN** `ops outbox drop` exits 64 naming why without calling WBS, and the outbox and the
+  journal are unchanged
 
 ### Requirement: Each reservation entry settles with its own terminal evidence
 
