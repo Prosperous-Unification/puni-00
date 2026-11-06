@@ -1,0 +1,7 @@
+{
+  "python": [3, 12, 3],
+  "executable": "/usr/bin/python3",
+  "parsed": ["lab-raw-repair.py", "lab-repair-worker.py", "lab-repair-lineage.py"],
+  "embeddedBootstrapParsed": true,
+  "execution": "syntax-only; no native/runtime qualification"
+}

@@ -1,6 +1,7 @@
 
 import io, os, sys, types
 from pathlib import Path
+os.uname=lambda:os.uname_result(('Linux','','7.0.11-76070011-generic','fixture','x86_64'))
 # Proof: missing3.12 RED; runtime-provider preserves native guards over current interpreter bytes.
 physical_stdlib=str(Path(os.__file__).parent)
 physical_executable=str(Path(sys.executable).resolve())

@@ -15,6 +15,8 @@ const startup = String.raw`
 import hashlib, importlib.util, json, os, pathlib, py_compile, shutil, subprocess, sys, tempfile
 source_root = pathlib.Path(sys.argv[1])
 scenario = sys.argv[2]
+recovery = scenario.startswith('recovery-')
+if recovery: scenario = scenario.removeprefix('recovery-')
 fault = sys.argv[3]
 omission = sys.argv[4] if len(sys.argv) > 4 else ''
 filenames = ('lab-raw-repair.py', 'lab-raw-preparation.py', 'lab-repair-worker.py',
@@ -59,6 +61,8 @@ with tempfile.TemporaryDirectory(prefix='repair-source-cache-') as directory, te
             action = "path=Path(__file__).with_name('lab-seed-preparation.py')\npath.unlink()\npath.symlink_to("+repr(str(target))+")\n"
         with (root / 'lab-raw-preparation.py').open('a') as stream: stream.write(action)
     entry_source = entry.read_text()
+    if fault == 'recovery-depth-dependency':
+        entry_source = entry_source.replace('return _source_payload(payload, digest)', 'return _source_payload(payload, digest, original=True)', 1)
     if omission and omission not in ('loader','syntax'):
         entry_source = entry_source.replace('if not predicate:', 'if not predicate and category != '+repr(omission)+':', 1)
     if omission == 'syntax':
@@ -151,6 +155,50 @@ os.lstat, os.fstat = _fault_lstat, _fault_fstat
                  'priorGuestFailure','postBootEvidence','witness'):
         request[name] = state + '/' + name
         pins.append(dict(path=request[name],bytes=1,uid=os.geteuid(),mode=0o600,sha256='a'*64))
+    if recovery:
+        historical = dict(request,nonce='c'*32,pins=list(pins))
+        request.update(schemaVersion=2, operation='repair-after-failed-repair')
+        for name in ('originalRepairRequest','afterFailedRepairEvidence','originalFailureCapture','settlementRequest'):
+            request[name] = (str(root) + '/.superpowers/sdd/observability-environment-parity/repair-' + 'c'*32 + '-failure-exact.json' if name=='originalFailureCapture' else state + '/raw-repair-' + 'c'*32 + '/settlement-request.json' if name=='settlementRequest' else state + '/' + name)
+            pins.append(dict(path=request[name],bytes=1,uid=os.geteuid(),mode=0o600,sha256='a'*64))
+    if recovery:
+        def metadata_pin(path,record):
+            path=pathlib.Path(path);path.parent.mkdir(parents=True,exist_ok=True)
+            payload=json.dumps(record,sort_keys=True,separators=(',',':')).encode();path.write_bytes(payload);path.chmod(0o600)
+            return dict(path=str(path),bytes=len(payload),uid=os.geteuid(),mode=0o600,sha256=hashlib.sha256(payload).hexdigest())
+        guest_pin=metadata_pin(request['priorGuestRequest'],dict(seedRequest=state+'/seed-request.json'))
+        for collection in (historical['pins'],pins):
+            for index,pin in enumerate(collection):
+                if pin['path']==guest_pin['path']:collection[index]=guest_pin
+            collection.extend(dict(path=path,bytes=1,uid=os.geteuid(),mode=0o600,sha256='a'*64)
+                for path in (state+'/seed-request.json',state+'/allocation.json'))
+        if fault=='recovery-history-foreign':
+            foreign_pin=dict(path=state+'/foreign-history.json',bytes=1,uid=os.geteuid(),mode=0o600,sha256='a'*64)
+            historical['pins'].append(foreign_pin);pins.append(foreign_pin)
+        original_pin=metadata_pin(request['originalRepairRequest'],historical)
+        directory=state+'/raw-repair-'+'c'*32
+        extra_paths=[directory+'/'+name for name in ('request-binding.json','reservation.json','worker-ready.json','failure.json')]
+        extra_paths += [state+'/terminal-capture.json',state+'/qualification.json']
+        additional=[dict(path=path,bytes=1,uid=os.geteuid(),mode=0o600,sha256='a'*64) for path in extra_paths]
+        settled=dict(schemaVersion=2,operation='settle-failed-repair',root=str(root),state=state,nonce='d'*32,
+            pins=[*historical['pins'],original_pin,*additional],originalRepairRequest=request['originalRepairRequest'],originalDirectory=directory,
+            originalTerminalCapture=state+'/terminal-capture.json',qualification=state+'/qualification.json',witness=request['witness'],expectedRaw=request['expectedRaw'])
+        settled_pin=metadata_pin(request['settlementRequest'],settled)
+        for index,pin in enumerate(pins):
+            if pin['path']==original_pin['path']:pins[index]=original_pin
+            if pin['path']==settled_pin['path']:pins[index]=settled_pin
+        pins.extend(additional)
+        pins.extend(dict(path=directory+'/settlement-'+role+'.json',bytes=1,uid=os.geteuid(),mode=0o600,sha256='a'*64)
+            for role in ('ready','drain','counter','barrier','certificate','receipt','execution'))
+    if fault=='recovery-selection':
+        previous=request['originalFailureCapture'];request['originalFailureCapture']=previous.replace('c'*32,'e'*32)
+        for pin in pins:
+            if pin['path']==previous:pin['path']=request['originalFailureCapture']
+    if fault=='recovery-duplicate':
+        absent=request['afterFailedRepairEvidence'];request['afterFailedRepairEvidence']=request['originalRepairRequest']
+        pins[:]=[pin for pin in pins if pin['path']!=absent]
+    if fault=='recovery-missing':del request['originalFailureCapture']
+    if fault == 'recovery-foreign': pins.append(dict(path=state+'/unselected.json',bytes=1,uid=os.geteuid(),mode=0o600,sha256='a'*64))
     if fault == 'duplicate-pin': pins.append(dict(pins[0]))
     if fault == 'missing-pin': pins.pop(1)
     if fault == 'digest': pins[1]['sha256'] = 'f'*64
@@ -176,6 +224,7 @@ os.lstat, os.fstat = _fault_lstat, _fault_fstat
         pins[-1]['path'] += 'a'*(limit-len(payload))
         payload = json.dumps(request,sort_keys=True,separators=(',',':')).encode()
         assert len(payload) == limit
+    if fault == 'recovery-limit': payload += b' '*(65536-len(payload))
     if fault == 'whitespace-request': payload = b' \n'+payload+b' \n'
     if fault == 'reordered-request': payload = json.dumps(request,sort_keys=False,indent=2).encode()
     if fault == 'duplicate-json': payload = b'{"nonce":"' + b'a'*32 + b'",'+payload[1:]
@@ -478,4 +527,62 @@ for (const fault of ['duplicate-json', 'duplicate-nested-json']) {
       expect(omitted.baselineError).toBe('');
     });
   }
+}
+
+for (const scenario of ['coordinator', 'worker']) {
+  test(`repair recovery ${scenario} admits the distinct closed bootstrap variant`, () => {
+    const observation = observeStartup(`recovery-${scenario}`, 'valid');
+    expect(observation.baselineCode).toBe(0);
+    expect(observation.baselineOut).toContain('ADMITTED_GEOMETRY\n');
+    expect(observation.baselineError).toBe('');
+  });
+}
+
+test('repair recovery unknown metadata role refuses before helper import', () => {
+  const observation = observeStartup('recovery-coordinator', 'recovery-foreign');
+  expect(observation.baselineCode).toBe(1);
+  expect(observation.baselineOut).toBe('');
+});
+
+for (const [fault, category] of [
+  ['recovery-depth-dependency', 'repair-recovery-depth'],
+  ['recovery-selection', 'repair-recovery-selection'],
+  ['recovery-foreign', 'repair-recovery-roles'],
+  ['recovery-history-foreign', 'repair-recovery-roles'],
+  ['recovery-duplicate', 'repair-recovery-paths'],
+  ['recovery-limit', 'repair-recovery-canonical'],
+  ['whitespace-request', 'repair-recovery-canonical'],
+  ['request-shape', 'repair-source-request-shape'],
+  ['request-schema', 'repair-source-request-shape'],
+  ['snapshot-owner', 'repair-source-snapshot-invalid'],
+  ['pin-bytes', 'repair-source-pin-invalid'],
+] as const) {
+  test(`repair recovery bootstrap ${fault} refuses; watched ${category} omission imports`, () => {
+    const refused = observeStartup('recovery-coordinator', fault);
+    expect(refused.baselineCode).toBe(1);
+    expect(refused.baselineOut).toBe('');
+    expect(refused.baselineError).toBe(`${category}\n`);
+    const omitted = observeStartup('recovery-coordinator', fault, category);
+    expect(omitted.baselineCode).toBe(0);
+    expect(omitted.baselineOut).toContain('ADMITTED_GEOMETRY\n');
+  });
+}
+test('repair recovery bootstrap missing required relation field refuses before imports', () => {
+  const refused = observeStartup('recovery-worker', 'recovery-missing');
+  expect(refused.baselineCode).toBe(1);
+  expect(refused.baselineOut).toBe('');
+  expect(refused.baselineError).toBe('repair-source-request-shape\n');
+});
+
+for (const fault of ['duplicate-json', 'duplicate-nested-json']) {
+  test(`repair recovery bootstrap ${fault} retains both duplicate and canonical defenses`, () => {
+    const refused = observeStartup('recovery-coordinator', fault);
+    expect(refused.baselineCode).toBe(1);
+    expect(refused.baselineOut).toBe('');
+    expect(refused.baselineError).toBe('repair-source-json-duplicate\n');
+    const omitted = observeStartup('recovery-coordinator', fault, 'repair-source-json-duplicate');
+    expect(omitted.baselineCode).toBe(1);
+    expect(omitted.baselineOut).toBe('');
+    expect(omitted.baselineError).toBe('repair-recovery-canonical\n');
+  });
 }

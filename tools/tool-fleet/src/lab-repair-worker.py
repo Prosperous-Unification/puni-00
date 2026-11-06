@@ -288,6 +288,310 @@ def start_writer(descriptor, original, geometry, deadline):
         os.close(number)
     return ForkedWriter(pid, output_read, input_write, error_read)
 
+def repair_namespace(repair):
+    import types
+    return types.SimpleNamespace(**repair) if type(repair) is dict else repair
+
+
+def check_repair_origin(repair, request, accounting):
+    """A failed same-inode history requires the distinct consumer even after its G was settled."""
+    if request.get('operation') == 'repair-after-failed-repair':
+        return
+    repair = repair_namespace(repair)
+    target = tuple(request['expectedRaw'][key] for key in ('device', 'inode'))
+    for namespace in accounting['namespaces']:
+        directory = Path(request['state']) / ('raw-repair-' + namespace['nonce'])
+        reservation = repair.read_record(directory / 'reservation.json')
+        repair.check_reservation(reservation)
+        if tuple(reservation['originalSnapshot'][key] for key in ('device', 'inode')) != target:
+            continue
+        descriptor = raw.open_private(directory, directory=True)
+        try:
+            history = repair.read_repair_namespace(directory, descriptor, reservation)
+            # Proof: v1-pending/v1-settled strip the marker; omission reaches original O_RDONLY admission.
+            require(not history['settlementRelevant'], 'repair-recovery-required')
+        finally:
+            os.close(descriptor)
+
+
+def qualify_failed_source(repair, request):
+    """No source replacement exempts whole-input qualification or the existing outside reserve."""
+    import types
+    context = types.SimpleNamespace(repair=repair_namespace(repair), request=request)
+    prerequisites = SettlementPrerequisites()
+    # Proof: unqualified removes this dependency and reaches native pin access before mkdir.
+    prerequisites.qualify(context)
+    outside = prerequisites.outside_bytes(context)
+    # Proof: outside supplies 160MiB+1; omission reaches native pin access before mkdir.
+    require(type(outside) is int and 0 <= outside <= 160 * 1024**2, 'repair-recovery-outside-bound')
+
+
+def failed_source_paths(repair, request):
+    """Derive finite metadata roles; the sole external capture is never executable source."""
+    repair = repair_namespace(repair)
+    original = repair.seed.read_pinned_json(request, request['originalRepairRequest'])
+    repair.check_request(original)
+    # Proof: semantic-depth corrupts the validated predecessor schema; omission reaches original O_RDONLY.
+    require(original['schemaVersion'] == 1, 'repair-recovery-depth')
+    directory = request['state'] + '/raw-repair-' + original['nonce']
+    # Proof: capture-selection substitutes a pinned capture role; omission reaches original O_RDONLY.
+    require(request['originalFailureCapture'] == request['root'] +
+            '/.superpowers/sdd/observability-environment-parity/repair-' + original['nonce'] + '-failure-exact.json'
+            and request['settlementRequest'] == directory + '/settlement-request.json', 'repair-recovery-selection')
+    settlement = repair.seed.read_pinned_json(request, request['settlementRequest'])
+    repair._source_payload(raw.encode_json(settlement), raw.digest_json(settlement), settlement=True)
+    require(settlement['originalRepairRequest'] == request['originalRepairRequest']
+            and settlement['originalDirectory'] == directory, 'repair-recovery-selection')
+    guest = repair.seed.read_pinned_json(request, original['priorGuestRequest'])
+    selected = {original[key] for key in ('image', 'rawRequest', 'rawReceipt', 'rawProvenance',
+                'priorGuestRequest', 'priorGuestFailure', 'postBootEvidence', 'witness')}
+    selected |= {guest['seedRequest'], str(Path(original['rawReceipt']).with_name('allocation.json'))}
+    historical_paths = {pin['path'] for pin in original['pins'] if pin['path'].startswith(request['state'] + '/')}
+    # Proof: history-roles adds an unselected historical pin; omission reaches original O_RDONLY.
+    require(historical_paths == selected, 'repair-recovery-history-roles')
+    selected = historical_paths
+    selected |= {request[key] for key in ('originalRepairRequest', 'afterFailedRepairEvidence',
+                                         'originalFailureCapture', 'settlementRequest')}
+    selected |= {settlement[key] for key in ('originalTerminalCapture', 'qualification', 'witness')}
+    selected |= {directory + '/' + name for name in ('request-binding.json', 'reservation.json',
+                                                    'worker-ready.json', 'failure.json')}
+    selected |= {directory + '/settlement-' + role + '.json' for role in SETTLEMENT_ORDER}
+    return selected
+
+
+def check_failed_observation(repair, value, snapshot):
+    """Historical FIEMAP metadata has strict integer types and the inspector's existing bounds."""
+    import math, re
+    # Proof: observation:shape adds an unknown member; closed-schema omission reaches original O_RDONLY.
+    repair.closed(value, 'schemaVersion scope sourceRevision inspectorSha256 recordedNs elapsedSeconds limits '
+                         'originalFailedGuest afterFailedRepair originalStagingLockHeld rawMetadataUnchangedDuringObservation '
+                         'observation contentRead rawWrite syncRequested logicalContentVerified grossDebtReleased '
+                         'repairAuthorized guestAuthorized fullRehearsalAuthorized')
+    repair.closed(value['limits'], 'addressSpaceBytes cpuSeconds fileBytes fileDescriptors wallSeconds')
+    # Proof: observation:claim grants historical authority; omission reaches original O_RDONLY.
+    require(type(value['schemaVersion']) is int and value['schemaVersion'] == 1
+            and value['scope'] == 'independent-read-only-repair-source'
+            and type(value['sourceRevision']) is str and re.fullmatch('[a-f0-9]{40}', value['sourceRevision'])
+            and type(value['elapsedSeconds']) in (int, float) and math.isfinite(value['elapsedSeconds'])
+            and value['elapsedSeconds'] >= 0
+            and raw.encode_json(value['limits']) == raw.encode_json(dict(addressSpaceBytes=134217728,
+                cpuSeconds=20, fileBytes=65536, fileDescriptors=64, wallSeconds=12))
+            and type(value['originalFailedGuest']) is str and re.fullmatch('[a-f0-9]{32}', value['originalFailedGuest'])
+            and value['originalStagingLockHeld'] is True and value['rawMetadataUnchangedDuringObservation'] is True
+            and all(value[key] is False for key in ('contentRead', 'rawWrite', 'syncRequested', 'logicalContentVerified',
+                'grossDebtReleased', 'repairAuthorized', 'guestAuthorized', 'fullRehearsalAuthorized')),
+            'repair-recovery-observation')
+    check_settlement_digest(value['inspectorSha256'])
+    parse_settlement_unsigned(value['recordedNs'], True)
+    relation = value['afterFailedRepair']
+    repair.closed(relation, 'nonce requestDigest sourceDigest failureDigest reservationDigest exactCaptureDigest')
+    require(type(relation['nonce']) is str and re.fullmatch('[a-f0-9]{32}', relation['nonce']), 'repair-recovery-observation')
+    for key in ('requestDigest', 'sourceDigest', 'failureDigest', 'reservationDigest', 'exactCaptureDigest'):
+        check_settlement_digest(relation[key])
+    observed = value['observation']
+    repair.closed(observed, 'provider inspectorVersion observations identity expectedBytes allocatedBytes extentCount '
+                            'pageCount metadataBytes mapDigest observation admissionAuthorized repairAuthorized '
+                            'guestAuthorized fullStackAuthorized mappedDataBytes missingDataBytes unwrittenBytes residualAllocatedBytes')
+    repair.closed(observed['observations'], 'kernelRelease pythonVersion')
+    repair.closed(observed['identity'], 'device inode owner mode links mtimeNs ctimeNs')
+    # Proof: observation:map-bool aliases an extent integer; omission reaches original O_RDONLY.
+    require(all(type(part) is str and 0 < len(part) <= 4096 for part in observed['observations'].values())
+            and observed['provider'] == 'linux-fiemap' and observed['observation'] == 'repair-source'
+            and type(observed['inspectorVersion']) is int and observed['inspectorVersion'] == 1
+            and all(observed[key] is False for key in ('admissionAuthorized', 'repairAuthorized', 'guestAuthorized', 'fullStackAuthorized'))
+            and all(type(observed[key]) is int and 0 <= observed[key] < 2**64 for key in
+                ('expectedBytes', 'allocatedBytes', 'extentCount', 'pageCount', 'metadataBytes', 'mappedDataBytes',
+                 'missingDataBytes', 'unwrittenBytes', 'residualAllocatedBytes')),
+            'repair-recovery-map')
+    check_settlement_digest(observed['mapDigest'])
+    repair.check_snapshot(snapshot, dict(observed['identity'], logicalBytes=str(observed['expectedBytes']),
+                                        allocatedBytes=str(observed['allocatedBytes'])))
+    # Proof: observation:map-accounting breaks map arithmetic; omission reaches original O_RDONLY.
+    require(observed['mappedDataBytes'] + observed['missingDataBytes'] == observed['expectedBytes']
+            and observed['mappedDataBytes'] + observed['residualAllocatedBytes'] == observed['allocatedBytes']
+            and observed['unwrittenBytes'] <= observed['mappedDataBytes']
+            and all(observed[key] % 4096 == 0 for key in ('mappedDataBytes', 'missingDataBytes', 'unwrittenBytes', 'residualAllocatedBytes'))
+            and observed['extentCount'] <= 65536 and 1 <= observed['pageCount'] <= 128
+            and observed['metadataBytes'] <= 4 * 1024**2, 'repair-recovery-map')
+
+
+def check_exact_failure(repair, request, original, context, value):
+    """Join the normalized capture without treating manager defaults or unavailable counters as success."""
+    import re
+    # Proof: capture:shape adds an unknown member; closed-schema omission reaches original O_RDONLY.
+    repair.closed(value, 'accepted binding counterAvailable failure failureCleanup failureFinishedNs finalCgroupCounters '
+                         'journal legacyProjection logicalHashesAvailable nonce observedNs originalArtifacts originalCgroupAbsent '
+                         'originalCliExitCode originalCliOutput originalPidStartAbsent originalToolSession rawAfter rawBefore '
+                         'readyObservedNs readyToFailureNs releaseAvailable request reservationGrossBytes retryAllowed '
+                         'schemaVersion scope sourceCommit terminalObservations workerExitStatus')
+    binding_fields = 'cgroup creator invocation originalCreator pid raw rawFd rawPath request source staging stagingFd start unit'
+    repair.closed(value['binding'], binding_fields)
+    repair.closed(value['request'], 'ctimeNs inode mtimeNs path sha256')
+    repair.closed(value['originalArtifacts'], 'request-binding.json reservation.json worker-ready.json failure.json')
+    repair.closed(value['journal'], 'bytes cpuUsageNanoseconds emitterPid emitterRole events memoryPeakBytes path sha256')
+    repair.closed(value['legacyProjection'], 'authoritativeForNative64bitFields path reason sha256')
+    pins = {pin['path']: pin for pin in request['pins']}
+    records = {role: repair.seed.read_pinned_json(request, context.directory + '/' + role + '.json')
+               for role in ('request-binding', 'reservation', 'worker-ready', 'failure')}
+    ready, failure = records['worker-ready'], records['failure']
+    # Proof: capture:availability claims unavailable counters; omission reaches original O_RDONLY.
+    require(type(value['schemaVersion']) is int and value['schemaVersion'] == 1
+            and value['scope'] == 'exact-normalized-original-repair-failure'
+            and all(type(value['binding'][key]) is int and 3 <= value['binding'][key] < 64 for key in ('rawFd', 'stagingFd'))
+            and all(value[key] is False for key in ('accepted', 'counterAvailable', 'logicalHashesAvailable', 'releaseAvailable', 'retryAllowed'))
+            and value['finalCgroupCounters'] is None and value['originalCgroupAbsent'] is True
+            and value['originalPidStartAbsent'] is True
+            and type(value['originalCliExitCode']) is int and value['originalCliExitCode'] == 1
+            and value['originalCliOutput'] == 'raw repair: producer-refused\n'
+            and type(value['originalToolSession']) is int and 0 < value['originalToolSession'] < 2**64
+            and type(value['sourceCommit']) is str and re.fullmatch('[a-f0-9]{40}', value['sourceCommit']),
+            'repair-recovery-capture')
+    for key in ('failureFinishedNs', 'readyObservedNs', 'readyToFailureNs', 'observedNs', 'reservationGrossBytes', 'workerExitStatus'):
+        parse_settlement_unsigned(value[key], True)
+    # Proof: capture:binding replaces the original PID; omission reaches original O_RDONLY.
+    require(value['nonce'] == original['nonce'] and value['failure'] == failure['category']
+            and value['failureCleanup'] == failure['cleanup']
+            and int(value['failureFinishedNs']) == failure['finishedNs']
+            and int(value['readyObservedNs']) == ready['observedNs']
+            and int(value['readyToFailureNs']) == failure['finishedNs'] - ready['observedNs']
+            and int(value['observedNs']) >= failure['finishedNs']
+            and value['reservationGrossBytes'] == context.reservation['grossBytes']
+            and raw.encode_json(value['binding']) == raw.encode_json({key: ready['binding'][key] for key in binding_fields.split()}),
+            'repair-recovery-capture-join')
+    repair.check_snapshot(original['expectedRaw'], value['rawBefore'])
+    repair.check_snapshot(request['expectedRaw'], value['rawAfter'])
+    # Proof: capture:reference substitutes an original artifact hash; reference omission reaches O_RDONLY.
+    reference = value['request']; observed = os.lstat(request['originalRepairRequest'])
+    require(reference['path'] == request['originalRepairRequest'] and reference['sha256'] == pins[reference['path']]['sha256']
+            and reference['inode'] == str(observed.st_ino) and reference['mtimeNs'] == str(observed.st_mtime_ns)
+            and reference['ctimeNs'] == str(observed.st_ctime_ns), 'repair-recovery-capture-reference')
+    for name, reference in value['originalArtifacts'].items():
+        repair.closed(reference, 'path sha256 bytes')
+        path = context.directory + '/' + name
+        require(raw.encode_json(reference) == raw.encode_json({key: pins[path][key] for key in ('path', 'sha256', 'bytes')}),
+                'repair-recovery-capture-reference')
+    for reference in (value['journal'], value['legacyProjection']):
+        check_settlement_digest(reference['sha256'])
+        require(type(reference['path']) is str and 0 < len(reference['path']) < 4096
+                and not Path(reference['path']).is_absolute() and '..' not in Path(reference['path']).parts,
+                'repair-recovery-capture-reference')
+    journal = value['journal']; legacy = value['legacyProjection']
+    require(all(type(journal[key]) is int and 0 < journal[key] < 2**64 for key in ('bytes', 'events'))
+            and journal['emitterRole'] == 'user-manager' and legacy['authoritativeForNative64bitFields'] is False
+            and type(legacy['reason']) is str and 0 < len(legacy['reason']) <= 4096, 'repair-recovery-capture-reference')
+    for key in ('cpuUsageNanoseconds', 'emitterPid', 'memoryPeakBytes'):
+        parse_settlement_unsigned(journal[key])
+    # Proof: capture:terminal records a live MainPID; terminal omission reaches original O_RDONLY.
+    require(type(value['terminalObservations']) is list and len(value['terminalObservations']) > 0,
+            'repair-recovery-capture-terminal')
+    for terminal in value['terminalObservations']:
+        repair.closed(terminal, ' '.join(raw.PROPERTIES))
+        require(all(type(part) is str and len(part) <= 4096 for part in terminal.values())
+                and terminal['MainPID'] == '0' and terminal['ActiveState'] == 'inactive'
+                and terminal['SubState'] == 'dead' and terminal['LoadState'] in ('loaded', 'not-found')
+                and terminal['ControlGroup'] in ('', context.old_binding['cgroup'])
+                and (terminal['LoadState'] == 'not-found' or terminal['InvocationID'] == context.old_binding['invocation']),
+                'repair-recovery-capture-terminal')
+
+
+class FailedSource:
+    """Immutable historical relation; construction and current observation grant no qualification."""
+
+    def __init__(self, history, context, observation, exact, paths):
+        self.history, self.context, self.observation, self.exact, self.paths = history, context, observation, exact, paths
+        self.digest = raw.digest_json({'history': context.history, 'observation': observation, 'capture': exact})
+
+
+def read_failed_relation(repair, request):
+    """Validate one predecessor without recursively reading the ledger or admitting present timestamps."""
+    repair = repair_namespace(repair)
+    paths = failed_source_paths(repair, request)
+    original = repair.seed.read_pinned_json(request, request['originalRepairRequest'])
+    pins = {pin['path']: pin for pin in request['pins']}
+    inherited = ('root', 'state', 'image', 'rawRequest', 'rawReceipt', 'rawProvenance',
+                 'priorGuestRequest', 'priorGuestFailure', 'postBootEvidence', 'witness')
+    # Proof: inheritance substitutes the witness; omission reaches original O_RDONLY admission.
+    require(all(request[key] == original[key] for key in inherited)
+            and all(pins[pin['path']] == pin for pin in original['pins'] if pin['path'] in paths),
+            'repair-recovery-inheritance')
+    history = repair.verify_history(original)
+    settlement = repair.seed.read_pinned_json(request, request['settlementRequest'])
+    context = SettlementContext(repair, settlement, pins[request['settlementRequest']]['sha256'])
+    context.read_history()
+    guest = repair.seed.read_pinned_json(request, request['priorGuestRequest'])
+    # Proof: nonce reuses the failed guest nonce; omission reaches original O_RDONLY admission.
+    require(request['nonce'] not in (original['nonce'], guest['nonce'], settlement['nonce']), 'repair-recovery-nonce')
+    observation = repair.seed.read_pinned_json(request, request['afterFailedRepairEvidence'])
+    exact = repair.seed.read_pinned_json(request, request['originalFailureCapture'])
+    check_failed_observation(repair, observation, request['expectedRaw'])
+    check_exact_failure(repair, request, original, context, exact)
+    # Proof: observation:join/time break immutable digest/time joins; omission reaches original O_RDONLY.
+    require(observation['originalFailedGuest'] == guest['nonce']
+            and observation['afterFailedRepair'] == dict(nonce=original['nonce'],
+                requestDigest=context.history['originalRequestDigest'], sourceDigest=context.history['originalSourceDigest'],
+                failureDigest=pins[context.directory + '/failure.json']['sha256'],
+                reservationDigest=pins[context.directory + '/reservation.json']['sha256'],
+                exactCaptureDigest=pins[request['originalFailureCapture']]['sha256'])
+            and int(observation['recordedNs']) >= int(exact['observedNs']), 'repair-recovery-history-join')
+    repair.check_snapshot(request['expectedRaw'], settlement['expectedRaw'])
+    certificate = repair.seed.read_pinned_json(request, context.directory + '/settlement-certificate.json')
+    repair.check_snapshot(request['expectedRaw'], certificate['finalSnapshot'])
+    for path in paths:
+        raw.verify_pin(pins[path])
+    return FailedSource(history, context, observation, exact, paths)
+
+
+def read_failed_source(repair, request):
+    """Require the complete strict namespace credit for exactly this old reservation, retaining K."""
+    repair = repair_namespace(repair)
+    relation = read_failed_relation(repair, request)
+    ledger = repair.read_repair_accounting(request['state'])
+    # Proof: existing-nonce corrupts the real ledger dependency; omission reaches original O_RDONLY admission.
+    require(all(record['nonce'] != request['nonce'] for record in ledger['namespaces']), 'repair-recovery-nonce')
+    selected = {'nonce': relation.context.history['originalNonce'],
+                'reservationDigest': relation.context.history['reservationDigest'],
+                'grossBytes': relation.context.reservation['grossBytes']}
+    # Proof: missing-K breaks only the actual ledger K dependency; omission reaches original O_RDONLY.
+    require(selected in ledger['settled'] and ledger['settlementDebtBytes'] == '33554432'
+            and all(record['nonce'] != selected['nonce'] for record in ledger['reservations']),
+            'repair-recovery-settlement')
+    return relation
+
+
+def observe_failed_source(repair, request, binding):
+    """Fresh independent physical and original-writer observations under the current worker flock."""
+    repair = repair_namespace(repair)
+    relation = read_failed_relation(repair, request)
+    # The worker cannot exclude its unpublished directory. Only the coordinator owns PendingAttempt;
+    # validate the complete selected namespace here, then its ACK admits the complete ledger and K.
+    descriptor = raw.open_private(relation.context.directory, directory=True)
+    try:
+        namespace = repair.read_repair_namespace(Path(relation.context.directory), descriptor, relation.context.reservation)
+        # Proof: current-settlement breaks the strict reader dependency; omission reaches O_RDWR and pwrite.
+        require(namespace['settled'] and namespace['state'] == 'accepted', 'repair-recovery-settlement')
+    finally:
+        os.close(descriptor)
+    repair.check_input_descriptors(binding, request)
+    descriptor = repair.open_original(relation.history['path'], request['expectedRaw'])
+    try:
+        observation = raw.load_inspector().observe_repair_ranges(relation.history['path'], raw.RAW_BYTES)['observation']
+        snapshot = repair.snapshot_file(os.fstat(descriptor))
+        repair.check_snapshot(request['expectedRaw'], snapshot)
+        historical = relation.observation['observation']
+        # Proof: coordinator-map changes the live inspector map; omission reaches O_RDWR and pwrite.
+        require(raw.encode_json({key: part for key, part in observation.items() if key != 'observations'}) ==
+                raw.encode_json({key: part for key, part in historical.items() if key != 'observations'}),
+                'repair-recovery-current-map')
+        terminal = relation.context.observe_terminal(relation.context.old_binding)
+        # Proof: original-reused observes a reused PID; omission reaches actual O_RDWR and pwrite.
+        require(terminal['processState']['state'] == 'absent-ENOENT', 'repair-recovery-original-live')
+        repair.check_input_descriptors(binding, request)
+        return {'snapshot': snapshot, 'observation': observation, 'historyDigest': relation.digest, 'terminal': terminal,
+                'evidenceIdentities': {path: raw.stable_identity(os.lstat(path)) for path in relation.paths - {request['image']}}}
+    finally:
+        os.close(descriptor)
+
+
 class SettlementPrerequisites:
     """Outside history remains unavailable; consumption requires the actual original-FD pair."""
 
@@ -814,6 +1118,9 @@ class SettlementContext:
         """Historical executable pins identify old code only; current pins never substitute for them."""
         original = self.repair.seed.read_pinned_json(self.request, self.request['originalRepairRequest'])
         self.repair.check_request(original)
+        if original['schemaVersion'] == 2:
+            # Proof: failed-history corrupts predecessor metadata; dependency omission credits its failed history.
+            read_failed_relation(self.repair, original)
         pins = {pin['path']: pin for pin in self.request['pins']}
         records = {name: self.repair.seed.read_pinned_json(self.request, self.directory + '/' + name + '.json')
                    for name in ('request-binding', 'reservation', 'worker-ready', 'failure')}

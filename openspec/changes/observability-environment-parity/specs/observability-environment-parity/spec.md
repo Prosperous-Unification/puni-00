@@ -1803,3 +1803,61 @@ The fixed Linux adapter SHALL consume the original-directory attempt through che
 - **WHEN** actual outside/bootstrap/runtime/security input qualification is unavailable
 - **THEN** production admission still refuses before mutation even when the consumption adapter is implemented
 - **AND** source fixtures and disposable real-syscall proofs grant no retained operation or debt credit
+
+### Requirement: Repair source after failure has a distinct consumer
+
+A successor repair SHALL consume the historical repair source after failure through a closed discriminated request and independently validate the exact original failed request, source, reservation, ready/failure records and both distinct capture relations. Original postboot evidence and executable pins SHALL remain historical. The consumer MUST require complete strict settlement of exactly that failed reservation, retain the fixed33554432-byte settlement debt, and obtain fresh qualification, capacity, lock, writer-terminality and original-inode observations before mutation. Historical recorded booleans or pinned JSON alone MUST NOT grant execution authority. The complete [source contract](../../failed-repair-source-consumption.md) defines the request, finite metadata roles, native observation and unchanged bounds.
+
+#### Scenario: Distinct captures join one failure
+
+- **WHEN** a successor request names the original exact failure capture and a different settlement terminal capture
+- **THEN** each capture is validated against its own closed schema and exact bytes
+- **AND** both independently join the same original request/source/reservation/ready/failure and native identity
+- **AND** no digest equality, missing-counter fallback or rewritten historical record substitutes for that relation
+
+#### Scenario: Legacy postboot fields cannot bypass failed-repair recovery
+
+- **WHEN** a fresh legacy repair request supplies repair-after-failure evidence as its postboot record, or tries to bypass known failed-repair history for the selected original inode
+- **THEN** the production admission refuses before another repair can mutate that inode
+- **AND** sufficient free capacity does not substitute for the distinct historical relation, strict settlement and current native admission
+- **AND** valid initial v1 history remains compatible
+
+#### Scenario: Changed or incomplete evidence refuses
+
+- **WHEN** required evidence is missing, unreadable, malformed, has unknown fields or types, or a relation nonce/digest/source/identity differs
+- **THEN** the production path refuses before the applicable helper/import, ACK, writable-open or mutation boundary
+- **AND** same-byte inode replacement, incomplete/foreign settlement, absent settlement debt and stale source snapshots also refuse
+
+#### Scenario: Current observations carry current authority
+
+- **WHEN** immutable relations and initial prerequisites are valid
+- **THEN** the worker and coordinator independently observe the original inode under verified current staging-lock ownership
+- **AND** exact snapshot/map, original-writer terminality, source/capture identities, complete settlement accounting and capacity are rechecked at readiness, ACK and before writable open
+- **AND** historical continuous lock ownership or observer provenance is not inferred from a recorded true flag, Git revision or inspector hash
+
+#### Scenario: Unavailable qualification stops the successor before mutation
+
+- **WHEN** the existing whole-input/consumer/outside qualification is unavailable
+- **THEN** the successor refuses before creating its attempt or performing accesses that require that qualification
+- **AND** conditional fixture providers cannot authorize an actual native operation
+
+#### Scenario: Successful successor remains usable by continued preparation
+
+- **WHEN** a conditional successor completes the existing repair protocol
+- **THEN** continued seed/guest history compares its before snapshot with the distinct repair source after failure
+- **AND** validates the inherited postboot snapshot against the original failed request without rebasing it
+- **AND** existing v1 request, CLI, envelope and successful release contracts remain compatible
+
+#### Scenario: A failed successor keeps new debt and refuses another settlement
+
+- **WHEN** the successor fails after readiness
+- **THEN** accounting understands its request and retains its entire new reservation plus the existing fixed settlement debt
+- **AND** the current single-settlement policy refuses another settlement before latch consumption or publication
+- **AND** an intelligible failed request is not classified as malformed merely to hide its debt
+
+#### Scenario: The consumer adds no unaccounted runtime role or record
+
+- **WHEN** source observation is produced through the current worker/coordinator
+- **THEN** it remains an internal in-memory observation rather than a deserializable admission token
+- **AND** no seventh Python role, tenth settlement name, consumed-packet file, increased source/FD/resource cap or reduced physical floor is introduced
+- **AND** exact source/evidence/descriptor contributions are measured against the existing admission contracts

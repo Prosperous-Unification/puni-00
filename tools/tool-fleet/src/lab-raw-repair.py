@@ -109,7 +109,7 @@ def _source_request(path, digest):
     return _source_payload(payload, digest)
 
 
-def _source_payload(payload, digest, settlement=False):
+def _source_payload(payload, digest, settlement=False, original=False):
     """One duplicate-free byte parser for bounded stdin and fixed recorded request transport."""
     _source_require(type(payload) is bytes and 0 < len(payload) <= _REPAIR_REQUEST_BYTES - (1 if settlement else 0),
                     'settlement-request-bound' if settlement else 'repair-source-bound')
@@ -129,6 +129,9 @@ def _source_payload(payload, digest, settlement=False):
     # Proof: source startup malformed request/pins injected parser dependency refuses before imports.
     _source_require(type(request) is dict and type(request.get('pins')) is list
                     and 1 <= len(request['pins']) <= 512, 'repair-source-request-invalid')
+    # Proof: recovery-depth-dependency presents v2 as predecessor; omission imports helpers.
+    _source_require(not original or type(request.get('schemaVersion')) is int and request['schemaVersion'] == 1,
+                    'repair-recovery-depth')
     if settlement:
         _source_require(set(request) == set(('schemaVersion operation root state nonce pins originalRepairRequest '
                         'originalDirectory originalTerminalCapture qualification expectedRaw witness').split())
@@ -144,10 +147,12 @@ def _source_payload(payload, digest, settlement=False):
         _source_require(payload == json.dumps(request, separators=(',', ':'), sort_keys=True).encode(),
                         'settlement-request-canonical')
     else:
+        recovery = request.get('operation') == 'repair-after-failed-repair'
+        extra = ' operation originalRepairRequest afterFailedRepairEvidence originalFailureCapture settlementRequest' if recovery else ''
         # Proof: source startup request-shape/schema/root/state/nonce omissions execute admitted helpers.
         _source_require(set(request) == set(('schemaVersion root state nonce pins image rawRequest rawReceipt '
-                        'rawProvenance priorGuestRequest priorGuestFailure postBootEvidence expectedRaw witness').split())
-                        and type(request['schemaVersion']) is int and request['schemaVersion'] == 1
+                        'rawProvenance priorGuestRequest priorGuestFailure postBootEvidence expectedRaw witness' + extra).split())
+                        and type(request['schemaVersion']) is int and request['schemaVersion'] == (2 if recovery else 1)
                         and type(request['root']) is str and Path(request['root']).is_absolute()
                         and os.path.normpath(request['root']) == request['root']
                         and type(request['state']) is str
@@ -156,6 +161,13 @@ def _source_payload(payload, digest, settlement=False):
                         and all(type(request[field]) is str for field in ('image', 'rawRequest', 'rawReceipt',
                             'rawProvenance', 'priorGuestRequest', 'priorGuestFailure', 'postBootEvidence', 'witness')),
                         'repair-source-request-shape')
+        if recovery:
+            # Proof: recovery-limit/whitespace-request omissions import helpers.
+            _source_require(len(payload) < _REPAIR_REQUEST_BYTES
+                            and payload == json.dumps(request, separators=(',', ':'), sort_keys=True).encode(),
+                            'repair-recovery-canonical')
+            _source_require(all(type(request[field]) is str for field in extra.split()[1:]),
+                            'repair-recovery-paths')
     snapshot = request['expectedRaw']
     # Proof: source startup snapshot-shape/quantity/owner/mode/links omissions reach initial helpers.
     _source_require(type(snapshot) is dict and set(snapshot) == set(('device inode owner mode links '
@@ -193,6 +205,52 @@ def _source_payload(payload, digest, settlement=False):
                      ('request-binding.json', 'reservation.json', 'worker-ready.json', 'failure.json')}
         _source_require(all(path in pins and path.startswith(request['state'] + '/') for path in selected),
                         'settlement-request-pins')
+    if not settlement and recovery:
+        selected = [request[key] for key in extra.split()[1:]]
+        # Proof: recovery-duplicate omission imports helpers with aliased metadata roles.
+        _source_require(len(set(selected)) == 4 and all(path in pins for path in selected)
+                        and all(path.startswith(request['state'] + '/') for path in selected if path != request['originalFailureCapture'])
+                        and re.fullmatch(re.escape(request['root']) +
+                            r'/.superpowers/sdd/observability-environment-parity/repair-[a-f0-9]{32}-failure-exact[.]json',
+                            request['originalFailureCapture']) is not None
+                        and re.fullmatch(re.escape(request['state']) + r'/raw-repair-[a-f0-9]{32}/settlement-request[.]json',
+                            request['settlementRequest']) is not None, 'repair-recovery-paths')
+        history_path = request['originalRepairRequest']
+        history_payload = _source_capture(history_path, _REPAIR_REQUEST_BYTES, pin=pins[history_path])
+        history, history_pins = _source_payload(history_payload, pins[history_path]['sha256'], original=True)
+        directory = request['state'] + '/raw-repair-' + history['nonce']
+        # Proof: recovery-selection substitutes a pinned capture nonce; omission imports helpers.
+        _source_require(request['settlementRequest'] == directory + '/settlement-request.json'
+                        and request['originalFailureCapture'] == request['root'] +
+                            '/.superpowers/sdd/observability-environment-parity/repair-' + history['nonce'] + '-failure-exact.json',
+                        'repair-recovery-selection')
+        settlement_path = request['settlementRequest']
+        settlement_payload = _source_capture(settlement_path, _REPAIR_REQUEST_BYTES, pin=pins[settlement_path])
+        settled, _ = _source_payload(settlement_payload, pins[settlement_path]['sha256'], settlement=True)
+        guest_path = history['priorGuestRequest']
+        try:
+            guest = json.loads(_source_capture(guest_path, _REPAIR_REQUEST_BYTES, pin=history_pins[guest_path]), object_pairs_hook=fields)
+            metadata = {history[key] for key in ('image', 'rawRequest', 'rawReceipt', 'rawProvenance',
+                        'priorGuestRequest', 'priorGuestFailure', 'postBootEvidence', 'witness')}
+            metadata |= {guest['seedRequest'], str(Path(history['rawReceipt']).with_name('allocation.json'))}
+        except (ValueError, UnicodeError, RecursionError, KeyError, TypeError):
+            _source_refuse('repair-source-request-invalid')
+        historical_roles = set(metadata)
+        metadata |= set(selected) | {settled[key] for key in ('originalTerminalCapture', 'qualification', 'witness')}
+        metadata |= {directory + '/' + name for name in ('request-binding.json', 'reservation.json', 'worker-ready.json', 'failure.json')}
+        metadata |= {directory + '/settlement-' + role + '.json' for role in
+                     ('request', 'ready', 'drain', 'counter', 'barrier', 'certificate', 'receipt', 'execution')}
+        source_parent = Path(globals()['__file__'] if '__file__' in globals() else str(entry)).parent
+        sources = {str(source_parent / name) for name in (*_REPAIR_SOURCE_NAMES, 'lab-raw-repair.ts', 'lab-raw-repair-cli.ts')}
+        tools = {'/usr/bin/python3.12', '/usr/bin/systemd-run', '/usr/bin/systemctl', '/usr/bin/dpkg-query',
+                 '/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2',
+                 '/usr/share/doc/linux-image-7.0.11-76070011-generic/changelog.Debian.gz',
+                 '/usr/lib/x86_64-linux-gnu/systemd/libsystemd-shared-255.so'}
+        # Proof: recovery-foreign/history-foreign omissions import helpers with extra metadata.
+        _source_require({path for path in history_pins if path.startswith(request['state'] + '/')} == historical_roles
+                        and metadata <= set(pins) and all(path in metadata | sources | tools or
+                        re.fullmatch(r'/usr/lib/x86_64-linux-gnu/lib[A-Za-z0-9_.+-]+[.]so[.0-9]*', path) for path in pins),
+                        'repair-recovery-roles')
     return request, pins
 
 
@@ -1048,10 +1106,12 @@ for _name, _filename in (('seed', 'lab-seed-preparation.py'), ('writer', 'lab-re
 
 def check_request(request):
     """Closed current request; no writable target, limit, policy, range or output selection."""
+    recovery = request.get('operation') == 'repair-after-failed-repair'
+    extra = ' operation originalRepairRequest afterFailedRepairEvidence originalFailureCapture settlementRequest' if recovery else ''
     closed(request, 'schemaVersion root state nonce pins image rawRequest rawReceipt rawProvenance '
-                    'priorGuestRequest priorGuestFailure postBootEvidence expectedRaw witness')
+                    'priorGuestRequest priorGuestFailure postBootEvidence expectedRaw witness' + extra)
     # Proof: request extra/schema/foreign path/duplicate pins controls refuse before any service launch.
-    require(type(request['schemaVersion']) is int and request['schemaVersion'] == 1
+    require(type(request['schemaVersion']) is int and request['schemaVersion'] == (2 if recovery else 1)
             and type(request['root']) is str and Path(request['root']).is_absolute()
             and os.path.normpath(request['root']) == request['root']
             and request['state'] == request['root'] + '/.puni/fleet-labs/observability-baseline'
@@ -1074,6 +1134,16 @@ def check_request(request):
                 and request[key].startswith(request['state'] + '/')
                 for key in ('image', 'rawRequest', 'rawReceipt', 'rawProvenance', 'priorGuestRequest',
                             'priorGuestFailure', 'postBootEvidence', 'witness')), 'repair-request-invalid')
+    if recovery:
+        selected = [request[key] for key in extra.split()[1:]]
+        # Proof: semantic-path aliases selected roles; omission reaches metadata access.
+        require(all(type(path) is str and path in pins for path in selected)
+                and len(set(selected)) == 4 and len(raw.encode_json(request)) < 65536
+                and all(path.startswith(request['state'] + '/') for path in selected if path != request['originalFailureCapture'])
+                and re.fullmatch(re.escape(request['root']) +
+                    r'/.superpowers/sdd/observability-environment-parity/repair-[a-f0-9]{32}-failure-exact[.]json',
+                    request['originalFailureCapture']) is not None, 'repair-recovery-request')
+
 
 
 def snapshot_file(observed):
@@ -1099,12 +1169,16 @@ def open_original(path, expected):
 
 def verify_history(request):
     """Historical source/receipt/failure observations identify one target; they grant no current admission."""
+    if request.get('operation') == 'repair-after-failed-repair':
+        return writer.read_failed_relation(globals(), request).history
     history = seed.verify_raw_history(request)
     original = seed.read_pinned_json(request, request['rawRequest'])
     require(original['root'] == request['root'] and original['state'] == request['state'], 'repair-history-invalid')
     guest_request = seed.read_pinned_json(request, request['priorGuestRequest'])
     failure = seed.read_pinned_json(request, request['priorGuestFailure'])
     post_boot = seed.read_pinned_json(request, request['postBootEvidence'])
+    # Proof: v1-marked relabel omission reaches the real coordinator's first state O_RDONLY access.
+    require('afterFailedRepair' not in post_boot, 'repair-recovery-required')
     pins = {pin['path']: pin for pin in request['pins']}
     # Proof: history-lineage source fault accepts a substituted target/source join.
     require(type(failure['schemaVersion']) is int and failure['schemaVersion'] == 1 and failure['scope'] == 'independent-failed-guest-attempt-observation'
@@ -1137,6 +1211,8 @@ def verify_history(request):
 
 def verify_inputs(request):
     """Pin current helper/runtime independently of opaque historical source and guest evidence."""
+    if request.get('operation') == 'repair-after-failed-repair':
+        writer.qualify_failed_source(globals(), request)
     require(str(HELPER) == request['root'] + '/tools/tool-fleet/src/lab-raw-repair.py', 'repair-source-binding')
     pins = {pin['path']: pin for pin in request['pins']}
     required = [str(HELPER.with_name(name)) for name in ('lab-raw-repair.py', 'lab-raw-repair.ts',
@@ -1156,6 +1232,10 @@ def verify_inputs(request):
         metadata |= {request['originalDirectory'] + '/' + name for name in
                      ('request-binding.json', 'reservation.json', 'worker-ready.json', 'failure.json')}
         metadata |= {pin['path'] for pin in original['pins'] if pin['path'].startswith(request['state'] + '/')}
+        if original.get('operation') == 'repair-after-failed-repair':
+            metadata |= writer.failed_source_paths(globals(), original)
+    elif request.get('operation') == 'repair-after-failed-repair':
+        metadata = writer.failed_source_paths(globals(), request)
     else:
         metadata = {request[key] for key in ('image', 'rawRequest', 'rawReceipt', 'rawProvenance',
                     'priorGuestRequest', 'priorGuestFailure', 'postBootEvidence', 'witness')}
@@ -1165,11 +1245,11 @@ def verify_inputs(request):
     fixed = set(required) | {changelog}
     # Proof: deleting this role guard makes systemd-extra/similar/foreign and credential controls
     # reach their forbidden payload hash witnesses; deleting the literal alternative fails systemd-selected.
-    require(all(path in fixed or path.startswith(request['state'] + '/') or
+    require(all(path in fixed or path in metadata or path.startswith(request['state'] + '/') or
                 path == '/usr/lib/x86_64-linux-gnu/systemd/libsystemd-shared-255.so' or
                 re.fullmatch(r'/usr/lib/x86_64-linux-gnu/lib[A-Za-z0-9_.+-]+[.]so[.0-9]*', path)
                 for path in pins), 'repair-input-role')
-    require(all(path in pins and path.startswith(request['state'] + '/') for path in metadata),
+    require(all(path in pins for path in metadata),
             'repair-input-role')
     loader = '/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2'
     for path in ('/usr/bin/python3.12', '/usr/bin/systemd-run', '/usr/bin/systemctl', '/usr/bin/dpkg-query', loader):
@@ -1380,6 +1460,8 @@ def check_creator(binding, directory, directory_fd):
 
 
 def evidence_paths(request):
+    if request.get('operation') == 'repair-after-failed-repair':
+        return sorted(writer.failed_source_paths(globals(), request) - {request['image']})
     return [request[key] for key in ('rawRequest', 'rawReceipt', 'rawProvenance', 'priorGuestRequest',
                                      'priorGuestFailure', 'postBootEvidence', 'witness')]
 
@@ -1391,9 +1473,12 @@ def open_evidence(request):
     try:
         for path in evidence_paths(request):
             pin = pins[path]
+            before = raw.stable_identity(os.lstat(path))
             raw.verify_pin(pin)
             descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
             evidence[path] = {'fd': descriptor, 'identity': raw.stable_identity(os.fstat(descriptor))}
+            # Proof: recovery capture-open-race replaces same bytes after hashing; omission reaches tiny pwrite.
+            require(evidence[path]['identity'] == before, 'repair-evidence-changed')
         check_evidence({'pid': os.getpid(), 'evidence': evidence}, request)
         return evidence
     except BaseException:
@@ -1506,6 +1591,8 @@ def produce_repair(request, request_digest, staging_fd):
                         'inputs': source_identities(request), 'evidence': evidence, 'source': source, 'request': request_digest,
                         'reservationDigest': raw.digest_json(reservation)})
         check_lock(binding, request['state'])
+        # Proof: capture/source-replacement and lock-released omissions reach O_RDWR and pwrite.
+        recovered = writer.observe_failed_source(globals(), request, binding) if request.get('operation') == 'repair-after-failed-repair' else None
         ready_ns = time.time_ns()
         raw.send_frame(1, {'phase': 'ready', 'binding': binding, 'observedNs': ready_ns,
                            'reservation': reservation, 'snapshot': request['expectedRaw'],
@@ -1534,6 +1621,11 @@ def produce_repair(request, request_digest, staging_fd):
         # Proof: worker-map guard fault permits allocation after the original canonical map changed.
         require(raw.load_inspector().observe_repair_ranges(path, raw.RAW_BYTES) == ranges,
                 'repair-map-changed')
+        if recovered is not None:
+            refreshed = writer.observe_failed_source(globals(), request, binding)
+            # Proof: prewrite-relation-dependency omission reaches actual O_RDWR and pwrite.
+            require(all(refreshed[key] == recovered[key] for key in ('snapshot', 'historyDigest', 'evidenceIdentities')),
+                    'repair-recovery-observation-changed')
         writable = os.open(f'/proc/self/fd/{raw_fd}', os.O_RDWR | os.O_CLOEXEC)
         try:
             check_snapshot(request['expectedRaw'], snapshot_file(os.fstat(writable)))
@@ -1619,6 +1711,8 @@ class RepairCoordinator:
 
     def verify_inputs(self, request):
         self.source = verify_inputs(request)
+        if request.get('operation') == 'repair-after-failed-repair':
+            writer.read_failed_source(globals(), request)
         self.inputs = source_identities(request)
         return self.source
 
@@ -1627,6 +1721,8 @@ class RepairCoordinator:
         if self.reservation is None:
             if initial:
                 history = verify_history(self.request)
+                prior = read_repair_accounting(state)
+                writer.check_repair_origin(globals(), self.request, prior)
                 descriptor = open_original(history['path'], self.request['expectedRaw'])
                 try:
                     profile = observe_profile(self.request, descriptor)
@@ -1634,7 +1730,7 @@ class RepairCoordinator:
                     candidate = make_reservation(self.request['nonce'], self.request_digest, self.source,
                                                  self.request['expectedRaw'], observed['observation']['missingDataBytes'])
                     # Proof: initial-capacity one-byte-short G+50GiB candidate refuses before directory/unit creation.
-                    check_capacity(facts, profile, candidate, read_repair_accounting(state),
+                    check_capacity(facts, profile, candidate, prior,
                                    {'kind': 'rewrite', 'bytes': 1048576}, initial=True)
                     return {**facts, 'admissionAuthorized': False}
                 finally:
@@ -1688,7 +1784,11 @@ class RepairCoordinator:
                     and frame['mapDigest'] == ranges['observation']['mapDigest'], 'repair-ready-invalid')
             # Original directory FD is borrowed only here, while the original worker demonstrably holds the flock.
             pending = capture_pending(directory, directory_fd, reservation)
+            if request.get('operation') == 'repair-after-failed-repair':
+                # Proof: coordinator-map omission reaches actual O_RDWR and pwrite.
+                writer.observe_failed_source(globals(), request, binding)
             prior = read_repair_accounting(request['state'], pending)
+            writer.check_repair_origin(globals(), request, prior)
             check_capacity(observe_facts(request['state']), profile, reservation, prior,
                            {'kind': 'rewrite', 'bytes': 1048576})
             # Proof: outer reservation-sync breaks actual regular-file fsync; no ACK/mutation sentinel appears.

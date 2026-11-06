@@ -511,13 +511,15 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
             native_pin=request['pins'][8]
             assert native_pin['path']=='/usr/bin/python3.12' and native_pin['uid']==0
             assert native_pin['sha256']==hashlib.sha256(Path(physical_executable).read_bytes()).hexdigest()
-            modeled_version=control.sys.version_info;modeled_samefile=control.os.path.samefile
+            modeled_version=control.sys.version_info;modeled_samefile=control.os.path.samefile;modeled_uname=os.uname
             original_require=control.require;original_pin=copy.deepcopy(native_pin)
-            for fault,category in (('version','runtime-binding'),('executable','runtime-binding'),('hash','pin-hash'),('owner','pin-identity')):
+            # Proof: kernel omission hit source capture.
+            for fault,category in (('version','runtime-binding'),('executable','runtime-binding'),('hash','pin-hash'),('owner','pin-identity'),('kernel','kernel-binding')):
                 try:
                     if fault=='version':control.sys.version_info=(3,14,0)
                     elif fault=='executable':control.os.path.samefile=lambda *_:False
                     elif fault=='hash':native_pin['sha256']='f'*64
+                    elif fault=='kernel':os.uname=lambda:os.uname_result(('Linux','','foreign','fixture','x86_64'))
                     else:native_pin['uid']=1
                     try:control.verify_environment(request,time.monotonic()+3)
                     except control.Refusal as failure:assert str(failure)==category,(fault,str(failure))
@@ -527,7 +529,7 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
                     assert set(captured)=={str(root/relative) for relative in control.select_sources()}
                     print('watched native provider guard omission reached source capture:',fault)
                 finally:
-                    control.require=original_require;control.sys.version_info=modeled_version;control.os.path.samefile=modeled_samefile
+                    control.require=original_require;control.sys.version_info=modeled_version;control.os.path.samefile=modeled_samefile;os.uname=modeled_uname
                     native_pin.clear();native_pin.update(original_pin)
             print('runtime-provider modeled3.12 uses actual current bytes and guarded source capture')
             sys.exit(0)

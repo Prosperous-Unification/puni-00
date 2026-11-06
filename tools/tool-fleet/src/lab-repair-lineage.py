@@ -118,7 +118,8 @@ def verify_lineage(request, history, read, current=True):
             'continued-original-history')
     pins = {pin['path']: pin for pin in request['pins']}
     historical = [pin for pin in original['pins'] if pin['path'].startswith(request['root'] + '/')
-                  and not pin['path'].startswith(request['state'] + '/')]
+                  and not pin['path'].startswith(request['state'] + '/')
+                  and pin['path'] != original.get('originalFailureCapture')]
     # Proof: original-pins accepted a substituted historical witness pin when this call was omitted (lab-repair-lineage.test.ts; faults.json).
     require(historical and all(pins.get(pin['path']) == pin for pin in original['pins'] if pin not in historical),
             'continued-original-pins')
@@ -146,10 +147,11 @@ def verify_lineage(request, history, read, current=True):
     previous = repair.verify_history(selected)
     failure = read(request, original['priorGuestFailure'])
     post_boot = read(request, original['postBootEvidence'])
+    historical_snapshot = read(request, original['originalRepairRequest'])['expectedRaw'] if original['schemaVersion'] == 2 else original['expectedRaw']
     # Proof: typed-failure accepted numeric float historical identity without this comparison (lab-repair-lineage.test.ts; faults.json).
     require(raw.encode_json(failure['binding']['raw']) == raw.encode_json(history['binding']['raw'])
             and raw.encode_json(post_boot['observation']['identity']) == raw.encode_json({
-                key: original['expectedRaw'][key] for key in
+                key: historical_snapshot[key] for key in
                 ('device', 'inode', 'owner', 'mode', 'links', 'mtimeNs', 'ctimeNs')}), 'continued-history-types')
     repair.geometry.check_receipt(read(request, request['rawReceipt']), 'raw')
     # Proof: history-dependency accepted a foreign original lineage when this call was omitted (lab-repair-lineage.test.ts; faults.json).

@@ -65,6 +65,18 @@ export interface RawRepairRequest {
   expectedRaw: RepairSnapshot;
 }
 
+/** One-level successor naming independent historical captures and strict predecessor settlement. */
+export interface RawRepairAfterFailureRequest extends Omit<RawRepairRequest, 'schemaVersion'> {
+  schemaVersion: 2;
+  operation: 'repair-after-failed-repair';
+  originalRepairRequest: string;
+  afterFailedRepairEvidence: string;
+  originalFailureCapture: string;
+  settlementRequest: string;
+}
+
+export type RawRepairInput = RawRepairRequest | RawRepairAfterFailureRequest;
+
 export class RawRepairRefusal extends Error {
   constructor(
     readonly category:

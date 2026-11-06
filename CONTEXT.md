@@ -2565,6 +2565,10 @@ _Avoid_: failed creation, absent resource
 An explicit review assertion that no member of a named earlier test level belongs to the reviewed fixture scope. It carries no execution or certification claim.
 _Avoid_: unknown membership, passing Performance result
 
+**Repair source after failure**:
+A read-only observation of the original raw inode linked to a specific failed repair. It preserves the failed attempt and grants no repair or reservation-release authority.
+_Avoid_: postboot evidence, repair authority
+
 ### Observability migration
 
 **Retained observation**:

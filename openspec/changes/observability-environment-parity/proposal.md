@@ -33,7 +33,7 @@ None. This change coordinates implementation with the existing dev and productio
 
 ## Domain Terms
 
-Use **rehearsal horizon** from `CONTEXT.md`; preserve application environment versus platform cluster identity.
+Use **rehearsal horizon** from `CONTEXT.md`; preserve application environment versus platform cluster identity. Use **repair source after failure** for the distinct historical observation consumed before a successor same-inode repair; it grants no current admission.
 
 ## Decisions Recorded
 
