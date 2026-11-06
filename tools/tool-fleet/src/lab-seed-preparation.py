@@ -463,6 +463,8 @@ def observe_capacity(state, initial=False, after_allocation=False, request=None)
     if request is not None and request['schemaVersion'] == 2:
         # Proof: capacity accepted one-byte-short prior-failed G at this component observation when omitted (faults.json).
         load_lineage().check_backing(state, free, initial)
+    else:
+        raw.refuse_repair_accounting(state)
     return {'availableMemoryBytes': available, 'freeBytes': free, 'allocatedBytes': allocated,
             'observedNs': time.time_ns()}
 

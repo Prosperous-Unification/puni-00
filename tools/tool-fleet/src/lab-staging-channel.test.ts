@@ -18,6 +18,9 @@ with tempfile.TemporaryDirectory(prefix='puni-channel107-') as scratch:
         changed = []
         class Omit(ast.NodeTransformer):
             def visit_FunctionDef(self, node):
+                # Proof: publication added a second close loop; these mutants own only staging cleanup.
+                if omission in ('cleanup', 'cleanup-sockets') and node.name != '_close_staging_resources':
+                    return node
                 if omission == 'unlock-close' and node.name == 'close' and node.args.args[0].arg == 'self':
                     node.body.insert(1, ast.parse('fcntl.flock(self.staging_fd, fcntl.LOCK_UN)').body[0])
                     changed.append(omission)

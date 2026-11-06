@@ -22,47 +22,21 @@ test('finite staging entry compiles before importing its native helpers', () => 
   expect(new TextDecoder().decode(child.stdout)).toBe('staging-native-control: AST-valid\n');
 });
 
-const runtimeProvider = String.raw`
-import io, os, sys, types
-from pathlib import Path
-# Proof: missing3.12 RED; runtime-provider preserves native guards over current interpreter bytes.
-physical_stdlib=str(Path(os.__file__).parent)
-physical_executable=str(Path(sys.executable).resolve())
-runtime_aliases=[('/usr/bin/python3.12',physical_executable),('/usr/lib/python3.12/',physical_stdlib+'/')]
-with open('/proc/self/maps',encoding='ascii') as stream:
-    for row in stream:
-        fields=row.split(maxsplit=5)
-        if len(fields)==6:
-            physical=fields[5].strip()
-            if physical.startswith(sys.base_prefix+'/lib/libpython'):
-                alias=('/usr/lib/x86_64-linux-gnu/'+Path(physical).name,physical)
-                if alias not in runtime_aliases:runtime_aliases.append(alias)
-def map_runtime_path(path,physical=False):
-    if not isinstance(path,(str,os.PathLike)):return path
-    selected=str(path)
-    for modeled,installed in runtime_aliases:
-        before,after=(modeled,installed) if physical else (installed,modeled)
-        if selected==before or before.endswith('/') and selected.startswith(before):
-            return after+selected[len(before):]
-    return selected
-def runtime_observation(observed,path):
-    if map_runtime_path(path)!=str(path) or map_runtime_path(path,True)!=str(path):
-        fields={name:getattr(observed,name) for name in dir(observed) if name.startswith('st_')}
-        fields['st_uid']=0;fields['st_mode'] &= ~0o022
-        return types.SimpleNamespace(**fields)
-    return observed
-installed_lstat,installed_stat,installed_fstat,installed_open,installed_io_open,installed_resolve=os.lstat,os.stat,os.fstat,os.open,io.open,Path.resolve
-os.lstat=lambda path,*args,**kwargs:runtime_observation(installed_lstat(map_runtime_path(path,True),*args,**kwargs),path)
-os.stat=lambda path,*args,**kwargs:runtime_observation(installed_stat(map_runtime_path(path,True),*args,**kwargs),path)
-os.fstat=lambda descriptor:runtime_observation(installed_fstat(descriptor),os.readlink('/proc/self/fd/'+str(descriptor)))
-os.open=lambda path,*args,**kwargs:installed_open(map_runtime_path(path,True),*args,**kwargs)
-io.open=lambda path,*args,**kwargs:installed_io_open(map_runtime_path(path,True),*args,**kwargs)
-Path.resolve=lambda path,*args,**kwargs:Path(map_runtime_path(installed_resolve(Path(map_runtime_path(path,True)),*args,**kwargs)))
-`;
-
-const coldWorker =
-  runtimeProvider +
-  readFileSync(new URL('./lab-staging-native-cold-fixture.py', import.meta.url), 'utf8');
+const coldWorker = readFileSync(
+  new URL('./lab-staging-native-cold-fixture.py', import.meta.url),
+  'utf8',
+);
+const providerBoundary = '\n# Worker entry follows the runtime provider.\n';
+const providerEnd = coldWorker.indexOf(providerBoundary);
+// Proof: oversized/missing/duplicate prefix faults refuse; removing this guard admits oversized source.
+if (
+  Buffer.byteLength(coldWorker) > 8192 ||
+  providerEnd <= 0 ||
+  coldWorker.includes(providerBoundary, providerEnd + 1)
+) {
+  throw new Error('bounded cold fixture must contain exactly one runtime-provider boundary');
+}
+const runtimeProvider = coldWorker.slice(0, providerEnd);
 
 const fixture = String.raw`${runtimeProvider}
 import array, builtins, copy, ctypes, encodings.ascii, hashlib, importlib.util, io, json, os
@@ -512,6 +486,25 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
             inspect_cleanup(namespace['create_dead_channel'],False)
             print('dead-start-cleanup GREEN original child reaped/all parent FDs closed; watched scope omission RED leaked child/FDs')
             sys.exit(0)
+        if mode=='foreign-runtime':
+            foreign=root/'sitecustomize.py';foreign.write_bytes(b'loaded=True\n');foreign.chmod(0o644)
+            specification=importlib.util.spec_from_file_location('sitecustomize',foreign)
+            module=importlib.util.module_from_spec(specification)
+            previous=sys.modules.get('sitecustomize');sys.modules['sitecustomize']=module
+            specification.loader.exec_module(module)
+            original_require=control.require
+            try:
+                try:control.runtime_paths()
+                except control.Refusal as failure:assert str(failure)=='runtime-mapping'
+                else:raise AssertionError('foreign startup hook entered native runtime')
+                control.require=lambda predicate,code:original_require(predicate,code) if code!='runtime-mapping' else None
+                assert str(foreign) in control.runtime_paths(),'omitted runtime guard failed to expose foreign hook'
+            finally:
+                control.require=original_require
+                if previous is None:del sys.modules['sitecustomize']
+                else:sys.modules['sitecustomize']=previous
+            print('watched foreign startup-hook omission reached actual runtime closure')
+            sys.exit(0)
         if mode=='runtime-provider':
             native_pin=request['pins'][8]
             assert native_pin['path']=='/usr/bin/python3.12' and native_pin['uid']==0
@@ -820,6 +813,7 @@ for (const mode of [
   'dead-start-cleanup',
   'cold-runtime',
   'runtime-provider',
+  'foreign-runtime',
   'global-lifetime',
   'global-holder',
   'global-dependency',
@@ -896,6 +890,7 @@ for (const mode of [
         'packets',
         'cold-runtime',
         'runtime-provider',
+        'foreign-runtime',
         'dead-start-cleanup',
       ].includes(mode)
     ) {

@@ -1,0 +1,102 @@
+{
+  "apiMockCorrection": {
+    "assertions": 14,
+    "failed": 0,
+    "passed": 1
+  },
+  "finalTypecheckExitCode": 0,
+  "logs": [
+    {
+      "bytes": 0,
+      "name": "puni-publication-fleet-typecheck-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 1521,
+      "name": "puni-publication-fleet-typecheck.log",
+      "sha256": "d3f50fdc455a71cb9412ee33e627b1be2450ed91ed65fca62b7246209018ee30"
+    },
+    {
+      "bytes": 296583,
+      "name": "puni-publication-openspec-all.json",
+      "sha256": "10fb713884a328c7d23cb418b751ce67a5bba19902761540448d7fc7a3760703"
+    },
+    {
+      "bytes": 1273,
+      "name": "puni-publication-staging-integration.log",
+      "sha256": "ebb73ec1b58ce8b2f0abb612e1d9231952a7247c1a80972212ff27798f843340"
+    },
+    {
+      "bytes": 352,
+      "name": "puni-publication113-ack-type-green.log",
+      "sha256": "217ea95d811504ad81d2d19b9379b6824d0daca7c13f17a26e362b12c0b43871"
+    },
+    {
+      "bytes": 1738,
+      "name": "puni-publication113-ack-type-red.log",
+      "sha256": "d7e029407b4c5caab2567b3143e38ae8d269cb6e55f7748ad0e30e3c66b42930"
+    },
+    {
+      "bytes": 1219,
+      "name": "puni-publication113-duplicate-types-green.log",
+      "sha256": "6ee265b99c6e3116b4512d84e472e219cb0e520992e308b291f4652817c34c29"
+    },
+    {
+      "bytes": 7804,
+      "name": "puni-publication113-duplicate-types-red.log",
+      "sha256": "1d9cfd08b855d60e6b125e26bc4aa1de3076cf336f1411c0f7def113d3dc6254"
+    },
+    {
+      "bytes": 0,
+      "name": "puni-publication113-final-eslint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 66,
+      "name": "puni-publication113-final-format.log",
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    {
+      "bytes": 5796,
+      "name": "puni-publication113-review.md",
+      "sha256": "5430939e3818739c476b8dc707dd8a74f285e950497925756fd9c1543e8a6af3"
+    },
+    {
+      "bytes": 0,
+      "name": "puni-publication113-typefix-eslint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 66,
+      "name": "puni-publication113-typefix-format.log",
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    {
+      "bytes": 272,
+      "name": "puni-publication113-typefix-test.log",
+      "sha256": "72afa335f444c28c9914a2cf6a9e9ad3edc67042b01e00baad253db7094fb059"
+    },
+    {
+      "bytes": 5330,
+      "name": "puni-task114-review.md",
+      "sha256": "a6902e5607c33ed1b87bfdd194725b26dc1c909dc245899bf49487e6a5c38951"
+    }
+  ],
+  "notRun": [
+    "Repeated136-case suite",
+    "Full Fleet/application/browser/host gates",
+    "Any native or retained operation"
+  ],
+  "openSpec": {
+    "failed": 0,
+    "passed": 324
+  },
+  "review": "Approved conditional source checkpoint; no blocking findings.",
+  "runtimeAcceptance": "4/11;Task97open",
+  "targetedSchemaCorrections": {
+    "assertions": 72,
+    "failed": 0,
+    "passed": 12,
+    "seconds": 8.0
+  }
+}

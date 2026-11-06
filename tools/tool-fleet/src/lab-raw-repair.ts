@@ -115,3 +115,75 @@ export function prepareRawRepair(requestPath: string, requestDigest: string): Ra
     throw new RawRepairRefusal('producer-malformed');
   return envelope;
 }
+
+const SettlementEnvelope = type({
+  schemaVersion: '1',
+  scope: "'failed-repair-settlement'",
+  accepted: 'true',
+  nonce: type('string').matching(/^[a-f0-9]{32}$/),
+  receiptDigest: type('string').matching(/^[a-f0-9]{64}$/),
+  executionDigest: type('string').matching(/^[a-f0-9]{64}$/),
+  releasedReservationDigest: type('string').matching(/^[a-f0-9]{64}$/),
+  releasedGrossBytes: Unsigned64,
+  retainedSettlementDebtBytes: "'33554432'",
+  repairAuthority: 'false',
+  guestAuthority: 'false',
+  fullRehearsalAuthority: 'false',
+}).onUndeclaredKey('reject');
+
+export type FailedSettlement = typeof SettlementEnvelope.infer;
+
+/** Run one conditional settlement from bounded canonical stdin, without writing a request file.
+ * Throws while outside-input qualification or durable pre-create consumption remains unavailable.
+ * Acceptance releases the selected old reservation only; its fixed settlement debt remains.
+ */
+export function settleFailedRepair(
+  requestPayload: Uint8Array,
+  requestDigest: string,
+): FailedSettlement {
+  // Proof: source API oversized/digest inputs never reach the intercepted producer launch.
+  if (
+    requestPayload.length === 0 ||
+    requestPayload.length >= 65536 ||
+    !/^[a-f0-9]{64}$/.test(requestDigest) ||
+    new Bun.CryptoHasher('sha256').update(requestPayload).digest('hex') !== requestDigest
+  ) {
+    throw new RawRepairRefusal('invalid-arguments');
+  }
+  const helper = fileURLToPath(new URL('./lab-raw-repair.py', import.meta.url));
+  let invocation: Bun.SyncSubprocess<'pipe', 'pipe'>;
+  try {
+    invocation = Bun.spawnSync(
+      ['/usr/bin/python3', '-I', '-B', helper, '--settle-failed-repair', requestDigest],
+      {
+        stdin: requestPayload,
+        stdout: 'pipe',
+        stderr: 'pipe',
+        timeout: 935000,
+        killSignal: 'SIGTERM',
+        maxBuffer: 65536,
+      },
+    );
+  } catch {
+    throw new RawRepairRefusal('dependency-unavailable');
+  }
+  if (invocation.exitedDueToMaxBuffer) throw new RawRepairRefusal('producer-output-bound');
+  if (invocation.exitedDueToTimeout) throw new RawRepairRefusal('producer-timeout');
+  if (invocation.exitCode !== 0) throw new RawRepairRefusal('producer-refused');
+  let projection: unknown;
+  try {
+    projection = JSON.parse(invocation.stdout.toString());
+  } catch {
+    throw new RawRepairRefusal('producer-malformed');
+  }
+  const envelope = SettlementEnvelope(projection);
+  // Proof: mixed/v1/extra authority output controls refuse; canonical framing rejects duplicate keys.
+  if (
+    envelope instanceof type.errors ||
+    invocation.stderr.length !== 0 ||
+    invocation.stdout.toString() !== JSON.stringify(projection) + '\n'
+  ) {
+    throw new RawRepairRefusal('producer-malformed');
+  }
+  return envelope;
+}

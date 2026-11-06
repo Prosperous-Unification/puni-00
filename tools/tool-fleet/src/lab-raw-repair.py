@@ -106,6 +106,14 @@ def _source_capture(path, limit, pin=None, digest=None):
 def _source_request(path, digest):
     """Early bounded duplicate-free request and pin syntax; full semantic admission follows imports."""
     payload = _source_capture(path, _REPAIR_REQUEST_BYTES, digest=digest)
+    return _source_payload(payload, digest)
+
+
+def _source_payload(payload, digest, settlement=False):
+    """One duplicate-free byte parser for bounded stdin and fixed recorded request transport."""
+    _source_require(type(payload) is bytes and 0 < len(payload) <= _REPAIR_REQUEST_BYTES - (1 if settlement else 0),
+                    'settlement-request-bound' if settlement else 'repair-source-bound')
+    _source_require(hashlib.sha256(payload).hexdigest() == digest, 'repair-request-digest')
     def fields(pairs):
         record = {}
         for name, value in pairs:
@@ -121,18 +129,33 @@ def _source_request(path, digest):
     # Proof: source startup malformed request/pins injected parser dependency refuses before imports.
     _source_require(type(request) is dict and type(request.get('pins')) is list
                     and 1 <= len(request['pins']) <= 512, 'repair-source-request-invalid')
-    # Proof: source startup request-shape/schema/root/state/nonce omissions execute admitted helpers.
-    _source_require(set(request) == set(('schemaVersion root state nonce pins image rawRequest rawReceipt '
-                    'rawProvenance priorGuestRequest priorGuestFailure postBootEvidence expectedRaw witness').split())
-                    and type(request['schemaVersion']) is int and request['schemaVersion'] == 1
-                    and type(request['root']) is str and Path(request['root']).is_absolute()
-                    and os.path.normpath(request['root']) == request['root']
-                    and type(request['state']) is str
-                    and request['state'] == request['root'] + '/.puni/fleet-labs/observability-baseline'
-                    and type(request['nonce']) is str and re.fullmatch('[a-f0-9]{32}', request['nonce'])
-                    and all(type(request[field]) is str for field in ('image', 'rawRequest', 'rawReceipt',
-                        'rawProvenance', 'priorGuestRequest', 'priorGuestFailure', 'postBootEvidence', 'witness')),
-                    'repair-source-request-shape')
+    if settlement:
+        _source_require(set(request) == set(('schemaVersion operation root state nonce pins originalRepairRequest '
+                        'originalDirectory originalTerminalCapture qualification expectedRaw witness').split())
+                        and type(request['schemaVersion']) is int and request['schemaVersion'] == 2
+                        and request['operation'] == 'settle-failed-repair'
+                        and type(request['root']) is str and Path(request['root']).is_absolute()
+                        and os.path.normpath(request['root']) == request['root']
+                        and request['state'] == request['root'] + '/.puni/fleet-labs/observability-baseline'
+                        and type(request['nonce']) is str and re.fullmatch('[a-f0-9]{32}', request['nonce'])
+                        and all(type(request[field]) is str for field in ('originalRepairRequest',
+                            'originalDirectory', 'originalTerminalCapture', 'qualification', 'witness')),
+                        'settlement-request-invalid')
+        _source_require(payload == json.dumps(request, separators=(',', ':'), sort_keys=True).encode(),
+                        'settlement-request-canonical')
+    else:
+        # Proof: source startup request-shape/schema/root/state/nonce omissions execute admitted helpers.
+        _source_require(set(request) == set(('schemaVersion root state nonce pins image rawRequest rawReceipt '
+                        'rawProvenance priorGuestRequest priorGuestFailure postBootEvidence expectedRaw witness').split())
+                        and type(request['schemaVersion']) is int and request['schemaVersion'] == 1
+                        and type(request['root']) is str and Path(request['root']).is_absolute()
+                        and os.path.normpath(request['root']) == request['root']
+                        and type(request['state']) is str
+                        and request['state'] == request['root'] + '/.puni/fleet-labs/observability-baseline'
+                        and type(request['nonce']) is str and re.fullmatch('[a-f0-9]{32}', request['nonce'])
+                        and all(type(request[field]) is str for field in ('image', 'rawRequest', 'rawReceipt',
+                            'rawProvenance', 'priorGuestRequest', 'priorGuestFailure', 'postBootEvidence', 'witness')),
+                        'repair-source-request-shape')
     snapshot = request['expectedRaw']
     # Proof: source startup snapshot-shape/quantity/owner/mode/links omissions reach initial helpers.
     _source_require(type(snapshot) is dict and set(snapshot) == set(('device inode owner mode links '
@@ -159,6 +182,17 @@ def _source_request(path, digest):
         # Proof: source startup duplicate-pin omission admits repeated source selection.
         _source_require(pin['path'] not in pins, 'repair-source-pin-duplicate')
         pins[pin['path']] = pin
+    if settlement:
+        _source_require(re.fullmatch(re.escape(request['state']) + r'/raw-repair-[a-f0-9]{32}',
+                        request['originalDirectory']) is not None
+                        and not request['originalDirectory'].endswith(request['nonce']),
+                        'settlement-request-history')
+        selected = {request[key] for key in ('originalRepairRequest', 'originalTerminalCapture',
+                                             'qualification', 'witness')}
+        selected |= {request['originalDirectory'] + '/' + name for name in
+                     ('request-binding.json', 'reservation.json', 'worker-ready.json', 'failure.json')}
+        _source_require(all(path in pins and path.startswith(request['state'] + '/') for path in selected),
+                        'settlement-request-pins')
     return request, pins
 
 
@@ -216,10 +250,25 @@ def _source_install(entry, pins):
 exec(_SOURCE_BOOTSTRAP)
 
 if __name__ == '__main__':
-    # Proof: source startup arguments omission reaches imports on a foreign worker argument shape.
-    _source_require(len(sys.argv) in (3, 4) and (len(sys.argv) == 3 or sys.argv[1] == '--worker')
+    _settlement_mode = len(sys.argv) in (3, 4) and sys.argv[1] in (
+        '--settle-failed-repair', '--settlement-worker')
+    _source_require((len(sys.argv) == 3 and sys.argv[1] != '--settlement-worker' or len(sys.argv) == 4 and sys.argv[1] in (
+                    '--worker', '--settlement-worker'))
                     and re.fullmatch('[a-f0-9]{64}', sys.argv[-1]) is not None, 'repair-arguments')
-    _early_request, _early_pins = _source_request(*sys.argv[-2:])
+    if _settlement_mode:
+        if sys.argv[1] == '--settle-failed-repair':
+            _source_require(len(sys.argv) == 3, 'repair-arguments')
+            _early_payload = sys.stdin.buffer.read(_REPAIR_REQUEST_BYTES)
+        else:
+            _early_payload = _source_capture(sys.argv[-2], _REPAIR_REQUEST_BYTES, digest=sys.argv[-1])
+        _early_request, _early_pins = _source_payload(_early_payload, sys.argv[-1], settlement=True)
+        _source_require(str(Path(os.path.abspath(__file__))) == _early_request['root']
+                        + '/tools/tool-fleet/src/lab-raw-repair.py', 'settlement-source-entry')
+        if sys.argv[1] == '--settlement-worker':
+            _source_require(sys.argv[-2] == _early_request['originalDirectory'] + '/settlement-request.json',
+                            'settlement-worker-path')
+    else:
+        _early_request, _early_pins = _source_request(*sys.argv[-2:])
     _source_install(Path(os.path.abspath(__file__)), _early_pins)
 
 _spec = importlib.util.spec_from_file_location('repair_raw', Path(__file__).with_name('lab-raw-preparation.py'))
@@ -333,7 +382,7 @@ def open_staging_channel(state, nonce, request_digest):
         _close_staging_resources(reversed(resources), failure)
 
 
-def receive_staging_channel(endpoint, state, nonce, request_digest):
+def receive_staging_channel(endpoint, state, nonce, request_digest, sender=None):
     """Borrow a socket, consume one queued packet without waiting and return its owned lock FD.
 
     Authenticate per-message credentials and the live original sender, never SO_PEERCRED.
@@ -411,6 +460,9 @@ def receive_staging_channel(endpoint, state, nonce, request_digest):
                 + format(os.minor(held.st_dev), '02x') + ':' + str(held.st_ino) + r'\s+0 EOF$')
         # Proof: flock omission adopts an independently reopened same-inode FD with no owned flock.
         require(re.search(lock, info) is not None, 'repair-channel-lock')
+        if sender is not None:
+            require(type(sender) is dict and not sender, 'settlement-sender-boundary')
+            sender.update({field: frame[field] for field in ('pid', 'start', 'uid', 'gid')})
         return descriptor
     except BaseException as failure:
         # Proof: refusal-close omission leaks the real received right at the protected receive boundary.
@@ -490,6 +542,16 @@ def check_capacity(facts, profile, current, reservations, step, initial=False):
     check_reservation(current)
     check_profile(profile, current['originalSnapshot'])
     # Proof: ledger bound bypass admits 1,025 records in native capacity/metadata-bounds.
+    settlement_debt = 0
+    if type(reservations) is dict:
+        closed(reservations, 'reservations ledgerDigest unresolvedGrossBytes settled settlementDebtBytes namespaces')
+        settlement_debt = unsigned(reservations['settlementDebtBytes'])
+        require(settlement_debt in (0, 33554432)
+                and reservations['ledgerDigest'] == raw.digest_json(reservations['reservations'])
+                and unsigned(reservations['unresolvedGrossBytes']) == sum(
+                    unsigned(record['grossBytes']) for record in reservations['reservations']),
+                'repair-accounting-invalid')
+        reservations = reservations['reservations']
     require(type(reservations) is list and len(reservations) <= 1024, 'repair-ledger-bound')
     by_nonce = {}
     for record in reservations:
@@ -520,9 +582,9 @@ def check_capacity(facts, profile, current, reservations, step, initial=False):
     debt = sum(int(record['grossBytes']) for record in by_nonce.values())
     # Proof: backing-floor bypass admits one-byte-short free bytes in native capacity.
     require(facts['freeBytes'] >= (50 if initial else 40) * 1024**3
-            + debt + facts['otherFutureReservations'], 'repair-backing-floor')
+            + debt + settlement_debt + facts['otherFutureReservations'], 'repair-backing-floor')
     # Proof: staging bypass admits one-byte-short step growth in native capacity.
-    require(facts['retainedInodeBytes'] + raw.RESERVE_BYTES + growth <= raw.STAGING_BYTES,
+    require(facts['retainedInodeBytes'] + raw.RESERVE_BYTES + settlement_debt + growth <= raw.STAGING_BYTES,
             'repair-staging-bound')
 
 
@@ -745,7 +807,7 @@ def publish_reservation(pending, record):
             'repair-reservation-changed')
 
 
-def read_reservations(state, pending=None):
+def read_repair_accounting(state, pending=None, settlement=None):
     """Charge every repair directory, including failed/cancelled attempts without accepted receipts.
 
     Hold the original staging lock throughout enumeration/admission. Only the trusted original
@@ -763,6 +825,10 @@ def read_reservations(state, pending=None):
             # Proof: pending type bypass admits a forged token in metadata-boundaries.
             require(Path(pending.directory).parent == Path(state), 'repair-pending-invalid')
         records = []
+        settled = []
+        namespaces = []
+        settlement_debt = 0
+        selected_settlements = 0
         seen = set()
         excluded = False
         with os.scandir(root_fd) as entries:
@@ -790,7 +856,17 @@ def read_reservations(state, pending=None):
                     # Proof: changed-read bypass reaches next-authority in metadata-changed.
                     require(identity == raw.identity(os.lstat(directory)), 'repair-state-changed')
                     seen.add(record['nonce'])
-                    if not read_release(directory, identity, record):
+                    namespace = read_repair_namespace(directory, descriptor, record, settlement)
+                    namespaces.append({'nonce': record['nonce'], 'state': namespace['state']})
+                    if namespace['settlementRelevant']:
+                        settlement_debt = 33554432
+                    if namespace['state'] != 'legacy':
+                        selected_settlements += 1
+                        require(selected_settlements <= 1, 'settlement-multiple-attempts')
+                    if namespace['settled']:
+                        settled.append({'nonce': record['nonce'], 'reservationDigest': raw.digest_json(record),
+                                        'grossBytes': record['grossBytes']})
+                    elif not read_release(directory, identity, record):
                         records.append(record)
                     # Proof: ledger bound bypass admits 1,025 records in native capacity/metadata-bounds.
                     require(len(seen) <= 1024, 'repair-ledger-bound')
@@ -801,10 +877,47 @@ def read_reservations(state, pending=None):
         # Proof: changed-read bypass reaches next-authority in metadata-changed.
         require(original == raw.identity(os.fstat(root_fd)) == raw.identity(os.lstat(state)),
                 'repair-state-changed')
-        return records
+        records.sort(key=lambda record: record['nonce'])
+        settled.sort(key=lambda record: record['nonce'])
+        namespaces.sort(key=lambda record: record['nonce'])
+        return {'reservations': records, 'ledgerDigest': raw.digest_json(records),
+                'unresolvedGrossBytes': str(sum(int(record['grossBytes']) for record in records)),
+                'settled': settled, 'settlementDebtBytes': str(settlement_debt), 'namespaces': namespaces}
     finally:
         os.close(root_fd)
 
+
+
+def read_reservations(state, pending=None):
+    """Legacy projection refuses whenever it would conceal the independent fixed settlement debt."""
+    accounting = read_repair_accounting(state, pending)
+    # Proof: accounting legacy omission returns original-only reservations while silently hiding K.
+    require(accounting['settlementDebtBytes'] == '0', 'repair-accounting-required')
+    return accounting['reservations']
+
+
+def read_repair_namespace(directory, descriptor, reservation, settlement=None):
+    """Enumerate every retained entry before release; unknown or unreadable state never becomes absence."""
+    legacy = {'request-binding.json', 'reservation.json', 'worker-ready.json', 'failure.json',
+              'worker-counter.json', 'repair.json', 'release.json', 'receipt.json'}
+    names = set()
+    before = raw.identity(os.fstat(descriptor))
+    with os.scandir(descriptor) as entries:
+        for count, entry in enumerate(entries, 1):
+            # Proof: accounting unknown omission reaches debt admission with an unrecognized record.
+            require(count <= 13 and entry.name in legacy | _SETTLEMENT_NAMES,
+                    'settlement-namespace-invalid')
+            names.add(entry.name)
+            # Proof: lab-failed-settlement.test.ts xattr; copied predicate omission reaches unsafe-credit.
+            require(not os.listxattr(Path(directory) / entry.name, follow_symlinks=False),
+                    'settlement-record-xattrs')
+            read_record(Path(directory) / entry.name)
+    # Proof: accounting directory substitution refuses before considering any credit.
+    require(before == raw.identity(os.fstat(descriptor)) == raw.identity(os.lstat(directory)),
+            'repair-state-changed')
+    if names & _SETTLEMENT_NAMES:
+        return writer.read_settlement_namespace(globals(), directory, descriptor, reservation, names, settlement)
+    return {'state': 'legacy', 'settled': False, 'settlementRelevant': 'failure.json' in names}
 
 def read_release(directory, identity, reservation):
     """Credit only the fixed producer's complete accepted certificate under its pinned source contract.
@@ -1017,8 +1130,18 @@ def verify_inputs(request):
     require(platform.machine() == 'x86_64' and ctypes.sizeof(ctypes.c_long) == 8
             and sys.version_info[:2] == (3, 12)
             and os.path.realpath('/usr/bin/python3') == '/usr/bin/python3.12', 'repair-python-binding')
-    metadata = {request[key] for key in ('image', 'rawRequest', 'rawReceipt', 'rawProvenance',
-                'priorGuestRequest', 'priorGuestFailure', 'postBootEvidence', 'witness')}
+    if request.get('operation') == 'settle-failed-repair':
+        original = seed.read_pinned_json(request, request['originalRepairRequest'])
+        check_request(original)
+        metadata = {request[key] for key in ('originalRepairRequest', 'originalTerminalCapture', 'qualification', 'witness')}
+        metadata |= {request['originalDirectory'] + '/' + name for name in
+                     ('request-binding.json', 'reservation.json', 'worker-ready.json', 'failure.json')}
+        metadata |= {pin['path'] for pin in original['pins'] if pin['path'].startswith(request['state'] + '/')}
+    else:
+        metadata = {request[key] for key in ('image', 'rawRequest', 'rawReceipt', 'rawProvenance',
+                    'priorGuestRequest', 'priorGuestFailure', 'postBootEvidence', 'witness')}
+        guest_request = seed.read_pinned_json(request, request['priorGuestRequest'])
+        metadata |= {guest_request['seedRequest'], str(Path(request['rawReceipt']).with_name('allocation.json'))}
     changelog = '/usr/share/doc/linux-image-7.0.11-76070011-generic/changelog.Debian.gz'
     fixed = set(required) | {changelog}
     # Proof: deleting this role guard makes systemd-extra/similar/foreign and credential controls
@@ -1027,8 +1150,6 @@ def verify_inputs(request):
                 path == '/usr/lib/x86_64-linux-gnu/systemd/libsystemd-shared-255.so' or
                 re.fullmatch(r'/usr/lib/x86_64-linux-gnu/lib[A-Za-z0-9_.+-]+[.]so[.0-9]*', path)
                 for path in pins), 'repair-input-role')
-    guest_request = seed.read_pinned_json(request, request['priorGuestRequest'])
-    metadata |= {guest_request['seedRequest'], str(Path(request['rawReceipt']).with_name('allocation.json'))}
     require(all(path in pins and path.startswith(request['state'] + '/') for path in metadata),
             'repair-input-role')
     loader = '/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2'
@@ -1056,7 +1177,8 @@ def verify_inputs(request):
     require(version.splitlines() == ['linux 7.0.11-76070011.202606011647~1784215097~24.04~4974880'] * 2
             and '4974880' in raw.read_text('/proc/version')
             and os.uname().release == '7.0.11-76070011-generic', 'repair-kernel-source')
-    verify_history(request)
+    if request.get('operation') != 'settle-failed-repair':
+        verify_history(request)
     return raw.digest_json({path: pin['sha256'] for path, pin in pins.items()})
 
 
@@ -1384,7 +1506,7 @@ def produce_repair(request, request_digest, staging_fd):
                 check_snapshot(request['expectedRaw'], snapshot_file(os.fstat(raw_fd)))
             fresh_profile = observe_profile(request, raw_fd)
             check_capacity(observe_facts(request['state']), fresh_profile, reservation,
-                           read_reservations(request['state']), step)
+                           read_repair_accounting(request['state']), step)
         def monitor():
             require(time.monotonic() < deadline, 'repair-io-timeout')
             check_original(raw_fd, path, binding['raw'])
@@ -1493,7 +1615,7 @@ class RepairCoordinator:
                     candidate = make_reservation(self.request['nonce'], self.request_digest, self.source,
                                                  self.request['expectedRaw'], observed['observation']['missingDataBytes'])
                     # Proof: initial-capacity one-byte-short G+50GiB candidate refuses before directory/unit creation.
-                    check_capacity(facts, profile, candidate, read_reservations(state),
+                    check_capacity(facts, profile, candidate, read_repair_accounting(state),
                                    {'kind': 'rewrite', 'bytes': 1048576}, initial=True)
                     return {**facts, 'admissionAuthorized': False}
                 finally:
@@ -1507,7 +1629,7 @@ class RepairCoordinator:
         descriptor = open_live_original(self.path, self.reservation)
         try:
             profile = observe_profile(self.request, descriptor)
-            check_capacity(facts, profile, self.reservation, read_reservations(state),
+            check_capacity(facts, profile, self.reservation, read_repair_accounting(state),
                            {'kind': 'rewrite', 'bytes': 1048576}, initial=initial)
             return {**facts, 'observedNs': str(time.time_ns()), 'grossDebtRetained': True}
         finally:
@@ -1547,13 +1669,13 @@ class RepairCoordinator:
                     and frame['mapDigest'] == ranges['observation']['mapDigest'], 'repair-ready-invalid')
             # Original directory FD is borrowed only here, while the original worker demonstrably holds the flock.
             pending = capture_pending(directory, directory_fd, reservation)
-            prior = read_reservations(request['state'], pending)
+            prior = read_repair_accounting(request['state'], pending)
             check_capacity(observe_facts(request['state']), profile, reservation, prior,
                            {'kind': 'rewrite', 'bytes': 1048576})
             # Proof: outer reservation-sync breaks actual regular-file fsync; no ACK/mutation sentinel appears.
             publish_reservation(pending, reservation)
             # No stale pre-mkdir snapshot is reused. Own debt now appears once in the actual complete ledger.
-            check_capacity(observe_facts(request['state']), profile, reservation, read_reservations(request['state']),
+            check_capacity(observe_facts(request['state']), profile, reservation, read_repair_accounting(request['state']),
                            {'kind': 'rewrite', 'bytes': 1048576})
             self.reservation, self.path = reservation, history['path']
             return binding
@@ -1695,6 +1817,21 @@ def coordinator(request, request_path, request_digest):
 
 def main():
     try:
+        if len(sys.argv) in (3, 4) and sys.argv[1] in ('--settle-failed-repair', '--settlement-worker'):
+            for selected_signal in (signal.SIGTERM, signal.SIGINT, signal.SIGALRM):
+                signal.signal(selected_signal, raw.cancel)
+            signal.setitimer(signal.ITIMER_REAL, 900 if sys.argv[1] == '--settlement-worker' else 920)
+            context = writer.SettlementContext(globals(), _early_request, sys.argv[-1])
+            if sys.argv[1] == '--settlement-worker':
+                writer.run_settlement_worker(context)
+            else:
+                resource.setrlimit(resource.RLIMIT_AS, (128 * 1024**2,) * 2)
+                resource.setrlimit(resource.RLIMIT_FSIZE, (raw.RECORD_BYTES,) * 2)
+                resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
+                resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+                resource.setrlimit(resource.RLIMIT_CPU, (120, 120))
+                print(raw.encode_json(writer.coordinate_settlement(context)).decode())
+            return 0
         require(len(sys.argv) in (3, 4) and (len(sys.argv) == 3 or sys.argv[1] == '--worker'), 'repair-arguments')
         request_path, request_digest = sys.argv[-2:]
         require(re.fullmatch('[a-f0-9]{64}', request_digest) is not None, 'repair-arguments')

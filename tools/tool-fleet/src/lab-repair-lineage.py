@@ -22,8 +22,10 @@ def initialize_runtime(runtime):
 
 def check_backing(state, free, initial):
     """Refresh qualified ledger debt once, including failed attempts, above the fixed backing floor."""
-    reservations = repair.read_reservations(state)
-    debt = sum(repair.unsigned(record['grossBytes']) for record in reservations)
+    accounting = repair.read_repair_accounting(state)
+    debt = repair.unsigned(accounting['unresolvedGrossBytes']) + repair.unsigned(accounting['settlementDebtBytes'])
+    require(raw.allocated_bytes(state) + raw.RESERVE_BYTES + repair.unsigned(accounting['settlementDebtBytes'])
+            <= raw.STAGING_BYTES, 'continued-staging-bound')
     # Proof: capacity accepted one-byte-short backing above prior failed G when this call was omitted (lab-repair-lineage.test.ts; faults.json).
     require(type(free) is int and type(initial) is bool
             and free >= (50 if initial else 40) * 1024**3 + debt, 'continued-backing-floor')

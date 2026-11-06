@@ -59,7 +59,7 @@ with tempfile.TemporaryDirectory() as root:
                 component.raw.read_text=lambda *args:'MemAvailable: 4063232 kB\n'
                 component.raw.allocated_bytes=lambda *args:8*1024**3
                 floor=(50 if initial else 40)*1024**3
-                free=floor+128*1024**3
+                free=floor+128*1024**3+33554432
                 native_vfs=os.statvfs
                 os.statvfs=lambda *args:types.SimpleNamespace(f_bavail=free,f_frsize=1)
                 try:

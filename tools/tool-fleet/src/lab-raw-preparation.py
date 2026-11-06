@@ -215,6 +215,19 @@ def allocated_bytes(state):
         os.close(root_fd)
 
 
+def refuse_repair_accounting(state):
+    """Legacy source closures cannot admit further allocation in a retained repair namespace."""
+    descriptor = open_private(state, directory=True)
+    try:
+        with os.scandir(descriptor) as entries:
+            for count, entry in enumerate(entries, 1):
+                require(count <= 20000, 'raw-staging-bound')
+                # Proof: settlement legacy-admission omission reaches allocation with uncarried G and K.
+                require(not entry.name.startswith('raw-repair-'), 'raw-repair-accounting-required')
+    finally:
+        os.close(descriptor)
+
+
 def observe_capacity(state, initial=False, after_allocation=False):
     # Proof: restoring exact single spaces fails the production capacity-parser test on native aligned spaces and tabs.
     memory = re.findall(r'^MemAvailable:[ \t]+([0-9]+)[ \t]+kB$', read_text('/proc/meminfo'), re.M)
@@ -224,6 +237,7 @@ def observe_capacity(state, initial=False, after_allocation=False):
     free = filesystem.f_bavail * filesystem.f_frsize
     available = int(memory[0]) * 1024
     check_capacity(available, free, allocated, initial, after_allocation)
+    refuse_repair_accounting(state)
     return {'availableMemoryBytes': available, 'freeBytes': free, 'allocatedBytes': allocated,
             'observedNs': time.time_ns()}
 

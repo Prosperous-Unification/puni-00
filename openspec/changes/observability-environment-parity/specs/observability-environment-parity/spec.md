@@ -1729,3 +1729,46 @@ Internal failed-settlement records SHALL use the fixed nine-name namespace and o
 - **WHEN** a name or parent is foreign, a name already exists, direct flags or path/FD identity change, a write is short, a prefix is uninitialized, or synchronization or close fails
 - **THEN** publication throws without retry, replacement, deletion, a later allocation or a success envelope
 - **AND** any partial file remains visible while all owned resources receive exactly one cleanup attempt and primary plus cleanup failures remain inspectable
+
+### Requirement: Failed repair settlement has a closed separate authority
+
+Failed settlement SHALL use a distinct closed request, bootstrap and output envelope. It SHALL preserve immutable failed history and the strict existing successful-repair path. Receiving staging ownership SHALL NOT grant drain authority. Only independently bound original-writer terminality, authenticated new-worker readiness and one credential-checked grant may authorize read-only same-inode drain.
+
+#### Scenario: Complete conditional source settlement
+
+- **WHEN** qualified external prerequisites and all original/native/source joins are present
+- **THEN** the fixed producer adopts original staging exclusion, drains only the original read-only FD, publishes authentic new counters and later barrier through actual original-directory full commits, consumes a durable ACK, verifies owned terminal cleanup and produces the complete certificate, receipt and execution witness
+- **AND** only that exact original reservation may leave unresolved oldG after the closed reader accepts all joins
+- **AND** raw repair, guest, full-rehearsal and deployment authority remain false
+
+#### Scenario: Partial or conflicting settlement cannot release debt
+
+- **WHEN** the full bounded namespace contains a missing phase, malformed, unreadable, changed, unknown or conflicting record, foreign history, reordered barrier, stale worker, failed ACK or uncertain cleanup
+- **THEN** valid canonical incomplete prefixes retain oldG, while malformed or conflicting trusted state throws
+- **AND** no record is overwritten, deleted, retried or treated as a resumable allocation session
+- **AND** original failure and reservation records remain unchanged
+
+#### Scenario: Queued final acknowledgement outlives its sender
+
+- **WHEN** a previously authenticated worker sends its fully bound ACK-consumed frame after the exact durable ACK and exits before the coordinator's fresh process lookup
+- **THEN** only that final phase may accept matching queued kernel credentials with an explicit ENOENT lookup outcome
+- **AND** wrong/reused identity, unreadability, other lookup errors and missing earlier adoption still refuse
+- **AND** actual client exit0, EOF and matching terminal cleanup remain required before certificate or credit
+- **AND** old terminal boot metadata identifies its observation boot, while missing historical birth-boot evidence is never fabricated
+
+### Requirement: Settlement allocation allowance persists independently
+
+Every active allocation admission SHALL include the complete validated reservation accounting and the fixed32MiB settlement allowance when failed settlement is relevant. Removing a qualified original reservation SHALL NOT remove that allowance. Unknown accounting SHALL refuse; a legacy reservation-only projection SHALL NOT silently hide settlement debt.
+
+#### Scenario: Old reservation settles but new allowance remains
+
+- **WHEN** the exact complete accepted settlement namespace releases one original reservation
+- **THEN** every initial, live and later raw, seed, guest, lineage and native-control admission retains K separately from the remaining oldG and actual retained inode bytes
+- **AND** backing, staging, outside and memory inequalities preserve all existing floors, other reservations and future commitments
+- **AND** one-byte-short backing or staging refuses both before and after oldG release
+
+#### Scenario: No surviving first record does not prove no attempt
+
+- **WHEN** the original four-record namespace remains after a possible failed first creation
+- **THEN** K remains charged and namespace emptiness cannot authorize another allocating invocation
+- **AND** absent qualified durable prepublication consumption or outside-input coverage refuses before first creation, without accepting a caller boolean or nonce as proof
