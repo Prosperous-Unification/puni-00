@@ -42,6 +42,13 @@ const fixture = String.raw`${runtimeProvider}
 import array, builtins, copy, ctypes, encodings.ascii, hashlib, importlib.util, io, json, os
 from pathlib import Path
 import fcntl, resource, select, shutil, signal, socket, stat, subprocess, sys, tempfile, time, types
+def fault_metadata(path,fault):
+    lstat,fstat=os.lstat,os.fstat
+    def changed(selected,observed):
+        if map_runtime_path(selected)!=path:return observed
+        return change_stat(observed,**({'st_nlink':2} if fault=='links' else {'st_mode':observed.st_mode|0o020}))
+    os.lstat=lambda selected,*args,**kwargs:changed(selected,lstat(selected,*args,**kwargs))
+    os.fstat=lambda descriptor:changed(os.readlink('/proc/self/fd/'+str(descriptor)),fstat(descriptor))
 source_path, mode = Path(sys.argv[1]), sys.argv[2]
 omit=mode.startswith('omit-')
 if omit:mode=mode.removeprefix('omit-')
@@ -100,7 +107,7 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
         request_path.chmod(0o600)
         return hashlib.sha256(request_path.read_bytes()).hexdigest()
     request_sha = write_request()
-    control, captured = staging.load_control(['run',str(request_path),request_sha,nonce])
+    control, captured = staging.load_control(['run',str(request_path),request_sha,nonce]);observe_files(control)
     if mode == 'startup':
         import ast
         original_entry=(root/relatives[1]).read_bytes()
@@ -272,21 +279,6 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
         except control.Refusal as failure:assert str(failure)=='control-purpose'
         print('metadata watched omissions:',len(categories),'; default v1 unchanged; absent/unreadable refused')
         sys.exit(0)
-    # Native provider: sandbox-installed system files expose remapped owners; source/request owners stay real.
-    def provider_stat(observed, path):
-        path=map_runtime_path(path)
-        if str(path).startswith(('/usr/', '/etc/python3.12/')):
-            values = {name:getattr(observed,name) for name in dir(observed) if name.startswith('st_')}
-            values['st_uid'] = 0
-            return types.SimpleNamespace(**values)
-        return observed
-    os.lstat = lambda path, *args, **kwargs: provider_stat(real_lstat(path,*args,**kwargs),path)
-    def descriptor_stat(descriptor):
-        observed = real_fstat(descriptor)
-        try: path = os.readlink('/proc/self/fd/' + str(descriptor))
-        except FileNotFoundError: return observed
-        return provider_stat(observed,path)
-    os.fstat = descriptor_stat
     # These are machine resource providers, not admission decisions.
     os.statvfs = lambda path: types.SimpleNamespace(f_bavail=120*1024**3, f_frsize=1)
     def git(arguments, deadline):
@@ -303,8 +295,6 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
     control.fixed_git = git
     # The ordinary process runtime is deliberately generic; emulate only the selected native ABI provider.
     control.sys.version_info = (3,12,0)
-    native_samefile = control.os.path.samefile
-    control.os.path.samefile = lambda left,right: True if (left,right)==('/proc/self/exe','/usr/bin/python3.12') else native_samefile(left,right)
     def set_limits(kind, limits):
         # Native manager forks independently; ordinary fork retains enough hard headroom for the service.
         if os.getpid()==fixture_parent and kind in (resource.RLIMIT_AS,resource.RLIMIT_FSIZE):
@@ -513,12 +503,14 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
             assert native_pin['sha256']==hashlib.sha256(Path(physical_executable).read_bytes()).hexdigest()
             modeled_version=control.sys.version_info;modeled_samefile=control.os.path.samefile;modeled_uname=os.uname
             original_require=control.require;original_pin=copy.deepcopy(native_pin)
-            # Proof: kernel omission hit source capture.
-            for fault,category in (('version','runtime-binding'),('executable','runtime-binding'),('hash','pin-hash'),('owner','pin-identity'),('kernel','kernel-binding')):
+            before_lstat,before_fstat=os.lstat,os.fstat
+            # Proof: owner/link/mode/kernel omissions reach source capture.
+            for fault,category in (('version','runtime-binding'),('executable','runtime-binding'),('hash','pin-hash'),('owner','pin-identity'),('links','pin-identity'),('mode','pin-identity'),('kernel','kernel-binding')):
                 try:
                     if fault=='version':control.sys.version_info=(3,14,0)
                     elif fault=='executable':control.os.path.samefile=lambda *_:False
                     elif fault=='hash':native_pin['sha256']='f'*64
+                    elif fault in ('links','mode'):fault_metadata(native_pin['path'],fault)
                     elif fault=='kernel':os.uname=lambda:os.uname_result(('Linux','','foreign','fixture','x86_64'))
                     else:native_pin['uid']=1
                     try:control.verify_environment(request,time.monotonic()+3)
@@ -530,6 +522,7 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
                     print('watched native provider guard omission reached source capture:',fault)
                 finally:
                     control.require=original_require;control.sys.version_info=modeled_version;control.os.path.samefile=modeled_samefile;os.uname=modeled_uname
+                    os.lstat,os.fstat=before_lstat,before_fstat
                     native_pin.clear();native_pin.update(original_pin)
             print('runtime-provider modeled3.12 uses actual current bytes and guarded source capture')
             sys.exit(0)
@@ -871,8 +864,27 @@ for (const mode of [
 ]) {
   test(`native staging source ${mode} uses bounded ordinary ownership`, () => {
     // Proof: omitting -S restored .pth auto-import and runtime-mapping in the positive fixture.
+    // Proof: pre-model system link/mode faults RED at pin-identity; actual bytes still reach capture.
+    const metadataFault =
+      "\n    if str(path).startswith('/usr/'):observed=change_stat(observed,st_uid=1234,st_nlink=3,st_mode=observed.st_mode|0o022)\n";
+    const provider = ['runtime-provider', 'cold-runtime'].includes(mode)
+      ? runtimeProvider.replace(
+          'def runtime_observation(observed,path):',
+          'def runtime_observation(observed,path):' + metadataFault,
+        )
+      : runtimeProvider;
     const child = Bun.spawnSync(
-      ['/usr/bin/python3', '-I', '-S', '-B', '-c', fixture, source, mode, coldWorker],
+      [
+        '/usr/bin/python3',
+        '-I',
+        '-S',
+        '-B',
+        '-c',
+        fixture.replace(runtimeProvider, provider),
+        source,
+        mode,
+        coldWorker.replace(runtimeProvider, provider),
+      ],
       {
         stdin: 'ignore',
         stdout: 'pipe',
@@ -883,6 +895,13 @@ for (const mode of [
     expect(new TextDecoder().decode(child.stderr)).toBe('');
     expect(child.exitCode).toBe(0);
     const report = new TextDecoder().decode(child.stdout);
+    if (mode === 'runtime-provider') {
+      for (const fault of ['version', 'executable', 'hash', 'owner', 'links', 'mode', 'kernel']) {
+        expect(report).toContain(
+          'watched native provider guard omission reached source capture: ' + fault,
+        );
+      }
+    }
     if (mode === 'positive' || mode === 'global-lifetime') {
       expect(report).toContain(
         'REAL ordinary handoff live adopted/dead refused, durable counters and repeated original cleanup',

@@ -25,11 +25,11 @@ def map_runtime_path(path,physical=False):
         if selected==before or before.endswith('/') and selected.startswith(before):
             return after+selected[len(before):]
     return selected
+def change_stat(observed,**changes):
+    return types.SimpleNamespace(**({name:getattr(observed,name) for name in dir(observed) if name.startswith('st_')}|changes))
 def runtime_observation(observed,path):
-    if map_runtime_path(path)!=str(path) or map_runtime_path(path,True)!=str(path):
-        fields={name:getattr(observed,name) for name in dir(observed) if name.startswith('st_')}
-        fields['st_uid']=0;fields['st_mode'] &= ~0o022
-        return types.SimpleNamespace(**fields)
+    if str(map_runtime_path(path)).startswith(('/usr/','/etc/python3.12/')):
+        return change_stat(observed,st_uid=0,st_nlink=1,st_mode=observed.st_mode & ~0o022)
     return observed
 installed_lstat,installed_stat,installed_fstat,installed_open,installed_io_open,installed_resolve=os.lstat,os.stat,os.fstat,os.open,io.open,Path.resolve
 os.lstat=lambda path,*args,**kwargs:runtime_observation(installed_lstat(map_runtime_path(path,True),*args,**kwargs),path)
@@ -52,35 +52,30 @@ def observed_runtime(control):
             failure.add_note('fixture runtime count='+str(len(paths))+' rejected: '+repr([path[:256] for path in rejected[:16]]))
         raise
 
+def observe_files(control):
+    verify=control.verify_file
+    def observed(pin,**keywords):
+        try:return verify(pin,**keywords)
+        except control.Refusal as failure:
+            before=os.lstat(pin['path'])
+            failure.add_note('pin '+pin['path'][:256]+' want/got='+repr(((pin['uid'],pin['mode'],1,pin['bytes']),(before.st_uid,before.st_mode&0o7777,before.st_nlink,before.st_size))))
+            raise
+    control.verify_file=observed
+
 # Worker entry follows the runtime provider.
 import hashlib, importlib.util, json, os, signal, stat, sys, types
 from pathlib import Path
 root, request_path, request_sha, nonce, phase, omitted, mapped, bootstrap, *worker_args=sys.argv[1:]
 root=Path(root);request=json.loads(Path(request_path).read_bytes());initial=[]
 platform_path='/usr/lib/python3.12/platform.py'
-native_lstat,native_fstat,native_open=os.lstat,os.fstat,os.open
-native_samefile=os.path.samefile
 sys.version_info=(3,12,0)
-os.path.samefile=lambda left,right:True if (left,right)==('/proc/self/exe','/usr/bin/python3.12') else native_samefile(left,right)
-def observed(observation,path):
-    path=map_runtime_path(path)
-    if str(path).startswith('/usr/') or str(path).startswith('/etc/python3.12/'):
-        fields={name:getattr(observation,name) for name in dir(observation) if name.startswith('st_')};fields['st_uid']=0
-        return types.SimpleNamespace(**fields)
-    return observation
-def selected(path):return mapped if mapped!='-' and str(path)==platform_path else path
-os.lstat=lambda path,*args,**kwargs:observed(native_lstat(selected(path),*args,**kwargs),path)
-def fstat(descriptor):
-    path=os.readlink('/proc/self/fd/'+str(descriptor))
-    return observed(native_fstat(descriptor),platform_path if path==mapped else path)
-os.fstat=fstat
-os.open=lambda path,*args,**kwargs:native_open(selected(path),*args,**kwargs)
+if mapped!='-':runtime_aliases.insert(0,(platform_path,mapped))
 native_exec=exec
 def execute(program,scope=None,local_scope=None):
     if scope is None:scope=sys._getframe(1).f_globals
     native_exec(program,scope,scope if local_scope is None else local_scope)
     if scope.get('__name__')!='staging_shared_control':return
-    control=sys.modules['staging_shared_control']
+    control=sys.modules['staging_shared_control'];observe_files(control)
     def git(arguments,deadline):
         if arguments[0]=='rev-parse':return (request['commit']+'\n').encode()
         rows=[]

@@ -334,7 +334,9 @@ const producer = String.raw`
         readyFrameBytes=(state/('raw-repair-'+recovery['nonce'])/'worker-ready.json').stat().st_size,
         peakDescriptorsIncludingMeasurement=peak,maximumDescriptorIncludingMeasurement=maximum,descriptorLimit=64,
         outsidePhysicalBytes=ExternalModel().outside_bytes(types.SimpleNamespace(request=recovery)))
-    pathlib.Path('/tmp/puni-task118-evidence/producer-budget.json').write_text(json.dumps(budget,indent=2)+'\n')
+    budget_path=state/'producer-budget.json';put(budget_path,budget)
+    assert repair.read_record(budget_path)==budget
+    print('recovery-budget:'+json.dumps(budget,separators=(',',':')))
     print('conditional-recovery-producer')
 `;
 
@@ -535,6 +537,33 @@ test('repair recovery validates both captures through the complete conditional s
   expect(invocation.stdout.toString()).toContain('conditional-recovery-relation');
 });
 
+function expectRecoveryBudget(stdout: string) {
+  const line = stdout.split('\n').find((entry) => entry.startsWith('recovery-budget:'));
+  if (!line) throw new Error('recovery budget absent');
+  const budget: unknown = JSON.parse(line.slice('recovery-budget:'.length));
+  if (typeof budget !== 'object' || budget === null) throw new Error('invalid recovery budget');
+  expect(budget).toHaveProperty('conditional', true);
+  expect(budget).toHaveProperty('descriptorLimit', 64);
+  for (const name of [
+    'aggregateSourceBytes',
+    'requestBytes',
+    'heldEvidenceFiles',
+    'heldEvidenceBytes',
+    'maximumEvidenceBytes',
+    'selectedMetadataFiles',
+    'readyFrameBytes',
+    'outsidePhysicalBytes',
+  ]) {
+    const value: unknown = Reflect.get(budget, name);
+    expect(value).toBeGreaterThan(0);
+  }
+  const peak: unknown = Reflect.get(budget, 'peakDescriptorsIncludingMeasurement');
+  const maximum: unknown = Reflect.get(budget, 'maximumDescriptorIncludingMeasurement');
+  expect(peak).toBeLessThanOrEqual(64);
+  expect(maximum).toBeLessThan(64);
+  console.info(line);
+}
+
 test('repair recovery traverses actual coordinator and worker observations before writing', () => {
   const script = recoveryFixture().replace("    print('conditional-recovery-relation')", producer);
   const invocation = Bun.spawnSync(
@@ -544,6 +573,35 @@ test('repair recovery traverses actual coordinator and worker observations befor
   expect(invocation.stderr.toString()).toBe('');
   expect(invocation.exitCode).toBe(0);
   expect(invocation.stdout.toString()).toContain('conditional-recovery-producer');
+  expectRecoveryBudget(invocation.stdout.toString());
+});
+
+// Proof: the old fixed scratch writer reaches FileNotFoundError with this owned missing parent.
+test('repair recovery exports its budget with an absent prior scratch directory', () => {
+  const script = recoveryFixture()
+    .replace("    print('conditional-recovery-relation')", producer)
+    .replace(
+      '    accepted=repair.coordinator(',
+      String.raw`
+    write_text=pathlib.Path.write_text
+    def owned_write(path,*arguments,**keywords):
+        if not path.is_relative_to(root):
+            path=root/'absent-prior-scratch'/'producer-budget.json'
+        return write_text(path,*arguments,**keywords)
+    pathlib.Path.write_text=owned_write
+    print('EXERCISE owned budget interception installed')
+    accepted=repair.coordinator(`,
+    );
+  const invocation = Bun.spawnSync(
+    ['/usr/bin/python3', '-I', '-B', '-S', '-c', script, import.meta.dir, 'complete'],
+    { stdout: 'pipe', stderr: 'pipe', timeout: 30000 },
+  );
+  expect(invocation.stderr.toString()).toBe('');
+  expect(invocation.exitCode).toBe(0);
+  expect(invocation.stdout.toString()).toContain('conditional-recovery-producer');
+  // Proof: omitting interception plus marker leaves the component successful but fails this assertion.
+  expect(invocation.stdout.toString()).toContain('EXERCISE owned budget interception installed');
+  expectRecoveryBudget(invocation.stdout.toString());
 });
 
 function relationAdmissionFixture() {
@@ -660,6 +718,7 @@ test('repair recovery continues through seed history after successful successor 
   expect(invocation.stderr.toString()).toBe('');
   expect(invocation.exitCode).toBe(0);
   expect(invocation.stdout.toString()).toContain('conditional-recovery-continuation');
+  expectRecoveryBudget(invocation.stdout.toString());
 });
 
 function failureFixture() {
