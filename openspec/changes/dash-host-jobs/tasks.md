@@ -291,7 +291,9 @@
         refuses an event WBS has not refused. Done in slice 6g: `ops outbox drop` and ledger
         version 3 (`event_refusals`, `dropped_events`); later events take one sequence less
         (S6G-A1 to A6, `ops/outbox-drop.test.ts`).
-    - [ ] 6.8b Re-send the named event once and require a fresh `400` before dropping it (review
+    - [x] 6.8b Re-send the named event once and require a fresh `400` before dropping it (review
           of #878 F1): the stored refusal row is the only evidence today, and a `watch` that
           crashes between WBS accepting the event and the publish mark leaves it stale — test:
-          an event WBS now accepts is published by the drop's re-send, not dropped.
+          an event WBS now accepts is published by the drop's re-send, not dropped. Done in
+          slice 6h (S6H-A1 to A4): `2xx` marks it published, `409` refuses 64, no answer or
+          another refusal 70; the journal's `refusal.confirmedAt` is the fresh `400`.

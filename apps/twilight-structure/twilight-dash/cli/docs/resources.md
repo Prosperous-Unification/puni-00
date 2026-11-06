@@ -380,7 +380,7 @@ Run `watch` under a unit that restarts it (task 6.7). Each refusal is also kept 
 the status and message, the first and last refusal time and the count. A publication WBS
 accepts deletes the event's row.
 
-#### Dropping an event WBS refuses for good (`ops outbox drop`, task 6.8a)
+#### Dropping an event WBS refuses for good (`ops outbox drop`, tasks 6.8a and 6.8b)
 
 A refusal that outlives any deploy window never clears by itself. The case it exists for is
 S6F-A4: WBS deployed before Dash while host jobs publish. An old Dash moves a `release_verified`
@@ -398,24 +398,48 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops outbox drop 
 systemctl --user start dash-resources-watch.service
 ```
 
-It prints one line naming the dropped event and the next in line:
+Before it changes anything, the command checks the ledger (below), then re-sends the event's
+stored bytes to WBS once, through the same events tool, MCP endpoint, key, authority and
+15-second call deadline `resources watch` publishes with (task 6.8b). The stored refusal row is
+not evidence on its own; the answer to the re-send is:
 
-```text
-ops outbox: dropped event 9e3d… (sequence 7, host job 1c2b… release_verified, refused HTTP 400 at 2026-11-05T10:00:00.000Z); next in line: event 4a5f… (sequence 7)
-```
+- a fresh `400`: the event is dropped, and the journal's `refusal.confirmedAt` is that answer's
+  time. It prints one line naming the dropped event and the next in line:
 
-In one ledger transaction it deletes the event, gives every later outbox event one sequence
+  ```text
+  ops outbox: dropped event 9e3d… (sequence 7, host job 1c2b… release_verified, refused HTTP 400 again on re-send at 2026-11-05T10:00:00.000Z); next in line: event 4a5f… (sequence 7)
+  ```
+
+- a `2xx`: WBS had accepted the event (a `watch` died between WBS's acceptance and its publish
+  mark, so the `400` row was stale). The event is marked published in the same transaction a
+  publication uses, its refusal row goes, nothing is dropped or renumbered, and it exits 0:
+
+  ```text
+  ops outbox: WBS accepted event 9e3d… (sequence 7, host job 1c2b… release_verified) on re-send; marked it published, nothing was dropped; next in line: event 4a5f… (sequence 8)
+  ```
+
+- `409 conflict`: WBS's accepted sequence is not the one before the event (WBS is ahead of or
+  behind the outbox), or it holds other bytes under the event id. It refuses 64 and changes
+  nothing. Repair by hand: read the authority's `acceptedSequence`
+  (`getApiOrganizationResourceAuthoritiesByAuthorityId`, organization admins) and reconcile the
+  outbox with it before any drop.
+- no answer (unreachable, `429`, an uncompleted call) or any other refusal: it refuses 70
+  `could not confirm WBS still refuses event …; nothing was dropped`. A refused credential
+  (`machine_credential_refused`) stops it as it stops `watch`.
+
+On the fresh `400`, in one ledger transaction, after checking the ledger again (another drop or a
+publication may have committed while WBS answered), it deletes the event, gives every later outbox event one sequence
 less (WBS takes only the authority's next sequence, so leaving the gap would block the next
 event `409 conflict`), deletes the refusal row, and appends a record to `dropped_events`: the
 operator, the account, the time, the reason, the event's id, sequence, use and kind, its stored
-bytes and their SHA-256, the refusal that justified it, the event next in line and how many
-events were renumbered. To read the journal on the host:
+bytes and their SHA-256, the refusal that justified it with the re-send's time, the event next in
+line and how many events were renumbered. To read the journal on the host:
 
 ```sh
 bun -e 'const { Database } = require("bun:sqlite"); for (const row of new Database(process.argv.at(-1), { readonly: true }).query("SELECT record FROM dropped_events ORDER BY sequence").all()) console.log(row.record);' <root>/.dash/resources.sqlite
 ```
 
-It refuses 64, changing nothing, unless the event:
+It refuses 64, changing nothing and sending nothing to WBS, unless the event:
 
 - is in the outbox and unpublished (an unknown or published id is named as such);
 - is the outbox head, the event every later one waits behind;
@@ -429,15 +453,13 @@ It refuses 64, changing nothing, unless the event:
 
 A pool it cannot open refuses 70. WBS never sees the dropped event, so it keeps the host job as
 its last accepted event left it (a dropped `release_verified` leaves it `registered` there; the
-host pool itself has released it). The only evidence that WBS still refuses the event is the stored refusal row, which only the
-publication that WBS accepts deletes, in the transaction that marks the event published. A
-`watch` that crashes after WBS accepted the event and before that mark leaves a stale `400` row:
-dropping that event would renumber the next one onto a sequence WBS already holds, and it would
-then be refused `409` for good. Before dropping, check that the refusal is recent and repeating
-(the `refusals` count and `lastRefusedAt` in `event_refusals`, and `watch`'s refusal lines after
-its last restart). A re-send that requires a fresh `400` before the drop is follow-up work (task
-6.8a). In concurrent mode with the guard on, the drop also refuses 64 while the singleton guard's
-holder is live, since `watch` may then be publishing. The holder can outlive a stopped `watch`
+host pool itself has released it). The evidence that WBS still refuses the event is the drop's
+own re-send. A stale `400` row, left by a `watch` that crashed after WBS accepted the event and
+before its publish mark, is answered `2xx` and the event is published, not dropped. What remains
+is a window between the re-send's `400` and the drop's commit: a WBS that accepts the same event
+from another sender in that window (only a running `watch` sends it) holds the sequence the next
+event is renumbered to. In concurrent mode with the guard on, the drop also refuses 64, before
+the re-send, while the singleton guard's holder is live, since `watch` may then be publishing. The holder can outlive a stopped `watch`
 while jobs still ran; end it (its pid is in the refusal) once `watch` is stopped. Observe mode and
 a released guard have no such signal. Stop `watch` first: a publication of the same event that WBS
 accepts while the drop commits finds its row gone and stops with `resource outbox event … changed
