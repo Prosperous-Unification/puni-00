@@ -6,6 +6,8 @@ os.uname=lambda:os.uname_result(('Linux','','7.0.11-76070011-generic','fixture',
 physical_stdlib=str(Path(os.__file__).parent)
 physical_executable=str(Path(sys.executable).resolve())
 runtime_aliases=[('/usr/bin/python3.12',physical_executable),('/usr/lib/python3.12/',physical_stdlib+'/')]
+tools=['/usr/bin/'+name for name in ('python3.12','systemd-run','systemctl','git','true')]+['/usr/lib/x86_64-linux-gnu/'+name for name in ('ld-linux-x86-64.so.2','libc.so.6')]
+runtime_aliases+=[(path,os.path.realpath(path,strict=True)) for path in tools[1:]]
 # Proof: packaged hook RED rejects /etc/python3.14; exact alias passes while foreign-runtime still refuses.
 configuration='/etc/'+Path(physical_stdlib).name+'/sitecustomize.py'
 runtime_aliases.append(('/etc/python3.12/sitecustomize.py',configuration))
@@ -58,7 +60,7 @@ def observe_files(control):
         try:return verify(pin,**keywords)
         except control.Refusal as failure:
             before=os.lstat(pin['path'])
-            failure.add_note('pin '+pin['path'][:256]+' want/got='+repr(((pin['uid'],pin['mode'],1,pin['bytes']),(before.st_uid,before.st_mode&0o7777,before.st_nlink,before.st_size))))
+            failure.add_note('pin '+pin['path'][:256]+' w/g='+repr(((pin['uid'],pin['mode'],1,pin['bytes']),(before.st_uid,before.st_mode&0o7777,before.st_nlink,before.st_size))))
             raise
     control.verify_file=observed
 

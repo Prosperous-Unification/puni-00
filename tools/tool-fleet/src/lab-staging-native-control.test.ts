@@ -39,9 +39,8 @@ if (
 const runtimeProvider = coldWorker.slice(0, providerEnd);
 
 const fixture = String.raw`${runtimeProvider}
-import array, builtins, copy, ctypes, encodings.ascii, hashlib, importlib.util, io, json, os
-from pathlib import Path
-import fcntl, resource, select, shutil, signal, socket, stat, subprocess, sys, tempfile, time, types
+import array, builtins, copy, ctypes, encodings.ascii, hashlib, importlib.util, json
+import fcntl, resource, select, shutil, signal, socket, stat, subprocess, tempfile, time
 def fault_metadata(path,fault):
     lstat,fstat=os.lstat,os.fstat
     def changed(selected,observed):
@@ -84,8 +83,6 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
         observed = path.stat()
         fixtures[label] = dict(path=str(path), device=str(observed.st_dev),
             inode=str(observed.st_ino), owner=os.geteuid(), mode='0700')
-    tools = ['/usr/bin/python3.12','/usr/bin/systemd-run','/usr/bin/systemctl','/usr/bin/git','/usr/bin/true',
-        '/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2','/usr/lib/x86_64-linux-gnu/libc.so.6']
     def pin(path):
         path = Path(path)
         payload = path.read_bytes()
@@ -504,7 +501,7 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:
             modeled_version=control.sys.version_info;modeled_samefile=control.os.path.samefile;modeled_uname=os.uname
             original_require=control.require;original_pin=copy.deepcopy(native_pin)
             before_lstat,before_fstat=os.lstat,os.fstat
-            # Proof: owner/link/mode/kernel omissions reach source capture.
+            # Proof: owner/link/mode/kernel omissions hit source capture.
             for fault,category in (('version','runtime-binding'),('executable','runtime-binding'),('hash','pin-hash'),('owner','pin-identity'),('links','pin-identity'),('mode','pin-identity'),('kernel','kernel-binding')):
                 try:
                     if fault=='version':control.sys.version_info=(3,14,0)
@@ -925,3 +922,183 @@ for (const mode of [
     }
   }, 25000);
 }
+
+const canonicalFixture = String.raw`
+import errno, hashlib, importlib.util, os, shutil, stat, sys, tempfile
+from pathlib import Path
+source,fault,omission=sys.argv[1:]
+# This exact existing role family is asserted against the imported production tuple below.
+roles=['/usr/bin/'+name for name in ('python3.12','systemd-run','systemctl','git','true')]+['/usr/lib/x86_64-linux-gnu/'+name for name in ('ld-linux-x86-64.so.2','libc.so.6')]
+with tempfile.TemporaryDirectory(prefix='task120-canonical-') as directory:
+    root=Path(directory);selected={};payloads={};targets={}
+    for index,role in enumerate(roles[1:]):
+        target=root/('payload'+str(index));target.write_bytes(Path(role).read_bytes());target.chmod(0o755)
+        link=root/('role'+str(index));link.symlink_to(target.name)
+        selected[role]=str(link);payloads[role]=target.read_bytes();targets[role]=target
+    role='/usr/bin/true';target=targets[role];link=Path(selected[role])
+    if fault=='missing':link.unlink()
+    if fault=='dangling':target.unlink()
+    if fault=='nonregular':target.unlink();target.mkdir(mode=0o755)
+    realpath=os.path.realpath
+    os.path.realpath=lambda path,*args,**keywords:realpath(selected.get(str(path),path),*args,**keywords)
+    provider=sys.argv[0]
+    try:exec(compile(provider,'<selected-system-provider>','exec'))
+    except FileNotFoundError:
+        assert fault in ('missing','dangling') and omission=='none'
+        print('protected strict canonical resolution');sys.exit(0)
+    if fault in ('missing','dangling'):
+        assert omission=='strict'
+        try:os.open(role,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW)
+        except FileNotFoundError:print('EXERCISE strict omission reached actual missing open');sys.exit(0)
+        raise AssertionError('missing canonical tool opened')
+    specification=importlib.util.spec_from_file_location('canonical_control',source)
+    control=importlib.util.module_from_spec(specification);specification.loader.exec_module(control)
+    assert tuple(tools)==control.TOOLS==tuple(roles)
+    def pinned(selected):
+        payload=payloads[selected] if selected in payloads else Path(physical_executable).read_bytes()
+        return dict(path=selected,sha256=hashlib.sha256(payload).hexdigest(),bytes=len(payload),uid=0,mode=0o755)
+    if fault=='all-roles':
+        for selected in roles:
+            pin=pinned(selected);captured=control.verify_file(pin,capture=True)[1]
+            assert captured==(payloads[selected] if selected in payloads else Path(physical_executable).read_bytes())
+            if selected in targets:
+                observed=os.lstat(selected);physical=installed_lstat(targets[selected])
+                assert (observed.st_dev,observed.st_ino,observed.st_size,observed.st_mtime_ns,observed.st_ctime_ns)==(physical.st_dev,physical.st_ino,physical.st_size,physical.st_mtime_ns,physical.st_ctime_ns)
+        replacement=root/'foreign';replacement.write_bytes(b'foreign canonical selection')
+        link.unlink();link.symlink_to(replacement.name)
+        assert control.verify_file(pinned(role),capture=True)[1]==payloads[role]
+        owned=root/'owned';owned.write_bytes(b'owned')
+        assert os.lstat(owned).st_uid==installed_lstat(owned).st_uid
+        print('EXERCISE all7 exact canonical roles captured; alias retarget preserves selected inode; owned path stays real');sys.exit(0)
+    pin=pinned(role)
+    if fault=='post-symlink':
+        replacement=root/'replacement';replacement.write_bytes(payloads[role]);replacement.chmod(0o755)
+        target.unlink();target.symlink_to(replacement.name)
+    if fault=='post-type':target.unlink();target.mkdir(mode=0o755)
+    if fault=='size':
+        payload=payloads[role]+b'x';target.write_bytes(payload)
+        pin['sha256']=hashlib.sha256(payload).hexdigest()
+    if omission!='none':
+        require=control.require
+        control.require=lambda predicate,category:require(predicate,category) if category!='pin-identity' else None
+    try:captured=control.verify_file(pin,capture=True)[1]
+    except control.Refusal as failure:
+        assert omission=='none' and str(failure)=='pin-identity'
+        print('protected canonical '+fault);sys.exit(0)
+    except OSError as failure:
+        assert omission=='pin-identity'
+        # Proof: actual EISDIR in size omission fails; omitting this guard falsely accepts it.
+        if (fault,failure.errno) not in (('post-symlink',errno.ELOOP),('nonregular',errno.EISDIR),('post-type',errno.EISDIR)):raise
+        print('EXERCISE identity omission reached actual '+('NOFOLLOW ELOOP' if fault=='post-symlink' else 'directory read EISDIR'));sys.exit(0)
+    assert fault=='size' and omission=='pin-identity' and captured==payloads[role]+b'x'
+    print('EXERCISE identity omission captured actual wrong-size bytes')
+`;
+
+for (const fault of [
+  'all-roles',
+  'missing',
+  'dangling',
+  'nonregular',
+  'post-symlink',
+  'post-type',
+  'size',
+]) {
+  test(`selected fixed-tool canonical alias ${fault} preserves physical admission`, () => {
+    // Proof: real canonical type/size faults refuse; omissions reach actual open/read/capture.
+    for (const omission of fault === 'all-roles'
+      ? ['none']
+      : ['none', fault === 'missing' || fault === 'dangling' ? 'strict' : 'pin-identity']) {
+      const provider =
+        omission === 'strict'
+          ? runtimeProvider.replace('os.path.realpath(path,strict=True)', 'os.path.realpath(path)')
+          : runtimeProvider;
+      if (omission === 'strict') expect(provider).not.toBe(runtimeProvider);
+      const program = canonicalFixture.replace(
+        'provider=sys.argv[0]',
+        'provider=' + JSON.stringify(provider),
+      );
+      const child = Bun.spawnSync(
+        [
+          '/usr/bin/python3',
+          '-I',
+          '-S',
+          '-B',
+          '-c',
+          program,
+          source.replace('staging-native-control.py', 'repair-native-control.py'),
+          fault,
+          omission,
+        ],
+        { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', timeout: 10000 },
+      );
+      expect(child.stderr.toString()).toBe('');
+      expect(child.exitCode).toBe(0);
+      expect(child.stdout.toString()).toContain(
+        fault === 'all-roles' || omission !== 'none' ? 'EXERCISE' : 'protected',
+      );
+    }
+  });
+}
+
+const directoryReadFault = String.raw`
+    read=os.read
+    def read_directory(descriptor,limit):
+        if os.readlink('/proc/self/fd/'+str(descriptor))==str(target):
+            directory=os.open(root,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC)
+            try:
+                print('EXERCISE injected actual directory read',flush=True)
+                return read(directory,limit)
+            finally:os.close(directory)
+        return read(descriptor,limit)
+    os.read=read_directory
+`;
+
+test('canonical size omission rejects an actual directory read before capture', () => {
+  const boundary =
+    "        if (fault,failure.errno) not in (('post-symlink',errno.ELOOP),('nonregular',errno.EISDIR),('post-type',errno.EISDIR)):raise\n";
+  for (const omitted of [false, true]) {
+    const program = canonicalFixture
+      .replace('provider=sys.argv[0]', 'provider=' + JSON.stringify(runtimeProvider))
+      .replace(
+        '    try:captured=control.verify_file(pin,capture=True)[1]',
+        directoryReadFault + '    try:captured=control.verify_file(pin,capture=True)[1]',
+      );
+    const selected = omitted ? program.replace(boundary, '') : program;
+    if (omitted) expect(selected).not.toBe(program);
+    const child = Bun.spawnSync(
+      [
+        '/usr/bin/python3',
+        '-I',
+        '-S',
+        '-B',
+        '-c',
+        selected,
+        source.replace('staging-native-control.py', 'repair-native-control.py'),
+        'size',
+        'pin-identity',
+      ],
+      { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', timeout: 10000 },
+    );
+    expect(child.stdout.toString()).toContain('EXERCISE injected actual directory read');
+    expect(child.stdout.toString()).not.toContain('captured actual wrong-size bytes');
+    if (omitted) {
+      expect(child.exitCode).toBe(0);
+      expect(child.stderr.toString()).toBe('');
+      expect(child.stdout.toString()).toContain(
+        'identity omission reached actual directory read EISDIR',
+      );
+    } else {
+      expect(child.exitCode).not.toBe(0);
+      expect(child.stderr.toString()).toContain('IsADirectoryError');
+      expect(child.stdout.toString()).not.toContain(
+        'identity omission reached actual directory read EISDIR',
+      );
+    }
+    console.info(
+      'size actual-directory dependency, boundary omitted=' +
+        String(omitted) +
+        ', child exit=' +
+        String(child.exitCode),
+    );
+  }
+});
