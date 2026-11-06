@@ -917,3 +917,7 @@ Ruling: operator-builder capture is49152bytes (48KiB), revised from32768 to pres
 ### Complete failed-settlement integration within the rehearsal
 
 [Task113 integration](failed-settlement-integration.md) specifies the full closed request, six-source bootstrap, read-only drainer/coordinator, nine-slot namespace and future-admission accounting. Reuse the verified staging channel and interleaved publisher. Preserve source/runtime caps, original history and strict successful repair release. New fixed32MiB K remains separate from oldG across incomplete, failed and accepted states; all active admissions carry it or refuse. Missing outside-input qualification and durable prepublication consumption refuse before first creation. Source fixtures may model those external prerequisites but cannot establish actual operation authority or debt credit. The complete actual rehearsal and live observability criteria remain open.
+
+### Durable one-attempt consumption
+
+[Task115 consumption](failed-settlement-latch.md) uses checked original-directory NOATIME serialization plus same-FD fullsync before any publication. Exact inherited flags and global detection of consumed O-only namespaces prevent restart or cross-directory replay while retaining oldG+K. It is a concrete Linux/ext4 adapter inside the existing closure, with no provider-specific shared-domain change. Actual outside-input qualification remains a separate refusal.

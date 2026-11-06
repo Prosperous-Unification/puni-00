@@ -1772,3 +1772,34 @@ Every active allocation admission SHALL include the complete validated reservati
 - **WHEN** the original four-record namespace remains after a possible failed first creation
 - **THEN** K remains charged and namespace emptiness cannot authorize another allocating invocation
 - **AND** absent qualified durable prepublication consumption or outside-input coverage refuses before first creation, without accepting a caller boolean or nonce as proof
+
+### Requirement: Settlement consumes one durable publication attempt
+
+The fixed Linux adapter SHALL consume the original-directory attempt through checked exact NOATIME serialization and same-FD fullsync before creating any settlement record. Only its current completed calls may grant publication. Restart, unknown completion, unsupported state and cross-directory replay SHALL refuse. OldG and fixed K remain charged until independently accepted settlement permits only oldG credit.
+
+#### Scenario: Original-directory durable grant
+
+- **WHEN** all other prerequisites qualify and the original private four-record directory has exact EXTENTS-only flags
+- **THEN** one original-FD setter changes only NOATIME and actual same-directory fullsync must succeed before first creation
+- **AND** fresh identity, mode, writable profile and exact flags remain joined across both calls
+- **AND** failure or uncertain completion grants no publication, retry, fallback or bit clear
+
+#### Scenario: Lost first filename still consumes the operation
+
+- **WHEN** a process restarts after durable consumption, with no new filename surviving a failed first create
+- **THEN** original-directory NOATIME identifies a consumed O-only attempt and retains oldG plus K
+- **AND** full-state enumeration refuses another attempt or another failed namespace before a new setter or allocating create
+- **AND** a caller boolean, nonce, hash, positive flags snapshot or serialized capability cannot authorize resumption
+
+#### Scenario: Inherited flags retain the fixed allocation profile
+
+- **WHEN** the current qualified invocation publishes its fixed nine records
+- **THEN** the parent and new records require exact EXTENTS|NOATIME flags while original records, raw, witness and staging keep their existing predicates
+- **AND** any additional flag, missing latch, changed directory or malformed/conflicting record refuses
+- **AND** K and the fixed-record surplus stay unchanged, without whole-operation zero-cost or actual native authority claims
+
+#### Scenario: Outside inputs remain unqualified
+
+- **WHEN** actual outside/bootstrap/runtime/security input qualification is unavailable
+- **THEN** production admission still refuses before mutation even when the consumption adapter is implemented
+- **AND** source fixtures and disposable real-syscall proofs grant no retained operation or debt credit

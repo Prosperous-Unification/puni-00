@@ -630,6 +630,9 @@ def publish_settlement_record(directory, directory_fd, name, record):
     payload = raw.encode_json(record)
     padded_bytes = (len(payload) + 4095) // 4096 * 4096
     original_parent = raw.identity(os.fstat(directory_fd))
+    parent_flags = writer.read_inode_flags(directory_fd)
+    # Proof: publisher parent-extra-bit refuses before exclusive create; historical standalone EXTENTS remains fixed.
+    require(parent_flags in (0x80000, 0x80080), 'settlement-parent-flags')
 
     def check_parent():
         opened, named = os.fstat(directory_fd), os.lstat(directory)
@@ -638,6 +641,7 @@ def publish_settlement_record(directory, directory_fd, name, record):
                 and stat.S_ISDIR(opened.st_mode) and stat.S_ISDIR(named.st_mode)
                 and opened.st_uid == os.geteuid() and stat.S_IMODE(opened.st_mode) == 0o700,
                 'settlement-parent')
+        require(writer.read_inode_flags(directory_fd) == parent_flags, 'settlement-parent-flags')
 
     check_parent()
     descriptor = None
@@ -657,6 +661,8 @@ def publish_settlement_record(directory, directory_fd, name, record):
                         and entry.st_size == expected_bytes for entry in (opened, relative, named))
                 and opened.st_uid == os.geteuid() and stat.S_IMODE(opened.st_mode) == 0o600,
                 'settlement-file')
+        # Proof: inherited missing/extra flags refuse before any next allocation; exact fixed parent specialization only.
+        require(writer.read_inode_flags(descriptor) == parent_flags, 'settlement-file-flags')
         # Proof: direct omission permits cleared O_DIRECT/DSYNC, access or CLOEXEC state at the next mutation.
         require(fcntl.fcntl(descriptor, fcntl.F_GETFL) & (os.O_ACCMODE | os.O_DIRECT | os.O_DSYNC)
                 == os.O_RDWR | os.O_DIRECT | os.O_DSYNC
@@ -915,7 +921,20 @@ def read_repair_namespace(directory, descriptor, reservation, settlement=None):
     # Proof: accounting directory substitution refuses before considering any credit.
     require(before == raw.identity(os.fstat(descriptor)) == raw.identity(os.lstat(directory)),
             'repair-state-changed')
-    if names & _SETTLEMENT_NAMES:
+    flags = writer.read_inode_flags(descriptor)
+    if names & _SETTLEMENT_NAMES or 'failure.json' in names or flags & 0x80:
+        # Proof: consumed O-only enumeration and missing-latch/extra-bit vectors retain G+K or refuse.
+        require(flags in (0x80000, 0x80080) and (not names & _SETTLEMENT_NAMES or flags == 0x80080),
+                'settlement-namespace-flags')
+        for name in names:
+            record_fd = raw.open_private(Path(directory) / name)
+            try:
+                require(writer.read_inode_flags(record_fd) == (0x80080 if name in _SETTLEMENT_NAMES else 0x80000),
+                        'settlement-record-flags')
+            finally:
+                os.close(record_fd)
+        if not names & _SETTLEMENT_NAMES and flags == 0x80000:
+            return {'state': 'legacy', 'settled': False, 'settlementRelevant': True}
         return writer.read_settlement_namespace(globals(), directory, descriptor, reservation, names, settlement)
     return {'state': 'legacy', 'settled': False, 'settlementRelevant': 'failure.json' in names}
 

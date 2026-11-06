@@ -222,7 +222,9 @@ with tempfile.TemporaryDirectory(prefix='puni-settlement-chain113-') as scratch:
             return observed
         def ioctl(descriptor,number,buffer,mutate=False):
             if descriptor==directory_fd and number==0x80086601:
-                buffer[:]=((524288|4096) if scenario=='parent-flags' else 524288).to_bytes(8,'little');return 0
+                returned=native_ioctl(descriptor,number,buffer,mutate)
+                if scenario=='parent-flags':buffer[:]=(int.from_bytes(buffer,'little')|4096).to_bytes(8,'little')
+                return returned
             return native_ioctl(descriptor,number,buffer,mutate)
         def getxattr(descriptor,name,*args,**kwargs):
             if descriptor==directory_fd and name=='system.posix_acl_default':
@@ -236,15 +238,9 @@ with tempfile.TemporaryDirectory(prefix='puni-settlement-chain113-') as scratch:
     repair.observe_facts=lambda state:dict(availableMemoryBytes=3623878656,freeBytes=500*1024**3,
         retainedInodeBytes=raw.allocated_bytes(state),otherFutureReservations=0)
     UnqualifiedPrerequisites=writer.SettlementPrerequisites
-    class ExternalModel:
+    class ExternalModel(UnqualifiedPrerequisites):
         def qualify(self,context):
             if scenario=='unqualified':return UnqualifiedPrerequisites.qualify(self,context)
-        def consume(self,context):
-            if scenario=='attempt-unqualified':return UnqualifiedPrerequisites.consume(self,context)
-            descriptor=os.open(root/'external-consumption',os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
-            try:os.write(descriptor,raw.encode_json(dict(directory=context.directory_identity,
-                reservationDigest=raw.digest_json(context.reservation),requestDigest=context.request_digest,sourceDigest=context.source)));os.fsync(descriptor)
-            finally:os.close(descriptor)
         def outside_bytes(self,context):
             return sum(path.stat().st_blocks*512 for path in root.rglob('*') if path!=state and state not in path.parents)
     writer.SettlementPrerequisites=ExternalModel
@@ -299,6 +295,7 @@ with tempfile.TemporaryDirectory(prefix='puni-settlement-chain113-') as scratch:
         global creates
         descriptor=arguments[0].value if arguments and hasattr(arguments[0],'value') else arguments[0] if arguments else -1
         returned=native_call(number,*arguments)
+        if number==16 and scenario=='attempt-unqualified':return -1
         if number==257 and scenario=='first-create-loss' and arguments[1].value==b'settlement-request.json':
             creates+=1
             assert returned>=0
@@ -378,8 +375,8 @@ with tempfile.TemporaryDirectory(prefix='puni-settlement-chain113-') as scratch:
         assert len(os.listdir(old))==4
         ledger=repair.read_repair_accounting(str(state))
         assert ledger['unresolvedGrossBytes']==reservation['grossBytes'] and ledger['settlementDebtBytes']=='33554432'
-        assert creates==(1 if omission=='none' else 2),creates
-        print('consumed-before-create' if omission=='none' else 'unsafe-repeat-create');sys.exit(0)
+        assert creates==(1 if omission=='none' else 0),creates
+        print('consumed-before-create' if omission=='none' else 'missing-grant-blocked');sys.exit(0)
     if scenario.startswith('legacy-admission:'):
         native_statvfs=os.statvfs
         os.statvfs=lambda path:types.SimpleNamespace(f_bavail=600*1024**3//4096,f_frsize=4096)
@@ -413,7 +410,7 @@ with tempfile.TemporaryDirectory(prefix='puni-settlement-chain113-') as scratch:
         assert omission!='none';print('unsafe-admission');sys.exit(0)
     if scenario in ('unqualified','attempt-unqualified') and omission=='none':
         try:writer.coordinate_settlement(context)
-        except raw.PreparationRefusal as failure:assert str(failure)=='settlement-'+('inputs' if scenario=='unqualified' else 'attempt')+'-unqualified'
+        except raw.PreparationRefusal as failure:assert str(failure)==('settlement-inputs-unqualified' if scenario=='unqualified' else 'settlement-consumption-setflags')
         else:raise AssertionError('missing prerequisite admitted')
         assert len(os.listdir(old))==4
         print('refused-before-publication');sys.exit(0)
@@ -528,6 +525,18 @@ with tempfile.TemporaryDirectory(prefix='puni-settlement-chain113-') as scratch:
         assert lost_lifetime==(omission!='none')
         descriptor=raw.acquire_staging(str(state));os.close(descriptor)
         print('unsafe-unlocked-publication' if lost_lifetime else 'ownership-held-through-E');sys.exit(0)
+    if scenario.startswith('flags:'):
+        import ctypes
+        role,change=scenario.split(':')[1:]
+        target=old if role=='parent' else old/('failure.json' if role=='original' else 'settlement-'+role+'.json')
+        descriptor=os.open(target,os.O_RDONLY|os.O_CLOEXEC)
+        flags=ctypes.c_ulong(0x80000 if change=='missing' else 0x80080 if role=='original' else 0x80088)
+        try:assert native_call(16,ctypes.c_int(descriptor),ctypes.c_ulong(0x40086602),ctypes.byref(flags))==0
+        finally:os.close(descriptor)
+        try:repair.read_repair_accounting(str(state))
+        except raw.PreparationRefusal:
+            assert omission=='none';print('protected');sys.exit(0)
+        assert omission!='none';print('unsafe-credit');sys.exit(0)
     if scenario.startswith('namespace:'):
         fault,role=scenario.split(':')[1:]
         path=old/('settlement-'+role+'.json')
@@ -547,7 +556,14 @@ with tempfile.TemporaryDirectory(prefix='puni-settlement-chain113-') as scratch:
         finally:os.close(descriptor)
         if scenario=='unknown-execution':
             execution=repair.read_record(old/'settlement-execution.json');execution['outcome']='unknown';put(old/'settlement-execution.json',execution)
-    if scenario=='mixed':put(old/'release.json',dict(foreign=True))
+    if scenario=='mixed':
+        import ctypes
+        put(old/'release.json',dict(foreign=True))
+        # Isolate the conflicting historical namespace: its foreign legacy release keeps the old EXTENTS profile.
+        descriptor=os.open(old/'release.json',os.O_RDONLY|os.O_CLOEXEC)
+        flags=ctypes.c_ulong(0x80000)
+        try:assert native_call(16,ctypes.c_int(descriptor),ctypes.c_ulong(0x40086602),ctypes.byref(flags))==0
+        finally:os.close(descriptor)
     if scenario=='xattr':os.setxattr(old/'settlement-ready.json','user.settlement113',b'foreign')
     if scenario=='noncanonical':
         path=old/'settlement-ready.json';path.write_bytes(path.read_bytes()+b'\n')
@@ -635,6 +651,11 @@ for (const role of [
 }
 
 const protections = [
+  ['flags:parent:missing', 'settlement-namespace-flags', 'unsafe-credit'],
+  ['flags:parent:extra', 'settlement-namespace-flags', 'unsafe-credit'],
+  ['flags:ready:missing', 'settlement-record-flags', 'unsafe-credit'],
+  ['flags:ready:extra', 'settlement-record-flags', 'unsafe-credit'],
+  ['flags:original:inherited', 'settlement-record-flags', 'unsafe-credit'],
   ['nonce-reused', 'settlement-nonce-reused', 'accepted-G-only-K-retained'],
   ['unknown-before', 'settlement-namespace-invalid', 'unsafe-admission'],
   ['legacy-admission:raw', 'raw-repair-accounting-required', 'unsafe-admission'],
@@ -745,7 +766,7 @@ test('accounting retains every unselected old debt and one fixed K', () => {
   expect(invocation.stdout.toString().trim()).toBe('all-debt-retained');
 });
 
-test('durable modeled consumption survives an allocating create that leaves only O', () => {
+test('durable native consumption survives an allocating create that leaves only O', () => {
   for (const omission of ['none', 'consume-dependency']) {
     const invocation = Bun.spawnSync(
       [
@@ -763,7 +784,7 @@ test('durable modeled consumption survives an allocating create that leaves only
     expect(invocation.stderr.toString()).toBe('');
     expect(invocation.exitCode).toBe(0);
     expect(invocation.stdout.toString().trim()).toBe(
-      omission === 'none' ? 'consumed-before-create' : 'unsafe-repeat-create',
+      omission === 'none' ? 'consumed-before-create' : 'missing-grant-blocked',
     );
   }
 });

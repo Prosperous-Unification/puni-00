@@ -272,8 +272,9 @@ with tempfile.TemporaryDirectory(prefix='puni-settlement111-') as scratch:
         return observed
     writer.native_call = syscall
     def ioctl(descriptor, operation, packet, mutate=True):
-        events.append('inspect')
+        events.append('getflags' if operation == 0x80086601 else 'inspect')
         observed = native_ioctl(descriptor, operation, packet, mutate)
+        if operation == 0x80086601: return observed
         if scenario == 'prefix-extra':
             inspector = raw.load_inspector()
             fields = list(inspector.EXTENT.unpack_from(packet, inspector.HEADER.size))
@@ -290,7 +291,8 @@ with tempfile.TemporaryDirectory(prefix='puni-settlement111-') as scratch:
     # The helper compound test injects its primary ioctl failure only after the actual native query.
     if scenario == 'prefix-helper-close':
         def ioctl_failure(descriptor, operation, packet, mutate=True):
-            ioctl(descriptor, operation, packet, mutate)
+            observed = ioctl(descriptor, operation, packet, mutate)
+            if operation == 0x80086601: return observed
             raise RuntimeError('helper-primary')
         fcntl.ioctl = ioctl_failure
         # Leave the actual private file intact, so the FIEMAP dependency is reached.
@@ -327,6 +329,8 @@ with tempfile.TemporaryDirectory(prefix='puni-settlement111-') as scratch:
         else: raise AssertionError('partial publication retried')
         assert destination.read_bytes() == partial
         events.pop()
+    # GETFLAGS remains native; only its known observation trace is outside the allocation/durability projection.
+    events[:] = [event for event in events if event != 'getflags']
     try:
         os.fstat(parent); os.fstat(borrowed)
         for stage in ('open', 'read', 'truncate', 'sync-file', 'sync-directory'):

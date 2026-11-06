@@ -204,3 +204,7 @@ A legitimate worker can enqueue its authenticated ACK-consumed frame and exit be
 ## Publication checkpoint and unimplemented consumption candidate
 
 The conditional source path is recorded in the [frozen source report](evidence/failed-settlement-source-20261106.md). Production continues to refuse both actual outside qualification and durable consumption. Later [NOATIME source research](failed-settlement-latch.md) identifies a conditionally reviewed mechanism for a future adapter, including exact inherited flags and global no-file consumption detection. This checkpoint does not activate that mechanism, revise the existing flags contract or allow actual settlement. Its implementation, focused negative proofs and operational qualification remain separate work.
+
+## Task115 consumption adapter specialization
+
+[Durable settlement consumption](failed-settlement-latch.md) now specifies the selected NOATIME original-directory latch, exact inherited parent/new-file flags and global O-only consumed accounting. It replaces only the unavailable durable-consumption seam once implemented and verified. Outside-input qualification stays unavailable and must still refuse before mutation; historical Task113 source results modeled the former consumption seam and do not qualify this adapter. No retained operation or native authority follows from this design.

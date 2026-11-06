@@ -289,21 +289,90 @@ def start_writer(descriptor, original, geometry, deadline):
     return ForkedWriter(pid, output_read, input_write, error_read)
 
 class SettlementPrerequisites:
-    """External physical input qualification and durable grant are deliberately unavailable.
-
-    A future provider must qualify pre-first-access history and consume the directory/reservation/
-    request/source-bound grant durably before any allocating create. Request fields, a post-load
-    inventory, and an empty namespace cannot implement either boundary.
-    """
+    """Outside history remains unavailable; consumption requires the actual original-FD pair."""
 
     def qualify(self, context):
         require(False, 'settlement-inputs-unqualified')
 
     def consume(self, context):
-        require(False, 'settlement-attempt-unqualified')
+        consume_settlement_attempt(context)
 
     def outside_bytes(self, context):
         require(False, 'settlement-inputs-unqualified')
+
+
+def read_inode_flags(descriptor):
+    """Observe the exact native inode flags without widening any phase's accepted profile."""
+    import fcntl
+    flags = bytearray(8)
+    fcntl.ioctl(descriptor, 0x80086601, flags, True)
+    return int.from_bytes(flags, 'little')
+
+
+def _bind_settlement_consumption():
+    """Issue only after checked native SETFLAGS/fullsync, never from retained observations.
+
+    The private registry binds the original borrowed FD, process and exact live request/source/
+    reservation context. No token crosses IPC or survives reconstruction; uncertainty throws
+    before first publication. The original directory FD stays owned by the coordinator.
+    """
+    import weakref
+    grants = weakref.WeakKeyDictionary()
+
+    def bind_context(context):
+        return (os.getpid(), context.directory_fd, raw.encode_json(context.directory_identity), context.directory,
+                context.request_digest, context.source, raw.encode_json(context.reservation),
+                raw.encode_json(context.request))
+
+    def check_consumption(context):
+        # Proof: missing/forged/copied/forked/source-changed grant vectors reach the actual exclusive create when omitted.
+        require(type(context) is SettlementContext and context in grants
+                and grants[context] == bind_context(context), 'settlement-consumption-grant')
+        # Proof: wrong-FD/identity/mode/flags vectors refuse before first allocating create.
+        require(context.snapshot_directory(os.fstat(context.directory_fd)) == context.directory_identity
+                == context.snapshot_directory(os.lstat(context.directory))
+                and stat.S_ISDIR(os.fstat(context.directory_fd).st_mode)
+                and read_inode_flags(context.directory_fd) == 0x80080, 'settlement-consumption-directory')
+
+    def consume_attempt(context):
+        # Proof: attempt-repeat-failed/foreign-context omit this guard family and reach actual native SETFLAGS.
+        require(type(context) is SettlementContext and not context.consumption_attempted
+                and context not in grants, 'settlement-attempt-consumed')
+        context.check_live(context.raw_fd, context.directory_fd, initial=True)
+        # Proof: attempt-flags/index/occupied omit this guard family and reach actual native SETFLAGS.
+        require(read_inode_flags(context.directory_fd) == 0x80000
+                and set(os.listdir(context.directory_fd)) ==
+                    {'request-binding.json', 'reservation.json', 'worker-ready.json', 'failure.json'},
+                'settlement-attempt-consumed')
+        context.consumption_attempted = True
+        original = bind_context(context)
+        flags = ctypes.c_ulong(0x80080)
+        returned = native_call(16, ctypes.c_int(context.directory_fd), ctypes.c_ulong(0x40086602), ctypes.byref(flags))
+        # Proof: setter/reserve/serialization errors retain native evaluation but never reach protected first create.
+        require(returned == 0, 'settlement-consumption-setflags')
+        context.consuming = True
+        context.check_physical_profile(context.raw_fd, context.directory_fd)
+        require(bind_context(context) == original
+                and context.repair.verify_inputs(context.request) == context.source
+                and context.snapshot_directory(os.fstat(context.directory_fd)) == context.directory_identity
+                == context.snapshot_directory(os.lstat(context.directory))
+                and read_inode_flags(context.directory_fd) == 0x80080, 'settlement-consumption-pair')
+        synced = native_call(74, ctypes.c_int(context.directory_fd))
+        # Proof: fullsync failure/omitted native dependency refuses without a live publication grant.
+        require(synced == 0, 'settlement-consumption-sync')
+        context.check_physical_profile(context.raw_fd, context.directory_fd)
+        require(bind_context(context) == original
+                and context.repair.verify_inputs(context.request) == context.source
+                and context.snapshot_directory(os.fstat(context.directory_fd)) == context.directory_identity
+                == context.snapshot_directory(os.lstat(context.directory))
+                and read_inode_flags(context.directory_fd) == 0x80080, 'settlement-consumption-pair')
+        grants[context] = original
+        check_consumption(context)
+
+    return consume_attempt, check_consumption
+
+
+consume_settlement_attempt, check_settlement_consumption = _bind_settlement_consumption()
 
 
 SETTLEMENT_ORDER = ('request', 'ready', 'drain', 'counter', 'barrier', 'certificate', 'receipt', 'execution')
@@ -658,6 +727,9 @@ def read_settlement_namespace(repair, directory, descriptor, reservation, names,
     original = {'request-binding.json', 'reservation.json', 'worker-ready.json', 'failure.json'}
     # Proof: lab-failed-settlement.test.ts mixed, accepted-and-failure; copied predicate omission reaches unsafe-credit.
     require(original <= names and not names - original - repair['_SETTLEMENT_NAMES'], 'settlement-namespace-conflict')
+    if not names & repair['_SETTLEMENT_NAMES']:
+        if owned is not None: check_settlement_consumption(owned)
+        return {'state': 'consumed', 'settled': False, 'settlementRelevant': True}
     present = {role for role in SETTLEMENT_ORDER if 'settlement-' + role + '.json' in names}
     failed = 'settlement-failure.json' in names
     prefix = [role for role in SETTLEMENT_ORDER if role in present and role != 'execution']
@@ -670,6 +742,7 @@ def read_settlement_namespace(repair, directory, descriptor, reservation, names,
     require(not accepted or not failed and len(present) == 8, 'settlement-namespace-conflict')
     require('execution' not in present or accepted or failed, 'settlement-prefix')
     if owned is not None:
+        check_settlement_consumption(owned)
         require(type(owned) is SettlementContext and owned.directory == str(directory)
                 and raw.encode_json(records['request']) == raw.encode_json(owned.request)
                 and set(records) == set(owned.records)
@@ -703,6 +776,7 @@ class SettlementContext:
         self.phase = 'admission'
         self.binding = None
         self.adopted = self.durable = None
+        self.consumption_attempted = self.consuming = self.reading = False
 
     @staticmethod
     def snapshot_directory(observed):
@@ -716,6 +790,7 @@ class SettlementContext:
 
     def admit_request(self, reading=False):
         """No request-selected capability can qualify external input history or grant a second attempt."""
+        self.reading = reading
         payload = raw.encode_json(self.request)
         self.repair._source_payload(payload, self.request_digest, settlement=True)
         # Proof: unqualified-input dependency removal reaches the intercepted first publication in source fixtures.
@@ -880,7 +955,7 @@ class SettlementContext:
                 and not os.listxattr(directory_fd), 'settlement-parent-profile')
         flags = bytearray(8); fcntl.ioctl(directory_fd, 0x80086601, flags, True)
         # Proof: lab-failed-settlement.test.ts parent-inode, parent-size and 2 more vectors; copied predicate omission reaches accepted-G-only-K-retained.
-        require(int.from_bytes(flags, 'little') == 524288
+        require(int.from_bytes(flags, 'little') == (0x80080 if self.consuming or self.reading else 0x80000)
                 and (not initial or before.st_size == before.st_blocks * 512 == 4096), 'settlement-parent-profile')
         acl_absent = False
         try: os.getxattr(directory_fd, 'system.posix_acl_default')
@@ -905,7 +980,11 @@ class SettlementContext:
         facts = self.repair.observe_facts(self.request['state'])
         # During this invocation validated owned prefixes cannot recursively grant credit.
         accounting = self.repair.read_repair_accounting(self.request['state'],
-                                                        settlement=self if self.records else None)
+                                                        settlement=self if self.consuming else None)
+        # Proof: other consumed O-only/partial/accepted namespaces block a second setter or create.
+        require(all(entry['state'] == 'legacy' or not initial
+                    and (self.consuming or self.reading) and entry['nonce'] == self.reservation['nonce']
+                    for entry in accounting['namespaces']), 'settlement-global-consumed')
         if initial:
             # Proof: nonce-reused admits an existing unrelated attempt identity through publication when omitted.
             require(self.request['nonce'] not in {entry['nonce'] for entry in accounting['namespaces']},
@@ -931,6 +1010,8 @@ class SettlementContext:
 
     def publish_record(self, role, fields):
         """A witness is appended only after the actual Task111 call returns; it is never request supplied."""
+        # Proof: missing/forged/copied/forked grants refuse; watched grant omission reaches real openat.
+        check_settlement_consumption(self)
         expected = SETTLEMENT_ORDER[len(self.witnesses)] if len(self.witnesses) < 8 else None
         require(role == expected, 'settlement-publication-order')
         record = self.request if role == 'request' else make_settlement_record(self, role, fields)
@@ -1095,6 +1176,7 @@ def run_settlement_worker(context):
     raw.worker_limits()
     context.deadline = time.monotonic() + 850
     context.admit_request()
+    context.reading = True
     endpoint = socket.socket(fileno=os.dup(0))
     resources = [endpoint]
     try:
@@ -1106,6 +1188,7 @@ def run_settlement_worker(context):
         require(coordinator['start'] == sender['start'] and coordinator['uid'] == int(sender['uid'])
                 and coordinator['gid'] == int(sender['gid']), 'settlement-coordinator-identity')
         raw_fd = context.repair.open_original(context.raw_path, context.request['expectedRaw']); resources.append(raw_fd)
+        context.raw_fd = raw_fd
         directory_fd = raw.open_private(context.directory, directory=True); resources.append(directory_fd)
         worker = context.observe_worker(os.getpid())
         require(os.environ.get('INVOCATION_ID') == worker['invocation'], 'settlement-worker-invocation')
@@ -1190,6 +1273,7 @@ def coordinate_settlement(context):
         channel.control.setsockopt(socket.SOL_SOCKET, socket.SO_PASSCRED, 1)
         context.directory_fd = raw.open_private(context.directory, directory=True); resources.append(context.directory_fd)
         raw_fd = context.repair.open_original(context.raw_path, context.request['expectedRaw']); resources.append(raw_fd)
+        context.raw_fd = raw_fd
         # Complete initial enumeration is required even when R does not survive a former allocating failure.
         names = set(os.listdir(context.directory_fd))
         require(names == {'request-binding.json', 'reservation.json', 'worker-ready.json', 'failure.json'},
@@ -1313,11 +1397,15 @@ def coordinate_settlement(context):
                     'bindingDigest': raw.digest_json(context.binding) if context.binding is not None else None,
                     'retainedGrossBytes': context.reservation['grossBytes'],
                     'retainedSettlementDebtBytes': str(SETTLEMENT_DEBT), 'accepted': False, **SETTLEMENT_AUTHORITY})
+                # Failure records require the same live grant as the normal fixed sequence.
+                check_settlement_consumption(context)
                 context.repair.publish_settlement_record(context.directory, context.directory_fd,
                                                         'settlement-failure.json', record)
                 refused = make_settlement_record(context, 'execution', {'outcome': 'refused', 'phase': context.phase,
                     'category': record['category'], 'bindingDigest': record['bindingDigest'],
                     'cleanup': cleanup, 'finishedNs': str(time.time_ns())})
+                # Failure records require the same live grant as the normal fixed sequence.
+                check_settlement_consumption(context)
                 context.repair.publish_settlement_record(context.directory, context.directory_fd,
                                                         'settlement-execution.json', refused)
             except BaseException as publication_failure:
