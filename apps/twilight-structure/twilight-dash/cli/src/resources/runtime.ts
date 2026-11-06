@@ -2901,7 +2901,7 @@ export class ResourceRuntime {
       // sequence state` (outbox-drop.test.ts) exited 70, not 64 (2026-11-06, Slice 6h).
       if (cause.status === 409)
         throw new OutboxDropRefusal(
-          `WBS answered ${cause.message.replace(/^resource publication /u, '')} to the re-send of ${candidate.at}: its accepted sequence for authority ${this.configuration.authorityId} is not ${String(candidate.event.sequence - 1)}, or it holds other bytes under this event id, so WBS is ahead of or behind the outbox; nothing was dropped. Repair by hand: read the authority's acceptedSequence (getApiOrganizationResourceAuthoritiesByAuthorityId) and reconcile the outbox with it before any drop`,
+          `WBS answered ${cause.message.replace(/^resource publication /u, '')} to the re-send of ${candidate.at}: its accepted sequence for authority ${this.configuration.authorityId} is not ${String(candidate.event.sequence - 1)} (WBS is ahead of or behind the outbox), or it holds other bytes under this event id, or its epoch or this host job's state (registration, declaration) conflicts; nothing was dropped. Repair by hand: read the authority's acceptedSequence (getApiOrganizationResourceAuthoritiesByAuthorityId) and reconcile the outbox with it before any drop`,
         );
       // Proof: without it, `a re-send WBS does not answer, or refuses but 400 or 409, …`
       // (outbox-drop.test.ts) stored the 403 as the refusal and exited 64, not 70 (2026-11-06).

@@ -293,8 +293,9 @@ transaction, so the next event publishes. Every other drop SHALL be refused, cha
 
 #### Scenario: An event WBS accepted before a crash is published, not dropped
 
-- **WHEN** WBS accepted the head event but `watch` died before marking it published, so its
-  stored refusal is a stale `400`, and the operator runs `ops outbox drop` for it
+- **WHEN** WBS had accepted the head event but `watch` died before marking it published, so its
+  stored refusal is a stale `400`, or WBS accepts it now, and the operator runs
+  `ops outbox drop` for it
 - **THEN** WBS answers the re-send `2xx`, the event is marked published, nothing is dropped or
   renumbered, the command exits 0 saying nothing was dropped, and the next synchronize publishes
   the following event under its own sequence

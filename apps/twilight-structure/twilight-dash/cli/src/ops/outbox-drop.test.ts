@@ -474,7 +474,7 @@ if (insideOpsNamespace(import.meta.path))
       expect(await drop(config, head.eventId, tools)).toEqual({
         code: 64,
         stdout: '',
-        stderr: `error: ops outbox drop: WBS answered HTTP 409 conflict to the re-send of event ${head.eventId} (sequence 2): its accepted sequence for authority runtime-one is not 1, or it holds other bytes under this event id, so WBS is ahead of or behind the outbox; nothing was dropped. Repair by hand: read the authority's acceptedSequence (getApiOrganizationResourceAuthoritiesByAuthorityId) and reconcile the outbox with it before any drop\n`,
+        stderr: `error: ops outbox drop: WBS answered HTTP 409 conflict to the re-send of event ${head.eventId} (sequence 2): its accepted sequence for authority runtime-one is not 1 (WBS is ahead of or behind the outbox), or it holds other bytes under this event id, or its epoch or this host job's state (registration, declaration) conflicts; nothing was dropped. Repair by hand: read the authority's acceptedSequence (getApiOrganizationResourceAuthoritiesByAuthorityId) and reconcile the outbox with it before any drop\n`,
       });
       expect({ outbox: runtime.outbox(), refusals: runtime.outboxRefusals() }).toEqual(before);
       expect(runtime.outboxDrops()).toEqual([]);
@@ -535,6 +535,7 @@ if (insideOpsNamespace(import.meta.path))
         `error: ops outbox drop: event ${head.eventId} is not in the outbox of authority runtime-one\n`,
       ]);
       expect(runtime.outboxDrops()).toHaveLength(1);
+      expect(runtime.outboxRefusals()).toEqual([]);
       expect(runtime.outbox().map((event) => [event.sequence, event.useId, event.kind])).toEqual([
         [2, following, 'registered'],
         [3, following, 'release_verified'],

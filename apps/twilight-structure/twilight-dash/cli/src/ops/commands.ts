@@ -382,8 +382,10 @@ export const opsHandlers: OpsHandlers = {
   },
   'outbox drop': async (command, deps) => {
     const runtime = openPool(command.config, deps.clock, 'ops outbox drop');
-    const tools = deps.connect(runtime.configuration.endpoint, runtime.configuration.credential);
+    let opened: WbsTools | undefined;
     try {
+      const tools = deps.connect(runtime.configuration.endpoint, runtime.configuration.credential);
+      opened = tools;
       let dropped;
       try {
         dropped = await runtime.dropRefusedEvent(
@@ -425,7 +427,8 @@ export const opsHandlers: OpsHandlers = {
       return 0;
     } finally {
       runtime.close();
-      await tools.close();
+      // Undefined only when `connect` itself threw: there is no client to close.
+      await opened?.close();
     }
   },
 };

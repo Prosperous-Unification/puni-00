@@ -3283,3 +3283,24 @@ run was stopped and discarded because the fault script edited sources while it r
 started after every file was restored to the commit. No WBS change, so no be-01 run; no migration
 lint (no SQL migration). Not done: no host apply, no enrollment, no h2puni gate, no drop against a composed be-01 (the fake WBS applies be-01's
 sequence adjacency and idempotent replay).
+
+### Review notes (Fable, #879)
+
+Verdict "merge as is"; four low items folded in:
+
+- **L1.** be-01 also answers `409` for an epoch mismatch and for host-job state conflicts in
+  `ingestHostJob` (second registration, declaration or incarnation mismatch, not `registered`).
+  The refusal and `docs/resources.md` now name those too, and the hand repair reads the epoch and
+  the host job's state, not only `acceptedSequence`.
+- **L2.** A `2xx` is also a fresh acceptance (a be-01 redeployed with a fix, a healed
+  `observedAt` skew), not only a stale row: docs and the spec scenario say so.
+- **L3.** `deps.connect` moved inside the handler's `try`, so a throwing `connect` still closes
+  the ledger.
+- **L5.** `two drops of the same event drop it once` also asserts no refusal row is left.
+
+Commands after the fixes, fresh on 2026-11-06 (`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT`
+unset): `bun test src/ops/outbox-drop.test.ts src/cli.test.ts` 127 pass, 0 fail (12 pass inside
+the namespace); `bunx nx run twilight-dash:typecheck --skip-nx-cache` exit 0;
+`bunx nx format:check --all` exit 0; `bunx openspec validate --all --json` 328 passed; Burokrat
+`check-indexes` exit 0. No full-suite rerun: the changes are message strings, docs, one
+assertion and a `try` move.

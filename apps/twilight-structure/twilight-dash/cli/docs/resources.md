@@ -411,7 +411,8 @@ not evidence on its own; the answer to the re-send is:
   ```
 
 - a `2xx`: WBS had accepted the event (a `watch` died between WBS's acceptance and its publish
-  mark, so the `400` row was stale). The event is marked published in the same transaction a
+  mark, so the `400` row was stale), or accepts it now (a be-01 redeployed with a fix, or a
+  healed `observedAt` skew). The event is marked published in the same transaction a
   publication uses, its refusal row goes, nothing is dropped or renumbered, and it exits 0:
 
   ```text
@@ -419,10 +420,10 @@ not evidence on its own; the answer to the re-send is:
   ```
 
 - `409 conflict`: WBS's accepted sequence is not the one before the event (WBS is ahead of or
-  behind the outbox), or it holds other bytes under the event id. It refuses 64 and changes
-  nothing. Repair by hand: read the authority's `acceptedSequence`
-  (`getApiOrganizationResourceAuthoritiesByAuthorityId`, organization admins) and reconcile the
-  outbox with it before any drop.
+  behind the outbox), or it holds other bytes under the event id, or its epoch or this host
+  job's state (registration, declaration) conflicts. It refuses 64 and changes nothing. Repair by hand: read the authority's `acceptedSequence`
+  (`getApiOrganizationResourceAuthoritiesByAuthorityId`, organization admins) and epoch, and the
+  host job's state in WBS, and reconcile the outbox with them before any drop.
 - no answer (unreachable, `429`, an uncompleted call) or any other refusal: it refuses 70
   `could not confirm WBS still refuses event …; nothing was dropped`. A refused credential
   (`machine_credential_refused`) stops it as it stops `watch`.
