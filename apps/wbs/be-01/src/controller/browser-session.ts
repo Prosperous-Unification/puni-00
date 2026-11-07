@@ -24,6 +24,30 @@ export type BrowserPredecessor =
   | { readonly kind: 'native'; readonly credential: VerifiedNativeBrowserCredential }
   | { readonly kind: 'oidc'; readonly correlation: string; readonly digest: string };
 
+/**
+ * Which check refused a browser predecessor. It names a branch for operators,
+ * carries no cookie or token value, and every reason sends the browser to
+ * explicit reset (`docs/auth-integration.md#browser-sign-in-recovery`).
+ */
+export type BrowserPredecessorRefusal =
+  | 'invalid_carrier'
+  | 'mixed_bearer'
+  | 'origin_mismatch'
+  | 'lifecycle_unavailable'
+  | 'native_with_correlation'
+  | 'unassociated_access'
+  | 'inactive_session'
+  | 'unverified_native';
+
+export interface RefusedBrowserPredecessor {
+  readonly kind: 'refused';
+  readonly refusal: BrowserPredecessorRefusal;
+}
+
+function refused(refusal: BrowserPredecessorRefusal): RefusedBrowserPredecessor {
+  return { kind: 'refused', refusal };
+}
+
 export function credentialDigest(token: string): string {
   return createHash('sha256').update(token, 'utf8').digest('hex');
 }
@@ -57,13 +81,23 @@ export function invalidBrowserCarriers(request: RequestMetadata): boolean {
   return false;
 }
 
-/** Read-only proof before new-account creation or replacement issuance. */
+/**
+ * Read-only proof before new-account creation or replacement issuance.
+ *
+ * A correlation cookie without an access cookie is the ordinary state of a
+ * browser whose access cookie outlived its provider-token Max-Age; it proves
+ * the lifecycle's current tuple while that lifecycle is active, the same
+ * evidence `POST /api/auth/refresh` already accepts alone. Absent, closed or
+ * revoked lifecycles stay refused. Store faults other than
+ * `BrowserLifecycleRefusedError` propagate.
+ */
 export async function proveBrowserPredecessor(
   request: RequestMetadata,
   authority: BrowserSessionAuthority,
   appOrigin: string,
-): Promise<BrowserPredecessor | null> {
-  if (invalidBrowserCarriers(request) || request.headers.has('x-wbs-token')) return null;
+): Promise<BrowserPredecessor | RefusedBrowserPredecessor> {
+  if (invalidBrowserCarriers(request) || request.headers.has('x-wbs-token'))
+    return refused('invalid_carrier');
   const correlation = correlationOf(request);
   const cookieAccess = accessOf(request);
   const authorization = request.headers.get('authorization');
@@ -76,7 +110,7 @@ export async function proveBrowserPredecessor(
       correlation !== null ||
       !/^Bearer [A-Za-z0-9._~-]+$/.test(authorization))
   )
-    return null;
+    return refused('mixed_bearer');
   const access = authorization === null ? cookieAccess : authorization.slice(7);
   if (correlation === null && access === null) return { kind: 'none' };
   // OIDC callback is a state-bound GET browser navigation and has no Origin;
@@ -85,22 +119,49 @@ export async function proveBrowserPredecessor(
     (request.method !== 'GET' || authorization !== null) &&
     request.headers.get('origin') !== appOrigin
   )
-    return null;
-  if (access === null) return null;
+    return refused('origin_mismatch');
   if (correlation !== null) {
-    if (authority.lifecycle === undefined) return null;
-    if ((await authority.verifyNativeBrowserCredential(access)) !== null) return null;
+    if (authority.lifecycle === undefined) return refused('lifecycle_unavailable');
+    // Proof: refusing here, as main did, made `signs a browser whose access
+    // cookie expired in again without reset` land on browser_session_unverified
+    // and the correlation-only native login answer 401 (2026-11-07).
+    if (access === null) return proveSessionOnly(correlation, authority.lifecycle);
+    if ((await authority.verifyNativeBrowserCredential(access)) !== null)
+      return refused('native_with_correlation');
     const digest = credentialDigest(access);
     try {
       await authority.lifecycle.proveAssociation(correlation, { kind: 'oidc', digest });
     } catch (cause) {
-      if (cause instanceof BrowserLifecycleRefusedError) return null;
+      if (cause instanceof BrowserLifecycleRefusedError) return refused('unassociated_access');
       throw cause;
     }
     return { kind: 'oidc', correlation, digest };
   }
+  if (access === null)
+    throw new Error('browser predecessor carries neither correlation nor access');
   const native = await authority.verifyNativeBrowserCredential(access);
-  return native === null ? null : { kind: 'native', credential: native };
+  return native === null ? refused('unverified_native') : { kind: 'native', credential: native };
+}
+
+/** Proves an active lifecycle from its correlation alone, naming its current tuple. */
+async function proveSessionOnly(
+  correlation: string,
+  lifecycle: BrowserAuthLifecycle,
+): Promise<BrowserPredecessor | RefusedBrowserPredecessor> {
+  try {
+    // Proof (2026-11-07, `unverifiable predecessor` recovery cases): removing
+    // the store's active-state and revocation refusals from `generation` made
+    // `closed-session-cookie` redirect to `/` (signed in) instead of recovery;
+    // skipping this read for a correlation-derived digest made both
+    // `closed-session-cookie` and `foreign-session-cookie` answer 500.
+    const { current } = await lifecycle.generation(correlation);
+    return { kind: 'oidc', correlation, digest: current.digest };
+  } catch (cause) {
+    // Proof: rethrowing this refusal made both session-only recovery cases
+    // answer 500 instead of the recovery redirect (2026-11-07).
+    if (cause instanceof BrowserLifecycleRefusedError) return refused('inactive_session');
+    throw cause;
+  }
 }
 
 /** Denies the proved predecessor before a replacement credential is exposed. */
