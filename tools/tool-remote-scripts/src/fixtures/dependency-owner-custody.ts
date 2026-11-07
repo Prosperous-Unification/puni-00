@@ -7585,7 +7585,7 @@ export function invokeSetupPromise<Returned extends Promise<unknown>>(label:stri
  const record=reserveSetupOperation(label,'promise',provider,receiver,args);
  try{
   const original=Reflect.apply(provider,receiver,args);record.returned=original;record.original=original;record.phase='pending';
-  record.observer=original.then(value=>{record.value=value;record.phase='fulfilled';record.observerSettled=true;},cause=>{record.cause=cause;record.phase='rejected';record.observerSettled=true;});
+  record.observer=original.then((value:unknown)=>{record.value=value;record.phase='fulfilled';record.observerSettled=true;},(cause:unknown)=>{record.cause=cause;record.phase='rejected';record.observerSettled=true;});
   // Proof: returning a then-projection failed SC1 original identity (0/1/0).
   return original;
  }catch(cause){record.cause=cause;record.phase='unknown';custody.stopped=true;custody.failures.push(cause);throw cause;}
@@ -7598,7 +7598,8 @@ export async function joinSetupOperations(){
   if(record.original===undefined||record.observer===undefined)fail('ordinary setup original observation absent');
   // The intrinsic observes the actual Promise even if the separate observer attachment was faulty.
   // Proof: replacing this join with a resolved acknowledgement completed before a deferred original; SC1 observer fulfillment alone failed (0/1/0).
-  const originalJoin:Promise<PromiseSettledResult<unknown>>=Promise.prototype.then.call(record.original,(value:unknown)=>({status:'fulfilled' as const,value}),(reason:unknown)=>({status:'rejected' as const,reason}));
+  // Explicit call generics body-check both settled-result callbacks against the Promise intrinsic; no assertion replaces that check.
+  const originalJoin:Promise<PromiseSettledResult<unknown>>=Promise.prototype.then.call<Promise<unknown>,[(value:unknown)=>PromiseFulfilledResult<unknown>,(reason:unknown)=>PromiseRejectedResult],Promise<PromiseSettledResult<unknown>>>(record.original,(value:unknown)=>({status:'fulfilled' as const,value}),(reason:unknown)=>({status:'rejected' as const,reason}));
   const [originalOutcome,observerOutcomes]=await Promise.all([originalJoin,Promise.allSettled([record.observer])]);
   record.originalOutcome=originalOutcome;record.observerOutcome=observerOutcomes[0];
   // Proof: omitting this combined completion predicate admitted an independently rejected observer; SC1 independent observer rejection failed (0/1/0). Individual conjunct omissions are not claimed.
