@@ -1,0 +1,33 @@
+---
+# Counts the keys in `puni_gate_keys_file` against `puni_gate_authorized_keys`. main.yml runs it on
+# the staged file before that file replaces the live one, and validate.yml on the live file.
+# sshd reads one key per line and treats the rest of a line as its comment, so a file that joined
+# the keys onto one line logs in only the first caller. `ssh-keygen -lf` prints one fingerprint per
+# key it parses and exits 255 for a missing file or one with no key (OpenSSH, observed 2026-11-04).
+# The count is not a login test: sshd may still refuse a key that parses, and a malformed line
+# among good ones prints no diagnostic, only a missing fingerprint. The template module's own
+# `validate:` cannot stand in for this, because `ssh-keygen -lf` exits 0 when any key parses.
+- name: Fingerprint the gate authorized keys
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv: [ssh-keygen, -lf, '{{ puni_gate_keys_file }}']
+  register: puni_gate_keys_probe
+  changed_when: false
+
+- name: Require one authorized key per listed key
+  ansible.builtin.assert:
+    that:
+      - puni_gate_keys_probe.stdout_lines | length == puni_gate_authorized_keys | length
+    fail_msg: >-
+      {{ puni_gate_keys_file }} holds {{ puni_gate_keys_probe.stdout_lines | length }} keys, but
+      puni_gate_authorized_keys lists {{ puni_gate_authorized_keys | length }}: a caller whose key
+      did not parse would be locked out. Parsed: {{ puni_gate_keys_probe.stdout }}
+      (docs/infra/gate-hosts.md, step 0)
+  # Proof (2026-11-05): in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py,
+  # E11 to E13), main.yml's staging, staged count, install and removal installed three generated
+  # keys, one key and a key with a `from=` option, and a rerun reported `changed=0`. The reinstated
+  # `content: |` and `join('\n')` render was refused at the staged count with `holds 1 keys, but
+  # puni_gate_authorized_keys lists 3`, before the install task ran and with the previous live
+  # file intact; a malformed third key was refused with `holds 2`. Moving the install before the
+  # count overwrote the live file. validate.yml's import refused a joined live file. With the
+  # condition removed, every bad file passed.

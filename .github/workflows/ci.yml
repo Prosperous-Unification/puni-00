@@ -602,6 +602,12 @@ jobs:
       - name: Gate head pinning
         run: bash bin/h2puni-gate.test.sh
 
+      # The hourly refresh of an enrolled gate host's launcher checkout (dash-host-jobs 6.9): it
+      # must refuse to move the checkout while a job runs from it, and nothing else runs it
+      # before a host's timer does.
+      - name: Gate launcher refresh
+        run: bash bin/gate-launcher-refresh.test.sh
+
       # `bin/dev.sh` and the port preflight it calls. This is the dev image's
       # CMD (`deploy/dev-src/Dockerfile`), so a guard rotting here breaks the
       # dev deployment and not only somebody's terminal — and until 2026-09-12
@@ -815,9 +821,9 @@ jobs:
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.twilight == 'run' }}
     runs-on: ubuntu-latest
-    # Run 39330836237 spent 49m25s in Nx; the packed suite separately took 4m45s in
-    # run 39330011791. Seventy-five minutes accommodates both phases and runner variation.
-    timeout-minutes: 75
+    # Run 41544558083 exhausted 75 minutes while Dash was still completing tests;
+    # 120 minutes is a bounded allowance, not evidence that every phase completes.
+    timeout-minutes: 120
     steps:
       # Full history for parity with the workspace shard: the suites read git state and ran
       # against a depth-0 clone in the single job these came from.

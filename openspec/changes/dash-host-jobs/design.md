@@ -179,7 +179,7 @@ as a versioned use variant (`resourceRuntimeUse` v2: `kind: 'host_job'`, optiona
 item and person links, immutable organization and authority ownership, reservation entries per
 dimension, type, label, host, payload SHA), `registered` after admission from the outbox,
 `release_verified` only with the settlement evidence of J2' below (digest and durable locator of
-the run record, disposition `returned`); (b) the capacity report gains an optional
+the run record, disposition `returned`, or `not_created` when the gate never opened; task 6.8); (b) the capacity report gains an optional
 `reservedUnits` beside `usageUnits`, so measured usage is preserved and reservations are shown
 apart; the `host_pool` of the first draft is not a `Measure`, it is a source the reporter reads
 from the ledger for the bound resource's dimension, re-observed through the ledger's change

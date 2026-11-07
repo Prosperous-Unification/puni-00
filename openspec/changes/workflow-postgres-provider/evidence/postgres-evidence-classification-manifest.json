@@ -1,0 +1,80 @@
+{
+  "schema": 2,
+  "packet": "postgres-evidence-classification-20261105.json",
+  "packetSha256": "b5956c653bd0db3192b9418332fc2c03b40be030c4a2b073cf4a2ba1459955a6",
+  "files": 679,
+  "originalBytes": 32202453,
+  "compressedBytes": 12890910,
+  "compressedSha256": "10617a98ee828ebc7a78187f84b3572dce4c381241233aff32425b3807d6edbb",
+  "decodedBytes": 28501453,
+  "decodedSha256": "1e78ec99482741af37a9bf4569bad7cd320ad9974e4a59756c7c382507dae71c",
+  "roundtripFilesVerified": 679,
+  "decodedSourceSecretScans": 678,
+  "findings": 0,
+  "sourcePaths": [
+    {
+      "path": "docs/wiki-policy/policy.json",
+      "sha256": "d783e53647704d3dfedb5c77c8cfa638934a37c7e74aeaf408c1eb8163e57cba"
+    },
+    {
+      "path": "docs/wiki-policy/bootstrap-policy.json",
+      "sha256": "5488f6d02bc0285033f079520058d0ded2567a99d6a3a36c1dbf43cb854caff5"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts",
+      "sha256": "59076f70173d11d3bb9b3d3330cf795c528ba21008fbde1114fbb3ae7a00d924"
+    }
+  ],
+  "audit": {
+    "observedAt": "2026-11-05T00:49:43.486Z",
+    "baseline": "b1fd7fd15f59e8064d6e9286f0ba82cc723c880f",
+    "scope": "Independent root integrity/transport/ZIP identity and specific diagnostic audit; source and negative semantics additionally receive independent review. No hosted or canonical acceptance of this repair is implied.",
+    "sourcePaths": [
+      {
+        "path": "docs/wiki-policy/policy.json",
+        "sha256": "d783e53647704d3dfedb5c77c8cfa638934a37c7e74aeaf408c1eb8163e57cba"
+      },
+      {
+        "path": "docs/wiki-policy/bootstrap-policy.json",
+        "sha256": "5488f6d02bc0285033f079520058d0ded2567a99d6a3a36c1dbf43cb854caff5"
+      },
+      {
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts",
+        "sha256": "59076f70173d11d3bb9b3d3330cf795c528ba21008fbde1114fbb3ae7a00d924"
+      }
+    ],
+    "workerCaptures": 82,
+    "expectedNonzeroCaptures": 25,
+    "artifact": {
+      "id": 13376025917,
+      "bytes": 719850,
+      "sha256": "fd50c4ed2eaf70d74c3b1b35d4f7646345fbb15bb54c6306983b716be8f9ad10",
+      "extractedBytes": 7450021,
+      "extractedSha256": "8eaccf189da120a64223203b0c17e195514a2feeb07b71f834d4724aa18f1193",
+      "listing": "/home/df/wd/puni/puni-00/.superpowers/sdd/agentic-resume-20261104/pg-ci-artifact-list-1793839680072",
+      "extracted": "/home/df/wd/puni/puni-00/.superpowers/sdd/agentic-resume-20261104/pg-ci-artifact-extract-1793839685770",
+      "diagnosticObserved": true
+    },
+    "statics": {
+      "stem": "/home/df/wd/puni/puni-00/.superpowers/sdd/agentic-resume-20261104/pg-policy-statics-1793839606960",
+      "code": 0,
+      "targets": ["twilight-burokrat:lint:source", "twilight-burokrat:typecheck"],
+      "cache": "skipped"
+    },
+    "skipped": [
+      "full project test and build",
+      "canonical repair gate",
+      "hosted repair CI",
+      "production activation and operator migration"
+    ]
+  },
+  "limits": [
+    "full project test and build",
+    "canonical repair gate",
+    "hosted repair CI",
+    "production activation and operator migration"
+  ],
+  "uniqueChunks": 2256,
+  "packagingHelperAdditionalFiles": 1,
+  "encodingOnlyRevision": "v1 whole-file blobs -> v2 ordered content chunks; all original 678 files preserved byte-for-byte; additional repacker helper retained. The prior local envelope is retained in ignored metadata and was never committed."
+}

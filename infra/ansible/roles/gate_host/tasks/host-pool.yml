@@ -59,12 +59,14 @@
     group: '{{ puni_gate_user }}'
     mode: '0755'
 
-# The token unit is built in a sibling and renamed into place, so a run that dies midway leaves
+# Each token unit is built in a sibling and renamed into place, so a run that dies midway leaves
 # no half tree at the unit's path. An existing path must already be a clean tree with a commit:
 # anything else refuses 70 naming it, never repaired over (S6C-A6).
 # Proof: with the commit dropped, gate-host-pool.test.ts, which runs this exact argv twice and
-# against a broken unit, failed (verify.md Slice 6c, 6c-F7).
-- name: Create the Dagger engine token unit
+# against a broken unit, failed (verify.md Slice 6c, 6c-F7). In the controller-image evaluator
+# (infra/ansible/tests/gate-host-assertions.py, E14) the loop reduced to `dagger_engine` left no
+# `docker_build` tree, and without `changed_when` a rerun reported changed=2 (verify.md, task 6.3).
+- name: Create the token units
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:
     argv:
@@ -83,10 +85,11 @@
         git -c init.defaultBranch=token init -q -- "$staging";
         git -C "$staging" -c user.name=gate_host -c user.email=gate-host@puni.invalid
         -c commit.gpgsign=false commit -q --allow-empty
-        -m 'dagger_engine token unit (dash-host-jobs S6-A7)';
+        -m "${unit##*/} token unit (dash-host-jobs S6-A7)";
         mv -T -- "$staging" "$unit"; printf 'created\n'
       - token-unit
-      - '{{ puni_gate_pool_dagger_unit }}'
+      - '{{ item }}'
+  loop: '{{ puni_gate_pool_token_units }}'
   register: puni_gate_token_unit
   changed_when: puni_gate_token_unit.stdout == 'created'
 
@@ -203,7 +206,12 @@
     owner: '{{ puni_gate_user }}'
     group: '{{ puni_gate_user }}'
     mode: '0644'
-  loop: [dash-resources-watch.service, dash-job-audit.service, dash-job-audit.timer]
+  loop:
+    - dash-resources-watch.service
+    - dash-job-audit.service
+    - dash-job-audit.timer
+    - gate-launcher-refresh.service
+    - gate-launcher-refresh.timer
   register: puni_gate_user_units
 
 - name: Reload the gate account's user manager
@@ -215,8 +223,9 @@
   when: puni_gate_user_units is changed
   changed_when: true
 
-# Enabled, never started: the operator starts the watch right after `ops pool init` (task 6.4).
-# Not enabled on a host that is not enrolled, where the audit would fail every week.
+# Enabled, never started: the operator starts the watch and both timers right after `ops pool
+# init` (task 6.4). Not enabled on a host that is not enrolled, where the audit would fail every
+# week and nothing reads the launcher checkout's catalogue (6.9).
 - name: Enable the Dash user units on an enrolled host
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.systemd_service:
@@ -225,5 +234,5 @@
     enabled: true
   environment:
     XDG_RUNTIME_DIR: '/run/user/{{ ansible_facts.getent_passwd[puni_gate_user][1] }}'
-  loop: [dash-resources-watch.service, dash-job-audit.timer]
+  loop: [dash-resources-watch.service, dash-job-audit.timer, gate-launcher-refresh.timer]
   when: puni_gate_host_pool_enroll

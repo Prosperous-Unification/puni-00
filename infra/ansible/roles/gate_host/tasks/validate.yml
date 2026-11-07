@@ -3,6 +3,13 @@
 # gives a gate, and fails the play when its condition is broken. None of them changes the host,
 # with one exception: on an initialized pool, `ops pool inspect` and `ops job audit` open the
 # ledger, and an open migrates an older ledger version forward in place (resources.md).
+
+# The live file, which main.yml wrote only after the same count passed on its staged copy.
+- name: Count the live gate authorized keys
+  ansible.builtin.import_tasks: authorized-keys-count.yml
+  vars:
+    puni_gate_keys_file: '{{ puni_gate_home }}/.ssh/authorized_keys'
+
 - name: Resolve Bun the way a remote gate does
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:
@@ -114,11 +121,37 @@
       - "'sudo' not in puni_gate_sudo_probe.stdout_lines[0].split(' ')"
       - puni_gate_sudo_probe.stdout_lines[-1] != 'sudo_rc=0'
     fail_msg: 'The gate account reports {{ puni_gate_sudo_probe.stdout_lines }}; it must not escalate'
+  when: not puni_gate_account_may_sudo
   # Proof (2026-10-21): the assertion, fed recorded probe outputs through the controller image
   # (set_fact, localhost), passed `['puni1 docker', 'sudo_rc=1']` and failed both
   # `['puni1 docker sudo', 'sudo_rc=1']` and `['puni1 docker', 'sudo_rc=0']`. Live on h4claw the
   # probe printed `puni1 docker`, sudo's refusal line and `sudo_rc=1`; a sudoer gate account was
   # not created to watch the probe itself produce the failing lines.
+  # Proof (2026-11-04): in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py,
+  # E8) h4claw's recorded lines passed, `['puni1 docker sudo', 'sudo_rc=1']` and
+  # `['puni1 docker', 'sudo_rc=0']` were refused, and h2puni's `['puni1 sudo docker', 'sudo_rc=0']`
+  # skipped under the exception (recap `skipped=1`); removing either condition let its line through, and removing
+  # `when` refused h2puni's.
+
+# An exception that no longer matches the host would be a check that cannot fail (AGENTS.md R5,
+# docs/findings/checks-that-cannot-fail.md): once the escalation is gone, the flag must go too,
+# or a later sudo grant would pass unnoticed.
+- name: Require the sudo exception to still match the gate account
+  ansible.builtin.assert:
+    that:
+      - >-
+        'sudo' in puni_gate_sudo_probe.stdout_lines[0].split(' ')
+        or puni_gate_sudo_probe.stdout_lines[-1] == 'sudo_rc=0'
+    fail_msg: >-
+      The gate account reports {{ puni_gate_sudo_probe.stdout_lines }}: it no longer escalates, so
+      the puni_gate_account_may_sudo exception is stale. Remove it from this host's inventory
+      entry (docs/infra/gate-hosts.md, step 0)
+  when: puni_gate_account_may_sudo
+  # Proof (2026-11-04): in the same evaluator (E9) h2puni's recorded `['puni1 sudo docker',
+  # 'sudo_rc=0']`, the group alone and the grant alone passed, h4claw's `['puni1 docker',
+  # 'sudo: a password is required', 'sudo_rc=1']` was refused as stale, and a host without the
+  # exception skipped (recap `skipped=1`); removing the condition let the stale line through, keeping only one
+  # disjunct refused the other's line, and removing `when` refused the strict host.
 
 - name: Read the gate checkouts' state
   become_user: '{{ puni_gate_user }}'
@@ -227,8 +260,9 @@
 
 # A unit with no commit has no resting commit to settle back to.
 # Proof: with the HEAD check dropped, the unborn-tree case of gate-host-pool.test.ts failed
-# (verify.md Slice 6c, 6c-F6).
-- name: Read the token unit
+# (verify.md Slice 6c, 6c-F6). In the controller-image evaluator (E14) the loop reduced to
+# `dagger_engine` let a dirty and a commit-less `docker_build` through (verify.md, task 6.3).
+- name: Read the token units
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:
     argv:
@@ -239,7 +273,8 @@
         git -C "$1" rev-parse -q --verify HEAD >/dev/null &&
         [[ -z $(git -C "$1" status --porcelain --untracked-files=all) ]]
       - token-unit
-      - '{{ puni_gate_pool_dagger_unit }}'
+      - '{{ item }}'
+  loop: '{{ puni_gate_pool_token_units }}'
   changed_when: false
 
 - name: Read the host pool paths
@@ -254,11 +289,13 @@
     - '{{ puni_gate_user_unit_directory }}/dash-resources-watch.service'
     - '{{ puni_gate_user_unit_directory }}/dash-job-audit.service'
     - '{{ puni_gate_user_unit_directory }}/dash-job-audit.timer'
+    - '{{ puni_gate_user_unit_directory }}/gate-launcher-refresh.service'
+    - '{{ puni_gate_user_unit_directory }}/gate-launcher-refresh.timer'
   register: puni_gate_pool_paths
 
 # Proof: in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py, E3) recorded stat results with the root
 # missing, 0755, foreign-owned, or any unit file missing were each refused; each condition
-# removed let its input through (verify.md Slice 6c).
+# removed let its input through (verify.md Slice 6c; the refresh pair, Slice 6d).
 - name: Require the pool root and the Dash user units
   ansible.builtin.assert:
     that:
@@ -268,6 +305,8 @@
       - puni_gate_pool_paths.results[3].stat.isreg | default(false)
       - puni_gate_pool_paths.results[4].stat.isreg | default(false)
       - puni_gate_pool_paths.results[5].stat.isreg | default(false)
+      - puni_gate_pool_paths.results[6].stat.isreg | default(false)
+      - puni_gate_pool_paths.results[7].stat.isreg | default(false)
     fail_msg: >-
       The pool root or a Dash user unit is missing or not as the role writes it:
       {{ puni_gate_pool_paths.results | map(attribute='item') | zip(puni_gate_pool_paths.results
@@ -292,8 +331,9 @@
 # discarded, so the credential is never printed.
 # Proof: gate-host-pool.test.ts runs this exact argv against the rendered template and against
 # broken copies (group-readable, no `enrollmentId`, an extra key, another root, one gate tree, a
-# string budget, no launcher checkout, not JSON); dropping the mode, key-set or root check each
-# failed it (verify.md Slice 6c, 6c-F13, 6c-F9, 6c-F8).
+# string budget, no launcher checkout, no `docker_build` unit, not JSON); dropping the mode,
+# key-set or root check each failed it (verify.md Slice 6c, 6c-F13, 6c-F9, 6c-F8), and so did
+# dropping `docker_build` from the expected units (verify.md, task 6.3).
 - name: Require the host pool configuration of an enrolled host
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:
@@ -302,13 +342,15 @@
       - -c
       - >-
         [[ $(stat -c '%a %U' -- "$1") == "600 $2" ]] &&
-        jq -e --arg root "$3" --arg first "$4" --arg second "$5" --arg dagger "$6" --arg launcher "$7"
+        jq -e --arg root "$3" --arg first "$4" --arg second "$5" --arg dagger "$6" --arg docker "$7"
+        --arg launcher "$8"
         '(keys == ["authorityId", "concurrencyEligible", "cpuCores", "credential",
         "diskBudgetUnits", "diskUnitBytes", "enrollmentId", "epoch", "exclusiveUnits", "headroom",
         "headroomBytes", "launcherCheckouts", "mcpResource", "memoryGib", "providerId", "root",
         "schemaVersion", "workspaceSlots"])
         and .schemaVersion == 3 and .root == $root
-        and .exclusiveUnits == {"gate_tree": [$first, $second], "dagger_engine": [$dagger]}
+        and .exclusiveUnits == {"gate_tree": [$first, $second], "dagger_engine": [$dagger],
+        "docker_build": [$docker]}
         and (.launcherCheckouts | type == "array" and any(.[]; . == $launcher))
         and (.concurrencyEligible | type == "array")
         and (.headroom | keys == ["cpuCores", "memoryGib"])
@@ -323,6 +365,7 @@
       - '{{ puni_gate_checkout }}'
       - '{{ puni_gate_second_checkout }}'
       - '{{ puni_gate_pool_dagger_unit }}'
+      - '{{ puni_gate_pool_docker_build_unit }}'
       - '{{ puni_gate_launcher_checkout }}'
   changed_when: false
   when: puni_gate_host_pool_enroll
@@ -330,16 +373,22 @@
 # `is-enabled` exits 0 for `static` too, hence the exact pairing.
 # Proof: in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py, E5) a fake `systemctl` printing `enabled
 # static` with exit 0 was refused and `enabled enabled` passed; without `failed_when` the static
-# timer passed (verify.md Slice 6c).
+# timer passed, and so did a disabled refresh timer (verify.md Slice 6c, Slice 6d).
 - name: Read whether the Dash user units are enabled
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:
-    argv: [systemctl, --user, is-enabled, dash-resources-watch.service, dash-job-audit.timer]
+    argv:
+      - systemctl
+      - --user
+      - is-enabled
+      - dash-resources-watch.service
+      - dash-job-audit.timer
+      - gate-launcher-refresh.timer
   environment:
     XDG_RUNTIME_DIR: '/run/user/{{ ansible_facts.getent_passwd[puni_gate_user][1] }}'
   register: puni_gate_unit_probe
   changed_when: false
-  failed_when: puni_gate_unit_probe.stdout_lines != ['enabled', 'enabled']
+  failed_when: puni_gate_unit_probe.stdout_lines != ['enabled', 'enabled', 'enabled']
   when: puni_gate_host_pool_enroll
 
 # Proof: in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py, E6) a recorded ledger ran a fake `bun` for

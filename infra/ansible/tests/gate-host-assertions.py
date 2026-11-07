@@ -4,10 +4,11 @@ Runs each named task of `roles/gate_host/tasks/*.yml` unchanged against localhos
 registered values it reads recorded through `set_fact` (or produced by fake commands first on
 PATH), then once per fault with one condition removed, and requires the fault's bad input to get
 through. Prints one line per case and exits 1 if any expectation fails. Run from the repository
-root with the digest-locked controller (see tools/tool-fleet/src/check.ts):
+root with the digest-locked controller (see tools/tool-fleet/src/check.ts), as root because
+`ssh-keygen` refuses the image's uid 1000, which has no passwd entry (E11 to E13):
 
     docker run --rm --network none --read-only --tmpfs /tmp:exec --tmpfs /runner/.ansible \\
-      -v "$PWD/infra/ansible:/work/ansible:ro" --entrypoint python3 \\
+      --user 0:0 -v "$PWD/infra/ansible:/work/ansible:ro" --entrypoint python3 \\
       ghcr.io/prosperous-unification/fleet-controller:0.1.0 /work/ansible/tests/gate-host-assertions.py
 
 Results and the fault table are in openspec/changes/dash-host-jobs/verify.md, Slice 6c.
@@ -16,6 +17,7 @@ Results and the fault table are in openspec/changes/dash-host-jobs/verify.md, Sl
 import copy
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -65,9 +67,12 @@ def run(tasks, variables, facts=None, fake=None, pre=None):
             handle.write("#!/bin/sh\n" + body + "\n")
         os.chmod(path, 0o755)
     for path, body in (pre or {}).items():
+        body, mode = body if isinstance(body, tuple) else (body, None)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as handle:
             handle.write(body)
+        if mode is not None:
+            os.chmod(path, mode)
     setup = [{"name": "Read the evaluating account", "ansible.builtin.getent":
               {"database": "passwd", "key": "root"}}]
     if facts:
@@ -97,6 +102,29 @@ def drop_that(index):
     return mutate
 
 
+def keep_disjunct(index, disjunct):
+    def mutate(tasks):
+        for t in tasks:
+            if "ansible.builtin.assert" in t:
+                that = t["ansible.builtin.assert"]["that"]
+                that[index] = that[index].split(" or ")[disjunct]
+                return
+        raise SystemExit("no assert to mutate")
+    mutate.label = f"assert condition {index} reduced to its disjunct {disjunct}"
+    return mutate
+
+
+def drop_condition(text):
+    def mutate(tasks):
+        for t in tasks:
+            if "ansible.builtin.assert" in t:
+                t["ansible.builtin.assert"]["that"].remove(text)
+                return
+        raise SystemExit("no assert to mutate")
+    mutate.label = f"assert condition {text!r} removed"
+    return mutate
+
+
 def drop_key(key, task_name=None):
     def mutate(tasks):
         for t in tasks:
@@ -122,12 +150,13 @@ def refused(message):
 
 
 ACCEPTED = ("accepted", None)
+SKIPPED = ("skipped-task", None)
 
 inputs = [task("host-pool.yml", "Require the host pool inputs of an enrolled host")]
 REFUSAL = "An enrolled gate host needs puni_gate_host_pool"
 family("E1 enrolled host pool inputs", inputs, [
     ("valid", {"puni_gate_host_pool_enroll": True, "puni_gate_host_pool": POOL}, None, None, ACCEPTED),
-    ("unenrolled skips", {"puni_gate_host_pool_enroll": False}, None, None, ACCEPTED),
+    ("unenrolled skips", {"puni_gate_host_pool_enroll": False}, None, None, SKIPPED),
     ("undefined", {"puni_gate_host_pool_enroll": True}, None, None, refused(REFUSAL)),
     ("not a mapping", {"puni_gate_host_pool_enroll": True, "puni_gate_host_pool": "x"}, None, None,
      refused(REFUSAL)),
@@ -160,7 +189,7 @@ UNIT = stat("unit", isreg=True)
 NONE = stat("absent")
 
 
-def recorded(root=ROOT, units=(UNIT, UNIT, UNIT)):
+def recorded(root=ROOT, units=(UNIT, UNIT, UNIT, UNIT, UNIT)):
     return {"puni_gate_pool_paths": {"results": [root, NONE, NONE, *units]}}
 
 
@@ -172,12 +201,18 @@ family("E3 pool root and unit files", paths, [
      refused(PATHS)),
     ("root foreign", {}, recorded(root=stat("root", isdir=True, mode="0700", pw_name="nobody")), None,
      refused(PATHS)),
-    ("watch unit missing", {}, recorded(units=(NONE, UNIT, UNIT)), None, refused(PATHS)),
-    ("audit service missing", {}, recorded(units=(UNIT, NONE, UNIT)), None, refused(PATHS)),
-    ("audit timer missing", {}, recorded(units=(UNIT, UNIT, NONE)), None, refused(PATHS)),
+    ("watch unit missing", {}, recorded(units=(NONE, UNIT, UNIT, UNIT, UNIT)), None, refused(PATHS)),
+    ("audit service missing", {}, recorded(units=(UNIT, NONE, UNIT, UNIT, UNIT)), None,
+     refused(PATHS)),
+    ("audit timer missing", {}, recorded(units=(UNIT, UNIT, NONE, UNIT, UNIT)), None, refused(PATHS)),
+    ("refresh service missing", {}, recorded(units=(UNIT, UNIT, UNIT, NONE, UNIT)), None,
+     refused(PATHS)),
+    ("refresh timer missing", {}, recorded(units=(UNIT, UNIT, UNIT, UNIT, NONE)), None,
+     refused(PATHS)),
 ], [(drop_that(0), "root missing"), (drop_that(1), "root 0755"), (drop_that(2), "root foreign"),
     (drop_that(3), "watch unit missing"), (drop_that(4), "audit service missing"),
-    (drop_that(5), "audit timer missing")])
+    (drop_that(5), "audit timer missing"), (drop_that(6), "refresh service missing"),
+    (drop_that(7), "refresh timer missing")])
 
 unenrolled = [task("validate.yml", "Require no host pool state on a host that is not enrolled")]
 
@@ -185,13 +220,13 @@ unenrolled = [task("validate.yml", "Require no host pool state on a host that is
 def state(config, ledger):
     return {"puni_gate_pool_paths": {"results": [ROOT, stat("c", isreg=True) if config else NONE,
                                                  stat("l", isreg=True) if ledger else NONE,
-                                                 UNIT, UNIT, UNIT]}}
+                                                 UNIT, UNIT, UNIT, UNIT, UNIT]}}
 
 
 STATE = "puni_gate_host_pool_enroll is false, but the configuration exists"
 family("E4 no pool state on an unenrolled host", unenrolled, [
     ("clean", {"puni_gate_host_pool_enroll": False}, state(False, False), None, ACCEPTED),
-    ("enrolled skips", {"puni_gate_host_pool_enroll": True}, state(True, True), None, ACCEPTED),
+    ("enrolled skips", {"puni_gate_host_pool_enroll": True}, state(True, True), None, SKIPPED),
     ("configuration left", {"puni_gate_host_pool_enroll": False}, state(True, False), None,
      refused(STATE)),
     ("ledger left", {"puni_gate_host_pool_enroll": False}, state(False, True), None, refused(STATE)),
@@ -206,13 +241,18 @@ def systemctl(states, rc):
 
 
 family("E5 user units enabled", enabled, [
-    ("both enabled", {"puni_gate_host_pool_enroll": True}, None, systemctl(["enabled", "enabled"], 0),
-     ACCEPTED),
+    ("all enabled", {"puni_gate_host_pool_enroll": True}, None,
+     systemctl(["enabled", "enabled", "enabled"], 0), ACCEPTED),
     ("unenrolled skips", {"puni_gate_host_pool_enroll": False}, None,
-     systemctl(["disabled", "disabled"], 1), ACCEPTED),
-    ("timer static", {"puni_gate_host_pool_enroll": True}, None, systemctl(["enabled", "static"], 0),
+     systemctl(["disabled", "disabled", "disabled"], 1), SKIPPED),
+    ("timer static", {"puni_gate_host_pool_enroll": True}, None,
+     systemctl(["enabled", "static", "enabled"], 0),
      refused("Read whether the Dash user units are enabled")),
-], [(drop_key("failed_when"), "timer static"), (drop_key("when"), "unenrolled skips")])
+    ("refresh timer disabled", {"puni_gate_host_pool_enroll": True}, None,
+     systemctl(["enabled", "enabled", "disabled"], 0),
+     refused("Read whether the Dash user units are enabled")),
+], [(drop_key("failed_when"), "timer static"), (drop_key("failed_when"), "refresh timer disabled"),
+    (drop_key("when"), "unenrolled skips")])
 
 dash = [task("validate.yml", "Name the Dash probes this host skips"),
         task("validate.yml", "Inspect the host pool and audit its envelopes")]
@@ -225,7 +265,7 @@ LAUNCHER = {"puni_gate_launcher_checkout": WORK + "/home/launcher"}
 def ledger(exists, audit_rc=0):
     pre = {**BASHRC, WORK + "/audit-rc": str(audit_rc)}
     return {"puni_gate_pool_paths": {"results": [ROOT, NONE, stat("l", isreg=True) if exists else NONE,
-                                                 UNIT, UNIT, UNIT]}}, pre
+                                                 UNIT, UNIT, UNIT, UNIT, UNIT]}}, pre
 
 
 SKIP = "Skipped `ops pool inspect` and `ops job audit`"
@@ -257,11 +297,228 @@ family("E7 pinned fields unchanged", pinned, [
 ], [(drop_that(0), "memory moved"), (drop_that(0), "unreadable live file")])
 
 
+def probe(*lines):
+    return {"puni_gate_sudo_probe": {"stdout_lines": list(lines)}}
+
+
+SUDOER = probe("puni1 sudo docker", "sudo_rc=0")
+GROUP_ONLY = probe("puni1 docker sudo", "sudo_rc=1")
+GRANT_ONLY = probe("puni1 docker", "sudo_rc=0")
+NO_SUDO = probe("puni1 docker", "sudo: a password is required", "sudo_rc=1")
+STRICT = {"puni_gate_account_may_sudo": False}
+EXCEPTED = {"puni_gate_account_may_sudo": True}
+
+no_sudo = [task("validate.yml", "Require the gate account without sudo")]
+family("E8 gate account without sudo", no_sudo, [
+    ("no escalation", STRICT, NO_SUDO, None, ACCEPTED),
+    ("sudo group", STRICT, GROUP_ONLY, None, refused("it must not escalate")),
+    ("sudoers grant", STRICT, GRANT_ONLY, None, refused("it must not escalate")),
+    ("exception skips", EXCEPTED, SUDOER, None, SKIPPED),
+], [(drop_that(0), "sudo group"), (drop_that(1), "sudoers grant"),
+    (drop_key("when"), "exception skips")])
+
+exception = [task("validate.yml", "Require the sudo exception to still match the gate account")]
+STALE = "the puni_gate_account_may_sudo exception is stale"
+family("E9 sudo exception still matches", exception, [
+    ("h2puni today", EXCEPTED, SUDOER, None, ACCEPTED),
+    ("group only", EXCEPTED, GROUP_ONLY, None, ACCEPTED),
+    ("grant only", EXCEPTED, GRANT_ONLY, None, ACCEPTED),
+    ("stale", EXCEPTED, NO_SUDO, None, refused(STALE)),
+    ("strict skips", STRICT, NO_SUDO, None, SKIPPED),
+], [(drop_that(0), "stale"), (keep_disjunct(0, 1), "group only"),
+    (keep_disjunct(0, 0), "grant only"), (drop_key("when"), "strict skips")])
+
+gate_inputs = [task("main.yml", "Require supported host and gate inputs")]
+LOCK = {"version": "1.4.4", "sha256": "0" * 64}
+HOST = {"ansible_distribution": "Ubuntu", "ansible_distribution_version": "26.04",
+        "ansible_architecture": "x86_64", "puni_gate_user": "puni1",
+        "puni_gate_bun_version": "1.4.4", "puni_gate_bun_lock": LOCK, "puni_gate_node_lock": LOCK,
+        "puni_gate_gh_lock": LOCK, "puni_gate_authorized_keys": ["ssh-ed25519 AAAA test"],
+        "puni_gate_host_pool_enroll": False}
+INPUTS = "A gate host needs Ubuntu on amd64"
+family("E10 sudo exception is a boolean", gate_inputs, [
+    ("boolean false", {**HOST, "puni_gate_account_may_sudo": False}, None, None, ACCEPTED),
+    ("boolean true", {**HOST, "puni_gate_account_may_sudo": True}, None, None, ACCEPTED),
+    ("string false", {**HOST, "puni_gate_account_may_sudo": "false"}, None, None, refused(INPUTS)),
+], [(drop_condition("puni_gate_account_may_sudo is boolean"), "string false")])
+
+
+# Throwaway keys made for this run, outside WORK, which every `run` clears.
+KEYS_DIR = "/tmp/gate-host-keys"
+shutil.rmtree(KEYS_DIR, ignore_errors=True)
+os.makedirs(KEYS_DIR)
+
+
+def public_key(comment):
+    path = os.path.join(KEYS_DIR, comment.split("@")[0])
+    subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", comment, "-f", path],
+                   check=True)
+    return open(path + ".pub").read().strip()
+
+
+KEYS = [public_key(c) for c in ("laptop-a@example.invalid", "laptop-b@example.invalid",
+                                "deploy@example.invalid")]
+
+
+def imported(file, name):
+    """The tasks an `import_tasks` task of `file` named `name` brings in, each carrying the
+    import's vars: the play here is not in the role, so the import itself cannot resolve."""
+    found = task(file, name)
+    tasks = copy.deepcopy(yaml.safe_load(open(os.path.join(ROLE, found["ansible.builtin.import_tasks"]))))
+    for t in tasks:
+        t["vars"] = {**found.get("vars", {}), **t.get("vars", {})}
+    return tasks
+
+
+def install_keys(render):
+    """main.yml's staging, staged count, install and removal, with `render` as the staging task."""
+    return [render, *imported("main.yml", "Count the staged gate authorized keys"),
+            task("main.yml", "Install the exact gate authorized keys"),
+            task("main.yml", "Remove the staged gate authorized keys")]
+
+
+def staged_template():
+    """The role's staging task with an absolute template path: the play is not in the role."""
+    t = task("main.yml", "Stage the exact gate authorized keys")
+    t["ansible.builtin.template"]["src"] = ROLE + "/../templates/authorized_keys.j2"
+    return t
+
+
+# The form h2puni's apply 1 ran on 2026-11-04 (H2-A7), parsed from its YAML text and aimed at the
+# staged path the role now writes first.
+JOINED = yaml.safe_load(r"""
+name: Stage the exact gate authorized keys
+ansible.builtin.copy:
+  dest: '{{ puni_gate_home }}/.ssh/authorized_keys.staged'
+  content: |
+    {{ puni_gate_authorized_keys | join('\n') }}
+  mode: '0600'
+""")
+LIVE = WORK + "/home/.ssh/authorized_keys"
+STAGED = LIVE + ".staged"
+PREVIOUS = "ssh-ed25519 AAAAprevious previous@example.invalid\n"
+SSH_DIR = {LIVE: PREVIOUS}
+COUNTED = "keys, but puni_gate_authorized_keys lists"
+INSTALL_TASK = "TASK [Install the exact gate authorized keys]"
+
+
+def lines(keys):
+    return "".join(key + "\n" for key in keys)
+
+
+def install_before_count(tasks):
+    """The placement before the review fix: the live file is written before anything counts it."""
+    install = next(t for t in tasks if t["name"] == "Install the exact gate authorized keys")
+    tasks.remove(install)
+    tasks.insert(1, install)
+
+
+install_before_count.label = "install moved before the staged count"
+OPTIONS = ['from="192.0.2.0/24" ' + KEYS[0], *KEYS[1:]]
+MALFORMED = [*KEYS[:2], "ssh-ed25519 AAAAnot-a-key x@y"]
+family("E11 staged keys counted before they replace the live file", install_keys(staged_template()), [
+    ("three keys", {"puni_gate_authorized_keys": KEYS}, None, None,
+     ("installed", SSH_DIR, lines(KEYS))),
+    ("one key", {"puni_gate_authorized_keys": KEYS[:1]}, None, None,
+     ("installed", SSH_DIR, lines(KEYS[:1]))),
+    ("key with options", {"puni_gate_authorized_keys": OPTIONS}, None, None,
+     ("installed", SSH_DIR, lines(OPTIONS))),
+    ("malformed key", {"puni_gate_authorized_keys": MALFORMED}, None, None,
+     ("refused-kept", SSH_DIR, "holds 2 " + COUNTED + " 3")),
+    ("rerun converges", {"puni_gate_authorized_keys": KEYS}, None, None,
+     ("converged", {LIVE: (lines(KEYS), 0o600)}, lines(KEYS))),
+], [(drop_that(0), "malformed key"),
+    (drop_key("changed_when", "Stage the exact gate authorized keys"), "rerun converges"),
+    (drop_key("changed_when", "Remove the staged gate authorized keys"), "rerun converges")])
+family("E12 the joined block-scalar form is refused before the install", install_keys(JOINED), [
+    ("three keys joined", {"puni_gate_authorized_keys": KEYS}, None, None,
+     ("refused-kept", SSH_DIR, "holds 1 " + COUNTED + " 3")),
+], [(drop_that(0), "three keys joined"), (install_before_count, "three keys joined")])
+JOINED_FILE = "\\n".join(KEYS) + "\n"
+family("E13 validate counts the live file", imported("validate.yml", "Count the live gate authorized keys"), [
+    ("three keys", {"puni_gate_authorized_keys": KEYS}, None, None, ("accepted-pre", {LIVE: lines(KEYS)})),
+    ("joined live file", {"puni_gate_authorized_keys": KEYS}, None, None,
+     ("refused-pre", {LIVE: JOINED_FILE}, "holds 1 " + COUNTED + " 3")),
+], [(drop_that(0), "joined live file")])
+
+
+
+# The token units on a fresh host, a rerun, and validate's read after one unit is broken.
+UNITS = WORK + "/home/units"
+DAGGER, DOCKER = UNITS + "/dagger_engine", UNITS + "/docker_build"
+TOKENS = {"puni_gate_pool_token_units": [DAGGER, DOCKER]}
+BREAK = {"name": "Break a token unit", "changed_when": False,
+         "ansible.builtin.command": {"argv": ["bash", "-c", "{{ puni_eval_break }}"],
+                                     "chdir": UNITS}}
+tokens = [task("host-pool.yml", "Create the token units"),
+          task("host-pool.yml", "Create the token units"), BREAK,
+          task("validate.yml", "Read the token units")]
+
+
+def broken(script):
+    return {**TOKENS, "puni_eval_break": script}
+
+
+def reduce_loop(task_name):
+    def mutate(tasks):
+        found = [t for t in tasks if t["name"] == task_name]
+        if not found:
+            raise SystemExit(f"no {task_name!r} to mutate")
+        for t in found:
+            t["loop"] = "{{ puni_gate_pool_token_units[:1] }}"
+    mutate.label = f"loop of {task_name!r} reduced to dagger_engine"
+    return mutate
+
+
+def drop_changed_when(task_name):
+    def mutate(tasks):
+        for t in tasks:
+            if t["name"] == task_name:
+                del t["changed_when"]
+    mutate.label = f"`changed_when` removed from {task_name!r}"
+    return mutate
+
+
+KEEP = {UNITS + "/.keep": ""}
+NOT_CLEAN = "token unit " + DOCKER + " exists but is not a clean Git tree with a commit"
+READ_FAILED = "failed: [localhost] (item=" + DOCKER + ")"
+family("E14 token units created once and both read by validate", tokens, [
+    ("fresh host converges", broken(":"), None, None, ("tokens", KEEP)),
+    ("docker_build left dirty", broken(":"), None, None,
+     ("refused-pre", {DOCKER + "/stray": ""}, NOT_CLEAN)),
+    ("docker_build dirtied", broken("touch docker_build/stray"), None, None,
+     ("refused-pre", KEEP, READ_FAILED)),
+    ("docker_build without a commit", broken("rm -rf docker_build && git init -q docker_build"),
+     None, None, ("refused-pre", KEEP, READ_FAILED)),
+], [(reduce_loop("Create the token units"), "fresh host converges"),
+    (drop_changed_when("Create the token units"), "fresh host converges"),
+    (reduce_loop("Read the token units"), "docker_build dirtied"),
+    (reduce_loop("Read the token units"), "docker_build without a commit")])
+
+
+def token_tree(path):
+    """A token unit as settlement needs it: the top of a clean Git tree with a commit."""
+    def git(*words):
+        return subprocess.run(["git", "-C", path, *words], capture_output=True, text=True,
+                              check=False)
+    top = git("rev-parse", "--show-toplevel")
+    return top.returncode == 0 and top.stdout.strip() == path and \
+        git("rev-parse", "-q", "--verify", "HEAD").returncode == 0 and \
+        git("status", "--porcelain", "--untracked-files=all").stdout == ""
+
+def recap(output, field):
+    """One counter of localhost's PLAY RECAP line; None when the recap is missing."""
+    found = re.search(r"^localhost\s*:.*\b" + field + r"=(\d+)", output, re.M)
+    return int(found.group(1)) if found else None
+
+
 def judge(expectation, rc, output):
-    kind, detail = expectation
+    kind, detail = expectation[:2]
     log = WORK + "/bun.log"
     if kind == "accepted":
-        return rc == 0
+        return rc == 0 and recap(output, "skipped") == 0
+    if kind == "skipped-task":
+        return rc == 0 and recap(output, "skipped") == 1
     if kind == "refused":
         return rc != 0 and detail in output
     if kind == "ran":
@@ -272,13 +529,28 @@ def judge(expectation, rc, output):
     if kind == "skipped":
         return rc == 0 and SKIP in output and not os.path.exists(log)
     if kind == "refused-pre":
-        return rc != 0 and "Inspect the host pool and audit its envelopes" in output
+        message = expectation[2] if len(expectation) > 2 else \
+            "Inspect the host pool and audit its envelopes"
+        return rc != 0 and message in output
+    if kind == "accepted-pre":
+        return rc == 0 and recap(output, "skipped") == 0
+    if kind == "installed":
+        return rc == 0 and open(LIVE).read() == expectation[2] and not os.path.exists(STAGED)
+    if kind == "converged":
+        return judge(("installed", None, expectation[2]), rc, output) and recap(output, "changed") == 0
+    if kind == "tokens":
+        return rc == 0 and recap(output, "changed") == 1 and recap(output, "skipped") == 0 and \
+            all(token_tree(path) for path in (DAGGER, DOCKER))
+    if kind == "refused-kept":
+        return rc != 0 and expectation[2] in output and INSTALL_TASK not in output and \
+            open(LIVE).read() == PREVIOUS
     raise SystemExit(kind)
 
 
 def pre_of(expectation):
-    kind, detail = expectation
-    return detail if kind in ("ran", "skipped", "refused-pre") else None
+    kind, detail = expectation[:2]
+    return detail if kind in ("ran", "skipped", "refused-pre", "accepted-pre", "installed",
+                                "refused-kept", "converged", "tokens") else None
 
 
 failures = 0
