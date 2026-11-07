@@ -66,3 +66,32 @@ NRP1 is complete only at source/inert scope. NRP2 still requires final-entry
 source/freeze, clean published HEAD, exact owned layout/input/protocol association
 and review. No NRP3/4 genuine case, full39 run, fullCI/exactSHAhostgate/main/deploy
 occurred. The full original feature goal remains active.
+
+## Accepted entry source and durable transport projection
+
+[The entry source archive](known-runtime-entry-source-20261108/README.md)
+preserves the initial caller, review7a83e4cf, corrected source and fixreviewc5131e68.
+Live transport retirement was sound; the initial durable summaries omitted exit
+values and reader associations. Entryb0455551 with pureprojection1bc1824f now
+retains actual exit0/7 outcomes, spawn and getReader/release receiver/return
+associations, EOF/bytes/read/closed/pump joins, full/partial raw capture and both
+write outcomes, plus distinct primary/additional causes including undefined.
+Existing output paths are reused; no new child/filesystem effect or retirement
+change was introduced. Shared22d0/2bf and wrapper37d/preimport840/bootstrap6763
+remain unchanged. Contracts2f0b57e7/finalizer8de9bada add only required module pins.
+
+Old durable-evidence RED exited1; five finite shared-consumer provider states
+passed fixedGREEN. Provider PIDs7000/7007 are NOT native PIDs. Actual exit
+projection omission fails its evidence assertion; exact restoration passes on the
+SAME retained state, without another provider, child or filesystem effect. This
+credits that projection requirement only, not every scalar or full native R5.
+All131 current and39 revision0 descriptors were independently verified. Eleven
+binding negatives and seven source parses pass. Historical harness failures and
+source/comment proof epochs remain separately retained.
+
+Current preview4747 runtime operations per phase and9573+6*S outside success
+keys are schema-derived. Final S/count, exact HEAD/expected binding, owned
+execution layout, claim/captures and continuing coordinated protection remain
+unmaterialized until explicit Root FREEZE. This completes source/inert caller
+review only; NRP2 remains open for exact materialization/protocol review, NRP3/4
+for genuine execution, and all full39/gates/main/deploy obligations remain.
