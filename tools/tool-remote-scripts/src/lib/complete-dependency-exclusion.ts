@@ -29,10 +29,14 @@ import {
   assertDependencyOwner,
   assertDependencyOwnerDirectory,
   type DependencyOwner,
+  enrollReadyCleanup,
   inspectDependencyOwnerPublication,
   ownerDockerExec,
   ownerDockerHashed,
+  type ReadyCleanup,
+  releaseReadyCleanup,
   retainActivationRecord,
+  transferReadyCleanup,
 } from './edge-ownership';
 import { captureEdgePolicy, captureEdgeRecord, decodeOrdinaryEdgePolicy } from './edge-policy';
 import { type EnvName, sourceDevContract } from './env';
@@ -191,6 +195,7 @@ const preparations = new WeakMap<
   PreparedDependencyActivation,
   FinalizedParticipantRestorationContext
 >();
+const readyPreparations = new WeakMap<PreparedDependencyActivation, ReadyCleanup>();
 const consumedPreparations = new WeakSet<PreparedDependencyActivation>();
 const preparedContexts = new WeakMap<
   FinalizedParticipantRestorationContext,
@@ -887,6 +892,14 @@ async function activateCompleteUnderOwner(
         [preparationIdentity]: true as const,
       });
       const context = { ...provisional, completion, fencedComplete: fencedRecord };
+      if (purpose === 'initial-handoff') {
+        // Proof: omitting this enrollment failed the unchanged genuine drop/live original-closed-once oracle;
+        // exact restoration passed that SAME consumer and all four drop/release controls (2026-11-08).
+        const cleanup = enrollReadyCleanup(owner, () => {
+          releasePreparedObservations(key, context);
+        });
+        readyPreparations.set(key, cleanup);
+      }
       preparations.set(key, context);
       preparedContexts.set(context, key);
       isRetainedForRestoration = true;
@@ -971,6 +984,12 @@ export async function consumePreparedDependencyActivation(
   const context = preparations.get(prepared);
   if (context?.owner !== owner || consumedPreparations.has(prepared))
     throw new Error('participant restoration preparation is not live and unused');
+  const ready = readyPreparations.get(prepared);
+  if (ready !== undefined) {
+    // Proof: omitting transfer at this actual consume prefix closed the inert in-flight preparation once instead of zero (2026-11-08).
+    transferReadyCleanup(owner, ready);
+    readyPreparations.delete(prepared);
+  }
   consumedPreparations.add(prepared);
   try {
     if (!Number.isFinite(context.deadline) || performance.now() >= context.deadline)
@@ -1043,8 +1062,19 @@ export function releasePreparedDependencyActivation(
   const context = preparations.get(prepared);
   if (context?.owner !== owner)
     throw new Error('participant restoration preparation is not retained');
+  const ready = readyPreparations.get(prepared);
+  if (ready !== undefined) releaseReadyCleanup(owner, ready);
+  else releasePreparedObservations(prepared, context);
+}
+
+/** Revokes public identities before original closes. The ready owner entry retains this exact context if cleanup becomes UNKNOWN; transferred/restoration callers keep their existing cleanup path. */
+function releasePreparedObservations(
+  prepared: PreparedDependencyActivation,
+  context: FinalizedParticipantRestorationContext,
+): void {
   preparations.delete(prepared);
   preparedContexts.delete(context);
+  readyPreparations.delete(prepared);
   const failures = closeObservations([
     () => {
       context.storage.evidence.close();

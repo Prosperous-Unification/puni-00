@@ -7880,3 +7880,7 @@ Frontend response/custody, full gates, private acceptance and delivery remain op
 ## Known-main startup compatibility — 2026-11-08
 
 The canonical and separately traced historical 103-migration boot certificates, actual boot RED/GREEN, strict refusal matrix, watched production-path proof pairs and scoped checks are recorded in [current-main bootstrap verification](verify-bootstrap-current-main.md). This slice does not activate cross-project authoring or establish integration CI, host gate or deployment success.
+
+## Ready unconsumed initial-handoff cleanup — 2026-11-08
+
+The unchanged genuine drop/release RED/GREEN, finite actual-source UNKNOWN controls, watched production omissions and scoped checks are recorded in [ready cleanup verification](verify-ready-drop.md). Broader consumed/pre-acquisition custody, full69 aggregate qualification, native full39, activation and deployment remain separate obligations.

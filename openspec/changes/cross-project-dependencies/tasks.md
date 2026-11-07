@@ -1419,3 +1419,12 @@ or executable HOLD push precedes accepted ordinary finite containment.
 - [x] MB1. Reproduce the exact known-main startup refusal through actual boot, with immutable migration identity fixture and retained project-value expectations.
 - [x] MB2. Extend historical certification to exactly the known main name/hash set with all four delayed additions absent; replay and compare complete schema, preserve partial/unknown/enabled authority refusal.
 - [x] MB3. Run owning boot regression and altered/missing/unknown/unreadable/partial/schema negatives; watch exact-set and schema guard omissions fail the same owning consumers, restore and rerun. Record scoped statics and independent review; broader CI/gates/deploy remain separate.
+
+## Ready unconsumed initial-handoff cleanup — 2026-11-08
+
+[Intent](ready-drop-intent.md); [verification](verify-ready-drop.md).
+
+- [x] RD1. Reproduce the unchanged live/expired drop failures on candidate6218 through actual ordinary storage tests, preserving fixture fallback and original180000ms annotations.
+- [x] RD2. Add finite actual-source lifecycle controls before the bounded ready registry, successful-mint enrollment, consume transfer and owner-return sweep; retain UNKNOWN without broad R2/native changes.
+- [x] RD3. Pass unchanged four actual drop/release controls and existing consumption/restoration regressions; watch separate production enrollment/order/discharge/transfer/HOLD/forward/outcome omissions fail owning consumers and exact restoration pass.
+- [x] RD4. Complete scoped statics, format/OpenSpec and independent source/evidence review, then normal commit. Full required owning69/CI/exact-SHA host gate and deployment remain explicit integration gates.

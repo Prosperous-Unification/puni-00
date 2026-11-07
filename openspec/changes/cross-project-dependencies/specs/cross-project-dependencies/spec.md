@@ -2806,3 +2806,29 @@ The separately pinned historical 103-migration profile SHALL differ only by the 
 - **WHEN** actual backend startup applies the four delayed additions
 - **THEN** health succeeds, existing values and every original migration identity remain, and dependency authority remains DISABLED
 - **AND** using that historical identity with the canonical cascading schema refuses before mutation
+
+### Requirement: Ready unconsumed initial handoffs close before owner expiration
+
+A successfully finalized initial-handoff preparation SHALL enroll its exact synchronous cleanup with its live owner before publishing the prepared identity. Owner return SHALL close every still-ready original exactly once before identity expiration or outer unlock, including after work expiry. Known cleanup SHALL preserve the original callback value or thrown value.
+
+#### Scenario: A caller drops a ready result
+
+- **WHEN** a callback drops its unconsumed finalized initial-handoff result and returns or throws
+- **THEN** its original evidence and artifact cleanup finish exactly once before owner return, without relying on fixture fallback
+
+#### Scenario: Explicit release and consumption retain existing ownership
+
+- **WHEN** the original unconsumed result is explicitly released
+- **THEN** the same ready entry closes once and owner exit does not close it again
+- **WHEN** the exact original result begins consumption
+- **THEN** its ready obligation transfers before the first await and the existing consumed path remains responsible for release
+
+### Requirement: Unknown ready cleanup retains its original owner custody
+
+A throwing ready cleanup SHALL retain its exact closure/context, original cleanup cause, callback outcome and live outer locks under a referenced nonsettling keeper. Forward work SHALL refuse closing or unknown owners. Independent ready siblings SHALL still receive their first cleanup attempt. Diagnostics SHALL be fixed and sanitized; diagnostic failure SHALL remain retained without unwinding.
+
+#### Scenario: Cleanup throws before or after modeled delegation
+
+- **WHEN** an original ready close throws
+- **THEN** owner deletion and outer unlock do not occur, the close is never retried and every original cause remains strongly retained
+- **AND** consumed/pre-acquisition custody and full native-HOLD qualification remain separate obligations

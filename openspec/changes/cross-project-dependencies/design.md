@@ -2008,3 +2008,9 @@ is used to verify this source split. Native qualification remains mandatory;
 ordinary CI green does not close parents10.1/10.2/11, authorize an architectural
 main merge, or prove activation/deployment. Historical source-pinned invocation
 packets can be invalidated by relocation and are not rewritten or reused.
+
+## Bounded ready initial-handoff cleanup — 2026-11-08
+
+Use an owner-local opaque ready-cleanup registry, separate from the later pre-acquisition capsule proposal. Enroll the exact original close closure at the synchronous successful initial-handoff mint, after all physical finalizers and readiness checks. Consumption transfers this narrow obligation only after exact original/owner/unused validation and before its first await. Unconsumed explicit release and owner return use the same one-shot entry. Restoration preparations and consumed lifetime semantics are unchanged.
+
+Arm a referenced keeper at first enrollment. Owner exit captures a discriminated original callback outcome, enters close-only state and attempts each remaining ready sibling. Remove entries only after original close returns normally. Any throwing close retains its original context/failure and callback outcome under the same owner/outer lock stack, with a fixed once-only diagnostic whose own failure cannot unwind. Clear the keeper and expire the owner only after every ready obligation is known closed. A finite actual-source model supplies inert native/timer/lock ports for UNKNOWN evidence; no genuine native-HOLD execution or broad R2 coupling is part of this slice.
