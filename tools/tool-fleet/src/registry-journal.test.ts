@@ -427,10 +427,9 @@ it('runs the owner-only stdin CLI with real measurements and bounds input', asyn
   const orphan = join(directory, `journal.${crypto.randomUUID()}.json`);
   await writeFile(orphan, 'crashed replacement', { mode: 0o600 });
   const readback = await run('{"command":"read"}');
-  expect(await import('node:fs/promises').then(({ readdir }) => readdir(directory))).toEqual([
-    'authority.lock',
-    'journal.json',
-  ]);
+  expect(
+    (await import('node:fs/promises').then(({ readdir }) => readdir(directory))).sort(),
+  ).toEqual(['authority.lock', 'journal.json']);
   expect(readback[0]).toBe(0);
   expect((JSON.parse(readback[1]) as { state: { revision: number } }).state.revision).toBe(0);
   for (const [request, extra] of [
@@ -781,7 +780,7 @@ it('removes its replacement after repeated fsync failures while preserving canon
       }),
       'injected replacement fsync',
     );
-    expect(await readdir(directory)).toEqual(['authority.lock', 'journal.json']);
+    expect((await readdir(directory)).sort()).toEqual(['authority.lock', 'journal.json']);
     expect(await readFile(join(directory, 'journal.json'), 'utf8')).toBe(before);
   }
 });
@@ -809,7 +808,7 @@ it('reclaims a crashed pre-rename replacement only after validating canonical st
   await writeFile(join(directory, 'journal.json'), before);
   const recovered = await read(directory);
   expect(recovered.state.revision).toBe(0);
-  expect(await readdir(directory)).toEqual(['authority.lock', 'journal.json']);
+  expect((await readdir(directory)).sort()).toEqual(['authority.lock', 'journal.json']);
   await executeRegistryCommand(directory, publication(), ports());
   expect((await read(directory)).state.reservations).toHaveLength(1);
 });
@@ -866,10 +865,9 @@ it('cleans replacement files after a real write failure on a broken descriptor',
   );
   expect(failed.exitCode).not.toBe(0);
   expect(failed.stderr).toContain('EBADF');
-  expect(await import('node:fs/promises').then(({ readdir }) => readdir(directory))).toEqual([
-    'authority.lock',
-    'journal.json',
-  ]);
+  expect(
+    (await import('node:fs/promises').then(({ readdir }) => readdir(directory))).sort(),
+  ).toEqual(['authority.lock', 'journal.json']);
   expect(await readFile(join(directory, 'journal.json'), 'utf8')).toBe(before);
 });
 
@@ -908,7 +906,7 @@ it('propagates replacement cleanup failure and reclaims the orphan after permiss
     (await readdir(directory)).filter((name) => /^journal\..+\.json$/.test(name)),
   ).toHaveLength(1);
   await read(directory);
-  expect(await readdir(directory)).toEqual(['authority.lock', 'journal.json']);
+  expect((await readdir(directory)).sort()).toEqual(['authority.lock', 'journal.json']);
 });
 
 it('propagates orphan directory fsync failure without acknowledging the read command', async () => {

@@ -8,12 +8,12 @@ Base: `acfdc02c7f0acc98606c87312a694ed2b89302ea`, freshly confirmed with `git ls
 
 The policy/test source is extracted from `043f75f0e1e27bdd3e95c6a8d33e323e5e5135fc`. Journal/test/CLI source is extracted from reviewed checkpoint `2b1119372ebe11327c22f8a90a8f7ec482cf0494`. Additions are nine actual-command chronology cases, eight pure-policy ownership/accounting cases, the numeric timestamp correction and scoped proof/JSDoc clarifications. No package, lockfile, alias, entrypoint, target, installer or caller wiring changed.
 
-The exact five file hashes below match the source restored after every final fault observation. The paired tests reach the actual policy/command/CLI paths. Ordinary owned-file, child-process, SIGKILL, FIFO and kernel-flock tests ran; privileged native/isolation fixtures, installed storage, provider operations, enrollment and activation did not run.
+The exact five file hashes below match the source restored after every final fault observation, including the directory-enumeration portability correction recorded below. The paired tests reach the actual policy/command/CLI paths. Ordinary owned-file, child-process, SIGKILL, FIFO and kernel-flock tests ran; privileged native/isolation fixtures, installed storage, provider operations, enrollment and activation did not run.
 
 | File                                            | SHA-256                                                            |
 | ----------------------------------------------- | ------------------------------------------------------------------ |
 | `tools/tool-fleet/src/registry-journal-cli.ts`  | `82b275422a3f9fe50843092474b20df0f4e4bc7e4c86b8895287a10789811ae1` |
-| `tools/tool-fleet/src/registry-journal.test.ts` | `b7fb6913f53c223c93e5210d81d25c95415589312484c0cb93f2c2c8000aaa13` |
+| `tools/tool-fleet/src/registry-journal.test.ts` | `0e13d1e3bdeed84e1da9be53308de47d32616c897cd83a306d6d1e9b01edc8fd` |
 | `tools/tool-fleet/src/registry-journal.ts`      | `cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519` |
 | `tools/tool-fleet/src/registry-policy.test.ts`  | `576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a` |
 | `tools/tool-fleet/src/registry-policy.ts`       | `6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab` |
@@ -149,3 +149,29 @@ The inventory establishes the listed local guard observations only. It does not 
 ## Publication checkpoint
 
 The first normal-hook commit `69dfa6b43158e8df65b5a3b53f178e02ee096d9c` was pushed and [draft PR #888](https://github.com/Prosperous-Unification/puni-00/pull/888) created. Its hooks passed scoped lint, formatting, plaintext-secrets and private-nesting; tool-wiki returned explicitly inactive because its external activation root is not provisioned. This final documentation checkpoint links later external receipts without changing the five pinned source/test files. All four implementation/local-verification/publication tasks are complete; independent review, remote CI, full-format completion and the canonical gate remain merge requirements recorded on that PR.
+
+## Directory enumeration portability correction — 2026-11-08
+
+The first PR #888 fleet-check exposed five test assertions that treated directory enumeration order as meaningful. Its `037654411a89682d8f753b72be6288eb07fa6160` run returned `journal.json` before `authority.lock`; exact directory membership was correct. This is a test portability fix restoring the existing no-orphan contract, with no production behavior change.
+
+Before editing, a preload that calls the real filesystem and returns directory entries in deterministic descending order reproduced precisely those five failures: **31 pass / 5 fail / 245 assertions**. Sorting the actual enumeration at those five assertions passed the same fixture: **36 pass / 0 fail / 264 assertions**. Expected names and exact-array membership remain unchanged, so extra or missing files still fail. The reproducible preload source is preserved in `directoryEnumerationCorrection` in the [failure inventory](evidence/failure-proofs.json).
+
+All **84** production-guard faults were repeated against the corrected test bytes and produced named failures. In particular, removed orphan cleanup and failed-replacement unlink still fail their exact-membership assertions. The inventory and hash table now bind this rerun; all production source hashes remain unchanged.
+
+Fresh ordinary focused suite: **86 pass / 0 fail / 362 assertions**, two files, 6.94 seconds. The full uncached tool-fleet check also passed:
+
+```text
+NX_DAEMON=false bunx nx run tool-fleet:check --skip-nx-cache
+690 pass
+0 fail
+2522 expect() calls
+Ran 690 tests across 46 files. [67.48s]
+[tool-fleet:check] every family passed
+NX Successfully ran target check for project tool-fleet and 3 tasks it depends on
+Run duration: 1m 25s
+Cache: Skipped (--skip-nx-cache)
+```
+
+This includes whole-package tests, lint, typecheck and all static artifact families. Earlier text stating full package selection was not run describes the initial checkpoint; this fresh follow-up supersedes that limitation. Strict change validation and normal-hook changed-file formatting are checked again for this correction. The earlier whole-repository local formatting session ended without recoverable terminal output, so its result remains unavailable; final required formatting, remote CI, review and canonical host-gate receipts remain on PR #888.
+
+Base composition was inspected against newly advanced public main `a2a9764f3b3ba5d83a8e309b766ada9c9f82156e`: its ten changed paths have no intersection with this foundation. No rebase or unrelated source change was made.

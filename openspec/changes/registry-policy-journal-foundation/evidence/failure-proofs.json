@@ -2,7 +2,7 @@
   "base": "acfdc02c7f0acc98606c87312a694ed2b89302ea",
   "sourcePins": {
     "tools/tool-fleet/src/registry-journal-cli.ts": "82b275422a3f9fe50843092474b20df0f4e4bc7e4c86b8895287a10789811ae1",
-    "tools/tool-fleet/src/registry-journal.test.ts": "b7fb6913f53c223c93e5210d81d25c95415589312484c0cb93f2c2c8000aaa13",
+    "tools/tool-fleet/src/registry-journal.test.ts": "0e13d1e3bdeed84e1da9be53308de47d32616c897cd83a306d6d1e9b01edc8fd",
     "tools/tool-fleet/src/registry-journal.ts": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
     "tools/tool-fleet/src/registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
     "tools/tool-fleet/src/registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab"
@@ -19,9 +19,9 @@
       "index": 0,
       "exit": 1,
       "failedTests": [
-        "publication admission > rejects missing capacity, zero budgets and fractional counts [2.34ms]",
-        "publication admission > throws for missing or invalid capacity %s [0.31ms]",
-        "publication admission > throws for missing or invalid capacity %s [0.13ms]"
+        "publication admission > rejects missing capacity, zero budgets and fractional counts [1.27ms]",
+        "publication admission > throws for missing or invalid capacity %s [0.09ms]",
+        "publication admission > throws for missing or invalid capacity %s [0.05ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -35,7 +35,7 @@
       "index": 1,
       "exit": 1,
       "failedTests": [
-        "publication admission > rejects missing capacity, zero budgets and fractional counts [3.16ms]"
+        "publication admission > rejects missing capacity, zero budgets and fractional counts [0.71ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -49,7 +49,7 @@
       "index": 2,
       "exit": 1,
       "failedTests": [
-        "retirement planning > rejects unknown roots and mutable identities even when both references agree [0.76ms]"
+        "retirement planning > rejects unknown roots and mutable identities even when both references agree [0.27ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -62,7 +62,7 @@
       "pattern": "",
       "index": 3,
       "exit": 1,
-      "failedTests": ["retirement planning > throws for malformed timestamp [0.37ms]"],
+      "failedTests": ["retirement planning > throws for malformed timestamp [0.21ms]"],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
     },
@@ -74,7 +74,7 @@
       "pattern": "",
       "index": 4,
       "exit": 1,
-      "failedTests": ["publication admission > throws for missing inode envelope [0.51ms]"],
+      "failedTests": ["publication admission > throws for missing inode envelope [0.18ms]"],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
     },
@@ -87,7 +87,7 @@
       "index": 5,
       "exit": 1,
       "failedTests": [
-        "retirement planning > throws for absent or incomplete history instead of assuming first install [0.42ms]"
+        "retirement planning > throws for absent or incomplete history instead of assuming first install [0.29ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -101,7 +101,7 @@
       "index": 6,
       "exit": 1,
       "failedTests": [
-        "retirement planning > throws for incomplete graph, unknown references and mutable identities [0.90ms]"
+        "retirement planning > throws for incomplete graph, unknown references and mutable identities [0.23ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -115,7 +115,7 @@
       "index": 7,
       "exit": 1,
       "failedTests": [
-        "publication admission > uses actual usable capacity when smaller than the configured budget [0.62ms]"
+        "publication admission > uses actual usable capacity when smaller than the configured budget [0.21ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -129,10 +129,10 @@
       "index": 8,
       "exit": 1,
       "failedTests": [
-        "publication admission > refuses the exact byte cutoff near the safe-integer capacity limit [1.19ms]",
-        "publication admission > refuses the exact inode cutoff near the safe-integer capacity limit [0.15ms]",
-        "publication admission > keeps large safe-integer usage below its exact pressure threshold: %s [0.09ms]",
-        "publication admission > keeps large safe-integer usage below its exact pressure threshold: %s [0.03ms]"
+        "publication admission > refuses the exact byte cutoff near the safe-integer capacity limit [0.59ms]",
+        "publication admission > refuses the exact inode cutoff near the safe-integer capacity limit [0.09ms]",
+        "publication admission > keeps large safe-integer usage below its exact pressure threshold: %s [0.06ms]",
+        "publication admission > keeps large safe-integer usage below its exact pressure threshold: %s [0.02ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -146,7 +146,7 @@
       "index": 9,
       "exit": 1,
       "failedTests": [
-        "publication admission > fences writes at actual stop pressure or low host reserve [0.67ms]"
+        "publication admission > fences writes at actual stop pressure or low host reserve [0.19ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -160,7 +160,7 @@
       "index": 10,
       "exit": 1,
       "failedTests": [
-        "publication admission > reports warning and stop pressure from inodes independently [0.60ms]"
+        "publication admission > reports warning and stop pressure from inodes independently [0.25ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -174,7 +174,7 @@
       "index": 11,
       "exit": 1,
       "failedTests": [
-        "publication admission > admits strictly below both cutoffs and reports pressure [0.54ms]"
+        "publication admission > admits strictly below both cutoffs and reports pressure [0.24ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -188,7 +188,7 @@
       "index": 12,
       "exit": 1,
       "failedTests": [
-        "retirement planning > targets below seventy percent and requests pressure cleanup at eighty [0.97ms]"
+        "retirement planning > targets below seventy percent and requests pressure cleanup at eighty [0.40ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -202,7 +202,7 @@
       "index": 13,
       "exit": 1,
       "failedTests": [
-        "publication admission > admits strictly below both cutoffs and reports pressure [0.34ms]"
+        "publication admission > admits strictly below both cutoffs and reports pressure [0.22ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -216,7 +216,7 @@
       "index": 14,
       "exit": 1,
       "failedTests": [
-        "publication admission > reports warning and stop pressure from inodes independently [0.49ms]"
+        "publication admission > reports warning and stop pressure from inodes independently [0.21ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -230,7 +230,7 @@
       "index": 15,
       "exit": 1,
       "failedTests": [
-        "publication admission > charges existing reservations to both budgets [0.71ms]"
+        "publication admission > charges existing reservations to both budgets [0.28ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -244,7 +244,7 @@
       "index": 16,
       "exit": 1,
       "failedTests": [
-        "publication admission > charges existing reservations to both budgets [0.39ms]"
+        "publication admission > charges existing reservations to both budgets [0.33ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -258,12 +258,12 @@
       "index": 17,
       "exit": 1,
       "failedTests": [
-        "publication admission > refuses the exact byte cutoff near the safe-integer capacity limit [1.69ms]",
-        "publication admission > admits the last byte below ninety percent but refuses the exact cutoff [0.50ms]",
-        "publication admission > charges existing reservations to both budgets [0.58ms]",
-        "publication admission > rejects publication crossing ninety percent [0.56ms]",
-        "publication admission > uses actual usable capacity when smaller than the configured budget [0.32ms]",
-        "publication admission > fences writes at actual stop pressure or low host reserve [0.30ms]"
+        "publication admission > refuses the exact byte cutoff near the safe-integer capacity limit [0.79ms]",
+        "publication admission > admits the last byte below ninety percent but refuses the exact cutoff [0.11ms]",
+        "publication admission > charges existing reservations to both budgets [0.18ms]",
+        "publication admission > rejects publication crossing ninety percent [0.11ms]",
+        "publication admission > uses actual usable capacity when smaller than the configured budget [0.07ms]",
+        "publication admission > fences writes at actual stop pressure or low host reserve [0.08ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -277,10 +277,10 @@
       "index": 18,
       "exit": 1,
       "failedTests": [
-        "publication admission > refuses the exact inode cutoff near the safe-integer capacity limit [0.86ms]",
-        "publication admission > charges existing reservations to both budgets [0.98ms]",
-        "publication admission > reports warning and stop pressure from inodes independently [0.44ms]",
-        "publication admission > rejects inode envelopes reaching ninety percent [0.78ms]"
+        "publication admission > refuses the exact inode cutoff near the safe-integer capacity limit [0.23ms]",
+        "publication admission > charges existing reservations to both budgets [0.24ms]",
+        "publication admission > reports warning and stop pressure from inodes independently [0.08ms]",
+        "publication admission > rejects inode envelopes reaching ninety percent [0.10ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -294,7 +294,7 @@
       "index": 19,
       "exit": 1,
       "failedTests": [
-        "publication admission > fences writes at actual stop pressure or low host reserve [0.70ms]"
+        "publication admission > fences writes at actual stop pressure or low host reserve [0.28ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -308,8 +308,8 @@
       "index": 20,
       "exit": 1,
       "failedTests": [
-        "publication admission > charges existing reservations to both budgets [0.96ms]",
-        "publication admission > retains crash reservations and refuses a second publisher [0.48ms]"
+        "publication admission > charges existing reservations to both budgets [0.31ms]",
+        "publication admission > retains crash reservations and refuses a second publisher [0.11ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -323,10 +323,10 @@
       "index": 21,
       "exit": 1,
       "failedTests": [
-        "retirement planning > rejects duplicate graph nodes, registered environments and histories [1.24ms]",
-        "retirement planning > rejects future publication receipts and unregistered environment histories [2.18ms]",
-        "retirement planning > throws for duplicate identities, future receipts and unknown historical releases [0.59ms]",
-        "refuses duplicate physical content owners and unknown or graph-overlapping content [1.31ms]"
+        "retirement planning > rejects duplicate graph nodes, registered environments and histories [0.31ms]",
+        "retirement planning > rejects future publication receipts and unregistered environment histories [0.39ms]",
+        "retirement planning > throws for duplicate identities, future receipts and unknown historical releases [0.18ms]",
+        "refuses duplicate physical content owners and unknown or graph-overlapping content [0.32ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -339,7 +339,7 @@
       "pattern": "",
       "index": 22,
       "exit": 1,
-      "failedTests": ["retirement planning > rejects cyclic dependencies [1.22ms]"],
+      "failedTests": ["retirement planning > rejects cyclic dependencies [0.26ms]"],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
     },
@@ -352,8 +352,8 @@
       "index": 23,
       "exit": 1,
       "failedTests": [
-        "retirement planning > rejects unknown roots and mutable identities even when both references agree [0.56ms]",
-        "retirement planning > throws for incomplete graph, unknown references and mutable identities [1.10ms]"
+        "retirement planning > rejects unknown roots and mutable identities even when both references agree [0.23ms]",
+        "retirement planning > throws for incomplete graph, unknown references and mutable identities [0.32ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -366,7 +366,7 @@
       "pattern": "",
       "index": 24,
       "exit": 1,
-      "failedTests": ["refuses partial operations without an abandoned owning bundle [0.85ms]"],
+      "failedTests": ["refuses partial operations without an abandoned owning bundle [0.38ms]"],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
     },
@@ -378,7 +378,7 @@
       "pattern": "",
       "index": 25,
       "exit": 1,
-      "failedTests": ["refuses unknown unfinished or empty-root retired declarations [0.56ms]"],
+      "failedTests": ["refuses unknown unfinished or empty-root retired declarations [0.24ms]"],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
     },
@@ -390,7 +390,7 @@
       "pattern": "",
       "index": 26,
       "exit": 1,
-      "failedTests": ["retirement planning > throws for unknown owner [0.46ms]"],
+      "failedTests": ["retirement planning > throws for unknown owner [0.24ms]"],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
     },
@@ -403,7 +403,7 @@
       "index": 27,
       "exit": 1,
       "failedTests": [
-        "refuses duplicate physical content owners and unknown or graph-overlapping content [0.70ms]"
+        "refuses duplicate physical content owners and unknown or graph-overlapping content [0.49ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -416,7 +416,7 @@
       "pattern": "",
       "index": 28,
       "exit": 1,
-      "failedTests": ["refuses staged content without an owning bundle [0.67ms]"],
+      "failedTests": ["refuses staged content without an owning bundle [0.40ms]"],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
     },
@@ -429,7 +429,7 @@
       "index": 29,
       "exit": 1,
       "failedTests": [
-        "retirement planning > rejects future publication receipts and unregistered environment histories [0.62ms]"
+        "retirement planning > rejects future publication receipts and unregistered environment histories [0.31ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -443,7 +443,7 @@
       "index": 30,
       "exit": 1,
       "failedTests": [
-        "retirement planning > throws for absent or incomplete history instead of assuming first install [0.56ms]"
+        "retirement planning > throws for absent or incomplete history instead of assuming first install [0.38ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -457,7 +457,7 @@
       "index": 31,
       "exit": 1,
       "failedTests": [
-        "retirement planning > rejects future publication receipts and unregistered environment histories [1.19ms]"
+        "retirement planning > rejects future publication receipts and unregistered environment histories [0.40ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -471,7 +471,7 @@
       "index": 32,
       "exit": 1,
       "failedTests": [
-        "retirement planning > throws for duplicate identities, future receipts and unknown historical releases [0.45ms]"
+        "retirement planning > throws for duplicate identities, future receipts and unknown historical releases [0.28ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -485,7 +485,7 @@
       "index": 33,
       "exit": 1,
       "failedTests": [
-        "retirement planning > throws for duplicate identities, future receipts and unknown historical releases [1.17ms]"
+        "retirement planning > throws for duplicate identities, future receipts and unknown historical releases [0.42ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -499,10 +499,10 @@
       "index": 34,
       "exit": 1,
       "failedTests": [
-        "retirement planning > keeps ten complete bundles [1.83ms]",
-        "retirement planning > preserves older environment rollback [1.22ms]",
-        "retirement planning > uses stable operation IDs to order tied promotion receipts [0.76ms]",
-        "current consumer shared tier preserves its image while oldest four unique tiers retire [1.22ms]"
+        "retirement planning > keeps ten complete bundles [0.62ms]",
+        "retirement planning > preserves older environment rollback [0.42ms]",
+        "retirement planning > uses stable operation IDs to order tied promotion receipts [0.35ms]",
+        "current consumer shared tier preserves its image while oldest four unique tiers retire [0.42ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -515,7 +515,7 @@
       "pattern": "",
       "index": 35,
       "exit": 1,
-      "failedTests": ["retirement planning > preserves older environment rollback [2.27ms]"],
+      "failedTests": ["retirement planning > preserves older environment rollback [0.60ms]"],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
     },
@@ -527,7 +527,7 @@
       "pattern": "",
       "index": 36,
       "exit": 1,
-      "failedTests": ["refuses retired releases still required by successful history [0.35ms]"],
+      "failedTests": ["refuses retired releases still required by successful history [0.24ms]"],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
     },
@@ -540,7 +540,7 @@
       "index": 37,
       "exit": 1,
       "failedTests": [
-        "retirement planning > retains unfinished work regardless of age and excludes it from successful history [4.80ms]"
+        "retirement planning > retains unfinished work regardless of age and excludes it from successful history [1.89ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -553,7 +553,7 @@
       "pattern": "",
       "index": 38,
       "exit": 1,
-      "failedTests": ["retirement planning > waits seven days after abandonment [1.17ms]"],
+      "failedTests": ["retirement planning > waits seven days after abandonment [0.25ms]"],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
     },
@@ -566,10 +566,10 @@
       "index": 39,
       "exit": 1,
       "failedTests": [
-        "current consumer shared tier preserves its image while oldest four unique tiers retire [0.70ms]",
-        "exact deployment roots remain protected across different owners without retaining unrelated old roots [0.34ms]",
-        "exact recovery roots remain protected across different owners without retaining unrelated old roots [0.25ms]",
-        "exact consumer roots remain protected across different owners without retaining unrelated old roots [0.40ms]"
+        "current consumer shared tier preserves its image while oldest four unique tiers retire [0.57ms]",
+        "exact deployment roots remain protected across different owners without retaining unrelated old roots [0.25ms]",
+        "exact recovery roots remain protected across different owners without retaining unrelated old roots [0.12ms]",
+        "exact consumer roots remain protected across different owners without retaining unrelated old roots [0.14ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -583,11 +583,11 @@
       "index": 40,
       "exit": 1,
       "failedTests": [
-        "retirement planning > does not count shared blobs twice [1.00ms]",
-        "current consumer shared tier preserves its image while oldest four unique tiers retire [1.08ms]",
-        "exact deployment roots remain protected across different owners without retaining unrelated old roots [0.54ms]",
-        "exact recovery roots remain protected across different owners without retaining unrelated old roots [0.37ms]",
-        "exact consumer roots remain protected across different owners without retaining unrelated old roots [0.35ms]"
+        "retirement planning > does not count shared blobs twice [0.41ms]",
+        "current consumer shared tier preserves its image while oldest four unique tiers retire [0.46ms]",
+        "exact deployment roots remain protected across different owners without retaining unrelated old roots [0.22ms]",
+        "exact recovery roots remain protected across different owners without retaining unrelated old roots [0.11ms]",
+        "exact consumer roots remain protected across different owners without retaining unrelated old roots [0.12ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -600,7 +600,7 @@
       "pattern": "",
       "index": 41,
       "exit": 1,
-      "failedTests": ["does not retire an already retired abandoned operation again [0.52ms]"],
+      "failedTests": ["does not retire an already retired abandoned operation again [0.63ms]"],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
     },
@@ -613,7 +613,7 @@
       "index": 42,
       "exit": 1,
       "failedTests": [
-        "retains shared unreferenced content until every owning operation releases it [0.48ms]"
+        "retains shared unreferenced content until every owning operation releases it [0.28ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -627,7 +627,7 @@
       "index": 43,
       "exit": 1,
       "failedTests": [
-        "retirement planning > reports all-protected exhaustion without weakening retention [0.59ms]"
+        "retirement planning > reports all-protected exhaustion without weakening retention [0.38ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -641,7 +641,7 @@
       "index": 44,
       "exit": 1,
       "failedTests": [
-        "retirement planning > targets below seventy percent and requests pressure cleanup at eighty [0.73ms]"
+        "retirement planning > targets below seventy percent and requests pressure cleanup at eighty [0.27ms]"
       ],
       "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
       "observedAt": "2026-11-08"
@@ -655,7 +655,7 @@
       "index": 45,
       "exit": 1,
       "failedTests": [
-        "rejects malformed claims and insecure journal paths before mutations [29.38ms]"
+        "rejects malformed claims and insecure journal paths before mutations [10.66ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -669,7 +669,7 @@
       "index": 46,
       "exit": 1,
       "failedTests": [
-        "rejects malformed claims and insecure journal paths before mutations [38.01ms]"
+        "rejects malformed claims and insecure journal paths before mutations [13.49ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -683,7 +683,7 @@
       "index": 47,
       "exit": 1,
       "failedTests": [
-        "rejects missing unreadable and corrupt trusted state on command paths [14.49ms]"
+        "rejects missing unreadable and corrupt trusted state on command paths [8.18ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -697,7 +697,7 @@
       "index": 48,
       "exit": 1,
       "failedTests": [
-        "rejects malformed claims and insecure journal paths before mutations [31.21ms]"
+        "rejects malformed claims and insecure journal paths before mutations [16.91ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -711,7 +711,7 @@
       "index": 49,
       "exit": 1,
       "failedTests": [
-        "bounds valid oversized command and journal inputs and refuses exhausted revisions [89.21ms]"
+        "bounds valid oversized command and journal inputs and refuses exhausted revisions [62.47ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -725,7 +725,7 @@
       "index": 50,
       "exit": 1,
       "failedTests": [
-        "refuses reinitialization, clock reversal, duplicate roots and malformed trusted ownership [25.23ms]"
+        "refuses reinitialization, clock reversal, duplicate roots and malformed trusted ownership [12.15ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -739,7 +739,7 @@
       "index": 51,
       "exit": 1,
       "failedTests": [
-        "refuses reinitialization, clock reversal, duplicate roots and malformed trusted ownership [26.85ms]"
+        "refuses reinitialization, clock reversal, duplicate roots and malformed trusted ownership [15.39ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -753,7 +753,7 @@
       "index": 52,
       "exit": 1,
       "failedTests": [
-        "rejects malformed claims and insecure journal paths before mutations [32.20ms]"
+        "rejects malformed claims and insecure journal paths before mutations [14.57ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -767,7 +767,7 @@
       "index": 53,
       "exit": 1,
       "failedTests": [
-        "refuses unsafe replacement entries without deleting canonical or unrelated files [25.08ms]"
+        "refuses unsafe replacement entries without deleting canonical or unrelated files [10.94ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -781,7 +781,7 @@
       "index": 54,
       "exit": 1,
       "failedTests": [
-        "refuses unsafe replacement entries without deleting canonical or unrelated files [35.69ms]"
+        "refuses unsafe replacement entries without deleting canonical or unrelated files [31.08ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -795,7 +795,7 @@
       "index": 55,
       "exit": 1,
       "failedTests": [
-        "refuses a foreign-owner replacement reported by the filesystem boundary [696.94ms]"
+        "refuses a foreign-owner replacement reported by the filesystem boundary [493.32ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -809,7 +809,7 @@
       "index": 56,
       "exit": 1,
       "failedTests": [
-        "refuses unsafe replacement entries without deleting canonical or unrelated files [27.75ms]"
+        "refuses unsafe replacement entries without deleting canonical or unrelated files [27.39ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -823,7 +823,7 @@
       "index": 57,
       "exit": 1,
       "failedTests": [
-        "refuses unsafe replacement entries without deleting canonical or unrelated files [55.45ms]"
+        "refuses unsafe replacement entries without deleting canonical or unrelated files [24.50ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -837,7 +837,7 @@
       "index": 58,
       "exit": 1,
       "failedTests": [
-        "reclaims a crashed pre-rename replacement only after validating canonical state [1774.85ms]"
+        "reclaims a crashed pre-rename replacement only after validating canonical state [487.58ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -851,7 +851,7 @@
       "index": 59,
       "exit": 1,
       "failedTests": [
-        "propagates orphan directory fsync failure without acknowledging the read command [19.39ms]"
+        "propagates orphan directory fsync failure without acknowledging the read command [12.09ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -865,7 +865,7 @@
       "index": 60,
       "exit": 1,
       "failedTests": [
-        "refuses a competing process holding the actual kernel lock without a locked bypass [25.98ms]"
+        "refuses a competing process holding the actual kernel lock without a locked bypass [30.48ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -878,7 +878,7 @@
       "pattern": "reserves failure growth",
       "index": 61,
       "exit": 1,
-      "failedTests": ["reserves failure growth below the bounded journal read limit [443.72ms]"],
+      "failedTests": ["reserves failure growth below the bounded journal read limit [148.54ms]"],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
     },
@@ -891,7 +891,7 @@
       "index": 62,
       "exit": 1,
       "failedTests": [
-        "charges physical replacement allocation before spending recovery headroom [25.32ms]"
+        "charges physical replacement allocation before spending recovery headroom [15.39ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -905,7 +905,7 @@
       "index": 63,
       "exit": 1,
       "failedTests": [
-        "refuses a full journal including atomic replacement and retains failure headroom [16.13ms]"
+        "refuses a full journal including atomic replacement and retains failure headroom [13.51ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -919,7 +919,7 @@
       "index": 64,
       "exit": 1,
       "failedTests": [
-        "propagates failed file and directory fsync without acknowledging mutation [48.09ms]"
+        "propagates failed file and directory fsync without acknowledging mutation [12.85ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -933,7 +933,7 @@
       "index": 65,
       "exit": 1,
       "failedTests": [
-        "propagates failed file and directory fsync without acknowledging mutation [50.67ms]"
+        "propagates failed file and directory fsync without acknowledging mutation [16.47ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -947,7 +947,7 @@
       "index": 66,
       "exit": 1,
       "failedTests": [
-        "removes its replacement after repeated fsync failures while preserving canonical state [32.15ms]"
+        "removes its replacement after repeated fsync failures while preserving canonical state [14.68ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -961,7 +961,7 @@
       "index": 67,
       "exit": 1,
       "failedTests": [
-        "propagates replacement cleanup failure and reclaims the orphan after permission recovery [19.50ms]"
+        "propagates replacement cleanup failure and reclaims the orphan after permission recovery [7.02ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -975,7 +975,7 @@
       "index": 68,
       "exit": 1,
       "failedTests": [
-        "rejects stale operation tokens and foreign owners before releasing protections [26.06ms]"
+        "rejects stale operation tokens and foreign owners before releasing protections [11.78ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -989,7 +989,7 @@
       "index": 69,
       "exit": 1,
       "failedTests": [
-        "rejects stale operation tokens and foreign owners before releasing protections [44.42ms]"
+        "rejects stale operation tokens and foreign owners before releasing protections [14.11ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -1003,7 +1003,7 @@
       "index": 70,
       "exit": 1,
       "failedTests": [
-        "rejects corrupted active and failed maintenance phase combinations before recovery [53.02ms]"
+        "rejects corrupted active and failed maintenance phase combinations before recovery [16.10ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -1017,7 +1017,7 @@
       "index": 71,
       "exit": 1,
       "failedTests": [
-        "rejects corrupted active and failed maintenance phase combinations before recovery [17.97ms]"
+        "rejects corrupted active and failed maintenance phase combinations before recovery [11.66ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -1031,7 +1031,7 @@
       "index": 72,
       "exit": 1,
       "failedTests": [
-        "rejects corrupted active and failed maintenance phase combinations before recovery [154.88ms]"
+        "rejects corrupted active and failed maintenance phase combinations before recovery [25.36ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -1044,7 +1044,7 @@
       "pattern": "rejects stale revision",
       "index": 73,
       "exit": 1,
-      "failedTests": ["rejects stale revision without changing durable state [44.48ms]"],
+      "failedTests": ["rejects stale revision without changing durable state [21.63ms]"],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
     },
@@ -1057,7 +1057,7 @@
       "index": 74,
       "exit": 1,
       "failedTests": [
-        "preserves failed maintenance ownership until explicit recovery and verified completion [43.19ms]"
+        "preserves failed maintenance ownership until explicit recovery and verified completion [17.41ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -1071,7 +1071,7 @@
       "index": 75,
       "exit": 1,
       "failedTests": [
-        "rejects invalid journal measurements and preserves unresolved publication ownership [54.98ms]"
+        "rejects invalid journal measurements and preserves unresolved publication ownership [14.83ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -1085,7 +1085,7 @@
       "index": 76,
       "exit": 1,
       "failedTests": [
-        "recovers crashed maintenance at its durable phase and completes only after every verification phase [39.99ms]"
+        "recovers crashed maintenance at its durable phase and completes only after every verification phase [14.55ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -1099,7 +1099,7 @@
       "index": 77,
       "exit": 1,
       "failedTests": [
-        "bounds valid oversized command and journal inputs and refuses exhausted revisions [40.95ms]"
+        "bounds valid oversized command and journal inputs and refuses exhausted revisions [24.15ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -1113,7 +1113,7 @@
       "index": 78,
       "exit": 1,
       "failedTests": [
-        "refuses initialize when an orphan may be the only recoverable journal [7.98ms]"
+        "refuses initialize when an orphan may be the only recoverable journal [10.95ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -1127,9 +1127,9 @@
       "index": 79,
       "exit": 1,
       "failedTests": [
-        "chronology rejects standard reversal before durable mutation [13.00ms]",
-        "chronology rejects expanded-boundary reversal before durable mutation [6.31ms]",
-        "chronology rejects negative-expanded reversal before durable mutation [3.67ms]"
+        "chronology rejects standard reversal before durable mutation [13.04ms]",
+        "chronology rejects expanded-boundary reversal before durable mutation [3.17ms]",
+        "chronology rejects negative-expanded reversal before durable mutation [2.90ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -1143,7 +1143,7 @@
       "index": 80,
       "exit": 1,
       "failedTests": [
-        "bounds valid oversized command and journal inputs and refuses exhausted revisions [114.89ms]"
+        "bounds valid oversized command and journal inputs and refuses exhausted revisions [38.77ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -1157,10 +1157,10 @@
       "index": 81,
       "exit": 1,
       "failedTests": [
-        "chronology rejects expanded-boundary reversal before durable mutation [11.06ms]",
-        "chronology accepts expanded-boundary advancement from an earlier spelling [8.07ms]",
-        "chronology rejects negative-expanded reversal before durable mutation [7.23ms]",
-        "chronology accepts negative-expanded advancement from an earlier spelling [4.55ms]"
+        "chronology rejects expanded-boundary reversal before durable mutation [5.32ms]",
+        "chronology accepts expanded-boundary advancement from an earlier spelling [2.43ms]",
+        "chronology rejects negative-expanded reversal before durable mutation [2.80ms]",
+        "chronology accepts negative-expanded advancement from an earlier spelling [1.46ms]"
       ],
       "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
       "observedAt": "2026-11-08"
@@ -1174,7 +1174,7 @@
       "index": 82,
       "exit": 1,
       "failedTests": [
-        "runs the owner-only stdin CLI with real measurements and bounds input [1041.80ms]"
+        "runs the owner-only stdin CLI with real measurements and bounds input [873.02ms]"
       ],
       "sourceSha256": "82b275422a3f9fe50843092474b20df0f4e4bc7e4c86b8895287a10789811ae1",
       "observedAt": "2026-11-08"
@@ -1188,10 +1188,57 @@
       "index": 83,
       "exit": 1,
       "failedTests": [
-        "runs the owner-only stdin CLI with real measurements and bounds input [1927.00ms]"
+        "runs the owner-only stdin CLI with real measurements and bounds input [1083.34ms]"
       ],
       "sourceSha256": "82b275422a3f9fe50843092474b20df0f4e4bc7e4c86b8895287a10789811ae1",
       "observedAt": "2026-11-08"
     }
-  ]
+  ],
+  "directoryEnumerationCorrection": {
+    "previousCheckpoint": "037654411a89682d8f753b72be6288eb07fa6160",
+    "previousJournalTestSha256": "b7fb6913f53c223c93e5210d81d25c95415589312484c0cb93f2c2c8000aaa13",
+    "fixtureSource": "import * as filesystem from 'node:fs/promises';\nimport { mock } from 'bun:test';\n\nconst nativeReaddir = filesystem.readdir;\nmock.module('node:fs/promises', () => ({\n  ...filesystem,\n  readdir: async (...arguments_) => {\n    const entries = await nativeReaddir(...arguments_);\n    return entries.sort((left, right) =>\n      String(typeof right === 'object' && 'name' in right ? right.name : right).localeCompare(\n        String(typeof left === 'object' && 'name' in left ? left.name : left),\n      ),\n    );\n  },\n}));\n",
+    "command": "bun test --preload <saved-fixture> --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-fleet/src/registry-journal.test.ts",
+    "before": {
+      "exit": 1,
+      "pass": 31,
+      "fail": 5,
+      "assertions": 245
+    },
+    "after": {
+      "exit": 0,
+      "pass": 36,
+      "fail": 0,
+      "assertions": 264
+    },
+    "change": "Sort actual enumeration only in the five exact directory-membership assertions. Expected filenames and no-orphan guarantees remain unchanged.",
+    "proofRefresh": "All 84 existing guard faults rerun after this test-only change; every fault caused a named test failure. Production source hashes are unchanged.",
+    "validation": {
+      "focused": {
+        "exit": 0,
+        "pass": 86,
+        "fail": 0,
+        "assertions": 362,
+        "files": 2,
+        "seconds": 6.94
+      },
+      "wholeFleetCheck": {
+        "command": "NX_DAEMON=false bunx nx run tool-fleet:check --skip-nx-cache",
+        "exit": 0,
+        "tests": 690,
+        "fail": 0,
+        "assertions": 2522,
+        "files": 46,
+        "testSeconds": 67.48,
+        "totalDuration": "1m 25s",
+        "artifactFamilies": "every family passed",
+        "includes": ["test", "lint", "typecheck", "static artifact validation"]
+      },
+      "mainComposition": {
+        "main": "a2a9764f3b3ba5d83a8e309b766ada9c9f82156e",
+        "changedPaths": 10,
+        "candidateIntersection": []
+      }
+    }
+  }
 }
