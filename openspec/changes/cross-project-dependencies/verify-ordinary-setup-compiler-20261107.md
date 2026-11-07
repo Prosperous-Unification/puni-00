@@ -81,3 +81,43 @@ import/automatic retry. Then two genuine native controls, all39HOLD/cleanup
 migrations/census/routing/fullCI/exactSHAhostgate/main/deploy remain required.
 No consumed private constructor grant is replayed and no architecture merge or
 deployment is represented. The full cross-project feature goal remains active.
+
+## Actual compiler-only qualification
+
+The [accepted actual checkpoint](setup-compiler-actual-20261107/README.md)
+ran once at published cleanHEAD127ca953eaf2c059a54c8b13444b4a061619252f.
+Expected141137B/398185f7, launcher9808B/89e3857f, unchangeddriver9990e979
+and finalprotocol3b6633bf were independently reviewed607d7fa6 before Root's
+separate recorded invocation decision. Earlier pending artifacts were preserved.
+No old private-constructor authority or consumed compiler claim was reused.
+
+Toolsession56937 returned exit0. Child137879 exited0/no signal, both streamsEOF,
+all289 exact pre/post pins and cleanHEAD agree, with no postflight/start error.
+Complete parent stdout retains1757 unique fulfilled/joined operations including
+receipt.write; receipt's own preceding snapshot contains1756. Exact roster
+membership/multiplicity match; concurrent completion order is not constrained.
+
+All47setup/47callback receipts,2064closure keys and287predicted compiler inputs
+match fixed canonical packets. Independent compact extraction verified558 raw
+buffers/239934650bytes and47callbacks/546506bytes;1770closure operations
+fulfilled and294 produced the exact named ENOENT outcomes. A separate Python
+graph reconstruction agrees with all1034 rawSDK associations:889direct,
+118Node-prefix and27closed historical-relative. Four scanner edges remain
+external; selected digest and physical17/virtual31 provenance agree throughout.
+
+Saved output1196628B SHA-256
+`01cc9b6fcd935aee3843aca7ac3c02bfa4cb8dfc866ef7c60acd5a362a8f17c7`
+equals the actual artifact; generated entry remains2384B/166dd5de. SDK reports
+success with zero diagnostics. The raw321171291B capture stays privately
+retained at059d0cbf, with independently checked compact scalar evidence archived.
+
+Sol actual audit57114a72 and independent Astra actual review80dfb27d are preserved in
+the packet. Captured identity flags cannot reconstruct live JavaScript identity;
+the successful reviewed assertion path supplies additional evidence. The sync
+callback snapshot has assertion-path evidence, not its own serialized success
+record. Source protection is coordinated, not an atomic/host-wide lock.
+
+SCB4/SPC4 are complete at this compiler-only boundary. Output was never imported,
+and scanner/native/controller execution, full live diagnostic/R5 failure paths,
+two genuine known controls,39HOLD/migrations/census/fullCI/exactSHAhostgate/main
+and deployment remain unqualified. No source/native retry follows automatically.

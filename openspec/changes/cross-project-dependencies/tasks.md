@@ -1497,7 +1497,7 @@ cleanup-migration, complete census, full CI/host gate, main or deployment obliga
 - [x] SPC1. Derive finite source/Git/tree setup budgets and implement the separate prospective planner/retained setup ledger, preserving old outputs and composition256/core8192 bounds.
 - [x] SPC2. Execute actual generated-ledger finite tests, independent guard fault/restoration controls and original/deferred/cleanup custody checks with exact restoration.
 - [x] SPC3. Pass configured/scoped checks, independent source/proof review, publish fresh source/evidence and record WBS/holder state.
-- [ ] SPC4. Seal separate prospective compiler authorities, enable only explicit validated variant dispatch and qualify a separately reviewed one-attempt actual compilation.
+- [x] SPC4. Seal separate prospective compiler authorities, enable only explicit validated variant dispatch and qualify a separately reviewed one-attempt actual compilation.
 - [ ] SPC5. Review and execute the two distinct genuine known runtime controls sequentially with actual parent/child/reader/input custody and honestly scoped module/scratch lifetimes.
 
 All39HOLD/cleanup migrations/census/routing/fullCI/host gate/main/deploy obligations
@@ -1517,7 +1517,7 @@ full native/HOLD/migration/census/gate/main/deployment obligations remain open.
 - [x] SCB1. Review independent reconstructed/frozen setup packets and install only the exact four new authority files, preserving old bytes and no producer oracle.
 - [x] SCB2. Implement two fixed decoder policies and one shared genuine builder/inspection path with exact variant provenance and no fallback.
 - [x] SCB3. Observe finite R5/predicate restoration, configured/strict generated checks and independent source/proof review; publish all source/evidence freshly.
-- [ ] SCB4. Freeze/review one exact compiler-only protocol, execute its single attempt and audit real callbacks/closure/metadata/output and parent terminal custody without output import or automatic retry.
+- [x] SCB4. Freeze/review one exact compiler-only protocol, execute its single attempt and audit real callbacks/closure/metadata/output and parent terminal custody without output import or automatic retry.
 
 All native/HOLD/migration/census/gate/main/deployment parent requirements remain
 open; source acceptance and compilation are separate from SPC5 real controls.
@@ -1525,3 +1525,8 @@ open; source acceptance and compilation are separate from SPC5 real controls.
 [Reviewed shared-builder source](verify-ordinary-setup-compiler-20261107.md)
 completes SCB1–3source/data/proof scope. SCB4/actual compilation, SPC5native
 controls and all fullHOLD/migration/census/gate/main/deploy obligations remain.
+
+The [actual setup compiler checkpoint](setup-compiler-actual-20261107/README.md)
+completes SCB4/SPC4 with independently audited built-unqualified output. This
+closes no SPC5 native-control or full39HOLD/migration/census/routing/CI/hostgate/
+main/deployment obligation; all six KCT parent boxes remain unchecked.
