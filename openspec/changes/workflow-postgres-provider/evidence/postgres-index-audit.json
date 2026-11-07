@@ -1,0 +1,17 @@
+{
+  "accepted": true,
+  "scope": "Observed private SQL mechanics only; no product/provider/driver acceptance or production R5 credit.",
+  "directory": "/home/df/wd/puni/puni-00/.superpowers/sdd/agentic-resume-20261104/postgres-index-1793821411134",
+  "nativeCommands": 72,
+  "server": {
+    "version": "PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+    "versionNum": "180006"
+  },
+  "byteRoundtrips": 9,
+  "forcedDigestCollisionKeys": 2,
+  "healthyConcurrencyCases": 3,
+  "negativeControlsWithActualDuplicateRows": 3,
+  "allNativeStreamsHashVerified": true,
+  "ownedCleanupVerified": true,
+  "priorP10Resolved": false
+}

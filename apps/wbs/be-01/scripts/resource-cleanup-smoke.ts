@@ -11,19 +11,29 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { resourceRuntimeEvent, resourceUse, resourceUseEvent } from '@wbs/contracts';
+import { resourceUse, resourceUseEvent } from '@wbs/contracts';
 import { type } from 'arktype';
 
+// Proof: Nx rejected this cross-application import too; the smoke composes Dash's tool port.
+// eslint-disable-next-line @nx/enforce-module-boundaries
+import type {
+  ToolAnswer,
+  WbsTools,
+} from '../../../twilight-structure/twilight-dash/cli/src/mcp/wbs-tools';
 // Proof: Nx rejected this cross-application import; this executable smoke intentionally composes the real WBS and Dash applications.
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import {
+  linuxHostFacts,
   loadResourceConfiguration,
   ResourceRuntime,
 } from '../../../twilight-structure/twilight-dash/cli/src/resources/runtime';
 import { addAgentPerson, issueApiKey } from '../src/testing/machine-credential-fixture';
+import { callForwarded, forwardingMachineGrants } from '../src/testing/mcp-forwarded-call';
 import { OrganizationHarness } from '../src/testing/organization-harness';
 
 /** Real destructive cleanup is confined to a disposable PID namespace and a fresh temporary root.
+ * Dash's runtime calls WBS's tools (`wbs-mcp-agent-surface` M9): each call here is be-01's half
+ * of what mcp-01 forwards ({@link callForwarded}), read back as mcp-01 reports it.
  * Run: unshare --user --map-root-user --pid --fork --mount-proc bun apps/wbs/be-01/scripts/resource-cleanup-smoke.ts
  */
 if (process.pid !== 1)
@@ -46,7 +56,72 @@ function firstUse(body: unknown) {
   if (first === undefined) throw new Error('Tracking returned no resource use');
   return first;
 }
-const h = OrganizationHarness.openComposed();
+/** The runtime routes by tool name, as mcp-01 derives them. */
+const RUNTIME_ROUTES = new Map<string, readonly ['GET' | 'PUT', string]>([
+  ['putApiResourceAuthoritiesByAuthorityIdAdmissions', ['PUT', 'admissions']],
+  ['putApiResourceAuthoritiesByAuthorityIdEvents', ['PUT', 'events']],
+  ['getApiResourceAuthoritiesByAuthorityIdCleanupRequests', ['GET', 'cleanup-requests']],
+]);
+const errorCode = type({ error: 'string' });
+const EVENT_TOOL = 'putApiResourceAuthoritiesByAuthorityIdEvents';
+const h = OrganizationHarness.openComposedWith({ machineGrants: await forwardingMachineGrants() });
+
+/**
+ * Dash's tool port over be-01's forwarded machine grant for `key`: a 2xx is relayed, a
+ * `401 unknown_identity` is mcp-01's `machine_credential_refused`, any other 4xx a refusal.
+ */
+function forwardedTools(key: string): WbsTools {
+  return {
+    async call(name, input): Promise<ToolAnswer> {
+      const route = RUNTIME_ROUTES.get(name);
+      if (route === undefined) throw new Error(`the smoke serves no tool ${name}`);
+      const [method, leaf] = route;
+      const { authorityId, after, limit, ...body } = input;
+      const query = method === 'GET' ? `?after=${String(after)}&limit=${String(limit)}` : '';
+      const answer = await callForwarded(
+        h,
+        key,
+        method,
+        `/api/resource-authorities/${encodeURIComponent(String(authorityId))}/${leaf}${query}`,
+        method === 'GET' ? undefined : body,
+      );
+      if (answer.status >= 200 && answer.status < 300)
+        return { kind: 'answered', body: answer.body };
+      const code = errorCode(answer.body);
+      const error = code instanceof type.errors ? null : code.error;
+      console.error(
+        JSON.stringify({ phase: 'transport refusal', tool: name, status: answer.status, error }),
+      );
+      if (answer.status === 401 && error === 'unknown_identity')
+        return { kind: 'not_called', reason: 'machine_credential_refused' };
+      return { kind: 'refused', status: answer.status, error, body: answer.body };
+    },
+    close: () => Promise.resolve(),
+  };
+}
+
+/** `tools`, whose first call of `name` throws `lost` after WBS has answered it. */
+function losingFirstAnswer(tools: WbsTools, name: string, lost: string): WbsTools {
+  let thrown = false;
+  return {
+    async call(called, input) {
+      const reply = await tools.call(called, input);
+      if (!thrown && called === name) {
+        thrown = true;
+        assert.equal(reply.kind, 'answered');
+        throw new Error(lost);
+      }
+      return reply;
+    },
+    close: () => Promise.resolve(),
+  };
+}
+
+/** A WBS that answers nothing. */
+const unreachable: WbsTools = {
+  call: () => Promise.reject(new Error('simulated WBS outage')),
+  close: () => Promise.resolve(),
+};
 const scratch = mkdtempSync(join(tmpdir(), 'wbs-dash-roundtrip-'));
 let runtime: ResourceRuntime | undefined;
 try {
@@ -103,41 +178,33 @@ try {
   writeFileSync(
     config,
     JSON.stringify({
-      schemaVersion: 1,
+      schemaVersion: 3,
       root,
       authorityId,
       epoch,
       providerId,
-      wbsOrigin: 'http://localhost',
+      mcpResource: 'http://localhost/mcp',
       credential: issued.key,
       diskUnitBytes: 1024,
       diskBudgetUnits: 2,
       workspaceSlots: 2,
       headroomBytes: 0,
+      cpuCores: 1,
+      memoryGib: 1,
+      headroom: { cpuCores: 0, memoryGib: 0 },
+      exclusiveUnits: {},
+      enrollmentId: 'enrollment-one',
     }),
     { mode: 0o600 },
   );
-  runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), {
-    read: () => Date.now(),
-  });
-  const send = async (request: Request) => {
-    const metadata = new URL(request.url).pathname.endsWith('/events')
-      ? resourceRuntimeEvent.assert(await request.clone().json())
-      : null;
-    const reply = await h.app.handle(request);
-    if (reply.status !== 200)
-      console.error(
-        JSON.stringify({
-          phase: 'transport refusal',
-          kind: metadata?.kind,
-          sequence: metadata?.sequence,
-          revision: metadata?.revision,
-          requestId: metadata?.requestId,
-          status: reply.status,
-        }),
-      );
-    return reply;
-  };
+  runtime = ResourceRuntime.initialize(
+    loadResourceConfiguration(config),
+    {
+      read: () => Date.now(),
+    },
+    linuxHostFacts,
+  );
+  const send = forwardedTools(issued.key);
   const use = await runtime.create(
     {
       projectId,
@@ -152,17 +219,8 @@ try {
     send,
   );
   writeFileSync(join(use.locator, 'disposable-output'), 'proof output');
-  let lost = false;
   await assert.rejects(
-    runtime.synchronize(async (request) => {
-      const reply = await send(request);
-      if (!lost && request.method === 'PUT') {
-        lost = true;
-        assert.equal(reply.status, 200);
-        throw new Error('simulated acknowledgement loss');
-      }
-      return reply;
-    }),
+    runtime.synchronize(losingFirstAnswer(send, EVENT_TOOL, 'simulated acknowledgement loss')),
     /acknowledgement loss/,
   );
   assert.equal(runtime.outbox().length, 1);
@@ -200,10 +258,7 @@ try {
   assert.equal(runtime.inspect(use.id).state, 'released', runtime.inspect(use.id).reason);
   assert.equal(existsSync(use.locator), false);
   assert.equal(runtime.inspect(use.id).releasedDiskUnits, 1);
-  await assert.rejects(
-    runtime.synchronize(() => Promise.reject(new Error('simulated WBS outage'))),
-    /WBS outage/,
-  );
+  await assert.rejects(runtime.synchronize(unreachable), /WBS outage/);
   assert.ok(runtime.outbox().length >= 1);
   await runtime.synchronize(send);
   await runtime.synchronize(send);
@@ -253,14 +308,7 @@ try {
   mkdirSync(raced.locator);
   writeFileSync(join(raced.locator, 'replacement'), 'must remain');
   await assert.rejects(
-    runtime.synchronize(async (request) => {
-      const reply = await send(request);
-      if (request.method === 'PUT') {
-        assert.equal(reply.status, 200);
-        throw new Error('terminal acknowledgment loss');
-      }
-      return reply;
-    }),
+    runtime.synchronize(losingFirstAnswer(send, EVENT_TOOL, 'terminal acknowledgment loss')),
     /terminal acknowledgment loss/,
   );
   runtime.close();
@@ -319,11 +367,11 @@ try {
   await assert.rejects(
     runtime.create(
       { ...use.request, workItemId: survivingWork, agentRun: 'lost-admission' },
-      async (request) => {
-        const response = await send(request);
-        assert.equal(response.status, 200);
-        throw new Error('admission response lost');
-      },
+      losingFirstAnswer(
+        send,
+        'putApiResourceAuthoritiesByAuthorityIdAdmissions',
+        'admission response lost',
+      ),
     ),
     /admission response lost/,
   );
@@ -380,7 +428,7 @@ try {
   await assert.rejects(
     runtime.create(
       { ...use.request, workItemId: 'never-existed', agentRun: 'rejected-admission' },
-      (request) => h.app.handle(request),
+      send,
     ),
     /admission HTTP 404/,
   );
@@ -407,10 +455,7 @@ try {
   );
   runtime.sweep();
   assert.equal(runtime.inspect(independent.id).state, 'released');
-  await assert.rejects(
-    runtime.synchronize((request) => h.app.handle(request)),
-    /admission HTTP 404/,
-  );
+  await assert.rejects(runtime.synchronize(send), /admission HTTP 404/);
   assert.equal(runtime.outbox().length, 0);
   assert.equal(
     uses

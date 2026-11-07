@@ -17,7 +17,9 @@
     `jti` consume.
   - (c) M4: the 24 h cap.
   - (d) M7: pools.
-  - (e) M9: the cut.
+  - (e) M9: the cut. **ASSUMED** (assume-and-document; Dany may reverse): the M9 cut ships in
+    two halves, keys and trusted-issuer tokens now (slice 18), the groups-less
+    configured-issuer half after #731 (landed in PR #731, slice 21).
   - (f) M15: opt-in run scoping.
   - (g) **Open question, M16: the account-keyed parent check.** This change leaves
     `parent_claim_foreign` and `wbs-team-claims` D7 exactly as they are. Today any agent bound
@@ -121,13 +123,13 @@
       `production-entrypoint.test.ts` keeps unreachable from `main.ts`. `CredentialAuthentication`
       gains `runId?`, and the `'personId' in credential` sites (M6) are updated. Negative: omit
       `personId` from the grant principal, and the lease assertion reddens.
-- [ ] 1.5 The A25 audience rule (machine-credentials MODIFIED delta), in two steps:
+- [x] 1.5 The A25 audience rule (machine-credentials MODIFIED delta), in two steps:
   - [x] **Now** (slice 5; verify.md, slice 5 notes 8 to 10): `WBS_MCP_AUTHORIZATION_SERVER`,
         boot-checked by the canonicalisation function, which moves to `@wbs/contracts`. Both
         existing copies, `oauth.ts` 269–271 and `http.ts` 25–29, are replaced by calls to it.
         New registrations and narrowings must equal it or sit under it with `/`. The preflight
         CLI is a dry run.
-  - **With slice 7:** refuse non-conforming stored rows at use.
+  - **With slice 7:** refuse non-conforming stored rows at use. (verify.md slice 18.)
 
   Tests: the look-alike and preflight scenarios; existing `wbs:org:` rows keep verifying on
   `/api` before slice 7. Negatives:
@@ -250,15 +252,25 @@
       fake. A `wbs_mk_` key is already 401 through `decodeJwt`, and no check is claimed for
       it.
 - [ ] 3.6 Hosted connector check on dev: claude.ai consent with `none` is unchanged. Record it.
+      (Since #751 claude.ai registers `client_secret_post`, not `none`; task 3.9.)
+- [x] 3.9 Confidential consent clients (design M17): registration accepts `client_secret_basic`
+      and `client_secret_post`, answers the secret once and stores its digest; the consent
+      grants require it by the registered method. Negatives: accept only `none` again (the live
+      400); skip the code or refresh refusal; compare only the secret, not the method; make the
+      digest compare return `true`; the migration CHECKs as `CHECK (1)`; the rollback preflight
+      and down `DELETE` removed. A boot test runs the claude.ai-shaped flow through the MCP SDK.
+      The claude.ai check on dev after deploy stays with 3.6. Review of PR #791: the family
+      records its client's method and the exchange is atomic (S2-1), an absent method is
+      `client_secret_basic`, and the metadata lists all three methods. verify.md slice 20.
 - [x] 3.7 Secret cutover (M14), with each secret tested on `/internal/mcp/delegation`. The old
       secret is removed in release N+1 (a follow-up).
-- [ ] 3.8 Remove the consent path's `use === undefined` branch (`consentClaimsOf` in
+- [x] 3.8 Removed the consent path's `use === undefined` branch (`consentClaimsOf` in
       `apps/wbs/mcp-01/src/oauth.ts`; design M5), so a token without `token_use` is refused.
-      Due once `MCP_ACCESS_TOKEN_TTL` (default 1 h) has passed since the slice-2 release
-      (PR #761, merged into the plan branch 2026-10-27) reached each deployment: on dev, one
-      hour after this plan branch is merged and deployed; on prod, one hour after the prod
-      swap that carries it. Owner: whoever lands the prod swap. Negative: keep the branch, and
-      a re-signed consent token without `token_use` stays admitted.
+      Done 2026-10-30, once `MCP_ACCESS_TOKEN_TTL` had long passed since the slice-2 release
+      (PR #761) reached dev on 2026-10-27; no prod mcp-01 has run (Compose routes no `/mcp`, the
+      Kubernetes cutover is not yet authorized), so prod needs no wait. Negative: with the
+      branch kept, a re-signed consent token without `token_use` stays admitted. verify.md
+      slice 19.
 
 ## 4. Limits and the source address
 
@@ -326,27 +338,37 @@
 
 ## 7. REST stops being an agent surface (gated: claire fleets on MCP, observed on dev)
 
-- [ ] 7.0 Migrate the raw-key `/api` suites: `swarm-end-to-end.db.test.ts`,
+- [x] 7.0 Migrate the raw-key `/api` suites: `swarm-end-to-end.db.test.ts`,
       `machine-credential.controller.db.test.ts`, the compute-provider tests, and
       `dev/activated-organization-server.ts` with its `local-dev.md` section.
-- [ ] 7.1 and 7.2 ship in one PR, with three parts:
+      (verify.md slice 16: what moved, and what is marked "removed by 7.1 (M9)". Slice 17 covers
+      the other eleven be-01 suites the same way, with the trusted-issuer token cases on mcp-01's
+      `jwt-bearer` grant. Its repo-wide sweep found Dash's `resources/runtime.ts` still sending
+      the key itself to `/api/resource-authorities/*`. That is outside 7.2's named file, and
+      7.1 must not land without it.)
+- [x] 7.1 and 7.2 ship in one PR, with three parts:
   - M9's refusal;
   - Dash's `report-capacity.ts` as an MCP client;
   - task 1.5's at-use audience enforcement.
 
   Negatives: move the refusal after the read; the old Dash HTTP path test observes
   `machine_bearer_not_accepted`.
+  (verify.md slice 18; 8.1 passed on dev 2026-10-29. Dash's `resources` runtime is an MCP client too.)
+  - [x] The groups-less configured-issuer half of M9, after #731 (its precondition, merged
+        with it in PR #731): such a token answers `machine_bearer_not_accepted` on `/api`.
+        (verify.md slice 21.)
 
-- [ ] 7.3 Docs (M12), with Burokrat `check-indexes` exiting 0.
+- [x] 7.3 Docs (M12), with Burokrat `check-indexes` exiting 0. (verify.md slice 18.)
 
 ## 8. Roll-out
 
-- [ ] 8.1 Dev: the claire fleet goes straight to MCP. A pool of 3 runs under `headersHelper`
+- [x] 8.1 Dev: the claire fleet goes straight to MCP. A pool of 3 runs under `headersHelper`
       with `twilight-dash mcp token`, each with its own `wbs_run`: they claim, heartbeat and
       release. Re-key mid-run, then revoke, and observe the leases end. Record it. This gates
       slice 7.
-      (Not done: the dev run waits on a pool in the dev web app. Its rehearsal on a throwaway stack,
-      `apps/wbs/mcp-01/src/load/pool-swarm-rehearsal.ts`, passed; verify.md slice 13.)
+      (Passed on dev 2026-10-29, about 23:20–23:35Z: a pool of 3, claims, heartbeats, re-key and
+      revoke, with the leases released `credential_revoked`; verify.md "8.1 dev run". The
+      rehearsal on a throwaway stack, `pool-swarm-rehearsal.ts`, is verify.md slice 13.)
 - [x] 8.2 Prod runbook:
   - seed `WBS_MACHINE_GRANT_SIGNING_KEY_*`, `MCP_BE_INTERNAL_SECRET` and
     `WBS_MCP_AUTHORIZATION_SERVER`;

@@ -44,6 +44,8 @@ adapters, durable coordinator dispatch, S0.08 recovery or S7a.
       sessions, payload-bound retries, cancellation/listener lifecycle and honest unsupported
       durable recovery. No production provider factory or live command is enabled.
 
+2026-11-05: The reviewed I2.01 [shared executor conformance proof](executor-conformance-verify.md) publishes nine common lifecycle cases through one actual API-model/installed-SDK registration, retaining ten concrete cases and the original native evidence. This is an adapters foundation; full five-kind conformance, durable recovery, host integration and current canonical gates remain open. Existing parent checkboxes are unchanged.
+
 ## 3. The cli-harness adapter
 
 - [ ] 3.1 Red: `cli-harness-adapter.test.ts` against a fake `HarnessV1` — permission mode
@@ -100,6 +102,10 @@ cleanup for another durable store. WBS030.04/030.12 require second-provider conf
 during S0; the deployment choice and paused-writer transfer in6b.3 remain required before
 claiming portability. Neither prerequisite alone closes S0 or S7a.
 
+The [portable identity repair](../portable-workflow-identities/proposal.md) owns generated
+workflow-run IDs and exact SQLite key preservation. Its migration/conformance work remains
+open; the earlier accepted storage packet does not prove this newly observed edge case.
+
 - [x] 6a.1 Red: shared RunStore/ArtifactStore conformance tests for atomic admission,
       capacity, revision and owner conflicts, immutable manifests, outcome/outbox atomicity,
       inbox deduplication and receipt reconciliation. No SQL or engine-specific schema in ports.
@@ -109,11 +115,16 @@ claiming portability. Neither prerequisite alone closes S0 or S7a.
       versions, restart after working-tree edits, explicit revocation and provenance-aware re-pinning.
       Retained recovery is expanded in [binding recovery tasks](binding-recovery-tasks.md);
       that internal slice does not close revocation or provenance-aware re-pinning.
-- [ ] 6a.4 Red/green: unified CTT hints adapter over legacy step chains, completed-work seeds,
-      DEFER_READY, generation-checked settlement and callback-free summary. Require complete
-      discovery/validation and filter durable waits/running/retry state before admission.
-      Rebuild the frontier from WBS business facts and accepted execution facts after restart;
-      a running attempt is never admitted twice.
+- [ ] 6a.4 Red/green: native CTT 0.13 materialize/prepare adapter over legacy step chains,
+      independent `createExternalWorkSession({ acceptedCompletedWorkVertexIds })`, `runUntilWorkBoundary()` work tickets,
+      accepted-WBS-only `acceptCompletedWork` (`accepted`/`alreadyAccepted`) and callback-free summary.
+      Require complete disconnected topology validation and preserve distinct W/C milestones.
+      Filter current WBS eligibility and durable waits/running/retry state before atomic
+      RunStore admission; admission never completes work. Reconstruct independent sessions
+      from accepted WBS facts and durable attempt history, rejecting old tickets and avoiding
+      duplicate running admission. The [native integration tasks](../ctt-work-session-integration/tasks.md)
+      track this bounded local component; exact remote claim, intent-before-launch ordering
+      and coordinator CLI composition remain open, so this full checkbox stays unchecked.
       The [execution-history tasks](execution-history-tasks.md) implement the bounded persistence
       foundation for6a.5. External dispatch ordering and exact outcome/write/release remain later
       phases and the parent checkbox stays open.
@@ -133,6 +144,14 @@ claiming portability. Neither prerequisite alone closes S0 or S7a.
 - [ ] 6a.7 Green: ownership acquisition/fencing, worker lookup/reattach or verified quiescence,
       receipt/effect reconciliation and explicit unresolved operator path. Never mass-mark running
       attempts interrupted or cancelled merely because the coordinator restarted.
+      The approved [logical recovery packet](recovery-tasks.md) implements authority/claim
+      journals, fences and atomic closure first. Complete write recovery and physical
+      continuation remain required before this parent task can close.
+      Component progress (2026-11-05): the reviewed [actual API unsupported-recovery operation](api-recovery-tasks.md)
+      now has a [finite evidence packet and verification](api-recovery-verify.md#finite-reviewed-component-publication--2026-11-05),
+      including the original I1 finding and approved reply-detachment proofs. It retains uncertainty,
+      historical checkpoints and occupied capacity; full startup composition, positive physical
+      continuation, additional durable provider/transfer proof and this parent task remain open.
 - [ ] 6a.8 Provide run-coordinator, inspect-runs, resume-attempt, cancel-attempt and
       reconcile-attempt operations over adapter configuration and the guarded WBS bridge.
       Demonstrate safe compatibility

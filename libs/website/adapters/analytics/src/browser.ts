@@ -1,6 +1,9 @@
+import { parseAnalyticsRegionResponse } from '@website/contracts';
+
 import {
   type Analytics,
   type AnalyticsPorts,
+  type CookiePermission,
   createAnalytics,
   type StorageRead,
 } from './analytics';
@@ -9,6 +12,7 @@ import {
   type AnalyticsOptions,
   configureAnalytics,
   type MeasurementContext,
+  resolvePage,
 } from './configuration';
 
 const instances = new WeakMap<Window, { signature: string; analytics: Analytics }>();
@@ -75,7 +79,10 @@ function clearCookies(window: Window, configuration: AnalyticsConfiguration): bo
   );
 }
 
-/** Commands use an isolated layer, never an app's existing queue, and contain safe metadata before insertion. */
+/** Commands use an isolated layer and contain safe metadata before insertion. Startup holds at most
+ * 100 command records for at most ten seconds per attempt; overflow disables optional measurement.
+ * The loaded Google tag owns its standard command layer thereafter. Withdrawal purges the layer.
+ */
 function createVendor(window: Window): AnalyticsPorts['vendor'] {
   const queue: IArguments[] = [];
   // The Google tag protocol consumes Arguments records, not an arbitrary array/event object.
@@ -93,7 +100,19 @@ function createVendor(window: Window): AnalyticsPorts['vendor'] {
       // Proof: forcing false left collection enabled on withdrawal in one-browser-controller.
       Reflect.set(window, `ga-disable-${configuration.measurementId}`, disabled);
   }
-  function initialize(context: MeasurementContext, config: AnalyticsConfiguration) {
+  function enqueueConsent(kind: 'default' | 'update', permission: CookiePermission) {
+    command('consent', kind, {
+      analytics_storage: permission,
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied',
+    });
+  }
+  function initialize(
+    context: MeasurementContext,
+    config: AnalyticsConfiguration,
+    permission: CookiePermission,
+  ) {
     const privacy = {
       allow_google_signals: false,
       campaign_id: '',
@@ -112,18 +131,16 @@ function createVendor(window: Window): AnalyticsPorts['vendor'] {
       linker: { domains: [], accept_incoming: false },
       ...context,
     };
-    command('consent', 'default', {
-      analytics_storage: 'granted',
-      ad_storage: 'denied',
-      ad_user_data: 'denied',
-      ad_personalization: 'denied',
-    });
+    // Proof: forcing granted leaked cookie permission in browser-starts-cookieless;
+    // initialization precedes config/events in startup-preserves-Home.
+    // Proof: using default after a loaded-tag withdrawal failed returning-permission's required update.
+    enqueueConsent(initialized ? 'update' : 'default', permission);
     command('set', privacy);
     command('js', new Date());
     command('config', config.measurementId, privacy);
   }
   return {
-    load: (context, config) => {
+    load: (context, config, permission) => {
       configuration = config;
       if (
         Reflect.has(window, 'puniAnalyticsLayer') &&
@@ -133,7 +150,7 @@ function createVendor(window: Window): AnalyticsPorts['vendor'] {
       Reflect.set(window, 'puniAnalyticsLayer', queue);
       enabled = true;
       setDisabled(false);
-      initialize(context, config);
+      initialize(context, config, permission);
       if (initialized) return Promise.resolve('ready');
       return new Promise((resolve) => {
         const script = window.document.createElement('script');
@@ -171,11 +188,21 @@ function createVendor(window: Window): AnalyticsPorts['vendor'] {
         window.document.head.append(script);
       });
     },
+    updateConsent: (permission) => {
+      // Proof: removing saturation admission silently accepted a consent update beyond the startup bound.
+      if (!enabled || (!initialized && queue.length >= 100)) return 'unavailable';
+      enqueueConsent('update', permission);
+      return 'sent';
+    },
     update: (context) => {
-      if (enabled) command('set', context);
+      // Proof: removing this bound grew the full layer to 101 during navigation-never-grows;
+      // the following send reports overflow and disables measurement.
+      if (enabled && (initialized || queue.length < 100)) command('set', context);
     },
     send: (event) => {
-      if (!enabled || !initialized) return 'unavailable';
+      // Proof: removing the 100-command startup bound left collection loading with 110
+      // queued interactions in startup-commands-are-bounded.
+      if (!enabled || (!initialized && queue.length >= 100)) return 'unavailable';
       command('event', event.name, event.parameters);
       return 'sent';
     },
@@ -192,6 +219,8 @@ function createVendor(window: Window): AnalyticsPorts['vendor'] {
  * One controller per Window, shared by React and Astro; incompatible second configuration throws.
  * pageshow/focus/visibility and every dispatch/navigation reread the shared cookie. Call navigate()
  * after client navigation; call dispose() only when the whole page integration is unmounted.
+ * An unset readable choice on a registered public route resolves the regional default once, within
+ * three seconds. Failure stays unknown; choices/disposal cancel the request without replay.
  */
 export function createBrowserAnalytics(window: Window, options: AnalyticsOptions = {}): Analytics {
   const configuration = configureAnalytics(options, window.location.href);
@@ -232,8 +261,88 @@ export function createBrowserAnalytics(window: Window, options: AnalyticsOptions
     vendor: createVendor(window),
   };
   const controller = createAnalytics(options, ports);
+  let disposed = false;
+  let regionAttempted = false;
+  let cancelRegion: (() => void) | null = null;
+  // Proof: omitting cancellation failed pending regional answer is fenced after reject (signal stayed live).
+  const unsubscribeChoice = controller.subscribeChoice((choice) => {
+    if (choice !== 'unset') cancelRegion?.();
+  });
+  function resolveRegion() {
+    // Proof: removing each admission caused requests in lookup excluded for disabled/operator/saved
+    // choices/unreadable, repeated requests in region fetch is one, or a first request after disposal.
+    if (
+      disposed ||
+      regionAttempted ||
+      !configuration.enabled ||
+      controller.getChoice() !== 'unset' ||
+      resolvePage(configuration, window.location.href, '') === null
+    )
+      return;
+    regionAttempted = true;
+    const aborter = new AbortController();
+    // Proof: raising the deadline failed region request has a 3000ms deadline; removing abort
+    // left its signal live in pending regional answer is fenced after reject.
+    const timeout = window.setTimeout(cancel, 3000);
+    function cancel() {
+      aborter.abort();
+      window.clearTimeout(timeout);
+      cancelRegion = null;
+    }
+    cancelRegion = cancel;
+    async function requestRegion() {
+      let response: Response;
+      let payload: unknown;
+      try {
+        // Proof: including credentials, allowing cache, or forwarding location each failed the
+        // exact wire/privacy assertions in region fetch is one credential-free no-store request.
+        response = await window.fetch(`https://${configuration.hosts[0]}/api/analytics/region`, {
+          credentials: 'omit',
+          cache: 'no-store',
+          // Proof: omitting this policy exposed the current email query in native analytics-region.mjs Referer.
+          referrerPolicy: 'no-referrer',
+          signal: aborter.signal,
+        });
+        // Proof: accepting a valid elsewhere body with HTTP 503 failed region http retains unknown.
+        if (!response.ok) return;
+        payload = await response.json();
+      } catch (error) {
+        if (
+          error instanceof TypeError ||
+          error instanceof SyntaxError ||
+          (error instanceof Error && error.name === 'AbortError')
+        )
+          return;
+        throw error;
+      }
+      let region;
+      try {
+        // Proof: bypassing this parser granted elsewhere for identifying extra fields in region invalid-region retains unknown.
+        region = parseAnalyticsRegionResponse(payload).region;
+      } catch {
+        // Malformed external JSON is a modeled unknown regional answer.
+        return;
+      }
+      // Proof: removing this reread failed cross-host-reject after the fixture settled initial pageshow.
+      controller.sync();
+      // Proof: removing the abort fence granted a noncooperative timed-out response; removing the
+      // route admission applied a late answer on a newly unsupported route. Choice is independently fenced.
+      if (
+        aborter.signal.aborted ||
+        controller.getChoice() !== 'unset' ||
+        controller.getState().status === 'disabled'
+      )
+        return;
+      controller.setRegion(region);
+    }
+    void requestRegion().finally(() => {
+      window.clearTimeout(timeout);
+      if (!aborter.signal.aborted) cancelRegion = null;
+    });
+  }
   const sync = () => {
     controller.navigate();
+    resolveRegion();
   };
   const visible = () => {
     if (window.document.visibilityState === 'visible') sync();
@@ -243,7 +352,25 @@ export function createBrowserAnalytics(window: Window, options: AnalyticsOptions
   window.document.addEventListener('visibilitychange', visible);
   const analytics: Analytics = {
     ...controller,
+    sync: () => {
+      controller.sync();
+      resolveRegion();
+    },
+    navigate: sync,
+    dispatch: (event) => {
+      const outcome = controller.dispatch(event);
+      resolveRegion();
+      return outcome;
+    },
+    dispatchLead: (receipt, event) => {
+      const outcome = controller.dispatchLead(receipt, event);
+      resolveRegion();
+      return outcome;
+    },
     dispose: () => {
+      disposed = true;
+      cancelRegion?.();
+      unsubscribeChoice();
       window.removeEventListener('pageshow', sync);
       window.removeEventListener('focus', sync);
       window.document.removeEventListener('visibilitychange', visible);
@@ -251,5 +378,6 @@ export function createBrowserAnalytics(window: Window, options: AnalyticsOptions
     },
   };
   instances.set(window, { signature, analytics });
+  resolveRegion();
   return analytics;
 }

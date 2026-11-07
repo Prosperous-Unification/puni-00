@@ -71,7 +71,17 @@ all:
             - h3mon-observability-grafana-1
     k3s_join_servers:
       hosts: {}
-    # Second h2puni-style gate host (playbooks/gate-host.yml); host vars stay on h4claw above.
+    # playbooks/gate-host.yml; h4claw's host vars stay above. h2puni is a gate host only, never a
+    # k3s node, so the node plays' input asserts stop on it (docs/infra/gate-hosts.md, step 0).
     gate_hosts:
       hosts:
         h4claw: {}
+        h2puni:
+          ansible_host: 10.1.0.3
+          # puni1 still escalates for the dev poller (docs/infra/gate-hosts.md, step 0).
+          puni_gate_account_may_sudo: true
+          # The dev poller launches solver-image-publish from ~/wbs-dev/src, so
+          # `ops pool switch-mode concurrent` verifies it beside the launcher-only checkout.
+          puni_gate_pool_launcher_checkouts:
+            - /home/puni1/puni-00-gate-launcher
+            - /home/puni1/wbs-dev/src

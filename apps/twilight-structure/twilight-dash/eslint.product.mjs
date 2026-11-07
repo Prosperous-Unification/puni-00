@@ -8,7 +8,8 @@
  * fleet's pinned SSH transport through the exact `@tools/fleet-ssh-transport` alias. The two exact progress paths additionally reach
  * `@twilight-burokrat/contracts` alone, as do the two exact run storage codec/planner paths.
  * Tests may additionally reach the shared scratch helper
- * and the shared clock-read detector.
+ * and the shared clock-read detector. The exact coordination topology and facts paths reuse WBS
+ * step ordering and identity through the exact public `@wbs/domain` alias.
  */
 export default ({
   browserAdapterConstraint,
@@ -44,6 +45,13 @@ export default ({
     ],
   });
   return [
+    {
+      files: [
+        'apps/twilight-structure/twilight-dash/cli/src/runs/testing/format4-lifetime-preload.ts',
+      ],
+      // Proof: Task3 077 omitted this allowance and actual preload lint refused its import; 078 widened the alias and 079 added the provider peer, failing the effective-policy oracle with zero parser failures.
+      rules: boundary(['^@tools/test-scratch$']),
+    },
     {
       files: ['apps/twilight-structure/twilight-dash/cli/src/**/*.ts'],
       ignores: ['apps/twilight-structure/twilight-dash/cli/src/**/*.test.ts'],
@@ -205,6 +213,13 @@ export default ({
       ],
       rules: boundary(['^@twilight-burokrat/contracts$', '^@wbs/contracts$']),
     },
+    // Proof: B01 removed this exact consumer; B02/B03 widened only its alias/relative allowance; B04 widened only its path. The effective-policy test failed the corresponding admission/denials with fatalErrorCount 0; exact restored cases passed.
+    {
+      files: [
+        'apps/twilight-structure/twilight-dash/cli/src/runs/testing/api-recovery-contract.ts',
+      ],
+      rules: boundary(['^@twilight-burokrat/contracts$']),
+    },
     {
       files: ['apps/twilight-structure/twilight-dash/cli/src/runs/record-preparation.ts'],
       // Inherited F181 consumer provenance: preparation now uses only Burokrat contracts.
@@ -217,6 +232,83 @@ export default ({
       // peer-denial assertion failed while reader admission passed. Exact restoration passed.
       files: ['apps/twilight-structure/twilight-dash/cli/src/runs/runtime-state.ts'],
       rules: boundary(['^@wbs/contracts$']),
+    },
+    {
+      files: [
+        // Proof: B1R/B2R removed each exact consumer; its actual-source admission failed with zero fatal errors.
+        'apps/twilight-structure/twilight-dash/cli/src/runs/recovery-records.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/runs/recovery-evidence.ts',
+      ],
+      // Proof: B3R/B4R2 widened alias/relative imports; B5R/B6R admitted peer/test paths. Named zero-fatal denials failed.
+      rules: boundary(['^@wbs/contracts$']),
+    },
+    {
+      // Proof: T7P01 removed this consumer; actual-source admission failed. T7P05/P07 widened its allow list and sibling/relative denials failed. T7P06 admitted dispatch-turn and peer denial failed. All fatalErrorCount zero.
+      files: ['apps/twilight-structure/twilight-dash/cli/src/runs/dispatch-recovery.ts'],
+      rules: boundary(['^@wbs/contracts$']),
+    },
+    {
+      // Proof: T7P02 removed this consumer and actual-source admission failed. T7P08 widened Burokrat access and judge denial failed; fatalErrorCount zero.
+      files: [
+        'apps/twilight-structure/twilight-dash/cli/src/runs/testing/recovery-dispatch-contract.ts',
+      ],
+      rules: boundary(['^@twilight-burokrat/contracts$', '^@wbs/contracts$']),
+    },
+    {
+      // Proof: POLICY-R5 A08–A11 removed each selector and actual contract admission failed.
+      // C01–C20 widened alias, subpath, relative access or a real production/test selector;
+      // the named contract denials failed with zero fatal errors (C03 corrected).
+      files: [
+        'apps/twilight-structure/twilight-dash/cli/src/runs/write-recovery-records.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/runs/plan-recovery.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/runs/plan-recovery-history.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/runs/testing/write-recovery-contract.ts',
+      ],
+      rules: boundary(['^@wbs/contracts$']),
+    },
+    {
+      // Proof: POLICY-R5 A01–A07 removed each new allowance and actual-source Nx admission failed.
+      // R01–R04 widened alias/subpath or fixture/production scope; T03 widened only the Nx
+      // relative prefix. Their named real-target denials failed with zero fatal errors.
+      // Proof: T7P03 removed this consumer and actual-source admission failed. T7P09 widened relative access and other-fixture denial failed; fatalErrorCount zero.
+      files: ['apps/twilight-structure/twilight-dash/cli/src/runs/testing/recovery-receiver.ts'],
+      rules: {
+        ...boundary([
+          '^@wbs/contracts$',
+          '^@wbs/store-sqlite$',
+          '^@wbs/observability$',
+          '^\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./wbs/be-01/src/app$',
+          '^\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./wbs/be-01/src/boot$',
+          '^\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./wbs/be-01/src/testing/organization-harness$',
+          '^\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./wbs/be-01/src/testing/auth-fixture$',
+          '^\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./wbs/be-01/src/testing/machine-grant-fixture$',
+          '^\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./wbs/be-01/src/testing/organization-limits-fixture$',
+        ]),
+        '@typescript-eslint/no-restricted-imports': [
+          'error',
+          {
+            patterns: [
+              {
+                // Proof: POLICY-R5 H01–H03 removed each new exemption and actual helper admission failed.
+                // T01/T02 removed the effective helper predicate or exempted calendar; its independent
+                // helper denial failed while the Nx fence stayed installed, with zero fatal errors.
+                // Proof: corrected T7P04 lost the other-helper restriction; corrected T7P10 denied actual harness import. Both reached fatalErrorCount zero.
+                regex:
+                  '^(?!(?:\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./wbs/be-01/src/testing/organization-harness|\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./wbs/be-01/src/testing/auth-fixture|\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./wbs/be-01/src/testing/machine-grant-fixture|\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./wbs/be-01/src/testing/organization-limits-fixture)$).*[/]testing[/].*$',
+                message: 'Only exact composed recovery and credential fixtures are admitted.',
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      // `ops job run` reads the job catalogue through Burokrat's shared contract
+      // (`dash-host-jobs` slice 1, S1-A1); no other ops module reaches Burokrat.
+      // Proof: without this entry uncached `twilight-dash:lint` failed `ops/catalogue.ts:4`
+      // with `Imports of apps are forbidden` (2026-11-02, verify.md Slice 3).
+      files: ['apps/twilight-structure/twilight-dash/cli/src/ops/catalogue.ts'],
+      rules: boundary(['^@twilight-burokrat/contracts$']),
     },
     {
       files: ['apps/twilight-structure/twilight-dash/cli/src/resources/**/*.ts'],
@@ -252,6 +344,40 @@ export default ({
         'apps/twilight-structure/twilight-dash/cli/src/runs/testing/runtime-dispatch-worker.ts',
       ],
       rules: boundary(['^@twilight-burokrat/contracts$', '^@wbs/contracts$']),
+    },
+    // Proof: T1 policy-remove-* independently removed each exact consumer; its actual-source admission failed with zero fatal errors.
+    // Proof: T1 policy-widen-{alias,relative,subpath,peer,test-peer}-corrected admitted forbidden imports; production ESLint denial assertions failed with zero fatal errors. Exact restoration passed.
+    // Proof: T1 final-relative-consumer repeated relative widening against each resolved real contract path; zero-fatal production denial assertions failed. Exact restoration passed.
+    {
+      files: [
+        'apps/twilight-structure/twilight-dash/cli/src/runs/write-records.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/runs/plan-writes.test.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/runs/testing/write-fixture.ts',
+      ],
+      rules: boundary(['^@wbs/contracts$']),
+    },
+    {
+      files: [
+        // Proof: remaining-policy-build-write-request-ts broke “Dash write publication contract boundaries > build-write-request.ts admits only its exact public contract alias with inherited fences”; exact source hash restored.
+        'apps/twilight-structure/twilight-dash/cli/src/runs/build-write-request.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/runs/write-history.test.ts',
+      ],
+      rules: boundary(['^@wbs/contracts$']),
+    },
+    {
+      // Proof: removing either exact consumer failed its real @wbs/domain admission;
+      // widening the alias, relative import or peer path failed the corresponding
+      // zero-fatal denial in "Dash coordination topology consumes only the exact public
+      // WBS domain at its two paths"; each byte-exact restoration passed (2026-10-31).
+      files: [
+        'apps/twilight-structure/twilight-dash/cli/src/coordination/topology.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/coordination/topology.test.ts',
+        // Proof: Task2 removed this consumer and widened only its alias/relative
+        // permissions or added run-coordinator.ts; effective-policy admission/denial
+        // assertions failed with valid config, and every byte-exact restoration passed.
+        'apps/twilight-structure/twilight-dash/cli/src/coordination/run-facts.ts',
+      ],
+      rules: boundary(['^@wbs/domain$']),
     },
   ];
 };

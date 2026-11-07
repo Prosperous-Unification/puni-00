@@ -1,5 +1,5 @@
 import { defineException, makeRedactionPolicy, makeReportPair } from 'application-exception';
-import { Corj } from 'caught-object-report-json';
+import * as Corj from 'caught-object-report-json';
 import { DiBag } from 'di-bag';
 
 /**
@@ -76,7 +76,7 @@ async function proveTheThreeLibraries(): Promise<BrowserPackagesProof> {
     correlated: reports.diagnostic.occurrence_id === reports.public.occurrence_id,
     publicCode: reports.public.code,
     disclosesTheSecret: JSON.stringify(reports).includes('probe-secret'),
-    reportVersion: Corj.makeReport('a plain string', { maxReportSize: 1024 }).v,
+    reportVersion: Corj.makeCaughtObjectReport('a plain string', { maxReportSize: 1024 }).v,
   };
 }
 

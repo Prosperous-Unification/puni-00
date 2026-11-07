@@ -15,14 +15,18 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { resourceRuntimeAdmissionReceipt, resourceRuntimeEvent } from '@wbs/contracts';
+import { resourceRuntimeEvent } from '@wbs/contracts';
 import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
-import { admitFixture } from './admission.test.fixture';
+import { fakeCredential } from '../compute/testing/credential';
+import { scriptedTools } from '../mcp/testing/scripted-tools';
+import type { ToolAnswer, WbsTools } from '../mcp/wbs-tools';
+import { admissionReceiptOf, admitFixture } from './admission.test.fixture';
 import { termIgnoringChild } from './process-tree.test.fixture';
 import {
   type CreationRequest,
+  linuxHostFacts,
   loadResourceConfiguration,
   ResourceRuntime,
   type ResourceUse,
@@ -38,6 +42,9 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
         '--pid',
         '--fork',
         '--mount-proc',
+        // A private cgroup namespace: every process reads `0::/`, never the login session scope
+        // this suite may run in, which J19 exempts (review F1) and would release over.
+        '--cgroup',
         // Match an ordinary account: inspection cannot override a process's dumpability.
         'setpriv',
         '--bounding-set=-sys_ptrace',
@@ -60,6 +67,21 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
   }, 120000);
 } else {
   const roots: string[] = [];
+  const CREDENTIAL = fakeCredential();
+  const SECRET = CREDENTIAL.slice(CREDENTIAL.indexOf('.') + 1);
+  /** A deferred admission tool: the call it entered, and the answer it waits for. */
+  function heldAdmission() {
+    const receipt = Promise.withResolvers<ToolAnswer>();
+    const entered = Promise.withResolvers<Readonly<Record<string, unknown>>>();
+    const tools: WbsTools = {
+      call: (_name, input) => {
+        entered.resolve(input);
+        return receipt.promise;
+      },
+      close: () => Promise.resolve(),
+    };
+    return { tools, receipt, entered: entered.promise };
+  }
   afterEach(() => {
     for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
   });
@@ -72,17 +94,22 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
     writeFileSync(
       config,
       JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 3,
         root,
         authorityId: 'runtime-one',
         epoch: 'epoch-one',
         providerId: 'provider-one',
-        wbsOrigin: 'http://127.0.0.1:3100',
-        credential: 'private-test-credential',
+        mcpResource: 'http://127.0.0.1:3100/mcp',
+        credential: CREDENTIAL,
         diskUnitBytes: 1024,
         diskBudgetUnits: budget,
         workspaceSlots: budget,
         headroomBytes: 0,
+        cpuCores: 1,
+        memoryGib: 1,
+        headroom: { cpuCores: 0, memoryGib: 0 },
+        exclusiveUnits: {},
+        enrollmentId: 'enrollment-one',
       }),
       { mode: 0o600 },
     );
@@ -105,7 +132,23 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
 
   test('existing account runs work despite an unreadable process and retries blocked cleanup after it exits', async () => {
     const { config } = fixture(1);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
+    const use = await create(runtime, request);
+    expect(use.state).toBe('active');
+    const started = join(use.locator, 'started');
+    const release = join(use.locator, 'release');
+    // The command waits, so the protected process starts after the use's leader: J19 keeps an
+    // uninspectable process that predates the leader from blocking (resource-holds.test.ts).
+    const running = runtime.run(use.id, [
+      '/bin/sh',
+      '-c',
+      `: > ${started}; while [ ! -e ${release} ]; do sleep 0.05; done; rm -f started release; printf finished > output`,
+    ]);
+    while (!existsSync(started)) await Bun.sleep(5);
     const protectedProcess = Bun.spawn(
       [
         'python3',
@@ -118,9 +161,8 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
       const ready = await protectedProcess.stdout.getReader().read();
       expect(new TextDecoder().decode(ready.value)).toContain('ready');
       expect(() => readFileSync(`/proc/${String(protectedProcess.pid)}/maps`)).toThrow('EACCES');
-      const use = await create(runtime, request);
-      expect(use.state).toBe('active');
-      expect(await runtime.run(use.id, ['/bin/sh', '-c', 'printf finished > output'])).toBe(0);
+      writeFileSync(release, '');
+      expect(await running).toBe(0);
       const blocked = runtime.inspect(use.id);
       expect(blocked.state).toBe('blocked');
       expect(readFileSync(join(use.locator, 'output'), 'utf8')).toBe('finished');
@@ -150,7 +192,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
 
   test('disposable directory release atomically returns capacity and retains immutable outbox history', async () => {
     const { config } = fixture(1);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const use = await create(runtime, request);
     writeFileSync(join(use.locator, 'output'), 'disposable');
     expect(runtime.inspect(use.id).state).toBe('active');
@@ -168,19 +214,24 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
 
   test('configuration is owner-only and serialization never exposes reporting credential', () => {
     const { config } = fixture();
-    expect(JSON.stringify(loadResourceConfiguration(config))).not.toContain(
-      'private-test-credential',
-    );
+    const loaded = loadResourceConfiguration(config);
+    expect(JSON.stringify(loaded)).not.toContain(SECRET);
+    expect(Bun.inspect(loaded)).not.toContain(SECRET);
+    expect(loaded.endpoint.tokenUrl).toBe('http://127.0.0.1:3100/mcp/oauth/token');
     chmodSync(config, 0o644);
     expect(() => loadResourceConfiguration(config)).toThrow('owner-only');
     chmodSync(config, 0o600);
-    writeFileSync(config, '{"credential":"private-test-credential"');
+    writeFileSync(config, `{"credential":"${CREDENTIAL}"`);
     expect(() => loadResourceConfiguration(config)).toThrow('configuration malformed');
   });
 
   test('reopening a ledger preserves held capacity and rejects a competing authority', async () => {
     const { config } = fixture(1);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     await create(runtime, request);
     runtime.close();
     const reopened = ResourceRuntime.open(loadResourceConfiguration(config), clock);
@@ -194,7 +245,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
 
   test('stale revision and incarnation cannot enqueue a new cleanup owner', async () => {
     const { config } = fixture();
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const use = await create(runtime, request);
     expect(() =>
       runtime.requestCleanup(use.id, use.revision + 1, use.incarnation, 'stale'),
@@ -209,7 +264,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
   test('replacement directory and symlink escape remain untouched and charged', async () => {
     for (const symlink of [false, true]) {
       const { config, base } = fixture(1);
-      const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+      const runtime = ResourceRuntime.initialize(
+        loadResourceConfiguration(config),
+        clock,
+        linuxHostFacts,
+      );
       const use = await create(runtime, request);
       const moved = join(base, 'original');
       renameSync(use.locator, moved);
@@ -234,7 +293,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
 
   test('live writer holds block deletion until it exits', async () => {
     const { config } = fixture(1);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const use = await create(runtime, request);
     const child = Bun.spawn(['/bin/sh', '-c', 'echo ready; exec sleep 30'], {
       cwd: use.locator,
@@ -259,7 +322,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
 
   test('dependency edges and symlink consumers block their producer', async () => {
     const { config } = fixture(3);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const producer = await create(runtime, request);
     const consumer = await create(runtime, { ...request, dependencies: [producer.id] });
     runtime.requestCleanup(producer.id, producer.revision, producer.incarnation, 'done');
@@ -274,7 +341,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
 
   test('successful failed and cancelled commands persist outcomes and release their disposable output', async () => {
     const { config } = fixture();
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     for (const exit of [0, 7]) {
       const use = await create(runtime, request);
       expect(
@@ -316,7 +387,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
   test('clean Git worktrees preserve commits and dirty or ignored work is retained with owner', async () => {
     const { config, base } = fixture(3);
     const source = repository(base);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const clean = await create(runtime, { ...request, kind: 'git_worktree', source });
     runtime.requestCleanup(clean.id, clean.revision, clean.incarnation, 'done');
     runtime.sweep();
@@ -339,7 +414,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
     test(`Git ${flag} cannot hide unique source from preservation`, async () => {
       const { config, base } = fixture(1);
       const source = repository(base);
-      const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+      const runtime = ResourceRuntime.initialize(
+        loadResourceConfiguration(config),
+        clock,
+        linuxHostFacts,
+      );
       try {
         const use = await create(runtime, { ...request, kind: 'git_worktree', source });
         expect(
@@ -365,7 +444,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
 
   test('a vanished resource without deletion intent stays charged rather than inventing a release', async () => {
     const { config, base } = fixture(1);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const use = await create(runtime, request);
     renameSync(use.locator, join(base, 'moved'));
     runtime.requestCleanup(use.id, use.revision, use.incarnation, 'done');
@@ -377,28 +460,33 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
 
   test('outbox retries response loss identically and persists cleanup cursor with intent', async () => {
     const { config } = fixture();
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const use = await create(runtime, request);
     const seen: string[] = [];
     let lose = true;
-    const server = Bun.serve({
-      port: 0,
-      async fetch(http) {
-        if (http.method === 'PUT') {
-          const wire = await http.text();
-          seen.push(wire);
-          const event = resourceRuntimeEvent.assert(JSON.parse(wire));
-          if (lose) {
-            lose = false;
-            return new Response('lost', { status: 503 });
-          }
-          return Response.json({
-            acceptedSequence: event.sequence,
-            useId: event.useId,
-            revision: event.revision,
-          });
+    const sender = scriptedTools(({ name, input }): ToolAnswer => {
+      if (name === 'putApiResourceAuthoritiesByAuthorityIdEvents') {
+        const { authorityId, ...wire } = input;
+        expect(authorityId).toBe('runtime-one');
+        seen.push(JSON.stringify(wire));
+        const event = resourceRuntimeEvent.assert(wire);
+        if (lose) {
+          lose = false;
+          return { kind: 'not_called', reason: 'server_error' };
         }
-        return Response.json({
+        return {
+          kind: 'answered',
+          body: { acceptedSequence: event.sequence, useId: event.useId, revision: event.revision },
+        };
+      }
+      expect(name).toBe('getApiResourceAuthoritiesByAuthorityIdCleanupRequests');
+      return {
+        kind: 'answered',
+        body: {
           requests: [
             {
               requestId: 1,
@@ -410,23 +498,16 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
             },
           ],
           nextCursor: '1',
-        });
-      },
+        },
+      };
     });
     try {
-      const sender = (http: Request) =>
-        fetch(
-          new Request(
-            new URL(new URL(http.url).pathname + new URL(http.url).search, server.url),
-            http,
-          ),
-        );
       let refused = false;
       try {
         await runtime.synchronize(sender);
       } catch (cause) {
         refused = true;
-        expect(String(cause)).toContain('HTTP 503');
+        expect(String(cause)).toContain('server_error');
       }
       expect(refused).toBe(true);
       expect(runtime.outbox()).toHaveLength(1);
@@ -438,16 +519,19 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
       await runtime.synchronize(sender);
       expect(runtime.outbox()).toHaveLength(0);
       expect(runtime.inspect(use.id).state).toBe('released');
-      expect(JSON.stringify(seen)).not.toContain('private-test-credential');
+      expect(JSON.stringify(sender.calls)).not.toContain(SECRET);
     } finally {
-      await server.stop(true);
       runtime.close();
     }
   });
 
   test('parent completion seals its manifest, cleans child copies, and fences late allocation', async () => {
     const { config } = fixture(3);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const parent = await create(runtime, request);
     const child = await create(runtime, { ...request, parentId: parent.id });
     await runtime.run(parent.id, ['/bin/true']);
@@ -459,7 +543,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
 
   test('crash after removal before settlement reconciles one release and never a replacement', async () => {
     const { config, root } = fixture(1);
-    let runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    let runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const use = await create(runtime, request);
     runtime.requestCleanup(use.id, use.revision, use.incarnation, 'done');
     runtime.close();
@@ -482,7 +570,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
 
   test('shared hardlinks remain charged without claiming physical bytes reclaimed', async () => {
     const { config, base } = fixture(1);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const use = await create(runtime, request);
     const source = join(base, 'source-file');
     writeFileSync(source, 'shared');
@@ -497,7 +589,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
 
   test('missing trusted ledger is refused without silently creating empty capacity', async () => {
     const { config, root } = fixture();
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     await create(runtime, request);
     runtime.close();
     rmSync(join(root, '.dash', 'resources.sqlite'));
@@ -536,13 +632,17 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
     expect(use.state).toBe('released');
     expect(existsSync(use.locator)).toBe(false);
     expect(readdirSync(root)).toEqual(['.dash']);
-    expect(run.stdout.toString()).not.toContain('private-test-credential');
+    expect(run.stdout.toString()).not.toContain(SECRET);
     runtime.close();
   });
 
   test('concurrent processes serialize the final unit and dead creator cleanup survives restart', async () => {
     const { config, base } = fixture(1);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const requestPath = join(base, 'creation.json');
     writeFileSync(requestPath, JSON.stringify(request));
     const command = [
@@ -566,7 +666,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
 
   test('blocked cleanup uses a bounded retry budget and operator retry resets it', async () => {
     const { config, base } = fixture(1);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const use = await create(runtime, request);
     renameSync(use.locator, join(base, 'preserved'));
     runtime.requestCleanup(use.id, use.revision, use.incarnation, 'done');
@@ -585,7 +689,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
   test('retention never creates removal evidence for a worktree moved outside the root', async () => {
     const { config, base } = fixture(1);
     const source = repository(base);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const use = await create(runtime, { ...request, kind: 'git_worktree', source });
     writeFileSync(join(use.locator, 'unique'), 'keep');
     runtime.requestCleanup(use.id, use.revision, use.incarnation, 'done');
@@ -600,7 +708,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
   });
   test('surviving command-session children remain charged even after leaving the working directory', async () => {
     const { config } = fixture(1);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const use = await create(runtime, request);
     await runtime.run(use.id, ['/bin/sh', '-c', '(cd /; sleep 1) >/dev/null 2>&1 & exit 0']);
     expect(runtime.inspect(use.id).state).toBe('blocked');
@@ -613,7 +725,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
   });
   test('corrupt trusted snapshots refuse instead of silently returning capacity', async () => {
     const { config, root } = fixture(1);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const use = await create(runtime, request);
     const db = new Database(join(root, '.dash', 'resources.sqlite'));
     db.query('UPDATE uses SET snapshot=? WHERE id=?').run(
@@ -632,7 +748,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
     expect(Bun.spawnSync(['git', '-C', source, 'commit', '-m', 'ignore generated']).exitCode).toBe(
       0,
     );
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const generated = await create(runtime, {
       ...request,
       kind: 'git_worktree',
@@ -667,7 +787,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
     writeFileSync(join(source, 'build', 'source'), 'tracked');
     expect(Bun.spawnSync(['git', '-C', source, 'add', '.']).exitCode).toBe(0);
     expect(Bun.spawnSync(['git', '-C', source, 'commit', '-m', 'tracked build']).exitCode).toBe(0);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     for (const path of ['../source', '.git', '/tmp', '.'])
       await assert.rejects(
         create(runtime, { ...request, kind: 'git_worktree', source, disposablePaths: [path] }),
@@ -686,7 +810,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
   });
   test('watch reconciliation stops a proven orphan command after its controller is killed', async () => {
     const { config, base } = fixture(1);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const requestPath = join(base, 'request.json');
     writeFileSync(requestPath, JSON.stringify(request));
     const controller = Bun.spawn(
@@ -718,7 +846,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
   }, 60000);
   test('effective symlink dependencies block their producer without following links during deletion', async () => {
     const { config, base } = fixture(2);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const producer = await create(runtime, request);
     const consumer = await create(runtime, request);
     const alias = join(base, 'alias');
@@ -736,7 +868,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
   });
   test('managed command launch gate preserves the caller stdin', () => {
     const { config, base } = fixture(1);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const requestPath = join(base, 'request.json');
     writeFileSync(requestPath, JSON.stringify(request));
     const execution = Bun.spawnSync(
@@ -757,7 +893,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
   test('worktree-only reflog and private-ref commits remain recoverable after source pruning', async () => {
     const { config, base } = fixture(2);
     const source = repository(base);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     for (const preservation of ['reflog', 'private-ref']) {
       const use = await create(runtime, { ...request, kind: 'git_worktree', source });
       writeFileSync(join(use.locator, 'detached-source'), `unique committed ${preservation} work`);
@@ -797,7 +937,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
   test('clean tracked Git hardlinks keep the worktree and capacity charged', async () => {
     const { config, base } = fixture(1);
     const source = repository(base);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const use = await create(runtime, { ...request, kind: 'git_worktree', source });
     const outside = join(base, 'outside-hardlink');
     linkSync(join(use.locator, 'canary'), outside);
@@ -818,7 +962,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
 
   test('cancellation drains a TERM-ignoring same-session child after its leader exits', async () => {
     const { config, base } = fixture(1);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const use = await create(runtime, request);
     const ready = join(base, 'child-ready');
     const abort = new AbortController();
@@ -846,7 +994,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
 
   test('restarted cleanup drains durable child identities after orphan leader exit and ignores stale PIDs', async () => {
     const { config, base, root } = fixture(1);
-    let runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    let runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const requestPath = join(base, 'request.json');
     writeFileSync(requestPath, JSON.stringify(request));
     const ready = join(base, 'child-ready');
@@ -906,7 +1058,11 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
 
   test('unknown surviving child identities stay blocked until exact evidence is restored', async () => {
     const { config, base, root } = fixture(1);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     const requestPath = join(base, 'request.json');
     writeFileSync(requestPath, JSON.stringify(request));
     const ready = join(base, 'child-ready');
@@ -962,14 +1118,20 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
   }, 60000);
   test('admission keeps paths and source sequences absent until the exact receipt arrives', async () => {
     const { config } = fixture(1);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     try {
       await assert.rejects(
-        runtime.create(request, async (http) => {
-          const receipt = await admitFixture(http);
-          const admitted = resourceRuntimeAdmissionReceipt.assert(await receipt.json());
-          return Response.json({ ...admitted, incarnation: 'wrong' });
-        }),
+        runtime.create(
+          request,
+          scriptedTools(({ input }) => ({
+            kind: 'answered',
+            body: { ...admissionReceiptOf(input), incarnation: 'wrong' },
+          })),
+        ),
         /acknowledgment mismatch/,
       );
       const pending = runtime.list()[0];
@@ -987,22 +1149,22 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
 
   test('parent sealing during admission prevents creation and preserves the child cleanup obligation', async () => {
     const { config } = fixture(2);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     try {
       const parent = await create(runtime, request);
-      const receipt = Promise.withResolvers<Response>();
-      const entered = Promise.withResolvers<Request>();
-      const creation = runtime.create({ ...request, parentId: parent.id }, (http) => {
-        entered.resolve(http);
-        return receipt.promise;
-      });
-      const http = await entered.promise;
+      const held = heldAdmission();
+      const creation = runtime.create({ ...request, parentId: parent.id }, held.tools);
+      const admission = await held.entered;
       const child = runtime.list().find((use) => use.request.parentId === parent.id);
       expect(child).toBeDefined();
       expect(existsSync(child!.locator)).toBe(false);
       expect(runtime.outbox()).toHaveLength(1);
       runtime.requestCleanup(parent.id, parent.revision, parent.incarnation, 'parent done');
-      receipt.resolve(await admitFixture(http));
+      held.receipt.resolve({ kind: 'answered', body: admissionReceiptOf(admission) });
       await assert.rejects(creation, /creation became stale/);
       expect(runtime.inspect(child!.id).state).toBe('pending');
       runtime.sweep();
@@ -1014,28 +1176,35 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
   });
   test('watcher does not recover an admission whose live creator is still awaiting its receipt', async () => {
     const { config } = fixture(1);
-    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(config),
+      clock,
+      linuxHostFacts,
+    );
     try {
-      const receipt = Promise.withResolvers<Response>();
-      const entered = Promise.withResolvers<Request>();
-      const creation = runtime.create(request, (http) => {
-        entered.resolve(http);
-        return receipt.promise;
-      });
-      const http = await entered.promise;
-      await runtime.synchronize(async (request) => {
-        if (new URL(request.url).pathname.endsWith('/admissions')) return admitFixture(request);
-        if (request.method === 'PUT') {
-          const event = resourceRuntimeEvent.assert(await request.json());
-          return Response.json({
-            acceptedSequence: event.sequence,
-            useId: event.useId,
-            revision: event.revision,
-          });
-        }
-        return Response.json({ requests: [], nextCursor: null });
-      });
-      receipt.resolve(await admitFixture(http));
+      const held = heldAdmission();
+      const creation = runtime.create(request, held.tools);
+      const admission = await held.entered;
+      await runtime.synchronize(
+        scriptedTools(({ name, input }) => {
+          if (name === 'putApiResourceAuthoritiesByAuthorityIdAdmissions')
+            return { kind: 'answered', body: admissionReceiptOf(input) };
+          if (name === 'putApiResourceAuthoritiesByAuthorityIdEvents') {
+            const { authorityId: _authority, ...wire } = input;
+            const event = resourceRuntimeEvent.assert(wire);
+            return {
+              kind: 'answered',
+              body: {
+                acceptedSequence: event.sequence,
+                useId: event.useId,
+                revision: event.revision,
+              },
+            };
+          }
+          return { kind: 'answered', body: { requests: [], nextCursor: null } };
+        }),
+      );
+      held.receipt.resolve({ kind: 'answered', body: admissionReceiptOf(admission) });
       const use = await creation;
       expect(use.state).toBe('active');
       expect(existsSync(use.locator)).toBe(true);

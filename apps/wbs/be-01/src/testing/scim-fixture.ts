@@ -47,13 +47,18 @@ export function mapUpstream(h: OrganizationHarness, username: string, subject: s
   );
 }
 
-/** An mcp-01 delegation for `username` to `organizationId`, as {@link mapUpstream} mapped them. */
+/**
+ * An mcp-01 delegation for `username` to `organizationId`, as {@link mapUpstream}
+ * mapped them. With `consent`, a delegation consented as that agent person
+ * through that consent credential of family `family-1` (A20).
+ */
 export function delegationFor(
   h: OrganizationHarness,
   key: CryptoKey,
   username: string,
   organizationId: string,
   subject: string,
+  consent?: { readonly credentialId: string; readonly personId: string },
 ): Promise<string> {
   return new SignJWT({
     username,
@@ -63,6 +68,9 @@ export function delegationFor(
     scope: 'read write',
     upstream_iss: 'https://idp.test',
     upstream_sub: subject,
+    ...(consent === undefined
+      ? {}
+      : { credential_id: consent.credentialId, person_id: consent.personId }),
   })
     .setProtectedHeader({ alg: 'RS256', typ: DELEGATION_TOKEN_TYPE })
     .setIssuer('wbs')

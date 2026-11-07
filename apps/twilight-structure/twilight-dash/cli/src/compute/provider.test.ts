@@ -73,8 +73,8 @@ function writeConfiguration(content: unknown, mode = 0o600): string {
 
 function configuration(overrides: Record<string, unknown> = {}, credential = fakeCredential()) {
   return {
-    schemaVersion: 1,
-    wbsOrigin: 'https://wbs-dev.example',
+    schemaVersion: 2,
+    mcpResource: 'https://wbs-dev.example/mcp',
     credential,
     instances: [
       {
@@ -117,7 +117,11 @@ describe('the ComputeProvider port', () => {
       evidence: 'fixed',
     });
     expect(loaded.cadenceSeconds).toBe(300);
-    expect(loaded.wbsOrigin).toBe('https://wbs-dev.example');
+    expect(loaded.endpoint).toEqual({
+      resource: 'https://wbs-dev.example/mcp',
+      issuer: 'https://wbs-dev.example/mcp/oauth',
+      tokenUrl: 'https://wbs-dev.example/mcp/oauth/token',
+    });
     expect(adapter.opened.map((settings) => settings.instanceId)).toEqual(['h4claw']);
   });
 });
@@ -161,9 +165,14 @@ describe('loading a reporter configuration', () => {
 
   test('refuses malformed JSON and a malformed shape config_malformed', async () => {
     const cases: readonly unknown[] = [
-      '{"schemaVersion": 1,',
+      '{"schemaVersion": 2,',
       [],
-      configuration({ schemaVersion: 2 }),
+      configuration({ schemaVersion: 1 }),
+      // The version before `wbs-mcp-agent-surface` task 7.2: an origin for `/api`, not an MCP endpoint.
+      {
+        ...configuration({ schemaVersion: 1, wbsOrigin: 'https://wbs-dev.example' }),
+        mcpResource: undefined,
+      },
       configuration({ cadenceSeconds: 29 }),
       configuration({ instances: [] }),
       configuration({ extra: true }),
@@ -204,8 +213,10 @@ describe('loading a reporter configuration', () => {
           },
         ],
       }),
-      configuration({ wbsOrigin: 'https://wbs.example/api' }),
-      configuration({ wbsOrigin: 'https://user:pass@wbs.example' }),
+      configuration({ mcpResource: 'not a url' }),
+      configuration({ mcpResource: 'https://user:pass@wbs.example/mcp' }),
+      configuration({ mcpResource: 'https://wbs.example/mcp?x=1' }),
+      configuration({ mcpResource: 'https://wbs.example/mcp#x' }),
     ];
     for (const content of cases) {
       const adapter = recordingAdapter();
@@ -217,15 +228,15 @@ describe('loading a reporter configuration', () => {
 
   test('refuses a plain-HTTP origin that is not loopback', async () => {
     const remote = await refusalOf(
-      writeConfiguration(configuration({ wbsOrigin: 'http://wbs-dev.example' })),
+      writeConfiguration(configuration({ mcpResource: 'http://wbs-dev.example/mcp' })),
       { docker: recordingAdapter() },
     );
     expect(remote.reason).toBe('config_malformed');
     const loopback = await loadReporterConfiguration(
-      writeConfiguration(configuration({ wbsOrigin: 'http://127.0.0.1:3100' })),
+      writeConfiguration(configuration({ mcpResource: 'http://127.0.0.1:3100/mcp' })),
       { docker: recordingAdapter() },
     );
-    expect(loopback.wbsOrigin).toBe('http://127.0.0.1:3100');
+    expect(loopback.endpoint.resource).toBe('http://127.0.0.1:3100/mcp');
   });
 
   test('never echoes a malformed credential or a well-formed one', async () => {
@@ -250,7 +261,9 @@ describe('loading a reporter configuration', () => {
       '\n',
     );
     expect(printed).not.toContain(credential.slice('wbs_mk_'.length));
-    expect(loaded.credential.authorization()).toBe(`Bearer ${credential}`);
+    expect(loaded.credential.basicAuthorization()).toBe(
+      `Basic ${btoa(`${credential.slice('wbs_mk_'.length, credential.indexOf('.'))}:${credential}`)}`,
+    );
   });
 
   test('refuses a pool instance provider_kind_not_available before any adapter opens', async () => {

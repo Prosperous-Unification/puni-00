@@ -33,7 +33,6 @@ function rowsOf(
     people: [],
     members: [],
     claims: [],
-    pinnedCredentials: 0,
     machineCredentials: 0,
     capacityOf,
   };

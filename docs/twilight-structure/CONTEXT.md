@@ -178,6 +178,36 @@ _Avoid_: Agent claim, Playwright report
 A bounded supply of an execution resource shared by competing activities.
 _Avoid_: Budget, availability
 
+**Host pool**:
+The capacity pool of one host, in cores, memory, tmp disk and named exclusive units, that
+Twilight Dash's managed-resource ledger on that host admits host jobs and worktrees against.
+_Avoid_: Heavy lock, host lock, slot
+
+**Job type**:
+A catalogued kind of heavy run, named in the repository that defines it with its entrypoint and
+its job envelope.
+_Avoid_: Lane, task, workload
+
+**Job envelope**:
+The resource vector a job type reserves from a host pool: cores, memory, tmp disk and the
+exclusive units it needs, with the provenance of those numbers.
+_Avoid_: Limit, quota, requirement
+
+**Host job**:
+One admitted run of a job type on one host: a resource use measured in its own cgroup scope,
+whose reservations settle each on their own terminal evidence.
+_Avoid_: Lock holder, ticket, lane
+
+**Calibration run**:
+A host job admitted with the whole host pool so that its measurements describe the job type
+alone; it proposes an envelope and never writes one.
+_Avoid_: Diagnostic, benchmark, dry run
+
+**Envelope drift**:
+The audit's finding that a job type's declared envelope and its measured history disagree:
+an overrun, waste, an expired estimate or incomplete attribution.
+_Avoid_: Violation, anomaly
+
 **Budget**:
 The authorized consumption policy for one run, containing warning targets and
 hard caps for its accounted resources.
@@ -314,8 +344,9 @@ _Avoid_: Operation key, turn key, session ID
 
 **Executor session**:
 The adapter or backend conversation identity used as an attempt's agent run; it is distinct
-from that attempt and its logical operation.
-_Avoid_: Attempt, worker, provider response ID
+from that attempt, its logical operation and its workflow run. The receiver's live runtime
+claim identifies this session as its agent run.
+_Avoid_: Attempt, workflow run, worker, provider response ID
 
 **Turn key**:
 The session-scoped identity of one immutable activity turn request, reused for exact
@@ -733,3 +764,15 @@ _Avoid_: Proven cause, automatic repair authority
 **Delivery observation health**:
 The freshness, coverage and collection status of delivery evidence, independent of whether the observed application or verification passed.
 _Avoid_: Application health, successful deployment
+
+**Release profile**:
+The named verification and build policy selected for a release. Fast development acceptance and full acceptance are distinct claims.
+_Avoid_: Force, unsafe mode, skip checks
+
+**Composite release**:
+The selection of immutable service artifacts that together form one environment release, with the requested source identities recorded separately from reused artifact origins.
+_Avoid_: One source revision for every artifact
+
+**Service artifact**:
+An immutable deployable service image with its own source and build identity, reusable by a later compatible composite release.
+_Avoid_: Latest image

@@ -18,10 +18,21 @@
       - puni_gate_authorized_keys is sequence
       - puni_gate_authorized_keys is not string
       - puni_gate_authorized_keys | length > 0
+      - puni_gate_host_pool_enroll is defined
+      - puni_gate_host_pool_enroll is boolean
+      - puni_gate_account_may_sudo is boolean
+      - puni_gate_checkouts | length == 3
     fail_msg: >-
       A gate host needs Ubuntu on amd64, the fixed puni1 account, a Bun archive lock equal to
       .bun-version, sha256 locks for Node and gh, and the gate account's authorized keys as a
-      list (a single string would be written one character per line and lock the account out)
+      list (a single string would be written one character per line and lock the account out),
+      and puni_gate_host_pool_enroll as a boolean: true writes the host pool configuration, which
+      enrolls the host (docs/infra/gate-hosts.md, "Enroll a host in the host pool"), and
+      puni_gate_account_may_sudo as a boolean: the string `false` from `-e key=value` would skip
+      the no-sudo check (gate-hosts.md, step 0)
+  # Proof (2026-11-04): in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py,
+  # E10) `puni_gate_account_may_sudo: "false"` was refused and `false` passed; with the
+  # `is boolean` condition removed the string passed.
 
 - name: Install gate prerequisites
   tags: [gate_host]
@@ -41,7 +52,8 @@
     key: docker
 
 # Membership in the docker group is root-equivalent on this host: the gate builds and runs the
-# solver image. The account has no sudo grant and exists only for gates.
+# solver image. The account has no sudo grant and exists only for gates; a pre-existing grant is
+# tolerated only where the inventory sets `puni_gate_account_may_sudo` (gate-hosts.md, step 0).
 - name: Create the gate account
   tags: [gate_host]
   ansible.builtin.user:
@@ -62,18 +74,49 @@
     group: '{{ puni_gate_user }}'
     mode: '0700'
 
+# A template file, not `content: |` with `join('\n')`: a block scalar keeps `\n` as two characters,
+# and Ansible's templating of a task string left them so, which joined h2puni's five keys into one
+# line; sshd honoured its first key and read the rest as comment (H2-A7, 2026-11-04). The same
+# expression in a double-quoted YAML string, or a template file, writes newlines (observed in the
+# controller image). The keys are rendered to a staged file and counted before they replace the
+# live file, so a bad render stops the play while the old keys still log in.
+- name: Stage the exact gate authorized keys
+  tags: [gate_host]
+  ansible.builtin.template:
+    src: authorized_keys.j2
+    dest: '{{ puni_gate_home }}/.ssh/authorized_keys.staged'
+    owner: '{{ puni_gate_user }}'
+    group: '{{ puni_gate_user }}'
+    mode: '0600'
+  # The staged file is written and removed on every run; the install below reports the change.
+  changed_when: false
+
+- name: Count the staged gate authorized keys
+  tags: [gate_host]
+  ansible.builtin.import_tasks: authorized-keys-count.yml
+  vars:
+    puni_gate_keys_file: '{{ puni_gate_home }}/.ssh/authorized_keys.staged'
+
 - name: Install the exact gate authorized keys
   tags: [gate_host]
   ansible.builtin.copy:
+    src: '{{ puni_gate_home }}/.ssh/authorized_keys.staged'
     dest: '{{ puni_gate_home }}/.ssh/authorized_keys'
-    content: |
-      {{ puni_gate_authorized_keys | join('\n') }}
+    remote_src: true
     owner: '{{ puni_gate_user }}'
     group: '{{ puni_gate_user }}'
     mode: '0600'
 
+- name: Remove the staged gate authorized keys
+  tags: [gate_host]
+  ansible.builtin.file:
+    path: '{{ puni_gate_home }}/.ssh/authorized_keys.staged'
+    state: absent
+  changed_when: false
+
 # The parent of the lock path that `resolve_heavy_lock_path` hard-codes; the lock library creates
-# the lock file, its holder record and its queue inside it.
+# the lock file, its holder record and its queue inside it. 0700, h2puni's own mode: every heavy
+# run is the gate account (heavy-lock-lib.sh), and other tools keep caches here.
 - name: Create the heavy-lock directory
   tags: [gate_host]
   ansible.builtin.file:
@@ -81,7 +124,7 @@
     state: directory
     owner: '{{ puni_gate_user }}'
     group: '{{ puni_gate_user }}'
-    mode: '0755'
+    mode: '0700'
 
 - name: Fetch the pinned Bun archive
   tags: [gate_host]
@@ -231,28 +274,83 @@
     virtualenv_command: /usr/bin/python3 -m venv
     extra_args: --require-hashes
 
-# A full clone: the gate checks arbitrary shas out under its lock, which a blobless clone
+# Read-only: counts the checkouts still to clone and refuses (exit 75) when the home filesystem
+# has less free space than they and a gate's tmp envelope need, printing `df`'s own figures. A
+# host whose checkouts all exist passes whatever its free space.
+# Proof: with `((avail >= need)) || exit 75` replaced by `true`, the low-space case of
+# gate-host-pool.test.ts, which runs this exact argv against a fake `df`, failed (verify.md
+# Slice 6c, 6c-F4).
+- name: Measure free space for the gate checkouts still to clone
+  tags: [gate_host]
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -c
+      - >-
+        home=$1 per_clone=$2 floor=$3; shift 3; count=0; missing='';
+        for checkout in "$@"; do [[ -e $checkout ]] || { count=$((count + 1)); missing+=" $checkout"; }; done;
+        if ((count == 0)); then printf 'clones=0\n'; exit 0; fi;
+        avail=$(df --output=avail -B1 -- "$home" | tail -n 1 | tr -d ' ');
+        [[ $avail =~ ^[0-9]+$ ]] || { printf 'df printed %s for %s\n' "$avail" "$home" >&2; exit 70; };
+        need=$((count * per_clone + floor));
+        printf 'clones=%s avail=%s need=%s missing=%s\n' "$count" "$avail" "$need" "${missing# }";
+        ((avail >= need)) || exit 75
+      - gate-disk
+      - '{{ puni_gate_home }}'
+      - '{{ puni_gate_clone_bytes }}'
+      - '{{ puni_gate_clone_floor_bytes }}'
+      - '{{ puni_gate_checkouts[0] }}'
+      - '{{ puni_gate_checkouts[1] }}'
+      - '{{ puni_gate_checkouts[2] }}'
+  register: puni_gate_disk_probe
+  changed_when: false
+  failed_when: false
+
+# Proof: in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py, E2) the probe and this assert, run together
+# against a fake `df`, refused 7516192768 free bytes naming `clones=3 avail=7516192768
+# need=26843545600` and passed 26843545600; without the condition, or without the probe's
+# `failed_when: false`, the named refusal was lost (verify.md Slice 6c).
+- name: Require free space for the gate checkouts still to clone
+  tags: [gate_host]
+  ansible.builtin.assert:
+    that:
+      - puni_gate_disk_probe.rc == 0
+    fail_msg: >-
+      Not cloning: {{ puni_gate_disk_probe.stdout | trim }} {{ puni_gate_disk_probe.stderr | trim }}
+      (bytes free under {{ puni_gate_home }} against {{ puni_gate_clone_bytes }} per missing
+      checkout plus {{ puni_gate_clone_floor_bytes }} left for a gate). Free space first; on h2puni
+      follow the recorded cleanup order in puni-plan RESUME.md ("h2puni DISK, FOR DANY",
+      2026-11-02), which Dany approves.
+
+# Full clones: the gate checks arbitrary shas out under its lock, which a blobless clone
 # would fetch lazily over the network inside the locked window. `update: false` because the
-# gate owns the head after the first clone; moving it here would race a running gate.
-- name: Clone the gate tree
+# gate (or, for the launcher checkout, its operator) owns the head after the first clone;
+# moving it here would race a running gate.
+- name: Clone the gate checkouts
   tags: [gate_host]
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.git:
     repo: '{{ puni_gate_repository_url }}'
-    dest: '{{ puni_gate_checkout }}'
+    dest: '{{ item }}'
     update: false
+  loop: '{{ puni_gate_checkouts }}'
 
-- name: Install the gate tree dependencies once
+- name: Install each gate checkout's dependencies once
   tags: [gate_host]
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:
     argv:
       ['{{ puni_gate_home }}/.bun-{{ puni_gate_bun_version }}/bin/bun', install, --frozen-lockfile]
-    chdir: '{{ puni_gate_checkout }}'
-    creates: '{{ puni_gate_checkout }}/node_modules'
+    chdir: '{{ item }}'
+    creates: '{{ item }}/node_modules'
   environment:
     PATH: '{{ puni_gate_home }}/.bun-{{ puni_gate_bun_version }}/bin:/usr/local/bin:/usr/bin:/bin'
     TMPDIR: '{{ puni_gate_tmpdir }}'
+  loop: '{{ puni_gate_checkouts }}'
+
+- name: Prepare the host pool
+  tags: [gate_host]
+  ansible.builtin.import_tasks: host-pool.yml
 
 - name: Prove the gate account can run a gate
   tags: [gate_host, validate]

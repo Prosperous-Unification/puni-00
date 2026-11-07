@@ -1,8 +1,10 @@
-import { admitFixture } from './admission.test.fixture';
+import { fakeMcpFetch } from '../mcp/fake-mcp-fetch.test.fixture';
+import { admissionReceiptOf } from './admission.test.fixture';
 
-/** CLI provider fixture injects only its external admission transport. */
-globalThis.fetch = Object.assign(
-  async (input: Request | string | URL, init?: RequestInit) =>
-    admitFixture(input instanceof Request ? input : new Request(input, init)),
-  { preconnect: fetch.preconnect },
-);
+/** CLI provider fixture answers only admission, as WBS's tool through an in-process fake mcp-01. */
+const answer = fakeMcpFetch((name, input) => {
+  if (name !== 'putApiResourceAuthoritiesByAuthorityIdAdmissions')
+    throw new Error('provider fixture only supports admission');
+  return { text: JSON.stringify(admissionReceiptOf(input)) };
+});
+globalThis.fetch = Object.assign(answer, { preconnect: fetch.preconnect });

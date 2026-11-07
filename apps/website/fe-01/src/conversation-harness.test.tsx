@@ -246,16 +246,17 @@ test('a proposal refused by a daily cap shows the cap copy in the card', async (
 
 /** Types `text` into a React-controlled textarea, as a visitor's input event would. */
 function typeInto(field: HTMLTextAreaElement, text: string): void {
-  // React loaded before `document` existed, so it detects edits through its legacy input
-  // polyfill: focusin starts watching the field (through IE's attachEvent, stubbed here) and keyup
-  // compares its value.
+  // Native input covers ReactDOM initialized after `document`; focusin and keyup also
+  // support its legacy input polyfill when ReactDOM initialized before `document`.
   Object.assign(field, { attachEvent: () => undefined, detachEvent: () => undefined });
   field.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true }));
-  // The prototype setter bypasses React's own tracker, so the polyfill sees a changed value.
+  // The prototype setter bypasses React's own tracker, so either path sees a changed value.
   Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value')?.set?.call(
     field,
     text,
   );
+  // Proof: omitting input failed autosave/refusal with DOM first; legacy keyup still passed.
+  field.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
   field.dispatchEvent(new dom.window.KeyboardEvent('keyup', { bubbles: true }));
 }
 
@@ -363,12 +364,16 @@ test('a brief save the API refuses says the edit is not saved and offers no succ
 });
 
 test('a save answered after the request started never shows under Sending', async () => {
+  let saves = 0;
   const save = Promise.withResolvers<Response>();
   const post = Promise.withResolvers<Response>();
   globalThis.fetch = Object.assign(
-    (input: Parameters<typeof fetch>[0]) => {
+    (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
       const url = input instanceof Request ? input.url : String(input);
-      if (url.endsWith('/brief')) return save.promise;
+      if (url.endsWith('/brief') && init?.method === 'PATCH') {
+        saves += 1;
+        return save.promise;
+      }
       if (url.endsWith('/proposals')) return post.promise;
       throw new Error(`Unexpected request ${url}`);
     },
@@ -393,9 +398,17 @@ test('a save answered after the request started never shows under Sending', asyn
   // Pressing the button blurs the field (the save starts), then submits.
   await act(async () => {
     field.dispatchEvent(new dom.window.FocusEvent('focusout', { bubbles: true }));
+    await Promise.resolve();
+  });
+  // Proof: bypassing ProposalCard's onBlur save left zero PATCH entries and failed here.
+  expect(saves).toBe(1);
+  await act(async () => {
     form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
     await Promise.resolve();
   });
+  expect(container.querySelector('.proposal-card button[type="submit"]')?.textContent).toContain(
+    'Sending…',
+  );
   // The request consumed the draft first, so the save is refused.
   await act(async () => {
     save.resolve(
@@ -1072,3 +1085,24 @@ for (const status of [409, 429, 200])
       harness.unmount();
     }
   });
+
+test('anonymous scoped questions and candidate review do not mount an email form', () => {
+  for (const conversation of [
+    scoped,
+    {
+      ...scoped,
+      brief: 'Visitor-reviewed brief',
+      scoping: { ...scoped.scoping, questionId: null, candidateBrief: 'Proposed first step' },
+    },
+  ]) {
+    const markup = renderToStaticMarkup(
+      <LiveHarness
+        initial={conversation}
+        onReload={() => undefined}
+        onHandedOff={() => undefined}
+      />,
+    );
+    expect(markup).toContain('Send my request now');
+    expect(markup).not.toContain('type="email"');
+  }
+});
