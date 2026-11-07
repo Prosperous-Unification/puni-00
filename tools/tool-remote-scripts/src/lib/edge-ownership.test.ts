@@ -7,6 +7,7 @@ import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 import type { Node } from 'typescript';
 
+import { readHistoricalSources } from '../fixtures/ordinary-historical-sources';
 import { assertNoEdgeOwner } from './edge-admission';
 import {
   assertDependencyOwner,
@@ -1849,7 +1850,7 @@ test('UC2 ordinary HOLD packet refuses sparse oracle failures', async () => {
   expect(() => decodeOrdinaryHoldObservationV1(packet)).toThrow('oracle code');
 }, 10000);
 
-test('UC2 ordinary HOLD V1 fixed source epoch pins actual compiler inputs', async () => {
+test('UC2 ordinary HOLD V1 historical source epoch pins archived compiler inputs', async () => {
   const { ordinaryHoldSourceEpochV1, ordinaryHoldModuleModesV1 } =
     await import('../fixtures/dependency-owner-custody');
   expect(ordinaryHoldSourceEpochV1.sourceIdentity).toBe('febb1c24427b2d368aa2d6446d6000dc1faabdb3');
@@ -1860,13 +1861,33 @@ test('UC2 ordinary HOLD V1 fixed source epoch pins actual compiler inputs', asyn
   expect(ordinaryHoldSourceEpochV1.pins.map((pin) => pin.relative)).toEqual(
     ordinaryHoldModuleModesV1.map((entry) => entry.relative),
   );
-  const root = new URL('../../../../', import.meta.url);
+  const supplied = await readHistoricalSources('/historical');
   for (const pin of ordinaryHoldSourceEpochV1.pins) {
-    const bytes = await readFile(new URL(pin.relative, root));
+    const bytes = supplied.get(`/historical/${pin.relative}`);
+    if (bytes === undefined) throw new Error('historical compiler source absent');
     expect(bytes.byteLength).toBe(pin.bytes);
     expect(createHash('sha256').update(bytes).digest('hex')).toBe(pin.sha256);
   }
 }, 10000);
+
+// Proof: omitting only the first planner pin guard changes this refusal to the
+// materializer's later refusal; this checks classification, not independent admission safety.
+for (const relative of [
+  'tools/tool-remote-scripts/src/lib/edge-ownership.ts',
+  'tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts',
+])
+  test(`UC2 historical planner refuses controlled current-source drift ${relative}`, async () => {
+    const fixture = await import('../fixtures/dependency-owner-custody');
+    const supplied = new Map(await readHistoricalSources('/historical'));
+    const current = await readFile(new URL(relative, new URL('../../../../', import.meta.url)));
+    supplied.set(
+      `/historical/${relative}`,
+      new TextEncoder().encode(current.toString('utf8') + '\n// current-source epoch drift\n'),
+    );
+    expect(() => fixture.planOrdinaryHoldBuildV1('/historical', supplied)).toThrow(
+      'ordinary HOLD build source bytes differ',
+    );
+  });
 
 test('UC2 ordinary HOLD V1 resolver keeps classifier identity and scanner external', async () => {
   const { resolveOrdinaryHoldImportV1 } = await import('../fixtures/dependency-owner-custody');
@@ -1920,9 +1941,7 @@ test('UC2 ordinary HOLD V1 concrete compiler plan transforms pinned production m
     await import('../fixtures/dependency-owner-custody');
   const rootUrl = new URL('../../../../', import.meta.url);
   const sourceRoot = rootUrl.pathname.replace(/\/$/, '');
-  const supplied = new Map<string, Uint8Array>();
-  for (const pin of ordinaryHoldSourceEpochV1.pins)
-    supplied.set(`${sourceRoot}/${pin.relative}`, await readFile(new URL(pin.relative, rootUrl)));
+  const supplied = await readHistoricalSources(sourceRoot);
   const planned = planOrdinaryHoldBuildV1(sourceRoot, supplied);
   expect(planned.image.sourceIdentity).toBe(ordinaryHoldSourceEpochV1.sourceIdentity);
   expect(planned.image.mappings).toHaveLength(17);
@@ -2131,13 +2150,10 @@ interface LedgerHarness {
 
 /** Evaluates only the generated import-free ledger; no image, native port or production module runs. */
 async function ordinaryLedger() {
-  const { planOrdinaryHoldBuildV1, ordinaryHoldSourceEpochV1 } =
-    await import('../fixtures/dependency-owner-custody');
+  const { planOrdinaryHoldBuildV1 } = await import('../fixtures/dependency-owner-custody');
   const rootUrl = new URL('../../../../', import.meta.url);
   const sourceRoot = rootUrl.pathname.replace(/\/$/, '');
-  const supplied = new Map<string, Uint8Array>();
-  for (const pin of ordinaryHoldSourceEpochV1.pins)
-    supplied.set(`${sourceRoot}/${pin.relative}`, await readFile(new URL(pin.relative, rootUrl)));
+  const supplied = await readHistoricalSources(sourceRoot);
   const source = planOrdinaryHoldBuildV1(sourceRoot, supplied).portSources.get(
     'ordinary-hold-v1:ledger',
   );
@@ -2405,13 +2421,10 @@ test('UC2 generated ledger bounds cleanup attempt accounting without native entr
 });
 
 async function ordinaryChildTransport() {
-  const { planOrdinaryHoldBuildV1, ordinaryHoldSourceEpochV1 } =
-    await import('../fixtures/dependency-owner-custody');
+  const { planOrdinaryHoldBuildV1 } = await import('../fixtures/dependency-owner-custody');
   const rootUrl = new URL('../../../../', import.meta.url);
   const sourceRoot = rootUrl.pathname.replace(/\/$/, '');
-  const supplied = new Map<string, Uint8Array>();
-  for (const pin of ordinaryHoldSourceEpochV1.pins)
-    supplied.set(`${sourceRoot}/${pin.relative}`, await readFile(new URL(pin.relative, rootUrl)));
+  const supplied = await readHistoricalSources(sourceRoot);
   const source = planOrdinaryHoldBuildV1(sourceRoot, supplied).portSources.get(
     'ordinary-hold-v1:ledger',
   );
@@ -2467,9 +2480,7 @@ test('UC2 custody epoch owns writable migration staging and four fixed child rou
   expect(ordinaryHoldSourceEpochV1.pins).toHaveLength(17);
   const rootUrl = new URL('../../../../', import.meta.url);
   const sourceRoot = rootUrl.pathname.replace(/\/$/, '');
-  const supplied = new Map<string, Uint8Array>();
-  for (const pin of ordinaryHoldSourceEpochV1.pins)
-    supplied.set(`${sourceRoot}/${pin.relative}`, await readFile(new URL(pin.relative, rootUrl)));
+  const supplied = await readHistoricalSources(sourceRoot);
   const plan = planOrdinaryHoldBuildV1(sourceRoot, supplied);
   for (const id of [
     'database.readwrite-enter-return',
@@ -2821,13 +2832,11 @@ test('UC2 generated migration staging exact call caps refuse before entry', asyn
 });
 
 test('UC2 custody source cuts reconstruct every original program and reject historical epoch', async () => {
-  const { planOrdinaryHoldBuildV1, ordinaryHoldSourceEpochV1, decodeOrdinaryHoldImageV1 } =
+  const { planOrdinaryHoldBuildV1, decodeOrdinaryHoldImageV1 } =
     await import('../fixtures/dependency-owner-custody');
   const rootUrl = new URL('../../../../', import.meta.url);
   const sourceRoot = rootUrl.pathname.replace(/\/$/, '');
-  const supplied = new Map<string, Uint8Array>();
-  for (const pin of ordinaryHoldSourceEpochV1.pins)
-    supplied.set(`${sourceRoot}/${pin.relative}`, await readFile(new URL(pin.relative, rootUrl)));
+  const supplied = await readHistoricalSources(sourceRoot);
   const plan = planOrdinaryHoldBuildV1(sourceRoot, supplied);
   expect(plan.image.sourceEpoch).toBe('ordinary-febb-custody-v1');
   expect(() =>
@@ -2940,9 +2949,7 @@ async function makeOrdinaryLoadRecorderFixture() {
   const fixture = await import('../fixtures/dependency-owner-custody');
   const rootUrl = new URL('../../../../', import.meta.url);
   const root = rootUrl.pathname.replace(/\/$/, '');
-  const supplied = new Map<string, Uint8Array>();
-  for (const pin of fixture.ordinaryHoldSourceEpochV1.pins)
-    supplied.set(`${root}/${pin.relative}`, await readFile(new URL(pin.relative, rootUrl)));
+  const supplied = await readHistoricalSources(root);
   const plan = fixture.planOrdinaryHoldBuildV1(root, supplied);
   const contents = 'generated receipt α';
   const bytes = Buffer.byteLength(contents);
@@ -3582,9 +3589,7 @@ test('UC2 coupled prospective planner preserves physical bases and emits exact t
   const fixture = await import('../fixtures/dependency-owner-custody');
   expect(typeof fixture.planOrdinaryCoupledBuildV1).toBe('function');
   const root = new URL('../../../../', import.meta.url).pathname.replace(/\/$/, '');
-  const supplied = new Map<string, Uint8Array>();
-  for (const pin of fixture.ordinaryHoldSourceEpochV1.pins)
-    supplied.set(`${root}/${pin.relative}`, await readFile(`${root}/${pin.relative}`));
+  const supplied = await readHistoricalSources(root);
   const authority = JSON.parse(
     await readFile(
       new URL('../fixtures/ordinary-coupled-r2-authority-20261105.json', import.meta.url),
@@ -3721,13 +3726,7 @@ test('UC2 coupled source generator leaves every old virtual load receipt unchang
     sourceRoot: string;
     rows: { namespace: string; identity: string; sha256: string; bytes: number }[];
   };
-  const physicalRoot = new URL('../../../../', import.meta.url).pathname.replace(/\/$/, '');
-  const supplied = new Map<string, Uint8Array>();
-  for (const pin of fixture.ordinaryHoldSourceEpochV1.pins)
-    supplied.set(
-      `${packet.sourceRoot}/${pin.relative}`,
-      await readFile(`${physicalRoot}/${pin.relative}`),
-    );
+  const supplied = await readHistoricalSources(packet.sourceRoot);
   const oldPlan = fixture.planOrdinaryHoldBuildV1(packet.sourceRoot, supplied);
   const ports = oldPlan.portSources;
   const files = packet.rows.filter((row) => row.namespace === 'file');
@@ -3805,9 +3804,13 @@ test('UC2 coupled archive refuses modified contexts hunk coordinates paths and o
       hunks: unknown[];
     }[];
   };
-  const root = new URL('../../../../', import.meta.url);
+  const archived = await readHistoricalSources('/historical');
   const bases = new Map<string, Uint8Array>();
-  for (const file of manifest.files) bases.set(file.path, await readFile(new URL(file.path, root)));
+  for (const file of manifest.files) {
+    const bytes = archived.get(`/historical/${file.path}`);
+    if (bytes === undefined) throw new Error('historical coupled source absent');
+    bases.set(file.path, bytes);
+  }
   const identities = manifest.files.map((file) => ({
     path: file.path,
     baseSha256: file.base.sha256,
@@ -4025,9 +4028,7 @@ test('UC2 coupled typing preserves unchanged forwarding runtime syntax trees', a
   const fixture = await import('../fixtures/dependency-owner-custody');
   const ts = await import('typescript');
   const root = new URL('../../../../', import.meta.url).pathname.replace(/\/$/, '');
-  const supplied = new Map<string, Uint8Array>();
-  for (const pin of fixture.ordinaryHoldSourceEpochV1.pins)
-    supplied.set(`${root}/${pin.relative}`, await readFile(`${root}/${pin.relative}`));
+  const supplied = await readHistoricalSources(root);
   const previous = fixture.planOrdinaryHoldBuildV1(root, supplied).portSources;
   const prospective = fixture.ordinaryCoupledPortSourcesV1(root);
   function shape(node: Node): unknown {
@@ -4118,9 +4119,7 @@ test('UC2 coupled migration overloads preserve named forwarding bodies with thre
   const fixture = await import('../fixtures/dependency-owner-custody');
   const ts = await import('typescript');
   const root = new URL('../../../../', import.meta.url).pathname.replace(/\/$/, '');
-  const supplied = new Map<string, Uint8Array>();
-  for (const pin of fixture.ordinaryHoldSourceEpochV1.pins)
-    supplied.set(`${root}/${pin.relative}`, await readFile(`${root}/${pin.relative}`));
+  const supplied = await readHistoricalSources(root);
   const previous = fixture
     .planOrdinaryHoldBuildV1(root, supplied)
     .portSources.get('ordinary-hold-v1:migration-fs');
@@ -4386,13 +4385,7 @@ test('KCT5 coupled recorder retains exactly16 file31 virtual callback identities
   const fixture = await import('../fixtures/dependency-owner-custody');
   const request = await coupledBuildRequest();
   const admitted = fixture.decodeOrdinaryCoupledBuildRequestV1(request);
-  const physicalRoot = new URL('../../../../', import.meta.url).pathname.replace(/\/$/, '');
-  const supplied = new Map<string, Uint8Array>();
-  for (const pin of fixture.ordinaryHoldSourceEpochV1.pins)
-    supplied.set(
-      `${request.sourceRoot}/${pin.relative}`,
-      await readFile(`${physicalRoot}/${pin.relative}`),
-    );
+  const supplied = await readHistoricalSources(request.sourceRoot);
   const plan = fixture.planOrdinaryCoupledBuildV1(
     request.sourceRoot,
     supplied,
@@ -5100,13 +5093,7 @@ test('SC1 prospective planner refuses wrong epoch and leaves frozen old authorit
   const fixture = await import('../fixtures/dependency-owner-custody');
   const request = await coupledBuildRequest();
   const admitted = fixture.decodeOrdinaryCoupledBuildRequestV1(request);
-  const physicalRoot = new URL('../../../../', import.meta.url).pathname.replace(/\/$/, '');
-  const supplied = new Map<string, Uint8Array>();
-  for (const pin of fixture.ordinaryHoldSourceEpochV1.pins)
-    supplied.set(
-      `${request.sourceRoot}/${pin.relative}`,
-      await readFile(`${physicalRoot}/${pin.relative}`),
-    );
+  const supplied = await readHistoricalSources(request.sourceRoot);
   const old = fixture.planOrdinaryCoupledBuildV1(
     request.sourceRoot,
     supplied,
@@ -5563,13 +5550,7 @@ test('SPC4 setup plan matches independent sealed callback and coverage bytes whi
   const fixture = await import('../fixtures/dependency-owner-custody');
   const setup = fixture.decodeOrdinarySetupCustodyBuildRequestV1(await setupCustodyBuildRequest());
   const historical = fixture.decodeOrdinaryCoupledBuildRequestV1(await coupledBuildRequest());
-  const physicalRoot = new URL('../../../../', import.meta.url).pathname.replace(/\/$/, '');
-  const supplied = new Map<string, Uint8Array>();
-  for (const pin of fixture.ordinaryHoldSourceEpochV1.pins)
-    supplied.set(
-      `${setup.sourceRoot}/${pin.relative}`,
-      await readFile(`${physicalRoot}/${pin.relative}`),
-    );
+  const supplied = await readHistoricalSources(setup.sourceRoot);
   const plan = fixture.planOrdinarySetupCustodyBuildV1(
     setup.sourceRoot,
     supplied,
