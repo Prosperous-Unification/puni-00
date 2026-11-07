@@ -17,6 +17,7 @@ export const SOURCE_CONFORMANCE_CASES = [
   'projects.update:scope',
   'projects.recordOpen:reader-order',
   'projectRanks.orderIn:scoped-move',
+  'accessDecisions.effectiveRoleAt:grant-reaches-package',
   'organizationLimits.readAgentPersonCap:organization-scope',
   'organizationLimits.readConcurrentClaimCap:bound-triples',
   'organizationLimits.readCapacityCap:per-resource-except-project',

@@ -1,5 +1,6 @@
 import type { LivePlanStore } from '@wbs/core/ports/chain-snapshot-store';
 
+import { AccessDecisionRepository } from './access-decisions';
 import { ActualRepository } from './actual';
 import { CalendarMarkerRepository } from './calendar-marker';
 import { CapacityRepository } from './capacity';
@@ -48,6 +49,12 @@ export function buildStores(
     projectRanks: new ProjectRankRepository(db, gate),
     users: new UserRepository(db, gate),
     directory: new DirectoryRepository(db, gate),
+    // Proof: left out of this catalog, `both catalogs carry the decisions; a
+    // batch sees its own uncommitted grant` (access-decisions.db.test.ts)
+    // threw "the read stores carry no decisions", and the SQLite certification
+    // failed `accessDecisions.effectiveRoleAt:grant-reaches-package`
+    // ("declared access decisions are absent"); watched 2026-11-08.
+    accessDecisions: new AccessDecisionRepository(db),
     capacity: new CapacityRepository(db, gate),
     resourceCapacity: new ResourceCapacityRepository(db, gate),
     priorityBands: new PriorityBandRepository(db, gate),

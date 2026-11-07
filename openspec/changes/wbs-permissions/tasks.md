@@ -49,7 +49,7 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       widen the cap with `project.manage_budgets` and the machine case manages budgets; add
       `package.claim_for_others` to `package-contributor`'s seed and the machine case
       passes; watched.
-- [ ] 1.3 Green: port `AccessDecisions` (`effectiveRoleAt`, `readablePackageIds`) in
+- [x] 1.3 Green: port `AccessDecisions` (`effectiveRoleAt`, `readablePackageIds`) in
       `@wbs/core`, SQLite implementation with the two statements of design.md, exposed on
       the admitted turn's stores and the read stores; provenance returned; work package
       targets without a project until #698 slice 2 (design.md, "The `may` port") — test:

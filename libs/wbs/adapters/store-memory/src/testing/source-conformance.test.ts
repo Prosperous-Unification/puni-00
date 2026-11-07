@@ -1094,6 +1094,10 @@ const declaration: SourceDeclaration = {
       kind: 'absent',
       reason: 'Memory fixtures do not install the SQLite organization rank writer.',
     },
+    accessDecisions: {
+      kind: 'absent',
+      reason: 'Memory fixtures hold no access grants; the SQLite evaluator owns the decisions.',
+    },
     organizationLimits: { kind: 'offered', gaps: [], open: openMemoryLimitsCase },
     projects: { kind: 'offered', gaps: [], open: openers.projects },
     users: { kind: 'offered', gaps: [], open: openers.users },
@@ -5946,6 +5950,7 @@ describe('memory existing source conformance', () => {
           (caseId) =>
             caseId !== 'livePlans.read:legacy-and-absence' &&
             caseId !== 'projectRanks.orderIn:scoped-move' &&
+            caseId !== 'accessDecisions.effectiveRoleAt:grant-reaches-package' &&
             !knownGaps.some((gap) => gap.caseId === caseId),
         )
         .toSorted(),
@@ -5959,6 +5964,14 @@ describe('memory existing source conformance', () => {
     expect(failedCase(report, 'projectRanks.orderIn:scoped-move')).toMatchObject({
       family: 'projectRanks',
       caseId: 'projectRanks.orderIn:scoped-move',
+      status: 'not-offered',
+      executed: false,
+    });
+    expect(
+      failedCase(report, 'accessDecisions.effectiveRoleAt:grant-reaches-package'),
+    ).toMatchObject({
+      family: 'accessDecisions',
+      caseId: 'accessDecisions.effectiveRoleAt:grant-reaches-package',
       status: 'not-offered',
       executed: false,
     });

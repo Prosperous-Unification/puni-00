@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import {
+  ACCESS_CONFORMANCE_ORGANIZATION,
   assertCompleteStateAlternative,
   assertFaultVariantCoverage,
   assertSeedState,
@@ -890,6 +891,26 @@ const openers: ExistingStoreOpeners = {
     }
     return sqliteFixture(source, directory, 'projectRanks', caseId);
   },
+  accessDecisions: async (caseId) => {
+    const { source, directory } = await seedSqliteSource();
+    const [granted] = DETERMINISTIC_SEED.projectIds;
+    source.db.run(
+      sql`INSERT INTO organization (id, name, created_at) VALUES (${ACCESS_CONFORMANCE_ORGANIZATION}, 'Access', 1)`,
+    );
+    for (const projectId of DETERMINISTIC_SEED.projectIds)
+      source.db.run(
+        sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, ${ACCESS_CONFORMANCE_ORGANIZATION})`,
+      );
+    for (const ownerId of DETERMINISTIC_SEED.ownerIds)
+      source.db.run(
+        sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (${ACCESS_CONFORMANCE_ORGANIZATION}, ${ownerId}, 'member', 1)`,
+      );
+    source.db.run(
+      sql`INSERT INTO access_grant (id, organization_id, scope_kind, scope_id, subject_kind, subject_id, role_id, origin, created_at)
+          VALUES ('conformance-grant', ${ACCESS_CONFORMANCE_ORGANIZATION}, 'work_package', ${granted}, 'user', ${DETERMINISTIC_SEED.ownerIds[0]}, 'package-viewer', 'route', 1)`,
+    );
+    return sqliteFixture(source, directory, 'accessDecisions', caseId);
+  },
   organizationLimits: openSqliteLimitsCase,
   users: (caseId) => openSqliteCase('users', caseId),
   capacity: (caseId) => openSqliteCase('capacity', caseId),
@@ -950,6 +971,18 @@ const declaration: SourceDeclaration = {
         if (caseId !== 'projectRanks.orderIn:scoped-move' || openers.projectRanks === undefined)
           throw new Error('unexpected project rank case');
         return openers.projectRanks(caseId);
+      },
+    },
+    accessDecisions: {
+      kind: 'offered',
+      gaps: [],
+      open: (caseId) => {
+        if (
+          caseId !== 'accessDecisions.effectiveRoleAt:grant-reaches-package' ||
+          openers.accessDecisions === undefined
+        )
+          throw new Error('unexpected access decisions case');
+        return openers.accessDecisions(caseId);
       },
     },
     users: { kind: 'offered', gaps: [], open: openers.users },
