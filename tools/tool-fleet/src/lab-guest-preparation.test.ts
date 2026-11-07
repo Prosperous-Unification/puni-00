@@ -334,13 +334,17 @@ with tempfile.TemporaryDirectory() as state:
         if self.collector is None:self.collector=p.SerialCollector({'nonce':'b'*32,'bootstrapSha256':'f'*64},time.monotonic()-60.1)
         consume(self,frame,binding,request)
     p.Evidence.consume=consume_elapsed
-    synced=set()
+    # Fixtures derived from this control rebind sync and synced for their own fsync
+    # witnesses, so the handoff bookkeeping keeps distinct names.
+    # Proof: sharing the names recursed sync_evidence into itself (RecursionError) in
+    # guest review I2 failure evidence fsync and flush (2026-11-08).
+    evidence_synced=set()
     original_send=p.raw.send_frame
     def send(descriptor,frame):
         # Proof: omitting native worker-ready.json fsync fails with initial ACK preceded ready fsync.
-        if 'bindingDigest' in frame:assert 'worker-ready.json' in synced,'initial ACK preceded ready fsync'
+        if 'bindingDigest' in frame:assert 'worker-ready.json' in evidence_synced,'initial ACK preceded ready fsync'
         # Proof: omitting native worker-counter.json fsync fails with durability ACK preceded evidence fsync.
-        if 'durableDigest' in frame:assert {'worker-counter.json','raw-serial.bin','client-stderr.bin','collector.json'}<=synced,'durability ACK preceded evidence fsync'
+        if 'durableDigest' in frame:assert {'worker-counter.json','raw-serial.bin','client-stderr.bin','collector.json'}<=evidence_synced,'durability ACK preceded evidence fsync'
         if fault=='missing-ack' and 'bindingDigest' in frame:
             os.write(handoff_write,b'R')
             return
@@ -358,13 +362,13 @@ with tempfile.TemporaryDirectory() as state:
             else:os.close(competing);raise AssertionError('original staging lock was released before durable ACK')
         return publish(directory,name,record,directory_fd=directory_fd)
     p.raw.persist=persist
-    sync=os.fsync
+    native_sync=os.fsync
     def sync_evidence(descriptor):
         name=os.path.basename(os.readlink('/proc/self/fd/'+str(descriptor)))
         if handoff_delay=='initial' and name=='worker-ready.json':time.sleep(.3)
         if handoff_delay=='durability' and name=='worker-counter.json':time.sleep(.6)
-        sync(descriptor)
-        synced.add(name)
+        native_sync(descriptor)
+        evidence_synced.add(name)
     os.fsync=sync_evidence
     if fault=='short':os.pwrite=lambda *args:1
     if fault=='fsync':p.Evidence.durable=lambda self:(_ for _ in ()).throw(OSError('controlled fsync failure'))
@@ -704,6 +708,12 @@ except BaseException:__import__('traceback').print_exc();sys.exit(1)
 `;
 const workerLifecycle = lifecycle
   .replace(/child_source=r'''[\s\S]*?'''/u, `child_source=r'''${workerSource}'''`)
+  // The production worker refuses every inherited descriptor, so the handoff pipe
+  // reaches only the fixture child that reads it; the coordinator still writes
+  // its R/D tokens into the pipe buffer.
+  // Proof: with pass_fds=(handoff_read,) kept, success and durable refused with
+  // seed-unexpected-fd at lab-guest-preparation.py worker require_descriptors (2026-11-08).
+  .replace('pass_fds=(handoff_read,)', 'pass_fds=()')
   .replace(
     "raw_fd=os.open(state+'/disk.raw'",
     "__import__('shutil').copyfile('/proc/self/exe',state+'/tools-root/usr/bin/qemu-system-x86_64');os.chmod(state+'/tools-root/usr/bin/qemu-system-x86_64',0o500)\n    raw_fd=os.open(state+'/disk.raw'",
