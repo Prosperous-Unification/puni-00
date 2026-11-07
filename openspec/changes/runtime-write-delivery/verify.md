@@ -1,13 +1,10 @@
 # Verification
 
-Task1 values/planners and Task2 memory/SQLite storage are locally accepted.
-Task3 delivery/recovery and the bounded Task4 repairs have passed their scoped
-reviews and checks. A fresh complete RunStore run passed on source `99027159`;
-the original full f7 failure remains a separate result. The narrow import-policy
-scope was approved and applied on 2026-11-02, and its independent execution
-review passed. Normal hooks, current-main integration, full-project acceptance,
-current CI and the exact-SHA canonical gate are pending. No main, operator-store, production or PostgreSQL-conformance
-acceptance follows from this record.
+The original runtime-write release was accepted at candidate `9917286d18ae327182558f9eec17463fe01339ac` and merged as PR 787 / `64572eeeb6a393662b29c2377ba9278a7d85e21f`. Original hosted CI 41730727102 and exact-SHA h4claw canonical gate passed; merge CI 41918617932 separately succeeded. The dated [acceptance reconciliation](evidence/runtime-write-acceptance-reconciliation-20261105.md) publishes source-bound acceptance evidence and its finite dependency closure and supersedes older pending release statements below.
+
+The three later cancellation/held-verification proof gaps are resolved by reviewed actual memory/SQLite controls on source `178d1a7bc90fe296b2e2e359e41f60c40f3a6896`; production executable behavior is unchanged. Task4 remains open for the full current RunStore cohort, final publication review and current source-specific hosted/canonical acceptance. Historical bounded review, helper/closure limits, failed attempts and configured skips remain explicit. No operator-store, production, PostgreSQL-conformance or full S0/S7a acceptance follows.
+
+Earlier sections below record their dated source checkpoints, including then-pending or failed checks.
 
 ## Task2 storage checkpoint
 

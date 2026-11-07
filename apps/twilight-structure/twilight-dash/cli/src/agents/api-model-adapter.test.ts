@@ -27,6 +27,7 @@ import {
 import { ActivityDispatchError, type Preparation, type TurnRequest } from './activity-executor';
 import { createApiModelExecutor } from './api-model-adapter';
 import type { ApiModelRegistry } from './api-model-settings';
+import { executorContract, type ExecutorFixture } from './testing/executor-contract';
 
 type ModelResponse = Awaited<ReturnType<MockLanguageModelV4['doStream']>>;
 type ModelPart = ModelResponse['stream'] extends ReadableStream<infer Part> ? Part : never;
@@ -166,38 +167,37 @@ function deferredModel() {
   };
 }
 
-test('open creates a portable local session without dispatch and replays exact preparation', async () => {
-  const { executor, model, preparation, allocations } = fixture();
-  const session = await open(executor, preparation);
-  expect(session.locator.session).toEqual({
-    version: 1,
-    workerId: 'instance',
-    sessionId: 'session-1',
-    operationKey: operationKey('operation'),
-  });
-  expect(JSON.parse(JSON.stringify(session.locator))).toEqual(session.locator);
-  expect(await executor.open(structuredClone(preparation), aborted())).toEqual({
-    kind: 'opened',
-    session,
-  });
-  expect(
-    executor.open({ ...preparation, attemptId: attemptId('changed') }, aborted()),
-  ).rejects.toThrow();
-  expect(allocations()).toBe(1);
-  expect(model.doStreamCalls).toHaveLength(0);
-});
+/** Keeps Burokrat acceptance, registry resolution and installed SDK dispatch behind the shared port fixture. */
+function contractFixture(model?: MockLanguageModelV4): ExecutorFixture {
+  const concrete = model === undefined ? fixture() : fixture(model);
+  return {
+    executor: concrete.executor,
+    preparation: concrete.preparation,
+    initialRequest: concrete.initialRequest,
+    expectedSession: {
+      version: 1,
+      workerId: 'instance',
+      sessionId: AgentRunIdCodec.assert('session-1'),
+      operationKey: operationKey('operation'),
+    },
+    expectedOutcome: {
+      text: 'Hi',
+      finish: 'end_turn',
+      usage: { kind: 'measured', inputTokens: 120, outputTokens: 30 },
+    },
+    expectedTextParts: [{ type: 'text-delta', id: 'text', delta: 'Hi' }],
+    allocationCount: concrete.allocations,
+    dispatchCount: () => concrete.model.doStreamCalls.length,
+    createOtherExecutor: () => createApiModelExecutor({ ...concrete.options, instanceId: 'other' }),
+  };
+}
 
-test('fresh pre-aborted creation remains unbound and allocates no ID', async () => {
-  const { executor, model, preparation, allocations } = fixture();
-  expect(await executor.open(preparation, aborted())).toEqual({
-    kind: 'not_started',
-    reason: 'cancelled_before_dispatch',
-  });
-  expect(allocations()).toBe(0);
-  const changed = { ...preparation, attemptId: attemptId('changed') };
-  expect((await open(executor, changed)).locator.preparation).toEqual(changed);
-  expect(allocations()).toBe(1);
-  expect(model.doStreamCalls).toHaveLength(0);
+executorContract('api-model', {
+  createFixture: () => contractFixture(),
+  createHeldFixture: () => {
+    const deferred = deferredModel();
+    return { ...contractFixture(deferred.model), ...deferred };
+  },
 });
 
 test('duplicate and malformed generated session IDs reject without binding creation keys', async () => {
@@ -214,125 +214,6 @@ test('duplicate and malformed generated session IDs reject without binding creat
     (await open(executor, { ...next, attemptId: attemptId('changed') })).locator.session.sessionId,
   ).toBe('distinct');
   expect(model.doStreamCalls).toHaveLength(0);
-});
-
-test('completed exact replay emits no UI or dispatch and rejects changed payload before aborted signal', async () => {
-  const { executor, model, preparation, initialRequest } = fixture();
-  const session = await open(executor, preparation);
-  const parts: UIMessageChunk[] = [];
-  const first = await executor.turn(session, initialRequest, {
-    signal: signal(),
-    onPart: (part) => parts.push(part),
-  });
-  expect(first).toMatchObject({
-    kind: 'completed',
-    outcome: {
-      text: 'Hi',
-      finish: 'end_turn',
-      usage: { kind: 'measured', inputTokens: 120, outputTokens: 30 },
-    },
-  });
-  expect(parts.filter((part) => part.type === 'text-delta')).toEqual([
-    { type: 'text-delta', id: 'text', delta: 'Hi' },
-  ]);
-  const duplicates: UIMessageChunk[] = [];
-  expect(
-    await executor.turn(session, structuredClone(initialRequest), {
-      signal: aborted(),
-      onPart: (part) => duplicates.push(part),
-    }),
-  ).toEqual(first);
-  for (const changed of [
-    { ...initialRequest, input: 'changed' },
-    { ...initialRequest, owner: { ...initialRequest.owner, epoch: 2 } },
-    decision(initialRequest, initialRequest.turnKey),
-  ])
-    expect(executor.turn(session, changed, { ...control(), signal: aborted() })).rejects.toThrow();
-  expect(duplicates).toEqual([]);
-  expect(model.doStreamCalls).toHaveLength(1);
-  expect(Object.isFrozen(first)).toBe(true);
-  if (first.kind !== 'completed') throw new Error('expected completed');
-  expect(Object.isFrozen(first.outcome)).toBe(true);
-  expect(Object.isFrozen(first.outcome.usage)).toBe(true);
-  expect(first).not.toHaveProperty('responseMessages');
-});
-
-test('retained turn request detaches input and owner while caller remains mutable', async () => {
-  const { executor, model, preparation, initialRequest } = fixture();
-  const request = structuredClone(initialRequest);
-  const original = structuredClone(request);
-  const session = await open(executor, preparation);
-  const first = await executor.turn(session, request, control());
-  expect(() => {
-    Object.assign(request, { input: 'changed by caller' });
-    Object.assign(request.owner, { epoch: 8 });
-  }).not.toThrow();
-  expect(request.input).toBe('changed by caller');
-  expect(request.owner.epoch).toBe(8);
-  expect(await executor.turn(session, original, control())).toEqual(first);
-  expect(model.doStreamCalls).toHaveLength(1);
-});
-
-test('fresh pre-aborted turn stays unbound and preserves initial cause', async () => {
-  const { executor, model, preparation, initialRequest } = fixture();
-  const session = await open(executor, preparation);
-  expect(
-    await executor.turn(session, initialRequest, { ...control(), signal: aborted() }),
-  ).toMatchObject({ kind: 'not_started', reason: 'cancelled_before_dispatch' });
-  expect(model.doStreamCalls).toHaveLength(0);
-  expect(
-    await executor.turn(session, { ...initialRequest, input: 'resubmitted' }, control()),
-  ).toMatchObject({ kind: 'completed' });
-  expect(model.doStreamCalls).toHaveLength(1);
-});
-
-test('active key is uncertain and a fresh busy key stays unbound for changed resubmission', async () => {
-  const deferred = deferredModel();
-  const { executor, model, preparation, initialRequest } = fixture(deferred.model);
-  const session = await open(executor, preparation);
-  const first = executor.turn(session, initialRequest, control());
-  await deferred.entered;
-  try {
-    expect(
-      await executor.turn(session, initialRequest, { ...control(), signal: aborted() }),
-    ).toMatchObject({ kind: 'unresolved', reason: 'turn_in_flight' });
-    expect(
-      executor.turn(session, { ...initialRequest, input: 'conflict' }, control()),
-    ).rejects.toThrow();
-    const next = decision(initialRequest);
-    const competing = executor.turn(session, next, control());
-    const admission = await Promise.race([
-      competing,
-      deferred.secondEntered.then(() => ({ kind: 'extra_dispatch' })),
-    ]);
-    expect(model.doStreamCalls).toHaveLength(1);
-    expect(admission).toMatchObject({ kind: 'not_started', reason: 'session_busy' });
-    expect(
-      await executor.turn(session, decision(initialRequest, 'aborted-busy'), {
-        ...control(),
-        signal: aborted(),
-      }),
-    ).toMatchObject({ kind: 'not_started', reason: 'cancelled_before_dispatch' });
-    expect(model.doStreamCalls).toHaveLength(1);
-  } finally {
-    deferred.release();
-  }
-  expect(await first).toMatchObject({ kind: 'completed' });
-  expect(
-    await executor.turn(
-      session,
-      { ...decision(initialRequest), input: 'changed retry' },
-      control(),
-    ),
-  ).toMatchObject({ kind: 'completed' });
-  expect(
-    await executor.turn(
-      session,
-      { ...decision(initialRequest, 'aborted-busy'), input: 'changed after abort' },
-      control(),
-    ),
-  ).toMatchObject({ kind: 'completed' });
-  expect(model.doStreamCalls).toHaveLength(3);
 });
 
 test('different sessions progress independently and decisions keep identity and actual private SDK history', async () => {
@@ -363,46 +244,6 @@ test('different sessions progress independently and decisions keep identity and 
     executor.turn(firstSession, { ...initialRequest, turnKey: 'initial-again' }, control()),
   ).rejects.toThrow();
   expect(model.doStreamCalls).toHaveLength(3);
-});
-
-test('decision cannot precede initial admission and failed cause does not bind its key', async () => {
-  const { executor, model, preparation, initialRequest } = fixture();
-  const session = await open(executor, preparation);
-  expect(executor.turn(session, decision(initialRequest, 'turn-1'), control())).rejects.toThrow();
-  expect(await executor.turn(session, initialRequest, control())).toMatchObject({
-    kind: 'completed',
-  });
-  expect(model.doStreamCalls).toHaveLength(1);
-});
-
-test('foreign live and deserialized attachments cannot turn cancel or close before local open', async () => {
-  const { executor, options, preparation, initialRequest, model } = fixture();
-  const other = createApiModelExecutor({ ...options, instanceId: 'other' });
-  const foreign = await open(other, preparation);
-  for (const attachment of [foreign, structuredClone(foreign)]) {
-    expect(executor.turn(attachment, initialRequest, control())).rejects.toThrow();
-    expect(executor.cancel(attachment)).rejects.toThrow();
-    expect(executor.close(attachment)).rejects.toThrow();
-  }
-  await open(executor, preparation);
-  expect(executor.turn(foreign, initialRequest, control())).rejects.toThrow();
-  expect(executor.cancel(foreign)).rejects.toThrow();
-  expect(executor.close(foreign)).rejects.toThrow();
-  expect(model.doStreamCalls).toHaveLength(0);
-});
-
-test('closed attachment rejects cached turn and reopen while repeated close cancel keep original locator', async () => {
-  const { executor, model, preparation, initialRequest, allocations } = fixture();
-  const session = await open(executor, preparation);
-  await executor.turn(session, initialRequest, control());
-  await executor.close(session);
-  await executor.close(session);
-  expect(await executor.cancel(session)).toEqual({ kind: 'requested', locator: session.locator });
-  expect(await executor.cancel(session)).toEqual({ kind: 'requested', locator: session.locator });
-  expect(executor.turn(session, initialRequest, control())).rejects.toThrow();
-  expect(executor.open(preparation, signal())).rejects.toThrow();
-  expect(allocations()).toBe(1);
-  expect(model.doStreamCalls).toHaveLength(1);
 });
 
 test('malformed post-dispatch usage quarantines fresh keys and rethrows cached exception', async () => {

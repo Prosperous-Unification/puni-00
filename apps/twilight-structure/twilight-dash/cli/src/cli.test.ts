@@ -428,6 +428,8 @@ function opsParserWords(): string[] {
     if (first?.type === 'exclusive') return first.terms.flatMap((branch) => paths(branch, prefix));
     if (first?.type !== 'command') return [];
     const words = [...prefix, first.name];
+    // A namespace with one command (`ops outbox drop`) nests it directly, without an `or`.
+    if (second?.type === 'command') return paths(terms.slice(1), words);
     return second?.type === 'exclusive' ? paths([second], words) : [words.join(' ')];
   };
   const branches = dashParser.usage.flatMap((term) =>
@@ -446,12 +448,14 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
       [...Object.keys(opsHandlers), 'release plan', 'release run'].sort(),
     );
     expect(opsParserWords()).toEqual([
+      'job admission',
       'job audit',
       'job calibrate',
       'job propose',
       'job render-audit-units',
       'job run',
       'job status',
+      'outbox drop',
       'pool init',
       'pool inspect',
       'pool switch-mode',
@@ -480,6 +484,9 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
         host: { cpuCores: () => 1, memoryGib: () => 1 },
         user: 'nobody',
         legacyLock: () => {
+          throw new Error('no ops command ran');
+        },
+        connect: () => {
           throw new Error('no ops command ran');
         },
       });
@@ -659,12 +666,14 @@ describe('typed command grammars (tasks 1.5–1.9)', () => {
       'inspect-authority',
       'mcp token',
       'migrate-observation',
+      'ops job admission',
       'ops job audit',
       'ops job calibrate',
       'ops job propose',
       'ops job render-audit-units',
       'ops job run',
       'ops job status',
+      'ops outbox drop',
       'ops pool init',
       'ops pool inspect',
       'ops pool switch-mode',

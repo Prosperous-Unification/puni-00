@@ -10,7 +10,7 @@ Published upstream ADR 0063 remains the organizational-space decision. The
 supervisor-exclusion delivery decision moves, with its complete body unchanged
 (SHA256 `475d13c17451781a24fc3aa9aa5cf9a2e056997fd994211a22be1aed5b8da9fe`),
 from `0063-supervisor-exclusion-does-not-require-an-identity-broker.md` to
-[ADR 0066 (now ADR 0071)](../../../docs/adr/0071-supervisor-exclusion-does-not-require-an-identity-broker.md).
+[ADR 0066 (now ADR 0073)](../../../docs/adr/0073-supervisor-exclusion-does-not-require-an-identity-broker.md).
 Five live navigation links follow the rename. Historical executed commands and
 prose-only numbering remain as recorded; in particular, the old filename in
 `verify-main-docs-20261027.md` names the file used by that historical command.

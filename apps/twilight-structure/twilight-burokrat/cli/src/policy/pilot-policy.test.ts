@@ -509,6 +509,10 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // production classify-candidate reject that named archive; every restoration emitted
     // exact binary/gzip/consumer/external-authority metadata. Both policies still refused
     // a same-byte unlisted sibling, and the unchanged prose-check case passed after repair.
+    // Proof (2026-11-05): both original policies refused the committed physical-store
+    // proposal gzip. Removing its exact row from either corrected policy reproduced
+    // that refusal; restoration emitted exact binary/gzip/consumer/external-authority
+    // metadata. Both policies rejected a same-byte unlisted sibling; key pilot cases passed.
     expect(invocation.exitCode, output(invocation)).toBe(0);
     expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
       mode: 'observe',

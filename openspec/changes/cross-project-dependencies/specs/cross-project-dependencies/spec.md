@@ -3029,3 +3029,30 @@ SHALL verify the fixed FD envelope in the actual child before image import.
 - **WHEN** the fixed exec wrapper starts Bun after setting soft and hard NOFILE1024
 - **THEN** Bun independently observes those exact limits and distinct canonical numeric current FD entries below1024 before bootstrap/image import
 - **AND** missing, unreadable, malformed or out-of-range observations refuse without substituting wrapper-only evidence
+
+### Requirement: Startup certifies the known main store before delayed dependency migration
+
+Startup with migrations enabled SHALL admit the exact 103 applied migration name/hash identities from main acfdc02c7f0acc98606c87312a694ed2b89302ea only when all four delayed dependency additions are absent and the complete schema equals an isolated replay of that exact set. It SHALL then apply the normal additive migrations, preserve existing values and retain DISABLED dependency authority. This certificate SHALL NOT enable semantic authoring.
+
+#### Scenario: Current main upgrades through actual boot
+
+- **GIVEN** the exact known main store with no delayed dependency migrations
+- **WHEN** the real backend boots with startup migrations enabled
+- **THEN** it serves health, retains the complete original ledger and project values, and adds exactly the four dependency migrations with dormant authority
+
+#### Scenario: Uncertified main history refuses before mutation
+
+- **WHEN** any known identity is changed or missing, an unknown identity or migration is present, the ledger is absent or unreadable, a delayed dependency addition is partially recorded, or the schema differs from the exact replay
+- **THEN** startup refuses before migrations, service factories or listener startup and preserves the complete source snapshot
+- **AND** existing enabled authority still receives strict semantic inspection rather than this historical certificate
+
+### Requirement: The traced historical main profile preserves its original migration
+
+The separately pinned historical 103-migration profile SHALL differ only by the original add_dependencies hash from Git 24499e8afa6fb0f86430b31718c05633fc2c7d24 and its exactly replayed non-cascading schema. Historical SQL SHALL replace only the disposable certificate copy. Source history and current migration files SHALL remain unchanged. Unknown hashes and mixed identity/schema profiles SHALL refuse.
+
+#### Scenario: Traced dev history retains its original identities
+
+- **GIVEN** the exact pinned 103-migration historical profile and its original non-cascading dependency schema
+- **WHEN** actual backend startup applies the four delayed additions
+- **THEN** health succeeds, existing values and every original migration identity remain, and dependency authority remains DISABLED
+- **AND** using that historical identity with the canonical cascading schema refuses before mutation

@@ -415,28 +415,29 @@ describe('production CI plan and execution', () => {
     }
   }, 20000);
 
-  test('each fixed remote leaf rejects wrong head, unknown mode and an excluded plan', () => {
-    const candidate = history('tools/tool-remote-scripts/source.ts');
-    for (const part of [
-      'remote-rest',
-      'remote-model',
-      'remote-model-continuation',
-      'remote-source',
-      'remote-source-restoration',
-      'remote-participant-policy',
-      'remote-complete-activation',
-      'remote-storage',
-    ]) {
+  test.each([
+    'remote-rest',
+    'remote-model',
+    'remote-model-continuation',
+    'remote-source',
+    'remote-source-restoration',
+    'remote-participant-policy',
+    'remote-complete-activation',
+    'remote-storage',
+  ])(
+    'fixed remote leaf %s rejects wrong head, unknown mode and an excluded plan',
+    (part) => {
+      const candidate = history('tools/tool-remote-scripts/source.ts');
+      const excluded = history('modules/core/source.ts');
       expect(
         invokeRuntime({ ...candidate, head: candidate.base }, part, '0', 'full').invocation
           .exitCode,
       ).not.toBe(0);
       expect(invokeRuntime(candidate, part, '0', 'unknown').invocation.exitCode).not.toBe(0);
-      expect(invokeRuntime(history('modules/core/source.ts'), part).invocation.exitCode).not.toBe(
-        0,
-      );
-    }
-  }, 20000);
+      expect(invokeRuntime(excluded, part).invocation.exitCode).not.toBe(0);
+    },
+    20000,
+  );
 
   test('full residual stays explicit when all configured projects are dedicated or Twilight', () => {
     const candidate = history('modules/core/source.ts');

@@ -1,10 +1,20 @@
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import { openConnection } from '@wbs/store-sqlite/db';
+import { HISTORICAL_DEPENDENCY_MIGRATION } from '@wbs/store-sqlite/dependency-bootstrap-history';
 import { OPEN } from '@wbs/store-sqlite/gate';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
@@ -461,3 +471,200 @@ it('refuses an unrecorded partial schema rather than treating it as fresh', asyn
   }
   await refuse(path, true, migrations('CREATE TABLE startup_probe (id INTEGER);'));
 });
+
+const DELAYED_DEPENDENCY_MIGRATIONS = [
+  '20261022210000_add_project_abbreviations',
+  '20261022211000_add_external_dependencies',
+  '20261022212000_add_cross_project_dependency_activation',
+  '20261022213000_add_optimization_boundary_certificates',
+];
+
+/** Reads fixture identities independently of the production Drizzle migration reader. */
+function readMigrationIdentities(folder: string): { name: string; hash: string }[] {
+  return readdirSync(folder)
+    .sort()
+    .map((name) => ({
+      name,
+      hash: createHash('sha256')
+        .update(readFileSync(join(folder, name, 'migration.sql')))
+        .digest('hex'),
+    }));
+}
+
+/** Replays the exact 103 migration.sql blobs from main acfdc02c, without Git at test runtime. */
+function currentMainDatabase(usesHistoricalDependency = false): string {
+  const path = database(false);
+  const historical = mkdtempSync(join(tmpdir(), 'wbs-current-main-history-'));
+  directories.push(historical);
+  const known = readMigrationIdentities(FOLDER).filter(
+    (migration) => !DELAYED_DEPENDENCY_MIGRATIONS.includes(migration.name),
+  );
+  const identities = known.map(({ name, hash }) => ({ name, hash }));
+  expect(identities).toHaveLength(103);
+  expect(createHash('sha256').update(JSON.stringify(identities)).digest('hex')).toBe(
+    '68eb1ad31c377b493d20da473c6d3d18d842914f8d9179c4888f1f2b1e0123b1',
+  );
+  for (const migration of known)
+    cpSync(join(FOLDER, migration.name), join(historical, migration.name), { recursive: true });
+  if (usesHistoricalDependency) {
+    expect(createHash('sha256').update(HISTORICAL_DEPENDENCY_MIGRATION.sql).digest('hex')).toBe(
+      'b9b22317105b8562d53f9547a1401a28409c4a4735b591de8c04f0e02e7a9aba',
+    );
+    writeFileSync(
+      join(historical, HISTORICAL_DEPENDENCY_MIGRATION.name, 'migration.sql'),
+      HISTORICAL_DEPENDENCY_MIGRATION.sql,
+    );
+  }
+  runMigrations(path, historical);
+  return path;
+}
+
+for (const usesHistoricalDependency of [false, true])
+  it(`boots the exact current-main store and applies only the four delayed dependency migrations (historical dependency=${String(usesHistoricalDependency)})`, async () => {
+    const path = currentMainDatabase(usesHistoricalDependency);
+    const sqlite = openDatabase(path);
+    const before = sqlite
+      .query<{ name: string; hash: string }, []>(
+        'SELECT name,hash FROM __drizzle_migrations ORDER BY name',
+      )
+      .all();
+    const dependencySchema = sqlite
+      .query("SELECT sql FROM sqlite_master WHERE type='table' AND name='dependency'")
+      .get();
+    try {
+      sqlite.run(
+        "INSERT INTO users(id,username,password_hash,created_at) VALUES ('main-user','main-owner','x',1)",
+      );
+      sqlite.run(
+        "INSERT INTO project(id,name,owner_id,created_at) VALUES ('main-project','Main project','main-user',1)",
+      );
+    } finally {
+      sqlite.close();
+    }
+    running = await bootBe01({
+      ...options(path),
+      organizationDomainProofScheduling: 'disabled',
+      migrateOnStartup: true,
+      migrationsFolder: FOLDER,
+    });
+    expect((await fetch(`http://127.0.0.1:${String(running.port)}/health`)).status).toBe(200);
+    const migrated = openDatabase(path);
+    try {
+      const after = migrated
+        .query<{ name: string; hash: string }, []>(
+          'SELECT name,hash FROM __drizzle_migrations ORDER BY name',
+        )
+        .all();
+      expect(after).toHaveLength(107);
+      expect(
+        migrated
+          .query("SELECT sql FROM sqlite_master WHERE type='table' AND name='dependency'")
+          .get(),
+      ).toEqual(dependencySchema);
+      expect(after.filter(({ name }) => !DELAYED_DEPENDENCY_MIGRATIONS.includes(name))).toEqual(
+        before,
+      );
+      expect(after.filter(({ name }) => DELAYED_DEPENDENCY_MIGRATIONS.includes(name))).toEqual(
+        readMigrationIdentities(FOLDER)
+          .filter(({ name }) => DELAYED_DEPENDENCY_MIGRATIONS.includes(name))
+          .map(({ name, hash }) => ({ name, hash })),
+      );
+      expect(
+        migrated.query("SELECT name,owner_id FROM project WHERE id='main-project'").get(),
+      ).toEqual({ name: 'Main project', owner_id: 'main-user' });
+      expect(migrated.query('SELECT state FROM cross_project_dependency_activation').all()).toEqual(
+        [{ state: 'DISABLED' }],
+      );
+      expect(migrated.query('SELECT id FROM external_dependency').all()).toEqual([]);
+    } finally {
+      migrated.close();
+    }
+  }, 30_000);
+
+for (const fault of [
+  "UPDATE __drizzle_migrations SET hash='altered' WHERE name='20261101120000_add_host_job_projection'",
+  "DELETE FROM __drizzle_migrations WHERE name='20261101120000_add_host_job_projection'",
+  "UPDATE __drizzle_migrations SET name='20261101120001_unknown' WHERE name='20261101120000_add_host_job_projection'",
+  'DROP INDEX actual_by_step',
+  'DROP TABLE __drizzle_migrations',
+  'ALTER TABLE __drizzle_migrations RENAME COLUMN hash TO unreadable_hash',
+])
+  it(`refuses uncertified current-main storage before startup migration: ${fault}`, async () => {
+    const path = currentMainDatabase();
+    const sqlite = openDatabase(path);
+    try {
+      sqlite.run(fault);
+    } finally {
+      sqlite.close();
+    }
+    await refuse(path, true);
+  }, 30_000);
+
+for (const name of DELAYED_DEPENDENCY_MIGRATIONS)
+  it(`refuses partial delayed migration authority before startup migration: ${name}`, async () => {
+    const path = currentMainDatabase();
+    const migration = readMigrationIdentities(FOLDER).find((migration) => migration.name === name);
+    if (migration === undefined) throw new Error(`missing fixture migration ${name}`);
+    const sqlite = openDatabase(path);
+    try {
+      sqlite
+        .query('INSERT INTO __drizzle_migrations(name,hash,created_at) VALUES (?,?,?)')
+        .run(name, migration.hash, 1);
+    } finally {
+      sqlite.close();
+    }
+    await refuse(path, true);
+  }, 30_000);
+
+it('refuses matching altered disk and ledger identities outside the pinned main profile', async () => {
+  const path = currentMainDatabase();
+  const staged = migrations('CREATE TABLE startup_probe (id INTEGER);');
+  rmSync(join(staged, '20261023000000_boot_admission_probe'), { recursive: true });
+  const name = '20261101120000_add_host_job_projection';
+  const sql = await Bun.file(join(staged, name, 'migration.sql')).text();
+  writeFileSync(
+    join(staged, name, 'migration.sql'),
+    `${sql}\n-- unrecognized historical identity\n`,
+  );
+  const hash = createHash('sha256')
+    .update(`${sql}\n-- unrecognized historical identity\n`)
+    .digest('hex');
+  const sqlite = openDatabase(path);
+  try {
+    sqlite.query('UPDATE __drizzle_migrations SET hash=? WHERE name=?').run(hash, name);
+  } finally {
+    sqlite.close();
+  }
+  await refuse(path, true, staged);
+}, 30_000);
+
+for (const usesHistoricalDependency of [false, true])
+  it(`refuses unknown historical dependency hash (historical dependency=${String(usesHistoricalDependency)})`, async () => {
+    const path = currentMainDatabase(usesHistoricalDependency);
+    const sqlite = openDatabase(path);
+    try {
+      sqlite
+        .query('UPDATE __drizzle_migrations SET hash=? WHERE name=?')
+        .run('unknown', HISTORICAL_DEPENDENCY_MIGRATION.name);
+    } finally {
+      sqlite.close();
+    }
+    await refuse(path, true);
+  }, 30_000);
+
+it('refuses historical dependency identity paired with the canonical cascading schema', async () => {
+  const path = currentMainDatabase();
+  const sqlite = openDatabase(path);
+  try {
+    sqlite
+      .query('UPDATE __drizzle_migrations SET hash=? WHERE name=?')
+      .run(HISTORICAL_DEPENDENCY_MIGRATION.hash, HISTORICAL_DEPENDENCY_MIGRATION.name);
+  } finally {
+    sqlite.close();
+  }
+  await refuse(path, true);
+}, 30_000);
+
+it('refuses an unknown pending migration on the known main profile', async () => {
+  await refuse(currentMainDatabase(), true, migrations('CREATE TABLE startup_probe (id INTEGER);'));
+}, 30_000);

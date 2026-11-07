@@ -1145,7 +1145,7 @@ still required. Task 3.2 remains unchecked.
 
 ### Activation recovery contract correction — 2026-10-22
 
-[ADR 0069](../../../docs/adr/0074-cross-project-dependency-activation-is-monotone.md)
+[ADR 0071](../../../docs/adr/0071-cross-project-dependency-activation-is-monotone.md)
 and the delta specification now keep activation authority after the last live
 external row and distinguish attended post-exposure recovery from independently
 verified eligible dormant Kubernetes rollback. The former universal automatic
@@ -7162,7 +7162,7 @@ correction commit. It is not an integrated-head h2 gate or deployment result.
 
 The approved bounded identity architecture from `899db844` is moved intact into the separately proposed [solver-supervisor-identity-broker change](../solver-supervisor-identity-broker/proposal.md), with [provenance and feasibility limits](../solver-supervisor-identity-broker/verify.md). Its broker/unit/Docker/k3s/provisioning gates remain unchecked and do not gate cross-project-dependencies delivery. The parent supervisor installation/shared-edge requirements remain, and Task 10.2 now has explicit S1–S4 acceptance for actual stop/drain, restart/installer fencing, continuous complete participant exclusion and pinned compatible restoration. These controls are not implemented by this docs reconciliation; all four slices and parent Task 10.2 remain open.
 
-[ADR 0071](../../../docs/adr/0071-supervisor-exclusion-does-not-require-an-identity-broker.md) records the scope decision beside [ADR 0069](../../../docs/adr/0074-cross-project-dependency-activation-is-monotone.md). No narrower exclusion, automatic recovery after possible activation, or old incapable writer return is permitted. No new production safety check is added; future guards name watched production-path negatives. Fresh full OpenSpec validation and changed-doc formatting/link/diff checks are recorded in the followup verification before normal-hook commit. No production test or actual stop/drain/restart/restore, root provisioning, h2 gate, push or PR was performed.
+[ADR 0073](../../../docs/adr/0073-supervisor-exclusion-does-not-require-an-identity-broker.md) records the scope decision beside [ADR 0071](../../../docs/adr/0071-cross-project-dependency-activation-is-monotone.md). No narrower exclusion, automatic recovery after possible activation, or old incapable writer return is permitted. No new production safety check is added; future guards name watched production-path negatives. Fresh full OpenSpec validation and changed-doc formatting/link/diff checks are recorded in the followup verification before normal-hook commit. No production test or actual stop/drain/restart/restore, root provisioning, h2 gate, push or PR was performed.
 
 ## Actual composed installed-image proof — 2026-10-23
 
@@ -7876,3 +7876,7 @@ Actual component tests keep their original epochs: harmless80, real Graph202/11/
 [Exact integration and dependency evidence](verify-main-20261105.md) records the
 reviewed main union, owned frozen CTT0.13 install and focused actual consumers.
 Frontend response/custody, full gates, private acceptance and delivery remain open.
+
+## Known-main startup compatibility — 2026-11-08
+
+The canonical and separately traced historical 103-migration boot certificates, actual boot RED/GREEN, strict refusal matrix, watched production-path proof pairs and scoped checks are recorded in [current-main bootstrap verification](verify-bootstrap-current-main.md). This slice does not activate cross-project authoring or establish integration CI, host gate or deployment success.

@@ -213,6 +213,13 @@ export default ({
       ],
       rules: boundary(['^@twilight-burokrat/contracts$', '^@wbs/contracts$']),
     },
+    // Proof: B01 removed this exact consumer; B02/B03 widened only its alias/relative allowance; B04 widened only its path. The effective-policy test failed the corresponding admission/denials with fatalErrorCount 0; exact restored cases passed.
+    {
+      files: [
+        'apps/twilight-structure/twilight-dash/cli/src/runs/testing/api-recovery-contract.ts',
+      ],
+      rules: boundary(['^@twilight-burokrat/contracts$']),
+    },
     {
       files: ['apps/twilight-structure/twilight-dash/cli/src/runs/record-preparation.ts'],
       // Inherited F181 consumer provenance: preparation now uses only Burokrat contracts.

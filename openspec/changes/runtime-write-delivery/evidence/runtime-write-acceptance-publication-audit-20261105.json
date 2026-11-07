@@ -1,0 +1,55 @@
+{
+  "envelopePath": "/home/df/.codex/worktrees/9a53/puni-00/openspec/changes/runtime-write-delivery/evidence/runtime-write-acceptance-20261105.json",
+  "envelopeBytes": 50415452,
+  "envelopeSha256": "1cc0d7d32b46534d31d3977c676ea262e501436ad96baee6cadf451d62b8ad64",
+  "packets": [
+    {
+      "name": "runtime-original-evidence-20261105.json.gz",
+      "encoding": "gzip+base64",
+      "compressedBytes": 4696150,
+      "compressedSha256": "23e46470776bb6f9dac0a55ba8fdee26095a2377e5718ea6146c2664b68de102",
+      "decodedBytes": 26704570,
+      "decodedSha256": "39e73f79e7e4f496bdddd72214b49ab2e778828c68a06786236b8fa4632d61c8",
+      "files": 2506
+    },
+    {
+      "name": "runtime-acceptance-supplement-20261105.json.gz",
+      "encoding": "gzip+base64",
+      "compressedBytes": 33111400,
+      "compressedSha256": "973fa02f301192cf09fc7645f0d937a6b2fd6bf4c0733b46da2651cee915bcb4",
+      "decodedBytes": 141402087,
+      "decodedSha256": "a1a0a5bc8ae5a45ab83936aa6eae2c18a277b188e8f48c2ad0498ce385e7e752",
+      "files": 2940
+    }
+  ],
+  "selectedFiles": 3611,
+  "reusedOriginalPaths": 671,
+  "supplementalFiles": 2940,
+  "supplementalOriginalBytes": 306982774,
+  "uniqueSupplementalBlobs": 13472,
+  "dependencyCompleteness": {
+    "graphPath": "/home/df/wd/puni/puni-00/.superpowers/sdd/agentic-resume-20261104/runtime-publication-task2-dependency-closure-v2.json",
+    "resolvedDependencies": 3040,
+    "verifiedArchiveEntries": 470,
+    "archiveIndexes": 12,
+    "compositionImages": 76,
+    "declaredAliases": 586,
+    "embeddedMembers": 1516,
+    "embeddedSecretScan": {
+      "files": 1516,
+      "findings": []
+    },
+    "unresolvedRequiredDependencies": []
+  },
+  "allRoundtripFiles": 5446,
+  "scan": {
+    "decodedFiles": 2940,
+    "findings": []
+  },
+  "proofOldFiles": 82,
+  "proofV2Files": 132,
+  "sourceHold": "RELEASED; no source mutation performed",
+  "skipped": [
+    "No tests, runtime mutations, full gates, live WBS or deployment checks run by this documentation worker. Root owns final format/OpenSpec/review/publication checks."
+  ]
+}
