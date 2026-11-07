@@ -1507,3 +1507,17 @@ executed to rediscover its statically proven capacity failure.
 The [reviewed setup source checkpoint](verify-ordinary-setup-custody-20261107.md)
 completes SPC1–3at their stated source/proof/publication boundary. SPC4/5and all
 full native/HOLD/migration/census/gate/main/deployment obligations remain open.
+
+## Setup compiler authority continuation — 2026-11-07
+
+[Intent](ordinary-setup-compiler-intent-20261107.md),
+[decision](ordinary-setup-compiler-design-20261107.md) and
+[ordered plan](ordinary-setup-compiler-plan-20261107.md) refine SPC4.
+
+- [x] SCB1. Review independent reconstructed/frozen setup packets and install only the exact four new authority files, preserving old bytes and no producer oracle.
+- [ ] SCB2. Implement two fixed decoder policies and one shared genuine builder/inspection path with exact variant provenance and no fallback.
+- [ ] SCB3. Observe finite R5/predicate restoration, configured/strict generated checks and independent source/proof review; publish all source/evidence freshly.
+- [ ] SCB4. Freeze/review one exact compiler-only protocol, execute its single attempt and audit real callbacks/closure/metadata/output and parent terminal custody without output import or automatic retry.
+
+All native/HOLD/migration/census/gate/main/deployment parent requirements remain
+open; source acceptance and compilation are separate from SPC5 real controls.
