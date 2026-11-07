@@ -10,7 +10,7 @@ A browser that sends `__Host-wbs_session` without `__Host-wbs_access` is proved 
 
 ## 1. Structural validation
 
-- [x] `bunx --no-install openspec validate --all --json`: 330 items, 330 passed, 0 failed (with this change). The change alone validated 1/1 before verify.md was added.
+- [x] `bunx --no-install openspec validate --all --json`: 329 items, 329 passed, 0 failed (309 changes, 20 specs, this change included). The change alone validated 1/1 before verify.md was added.
 
 ## 2. Task completion
 
@@ -40,14 +40,14 @@ Before the fix, the new tests were red: 0 pass, 7 fail (six recovery cases lacke
 
 All under `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT` in the worktree.
 
-| Command                                                              | Result                                                                                                            |
-| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `bun test` on the 10 be-01 auth/browser controller test files        | 208 pass, 0 fail                                                                                                  |
-| `bunx nx run wbs-be-01:test --skip-nx-cache`                         | 3910 pass, 3 skip, 0 fail across 268 files (1435 s); `Successfully ran target test for project wbs-be-01`, exit 0 |
-| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2` | Successfully ran lint, typecheck for 10 projects and 1 dependency (21 tasks, 14 cache hits)                       |
-| `bunx nx format:check --all`                                         | exit 0                                                                                                            |
-| `bunx --no-install openspec validate --all --json`                   | 330/330 passed, 0 failed                                                                                          |
-| Burokrat `check-indexes working <worktree> origin/main`              | BUROKRAT_RESULT                                                                                                   |
+| Command                                                              | Result                                                                                                                                                                                                               |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test` on the 10 be-01 auth/browser controller test files        | 208 pass, 0 fail                                                                                                                                                                                                     |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                         | 3910 pass, 3 skip, 0 fail across 268 files (1435 s); `Successfully ran target test for project wbs-be-01`, exit 0                                                                                                    |
+| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2` | Successfully ran lint, typecheck for 10 projects and 1 dependency (21 tasks, 14 cache hits)                                                                                                                          |
+| `bunx nx format:check --all`                                         | exit 0                                                                                                                                                                                                               |
+| `bunx --no-install openspec validate --all --json`                   | 329/329 passed, 0 failed                                                                                                                                                                                             |
+| Burokrat `check-indexes working <worktree> origin/main`              | exit 0; 39 indexes, no diagnostics; `reviewDebt` lists only untouched pre-existing `libs/wbs/adapters/store-memory/src/README.md` (53/40) and `libs/wbs/application/core/src/module/plan-commands/README.md` (48/40) |
 
 Skipped: the canonical host gate and any dev/prod or credentialed Auth0 verification.
 
