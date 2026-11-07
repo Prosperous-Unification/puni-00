@@ -520,3 +520,11 @@ separate conservative coverage and exact compiler prediction, new2064-key
 filesystem census and five finite CI fixture repairs. Final builder/driver and
 actual compiler acceptance have their own evidence boundaries; no native/HOLD,
 main or deployment acceptance is inferred from source preparation.
+
+## Raw/source metadata correction — 2026-11-07
+
+[Metadata association evidence](verify-ordinary-coupled-metadata-20261107.md)
+records the exact closed representation rules, presence correction, portable
+180-test combined check and independently prepared driver. The consumed first
+attempt remains failed; any fresh compiler/native qualification needs its own
+reviewed protocol and evidence.

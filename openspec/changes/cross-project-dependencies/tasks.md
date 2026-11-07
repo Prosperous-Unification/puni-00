@@ -1457,10 +1457,10 @@ any of the39ordinary HOLD rows, native/hosted gates or complete feature scope.
 
 The [2026-11-07 source checkpoint](verify-ordinary-known-controller-20261105.md)
 implements the KCT1–4 source surfaces and publishes independent reviews/checks.
-Their full negative/restoration proof requirements remain open. KCT5's actual
-builder and separately sealed compiler protocol are not implemented; KCT6's
-publication part does not complete its native/HOLD continuation. All six boxes
-therefore remain unchecked.
+At that source checkpoint their full negative/restoration proof requirements
+remained open and KCT5's builder/protocol had not yet been implemented. Subsequent
+compiler-only evidence is linked below. KCT6's publication part does not complete
+its native/HOLD continuation; all six parent boxes remain unchecked.
 
 The [coupled compiler continuation](verify-ordinary-coupled-compiler-20261107.md)
 adds independently frozen load/coverage/prediction/filesystem authority and
@@ -1468,3 +1468,21 @@ scoped CI fixture restoration. Its source, complete proof obligations and one
 actual compiler-only attempt are separately reviewed. KCT5/KCT6 and the native,
 39HOLD, full CI/gate, main and deployment parent boxes remain open until their
 actual evidence qualifies them.
+
+## Raw compiler representation correction
+
+[Intent](ordinary-coupled-metadata-intent-20261107.md),
+[design](ordinary-coupled-metadata-design-20261107.md) and
+[evidence](verify-ordinary-coupled-metadata-20261107.md) follow the actual failed
+compiler checkpoint. All native/HOLD and full feature acceptance stays open.
+
+- [x] DKM1. Associate raw SDK edges through direct, exact Node-prefix and closed27 historical-relative contracts, retaining raw fields and unchanged importer/source pins.
+- [x] DKM2. Wire the genuine builder and independently checked future driver to those associations without changing source packets, prediction, compiler custody or setup/closure bounds.
+- [x] DKM3. Observe portable raw-metadata positives and malicious/ambiguous negatives plus narrowly scoped actual predicate fault/restoration evidence.
+- [x] DKM4. Run configured checks, independent source/protocol reviews and fresh publication, preserving the failed attempt and all original acceptance limits.
+- [x] DKM5. Freeze and review a fresh one-attempt compiler-only protocol; retain actual output/metadata/callback/closure observations without output import or automatic retry.
+
+The [second compiler-only attempt](coupled-compiler-attempt2-20261107/README.md)
+completed DKM's bounded correction/publication scope with built-unqualified output
+and independent actual custody checks. This closes no native/controller/39 HOLD,
+cleanup-migration, complete census, full CI/host gate, main or deployment obligation.
