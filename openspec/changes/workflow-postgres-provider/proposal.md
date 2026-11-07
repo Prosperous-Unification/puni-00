@@ -12,7 +12,7 @@ No operator-store migration or production deployment; no tenant onboarding, cred
 
 ## Constraints
 
-Use Bun and Nx, existing pure planners and adapter guard precedence. Private indexes retain complete reversible bytes; digests are lookup buckets. Verify durable-commit settings, bounded lifecycle and uncertain COMMIT handling through production-path negatives. Missing or corrupt trusted state throws. Lifecycle topology, concrete bootstrap coordination and the transfer envelope remain explicit design tasks, not adopted choices.
+Use Bun and Nx, existing pure planners and adapter guard precedence. Private indexes retain complete reversible bytes; digests are lookup buckets. Verify durable-commit settings, bounded lifecycle and uncertain COMMIT handling through production-path negatives. Missing or corrupt trusted state throws. The [physical-store protocol](physical-store-design.md) makes namespace/lock/bootstrap/admission concrete for review; it remains proposed. The transfer envelope remains an explicit unresolved design task.
 
 ## Capabilities
 

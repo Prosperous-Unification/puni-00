@@ -460,6 +460,15 @@
     ],
     "binaryDeclarations": [
       {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/postgres-physical-store-design-20261105.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/evidence/postgres-physical-store-publication.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/evidence/postgres-physical-store-publication.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
         "path": "openspec/changes/workflow-postgres-provider/evidence/adapter-sdk-20261101.json.gz",
         "format": "application/gzip",
         "consumer": "openspec/changes/workflow-postgres-provider/evidence/adapter-sdk-release-delta-20261101.md",

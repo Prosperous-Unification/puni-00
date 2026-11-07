@@ -71,3 +71,47 @@ A versioned adapter-layer transfer SHALL preserve complete artifacts, manifests,
 - **WHEN** a validated capture is imported into an empty other-provider target with all source writers paused
 - **THEN** independent reopen yields matching public snapshots and original replay acknowledgements
 - **AND** safe continuation preserves the recorded ownership, reservations and recovery barriers
+
+### Requirement: Explicit bootstrap preserves existing physical state
+
+The proposed physical-store protocol SHALL use one validated configured namespace and the same database-scoped, single-bigint transaction advisory lock before and after metadata exists. Bootstrap SHALL initialize only an absent namespace atomically. Ordinary open MUST create, upgrade and repair nothing, match complete physical/ledger/configuration identity, and return retained ownership without advancing the trusted clock.
+
+#### Scenario: Two independent initializers target one absent namespace
+
+- **WHEN** two processes concurrently bootstrap the same namespace
+- **THEN** exactly one complete current-format store is published
+- **AND** the other refuses existing state without adopting or replacing the winner
+
+#### Scenario: An intermediate bootstrap statement fails
+
+- **WHEN** a required statement fails before COMMIT
+- **THEN** no partial namespace, ledger, metadata or semantic family is published
+- **AND** a lost COMMIT acknowledgement is reported as uncertainty without retry or destructive compensation
+
+#### Scenario: A namespace is replaced after bootstrap COMMIT before follow-up admission
+
+- **WHEN** bootstrap acknowledges creation but the namespace is replaced with identical options and a fresh incarnation before its follow-up admission
+- **THEN** that bootstrap call rejects because the incarnation differs from the one it just committed
+- **AND** it neither adopts nor deletes the replacement
+
+#### Scenario: An existing empty or unreadable namespace is opened
+
+- **WHEN** the namespace exists but required trusted state is missing or permission denied
+- **THEN** ordinary open reports the corresponding contextual operational failure
+- **AND** no absent object, metadata row or count witness is manufactured
+
+### Requirement: Every operation remains bound to its admitted physical store
+
+The proposed physical-store protocol SHALL validate its retained lock derivation, compiled complete ledger/catalog and configuration within the admitted transaction. An opened bundle SHALL pin a private physical incarnation independently of portable logical identities. Changed or missing binding state MUST throw before semantic publication.
+
+#### Scenario: Lock metadata changes after opening
+
+- **WHEN** a retained bundle reaches its mutation after the physical lock metadata changes
+- **THEN** the locked reread throws instead of following or replacing the changed key
+- **AND** no planner effect or successful reply is published
+
+#### Scenario: A namespace is replaced with identical configuration
+
+- **WHEN** a new physical incarnation replaces the opened namespace while preserving its name, lock derivation and organization options
+- **THEN** the old bundle refuses the changed incarnation before returning semantic state
+- **AND** neither the logical store ID nor a private digest is accepted as proof of physical continuity
