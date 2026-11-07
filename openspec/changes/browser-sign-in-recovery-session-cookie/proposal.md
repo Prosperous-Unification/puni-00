@@ -20,7 +20,7 @@ Silent refresh in fe-01, changing cookie lifetimes, changing the refresh endpoin
 
 ## Constraints
 
-Grants no new authority: `POST /api/auth/refresh` already accepts the correlation cookie alone for an active lifecycle. Store faults other than typed lifecycle refusal remain server failures. No migration.
+Adds one bounded authority: `POST /api/auth/refresh` accepts the correlation alone while the issuing process holds its refresh record; after a restart this proof alone can close an active lifecycle (a bounded denial of service limited to the remaining access-token life, ≤ 3600 s, enforced by revocations), which refresh could not. Cookie theft precondition unchanged (`__Host-`, HttpOnly, Secure, SameSite=Lax, 256-bit random). Store faults other than typed lifecycle refusal remain server failures. No migration.
 
 ## Capabilities
 

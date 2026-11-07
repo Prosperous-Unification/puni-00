@@ -2947,6 +2947,95 @@ describe('the OIDC callback after activation', () => {
     expect(localTokens.read('old-session')).toEqual(stored);
   });
 
+  it('session-only predecessor-store failure remains a server failure', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, created_at) VALUES ('captured', 'captured', NULL, 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const retained = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now - 1,
+    };
+    await lifecycle.open('old-session', retained, { openedAt: 1, reauthenticatedAt: null });
+    const app = mounted(claims, lifecycle, []);
+    const resolve = spyOn(auth, 'resolveOidcIdentity');
+    localTokens.save({
+      sessionCorrelation: 'old-session',
+      refreshToken: 'retained-refresh',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: retained,
+    });
+    const tables = [
+      'users',
+      'external_identity',
+      'browser_auth_lifecycle',
+      'browser_credential_revocations',
+    ];
+    const before = tables.map((table) => all(`SELECT * FROM ${table}`));
+    const stored = localTokens.read('old-session');
+    sql('DROP TABLE browser_auth_association');
+    const reply = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+        headers: {
+          cookie: `${browserBindingCookieName('binding-1')}=binding-1; __Host-wbs_session=old-session; __Host-wbs_organization=selected`,
+        },
+      }),
+    );
+    expect(reply.status).toBe(500);
+    expect(reply.headers.get('location')).toBeNull();
+    expect(reply.headers.getSetCookie()).toEqual([]);
+    expect(exchanges).toBe(0);
+    expect(resolve).not.toHaveBeenCalled();
+    expect(revokeCalls).toBe(0);
+    expect(tables.map((table) => all(`SELECT * FROM ${table}`))).toEqual(before);
+    expect(localTokens.read('old-session')).toEqual(stored);
+  });
+
+  it('closes a session-only predecessor before a provider revoke failure fails the callback', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, created_at) VALUES ('captured', 'captured', NULL, 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const retained = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('retained-access').digest('hex'),
+      expiresAt: now - 1,
+    };
+    await lifecycle.open('old-session', retained, { openedAt: 1, reauthenticatedAt: null });
+    const app = mounted(claims, lifecycle, []);
+    localTokens.save({
+      sessionCorrelation: 'old-session',
+      refreshToken: 'retained-refresh',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: retained,
+    });
+    revokeFault = true;
+    const reply = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+        headers: {
+          cookie: `${browserBindingCookieName('binding-1')}=binding-1; __Host-wbs_session=old-session`,
+        },
+      }),
+    );
+    expect(reply.status).toBe(500);
+    expect(reply.headers.get('location')).toBeNull();
+    expect(reply.headers.getSetCookie()).toEqual([]);
+    expect(revokeCalls).toBe(1);
+    expect(localTokens.read('old-session')).toBeNull();
+    expect(all('SELECT credential_digest FROM browser_credential_revocations')).toEqual([
+      { credential_digest: retained.digest },
+    ]);
+    expect(all('SELECT state FROM browser_auth_lifecycle')).toEqual([{ state: 'closed' }]);
+    expect(loginTransactions.consume('binding-1', 'state-1')).toEqual({ outcome: 'missing' });
+  });
+
   it('retires a proved native predecessor before OIDC callback publishes replacement cookies', async () => {
     const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
     const app = mounted(claims, lifecycle);

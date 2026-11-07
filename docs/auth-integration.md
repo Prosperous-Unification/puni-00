@@ -573,7 +573,7 @@ lives only as long as the provider token (Max-Age is its `expires_in`) while
 `__Host-wbs_session` lives 30 days, so an hour after SSO sign-in a browser
 usually sends only the correlation cookie. While that correlation's lifecycle is
 active, password or SSO sign-in proves it from the correlation alone (the same
-evidence `POST /api/auth/refresh` accepts), closes it as the replaced
+evidence `POST /api/auth/refresh` accepts; refresh additionally needs the process-local refresh record), closes it as the replaced
 predecessor and issues the new session directly.
 
 Recovery is for a browser cookie that is malformed or cannot be verified: an

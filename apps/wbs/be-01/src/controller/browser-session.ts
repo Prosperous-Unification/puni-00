@@ -86,8 +86,14 @@ export function invalidBrowserCarriers(request: RequestMetadata): boolean {
  *
  * A correlation cookie without an access cookie is the ordinary state of a
  * browser whose access cookie outlived its provider-token Max-Age; it proves
- * the lifecycle's current tuple while that lifecycle is active, the same
- * evidence `POST /api/auth/refresh` already accepts alone. Absent, closed or
+ * the lifecycle's current tuple while that lifecycle is active.
+ * `POST /api/auth/refresh` accepts the correlation alone only while the
+ * issuing process holds its in-memory refresh record; after a restart this
+ * proof alone can close an active lifecycle, which refresh could not. That is
+ * a bounded denial of service: it ends a session whose access token stays
+ * usable at most its remaining life (at most 3600 s), and revocations enforce
+ * the close. The cookie-theft precondition is unchanged (`__Host-`, HttpOnly,
+ * Secure, SameSite=Lax, 256-bit random correlation). Absent, closed or
  * revoked lifecycles stay refused. Store faults other than
  * `BrowserLifecycleRefusedError` propagate.
  */
@@ -137,6 +143,7 @@ export async function proveBrowserPredecessor(
     }
     return { kind: 'oidc', correlation, digest };
   }
+  // Unreachable: the both-null case returned `none` above; this narrows `access`.
   if (access === null)
     throw new Error('browser predecessor carries neither correlation nor access');
   const native = await authority.verifyNativeBrowserCredential(access);
@@ -160,6 +167,9 @@ async function proveSessionOnly(
     // Proof: rethrowing this refusal made both session-only recovery cases
     // answer 500 instead of the recovery redirect (2026-11-07).
     if (cause instanceof BrowserLifecycleRefusedError) return refused('inactive_session');
+    // Proof: returning `inactive_session` for every error here made
+    // `session-only predecessor-store failure remains a server failure`
+    // (association table dropped) answer 302 instead of 500 (2026-11-07).
     throw cause;
   }
 }
