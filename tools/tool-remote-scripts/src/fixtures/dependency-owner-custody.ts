@@ -5638,3 +5638,1615 @@ function typeOrdinaryCoupledPortsV1(ports: Map<string, string>): void {
 function ordinaryCoupledTypedLedgerSourceV1(): string {
   return "import type { DependencyOwner, DependencyPreparation, PreparationOperation, PreparationOriginal } from '../tools/tool-remote-scripts/src/lib/edge-ownership';\nimport type { activateDependencyStores, ActivationReadOnlyDatabase, ActivationReadOnlyConnection } from '../tools/tool-remote-scripts/src/lib/dependency-activation-storage';\nimport type { PreparedDependencyActivation } from '../tools/tool-remote-scripts/src/lib/complete-dependency-exclusion';\nimport type { FinalizedParticipantRestorationContext } from '../tools/tool-remote-scripts/src/lib/dependency-participant-preparation';\nimport type { InitialHandoffArtifactObservation } from '../tools/tool-remote-scripts/src/lib/initial-handoff-graph';\nimport type { scanMigrationArtifact } from '../tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner';\nimport type { EnvLayout } from '../tools/tool-remote-scripts/src/lib/env';\ntype Ticket = object;\ntype Phase = 'not-entered'|'entered'|'returned'|'unknown'|'pending'|'fulfilled'|'rejected'|'threw';\ntype NativeKind = 'fd'|'dir'|'sqlite';\ntype Origin = 'production'|'fixture';\ntype NativeRecord = {family:'native'; ticket?:Ticket; generation:number;label:string;kind:NativeKind;args:readonly unknown[];receiver:unknown;phase:Phase;original:unknown;acquisitionCause:unknown;nativePhase:Phase;productionAttempts:number;fixtureAttempts:number;nativeEntries:number;nativeReturns:number;closeCause:unknown;closeOrigin:Origin|undefined;aliases:unknown[];savedClose?:((...args:never[])=>unknown);closeReceiver?:unknown;closeArgs?:unknown[];identity?:unknown;closeReturned?:unknown};\ntype OperationRecord = {family:'operation';ticket?:Ticket;label:string;kind:'sync'|'promise';receiver:unknown;args:readonly unknown[];phase:Phase;returned:unknown;original:Promise<unknown>|undefined;observer:Promise<void>|undefined;observerSettled:boolean;joined:boolean;cause:unknown;value?:unknown};\ntype LedgerRecord = NativeRecord|OperationRecord;\ninterface MigrationRoot {path:unknown;acquisition:Ticket;removalPhase:Phase}\ninterface MigrationCall {ticket:Ticket;name:keyof typeof migrationLimits;args:unknown[];phase:Phase;root?:MigrationRoot;returned?:unknown;cause?:unknown}\ntype Child = {exited:Promise<number>;stdout:ReadableStream<Uint8Array>;stderr:ReadableStream<Uint8Array>};\ntype ChildJoin = readonly [string,string,number];\ntype PromiseKey = 'exited'|'closed'|'pump'|'original'|'join';\ninterface PromiseValues {exited:number;closed:void;pump:void;original:Awaited<ReturnType<ReadableStreamDefaultReader<Uint8Array>['read']>>;join:ChildJoin}\ntype PromiseSlots = {phase?:Phase;cause?:unknown} & {[Key in PromiseKey as `${Key}State`]?:'pending'|'fulfilled'|'rejected'} & {[Key in PromiseKey as `${Key}Value`]?:PromiseValues[Key]} & {[Key in PromiseKey as `${Key}Cause`]?:unknown} & {[Key in PromiseKey as `${Key}Observer`]?:Promise<void>} & {[Key in Exclude<PromiseKey,'original'>]?:Promise<PromiseValues[Key]>};\ntype ChildPromiseSlots<Key extends PromiseKey> = {phase?:Phase;cause?:unknown} & Partial<Record<Key,Promise<PromiseValues[Key]>>> & Partial<Record<`${Key}State`,'pending'|'fulfilled'|'rejected'>> & Partial<Record<`${Key}Value`,PromiseValues[Key]>> & Partial<Record<`${Key}Cause`,unknown>> & Partial<Record<`${Key}Observer`,Promise<void>>>;\ntype ChildPromiseStorage = {phase?:Phase;cause?:unknown;original?:unknown} & {[Key in Exclude<PromiseKey,'original'>]?:Promise<PromiseValues[PromiseKey]>} & {[Key in PromiseKey as `${Key}State`]?:'pending'|'fulfilled'|'rejected'} & {[Key in PromiseKey as `${Key}Value`]?:PromiseValues[PromiseKey]} & {[Key in PromiseKey as `${Key}Cause`]?:unknown} & {[Key in PromiseKey as `${Key}Observer`]?:Promise<void>};\ntype CapturedChildStream = ChildStream & {reader:ReadableStreamDefaultReader<Uint8Array>};\ntype JoinedChildRecord = ChildRecord & {streams:[CapturedChildStream,CapturedChildStream]};\ntype ReservedOperationRecord = OperationRecord & {ticket:Ticket};\ntype ReservedNativeRecord = NativeRecord & {ticket:Ticket};\ninterface ChildRead extends PromiseSlots {original?:ReturnType<ReadableStreamDefaultReader<Uint8Array>['read']>;phase:Phase;chunk?:Awaited<ReturnType<ReadableStreamDefaultReader<Uint8Array>['read']>>;cause?:unknown}\ninterface ChildStream extends PromiseSlots {name:string;stream:ReadableStream<Uint8Array>;reads:ChildRead[];chunks:Uint8Array[];eof:boolean;releasePhase:Phase;reader?:ReadableStreamDefaultReader<Uint8Array>;releaseReturned?:void;phase?:Phase;cause?:unknown}\ninterface ChildRecord extends PromiseSlots {ticket:Ticket;label:keyof typeof childLimits;args:readonly unknown[];phase:Phase;streams:ChildStream[];joined:boolean;original?:Child;stdout?:ReadableStream<Uint8Array>;stderr?:ReadableStream<Uint8Array>;exitedValue?:number;join?:Promise<ChildJoin>;cause?:unknown;semanticCause?:unknown}\ninterface ControlRecord {args?:readonly unknown[];aliases?:readonly unknown[];ticket:Ticket;label:string;phase:Phase;original:Promise<unknown>|undefined;observer:Promise<void>|undefined;observerSettled:boolean;joined:boolean;value?:unknown;cause?:unknown;preparation?:DependencyPreparation;record?:PreparationRecord}\ntype Monitor = Awaited<ReturnType<typeof scanMigrationArtifact>>;\ninterface ScannerCall {args:unknown[];phase:Phase;original:Promise<unknown>|undefined;observer:Promise<void>|undefined;cause?:unknown}\ninterface ScannerRecord {ticket:Ticket;args:unknown[];phase:Phase;original:Monitor|undefined;scanOriginal:Promise<Monitor>|undefined;observer:Promise<void>|undefined;observerSettled:boolean;nativePhase:Phase;nativeEntries:number;productionAttempts:number;fixtureAttempts:number;savedClose?:Monitor['close'];closeReceiver?:Monitor;closeArgs?:unknown[];closeReturned?:unknown;closeCause?:unknown;scanCause?:unknown}\ntype Wrapper = {kind:'scanner';obligation:ScannerRecord;tickets?:never}|{kind:'connection'|'graph'|'scanner';tickets:readonly Ticket[];obligation?:never};\ninterface ObservedRecord {interval?:ReturnType<typeof setInterval>;owner?:DependencyOwner;original?:Promise<unknown>;preparation?:PreparationRecord;pending?:Promise<void>|string}\ninterface Observation {kind:string;owner:DependencyOwner;ownership:Ownership;record:ObservedRecord;original:unknown;observer:Promise<void>|undefined;args?:readonly unknown[];aliases?:readonly unknown[]}\ninterface OwnerFrame {owner:DependencyOwner;ownership:Ownership;observations:Observation[]}\ntype FatalObservation = object;\ninterface Custody {natives:ReservedNativeRecord[];operations:ReservedOperationRecord[];owners:OwnerFrame[];events:{kind:string;record:LedgerRecord|Observation}[];stopped:boolean;failures:unknown[];generation:number;fatalObservation:FatalObservation|undefined}\ninterface Ownership {\n  directory: string;\n  publication: string;\n  locks: { path: string; descriptor: number }[];\n  layouts: readonly EnvLayout[];\n  sequence: number;\n  sha: string;\n  attempt: string;\n  state: 'active' | 'closing' | 'unknown';\n  preparations: Set<PreparationRecord>;\n  composition: PreparationRecord | undefined;\n  keeper: PreparationKeeper | undefined;\n  runtimeEntries: Set<RuntimeEntry>;\n}\ninterface RuntimeEntry {\n  readonly original: Promise<unknown>;\n  observer: Promise<void> | undefined;\n  outcome: OperationOutcome;\n}\ntype PreparationAcquisition =\n  | {\n      readonly kind: 'descriptor';\n      readonly role:\n        | 'anchor-parent'\n        | 'anchor-main'\n        | 'capture-read'\n        | 'backup-read'\n        | 'backup-finalizer'\n        | 'state'\n        | 'evidence';\n      readonly descriptor: number;\n    }\n  | {\n      readonly kind: 'database';\n      readonly role: 'authority-read' | 'backup-read';\n      readonly database: ActivationReadOnlyDatabase;\n    }\n  | {\n      readonly kind: 'connection';\n      readonly role: 'authority-read';\n      readonly connection: ActivationReadOnlyConnection;\n    }\n  | {\n      readonly kind: 'graph';\n      readonly role: 'initial-evidence';\n      readonly graph: InitialHandoffArtifactObservation;\n    }\n  | {\n      readonly kind: 'scanner';\n      readonly role: 'restoration-artifact';\n      readonly scanner: Awaited<ReturnType<typeof scanMigrationArtifact>>;\n    };\ntype PreparationPhase =\n  'preparing' | 'runtime-evidence' | 'prepared' | 'consumed' | 'closing' | 'closed' | 'unknown';\ntype OperationOutcome =\n  | { readonly phase: 'starting' }\n  | { readonly phase: 'pending' }\n  | { readonly phase: 'fulfilled' }\n  | { readonly phase: 'rejected'; readonly cause: unknown };\ninterface OriginalRecord {\n  readonly preparation: PreparationRecord;\n  readonly acquisition: PreparationAcquisition;\n  state: 'open' | 'closing' | 'closed' | 'unknown';\n  failure: unknown;\n}\ninterface PreparationOperationRecord {\n  readonly preparation: PreparationRecord;\n  readonly kind: PreparationOperationKind;\n  original: Promise<unknown> | undefined;\n  observer: Promise<void> | undefined;\n  outcome: OperationOutcome;\n}\ninterface CompositionSettlement {\n  original: Promise<unknown> | undefined;\n  observer: Promise<void> | undefined;\n  outcome: OperationOutcome;\n}\ninterface PreparationKeeper {\n  readonly interval: ReturnType<typeof setInterval>;\n  readonly pending: Promise<void>;\n  reported: boolean;\n  reportFailure: unknown;\n}\ninterface PreparationRecord {\n  readonly owner: DependencyOwner;\n  readonly ownership: Ownership;\n  readonly purpose: PreparationPurpose;\n  readonly attempt: string;\n  readonly pending: string;\n  readonly layouts: readonly EnvLayout[];\n  readonly deadline: number;\n  readonly locks: readonly Ownership['locks'][number][];\n  readonly originals: Set<OriginalRecord>;\n  readonly operations: Set<PreparationOperationRecord>;\n  readonly composition: CompositionSettlement;\n  readonly failures: { readonly boundary: PreparationBoundary; readonly cause: unknown }[];\n  readonly inherited: unknown[];\n  phase: PreparationPhase;\n  closeRequested: boolean;\n  closeBoundary: PreparationBoundary | undefined;\n  runtimeLock: Ownership['locks'][number] | undefined;\n  runtimeReleased: boolean;\n  runtimeAction: CompositionSettlement | undefined;\n  runtimeRefusalSettled: boolean;\n  storage: Awaited<ReturnType<typeof activateDependencyStores>> | undefined;\n  prepared: PreparedDependencyActivation | undefined;\n  context: FinalizedParticipantRestorationContext | undefined;\n  projection: CompositionSettlement | undefined;\n}\ntype PreparationPurpose = 'fenced'|'restoration'|'initial-handoff';\ntype PreparationBoundary = 'operation'|'runtime-finalizer'|'complete-finalizer'|'consume'|'release'|'owner-return';\ntype PreparationOperationKind = 'storage-activation'|'evidence-inspection'|'stores-inspection'|'preparation-consume'|'context-assertion';\nconst custody:Custody={natives:[],operations:[],owners:[],events:[],stopped:false,failures:[],generation:0,fatalObservation:undefined};\nconst records=new WeakMap<Ticket,LedgerRecord>(),nativeAliases=new Map<unknown,Ticket>(),wrappers=new Map<unknown,Wrapper>();\nconst migrationCalls:MigrationCall[]=[],migrationRoots:MigrationRoot[]=[],migrationTickets=new WeakMap<Ticket,MigrationCall>();\nconst migrationLimits=Object.freeze({mkdtempSync:2,cpSync:210,rmSync:2,readdirSync:2,existsSync:214,readFileSync:214});\nexport function reserveMigrationFs(name:keyof typeof migrationLimits,args:readonly unknown[]){\n if(!Object.hasOwn(migrationLimits,name))fail('ordinary HOLD migration boundary differs');\n let root;\n if(name==='rmSync'){\n  root=migrationRoots.find(root=>root.path===args[0]);\n// Proof: omitting the one-shot removal guard failed the RETURNED-removal branch; UNKNOWN has ordinary coverage only (triplet 0/1/0).\n  if(root===undefined||root.removalPhase!=='not-entered')fail('ordinary HOLD migration removal differs');\n }else admit();\n// Proof: widening the filesystem cap failed the first mkdtemp2 branch; later constants lack separate physical credit (triplet 0/1/0).\n if(migrationCalls.filter(call=>call.name===name).length>=migrationLimits[name])fail('ordinary HOLD migration call cap exceeded');\n const ticket=Object.freeze({});const call:MigrationCall={ticket,name,args:[...args],phase:'entered',root};\n// Proof: omitting call reservation failed the staging-before-entry consumer; finite triplet 0/1/0.\n if(root!==undefined)root.removalPhase='entered';migrationTickets.set(ticket,call);migrationCalls.push(call);return ticket;\n}\nexport function returnMigrationFs<Returned>(ticket:Ticket,returned:Returned){const call=migrationTickets.get(ticket);if(call===undefined||call.phase!=='entered')fail('ordinary HOLD migration ticket differs');call.returned=returned;call.phase='returned';if(call.name==='mkdtempSync'){const root:MigrationRoot={path:returned,acquisition:ticket,removalPhase:'not-entered'};migrationRoots.push(root);call.root=root;}if(call.name==='rmSync')/* reserveMigrationFs checked and stored this exact rmSync root before returning its private ticket; no writer replaces that association. */(call.root as MigrationRoot).removalPhase='returned';return returned;}\nexport function throwMigrationFs(ticket:Ticket,cause:unknown){const call=migrationTickets.get(ticket);if(call===undefined)fail('ordinary HOLD migration ticket differs');call.phase='unknown';call.cause=cause;if(call.name==='rmSync')/* reserveMigrationFs checked and stored this exact rmSync root before returning its private ticket; no writer replaces that association. */(call.root as MigrationRoot).removalPhase='unknown';custody.stopped=true;custody.failures.push(cause);}\nexport function inspectMigrationStaging(){return Object.freeze({limits:migrationLimits,calls:Object.freeze(migrationCalls.map(call=>Object.freeze({...call,args:Object.freeze([...call.args]),root:call.root===undefined?undefined:Object.freeze({...call.root})}))),roots:Object.freeze(migrationRoots.map(root=>Object.freeze({...root})))});}\n\nconst childRecords=new WeakMap<Ticket,ChildRecord>(),children:ChildRecord[]=[],childByOriginal=new WeakMap<Child,ChildRecord>();\nconst childLimits=Object.freeze({git:8,namespace:16,emitter:2,collector:6});\nlet childReadCount=0,childDeliveredBytes=0,childAcceptedBytes=0,childReadsStopped=false;\nconst unknownChildPending=new Promise<never>(()=>{});\nfunction stopChild(record:{phase?:Phase;cause?:unknown},cause:unknown){record.phase='unknown';record.cause=cause;custody.stopped=true;custody.failures.push(cause);}\nfunction observeChildPromise<Key extends PromiseKey>(record:ChildPromiseSlots<Key>,key:Key,original:Promise<PromiseValues[NoInfer<Key>]>):Promise<void>;\n/* The closed-key overload binds each caller to its actual original's value; the checked implementation shares the same reaction across those five slots without asserting any fulfilled state or value. */\nfunction observeChildPromise(record:ChildPromiseStorage,key:PromiseKey,original:Promise<PromiseValues[PromiseKey]>){\n record[key]=original;record[key+'State' as `${PromiseKey}State`]='pending';\n const observer=original.then(value=>{record[key+'State' as `${PromiseKey}State`]='fulfilled';record[key+'Value' as `${PromiseKey}Value`]=value;},cause=>{record[key+'State' as `${PromiseKey}State`]='rejected';record[key+'Cause' as `${PromiseKey}Cause`]=cause;stopChild(record,cause);});\n record[key+'Observer' as `${PromiseKey}Observer`]=observer;return observer;\n}\nexport function reserveChild(label:keyof typeof childLimits,args:readonly unknown[]){\n admit();if(!Object.hasOwn(childLimits,label))fail('ordinary HOLD child boundary differs');\n// Proof: widening the family cap failed the first Git8 branch; other family constants lack separate physical credit (triplet 0/1/0).\n if(children.length>=32||children.filter(record=>record.label===label).length>=childLimits[label])fail('ordinary HOLD child cap exceeded');\n const ticket=Object.freeze({});const record:ChildRecord={ticket,label,args:[...args],phase:'entered',streams:[],joined:false};childRecords.set(ticket,record);// Proof: omitting child reservation failed the same generated reservation consumer; finite triplet 0/1/0.\nchildren.push(record);return ticket;\n}\nexport function throwChild(ticket:Ticket,cause:unknown){const record=childRecords.get(ticket);if(record===undefined)fail('ordinary HOLD child ticket differs');stopChild(record,cause);}\nfunction childStreamSnapshot(stream:ChildStream){return Object.freeze({...stream,reads:Object.freeze(stream.reads.map(read=>Object.freeze({...read}))),chunks:Object.freeze([...stream.chunks])});}\nexport function inspectChildren(){return Object.freeze(children.map(record=>Object.freeze({...record,args:Object.freeze([...record.args]),streams:Object.freeze(record.streams.map(childStreamSnapshot))})));}\nfunction captureChildStream(record:ChildRecord,name:string,stream:ReadableStream<Uint8Array>){\n const captured:ChildStream={name,stream,reads:[],chunks:[],eof:false,releasePhase:'not-entered'};record.streams.push(captured);\n if(stream===undefined||stream===null)throw Error('ordinary HOLD child stream absent');\n// Proof: substituting ready closed failed the retained-reader identity consumer; finite triplet 0/1/0.\n captured.reader=stream.getReader();observeChildPromise(captured,'closed',captured.reader.closed);/* This constructor returns normally only after assigning the actual getReader() return and observing that reader.closed; failure retains a partial stream and marks the child unknown. */return captured as CapturedChildStream;\n}\nasync function pumpChild(record:ChildRecord,stream:CapturedChildStream){\n for(;;){\n  if(childReadsStopped)return await unknownChildPending;\n// Proof: omitting read refusal failed the finite 8193-chunk UNKNOWN consumer; triplet 0/1/0.\n  if(childReadCount>=8192){childReadsStopped=true;stopChild(record,Error('ordinary HOLD child read cap exceeded'));return await unknownChildPending;}\n  const read:ChildRead={phase:'entered'};childReadCount++;stream.reads.push(read);\n  let chunk;\n  try{const original=stream.reader.read();observeChildPromise(read,'original',original);chunk=await original;await read.originalObserver;read.phase='returned';read.chunk=chunk;}\n  catch(cause){read.phase='unknown';read.cause=cause;stopChild(record,cause);return await unknownChildPending;}\n  if(chunk.done){stream.eof=true;return;}\n  childDeliveredBytes+=chunk.value.byteLength;\n // Proof: omitting byte refusal failed the finite oversized-read UNKNOWN consumer; triplet 0/1/0.\n if(childDeliveredBytes>33554432){childReadsStopped=true;stopChild(record,Error('ordinary HOLD child byte cap exceeded'));return await unknownChildPending;}\n  childAcceptedBytes+=chunk.value.byteLength;stream.chunks.push(chunk.value);\n }\n}\nexport function attachChild<Original extends Child>(ticket:Ticket,child:Original){\n const record=childRecords.get(ticket);if(record===undefined||record.phase!=='entered')fail('ordinary HOLD child attachment differs');\n record.original=child;record.phase='returned';childByOriginal.set(child,record);\n try{\n  // Proof: substituting an exit projection failed the original-identity consumer; finite triplet 0/1/0.\nobserveChildPromise(record,'exited',child.exited);\n  record.stdout=child.stdout;record.stderr=child.stderr;\n  const stdout=captureChildStream(record,'stdout',record.stdout),stderr=captureChildStream(record,'stderr',record.stderr);\n  observeChildPromise(stdout,'pump',pumpChild(record,stdout));observeChildPromise(stderr,'pump',pumpChild(record,stderr));\n  return child;\n }catch(cause){stopChild(record,cause);throw cause;}\n}\nfunction decodeChildStream(stream:ChildStream,fatal:boolean){const length=stream.chunks.reduce((sum,chunk)=>sum+chunk.byteLength,0);const bytes=new Uint8Array(length);let offset=0;for(const chunk of stream.chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}return new TextDecoder('utf-8',{fatal}).decode(bytes);}\n// Proof: omitting actual releaseLock failed the known-join consumer's unlocked-stream oracle; finite triplet 0/1/0.\nasync function joinChildBody(record:ChildRecord):Promise<ChildJoin>{\n const waits=[record.exited,record.exitedObserver];\n for(const stream of record.streams)waits.push(stream.pump,stream.pumpObserver,stream.closed,stream.closedObserver);\n await Promise.allSettled(waits);\n if(record.phase==='unknown'||record.streams.length!==2||record.exitedState!=='fulfilled'||record.streams.some(stream=>!stream.eof||stream.closedState!=='fulfilled'||stream.pumpState!=='fulfilled'||stream.reads.some(read=>read.originalState!=='fulfilled')))return await unknownChildPending;\n for(const stream of record.streams){\n  if(stream.releasePhase!=='not-entered'){stopChild(record,Error('ordinary HOLD child reader release re-entry'));return await unknownChildPending;}\n  stream.releasePhase='entered';try{stream.releaseReturned=(/* The preceding known-child guard excludes capture failure; only successfully captured readers can start these EOF/fulfilled pumps. Actual release outcome remains recorded below. */stream as CapturedChildStream).reader.releaseLock();stream.releasePhase='returned';}catch(cause){stream.releasePhase='unknown';stopChild(record,cause);return await unknownChildPending;}\n }\n record.joined=true;return Object.freeze([decodeChildStream(record.streams[0],false),decodeChildStream(record.streams[1],false),(/* The actual typed child.exited observer writes this number in the same reaction that writes fulfilled, required above after joining original and observer. */record.exitedValue as number)]);\n}\n// Proof: returning a join projection failed exact original join identity; finite triplet 0/1/0.\nexport function joinOrdinaryChild(child:Child){const record=childByOriginal.get(child);if(record===undefined)fail('ordinary HOLD child original absent');if(record.join!==undefined)return record.join;const original=joinChildBody(record);observeChildPromise(record,'join',original);return original;}\nexport function inspectChildLimits(){return Object.freeze({children:32,readers:64,reads:8192,bytes:33554432,families:childLimits,readCount:childReadCount,deliveredBytes:childDeliveredBytes,acceptedBytes:childAcceptedBytes});}\nexport function refuseChildSemantic(child:Child,cause:unknown):never{const record=childByOriginal.get(child);if(record===undefined)fail('ordinary HOLD child original absent');record.semanticCause=cause;custody.stopped=true;custody.failures.push(cause);throw cause;}\nexport function assertChildDeadline(deadline:number){admit();if(!Number.isFinite(deadline)||performance.now()>=deadline)fail('ordinary HOLD child deadline exceeded');}\n// Proof: removing fatal decoding failed the invalid-UTF8 collector consumer after known joins; finite triplet 0/1/0.\nexport function decodeCollectorChild(child:Child){const record=childByOriginal.get(child);if(record===undefined||!record.joined)fail('ordinary HOLD collector join absent');try{return decodeChildStream(record.streams[0],true);}catch(cause){return refuseChildSemantic(child,cause);}}\n// Proof: omitting raw-stderr refusal accepted BOM-only stderr after known joins; same consumer triplet 0/1/0.\nfunction collectorStderrByteLength(child:Child){return (/* Private caller readAuthorityCollector reaches here only after successful joinOrdinaryChild established this exact child and both captured streams; the private map never deletes entries. */childByOriginal.get(child) as JoinedChildRecord).streams[1].chunks.reduce((bytes,chunk)=>bytes+chunk.byteLength,0);}\nexport async function readAuthorityCollector(child:Child,deadline:number){const [stdout,stderr,code]=await joinOrdinaryChild(child);if(performance.now()>=deadline)return refuseChildSemantic(child,Error('authority collector deadline exceeded'));if(collectorStderrByteLength(child)>0)return refuseChildSemantic(child,Error('authority collector reported failure'));if(code!==0)return refuseChildSemantic(child,Error('authority collector exited unsuccessfully'));return decodeCollectorChild(child);}\n\nconst nativeLabels=new Set(['owner.openSync','storage.openSync','lock.openSync','graph.openSync','backup.openSync','graph.opendirSync','graph.relative','database.readonly','database.readwrite']);\nconst operationLabels=new Set([\"owner.closeSync\",\"owner.fstatSync\",\"owner.fsyncSync\",\"owner.readFileSync\",\"owner.readSync\",\"owner.writeFileSync\",\"owner.fchmodSync\",\"owner.lstatSync\",\"owner.openSync\",\"owner.readdirSync\",\"owner.realpathSync\",\"owner.mkdirSync\",\"owner.ftruncateSync\",\"owner.statSync\",\"owner.writeSync\",\"owner.opendirSync\",\"owner.copyFileSync\",\"owner.existsSync\",\"owner.renameSync\",\"owner.rmSync\",\"storage.closeSync\",\"storage.fstatSync\",\"storage.fsyncSync\",\"storage.readFileSync\",\"storage.readSync\",\"storage.writeFileSync\",\"storage.fchmodSync\",\"storage.lstatSync\",\"storage.openSync\",\"storage.readdirSync\",\"storage.realpathSync\",\"storage.mkdirSync\",\"storage.ftruncateSync\",\"storage.statSync\",\"storage.writeSync\",\"storage.opendirSync\",\"storage.copyFileSync\",\"storage.existsSync\",\"storage.renameSync\",\"storage.rmSync\",\"lock.closeSync\",\"lock.fstatSync\",\"lock.fsyncSync\",\"lock.readFileSync\",\"lock.readSync\",\"lock.writeFileSync\",\"lock.fchmodSync\",\"lock.lstatSync\",\"lock.openSync\",\"lock.readdirSync\",\"lock.realpathSync\",\"lock.mkdirSync\",\"lock.ftruncateSync\",\"lock.statSync\",\"lock.writeSync\",\"lock.opendirSync\",\"lock.copyFileSync\",\"lock.existsSync\",\"lock.renameSync\",\"lock.rmSync\",\"graph.closeSync\",\"graph.fstatSync\",\"graph.fsyncSync\",\"graph.readFileSync\",\"graph.readSync\",\"graph.writeFileSync\",\"graph.fchmodSync\",\"graph.lstatSync\",\"graph.openSync\",\"graph.readdirSync\",\"graph.realpathSync\",\"graph.mkdirSync\",\"graph.ftruncateSync\",\"graph.statSync\",\"graph.writeSync\",\"graph.opendirSync\",\"graph.copyFileSync\",\"graph.existsSync\",\"graph.renameSync\",\"graph.rmSync\",\"backup.closeSync\",\"backup.fstatSync\",\"backup.fsyncSync\",\"backup.readFileSync\",\"backup.readSync\",\"backup.writeFileSync\",\"backup.fchmodSync\",\"backup.lstatSync\",\"backup.openSync\",\"backup.readdirSync\",\"backup.realpathSync\",\"backup.mkdirSync\",\"backup.ftruncateSync\",\"backup.statSync\",\"backup.writeSync\",\"backup.opendirSync\",\"backup.copyFileSync\",\"backup.existsSync\",\"backup.renameSync\",\"backup.rmSync\",\"setup.participant.chmod\",\"setup.participant.cp\",\"setup.participant.lstat\",\"setup.participant.mkdir\",\"setup.participant.mkdtemp\",\"setup.participant.readdir\",\"setup.participant.symlink\",\"setup.participant.writeFile\",\"setup.participant.readFile\",\"setup.participant.rename\",\"setup.participant.stat\",\"setup.participant.link\",\"setup.participant.rm\",\"setup.complete.chmod\",\"setup.complete.cp\",\"setup.complete.lstat\",\"setup.complete.mkdir\",\"setup.complete.mkdtemp\",\"setup.complete.readdir\",\"setup.complete.symlink\",\"setup.complete.writeFile\",\"setup.complete.readFile\",\"setup.complete.rename\",\"setup.complete.stat\",\"setup.complete.link\",\"setup.complete.rm\",\"setup.startup.chmod\",\"setup.startup.cp\",\"setup.startup.lstat\",\"setup.startup.mkdir\",\"setup.startup.mkdtemp\",\"setup.startup.readdir\",\"setup.startup.symlink\",\"setup.startup.writeFile\",\"setup.startup.readFile\",\"setup.startup.rename\",\"setup.startup.stat\",\"setup.startup.link\",\"setup.startup.rm\",\"setup.database.chmod\",\"setup.database.cp\",\"setup.database.lstat\",\"setup.database.mkdir\",\"setup.database.mkdtemp\",\"setup.database.readdir\",\"setup.database.symlink\",\"setup.database.writeFile\",\"setup.database.readFile\",\"setup.database.rename\",\"setup.database.stat\",\"setup.database.link\",\"setup.database.rm\",\"setup.frontend.chmod\",\"setup.frontend.cp\",\"setup.frontend.lstat\",\"setup.frontend.mkdir\",\"setup.frontend.mkdtemp\",\"setup.frontend.readdir\",\"setup.frontend.symlink\",\"setup.frontend.writeFile\",\"setup.frontend.readFile\",\"setup.frontend.rename\",\"setup.frontend.stat\",\"setup.frontend.link\",\"setup.frontend.rm\",\"setup.namespace.chmod\",\"setup.namespace.cp\",\"setup.namespace.lstat\",\"setup.namespace.mkdir\",\"setup.namespace.mkdtemp\",\"setup.namespace.readdir\",\"setup.namespace.symlink\",\"setup.namespace.writeFile\",\"setup.namespace.readFile\",\"setup.namespace.rename\",\"setup.namespace.stat\",\"setup.namespace.link\",\"setup.namespace.rm\",\"owner.interval\",\"owner.clear\",\"storage.database.connection\",\"storage.database.database\",\"storage.graph\",\"complete.storage\",\"complete.scanner\",\"setup.runMigrations\",\"complete.write.prod\",\"complete.write.dev\",\"namespace.write.0\",\"namespace.write.1\",\"namespace.write.2\",\"namespace.write.3\",\"namespace.write.4\"]);\n// Proof: removing snapshot freezing let the inspection consumer manufacture native completion (exit 1; restored).\nfunction snapshot<RecordShape extends {args?:readonly unknown[];aliases?:readonly unknown[]}>(record:RecordShape){return Object.freeze({...record,args:record.args===undefined?undefined:Object.freeze([...record.args]),aliases:record.aliases===undefined?undefined:Object.freeze([...record.aliases])});}\nexport function inspectLedger(){return Object.freeze({stopped:custody.stopped,fatalObservation:custody.fatalObservation===undefined?undefined:Object.freeze({...custody.fatalObservation}),natives:Object.freeze(custody.natives.map(snapshot)),operations:Object.freeze(custody.operations.map(snapshot)),owners:Object.freeze(custody.owners.map(frame=>Object.freeze({...frame,observations:Object.freeze(frame.observations.map(snapshot))}))),events:Object.freeze(custody.events.map(event=>Object.freeze({kind:event.kind,record:snapshot(event.record)}))),failures:Object.freeze([...custody.failures])});}\nfunction requireRecord(ticket:Ticket,kind:'native'):NativeRecord;\nfunction requireRecord(ticket:Ticket,kind:'operation'):OperationRecord;\nfunction requireRecord(ticket:Ticket,kind:LedgerRecord['family']){const record=records.get(ticket);if(record===undefined||record.family!==kind)fail('ordinary HOLD ticket differs');return record;}\nexport function inspectNative(ticket:Ticket){return snapshot(requireRecord(ticket,'native'));}\nexport function inspectOperation(ticket:Ticket){return snapshot(requireRecord(ticket,'operation'));}\nfunction fail(message:string):never{const cause=new Error(message);custody.stopped=true;custody.failures.push(cause);throw cause;}\nfunction event(kind:string,record:LedgerRecord|Observation){if(custody.events.length>=8192)fail('ordinary HOLD event cap exceeded');custody.events.push({kind,record});}\nfunction admit(){if(custody.stopped)fail('ordinary HOLD ledger stopped');if(custody.events.length>=8192)fail('ordinary HOLD event cap exceeded');}\nfunction createTicket(record:LedgerRecord){const ticket=Object.freeze({});records.set(ticket,record);record.ticket=ticket;return ticket;}\nexport function reserveNative(label:string,kind:NativeKind,args:readonly unknown[],receiver:unknown){\n  admit();\n  // Proof: admitting storage.openSync-near failed the unknown-boundary inert consumer (exit 1; restored).\n  if(!nativeLabels.has(label)||!['fd','dir','sqlite'].includes(kind)||kind==='dir'&&label!=='graph.opendirSync'||kind==='sqlite'&&!['database.readonly','database.readwrite'].includes(label)||kind==='fd'&&(label==='graph.opendirSync'||['database.readonly','database.readwrite'].includes(label)))fail('ordinary HOLD native boundary differs');\n  // Proof: removing this bound admits the 513th inert acquisition in the generated ledger cap negative.\n  if(custody.natives.length>=512||kind==='sqlite'&&custody.natives.filter(record=>record.kind==='sqlite').length>=64||kind==='dir'&&custody.natives.filter(record=>record.kind==='dir').length>=32)fail('ordinary HOLD native cap exceeded');\n  const record:NativeRecord={family:'native',generation:++custody.generation,label,kind,args,receiver,phase:'entered',original:undefined,acquisitionCause:undefined,nativePhase:'not-entered',productionAttempts:0,fixtureAttempts:0,nativeEntries:0,nativeReturns:0,closeCause:undefined,closeOrigin:undefined,aliases:[]};\n  // Proof: removing native reservation failed the generation consumer before sentinel entry (exit 1; restored).\n  const ticket=createTicket(record);custody.natives.push(/* createTicket wrote this exact ticket before insertion; this refines bookkeeping identity only. */record as ReservedNativeRecord);event('native-enter',record);return ticket;\n}\nexport function attachNative<Original>(ticket:Ticket,original:Original){\n  const record=requireRecord(ticket,'native');\n  if(record.phase!=='entered')fail('ordinary HOLD native attachment differs');\n  const prior=nativeAliases.get(original);record.original=original;record.phase='returned';record.aliases.push(original);\n  if(prior!==undefined&&requireRecord(prior,'native').nativePhase!=='returned')fail('ordinary HOLD active native alias duplicate');\n  nativeAliases.set(original,ticket);return original;\n}\nexport function retainNativeClose(ticket:Ticket,savedClose:((...args:never[])=>unknown),receiver:unknown,args:readonly unknown[]){const record=requireRecord(ticket,'native');record.savedClose=savedClose;record.closeReceiver=receiver;record.closeArgs=[...args];}\nexport function retainNativeIdentity(ticket:Ticket,identity:unknown){requireRecord(ticket,'native').identity=identity;}\nexport function throwNative(ticket:Ticket,cause:unknown){const record=requireRecord(ticket,'native');record.acquisitionCause=cause;record.phase='unknown';custody.stopped=true;custody.failures.push(cause);}\nexport function aliasNative<Alias>(ticket:Ticket,alias:Alias){\n  const record=requireRecord(ticket,'native');\n  if(record.phase!=='returned'||nativeAliases.has(alias)&&nativeAliases.get(alias)!==ticket)fail('ordinary HOLD native alias differs');\n  // Proof: omitting alias linkage failed the same native-generation/alias consumer (exit 1; restored).\n  nativeAliases.set(alias,ticket);record.aliases.push(alias);return alias;\n}\nexport function linkWrapper<Original extends object>(wrapper:Original,tickets:readonly Ticket[],kind:'connection'|'graph'|'scanner'){if(!['connection','graph','scanner'].includes(kind)||tickets.length===0||tickets.some(ticket=>records.get(ticket)?.family!=='native')||kind==='connection'&&tickets.length!==1)fail('ordinary HOLD wrapper association differs');wrappers.set(wrapper,Object.freeze({kind,tickets:Object.freeze([...tickets])}));if(tickets.length===1)aliasNative(tickets[0],wrapper);return wrapper;}\n// Proof: both independent-cleanup consumers failed at B after A UNKNOWN or event-cap STOP; removing acquisition admission restored both (exit 0).\nexport function attemptClose(original:unknown,origin:Origin){\n  const ticket=nativeAliases.get(original);\n  if(ticket===undefined||!['production','fixture'].includes(origin))fail('ordinary HOLD close original absent');\n  const record=requireRecord(ticket,'native');\n  // Proof: the 8193rd attempt passed before this bound and failed the cleanup-accounting consumer; fixed consumer passes.\n  if(record.productionAttempts+record.fixtureAttempts>=8192)fail('ordinary HOLD close attempt cap exceeded');\n  if(origin==='production')record.productionAttempts++;else record.fixtureAttempts++;\n  return ticket;\n}\nexport function enterClose(ticket:Ticket,origin:Origin){\n  const record=requireRecord(ticket,'native');\n  // Proof: removing this guard failed the returned/unknown no-retry consumer (exit 1; restored).\n  if(record.nativePhase!=='not-entered')fail('ordinary HOLD native close re-entry');\n  record.nativePhase='entered';record.nativeEntries++;record.closeOrigin=origin;return ticket;\n}\nexport function beginClose(original:unknown,origin:Origin){return enterClose(attemptClose(original,origin),origin);}\nexport function returnClose(ticket:Ticket,returned?:unknown){const record=requireRecord(ticket,'native');if(record.nativePhase!=='entered')fail('ordinary HOLD native return without entry');record.nativePhase='returned';record.nativeReturns++;record.closeReturned=returned;}\nexport function throwClose(ticket:Ticket,cause:unknown){const record=requireRecord(ticket,'native');record.nativePhase='unknown';record.closeCause=cause;custody.stopped=true;custody.failures.push(cause);}\nexport function reserveOperation(label:string,kind:'sync'|'promise',receiver:unknown,args:readonly unknown[]){\n  admit();if(!operationLabels.has(label)||!['sync','promise'].includes(kind))fail('ordinary HOLD operation boundary differs');\n  // Proof: raising the 256-Promise cap failed the exact census consumer (exit 1; restored).\n  if(kind==='promise'&&custody.operations.filter(record=>record.kind==='promise').length>=256)fail('ordinary HOLD Promise cap exceeded');\n  const record:OperationRecord={family:'operation',label,kind,receiver,args,phase:'entered',returned:undefined,original:undefined,observer:undefined,observerSettled:false,joined:false,cause:undefined};\n  const ticket=createTicket(record);custody.operations.push(/* createTicket wrote this exact ticket before the record is inserted; this refines bookkeeping identity only. */record as ReservedOperationRecord);event('operation-enter',record);return ticket;\n}\nexport function returnOperation<Returned>(ticket:Ticket,returned:Returned){const record=requireRecord(ticket,'operation');record.returned=returned;record.phase='returned';return returned;}\nexport function throwOperation(ticket:Ticket,cause:unknown){const record=requireRecord(ticket,'operation');record.cause=cause;if(record.phase!=='unknown')record.phase='threw';}\nexport function attachPromise<Original extends Promise<unknown>>(ticket:Ticket,original:Original){\n  const record=requireRecord(ticket,'operation');if(record.phase!=='entered')fail('ordinary HOLD Promise already attached');\n  record.returned=original;record.original=original;record.phase='pending';\n  try{record.observer=original.then(value=>{record.value=value;record.phase='fulfilled';record.observerSettled=true;},cause=>{record.cause=cause;record.phase='rejected';record.observerSettled=true;});}\n  catch(cause){record.phase='unknown';record.cause=cause;custody.stopped=true;custody.failures.push(cause);throw cause;}\n  // Proof: returning a .then projection failed the exact-original consumer (exit 1; restored).\n  return original;\n}\nexport async function joinOperation(ticket:Ticket){\n  const record=requireRecord(ticket,'operation');if(record.original===undefined||record.observer===undefined)fail('ordinary HOLD original observation absent');\n  await Promise.allSettled([record.original,record.observer]);\n  if(!record.observerSettled||!['fulfilled','rejected'].includes(record.phase))fail('ordinary HOLD original observation incomplete');record.joined=true;\n}\nfunction tap(kind:string,owner:DependencyOwner,ownership:Ownership,record:ObservedRecord,original:unknown,observer:Promise<void>|undefined,extra:object){\n  const observation={kind,owner,ownership,record,original,observer,...extra};\n  try{\n    let frame=custody.owners.find(frame=>frame.owner===owner);\n    // Proof: admitting owner nine failed the fixed owner-graph census consumer (exit 1; restored).\n    if(frame===undefined){if(custody.owners.length>=8)throw Error('ordinary HOLD owner frame cap exceeded');frame={owner,ownership,observations:[]};custody.owners.push(frame);}\n    if(custody.stopped||custody.events.length>=8192)throw Error('ordinary HOLD owner observation stopped or capped');\n    frame.observations.push(observation);event('owner-'+kind,observation);\n  }catch(cause){custody.fatalObservation=observation;custody.stopped=true;custody.failures.push(cause);}\n}\nexport function captureSettlement(record:PreparationRecord,settlement:CompositionSettlement,original:Promise<unknown>,observer:Promise<void>){try{\n  const kind=settlement===record.composition?'composition':settlement===record.projection?'projection':settlement===record.runtimeAction?'runtime-action':'unassociated';\n  tap(kind,record.owner,record.ownership,record,original,observer,{settlement});\n  if(kind==='unassociated'){custody.stopped=true;custody.fatalObservation={record,settlement,original,observer};}\n}catch(cause){custody.stopped=true;custody.fatalObservation={kind:'captureSettlement',references:[record,settlement,original,observer]};custody.failures.push(cause);}}\nexport function captureOperation(operation:PreparationOperation,observed:PreparationOperationRecord,original:Promise<unknown>,observer:Promise<void>){try{tap('operation',observed.preparation.owner,observed.preparation.ownership,observed,original,observer,{operation});}catch(cause){custody.stopped=true;custody.fatalObservation={kind:'captureOperation',references:[operation,observed,original,observer]};custody.failures.push(cause);}}\nexport function captureRuntimeEntry(owner:DependencyOwner,ownership:Ownership,entry:RuntimeEntry,original:Promise<unknown>,observer:Promise<void>){try{tap('runtime-entry',owner,ownership,entry,original,observer,{});}catch(cause){custody.stopped=true;custody.fatalObservation={kind:'captureRuntimeEntry',references:[owner,ownership,entry,original,observer]};custody.failures.push(cause);}}\n// Proof: omitting timer identity matching failed the missing-keeper consumer (exit 1; restored).\nexport function captureKeeper(owner:DependencyOwner,ownership:Ownership,keeper:PreparationKeeper){try{tap('keeper',owner,ownership,keeper,keeper.pending,undefined,{interval:keeper.interval});if(custody.operations.filter(record=>record.label==='owner.interval'&&record.returned===keeper.interval).length!==1){custody.stopped=true;custody.fatalObservation={owner,ownership,record:keeper,original:keeper.pending};}}catch(cause){custody.stopped=true;custody.fatalObservation={kind:'captureKeeper',references:[owner,ownership,keeper]};custody.failures.push(cause);}}\nexport function captureOriginal(preparation:DependencyPreparation,original:PreparationOriginal,observed:OriginalRecord){try{\n  const acquisition=observed.acquisition;const acquired=acquisition.kind==='descriptor'?acquisition.descriptor:acquisition.kind==='database'?acquisition.database:acquisition.kind==='connection'?acquisition.connection:acquisition.kind==='graph'?acquisition.graph:acquisition.scanner;\n  const ticket=nativeAliases.get(acquired);const wrapper=wrappers.get(acquired);\n  tap('original',observed.preparation.owner,observed.preparation.ownership,observed,original,undefined,{preparation,acquisition,ticket,wrapper});\n  if(acquisition.kind==='scanner'?(wrapper?.kind!=='scanner'||wrapper.obligation===undefined||wrapper.obligation.original!==acquired):(ticket===undefined&&wrapper===undefined)){custody.stopped=true;custody.fatalObservation={preparation,original,observed,acquired};}\n}catch(cause){custody.stopped=true;custody.fatalObservation={kind:'captureOriginal',references:[preparation,original,observed]};custody.failures.push(cause);}}\nexport function captureHold(owner:DependencyOwner,ownership:Ownership,keeper:PreparationKeeper){try{tap('hold',owner,ownership,keeper,keeper.pending,undefined,{interval:keeper.interval});}catch(cause){custody.stopped=true;custody.fatalObservation={kind:'captureHold',references:[owner,ownership,keeper]};custody.failures.push(cause);}}\n\nconst controllerLabels=new Set(['fixture','owner-action','outer-owner','completion']);\nconst controllerFailures:{kind:'semantic'|'release';cause:unknown;args?:readonly unknown[];aliases?:readonly unknown[]}[]=[],knownJoinOutcomes:({original?:unknown;observer?:Promise<void>;outcome:PromiseSettledResult<unknown>;args?:readonly unknown[];aliases?:readonly unknown[]})[]=[];\nconst controllerControls:ControlRecord[]=[],controllerTickets=new WeakMap<Ticket,ControlRecord>(),controllerPreparations:{preparation:DependencyPreparation;record:PreparationRecord}[]=[],controllerPreparationMap=new WeakMap<DependencyPreparation,PreparationRecord>(),scannerObligations:ScannerRecord[]=[],scannerTickets=new WeakMap<Ticket,ScannerRecord>(),scannerCalls:ScannerCall[]=[];\nfunction stopController(cause:unknown,references:unknown[]){custody.stopped=true;custody.failures.push(cause);custody.fatalObservation={kind:'coupled-controller',references};}\nexport function reserveControllerControl(label:string){admit();if(!controllerLabels.has(label)||controllerControls.some(control=>control.label===label))fail('coupled control label or repetition differs');const ticket=Object.freeze({});const control:ControlRecord={ticket,label,phase:'entered',original:undefined,observer:undefined,observerSettled:false,joined:false};controllerControls.push(control);controllerTickets.set(ticket,control);return ticket;}\nexport function attachControllerControl<Original extends Promise<unknown>>(ticket:Ticket,original:Original){const control=controllerTickets.get(ticket);if(control===undefined||control.phase!=='entered')fail('coupled control attachment differs');control.original=original;control.phase='pending';try{control.observer=original.then(value=>{control.value=value;control.phase='fulfilled';control.observerSettled=true;},cause=>{control.cause=cause;control.phase='rejected';control.observerSettled=true;});}catch(cause){control.phase='unknown';stopController(cause,[control,original]);throw cause;}return original;}\nexport function throwControllerControl(ticket:Ticket,cause:unknown){const control=controllerTickets.get(ticket);if(control===undefined)fail('coupled control throw absent');control.phase='unknown';control.cause=cause;stopController(cause,[control]);}\nexport function capturePreparation(preparation:DependencyPreparation,record:PreparationRecord){try{if(controllerPreparations.length!==0||controllerPreparationMap.has(preparation))throw Error('coupled preparation repeated');const frame={preparation,record};controllerPreparations.push(frame);controllerPreparationMap.set(preparation,record);}catch(cause){stopController(cause,[preparation,record]);}}\nexport function requireControllerPreparation(preparation:DependencyPreparation){const record=controllerPreparationMap.get(preparation);if(record===undefined)fail('coupled preparation identity absent');return record;}\nexport function reserveCompletion(preparation:DependencyPreparation){const record=requireControllerPreparation(preparation);const ticket=reserveControllerControl('completion');(/* reserveControllerControl synchronously stores this exact returned ticket, with no intervening callback, await or deletion. */controllerTickets.get(ticket) as ControlRecord).preparation=preparation;(/* Same immediate reserveControllerControl producer postcondition; this refinement is confined to its returned ticket. */controllerTickets.get(ticket) as ControlRecord).record=record;return ticket;}\nexport function reserveScannerCall(args:readonly unknown[]){admit();if(scannerCalls.length>=5)fail('coupled scanner call cap exceeded');const call:ScannerCall={args:[...args],phase:'entered',original:undefined,observer:undefined};scannerCalls.push(call);return call;}\nexport function attachScannerCall<Original extends Promise<unknown>>(call:ScannerCall,original:Original){call.original=original;call.phase='pending';try{call.observer=original.then(value=>{call.phase='fulfilled';},cause=>{call.phase='unknown';call.cause=cause;stopController(cause,[call,original]);});}catch(cause){call.phase='unknown';call.cause=cause;stopController(cause,[call,original]);throw cause;}return original;}\nexport function throwScannerCall(call:ScannerCall,cause:unknown){call.phase='unknown';call.cause=cause;stopController(cause,[call]);}\nexport function reserveScanner(args:readonly unknown[]){admit();if(args.length!==3||args[2]!==true||scannerObligations.length!==0)fail('coupled retained scanner boundary differs');const ticket=Object.freeze({});const record:ScannerRecord={ticket,args:[...args],phase:'entered',original:undefined,scanOriginal:undefined,observer:undefined,observerSettled:false,nativePhase:'not-entered',nativeEntries:0,productionAttempts:0,fixtureAttempts:0};scannerTickets.set(ticket,record);scannerObligations.push(record);return ticket;}\nexport function attachScannerPromise<Original extends Promise<Monitor>>(ticket:Ticket,original:Original){const record=scannerTickets.get(ticket);if(record===undefined||record.phase!=='entered')fail('coupled scanner attachment differs');record.scanOriginal=original;record.phase='pending';try{record.observer=original.then(monitor=>{record.original=monitor;record.phase='returned';try{const close=monitor.close;if(typeof close!=='function')throw Error('coupled scanner close absent');record.savedClose=close;record.closeReceiver=monitor;wrappers.set(monitor,Object.freeze({kind:'scanner',obligation:record}));monitor.close=function(...args){record.productionAttempts++;if(this!==monitor)fail('coupled scanner receiver differs');if(record.nativePhase!=='not-entered')fail('coupled scanner close re-entry');record.nativePhase='entered';record.nativeEntries++;record.closeArgs=[...args];try{const returned=Reflect.apply(close,this,args);record.closeReturned=returned;record.nativePhase='returned';return returned;}catch(cause){record.nativePhase='unknown';record.closeCause=cause;stopController(cause,[record,monitor]);throw cause;}};}catch(cause){record.phase='unknown';stopController(cause,[record,monitor]);}record.observerSettled=true;},cause=>{record.phase='unknown';record.scanCause=cause;record.observerSettled=true;stopController(cause,[record,original]);});}catch(cause){record.phase='unknown';stopController(cause,[record,original]);throw cause;}return original;}\nexport function throwScanner(ticket:Ticket,cause:unknown){const record=scannerTickets.get(ticket);if(record===undefined)fail('coupled scanner throw absent');record.phase='unknown';record.scanCause=cause;stopController(cause,[record]);}\nexport function retainControllerFailure(kind:'semantic'|'release',cause:unknown){if(kind!=='semantic'&&kind!=='release')fail('coupled failure attribution differs');controllerFailures.push({kind,cause});}\nexport function inspectKnownComposition(){return Object.freeze({failures:Object.freeze(controllerFailures.map(snapshot)),joinOutcomes:Object.freeze(knownJoinOutcomes.map(snapshot)),controls:Object.freeze(controllerControls.map(snapshot)),preparations:Object.freeze(controllerPreparations.map(frame=>Object.freeze({...frame}))),scannerCalls:Object.freeze(scannerCalls.map(snapshot)),scanners:Object.freeze(scannerObligations.map(snapshot))});}\nexport function assertKnownCase(caseId:string){if(caseId!=='known-initial-prepared-release'&&caseId!=='known-preawait-manifest-refusal')fail('coupled known case differs');if(controllerControls.length!==0||controllerPreparations.length!==0)fail('coupled controller already entered');}\nexport function assertKnownPrepared(context:FinalizedParticipantRestorationContext){if(controllerPreparations.length!==1)fail('coupled preparation census differs');const record=controllerPreparations[0].record;if(context!==record.context||record.storage!==context.storage||record.owner!==context.owner||context.purpose!=='initial-handoff'||context.storage.purpose!=='initial-handoff'||context.attempt!==record.attempt||context.pending.contents!==record.pending)fail('coupled genuine context association differs');return record;}\nexport function assertManifestRefusal(cause:unknown,baseline:unknown){\n// Number.isSafeInteger can return true only for a primitive integer number. Each range operand and slice is dominated by that existing guard and fail-never; these refinements assert no custody state.\nif(!Number.isSafeInteger(baseline)||(baseline as number)<0||(baseline as number)>custody.natives.length)fail('coupled refusal baseline differs');if(controllerPreparations.length!==1)fail('coupled refusal preparation absent');const record=controllerPreparations[0].record;const completion=controllerControls.find(control=>control.label==='completion');if(record.composition.outcome.phase!=='rejected'||record.composition.outcome.cause!==cause||record.projection===undefined||record.projection.outcome.phase!=='rejected'||record.projection.outcome.cause!==cause||completion===undefined||completion.phase!=='rejected'||completion.cause!==cause||record.prepared!==undefined||record.context!==undefined||record.storage!==undefined||record.runtimeLock!==undefined||record.runtimeAction!==undefined||custody.owners.some(frame=>frame.observations.some(observation=>observation.kind==='runtime-entry'||observation.kind==='runtime-action'))||custody.operations.some(operation=>operation.label==='complete.scanner')||record.originals.size!==0||custody.natives.slice(baseline as number).some(native=>native.label.startsWith('storage.')||native.label.startsWith('graph.')||native.label.startsWith('backup.')||native.label==='database.readonly')||custody.operations.some(operation=>operation.label==='complete.storage')||scannerObligations.length!==0)fail('coupled exact manifest refusal differs');}\nexport async function joinKnownComposition(){\n const controls=[...controllerControls];if(controls.length!==4||controllerPreparations.length!==1)fail('coupled known control census differs');\n const preparedRecord=controllerPreparations[0].record;\n if(custody.owners.length!==1||custody.owners[0].owner!==preparedRecord.owner||custody.owners[0].ownership!==preparedRecord.ownership)fail('coupled owner observation missing');\n for(const kind of ['composition','projection']){const captures=custody.owners[0].observations.filter(observation=>observation.kind===kind);const settlement=kind==='composition'?preparedRecord.composition:preparedRecord.projection;if(captures.length!==1||settlement===undefined||captures[0].record!==preparedRecord||captures[0].original!==settlement.original||captures[0].observer!==settlement.observer)fail('coupled owner observation binding differs');}\n const pending:unknown[]=[],observers:Promise<void>[]=[];for(const control of controls){if(control.original===undefined||control.observer===undefined)fail('coupled control observer missing');pending.push(control.original,control.observer);observers.push(control.observer);}\n for(const operation of custody.operations)if(operation.kind==='promise'){if(operation.original===undefined||operation.observer===undefined)fail('coupled operation observer missing');pending.push(operation.original,operation.observer);observers.push(operation.observer);}\n for(const frame of custody.owners)for(const observation of frame.observations)if(['composition','projection','runtime-action','runtime-entry','operation'].includes(observation.kind)){if(observation.original===undefined||observation.observer===undefined)fail('coupled owner observer missing');pending.push(observation.original,observation.observer);observers.push(observation.observer);}\n for(const call of scannerCalls){if(call.original===undefined||call.observer===undefined)fail('coupled scanner call observer missing');pending.push(call.original,call.observer);observers.push(call.observer);}\n for(const scanner of scannerObligations){if(scanner.scanOriginal===undefined||scanner.observer===undefined)fail('coupled scanner observer missing');pending.push(scanner.scanOriginal,scanner.observer);observers.push(scanner.observer);}\n const settled=await Promise.allSettled(pending);for(let index=0;index<pending.length;index++)knownJoinOutcomes.push({original:pending[index],outcome:settled[index]});\n const observerSettled=await Promise.allSettled(observers);for(let index=0;index<observers.length;index++)knownJoinOutcomes.push({observer:observers[index],outcome:observerSettled[index]});\n if(observerSettled.some(outcome=>outcome.status!=='fulfilled'))fail('coupled original observer rejected');\n for(const child of children){if(child.original===undefined)fail('coupled child original missing');await joinOrdinaryChild(child.original);if(child.joinObserver===undefined)fail('coupled child join observer missing');await child.joinObserver;}\n for(const control of controls){if(!control.observerSettled||!['fulfilled','rejected'].includes(control.phase))fail('coupled control unsettled');control.joined=true;}\n for(const operation of custody.operations)if(operation.kind==='promise')await joinOperation(operation.ticket);\n if(custody.stopped||custody.fatalObservation!==undefined||custody.natives.some(native=>native.phase!=='returned'||native.nativePhase!=='returned'||native.nativeEntries!==1||native.nativeReturns!==1)||scannerObligations.some(scanner=>scanner.phase!=='returned'||scanner.nativePhase!=='returned'||scanner.nativeEntries!==1)||children.some(child=>!child.joined)||migrationRoots.some(root=>root.removalPhase!=='returned'))fail('coupled known originals not closed');\n const keeperCaptures=custody.owners[0].observations.filter(observation=>observation.kind==='keeper');if(keeperCaptures.length!==1)fail('coupled production keeper capture missing');const keeper=keeperCaptures[0].record;const intervals=custody.operations.filter(operation=>operation.label==='owner.interval'),clears=custody.operations.filter(operation=>operation.label==='owner.clear');if(intervals.length!==1||intervals[0].phase!=='returned'||intervals[0].returned!==keeper.interval||intervals[0].args.length!==2||typeof intervals[0].args[0]!=='function'||intervals[0].args[1]!==60000||clears.length!==1||clears[0].phase!=='returned'||clears[0].args.length!==1||clears[0].args[0]!==keeper.interval)fail('coupled production keeper retirement differs');\n const record=controllerPreparations[0].record;if(record.phase!=='closed'||record.ownership.state==='unknown'||record.originals.size!==0&&[...record.originals].some(original=>original.state!=='closed'))fail('coupled production preparation not closed');\n}\n";
 }
+
+interface OrdinaryCoupledInputV1 {
+  readonly identity: string;
+  readonly mode: string;
+  readonly bytes: number;
+  readonly sha256: string;
+}
+
+function ordinaryCoupledOmissionsV1(root: string): readonly string[] {
+  return [
+    `${root}/tools/tool-remote-scripts/src/lib/solver-reader-preparation.ts`,
+    `${root}/node_modules/drizzle-orm/sql/functions/aggregate.js`,
+    `${root}/node_modules/drizzle-orm/sql/functions/vector.js`,
+  ];
+}
+
+/** Compares independently sealed predictions with conservative coverage; observations grant no authority. */
+export function assertOrdinaryCoupledPredictionV1(
+  root: string,
+  coverage: readonly OrdinaryCoupledInputV1[],
+  prediction: readonly OrdinaryCoupledInputV1[],
+  physical: readonly string[],
+): void {
+  if (coverage.length !== 290 || prediction.length !== 287)
+    throw new Error('coupled prediction census differs');
+  ordinaryHoldClosureUniqueV1(coverage.map((row) => row.identity));
+  ordinaryHoldClosureUniqueV1(prediction.map((row) => row.identity));
+  const omissions = ordinaryCoupledOmissionsV1(root);
+  for (const identity of omissions) {
+    // Proof: removing this physical-coverage block admitted a missing fixed omission; KCT5 prediction test failed and restoration passed (2026-11-07, inert production guard).
+    if (!physical.includes(identity) || !coverage.some((row) => row.identity === identity))
+      throw new Error('coupled physical omission coverage absent');
+  }
+  const candidates = coverage.filter((row) => !omissions.includes(row.identity));
+  if (
+    candidates.length !== prediction.length ||
+    prediction.some((row) => !candidates.some((candidate) => candidate.identity === row.identity))
+  )
+    throw new Error('coupled prediction identity differs');
+  for (const row of prediction) {
+    const covered = candidates.find((candidate) => candidate.identity === row.identity);
+    if (covered?.mode !== row.mode || covered.bytes !== row.bytes || covered.sha256 !== row.sha256)
+      throw new Error('coupled prediction bytes differ');
+  }
+}
+
+/** Requires the exact precommitted compiler set, including absence of the three covered omissions. */
+export function assertOrdinaryCoupledCompilerInputsV1(
+  predicted: readonly string[],
+  observed: readonly string[],
+): void {
+  // Proof: removing this entire set predicate admitted the first removed-input case; KCT5 compiler identity test failed and restoration passed (2026-11-07, inert production guard).
+  if (
+    predicted.length !== 287 ||
+    observed.length !== 287 ||
+    new Set(predicted).size !== 287 ||
+    new Set(observed).size !== 287 ||
+    observed.some((identity) => !predicted.includes(identity))
+  )
+    throw new Error('coupled compiler prediction identities differ');
+}
+
+/** Coverage: closed roster and row validation are exercised by fixed-packet admission; individual guard omissions remain unproved. */
+function decodeOrdinaryCoupledLoadExpectationsV1(
+  sourceRoot: string,
+  value: unknown,
+  digest: unknown,
+): readonly OrdinaryHoldLoadExpectationV1[] {
+  if (
+    ordinaryHoldSha(digest, 'coupled load digest') !==
+    createHash('sha256').update(JSON.stringify(value)).digest('hex')
+  )
+    throw new Error('coupled load expectation digest differs');
+  if (!Array.isArray(value) || value.length !== 47)
+    throw new Error('coupled load expectation roster differs');
+  const classes = new Map<string, OrdinaryHoldLoadExpectationV1['mode']>();
+  for (const entry of ordinaryHoldModuleModesV1)
+    if (entry.mode !== 'external-unchanged')
+      classes.set(`${sourceRoot}/${entry.relative}`, entry.mode);
+  for (const identity of ordinaryCoupledPortSourcesV1(sourceRoot).keys())
+    classes.set(identity.slice('ordinary-hold-v1:'.length), 'virtual');
+  const seen = new Set<string>();
+  return Object.freeze(
+    value.map((candidate: unknown) => {
+      const row = ordinaryHoldFields(
+        candidate,
+        ['namespace', 'identity', 'mode', 'loader', 'bytes', 'sha256'],
+        'coupled load expectation',
+      );
+      const identity = row['identity'];
+      if (
+        typeof identity !== 'string' ||
+        seen.has(identity) ||
+        !classes.has(identity) ||
+        classes.get(identity) !== row['mode'] ||
+        row['loader'] !== 'ts' ||
+        row['namespace'] !== (row['mode'] === 'virtual' ? 'ordinary-hold-v1' : 'file') ||
+        typeof row['bytes'] !== 'number' ||
+        !Number.isSafeInteger(row['bytes']) ||
+        row['bytes'] < 0 ||
+        row['bytes'] > 16 * 1024 * 1024
+      )
+        throw new Error('coupled load expectation identity or shape differs');
+      seen.add(identity);
+      const mode = classes.get(identity);
+      if (mode === undefined) throw new Error('coupled load expectation class absent');
+      return Object.freeze({
+        namespace: mode === 'virtual' ? ('ordinary-hold-v1' as const) : ('file' as const),
+        identity,
+        mode,
+        loader: 'ts' as const,
+        bytes: row['bytes'],
+        sha256: ordinaryHoldSha(row['sha256'], 'coupled load expectation'),
+      });
+    }),
+  );
+}
+
+/** Retains exact callback objects privately; the exported seam permits inert recorder proofs only. */
+export function createOrdinaryCoupledLoadRecorderV1(
+  sourceRoot: string,
+  expected: unknown,
+  digest: unknown,
+) {
+  const rows = decodeOrdinaryCoupledLoadExpectationsV1(
+    ordinaryHoldAbsolute(sourceRoot, 'coupled load root'),
+    expected,
+    digest,
+  );
+  const expectations = new Map(rows.map((row) => [row.identity, row]));
+  const retained = new Map<
+    string,
+    { returned: OrdinaryHoldLoadReturnV1; contents: Uint8Array | string }
+  >();
+  let settled = false;
+  const fingerprint = (returned: OrdinaryHoldLoadReturnV1) => {
+    // Proof: removing this shape block admitted retained ts-to-js loader drift; KCT5 recorder test failed and restoration passed (2026-11-07, inert callbacks). Other shape conjuncts were not isolated.
+    if (
+      returned.loader !== 'ts' ||
+      !(typeof returned.contents === 'string' || returned.contents instanceof Uint8Array)
+    )
+      throw new Error('coupled load returned shape differs');
+    return {
+      bytes:
+        typeof returned.contents === 'string'
+          ? Buffer.byteLength(returned.contents)
+          : returned.contents.byteLength,
+      sha256: createHash('sha256').update(returned.contents).digest('hex'),
+    };
+  };
+  return Object.freeze({
+    /** Copies diagnostic bytes only; this does not settle or authorize any compiler observation. Proof: returning the private byte reference allowed diagnostic mutation to change the retained load and failed KCT5 recorder; restoration passed (2026-11-07, inert evidence). */
+    inspect() {
+      return Object.freeze(
+        rows.flatMap((row) => {
+          const captured = retained.get(row.identity);
+          // A partial attempt has not yet returned every expected callback. Missing returns stay absent here and still fail settle().
+          if (captured === undefined) return [];
+          const observed = fingerprint(captured.returned);
+          return [
+            Object.freeze({
+              ...row,
+              contents:
+                typeof captured.returned.contents === 'string'
+                  ? captured.returned.contents
+                  : new Uint8Array(captured.returned.contents),
+              observedSha256: observed.sha256,
+              observedBytes: observed.bytes,
+              contentsReferencePreserved: captured.returned.contents === captured.contents,
+            }),
+          ];
+        }),
+      );
+    },
+    record<T extends OrdinaryHoldLoadReturnV1>(
+      namespace: OrdinaryHoldLoadExpectationV1['namespace'],
+      identity: string,
+      returned: T,
+    ): T {
+      if (settled) throw new Error('coupled load recorder already settled');
+      const expectation = expectations.get(identity);
+      if (expectation?.namespace !== namespace) throw new Error('coupled load unknown identity');
+      if (retained.has(identity)) throw new Error('coupled load duplicate identity');
+      const observed = fingerprint(returned);
+      if (
+        observed.bytes !== expectation.bytes ||
+        observed.sha256 !== expectation.sha256 ||
+        (namespace === 'file'
+          ? !(returned.contents instanceof Uint8Array)
+          : typeof returned.contents !== 'string')
+      )
+        throw new Error('coupled load expectation bytes differ');
+      retained.set(identity, { returned, contents: returned.contents });
+      // Proof: returning a shallow copy failed the KCT5 recorder exact-object assertion; restoration passed (2026-11-07, inert callbacks).
+      return returned;
+    },
+    settle(): readonly OrdinaryHoldLoadReceiptV1[] {
+      if (retained.size !== rows.length) throw new Error('coupled load missing identity');
+      const receipts = rows.map((row) => {
+        const retainedReturn = retained.get(row.identity);
+        if (retainedReturn === undefined) throw new Error('coupled load missing identity');
+        if (retainedReturn.returned.contents !== retainedReturn.contents)
+          throw new Error('coupled load contents reference drift');
+        const observed = fingerprint(retainedReturn.returned);
+        if (observed.bytes !== row.bytes || observed.sha256 !== row.sha256)
+          throw new Error('coupled load contents drift after compiler join');
+        return Object.freeze({ ...row, returned: true as const, settledSha256: observed.sha256 });
+      });
+      settled = true;
+      return Object.freeze(receipts);
+    },
+  });
+}
+
+export interface OrdinaryCoupledClosureManifestV1 extends Omit<
+  OrdinaryHoldClosureManifestV1,
+  'format' | 'generatedEntry'
+> {
+  readonly format: 'ordinary-coupled-input-closure-v1';
+  readonly generatedEntry: Omit<OrdinaryHoldClosureGeneratedEntryV1, 'template'> & {
+    readonly template: {
+      readonly format: 'ordinary-coupled-entry-v1';
+      readonly exports: readonly (readonly [string, string])[];
+      readonly ledger: string;
+      readonly controller: string;
+    };
+  };
+}
+
+/** Coverage: independently sealed F/D/L/A admission is exercised; new layout/schema guard omission proofs remain open. */
+export function decodeOrdinaryCoupledClosureManifestV1(
+  value: unknown,
+): OrdinaryCoupledClosureManifestV1 {
+  const packet = ordinaryHoldFields(
+    value,
+    [
+      'format',
+      'version',
+      'sourceEpoch',
+      'sourceRoot',
+      'sourceRootCanonical',
+      'compilerCwd',
+      'readLeaseAssumption',
+      'files',
+      'directories',
+      'symlinks',
+      'absences',
+      'compilerInputs',
+      'virtualInputs',
+      'generatedEntry',
+      'historicalSourcePins',
+      'census',
+      'closureOperationCount',
+    ],
+    'coupled closure manifest',
+  );
+  if (
+    packet['format'] !== 'ordinary-coupled-input-closure-v1' ||
+    packet['version'] !== 1 ||
+    packet['sourceEpoch'] !== 'ordinary-uc2-coupled-r2-v1'
+  )
+    throw new Error('coupled closure format or epoch differs');
+  const sourceRoot = ordinaryHoldClosurePathV1(packet['sourceRoot'], true);
+  const sourceRootCanonical = ordinaryHoldClosurePathV1(packet['sourceRootCanonical'], true);
+  const compilerCwd = ordinaryHoldClosurePathV1(packet['compilerCwd'], true);
+  if (sourceRoot === '/' || sourceRootCanonical === '/' || compilerCwd !== sourceRoot)
+    throw new Error('coupled closure root differs');
+  const readLeaseAssumption = ordinaryHoldClosureStringV1(packet['readLeaseAssumption']);
+  const files = Object.freeze(
+    ordinaryHoldClosureArrayV1(packet['files']).map(
+      (candidate: unknown): OrdinaryHoldClosureFileV1 => {
+        const shape = ordinaryHoldFields(
+          candidate,
+          Object.prototype.hasOwnProperty.call(candidate, 'compilerMode')
+            ? ['identity', 'canonical', 'mode', 'bytes', 'sha256', 'roles', 'compilerMode']
+            : ['identity', 'canonical', 'mode', 'bytes', 'sha256', 'roles'],
+          'coupled closure file',
+        );
+        const identity = ordinaryHoldClosurePathV1(
+          shape['identity'],
+          typeof shape['identity'] === 'string' && shape['identity'].startsWith('/'),
+        );
+        const canonical = ordinaryHoldClosurePathV1(shape['canonical'], true);
+        if (
+          !canonical.startsWith(sourceRootCanonical + '/') &&
+          !(
+            identity === canonical &&
+            Array.isArray(shape['roles']) &&
+            shape['roles'].length === 1 &&
+            shape['roles'][0] === 'authority'
+          )
+        )
+          throw new Error('coupled closure file leaves canonical root');
+        const roles = Object.freeze(
+          ordinaryHoldClosureArrayV1(shape['roles']).map(ordinaryHoldClosureRoleV1),
+        );
+        ordinaryHoldClosureUniqueV1(roles);
+        if (roles.length === 0) throw new Error('coupled closure empty file roles');
+        const row = {
+          identity,
+          canonical,
+          mode: ordinaryHoldClosureIntegerV1(shape['mode'], 0o7777),
+          bytes: ordinaryHoldClosureIntegerV1(shape['bytes']),
+          sha256: ordinaryHoldSha(shape['sha256'], 'coupled closure file'),
+          roles,
+        };
+        if (roles.includes('compiler')) {
+          const compilerMode = shape['compilerMode'];
+          if (
+            compilerMode !== 'default' &&
+            compilerMode !== 'transform' &&
+            compilerMode !== 'pinned-pass-through'
+          )
+            throw new Error('coupled closure compiler mode differs');
+          return Object.freeze({ ...row, compilerMode });
+        }
+        if (Object.hasOwn(shape, 'compilerMode'))
+          throw new Error('coupled closure noncompiler mode');
+        return Object.freeze(row);
+      },
+    ),
+  );
+  const directories = Object.freeze(
+    ordinaryHoldClosureArrayV1(packet['directories']).map((candidate: unknown) => {
+      const row = ordinaryHoldFields(candidate, ['identity', 'mode'], 'coupled closure directory');
+      return Object.freeze({
+        identity: ordinaryHoldClosurePathV1(row['identity'], true),
+        mode: ordinaryHoldClosureIntegerV1(row['mode'], 0o7777),
+      });
+    }),
+  );
+  const symlinks = Object.freeze(
+    ordinaryHoldClosureArrayV1(packet['symlinks']).map((candidate: unknown) => {
+      const row = ordinaryHoldFields(
+        candidate,
+        ['identity', 'target', 'mode'],
+        'coupled closure symlink',
+      );
+      return Object.freeze({
+        identity: ordinaryHoldClosurePathV1(row['identity'], true),
+        target: ordinaryHoldClosureStringV1(row['target']),
+        mode: ordinaryHoldClosureIntegerV1(row['mode'], 0o7777),
+      });
+    }),
+  );
+  const absences = Object.freeze(
+    ordinaryHoldClosureArrayV1(packet['absences']).map((candidate: unknown) => {
+      const row = ordinaryHoldFields(candidate, ['identity'], 'coupled closure absence');
+      return Object.freeze({ identity: ordinaryHoldClosurePathV1(row['identity'], true) });
+    }),
+  );
+  ordinaryHoldClosureUniqueV1([
+    ...files.map((row) =>
+      row.identity.startsWith('/') ? row.identity : sourceRoot + '/' + row.identity,
+    ),
+    ...directories.map((row) => row.identity),
+    ...symlinks.map((row) => row.identity),
+    ...absences.map((row) => row.identity),
+  ]);
+  const compilerInputs = Object.freeze(
+    ordinaryHoldClosureArrayV1(packet['compilerInputs']).map((identity) =>
+      ordinaryHoldClosurePathV1(identity, false),
+    ),
+  );
+  ordinaryHoldClosureUniqueV1(compilerInputs);
+  if (
+    compilerInputs.length !== 258 ||
+    JSON.stringify(compilerInputs) !== JSON.stringify([...compilerInputs].sort())
+  )
+    throw new Error('coupled closure compiler roster differs');
+  const compilerFiles = files.filter((row) => row.roles.includes('compiler'));
+  if (
+    compilerFiles.length !== 258 ||
+    compilerFiles.some((row) => !compilerInputs.includes(row.identity)) ||
+    compilerFiles.filter((row) => row.compilerMode === 'default').length !== 242 ||
+    compilerFiles.filter((row) => row.compilerMode === 'transform').length !== 16 ||
+    compilerFiles.filter((row) => row.compilerMode === 'pinned-pass-through').length !== 0
+  )
+    throw new Error('coupled closure compiler class census differs');
+  if (
+    files.filter((row) => row.roles.includes('scanner')).length !== 1 ||
+    files.some((row) => row.roles.includes('scanner') && row.roles.includes('compiler'))
+  )
+    throw new Error('coupled closure scanner class differs');
+  const virtualInputs = Object.freeze(
+    ordinaryHoldClosureArrayV1(packet['virtualInputs']).map(ordinaryHoldClosureStringV1),
+  );
+  ordinaryHoldClosureUniqueV1(virtualInputs);
+  if (
+    virtualInputs.length !== 31 ||
+    virtualInputs.some((identity) => !/^ordinary-hold-v1:[a-z][a-z-]*$/.test(identity)) ||
+    JSON.stringify(virtualInputs) !== JSON.stringify([...virtualInputs].sort()) ||
+    virtualInputs.some((identity) => !ordinaryCoupledPortSourcesV1(sourceRoot).has(identity))
+  )
+    throw new Error('coupled closure virtual roster differs');
+  const generated = ordinaryHoldFields(
+    packet['generatedEntry'],
+    ['role', 'mode', 'bytes', 'sha256', 'template'],
+    'coupled closure generated entry',
+  );
+  const template = ordinaryHoldFields(
+    generated['template'],
+    ['format', 'exports', 'ledger', 'controller'],
+    'coupled closure entry template',
+  );
+  if (
+    generated['role'] !== 'generated-entry' ||
+    generated['mode'] !== 0o600 ||
+    template['format'] !== 'ordinary-coupled-entry-v1' ||
+    template['controller'] !==
+      "export {runOrdinaryKnownComposition} from 'ordinary-hold-v1:controller';\nexport {inspectKnownComposition} from 'ordinary-hold-v1:ledger';\n" ||
+    template['ledger'] !== "export * as ledger from 'ordinary-hold-v1:ledger';\n"
+  )
+    throw new Error('coupled closure generated class differs');
+  const exports = Object.freeze(
+    ordinaryHoldClosureArrayV1(template['exports']).map((candidate: unknown) => {
+      const tuple = ordinaryHoldClosureArrayV1(candidate);
+      if (tuple.length !== 2) throw new Error('coupled closure export tuple differs');
+      const name = ordinaryHoldClosureStringV1(tuple[0]);
+      if (!/^[A-Za-z][A-Za-z0-9]*$/.test(name))
+        throw new Error('coupled closure export name differs');
+      return Object.freeze([name, ordinaryHoldClosurePathV1(tuple[1], false)] as const);
+    }),
+  );
+  ordinaryHoldClosureUniqueV1(exports.map((tuple) => tuple[0]));
+  ordinaryHoldClosureUniqueV1(exports.map((tuple) => tuple[1]));
+  if (
+    exports.length !== 17 ||
+    JSON.stringify(exports) !== JSON.stringify(ordinaryHoldClosureEntryExportsV1)
+  )
+    throw new Error('coupled closure fixed exports differ');
+  const generatedEntry: OrdinaryCoupledClosureManifestV1['generatedEntry'] = Object.freeze({
+    role: 'generated-entry',
+    mode: 0o600,
+    bytes: ordinaryHoldClosureIntegerV1(generated['bytes']),
+    sha256: ordinaryHoldSha(generated['sha256'], 'coupled closure generated entry'),
+    template: Object.freeze({
+      format: 'ordinary-coupled-entry-v1',
+      controller:
+        "export {runOrdinaryKnownComposition} from 'ordinary-hold-v1:controller';\nexport {inspectKnownComposition} from 'ordinary-hold-v1:ledger';\n",
+      exports,
+      ledger: "export * as ledger from 'ordinary-hold-v1:ledger';\n",
+    }),
+  });
+  const historicalSourcePins = Object.freeze(
+    ordinaryHoldClosureArrayV1(packet['historicalSourcePins']).map((candidate: unknown) => {
+      const row = ordinaryHoldFields(
+        candidate,
+        ['relative', 'bytes', 'sha256'],
+        'coupled closure historical pin',
+      );
+      return Object.freeze({
+        relative: ordinaryHoldClosurePathV1(row['relative'], false),
+        bytes: ordinaryHoldClosureIntegerV1(row['bytes']),
+        sha256: ordinaryHoldSha(row['sha256'], 'coupled closure historical pin'),
+      });
+    }),
+  );
+  ordinaryHoldClosureUniqueV1(historicalSourcePins.map((pin) => pin.relative));
+  if (
+    historicalSourcePins.length !== 17 ||
+    JSON.stringify(historicalSourcePins) !== JSON.stringify(ordinaryHoldSourceEpochV1.pins) ||
+    historicalSourcePins.some(
+      (pin) =>
+        !files.some(
+          (row) =>
+            row.identity === pin.relative && row.bytes === pin.bytes && row.sha256 === pin.sha256,
+        ),
+    )
+  )
+    throw new Error('coupled closure historical pins differ');
+  const counts = ordinaryHoldFields(
+    packet['census'],
+    ['F', 'D', 'L', 'A'],
+    'coupled closure census',
+  );
+  const census = Object.freeze({
+    F: ordinaryHoldClosureIntegerV1(counts['F']),
+    D: ordinaryHoldClosureIntegerV1(counts['D']),
+    L: ordinaryHoldClosureIntegerV1(counts['L']),
+    A: ordinaryHoldClosureIntegerV1(counts['A']),
+  });
+  if (
+    files.length !== census.F ||
+    directories.length !== census.D ||
+    symlinks.length !== census.L ||
+    absences.length !== census.A ||
+    2 * (3 * (census.F + 1) + census.D + 2 * census.L + census.A) !==
+      packet['closureOperationCount']
+  )
+    throw new Error('coupled closure operation census differs');
+  return Object.freeze({
+    format: 'ordinary-coupled-input-closure-v1',
+    version: 1,
+    sourceEpoch: 'ordinary-uc2-coupled-r2-v1',
+    sourceRoot,
+    sourceRootCanonical,
+    compilerCwd,
+    readLeaseAssumption,
+    files,
+    directories,
+    symlinks,
+    absences,
+    compilerInputs,
+    virtualInputs,
+    generatedEntry,
+    historicalSourcePins,
+    census,
+    closureOperationCount: ordinaryHoldClosureIntegerV1(packet['closureOperationCount']),
+  });
+}
+
+export function ordinaryCoupledClosureKeysV1(
+  manifest: OrdinaryCoupledClosureManifestV1,
+): readonly string[] {
+  const keys: string[] = [];
+  for (const phase of ['before', 'after'] as const) {
+    for (const row of [...manifest.files, { identity: 'generated-entry' }])
+      for (const operation of ['realpath', 'lstat', 'read'])
+        keys.push(ordinaryHoldClosureKeyV1(phase, row.identity, operation));
+    for (const row of manifest.directories)
+      keys.push(ordinaryHoldClosureKeyV1(phase, row.identity, 'lstat'));
+    for (const row of manifest.symlinks)
+      for (const operation of ['lstat', 'readlink'])
+        keys.push(ordinaryHoldClosureKeyV1(phase, row.identity, operation));
+    for (const row of manifest.absences)
+      keys.push(ordinaryHoldClosureKeyV1(phase, row.identity, 'lstat'));
+  }
+  if (keys.length !== manifest.closureOperationCount)
+    throw new Error('ordinary HOLD closure operation budget differs');
+  return Object.freeze(keys);
+}
+
+/** Each sealed key wraps exactly one actual filesystem Promise; default-loader resolution remains untouched. */
+/** Coverage: uses the existing ledger/file guards; the new full real-filesystem sweeps remain unexecuted before driver review. */
+async function observeOrdinaryCoupledClosureV1(
+  manifest: OrdinaryCoupledClosureManifestV1,
+  ledger: OrdinaryHoldClosureLedgerV1,
+  phase: OrdinaryHoldClosurePhaseV1,
+  entryPath: string,
+): Promise<void> {
+  for (const row of [
+    ...manifest.files,
+    { ...manifest.generatedEntry, identity: 'generated-entry', canonical: entryPath },
+  ]) {
+    const logical =
+      row.identity === 'generated-entry'
+        ? entryPath
+        : row.identity.startsWith('/')
+          ? row.identity
+          : `${manifest.sourceRoot}/${row.identity}`;
+    const canonical = await ledger.run(
+      ordinaryHoldClosureKeyV1(phase, row.identity, 'realpath'),
+      () => ordinaryHoldRealpath(logical),
+    );
+    if (canonical !== row.canonical)
+      throw new Error('ordinary HOLD closure canonical identity differs');
+    const stat = await ledger.run(ordinaryHoldClosureKeyV1(phase, row.identity, 'lstat'), () =>
+      ordinaryHoldLstat(canonical),
+    );
+    assertOrdinaryHoldClosureFileIdentityV1(
+      row,
+      canonical,
+      stat.isFile(),
+      stat.mode & 0o7777,
+      stat.size,
+    );
+    const bytes = await ledger.run(ordinaryHoldClosureKeyV1(phase, row.identity, 'read'), () =>
+      readBinaryFile(canonical),
+    );
+    assertOrdinaryHoldClosureBytesV1(row, bytes);
+  }
+  for (const row of manifest.directories) {
+    const stat = await ledger.run(ordinaryHoldClosureKeyV1(phase, row.identity, 'lstat'), () =>
+      ordinaryHoldLstat(row.identity),
+    );
+    if (!stat.isDirectory() || (stat.mode & 0o7777) !== row.mode)
+      throw new Error('ordinary HOLD closure directory layout differs');
+  }
+  for (const row of manifest.symlinks) {
+    const stat = await ledger.run(ordinaryHoldClosureKeyV1(phase, row.identity, 'lstat'), () =>
+      ordinaryHoldLstat(row.identity),
+    );
+    if (!stat.isSymbolicLink() || (stat.mode & 0o7777) !== row.mode)
+      throw new Error('ordinary HOLD closure symlink layout differs');
+    const target = await ledger.run(ordinaryHoldClosureKeyV1(phase, row.identity, 'readlink'), () =>
+      ordinaryHoldReadlink(row.identity),
+    );
+    if (target !== row.target) throw new Error('ordinary HOLD closure symlink target differs');
+  }
+  for (const row of manifest.absences) {
+    try {
+      await ledger.run(ordinaryHoldClosureKeyV1(phase, row.identity, 'lstat'), () =>
+        ordinaryHoldLstat(row.identity),
+      );
+    } catch (cause) {
+      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') continue;
+      throw cause;
+    }
+    throw new Error('ordinary HOLD closure expected absence is present');
+  }
+}
+
+const ordinaryCoupledPacketPinsV1 = Object.freeze({
+  loadExpectations: {
+    bytes: 12575,
+    sha256: 'f50dc76477909c64189fc4a84b2eccaafb7bb99b54b94c3aec7dba6042248f18',
+  },
+  coverage: {
+    bytes: 502224,
+    sha256: 'b54481e48ddb1470b9c08c3614c7ef59a54b3447c8b5faa87ae27b8cbaec4ee2',
+  },
+  prediction: {
+    bytes: 70195,
+    sha256: 'a60f56382123d4346129cdc009fac1a10e4bc2f3b2969b5df4aba73ba142e7bc',
+  },
+  closureManifest: {
+    bytes: 146047,
+    sha256: 'ae42f514a5acfe28de4a34fefc425345d30ee466db20f0cfc0b0076bd2a33488',
+  },
+});
+interface OrdinaryCoupledEdgeV1 {
+  readonly from: string;
+  readonly specifier: string;
+  readonly kind: string;
+  readonly line: number;
+  readonly destination: string;
+  readonly rule: string;
+  readonly external: boolean;
+}
+interface OrdinaryCoupledCoverageInputV1 extends OrdinaryCoupledInputV1 {
+  readonly imports: readonly OrdinaryCoupledEdgeV1[];
+}
+interface OrdinaryCoupledBuildRequestV1 {
+  readonly version: 1;
+  readonly mode: 'build-only';
+  readonly sourceEpoch: typeof ordinaryCoupledSourceEpochV1;
+  readonly sourceRoot: string;
+  readonly loadExpectations: readonly OrdinaryHoldLoadExpectationV1[];
+  readonly closureManifest: OrdinaryCoupledClosureManifestV1;
+  readonly coverage: readonly OrdinaryCoupledCoverageInputV1[];
+  readonly prediction: readonly OrdinaryCoupledInputV1[];
+  readonly external: readonly string[];
+  readonly compiler: {
+    readonly version: string;
+    readonly revision: string;
+    readonly executable: string;
+  };
+  readonly buildOptions: Readonly<Record<string, unknown>>;
+  readonly patch: Uint8Array;
+  readonly manifest: Uint8Array;
+}
+
+function ordinaryCoupledPacketV1(
+  name: keyof typeof ordinaryCoupledPacketPinsV1,
+  value: unknown,
+): unknown {
+  const pin = ordinaryCoupledPacketPinsV1[name];
+  // Proof: removing this raw admission block admitted same-length valid load JSON with a changed hash; KCT5 fixed packet test failed and restoration passed (2026-11-07, pure decoder). Other packet predicates were not isolated.
+  if (
+    typeof value !== 'string' ||
+    Buffer.byteLength(value) !== pin.bytes ||
+    sha(value) !== pin.sha256
+  )
+    throw new Error(`coupled ${name} raw authority differs`);
+  return JSON.parse(value);
+}
+
+function decodeOrdinaryCoupledInputV1(value: unknown, imports: boolean): OrdinaryCoupledInputV1 {
+  const row = ordinaryHoldFields(
+    value,
+    imports
+      ? ['identity', 'mode', 'bytes', 'sha256', 'imports']
+      : ['identity', 'mode', 'bytes', 'sha256'],
+    'coupled input',
+  );
+  const mode = ordinaryHoldClosureStringV1(row['mode']);
+  if (!['default', 'transform', 'virtual', 'generated'].includes(mode))
+    throw new Error('coupled input mode differs');
+  return Object.freeze({
+    identity: ordinaryHoldClosureStringV1(row['identity']),
+    mode,
+    bytes: ordinaryHoldClosureIntegerV1(row['bytes']),
+    sha256: ordinaryHoldSha(row['sha256'], 'coupled input'),
+  });
+}
+
+/** Admits only four source-fixed raw packets and the fixed reviewed r2 archive before any setup effect. */
+export function decodeOrdinaryCoupledBuildRequestV1(value: unknown): OrdinaryCoupledBuildRequestV1 {
+  const request = ordinaryHoldFields(
+    value,
+    [
+      'version',
+      'mode',
+      'sourceRoot',
+      'sourceEpoch',
+      'loadExpectations',
+      'closureManifest',
+      'coverage',
+      'prediction',
+      'patch',
+      'manifest',
+    ],
+    'coupled build request',
+  );
+  if (
+    request['version'] !== 1 ||
+    request['mode'] !== 'build-only' ||
+    request['sourceEpoch'] !== ordinaryCoupledSourceEpochV1
+  )
+    throw new Error('coupled build request epoch differs');
+  const root = ordinaryHoldAbsolute(request['sourceRoot'], 'coupled root');
+  const decode = (
+    name: keyof typeof ordinaryCoupledPacketPinsV1,
+    fields: readonly string[],
+    format: string,
+  ) => {
+    const packet = ordinaryHoldFields(
+      ordinaryCoupledPacketV1(name, request[name]),
+      fields,
+      `coupled ${name}`,
+    );
+    if (
+      packet['format'] !== format ||
+      packet['sourceRoot'] !== root ||
+      packet['sourceEpoch'] !== ordinaryCoupledSourceEpochV1
+    )
+      throw new Error(`coupled ${name} root or epoch differs`);
+    return packet;
+  };
+  const load = decode(
+    'loadExpectations',
+    ['format', 'sourceRoot', 'sourceEpoch', 'rows'],
+    'ordinary-coupled-load-expectations-v1',
+  );
+  const coverage = decode(
+    'coverage',
+    ['format', 'sourceRoot', 'sourceEpoch', 'compiler', 'buildOptions', 'rows', 'external'],
+    'ordinary-coupled-conservative-coverage-v1',
+  );
+  const prediction = decode(
+    'prediction',
+    ['format', 'sourceRoot', 'sourceEpoch', 'rows', 'omissions'],
+    'ordinary-coupled-compiler-prediction-v1',
+  );
+  const closureManifest = decodeOrdinaryCoupledClosureManifestV1(
+    ordinaryCoupledPacketV1('closureManifest', request['closureManifest']),
+  );
+  if (closureManifest.sourceRoot !== root || closureManifest.sourceRootCanonical !== root)
+    throw new Error('coupled closure canonical root differs');
+  const predictions = Object.freeze(
+    ordinaryHoldClosureArrayV1(prediction['rows']).map((row) =>
+      decodeOrdinaryCoupledInputV1(row, false),
+    ),
+  );
+  const covered = Object.freeze(
+    ordinaryHoldClosureArrayV1(coverage['rows']).map(
+      (candidate): OrdinaryCoupledCoverageInputV1 => {
+        const row = ordinaryHoldFields(
+          candidate,
+          ['identity', 'mode', 'bytes', 'sha256', 'imports'],
+          'coupled covered input',
+        );
+        return Object.freeze({
+          ...decodeOrdinaryCoupledInputV1(candidate, true),
+          imports: Object.freeze(
+            ordinaryHoldClosureArrayV1(row['imports']).map((candidate) => {
+              const edge = ordinaryHoldFields(
+                candidate,
+                ['from', 'specifier', 'kind', 'line', 'destination', 'rule', 'external'],
+                'coupled edge',
+              );
+              if (typeof edge['external'] !== 'boolean')
+                throw new Error('coupled edge classification differs');
+              return Object.freeze({
+                from: ordinaryHoldClosureStringV1(edge['from']),
+                specifier: ordinaryHoldClosureStringV1(edge['specifier']),
+                kind: ordinaryHoldClosureStringV1(edge['kind']),
+                line: ordinaryHoldClosureIntegerV1(edge['line']),
+                destination: ordinaryHoldClosureStringV1(edge['destination']),
+                rule: ordinaryHoldClosureStringV1(edge['rule']),
+                external: edge['external'],
+              });
+            }),
+          ),
+        });
+      },
+    ),
+  );
+  const physical = closureManifest.files
+    .filter((row) => row.roles.includes('compiler'))
+    .map((row) => `${root}/${row.identity}`);
+  assertOrdinaryCoupledPredictionV1(root, covered, predictions, physical);
+  const omissions = ordinaryHoldClosureArrayV1(prediction['omissions']).map(
+    ordinaryHoldClosureStringV1,
+  );
+  if (
+    JSON.stringify([...omissions].sort()) !==
+    JSON.stringify([...ordinaryCoupledOmissionsV1(root)].sort())
+  )
+    throw new Error('coupled fixed omissions differ');
+  const external = Object.freeze(
+    ordinaryHoldClosureArrayV1(coverage['external']).map(ordinaryHoldClosureStringV1),
+  );
+  ordinaryHoldClosureUniqueV1(external);
+  const scanner = `${root}/tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts`;
+  if (
+    !external.includes(scanner) ||
+    covered.some((row) => row.identity === scanner) ||
+    closureManifest.files
+      .filter((row) => row.roles.includes('scanner'))
+      .some((row) => `${root}/${row.identity}` !== scanner)
+  )
+    throw new Error('coupled canonical external scanner differs');
+  for (const row of covered) {
+    if (row.mode === 'default' || row.mode === 'transform') {
+      const physicalRow = closureManifest.files.find(
+        (file) => `${root}/${file.identity}` === row.identity && file.roles.includes('compiler'),
+      );
+      if (
+        physicalRow === undefined ||
+        (row.mode === 'default' &&
+          (row.bytes !== physicalRow.bytes || row.sha256 !== physicalRow.sha256))
+      )
+        throw new Error('coupled input physical coverage differs');
+    }
+    for (const edge of row.imports)
+      if (
+        edge.from !== row.identity ||
+        (edge.external
+          ? !external.includes(edge.destination)
+          : !covered.some((candidate) => candidate.identity === edge.destination))
+      )
+        throw new Error('coupled conservative edge closure differs');
+  }
+  const compiler = ordinaryHoldFields(
+    coverage['compiler'],
+    ['version', 'revision', 'executable'],
+    'coupled compiler',
+  );
+  const buildOptions = ordinaryHoldFields(
+    coverage['buildOptions'],
+    [
+      'target',
+      'format',
+      'splitting',
+      'minify',
+      'sourcemap',
+      'bytecode',
+      'packages',
+      'metafile',
+      'throw',
+      'root',
+      'tsconfig',
+      'plugin',
+    ],
+    'coupled options',
+  );
+  const patch = request['patch'],
+    manifest = request['manifest'];
+  if (
+    !(patch instanceof Uint8Array) ||
+    patch.byteLength !== 118791 ||
+    sha(patch) !== '2d9fdbb243080b724eef49b2791e89bc4b306101e75af06716c1be7f98d5185a' ||
+    !(manifest instanceof Uint8Array) ||
+    sha(manifest) !== 'ea42aed5edff42f2dc0e4198a3b7282815b82ff52977ceb2d95df1c67835b846'
+  )
+    throw new Error('coupled r2 raw authority differs');
+  return Object.freeze({
+    version: 1,
+    mode: 'build-only',
+    sourceRoot: root,
+    sourceEpoch: ordinaryCoupledSourceEpochV1,
+    loadExpectations: decodeOrdinaryCoupledLoadExpectationsV1(
+      root,
+      load['rows'],
+      sha(JSON.stringify(load['rows'])),
+    ),
+    closureManifest,
+    coverage: covered,
+    prediction: predictions,
+    external,
+    compiler: Object.freeze({
+      version: ordinaryHoldClosureStringV1(compiler['version']),
+      revision: ordinaryHoldClosureStringV1(compiler['revision']),
+      executable: ordinaryHoldAbsolute(compiler['executable'], 'coupled compiler'),
+    }),
+    buildOptions: Object.freeze(buildOptions),
+    patch: new Uint8Array(patch),
+    manifest: new Uint8Array(manifest),
+  });
+}
+
+/** Enumerates actual setup effects independently of the separate sealed filesystem ledger. */
+export const ordinaryCoupledSetupLabelsV1: readonly string[] = Object.freeze([
+  'root.realpath',
+  ...ordinaryHoldSourceEpochV1.pins.flatMap((pin) => [
+    `source.realpath:${pin.relative}`,
+    `source.read:${pin.relative}`,
+  ]),
+  ...['tsconfig.base.json', 'package.json', 'bun.lock'].map(
+    (relative) => `authority.read:${relative}`,
+  ),
+  'issuer.realpath',
+  'issuer.read',
+  'output.mkdtemp',
+  'entry.write',
+  'compiler.Bun.build',
+  'diagnostics.write',
+  'artifact.arrayBuffer',
+  'artifact.write',
+  'metadata.write',
+]);
+function assertOrdinaryCoupledSetupCensusV1(
+  operations: readonly OrdinaryHoldSetupRecordV1[],
+): void {
+  if (
+    JSON.stringify(operations.map((operation) => operation.label)) !==
+      JSON.stringify(ordinaryCoupledSetupLabelsV1) ||
+    operations.some((operation) => !hasKnownOrdinaryHoldSetupOutcomeV1(operation))
+  )
+    throw new Error('coupled setup success census differs');
+}
+
+/** Validates independently expected rendered/virtual/generated bytes before any compiler invocation. */
+export function assertOrdinaryCoupledPlanV1(
+  request: Pick<
+    OrdinaryCoupledBuildRequestV1,
+    'coverage' | 'loadExpectations' | 'sourceRoot' | 'closureManifest'
+  >,
+  plan: OrdinaryCoupledBuildPlanV1,
+): void {
+  if (plan.layers.length !== 17 || plan.portSources.size !== 31 || plan.materialized.size !== 17)
+    throw new Error('coupled plan census differs');
+  for (const row of request.coverage) {
+    const contents =
+      row.mode === 'transform'
+        ? plan.materialized.get(row.identity)
+        : row.mode === 'virtual'
+          ? plan.portSources.get(row.identity)
+          : row.mode === 'generated'
+            ? plan.entrySource
+            : undefined;
+    if (
+      row.mode !== 'default' &&
+      (contents === undefined ||
+        Buffer.byteLength(contents) !== row.bytes ||
+        sha(contents) !== row.sha256)
+    )
+      throw new Error('coupled planned coverage bytes differ');
+  }
+  for (const row of request.loadExpectations) {
+    const contents =
+      row.namespace === 'file'
+        ? plan.materialized.get(row.identity)
+        : plan.portSources.get(`ordinary-hold-v1:${row.identity}`);
+    if (
+      contents === undefined ||
+      Buffer.byteLength(contents) !== row.bytes ||
+      sha(contents) !== row.sha256
+    )
+      throw new Error('coupled planned load bytes differ');
+  }
+  assertOrdinaryHoldClosureBytesV1(
+    request.closureManifest.generatedEntry,
+    new TextEncoder().encode(plan.entrySource),
+  );
+}
+
+/** Rejects unsealed observed destinations; omitted input rows remain permitted only as presealed edges. */
+export function assertOrdinaryCoupledMetadataEdgesV1(
+  request: OrdinaryCoupledBuildRequestV1,
+  entryPath: string,
+  edges: readonly {
+    readonly importerIdentity: string;
+    readonly identity: string;
+    readonly external: boolean;
+    readonly kind: string;
+  }[],
+): void {
+  for (const edge of edges) {
+    const importer =
+      edge.importerIdentity === entryPath
+        ? 'generated:ordinary-image-entry.ts'
+        : edge.importerIdentity;
+    const destination =
+      edge.identity === entryPath ? 'generated:ordinary-image-entry.ts' : edge.identity;
+    const row = request.coverage.find((row) => row.identity === importer);
+    // Proof: removing this entire edge predicate admitted a bundled scanner classification; KCT5 observed edges test failed and restoration passed (2026-11-07, inert metadata). Individual conjuncts were not isolated.
+    if (
+      !row?.imports.some(
+        (sealed) =>
+          sealed.destination === destination &&
+          sealed.external === edge.external &&
+          sealed.kind === edge.kind,
+      )
+    )
+      throw new Error('coupled compiler edge destination or classification differs');
+  }
+}
+
+export function identifyOrdinaryCoupledMetafilePathV1(
+  sourceRoot: string,
+  compilerCwd: string,
+  rawPath: string,
+): string {
+  const root = ordinaryHoldAbsolute(sourceRoot, 'ordinary HOLD metadata root');
+  const cwd = ordinaryHoldAbsolute(compilerCwd, 'ordinary HOLD compiler cwd');
+  if (rawPath.startsWith('ordinary-hold-v1:')) {
+    if (!ordinaryCoupledPortSourcesV1(root).has(rawPath))
+      throw new Error('ordinary HOLD virtual metadata identity differs');
+    return rawPath;
+  }
+  if (rawPath.startsWith('node:') || rawPath.startsWith('bun:')) return rawPath;
+  if (rawPath.includes(':') && !rawPath.startsWith('/'))
+    throw new Error('ordinary HOLD unknown metadata namespace');
+  if (rawPath.startsWith('/')) return rawPath;
+  if (rawPath === '' || rawPath.includes('\0'))
+    throw new Error('ordinary HOLD metadata filesystem label differs');
+  return ordinaryHoldResolve(cwd, rawPath);
+}
+
+/** Compares actual compiler metadata bytes with the independently predicted source rows. */
+export function assertOrdinaryCoupledCompilerRowsV1(
+  prediction: readonly OrdinaryCoupledInputV1[],
+  observed: readonly { readonly identity: string; readonly bytes: number }[],
+): void {
+  assertOrdinaryCoupledCompilerInputsV1(
+    prediction.map((row) => row.identity),
+    observed.map((row) => row.identity),
+  );
+  // Proof: removing this byte comparison admitted changed actual metadata length; KCT5 compiler rows test failed and restoration passed (2026-11-07, inert production guard).
+  if (
+    observed.some(
+      (row) =>
+        prediction.find((expected) => expected.identity === row.identity)?.bytes !== row.bytes,
+    )
+  )
+    throw new Error('coupled compiler input bytes differ');
+}
+
+interface OrdinaryCoupledCompilerCustodyV1 {
+  readonly record: OrdinaryHoldSetupRecordV1;
+  readonly original: Promise<unknown>;
+  readonly observer: Promise<void>;
+}
+/** The builder calls this only with its private retention callback, after the actual setup join. */
+export function assertOrdinaryCoupledCompilerJoinV1(
+  operations: readonly OrdinaryHoldSetupRecordV1[],
+  compilerIndex: number,
+  custody: OrdinaryCoupledCompilerCustodyV1 | undefined,
+): void {
+  const compiler = operations.at(compilerIndex);
+  // Proof: removing this entire association predicate admitted a replacement original; KCT5 compiler finish test failed and restoration passed (2026-11-07, inert setup original, no Bun.build). Individual conjunct omissions were not isolated.
+  if (
+    compiler === undefined ||
+    compiler !== operations.at(-1) ||
+    compiler !== custody?.record ||
+    compiler.label !== 'compiler.Bun.build' ||
+    compiler.original !== custody.original ||
+    compiler.returned !== custody.original ||
+    compiler.observer !== custody.observer ||
+    !compiler.joined ||
+    compiler.state !== 'fulfilled'
+  )
+    throw new Error('coupled actual compiler join identity differs');
+}
+
+export interface OrdinaryCoupledBuiltImageV1 extends Omit<
+  OrdinaryHoldBuiltImageV1,
+  'format' | 'sourceEpoch'
+> {
+  readonly format: 'dependency-owner-ordinary-coupled-image-build';
+  readonly sourceEpoch: typeof ordinaryCoupledSourceEpochV1;
+  readonly coverageSha256: string;
+  readonly predictionSha256: string;
+}
+type OrdinaryCoupledLoadObservationsV1 = ReturnType<
+  ReturnType<typeof createOrdinaryCoupledLoadRecorderV1>['inspect']
+>;
+interface OrdinaryCoupledBuildAttemptV1 extends OrdinaryHoldBuildAttemptV1 {
+  failure?: unknown;
+  completed?: OrdinaryCoupledBuiltImageV1;
+  state: 'pending' | 'fulfilled' | 'rejected';
+  loadObservations?: () => OrdinaryCoupledLoadObservationsV1;
+}
+const ordinaryCoupledBuilderAttempts = new WeakMap<
+  Promise<OrdinaryCoupledBuiltImageV1>,
+  OrdinaryCoupledBuildAttemptV1
+>();
+
+/** The same original build Promise keys its retained setup records and observer. */
+/** Diagnostic snapshots never expose the private mutable onLoad objects or grant settlement. Shape failure throws while all private references remain retained. */
+export function inspectOrdinaryCoupledBuildV1(original: Promise<OrdinaryCoupledBuiltImageV1>) {
+  const attempt = ordinaryCoupledBuilderAttempts.get(original);
+  if (attempt === undefined) throw new Error('coupled build original absent');
+  return Object.freeze({
+    observer: attempt.observer,
+    get state() {
+      return attempt.state;
+    },
+    get outputRoot() {
+      return attempt.outputRoot;
+    },
+    get failure() {
+      return attempt.failure;
+    },
+    get operations() {
+      return attempt.completed === undefined
+        ? Object.freeze(attempt.operations.map((record) => Object.freeze({ ...record })))
+        : attempt.completed.setupOperations;
+    },
+    get loads() {
+      const observe = attempt.loadObservations;
+      return observe === undefined
+        ? Object.freeze({ status: 'not-entered' as const })
+        : Object.freeze({ status: 'retained' as const, observations: observe() });
+    },
+    closureOperations: () =>
+      Object.freeze(attempt.closureOperations().map((record) => Object.freeze({ ...record }))),
+  });
+}
+
+/** Compiles real pinned sources once, retains actual setup outcomes, and never imports the output. */
+export function buildOrdinaryCoupledImageV1(
+  request: unknown,
+): Promise<OrdinaryCoupledBuiltImageV1> {
+  const admitted = decodeOrdinaryCoupledBuildRequestV1(request);
+  const operations: OrdinaryHoldSetupRecordV1[] = [];
+  const closureLedger = createOrdinaryHoldClosureLedgerV1(
+    ordinaryCoupledClosureKeysV1(admitted.closureManifest),
+  );
+  const body = buildOrdinaryCoupledImageBodyV1(
+    admitted,
+    operations,
+    closureLedger,
+    (outputRoot, loadObservations) => {
+      const attempt = ordinaryCoupledBuilderAttempts.get(body);
+      if (attempt === undefined) throw new Error('coupled private build attempt absent');
+      attempt.outputRoot = outputRoot;
+      if (loadObservations !== undefined) attempt.loadObservations = loadObservations;
+    },
+  );
+  const observer = body.then(
+    (packet) => {
+      const attempt = ordinaryCoupledBuilderAttempts.get(body);
+      if (attempt === undefined) throw new Error('coupled private build attempt absent');
+      attempt.completed = packet;
+      attempt.state = 'fulfilled';
+    },
+    (cause: unknown) => {
+      const attempt = ordinaryCoupledBuilderAttempts.get(body);
+      if (attempt === undefined) throw new Error('coupled private build attempt absent');
+      attempt.failure = cause;
+      attempt.state = 'rejected';
+    },
+  );
+  ordinaryCoupledBuilderAttempts.set(body, {
+    operations,
+    observer,
+    state: 'pending',
+    closureOperations: closureLedger.inspect,
+  });
+  return body;
+}
+
+async function buildOrdinaryCoupledImageBodyV1(
+  request: OrdinaryCoupledBuildRequestV1,
+  operations: OrdinaryHoldSetupRecordV1[],
+  closureLedger: OrdinaryHoldClosureLedgerV1,
+  retainOutputRoot: (
+    outputRoot: string,
+    loadObservations?: () => OrdinaryCoupledLoadObservationsV1,
+  ) => void,
+): Promise<OrdinaryCoupledBuiltImageV1> {
+  let retainedLoadRecorder: ReturnType<typeof createOrdinaryCoupledLoadRecorderV1> | undefined;
+  const keeper = setInterval(() => ({ operations, retainedLoadRecorder, closureLedger }), 60000);
+  try {
+    const root = request.sourceRoot;
+    if (
+      Bun.version !== request.compiler.version ||
+      Bun.revision !== request.compiler.revision ||
+      process.execPath !== request.compiler.executable ||
+      process.cwd() !== request.closureManifest.compilerCwd
+    )
+      throw new Error('coupled pinned compiler identity differs');
+    if (
+      (await ordinaryHoldSetupOperationV1(operations, 'root.realpath', () =>
+        ordinaryHoldRealpath(root),
+      )) !== root
+    )
+      throw new Error('ordinary HOLD source root changed');
+    const supplied = new Map<string, Uint8Array>();
+    for (const pin of ordinaryHoldSourceEpochV1.pins) {
+      const path = `${root}/${pin.relative}`;
+      if (
+        (await ordinaryHoldSetupOperationV1(operations, `source.realpath:${pin.relative}`, () =>
+          ordinaryHoldRealpath(path),
+        )) !== path
+      )
+        throw new Error('ordinary HOLD source path changed');
+      supplied.set(
+        path,
+        await ordinaryHoldSetupOperationV1(operations, `source.read:${pin.relative}`, () =>
+          readBinaryFile(path),
+        ),
+      );
+    }
+    const plan = planOrdinaryCoupledBuildV1(root, supplied, request.patch, request.manifest);
+    const mappings = ordinaryHoldModuleModesV1.map((role) => ({
+      path: `${root}/${role.relative}`,
+      mode: role.mode,
+    }));
+    assertOrdinaryCoupledPlanV1(request, plan);
+    const authority: { path: string; bytes: number; sha256: string }[] = [];
+    for (const relative of ['tsconfig.base.json', 'package.json', 'bun.lock'] as const) {
+      const bytes = await ordinaryHoldSetupOperationV1(
+        operations,
+        `authority.read:${relative}`,
+        () => readBinaryFile(`${root}/${relative}`),
+      );
+      authority.push({
+        path: relative,
+        bytes: bytes.byteLength,
+        sha256: createHash('sha256').update(bytes).digest('hex'),
+      });
+    }
+    const issuerPath = new URL(import.meta.url).pathname;
+    if (
+      (await ordinaryHoldSetupOperationV1(operations, 'issuer.realpath', () =>
+        ordinaryHoldRealpath(issuerPath),
+      )) !== issuerPath
+    )
+      throw new Error('ordinary HOLD executing fixture path changed');
+    const issuerBytes = await ordinaryHoldSetupOperationV1(operations, 'issuer.read', () =>
+      readBinaryFile(issuerPath),
+    );
+    const issuer = {
+      path: issuerPath,
+      bytes: issuerBytes.byteLength,
+      sha256: createHash('sha256').update(issuerBytes).digest('hex'),
+    };
+    const outputRoot = await ordinaryHoldSetupOperationV1(operations, 'output.mkdtemp', () =>
+      mkdtemp(join(tmpdir(), 'puni-ordinary-coupled-image-')),
+    );
+    retainOutputRoot(outputRoot);
+    const entryPath = join(outputRoot, 'ordinary-image-entry.ts');
+    const entry = plan.entrySource;
+    const ports = Array.from(plan.portSources, ([specifier, source]) => ({
+      specifier,
+      bytes: Buffer.byteLength(source),
+      sha256: createHash('sha256').update(source).digest('hex'),
+    }));
+    const entrySource = {
+      path: entryPath,
+      bytes: Buffer.byteLength(entry),
+      sha256: createHash('sha256').update(entry).digest('hex'),
+    };
+    await ordinaryHoldSetupOperationV1(operations, 'entry.write', () =>
+      writeFile(entryPath, entry, { mode: 0o600 }),
+    );
+    assertOrdinaryHoldClosureBytesV1(
+      request.closureManifest.generatedEntry,
+      new TextEncoder().encode(entry),
+    );
+    if (process.cwd() !== request.closureManifest.compilerCwd)
+      throw new Error('ordinary HOLD closure compiler cwd differs');
+    await observeOrdinaryCoupledClosureV1(
+      request.closureManifest,
+      closureLedger,
+      'before',
+      entryPath,
+    );
+    const resolutions: OrdinaryHoldResolutionV1[] = [];
+    const callbacks = new Map<string, number>();
+    const loadExpectations = request.loadExpectations;
+    const loadRecorder = createOrdinaryCoupledLoadRecorderV1(
+      root,
+      loadExpectations,
+      createHash('sha256').update(JSON.stringify(loadExpectations)).digest('hex'),
+    );
+    retainedLoadRecorder = loadRecorder;
+    retainOutputRoot(outputRoot, loadRecorder.inspect);
+    const plugin: BunPlugin = {
+      name: 'ordinary-coupled-v1-fixed-image',
+      setup(builder) {
+        const resolveImport = (source: {
+          path: string;
+          importer: string;
+          namespace: string;
+          resolveDir: string;
+          kind: string;
+        }) => {
+          const observe = (resolved: { path: string; external?: boolean; namespace?: string }) => {
+            resolutions.push({
+              importer: source.importer,
+              specifier: source.path,
+              importerNamespace: source.namespace,
+              resolveDir: source.resolveDir,
+              kind: source.kind,
+              path: resolved.path,
+              external: resolved.external === true,
+              destinationNamespace: resolved.namespace,
+            });
+            return resolved;
+          };
+          if (plan.portSources.has(`ordinary-hold-v1:${source.importer}`)) {
+            const mapped = resolveOrdinaryCoupledPortImportV1(root, source.importer, source.path);
+            if (mapped === undefined) {
+              observe({ path: source.path, external: true });
+              return undefined;
+            }
+            return observe(mapped);
+          }
+          if (source.path.startsWith('ordinary-hold-v1:')) {
+            if (!plan.portSources.has(source.path))
+              throw new Error('ordinary HOLD virtual port absent');
+            return observe({
+              path: source.path.slice('ordinary-hold-v1:'.length),
+              namespace: 'ordinary-hold-v1',
+            });
+          }
+          if (source.path.startsWith(`${root}/`)) {
+            const mapping = mappings.find((entry) => entry.path === source.path);
+            if (
+              mapping !== undefined &&
+              (source.importer === entryPath || source.importer.startsWith(`${root}/`))
+            )
+              return observe({
+                path: mapping.path,
+                external: mapping.mode === 'external-unchanged',
+              });
+          }
+          if (source.importer !== '' && !source.importer.startsWith('/'))
+            throw new Error('ordinary HOLD unrecognized virtual importer');
+          if (!source.importer.startsWith(`${root}/`)) return undefined;
+          const mapped = resolveOrdinaryHoldImportV1(root, source.importer, source.path);
+          if (mapped !== undefined) return observe(mapped);
+          return undefined;
+        };
+        builder.onResolve({ filter: /.*/ }, resolveImport);
+        builder.onResolve({ filter: /.*/, namespace: 'ordinary-hold-v1' }, resolveImport);
+        builder.onLoad({ filter: /.*/, namespace: 'ordinary-hold-v1' }, (source) => {
+          const contents = plan.portSources.get(`ordinary-hold-v1:${source.path}`);
+          if (contents === undefined) throw new Error('ordinary HOLD virtual port absent');
+          const returned = { contents, loader: 'ts' as const };
+          return loadRecorder.record('ordinary-hold-v1', source.path, returned);
+        });
+        builder.onLoad({ filter: /.*/, namespace: 'file' }, (source) => {
+          const bytes = plan.materialized.get(source.path);
+          if (bytes === undefined) return undefined;
+          const mapping = mappings.find((sourceMapping) => sourceMapping.path === source.path);
+          if (mapping?.mode === 'external-unchanged')
+            throw new Error('ordinary HOLD scanner entered bundled loader');
+          callbacks.set(source.path, (callbacks.get(source.path) ?? 0) + 1);
+          const returned = { contents: new Uint8Array(bytes), loader: 'ts' as const };
+          return loadRecorder.record('file', source.path, returned);
+        });
+      },
+    };
+    const compilerCwd = process.cwd();
+    const buildOptionsIdentity = {
+      entrypoints: [entryPath],
+      target: 'bun',
+      format: 'esm',
+      splitting: false,
+      minify: false,
+      sourcemap: 'none',
+      bytecode: false,
+      packages: 'bundle',
+      metafile: true,
+      throw: false,
+      root,
+      tsconfig: `${root}/tsconfig.base.json`,
+      plugin: plugin.name,
+    };
+    if (
+      JSON.stringify(
+        Object.entries(buildOptionsIdentity).filter(([key]) => key !== 'entrypoints'),
+      ) !== JSON.stringify(Object.entries(request.buildOptions))
+    )
+      throw new Error('coupled pinned compiler options differ');
+    const provenance: OrdinaryHoldBuildProvenanceV1 = {
+      compiler: {
+        version: Bun.version,
+        revision: Bun.revision,
+        executable: process.execPath,
+        cwd: compilerCwd,
+      },
+      issuer,
+      authority,
+      ports,
+      entrySource,
+      buildOptionsSha256: createHash('sha256')
+        .update(JSON.stringify(buildOptionsIdentity))
+        .digest('hex'),
+    };
+    const compilerIndex = operations.length;
+    let compilerCustody:
+      | {
+          readonly record: OrdinaryHoldSetupRecordV1;
+          readonly original: Promise<unknown>;
+          readonly observer: Promise<void>;
+        }
+      | undefined;
+    const built = await ordinaryHoldSetupOperationV1(
+      operations,
+      'compiler.Bun.build',
+      () => {
+        return Bun.build({
+          entrypoints: [entryPath],
+          target: 'bun',
+          format: 'esm',
+          splitting: false,
+          minify: false,
+          sourcemap: 'none',
+          bytecode: false,
+          packages: 'bundle',
+          metafile: true,
+          throw: false,
+          root,
+          tsconfig: `${root}/tsconfig.base.json`,
+          plugins: [plugin],
+        });
+      },
+      96,
+      (record, original, observer) => {
+        compilerCustody = Object.freeze({ record, original, observer });
+      },
+    );
+    // This continuation follows the helper's actual await of its original and observer, never a caller token.
+    assertOrdinaryCoupledCompilerJoinV1(operations, compilerIndex, compilerCustody);
+    const loadReceipts = loadRecorder.settle();
+    await ordinaryHoldSetupOperationV1(operations, 'diagnostics.write', () =>
+      writeFile(
+        join(outputRoot, 'ordinary-coupled-diagnostics.json'),
+        JSON.stringify({
+          success: built.success,
+          logs: built.logs.map((log) => ({
+            name: log.name,
+            message: log.message,
+            position: log.position,
+            level: log.level,
+          })),
+          metafile: built.metafile,
+        }),
+        { mode: 0o600 },
+      ),
+    );
+    await observeOrdinaryCoupledClosureV1(
+      request.closureManifest,
+      closureLedger,
+      'after',
+      entryPath,
+    );
+    closureLedger.assertComplete();
+    if (process.cwd() !== compilerCwd) throw new Error('ordinary HOLD compiler cwd changed');
+    if (
+      !built.success ||
+      built.outputs.length !== 1 ||
+      built.outputs[0]?.kind !== 'entry-point' ||
+      built.metafile === undefined
+    )
+      throw new Error('ordinary HOLD compiler output differs');
+    for (const mapping of mappings) {
+      if (mapping.mode !== 'external-unchanged' && callbacks.get(mapping.path) !== 1)
+        throw new Error('ordinary HOLD mapped compiler source absent or duplicated');
+    }
+    const meta = built.metafile;
+    const inputs = Object.entries(meta.inputs);
+    const normalizedInputs = inputs.map(([rawPath]) => ({
+      rawPath,
+      identity: identifyOrdinaryCoupledMetafilePathV1(root, compilerCwd, rawPath),
+    }));
+    assertOrdinaryCoupledCompilerRowsV1(
+      request.prediction,
+      inputs.map(([rawPath, input]) => ({
+        identity:
+          rawPath === entryPath
+            ? 'generated:ordinary-image-entry.ts'
+            : identifyOrdinaryCoupledMetafilePathV1(root, compilerCwd, rawPath) === entryPath
+              ? 'generated:ordinary-image-entry.ts'
+              : identifyOrdinaryCoupledMetafilePathV1(root, compilerCwd, rawPath),
+        bytes: input.bytes,
+      })),
+    );
+    const scanner = `${root}/tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts`;
+    if (normalizedInputs.some((input) => input.identity === scanner))
+      throw new Error('ordinary HOLD scanner bundled input differs');
+    for (const mapping of mappings) {
+      if (mapping.mode === 'external-unchanged') continue;
+      if (normalizedInputs.filter((input) => input.identity === mapping.path).length !== 1)
+        throw new Error('ordinary HOLD classifier or mapped input identity differs');
+    }
+    const normalizedEdges = inputs.flatMap(([rawImporter, input]) =>
+      input.imports.map((edge) => ({
+        rawImporter,
+        importerIdentity: identifyOrdinaryCoupledMetafilePathV1(root, compilerCwd, rawImporter),
+        rawPath: edge.path,
+        kind: edge.kind,
+        identity:
+          edge.external === true && !edge.path.startsWith('/')
+            ? edge.path
+            : identifyOrdinaryCoupledMetafilePathV1(root, compilerCwd, edge.path),
+        external: edge.external === true,
+      })),
+    );
+    assertOrdinaryCoupledMetadataEdgesV1(request, entryPath, normalizedEdges);
+    const scannerEdges = normalizedEdges.filter((edge) => edge.identity === scanner);
+    if (scannerEdges.length === 0 || scannerEdges.some((edge) => !edge.external))
+      throw new Error('ordinary HOLD scanner external edge differs');
+    const output = built.outputs.at(0);
+    if (output === undefined) throw new Error('ordinary HOLD compiler artifact absent');
+    const outputEntries = Object.entries(meta.outputs);
+    const outputEntry = outputEntries.at(0);
+    const entryPoint = outputEntry?.[1].entryPoint;
+    if (
+      outputEntries.length !== 1 ||
+      outputEntry?.[0] !== output.path ||
+      entryPoint === undefined ||
+      identifyOrdinaryCoupledMetafilePathV1(root, compilerCwd, entryPoint) !== entryPath
+    )
+      throw new Error('ordinary HOLD compiler output label or entry identity differs');
+    const artifact = new Uint8Array(
+      await ordinaryHoldSetupOperationV1(operations, 'artifact.arrayBuffer', () =>
+        output.arrayBuffer(),
+      ),
+    );
+    if (artifact.byteLength < 1 || artifact.byteLength > 64 * 1024 * 1024)
+      throw new Error('ordinary HOLD compiler artifact outside bound');
+    const entryBundle = join(outputRoot, 'ordinary-image.js');
+    await ordinaryHoldSetupOperationV1(operations, 'artifact.write', () =>
+      writeFile(entryBundle, artifact, { mode: 0o600 }),
+    );
+    const closureOperations = Object.freeze(
+      closureLedger
+        .inspect()
+        .map((record) =>
+          Object.freeze({ key: record.key, state: record.state, joined: record.joined }),
+        ),
+    );
+    const metadata = JSON.stringify({
+      closureManifestSha256: ordinaryCoupledPacketPinsV1.closureManifest.sha256,
+      closureReadLeaseAssumption: request.closureManifest.readLeaseAssumption,
+      closureGeneratedEntry: { path: entryPath, ...request.closureManifest.generatedEntry },
+      closureCompilerCwd: request.closureManifest.compilerCwd,
+      closureOperations,
+      artifact: { path: entryBundle, bytes: artifact.byteLength, sha256: sha(artifact) },
+      qualification:
+        'built-unqualified: compiler agreement does not grant runtime or scanner execution',
+      layers: plan.layers,
+      coverageSha256: ordinaryCoupledPacketPinsV1.coverage.sha256,
+      predictionSha256: ordinaryCoupledPacketPinsV1.prediction.sha256,
+      inputs: meta.inputs,
+      outputs: meta.outputs,
+      provenance,
+      resolutions,
+      normalizedInputs,
+      normalizedEdges,
+      loadReceipts,
+      loadExpectationsSha256: ordinaryCoupledPacketPinsV1.loadExpectations.sha256,
+    });
+    if (Buffer.byteLength(metadata) > 4 * 1024 * 1024)
+      throw new Error('ordinary HOLD compiler metadata outside bound');
+    await ordinaryHoldSetupOperationV1(operations, 'metadata.write', () =>
+      writeFile(join(outputRoot, 'ordinary-image-metafile.json'), metadata, {
+        mode: 0o600,
+      }),
+    );
+    assertOrdinaryCoupledSetupCensusV1(operations);
+    const imageDigest = createHash('sha256').update(JSON.stringify(plan.layers)).digest('hex');
+    return Object.freeze({
+      format: 'dependency-owner-ordinary-coupled-image-build',
+      version: 1,
+      status: 'built-unqualified',
+      sourceEpoch: request.sourceEpoch,
+      imageDigest,
+      titleDigest: ordinaryHoldTitleDigestV1,
+      entryPath: entryBundle,
+      entrySha256: createHash('sha256').update(artifact).digest('hex'),
+      metafileDigest: createHash('sha256').update(metadata).digest('hex'),
+      sourceObservations: ordinaryHoldSourceEpochV1.pins.map((pin) => ({
+        path: `${root}/${pin.relative}`,
+        bytes: pin.bytes,
+        sha256: pin.sha256,
+      })),
+      appliedCuts: plan.appliedCuts,
+      loadReceipts,
+      loadExpectationsSha256: ordinaryCoupledPacketPinsV1.loadExpectations.sha256,
+      resolutions: Object.freeze(resolutions),
+      closureOperations,
+      closureManifestSha256: ordinaryCoupledPacketPinsV1.closureManifest.sha256,
+      closureReadLeaseAssumption: request.closureManifest.readLeaseAssumption,
+      setupOperations: Object.freeze(operations.map((record) => Object.freeze({ ...record }))),
+      coverageSha256: ordinaryCoupledPacketPinsV1.coverage.sha256,
+      predictionSha256: ordinaryCoupledPacketPinsV1.prediction.sha256,
+      provenance,
+      unqualified: Object.freeze([
+        'runtime owner observer and keeper tap execution',
+        'fixed runtime native-generation and Promise ledger qualification',
+        'complete body/projection/acceptance taps',
+        'setup Bun.write, migrations and four child-reader tap execution',
+        'transitive source closure',
+        'scanner serialized-function equivalence',
+        'actual native custody and finite HOLD retirement',
+      ]),
+    });
+  } finally {
+    if (operations.every(hasKnownOrdinaryHoldSetupOutcomeV1) && closureLedger.hasKnownOutcomes())
+      clearInterval(keeper);
+  }
+}

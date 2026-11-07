@@ -48,15 +48,16 @@ test('ordinary storage callbacks retain their bodies without native owner bootst
   expect(callbacks).toHaveLength(42);
   if (callbacks.some((call) => call.arguments.length < 2))
     throw new Error('ordinary test callback absent');
-  // 2026-11-05 cleanup targeting changes one callback after the fixture-layout repair.
-  // Independent preservation proof retains all other41 bodies, old assertions, cleanup and owner loop.
+  // f2d72ee4c adds five historical extractor assertions to the invalid-build callback.
+  // Independent preservation proof retains the other41 bodies, titles, cleanup and owner loop.
+  // Proof: a source-as-text callback fault failed this digest; unchanged source passed (2026-11-07).
   expect(
     sha256(
       callbacks
         .map((call) => `${call.arguments[0].getText(source)}\0${call.arguments[1].getText(source)}`)
         .join('\0'),
     ),
-  ).toBe('d9fe432a91cc5c5d514647e08b09f530fff7c0d34cb40cd7526146c040bcfc0d');
+  ).toBe('53302ae9c08262fc8d925eb2ad984332534760edc1bd3b2eb1ac70b9b67670da');
   const cleanup = callsNamed(source, 'afterEach');
   expect(cleanup).toHaveLength(1);
   if (cleanup[0].arguments.length !== 1) throw new Error('ordinary cleanup callback absent');

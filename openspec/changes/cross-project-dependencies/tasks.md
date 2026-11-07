@@ -1461,3 +1461,10 @@ Their full negative/restoration proof requirements remain open. KCT5's actual
 builder and separately sealed compiler protocol are not implemented; KCT6's
 publication part does not complete its native/HOLD continuation. All six boxes
 therefore remain unchecked.
+
+The [coupled compiler continuation](verify-ordinary-coupled-compiler-20261107.md)
+adds independently frozen load/coverage/prediction/filesystem authority and
+scoped CI fixture restoration. Its source, complete proof obligations and one
+actual compiler-only attempt are separately reviewed. KCT5/KCT6 and the native,
+39HOLD, full CI/gate, main and deployment parent boxes remain open until their
+actual evidence qualifies them.

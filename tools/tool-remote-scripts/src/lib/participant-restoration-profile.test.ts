@@ -135,6 +135,8 @@ spyOn(Bun,'serve').mockImplementation(()=>({stop:async()=>{stops++;}}));
   }
 }, 30000);
 
+// Proof: removing either entry guard in a fixture copy crossed the throwing factory;
+// the three policy negatives or inherited override failed, and restored entry passed (2026-11-07).
 for (const admission of ['absent', 'nonfinite', 'expired', 'inherited-override'] as const)
   test(`actual fixture refuses ${admission} deadline before activation factory`, async () => {
     const directory = await mkdtemp(join(tmpdir(), 'policy-admission-'));
@@ -156,6 +158,8 @@ let factories=0;
 mock.module(${JSON.stringify(join(source, 'src/fixtures/dependency-participant-restoration.ts'))},()=>({participantActivationFixture:async()=>{
  factories++;console.error('POLICY_FIXTURE_FACTORY_CROSSED: ${admission}');throw Error('test-owned activation factory sentinel');
 }}));
+// Admission ends before owner acquisition; crossing this boundary is a test failure.
+mock.module(${JSON.stringify(join(source, 'src/lib/edge-ownership.ts'))},()=>({withDependencyOwner:async()=>{throw Error('unexpected owner');},assertDependencyOwner:()=>{throw Error('unexpected owner assertion');}}));
 mock.module(${JSON.stringify(join(source, 'src/lib/complete-dependency-exclusion.ts'))},()=>({prepareActivatedParticipantsUnderOwner:async()=>{throw Error('unexpected preparation');},consumePreparedDependencyActivation:async()=>{throw Error('unexpected consume');},releasePreparedDependencyActivation:()=>{throw Error('unexpected release');}}));
 mock.module(${JSON.stringify(join(source, 'src/lib/dependency-product-process.ts'))},()=>({OBSERVER_PROGRAM:'unused'}));
 mock.module(${JSON.stringify(join(source, 'src/fixtures/participant-solver-runtime.ts'))},()=>({createParticipantSolverRuntime:()=>{throw Error('unexpected runtime');}}));

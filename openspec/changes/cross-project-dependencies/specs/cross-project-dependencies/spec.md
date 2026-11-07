@@ -2878,3 +2878,38 @@ marker. No prior image receipt or caller digest SHALL authorize new source bytes
 - **THEN** generated source calls the genuine fixture, owner, preparation, consume, inspection and release paths with its actual layouts
 - **AND** the pre-await refusal path preserves the exact original body cause through completion and projection with known cleanup and no context exposure
 - **AND** source generation and inert tests invoke no full image or native helper and do not register the39required HOLD cases
+
+### Requirement: Prospective compiler admission separates coverage from prediction
+
+The prospective coupled compiler SHALL bind independently sealed source, load,
+filesystem coverage and compiler-prediction packets for its exact source epoch.
+Every conservatively reached filesystem identity SHALL remain covered even when
+its exact identity is a predeclared optimizer omission. Actual observations SHALL
+NOT enlarge the compiler prediction or authorize an implicit retry.
+
+#### Scenario: Predicted omission retains physical coverage
+
+- **WHEN** the compiler prediction excludes one of its fixed reviewed omissions
+- **THEN** that identity remains subject to the complete canonical file, permission, byte and configuration coverage checks
+- **AND** added, removed or substituted observed compiler inputs refuse output admission despite matching counts
+
+#### Scenario: Actual callback custody gates receipt settlement
+
+- **WHEN** an admitted coupled plugin returns transformed file or virtual source
+- **THEN** its exact returned object and contents reference are retained against independently fixed expected bytes
+- **AND** only the genuine private compiler original and immediate observer join permits final receipt settlement
+- **AND** successful compilation returns built-unqualified without importing output or executing the known controller
+
+#### Scenario: Before and after observations remain complete
+
+- **WHEN** a compiler-only attempt observes its fixed filesystem closure
+- **THEN** every independently enumerated key must have its genuine original and observer joined in both phases
+- **AND** ENOENT is known only at an exact admitted absence key, while missing, unreadable, malformed or changed trusted state refuses
+- **AND** final issuer and authority pins are independently fixed without a circular embedded source hash
+
+#### Scenario: Failed prediction does not create new authority
+
+- **WHEN** actual compiler metadata disagrees with the fixed prediction or an observation remains UNKNOWN
+- **THEN** the immutable attempt retains actual causes, originals, observers and diagnostic evidence
+- **AND** UNKNOWN retains its keeper and never becomes cleanup through timeout, cancellation, signal or disappearance
+- **AND** another attempt requires a separately reviewed fixed packet and protocol rather than adopting the discovered input set

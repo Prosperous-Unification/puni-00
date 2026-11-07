@@ -4202,3 +4202,359 @@ test('UC2 coupled fixture preserves the exact historical constructor prefix', as
     '50281b36a01665b83062e7bb7d065361037182581fb791a89e1b049d65cf4b04',
   );
 });
+
+/** Inert rows exercise builder prediction guards without compiler or target execution. */
+function coupledPredictionRows() {
+  const root = '/coupled';
+  const omissions = [
+    `${root}/tools/tool-remote-scripts/src/lib/solver-reader-preparation.ts`,
+    `${root}/node_modules/drizzle-orm/sql/functions/aggregate.js`,
+    `${root}/node_modules/drizzle-orm/sql/functions/vector.js`,
+  ];
+  const rows = Array.from({ length: 287 }, (_, ordinal) => ({
+    identity: `${root}/source-${String(ordinal)}.ts`,
+    mode: 'default',
+    bytes: 1,
+    sha256: 'a'.repeat(64),
+  }));
+  const coverage = [
+    ...rows,
+    ...omissions.map((identity) => ({
+      identity,
+      mode: 'default',
+      bytes: 1,
+      sha256: 'a'.repeat(64),
+    })),
+  ];
+  return { root, omissions, rows, coverage, files: coverage.map((row) => row.identity) };
+}
+
+test('KCT5 coupled prediction requires exact conservative subtraction and physical omissions', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  expect(typeof fixture.assertOrdinaryCoupledPredictionV1).toBe('function');
+  const { root, omissions, rows, coverage, files } = coupledPredictionRows();
+  fixture.assertOrdinaryCoupledPredictionV1(root, coverage, rows, files);
+  for (const omitted of omissions) {
+    expect(() => {
+      fixture.assertOrdinaryCoupledPredictionV1(
+        root,
+        coverage,
+        rows,
+        files.filter((identity) => identity !== omitted),
+      );
+    }).toThrow('physical omission');
+  }
+  expect(() => {
+    fixture.assertOrdinaryCoupledPredictionV1(
+      root,
+      coverage,
+      [...rows.slice(1), coverage[287]],
+      files,
+    );
+  }).toThrow('prediction identity');
+  expect(() => {
+    fixture.assertOrdinaryCoupledPredictionV1(root, coverage, rows.slice(1), files);
+  }).toThrow('prediction census');
+  expect(() => {
+    fixture.assertOrdinaryCoupledPredictionV1(root, coverage, coverage, files);
+  }).toThrow('prediction census');
+  expect(() => {
+    fixture.assertOrdinaryCoupledPredictionV1(
+      root,
+      coverage,
+      rows.map((row, index) => (index === 0 ? { ...row, sha256: 'b'.repeat(64) } : row)),
+      files,
+    );
+  }).toThrow('prediction bytes');
+});
+
+test('KCT5 coupled compiler identity prediction rejects added removed substituted and duplicate inputs', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  expect(typeof fixture.assertOrdinaryCoupledCompilerInputsV1).toBe('function');
+  const { rows } = coupledPredictionRows();
+  const predicted = rows.map((row) => row.identity);
+  fixture.assertOrdinaryCoupledCompilerInputsV1(predicted, predicted);
+  for (const observed of [
+    predicted.slice(1),
+    [...predicted, '/extra'],
+    [...predicted.slice(1), '/substituted'],
+    [...predicted.slice(1), predicted[1]],
+  ])
+    expect(() => {
+      fixture.assertOrdinaryCoupledCompilerInputsV1(predicted, observed);
+    }).toThrow('compiler prediction');
+});
+
+test('KCT5 coupled public builder refuses unsealed request before acquiring setup effects', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  expect(typeof fixture.buildOrdinaryCoupledImageV1).toBe('function');
+  expect(() =>
+    fixture.buildOrdinaryCoupledImageV1({
+      version: 1,
+      mode: 'build-only',
+      sourceRoot: '/coupled',
+      sourceEpoch: 'ordinary-uc2-coupled-r2-v1',
+      loadExpectations: '{}',
+      closureManifest: '{}',
+      coverage: '{}',
+      prediction: '{}',
+      patch: new Uint8Array(),
+      manifest: new Uint8Array(),
+    }),
+  ).toThrow();
+});
+
+async function coupledBuildRequest() {
+  const sealedRoot = '/home/df/.codex/worktrees/1b31/puni-00';
+  const read = (name: string) => readFile(new URL(`../fixtures/${name}`, import.meta.url), 'utf8');
+  const archive = JSON.parse(await read('ordinary-coupled-r2-authority-20261105.json')) as {
+    patch: { utf8: string };
+    manifest: { utf8: string };
+  };
+  return {
+    version: 1,
+    mode: 'build-only',
+    sourceRoot: sealedRoot,
+    sourceEpoch: 'ordinary-uc2-coupled-r2-v1',
+    loadExpectations: await read('ordinary-coupled-load-expectations-20261107.json'),
+    closureManifest: await read('ordinary-coupled-input-closure-20261107.json'),
+    coverage: await read('ordinary-coupled-conservative-coverage-20261107.json'),
+    prediction: await read('ordinary-coupled-compiler-prediction-20261107.json'),
+    patch: new TextEncoder().encode(archive.patch.utf8),
+    manifest: new TextEncoder().encode(archive.manifest.utf8),
+  };
+}
+
+test('KCT5 coupled fixed packet admission binds independent bytes and keeps all omissions covered', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  const request = await coupledBuildRequest();
+  const admitted = fixture.decodeOrdinaryCoupledBuildRequestV1(request);
+  expect(admitted.sourceRoot).toBe('/home/df/.codex/worktrees/1b31/puni-00');
+  for (const name of ['loadExpectations', 'closureManifest', 'coverage', 'prediction'] as const)
+    expect((JSON.parse(request[name]) as { sourceRoot: string }).sourceRoot).toBe(
+      '/home/df/.codex/worktrees/1b31/puni-00',
+    );
+  expect(admitted.coverage).toHaveLength(290);
+  expect(admitted.prediction).toHaveLength(287);
+  expect(admitted.loadExpectations).toHaveLength(47);
+  expect(admitted.closureManifest.closureOperationCount).toBe(2064);
+  const keys = fixture.ordinaryCoupledClosureKeysV1(admitted.closureManifest);
+  expect(keys).toHaveLength(2064);
+  expect(new Set(keys).size).toBe(2064);
+  expect(createHash('sha256').update(JSON.stringify(keys)).digest('hex')).toBe(
+    '17d67712ba3a45d34a7bb03197f75462c2df606d20c99763ff4bc9b3cd1a91a3',
+  );
+  expect(fixture.ordinaryCoupledSetupLabelsV1).toHaveLength(47);
+  expect(new Set(fixture.ordinaryCoupledSetupLabelsV1).size).toBe(47);
+  for (const name of ['loadExpectations', 'closureManifest', 'coverage', 'prediction'] as const) {
+    const packet = request[name];
+    const changed = packet.replace(/[a-f0-9]{64}/, (hash) =>
+      hash.startsWith('a') ? 'b' + hash.slice(1) : 'a' + hash.slice(1),
+    );
+    expect(changed.length).toBe(packet.length);
+    expect(() =>
+      fixture.decodeOrdinaryCoupledBuildRequestV1({ ...request, [name]: changed }),
+    ).toThrow('raw authority');
+    expect(() =>
+      fixture.decodeOrdinaryCoupledBuildRequestV1({ ...request, [name]: undefined }),
+    ).toThrow('raw authority');
+  }
+  for (const name of ['patch', 'manifest'] as const) {
+    const changed = request[name].slice();
+    changed[0] ^= 1;
+    expect(() =>
+      fixture.decodeOrdinaryCoupledBuildRequestV1({ ...request, [name]: changed }),
+    ).toThrow('r2 raw authority');
+  }
+  const compiler = admitted.closureManifest.files.find(
+    (row) => row.identity === '/home/df/.bun/bin/bun',
+  );
+  expect(compiler?.roles).toEqual(['authority']);
+  for (const omission of (JSON.parse(request.prediction) as { omissions: string[] }).omissions) {
+    expect(
+      admitted.closureManifest.files.some(
+        (row) =>
+          `${request.sourceRoot}/${row.identity}` === omission && row.roles.includes('compiler'),
+      ),
+    ).toBe(true);
+    expect(admitted.prediction.some((row) => row.identity === omission)).toBe(false);
+  }
+});
+
+test('KCT5 coupled recorder retains exactly16 file31 virtual callback identities and detects drift', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  const request = await coupledBuildRequest();
+  const admitted = fixture.decodeOrdinaryCoupledBuildRequestV1(request);
+  const physicalRoot = new URL('../../../../', import.meta.url).pathname.replace(/\/$/, '');
+  const supplied = new Map<string, Uint8Array>();
+  for (const pin of fixture.ordinaryHoldSourceEpochV1.pins)
+    supplied.set(
+      `${request.sourceRoot}/${pin.relative}`,
+      await readFile(`${physicalRoot}/${pin.relative}`),
+    );
+  const plan = fixture.planOrdinaryCoupledBuildV1(
+    request.sourceRoot,
+    supplied,
+    request.patch,
+    request.manifest,
+  );
+  fixture.assertOrdinaryCoupledPlanV1(admitted, plan);
+  const alteredPorts = new Map(plan.portSources);
+  const controller = alteredPorts.get('ordinary-hold-v1:controller');
+  if (controller === undefined) throw Error('coupled test controller absent');
+  alteredPorts.set('ordinary-hold-v1:controller', controller + ' ');
+  expect(() => {
+    fixture.assertOrdinaryCoupledPlanV1(admitted, { ...plan, portSources: alteredPorts });
+  }).toThrow('coverage bytes');
+  const digest = createHash('sha256')
+    .update(JSON.stringify(admitted.loadExpectations))
+    .digest('hex');
+  const recorder = fixture.createOrdinaryCoupledLoadRecorderV1(
+    request.sourceRoot,
+    admitted.loadExpectations,
+    digest,
+  );
+  const returns: { contents: string | Uint8Array; loader: string }[] = [];
+  for (const row of admitted.loadExpectations) {
+    const contents =
+      row.namespace === 'file'
+        ? plan.materialized.get(row.identity)
+        : plan.portSources.get(`ordinary-hold-v1:${row.identity}`);
+    if (contents === undefined) throw Error('coupled test contents absent');
+    const returned = {
+      contents: typeof contents === 'string' ? contents : new Uint8Array(contents),
+      loader: 'ts',
+    };
+    expect(recorder.record(row.namespace, row.identity, returned)).toBe(returned);
+    returns.push(returned);
+  }
+  expect(recorder.settle()).toHaveLength(47);
+  expect(typeof recorder.inspect).toBe('function');
+  const observations = recorder.inspect();
+  expect(observations).toHaveLength(47);
+  expect(observations.every((row) => row.contentsReferencePreserved)).toBe(true);
+  const copied = observations.find((row) => row.contents instanceof Uint8Array);
+  if (copied === undefined || !(copied.contents instanceof Uint8Array))
+    throw Error('inert copied callback bytes absent');
+  copied.contents[0] ^= 1;
+  const fresh = recorder.inspect().find((row) => row.identity === copied.identity);
+  if (fresh === undefined) throw Error('inert fresh callback snapshot absent');
+  expect(createHash('sha256').update(fresh.contents).digest('hex')).toBe(fresh.sha256);
+  expect(createHash('sha256').update(copied.contents).digest('hex')).not.toBe(fresh.sha256);
+  const changed = fixture.createOrdinaryCoupledLoadRecorderV1(
+    request.sourceRoot,
+    admitted.loadExpectations,
+    digest,
+  );
+  for (let index = 0; index < admitted.loadExpectations.length; index++) {
+    const row = admitted.loadExpectations[index];
+    changed.record(row.namespace, row.identity, returns[index]);
+  }
+  returns[0].loader = 'js';
+  expect(() => changed.settle()).toThrow('shape');
+  const classifier = fixture.identifyOrdinaryCoupledMetafilePathV1;
+  expect(classifier(request.sourceRoot, request.sourceRoot, 'ordinary-hold-v1:controller')).toBe(
+    'ordinary-hold-v1:controller',
+  );
+  expect(() =>
+    classifier(request.sourceRoot, request.sourceRoot, 'ordinary-hold-v1:foreign'),
+  ).toThrow('virtual metadata');
+});
+
+test('KCT5 coupled compiler rows require each precommitted source byte length', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  expect(typeof fixture.assertOrdinaryCoupledCompilerRowsV1).toBe('function');
+  const { rows } = coupledPredictionRows();
+  fixture.assertOrdinaryCoupledCompilerRowsV1(rows, rows);
+  expect(() => {
+    fixture.assertOrdinaryCoupledCompilerRowsV1(
+      rows,
+      rows.map((row, index) => (index === 0 ? { ...row, bytes: 2 } : row)),
+    );
+  }).toThrow('compiler input bytes');
+});
+
+test('KCT5 coupled compiler finish requires the genuine retained setup original observer and joined record', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  expect(typeof fixture.assertOrdinaryCoupledCompilerJoinV1).toBe('function');
+  const operations: Parameters<typeof fixture.ordinaryHoldSetupOperationV1>[0] = [];
+  let custody: Parameters<typeof fixture.assertOrdinaryCoupledCompilerJoinV1>[2];
+  const original = Promise.resolve('inert compiler stand-in');
+  await fixture.ordinaryHoldSetupOperationV1(
+    operations,
+    'compiler.Bun.build',
+    () => original,
+    96,
+    (record, retained, observer) => {
+      custody = { record, original: retained, observer };
+    },
+  );
+  fixture.assertOrdinaryCoupledCompilerJoinV1(operations, 0, custody);
+  if (custody === undefined) throw Error('inert compiler custody absent');
+  const retained = custody;
+  expect(() => {
+    fixture.assertOrdinaryCoupledCompilerJoinV1(operations, 0, {
+      ...retained,
+      original: Promise.resolve('replacement'),
+    });
+  }).toThrow('compiler join');
+  expect(() => {
+    fixture.assertOrdinaryCoupledCompilerJoinV1(operations, 0, {
+      ...retained,
+      observer: Promise.resolve(),
+    });
+  }).toThrow('compiler join');
+  operations[0].joined = false;
+  expect(() => {
+    fixture.assertOrdinaryCoupledCompilerJoinV1(operations, 0, custody);
+  }).toThrow('compiler join');
+  operations[0].joined = true;
+  fixture.assertOrdinaryCoupledCompilerJoinV1(operations, 0, custody);
+});
+
+test('KCT5 coupled observed edges require sealed destinations and external classifications including fixed omissions', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  expect(typeof fixture.assertOrdinaryCoupledMetadataEdgesV1).toBe('function');
+  const request = fixture.decodeOrdinaryCoupledBuildRequestV1(await coupledBuildRequest());
+  const scanner = `${request.sourceRoot}/tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts`;
+  const sealed = request.coverage.flatMap((row) => row.imports);
+  const scannerEdge = sealed.find((edge) => edge.destination === scanner);
+  if (scannerEdge === undefined) throw Error('sealed scanner edge absent');
+  const edge = {
+    importerIdentity: scannerEdge.from,
+    identity: scannerEdge.destination,
+    kind: scannerEdge.kind,
+    external: scannerEdge.external,
+  };
+  fixture.assertOrdinaryCoupledMetadataEdgesV1(request, '/entry.ts', [edge]);
+  expect(() => {
+    fixture.assertOrdinaryCoupledMetadataEdgesV1(request, '/entry.ts', [
+      { ...edge, external: false },
+    ]);
+  }).toThrow('classification');
+  expect(() => {
+    fixture.assertOrdinaryCoupledMetadataEdgesV1(request, '/entry.ts', [
+      { ...edge, identity: scanner + '.alias' },
+    ]);
+  }).toThrow('destination');
+  expect(() => {
+    fixture.assertOrdinaryCoupledMetadataEdgesV1(request, '/entry.ts', [
+      { ...edge, kind: 'require-call' },
+    ]);
+  }).toThrow('classification');
+  const prediction = JSON.parse((await coupledBuildRequest()).prediction) as {
+    omissions: string[];
+  };
+  for (const omission of prediction.omissions) {
+    const inherited = sealed.find((edge) => edge.destination === omission);
+    if (inherited === undefined) throw Error('sealed omission edge absent');
+    fixture.assertOrdinaryCoupledMetadataEdgesV1(request, '/entry.ts', [
+      {
+        importerIdentity: inherited.from,
+        identity: inherited.destination,
+        kind: inherited.kind,
+        external: inherited.external,
+      },
+    ]);
+  }
+});
