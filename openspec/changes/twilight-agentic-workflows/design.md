@@ -283,7 +283,7 @@ follow, but surviving-worker/uncertain-effect safety is mandatory in S7a already
 
 The shared planning project is
 [Agentic workflows — WBS, CTT and portable persistence](https://dev.wbs.bulletpoints.club/?project=eeb8e50a-6ee6-49e4-a533-e10b1e29939d).
-The [native CTT integration](../ctt-work-session-integration/design.md) pinned published
+The [native CTT integration](../archive/2026-11-08-ctt-work-session-integration/design.md) pinned published
 CTT 0.12.0, since moved to 0.13.0 (current pin in [ctt-coordination](../../specs/ctt-coordination/spec.md)), and connects complete prepared topology and independent work sessions to actual
 local RunStore admission. Accepted WBS facts control completion; current eligibility and
 durable attempt state filter readiness. This bounded component does not complete exact

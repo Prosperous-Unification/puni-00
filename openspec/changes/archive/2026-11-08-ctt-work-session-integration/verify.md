@@ -34,8 +34,11 @@ The exact runtime source's CI and canonical gate independently validate all305 i
 287 changes and18specs, zero failed,681 WARNING and25INFO. Existing warnings and24archive-refusal
 advisories are retained; they are not a warning-free or all-change archive-readiness claim.
 
-The new canonical `openspec/specs/ctt-coordination/spec.md` preserves all seven requirement
-bodies and eleven scenarios from the delta. Its descriptive Purpose is copied verbatim from
+The new canonical `openspec/specs/ctt-coordination/spec.md` preserved all seven requirement
+bodies and eleven scenarios from the delta at the time (CTT 0.12). Since #885 (2026-11-07)
+the canonical spec names settlement tickets and external work sessions (CTT 0.13 vocabulary),
+so one requirement body and one heading now differ from this delta; this record is archived
+with `--skip-specs` as a dated 0.12 record and is not re-synced. Its descriptive Purpose is copied verbatim from
 the delta; no runtime behavior changes. No other capability is modified.
 
 Final local metadata validation uses the locked OpenSpec CLI; its complete original JSON and
