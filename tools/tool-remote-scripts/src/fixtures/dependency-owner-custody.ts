@@ -5914,7 +5914,7 @@ function decodeOrdinaryCompilerClosureV1(value: unknown, policy: OrdinaryCompile
     ],
     'coupled closure manifest',
   );
-  // Proof: omitting only the closure epoch comparison admitted a setup epoch through the historical decoder; SPC4 fixed setup admission failed and exact restoration passed (0/1/0, 2026-11-07). Other format/version predicates were not isolated.
+  // Proof: omitting only the closure epoch comparison admitted an undefined epoch through the historical decoder; SPC4 fixed setup admission failed and exact restoration passed (0/1/0, 2026-11-07). The later setup/near-epoch cases and format/version predicates were not independently reached by this fault.
   if (
     packet['format'] !== policy.closureFormat ||
     packet['version'] !== 1 ||
