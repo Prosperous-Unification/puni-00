@@ -38,9 +38,10 @@ target=${1:-HEAD}
 # label its lane `gate:HEAD`, naming every lane identically.
 #
 # Exported, unlike HEAVY_LOCK_WAIT_SECONDS below, and for the opposite reason: a
-# nested heavy run started by a gate step should queue under the gate's own name
-# rather than as `unlabeled`. It is a name, not a budget, so nothing downstream
-# can act on it.
+# nested heavy run started by a gate step is named after the gate rather than
+# `unlabeled` — on the legacy lock under the gate's own name, and inside an
+# admitted Dash job as `gate:<sha>/<its type>` (`run_nested_heavy_job`). It is a
+# name, not a budget, so nothing downstream can act on it.
 #
 # A target that names no commit is refused below, after the activation checks
 # and before the job is queued, exit 64, with the path and the target named.

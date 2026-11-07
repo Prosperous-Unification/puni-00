@@ -9,12 +9,17 @@
 
 ## 1. Catalogue and rule (static; no host change)
 
-- [ ] 1.1 `infra/jobs/catalogue.json` with the four types of this repository (J2, J14) and
+- [x] 1.1 `infra/jobs/catalogue.json` with the four types of this repository (J2, J14) and
       `infra/jobs/README.md` naming the fields, the provisional heuristics of J9 and the
       `propose` → PR loop; each entrypoint script gains one comment naming its catalogue id;
       `puni-pr-00` gets its own catalogue with `website-dev-build` in a companion PR — test: the
       catalogue parses with the shared ArkType shape; an argv outside the argument profile is
       refused.
+      Checked in slice 6e, all already on `main` (S6E-A4): `infra/jobs/catalogue.json` with
+      the four types and `infra/jobs/README.md` (both `aadff2c3f`); the id comments in
+      `bin/h2puni-gate.sh`, `bin/publish-release.sh` and `solver-binding-runtime.ts`;
+      `puni-pr-00` #75 (merged `022a7e8b8`); the parse and argument-profile tests in
+      `job-catalogue.test.ts` (Burokrat contracts).
 - [x] 1.2 Burokrat rule `JOB-CATALOGUE` in observe mode through the existing rule framework:
       malformed entry, duplicate id, absent entrypoint, expired estimate against the supplied
       instant, envelope below calibrated p95, unbounded containers — test: one fixture per
@@ -47,13 +52,15 @@
       transaction with the outbox event — test: the surviving-child and dirty-tree scenarios;
       negative: settle memory on exit code alone and watch the surviving-child test admit over it.
 
-- [ ] 2.4 Follow-up (seen in slice 6c's full `twilight-dash:test`): `host-jobs.test.ts`'s
+- [x] 2.4 Follow-up (seen in slice 6c's full `twilight-dash:test`): `host-jobs.test.ts`'s
       `a replaced tmp directory or symlink stays charged and untouched` failed once under
       full-suite load (expected `blocked`, received `released`), then passed alone three times.
       `rmdir` then `mkdir` can reuse the inode, so a tmp directory's device and inode identity
       does not prove it is the original. The identity should include ctime or birth time, or a
       content marker — test: replace the directory with one that reuses the inode; negative:
       compare dev and inode only and watch the replacement be released.
+      Done in slice 6e: a content marker (`HostJob.tmpMarker`, `.dash-tmp-identity`, S6E-A1,
+      S6E-A2); `a replacement directory that reuses the inode stays charged and untouched`.
 
 ## 3. Measured runs (needs 2)
 
@@ -151,9 +158,10 @@
       and labelled: the supervisor's managed solver containers, the orphan proc tests, Caddy in
       `mcp-body-limit.test.ts`; `dagger_engine` needs a token Git tree unit until Dash has a
       non-tree unit kind (S6-A7).
-- [ ] 6.3 `gate_host` role: linger on, pool config, ledger directory, second gate tree,
+- [x] 6.3 `gate_host` role: linger on, pool config, ledger directory, second gate tree,
       `validate` runs `ops job audit`; h2puni disk cleaned first per the recorded order — proof:
-      two converging applies, `changed=0` on the second.
+      two converging applies, `changed=0` on the second, on both hosts, 2026-11-05; verify.md
+      "2026-11-05 token-unit apply converged on both hosts".
 - [x] 6.3a Code (slice 6c): the role turns linger on, creates the empty fixed pool root and
       `~/.config/dash`, the `dagger_engine` token unit and two more full clones with one frozen
       install each, `~/puni-00-gate-tbf2` (the second `gate_tree`) and the launcher-only
@@ -173,6 +181,23 @@
         apply, blocked"). The delta MODIFIES the `gate-host` requirement that only the
         unarchived `gate-host-role` change defines, so archive `gate-host-role` before this
         change or the archive refuses the delta.
+  - [x] 6.3c Authorized keys one per line (2026-11-04, H2-A7): apply 1 on h2puni wrote the
+        five keys as one line and locked out all callers but the first; the role now renders
+        `authorized_keys.j2` to a staged file, counts its `ssh-keygen -lf` fingerprints against
+        the list before installing it, validate repeats the count on the live file, and
+        `~/.cache` stays 0700 (verify.md, "2026-11-04 h2puni apply 1 — authorized_keys
+        incident (H2-A7)").
+  - [x] 6.3d Operator half on `main` `149e6e85b` (2026-11-05): h2puni converged (apply 1
+        `changed=1`, apply 2 `changed=0`, validate `failed=0`), and h4claw was re-applied with the
+        same numbers. Both stay unenrolled (verify.md, "2026-11-05 role converged on both hosts").
+  - [x] 6.3e `docker_build` token unit and h2puni's launcher checkouts (PR #869): the role creates and validates a second token unit
+        `~/.local/share/dash/units/docker_build` and lists it in `exclusiveUnits`, because
+        puni-pr-00's `website-dev-build` declares it; h2puni's inventory sets
+        `puni_gate_pool_launcher_checkouts` to the launcher checkout and `~/wbs-dev/src`. Applied
+        at `main` `5150237fc` on h2puni and then h4claw (2026-11-05): apply 1 `changed=1` for the
+        new unit only, apply 2 `changed=0`, validate `failed=0`; both still unenrolled, so
+        `ops pool init`, which pins the unit list, comes after (verify.md, "2026-11-05 token-unit
+        apply converged on both hosts").
 - [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
       `Restart=on-failure` and `KillMode=process` (beside the observation units of 4.2). It
       lands before 6.4, because observe mode needs a running `watch` (review H1 of #818). A host
@@ -230,18 +255,45 @@
       refuses until this is done. Done by J19 (design.md): `resource-holds.test.ts` outside any
       namespace; `ops pool init` now succeeds beside this workstation's own `systemd --user`
       (PID 2327) and `(sd-pam)` (verify.md Slice 6a).
-- [ ] 6.9 A user timer that keeps `~/puni-00-gate-launcher` fresh (`git fetch` and
+- [x] 6.9 A user timer that keeps `~/puni-00-gate-launcher` fresh (`git fetch` and
       `checkout --detach origin/main` while no job runs from it, then a watch restart); until it
       lands that is a manual operator step (`docs/infra/gate-hosts.md`, S6C-A20) — test: the
-      timer refuses while a job launched from the checkout runs.
-- [ ] 6.10 A nested `run_heavy_job` inherits the outer job's `HEAVY_LOCK_LABEL`: a `test:queued`
+      timer refuses while a job launched from the checkout runs. Done (S6D-A4 to S6D-A7):
+      `gate-launcher-refresh.timer` runs `bin/gate-launcher-refresh.sh`; proof: with its refusal
+      removed, `gate-launcher-refresh.test.sh` case 1 moved the checkout under a working process
+      (`want exit 75, got 0`). Owed: one converging role apply per host installs the refresh units;
+      the timer is enabled at enrollment (step 5).
+- [x] 6.10 A nested `run_heavy_job` inherits the outer job's `HEAVY_LOCK_LABEL`: a `test:queued`
       or solver publish started inside an admitted gate payload is labelled as the gate, on the
       legacy lock and in Dash alike (found by slice 6c's h2puni gate on 37ca6254a, where
       `launchers.test.ts` saw `--label gate:37ca6254`). `run_heavy_job` should refuse a nested
       call, or re-label it `<outer label>/<own type>` when `DASH_JOB_ID` is already set — test:
       a launcher run inside a fake admitted job records the derived label; negative: drop the
-      check and watch it record the outer label.
-- [ ] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
+      check and watch it record the outer label. Done (S6D-A1): `run_nested_heavy_job` re-labels a
+      type without exclusive units and refuses 70 one with units or outside its job's scope; proof:
+      with the branch removed, case 49a got `gate:abc` and Dash's `--label gate:abc`.
+  - [x] 6.10a Check admission, not only placement: the scope check passes a same-account
+        `systemd-run --user --scope --unit dash-job-<id>` (review of #873). Ask the ledger for a
+        running job with that id before running nested — test: a fake scope of that name with no
+        such job is refused. Done in slice 6e: `ops job admission` (`ops/admission.test.ts`) and
+        `bin/heavy-lock.test.sh` cases 49h–49k (S6E-A3).
+- [x] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
       (slice 3, #809) carries `descriptorDigest` and no durable locator, so this needs a locator
       for the run record and a decision on which digest WBS keeps — test: a returned host job's
       evidence names the run record; negative: send the ledger-row digest and watch WBS refuse it.
+      Done in slice 6f (S6F-A1): locator `dash-host-job-run://<enrollmentId>/<jobId>`, digest the
+      SHA-256 of the record's stored gate entry, `not_created` for a job with no run record;
+      be-01 refuses the ledger-row evidence `400 invalid_body`.
+  - [x] 6.8a An operator command that drops one permanently refused event from the authority
+        outbox, naming it and the refusal (pre-existing gap; S6F-A4: a moved old-shape host-job
+        event refused by a newer be-01 otherwise blocks every later event of the authority) —
+        test: a refused event is dropped and the next one publishes; negative: the command
+        refuses an event WBS has not refused. Done in slice 6g: `ops outbox drop` and ledger
+        version 3 (`event_refusals`, `dropped_events`); later events take one sequence less
+        (S6G-A1 to A6, `ops/outbox-drop.test.ts`).
+    - [x] 6.8b Re-send the named event once and require a fresh `400` before dropping it (review
+          of #878 F1): the stored refusal row is the only evidence today, and a `watch` that
+          crashes between WBS accepting the event and the publish mark leaves it stale — test:
+          an event WBS now accepts is published by the drop's re-send, not dropped. Done in
+          slice 6h (S6H-A1 to A4): `2xx` marks it published, `409` refuses 64, no answer or
+          another refusal 70; the journal's `refusal.confirmedAt` is the fresh `400`.

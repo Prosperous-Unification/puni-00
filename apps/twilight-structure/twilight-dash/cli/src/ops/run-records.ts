@@ -1,9 +1,13 @@
 import { closeSync, constants, lstatSync, openSync } from 'node:fs';
-import { join } from 'node:path';
 
 import { type } from '@shared/validation';
 import { Database } from 'bun:sqlite';
 
+import {
+  checkRunRecordsOwnerOnly,
+  checkRunRecordsVersion,
+  runRecordsPathOf,
+} from '../resources/run-record-file';
 import type { ScopeCounters } from './scope';
 
 /** One container the run saw start, and whether it ran labelled and inside the declared bound. */
@@ -153,35 +157,6 @@ const OutcomeShape = type({
 });
 
 /**
- * The run records must be an owner-only regular file: no link, this account's, no group or
- * world bits.
- * @throws Error naming the file otherwise.
- */
-function checkOwnerOnly(path: string): void {
-  const identity = lstatSync(path);
-  // Proof: without this refusal `refuses run records that are not an owner-only regular file`
-  // (job-run.test.ts) opened the symlink. Removing only the link test stays green, because
-  // `!isFile()` refuses a link too (2026-11-02, Slice 3 review F2d).
-  if (
-    identity.isSymbolicLink() ||
-    !identity.isFile() ||
-    identity.uid !== process.getuid?.() ||
-    (identity.mode & 0o077) !== 0
-  )
-    throw new Error(`host job run records ${path} must be an owner-only regular file`);
-}
-
-/** @throws Error unless the records are schema version 1. */
-function checkVersion(path: string, version: number | undefined): void {
-  // Proof: without it `refuses run records of another schema version` (job-run.test.ts)
-  // opened version 7 (2026-11-02, Slice 3 review F2d).
-  if (version !== 1)
-    throw new Error(
-      `host job run records ${path} have schema version ${String(version)}; this Dash knows 1`,
-    );
-}
-
-/**
  * The host-job run records (`dash-host-jobs` J7): one record per admitted host job with its
  * samples, in `<root>/.dash/host-job-runs.sqlite` beside the resource ledger. A separate file
  * because the ledger's job snapshot is the runtime's closed shape (slice 3 assumption S3-A4).
@@ -191,7 +166,7 @@ export class HostJobRunRecords {
 
   /** The run record file of the managed root `root`. */
   static pathOf(root: string): string {
-    return join(root, '.dash', 'host-job-runs.sqlite');
+    return runRecordsPathOf(root);
   }
 
   /**
@@ -220,7 +195,7 @@ export class HostJobRunRecords {
         if (!(raced instanceof Error && 'code' in raced && raced.code === 'EEXIST')) throw raced;
       }
     }
-    checkOwnerOnly(path);
+    checkRunRecordsOwnerOnly(path);
     const db = new Database(path, { create: false, strict: true });
     try {
       db.run('PRAGMA busy_timeout=10000; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL');
@@ -236,7 +211,7 @@ export class HostJobRunRecords {
           db.run(SCHEMA);
           return;
         }
-        checkVersion(path, version?.user_version);
+        checkRunRecordsVersion(path, version?.user_version);
       }).immediate();
     } catch (cause) {
       db.close();
@@ -261,11 +236,11 @@ export class HostJobRunRecords {
         );
       throw cause;
     }
-    checkOwnerOnly(path);
+    checkRunRecordsOwnerOnly(path);
     const db = new Database(path, { readonly: true, strict: true });
     try {
       db.run('PRAGMA busy_timeout=10000');
-      checkVersion(
+      checkRunRecordsVersion(
         path,
         db.query<{ user_version: number }, []>('PRAGMA user_version').get()?.user_version,
       );

@@ -193,7 +193,7 @@ if (insideLinuxNamespace(import.meta.path))
       const db = new Database(ledger);
       db.run('PRAGMA user_version=7');
       db.close();
-      expect(() => openHostPoolLedger(ledger)).toThrow('is version 7, not 2');
+      expect(() => openHostPoolLedger(ledger)).toThrow('is version 7, not 3');
     });
 
     // "Reserved beside measured": the ssh adapter reads 8 in use, the ledger reserves 12.

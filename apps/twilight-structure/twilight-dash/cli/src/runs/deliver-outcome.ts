@@ -130,6 +130,7 @@ export async function deliverOutcome(
     }
     let exchange: WriteExchange | LookupExchange;
     // Proof: S03 electing duplicate POSTs failed bounded concurrency and lost-response traces; both calls drained and SQLite fixtures closed. The earlier timed-out observation is separate. Exact restoration passed.
+    // Proof: C03 disabling only this election guard made 'held verification duplicate' send a second POST after the peer accepted, despite returning the immutable original stage acknowledgement, in both providers. Exact restoration passed.
     if (staged.kind === 'duplicate') {
       const winner = await readWinner();
       if (winner !== undefined) return { kind: 'accepted', intent, ack: winner };
@@ -139,6 +140,7 @@ export async function deliverOutcome(
         signal,
       });
     } else {
+      // Proof: C01 removing this return made 'pre-aborted outcome' renew the real lease and refuse takeover at its original expiry in both providers. The later cancellation guard still blocked client entry. Exact restoration passed.
       if (isCancelled())
         return { kind: 'pending', intent, observation: { kind: 'cancelled_before_dispatch' } };
       // Proof: S02 omitting await let POST occur before renewal release in both provider traces. Exact restoration passed.
@@ -150,6 +152,7 @@ export async function deliverOutcome(
           intent,
           observation: { kind: 'local_refused', reason: renewed.reason },
         };
+      // Proof: C02 removing this return made 'abort during held renewal' enter the validated client and report unconfirmed/cancelled in both providers. Inherited client preflight still blocked transport; this proves phase ordering. Exact restoration passed.
       if (isCancelled())
         return { kind: 'pending', intent, observation: { kind: 'cancelled_before_dispatch' } };
       exchange = await client.applyCommands({

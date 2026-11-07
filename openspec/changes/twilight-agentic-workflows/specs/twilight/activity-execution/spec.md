@@ -201,3 +201,36 @@ The coordinator SHALL persist preparation intent, prepare without execution, per
 
 - **WHEN** a local adapter accepts a preparation or a boolean authorization flag
 - **THEN** that acceptance cannot certify durable host ordering; the release/reclaim gap gives no continuous reservation guarantee
+
+### Requirement: API-model restart reconciliation retains unsupported recovery
+
+The production API-model reconciliation operation SHALL verify retained history and the trusted adapter association, renew current ownership, and call the matching lookup or resume boundary. It SHALL retain the correlated unsupported reply before fenced unresolved publication, preserving checkpoint, provenance and capacity. It SHALL NOT dispatch work, release capacity or admit replacement. The association grants no adapter introspection or physical continuity.
+
+#### Scenario: A lost API-model open reply remains unresolved
+
+- **WHEN** a preparing checkpoint survives actual session creation and the original reply was not retained
+- **THEN** a replacement actual API-model adapter is queried by the original preparation identity and its correlated unsupported observation is retained before unresolved publication
+- **AND** the preparing checkpoint and capacity remain held without another open
+
+#### Scenario: A retained turn survives SQLite reopen
+
+- **WHEN** SQLite is closed and reopened after a real API-model session and turn intent were retained
+- **THEN** the replacement adapter's resume observation is retained as unsupported under current ownership while the exact locator, turn key and original turn owner remain unchanged
+- **AND** neither unsupported recovery nor caller cancellation establishes worker absence, business completion or permission for replacement
+
+#### Scenario: Exact recovery retry replays verified evidence
+
+- **WHEN** the identical command is retried with verified original unsupported evidence
+- **THEN** the original acknowledgement is replayed without another adapter query or revision/capacity mutation
+- **AND** changed target or adapter selection refuses, and missing or corrupt required evidence throws
+
+#### Scenario: Ownership changes during awaited recovery
+
+- **WHEN** takeover or an intervening revision occurs while recovery, artifact retention or publication is held
+- **THEN** the submitted owner/revision cut prevents stale unresolved publication
+- **AND** success waits for both evidence retention and durable publication
+
+#### Scenario: Caller abandons recovery before the query
+
+- **WHEN** cancellation is observed before renewal or while renewal is awaited
+- **THEN** the operation returns controlled cancellation without querying the adapter or changing the checkpoint

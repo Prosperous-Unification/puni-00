@@ -111,6 +111,7 @@ incidents; those IDs deliberately share one preserved payload anchor.
 | R5-28    | none — see [Checks kept without a reachable negative](#checks-kept-without-a-reachable-negative) |
 | R5-29    | none — see [Checks kept without a reachable negative](#checks-kept-without-a-reachable-negative) |
 | R5-30    | none — see [Checks kept without a reachable negative](#checks-kept-without-a-reachable-negative) |
+| R5-31    | none — see [R5-31](#an-applied-role-can-report-success-over-a-lock-out)                          |
 
 ## Bun forced recursive removal can leave its root
 
@@ -154,6 +155,24 @@ Restoring the three-attempt guard passed that same test (one pass, zero failures
 The earlier `=== 1` mutation demonstrated premature refusal only; it did not prove
 the upper bound. Both the adjacent production comment and this record retain the
 weakened-bound observation instead. Runtime code is unchanged by this correction.
+
+## An applied role can report success over a lock-out
+
+**R5-31**, observed 2026-11-04 on h2puni (H2-A7). The `gate_host` task "Install the exact gate
+authorized keys" wrote `content: |` with `{{ puni_gate_authorized_keys | join('\n') }}`. The `\n`
+stayed backslash-n, so five keys became one line and sshd let in only the first caller. Nothing
+in the role read the file back, so no step of an apply could fail on it; h4claw, with one key,
+had passed every apply. The pre-apply backup,
+restored by hand as root, was the only recovery.
+
+The role now renders a template to a staged file and compares its `ssh-keygen -lf` fingerprint
+count with the list's length before the file replaces the live one; validate repeats the count on
+the live file. In the controller-image evaluator (`infra/ansible/tests/gate-host-assertions.py`,
+E11 to E13) the reinstated form was refused at the staged count with `holds 1 keys, but
+puni_gate_authorized_keys lists 3` and the previous live file intact; with the condition removed
+it passed. A task that names an exact result is a
+claim until a read-only probe of that result can fail
+([verify.md](../../openspec/changes/dash-host-jobs/verify.md)).
 
 ## Checks kept without a reachable negative
 

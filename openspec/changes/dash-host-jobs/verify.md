@@ -2444,3 +2444,863 @@ boolean`. A string `false` from `-e key=value` would make `when: not …` skip t
   printed `FAIL` for both and `{"failures": 2}`, exit 1.
 - Full evaluator after the fixes, digest-locked controller: 74 `ok` lines, `{"failures": 0}`,
   exit 0.
+
+## 2026-11-04 h2puni apply 1 — authorized_keys incident (H2-A7)
+
+Apply 1 of `gate_host` on h2puni (21:16–21:19 UTC) locked out every caller of `puni1` but one
+until the pre-apply backup of `~/.ssh/authorized_keys` was restored by hand as root (private
+`puni-plan` evidence `2026-11-04-h2puni-gate-host-apply.md`). Apply 2 and validate wait on this
+fix.
+
+- **Root cause.** "Install the exact gate authorized keys" wrote `content: |` with
+  `{{ puni_gate_authorized_keys | join('\n') }}`. In that block scalar the `\n` stayed two
+  characters through Ansible's templating, so the five keys became one 528-byte line; sshd
+  honoured the first key and read the other four as its comment. h4claw lists one key, so its
+  applies never showed it. The controller image wrote `a\nb\nc` (backslash-n) for that form and
+  real newlines for a double-quoted string and for a template file (`od -c`, 2026-11-04).
+- **Fix.** The task renders `templates/authorized_keys.j2`, one key and a newline per entry,
+  with the same owner, group and 0600. Validate's new "Fingerprint the gate authorized keys"
+  (`ssh-keygen -lf`, read-only) and "Require one authorized key per listed key" refuse a file
+  whose fingerprint count differs from the list's length, so apply 1 would have stopped at
+  validate instead of passing. `~/.cache` is now created 0700, h2puni's own mode; apply 1 had
+  widened it to 0755.
+- Controller-image evaluator, families E11 and E12, three keys generated per run: the role's
+  task with three keys, one key and a key with a `from=` option passed; a malformed third key
+  was refused with `holds 2 keys, but puni_gate_authorized_keys lists 3`; the reinstated
+  `content: |` task wrote one line and was refused with `holds 1 keys, but
+puni_gate_authorized_keys lists 3`. With the count condition removed both bad files passed
+  (rc 0). The evaluator now runs as `--user 0:0`, because `ssh-keygen` exits 255 under the
+  image's uid 1000, which has no passwd entry. Full run: 81 `ok` lines, `{"failures": 0}`, exit 0.
+- `ansible.test.ts` "writes one authorized key per line and validates the count" pins the
+  template task, the template's bytes, the `~/.cache` mode, the probe argv and the assertion.
+  Restoring the copy task failed it (`- Expected - 7`, `+ Received + 1`), and so did dropping the
+  count condition from validate.yml (`- Expected - 3`, `+ Received + 1`).
+- `docs/infra/gate-hosts.md`: stage the key list from the live file and compare it byte for byte
+  (`cmp`, H2-B1: a trailing space differed between a snapshot and the staged list), and after
+  apply 1 log in from a second session before closing the first.
+- Not done: no host was touched. Apply 2 and validate on h2puni remain task 6.3's operator half.
+
+### Review fixes (Fable, PR #852)
+
+- M2: the keys no longer reach the live file before they are counted. main.yml renders them to
+  `~/.ssh/authorized_keys.staged`, imports `tasks/authorized-keys-count.yml` (the `ssh-keygen -lf`
+  probe and the count assertion) on it, copies it into place with `remote_src: true` and removes
+  it; validate.yml imports the same file against the live `authorized_keys`. The template
+  module's `validate:` cannot do this: `ssh-keygen -lf` exits 0 when any key parses. Staging and
+  removal are `changed_when: false`, so a rerun reports only the install. Evaluator E11 to E13:
+  the role's sequence installed three keys, one key and a key with a `from=` option, and a rerun
+  with the same 0600 file reported `changed=0`; dropping either `changed_when` failed that. The
+  reinstated `content: |` render (E12) and a malformed third key were refused at the staged
+  count, with no `Install the exact gate authorized keys` task in the output and the previous
+  live file unchanged; moving the install before the count overwrote it, and removing the
+  condition let both bad files through. E13 refused a joined live file through validate's import.
+  Full run: 88 `ok` lines, `{"failures": 0}`, exit 0.
+- `ansible.test.ts` "stages the authorized keys, counts them, then installs them" pins the
+  four-task order, the staged template, the import and its `puni_gate_keys_file`, the
+  `remote_src` copy, the removal, validate's import, the probe and the assertion. Restoring the
+  copy task (`- Expected - 7`), moving the install above the count (`- Expected - 1`) and dropping
+  the count condition (`- Expected - 3`) each failed it.
+- M1, M3, L2: gate-hosts.md says what `cmp` proves (a lossless copy and the final newline) and
+  adds a key-count line for comment and blank lines, completes step 0's order through
+  `--tags validate`, and records h4claw's `~/.cache` narrowing to 0700.
+- L1: the assertion's `fail_msg` prints the parsed fingerprints, and the count file says the
+  count is not a login test.
+
+## 2026-11-05 role converged on both hosts (task 6.3, operator half)
+
+`gate_host` at `main` `149e6e85b` converged on both gate hosts, neither enrolled. Private
+`puni-plan` evidence: `evidence/2026-11-05-h2puni-gate-host-apply.md` and
+`evidence/2026-11-05-h4claw-gate-host-reapply.md`.
+
+- h2puni: apply 1 `ok=66 changed=1` (`~/.cache` 0755 to 0700), apply 2 `changed=0`, validate
+  `ok=30 failed=0`.
+- h4claw: apply 1 `ok=66 changed=1` (`~/.cache` 0755 to 0700), apply 2 `changed=0`, validate
+  `ok=30 failed=0`.
+- **H2-A8** `~/puni-00-gate-tbf2` is detached at the night's last gate SHA: the gate script moved
+  it, not the role (J15), and validate's clean, canonical and full checks passed on it.
+- **H2-A9** The root safety-net ControlMaster did not survive the harness: it was gone minutes
+  after it started, so the root path was verified but not held during the applies.
+- **H2-A10** `~/.cache` was 0755 from H2-A7's apply until apply 1, which restored 0700.
+- **H4-A8** Only `~/.cache` changed: the 2026-11-02 apply had brought everything else to the pins.
+- **H4-A9** `~/puni-00-gate-launcher` is detached at `75a78ff3b`, older than `149e6e85b`; the role
+  never moves a head, so move it to current `main` before `ops pool init` (gate-hosts.md, step 5).
+- **H4-A10** A background `sleep` root session did survive the harness across every step, as
+  `ps` showed between steps.
+
+## 2026-11-05 `docker_build` token unit and h2puni's launcher checkouts (task 6.3e)
+
+- The role's token-unit tasks ("Create the token units", "Read the token units") loop over
+  `puni_gate_pool_token_units`, `dagger_engine` and the new `docker_build`; the commit subject is
+  `<unit> token unit (dash-host-jobs S6-A7)`, so `dagger_engine`'s is unchanged. `exclusiveUnits`
+  gains `docker_build`, and validate's shape probe requires it.
+- h2puni's inventory sets `puni_gate_pool_launcher_checkouts` to `/home/puni1/puni-00-gate-launcher`
+  and `/home/puni1/wbs-dev/src`; h4claw keeps the default.
+- Controller-image evaluator, family E14 (digest-locked controller `sha256:372f6f43…`, `--user
+0:0`): a fresh host created both units with `changed=1` across two runs of the create task,
+  each the top of a clean tree with a commit; a dirty `docker_build` left in place was refused
+  (`token unit …/docker_build exists but is not a clean Git tree with a commit`); validate's read
+  refused `docker_build` dirtied and re-initialized without a commit. Reducing the create loop
+  to `dagger_engine`, removing its `changed_when`, and reducing the read loop to
+  `dagger_engine` each turned its case around. Full run: 96 `ok` lines, `{"failures": 0}`, exit 0.
+- `gate-host-pool.test.ts` runs the create and read argv for each unit and checks the commit
+  subject, the template's `exclusiveUnits`, the shape probe's new `no docker_build unit` case
+  and `ops pool init` on both units (namespace test). Dropping `docker_build` from the shape
+  probe's expected units failed it (`Expected: 0`, `Received: 1`).
+- `ansible.test.ts` "configures a gate host…" pins the exclusive units, the token-unit list, both
+  tasks' loop, h2puni's launcher list, its absence on h4claw, the template's
+  `launcherCheckouts` line and the configuration task's `when`. Dropping `~/wbs-dev/src`
+  (`- Expected - 1`), giving h4claw the list (`+ Received + 4`), dropping `docker_build`
+  (`- Expected - 3`), dropping either loop (`- Expected - 1`, `+ Received + 1`) and dropping the
+  `when` (`Received: undefined`) each failed it.
+- Open: no type in this repository's catalogue declares `docker_build` yet, so the unit
+  serialises `website-dev-build` runs with each other only, not with the gate's solver smoke, which
+  shares the host daemon's BuildKit cache (release-build builds inside the Dagger engine's own cache).
+
+### Commands (fresh, 2026-11-05, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT` for tests)
+
+| Command                                                                             | Result                                        |
+| ----------------------------------------------------------------------------------- | --------------------------------------------- |
+| evaluator (`gate-host-assertions.py`, controller `@sha256:372f6f43…`, `--user 0:0`) | 96 `ok`, `{"failures": 0}`, exit 0            |
+| `bun test src/ops/gate-host-pool.test.ts` (twilight-dash)                           | 12 pass, 0 fail                               |
+| `bunx nx run tool-fleet:check --skip-nx-cache`                                      | 604 pass, 0 fail; every family passed, exit 0 |
+| `bunx nx format:check --all`                                                        | exit 0                                        |
+| `bunx openspec validate --all --json`                                               | 328 passed, 0 failed, exit 0                  |
+| Burokrat `check-indexes working <worktree> origin/main`                             | exit 0 (two pre-existing review-debt rows)    |
+| `bunx nx affected -t lint typecheck test --base=origin/main --parallel=2`           | 8 projects, exit 0                            |
+
+No host was touched: the converging apply of this change on h2puni and h4claw is owed (task 6.3e).
+
+## 2026-11-05 token-unit apply converged on both hosts
+
+`gate_host` at `main` `5150237fc` (task 6.3e) was applied to h2puni and then h4claw, neither
+enrolled. Private `puni-plan` evidence: `evidence/2026-11-05-token-unit-apply.md`.
+
+- Each host: apply 1 `ok=66 changed=1`, the one change "Create the token units" for the
+  `docker_build` item; apply 2 `ok=66 changed=0`; `--tags validate`
+  `ok=30 changed=0 failed=0 skipped=4`.
+- Validate on each host: "Require one authorized key per listed key" passed and "Read the token
+  units" was ok for both units. The sudo assertions matched each host: on h2puni the exception
+  assertion passed and the strict one was skipped; on h4claw the strict one passed and the
+  exception was skipped.
+- A second-session `puni1` login was verified after apply 1 on both hosts, and the root
+  safety-net session was held as a background job throughout (the H4-A10 shape).
+- Neither host is enrolled: no `host-pool.json`, no ledger. `docker_build` is a clean
+  one-commit tree.
+- **H2-A11** A `pgrep -f` probe over ssh matches its own remote shell, whose command line carries
+  the pattern; filter it with `pgrep -af … | grep -v pgrep` or a bracket pattern (gate-hosts.md, step 0).
+- The `ops job audit` probe under validate was among the 4 skips on both hosts (no ledger yet); it
+  stays unexercised live until 6.4. h2puni had 23 GiB free before each apply (role floor 20 GiB).
+- **H2-A12 / H4-A11** The token unit was the only drift on either host.
+
+## Slice 6d: nested heavy jobs and launcher freshness (tasks 6.10, 6.9)
+
+Branch `feat/host-jobs-nested-label-and-launcher-timer` from `main` at `5150237fc`. Nothing here
+touched a host: no ssh, no apply, no enrollment.
+
+### Assumptions (overrulable by id)
+
+- **S6D-A1 A nested call is re-labelled, on its enclosing job's admission, when that is sound
+  (task 6.10).** `run_heavy_job` with `DASH_JOB_ID` set calls `run_nested_heavy_job`, which takes
+  no lock, writes no ticket and asks Dash nothing. It runs the payload with
+  `HEAVY_LOCK_LABEL=<outer label>/<type>` and prints one stderr line,
+  `heavy job: <derived label> runs inside dash job <id> on that job's admission; no lock or
+admission of its own`, which lands in the enclosing job's log.
+  - Why re-label rather than refuse: the nested work is already inside an admitted scope, which
+    measures and caps it, and Dash attributes every process that carries the job's
+    `DASH_JOB_ID`. Asking again only queued it behind its own enclosing job: an observe-mode
+    ticket behind the job's legacy hold, or an admission behind a `gate` that is not
+    concurrency-eligible. With a zero budget either refused 75, under the gate's label.
+  - The check proves kernel placement, not Dash admission. The id must have a job id's shape
+    (`[0-9a-f-]{36}`, as `status.ts` parses it). This process's cgroup v2 path must be, or sit
+    under, a scope named `dash-job-<id>.scope` (`scopeUnitOf`). Otherwise the call is refused 70.
+    That refuses an inherited or hand-set `DASH_JOB_ID` outside such a scope; a launcher that
+    inherited one unsets it before calling. It does not stop a same-account opt-out: the review
+    of #873 reproduced `systemd-run --user --scope --unit dash-job-<id> …` passing it. The lock is
+    advisory for the same account anyway. A real admission check would ask the ledger for a
+    running job with that id; it is owed under task 6.10.
+  - Superseded in slice 6e (S6E-A3): admission is now checked too. After placement the nested
+    call asks `ops job admission` and runs only when the ledger has that job running.
+  - Correction to the review: it read puni-pr-00 as not unsetting the variable. Its launcher
+    `deploy/website/dev/build-release.sh` does, at line 77 on `origin/main` `a31b3c5`
+    (`unset DASH_JOB_ID DASH_JOB_TYPE`), before its `run_heavy_job`. Its payload then reads the
+    pair Dash sets, for the bounds, labels and receipt.
+  - A type that declares an exclusive unit is refused 70. Its unit is either the enclosing job's,
+    in use by the payload that started it, or not held at all. Re-labelling cannot make either
+    sound. Today that means every type but `test-queued`: a nested solver publish or release build
+    is refused with the unit named. It could not run before either: it queued behind the gate.
+    An uncatalogued type is 64, as Dash refuses it.
+  - The `/` separator is kept. The receipts that `release-pin.ts`, `scoping-rollback.ts`
+    (`heavy-lock-claim.ts`) and puni-fleet `fleet-check` read are
+    `<library> heavy lock: waited <n>s behind <k> tickets` or
+    `dash job <id> type website-dev-build`, and neither form carries a label. A ticket's
+    `label` line takes any text. `status.ts` parses a holder label only up to the space after
+    `dash-job-<id>`. A nested call writes none of these.
+  - The legacy lock is unchanged. On an unenrolled host there is no admitted job, so no
+    `DASH_JOB_ID`, and a nested launcher queues behind its parent's lock as before.
+- **S6D-A2 No Dash-side assertion in `launchers.test.ts`.** Its fake scope seam
+  (`fakeSystemdRun` `exec`, `fakeScopeTelemetry`) runs the payload outside any
+  `dash-job-<id>.scope`. A nested launcher there would be refused by the cgroup check, which is the
+  check doing its job. The derived label, the absence of a lock and of a second admission, the
+  status pass-through and the kernel identity are pinned in `bin/heavy-lock.test.sh` case 49,
+  with `read_own_cgroup` redefined in the test shell, the seam this library already uses for its
+  fixed paths. Case 49c reads the real `/proc/self/cgroup`.
+- **S6D-A3 Tests that spawn launchers with an inherited environment.** Run inside an enrolled
+  gate, a test that spawns a real `run_heavy_job` with `process.env` takes the nested path.
+  `launchers.test.ts` already removes the job variables (S6C-A25), and `heavy-lock.test.sh`'s job
+  suite now unsets `HEAVY_LOCK_LABEL` and every `DASH_JOB_*` before case 40. Nothing is owed in
+  `tools/tool-dagger/src/heavy-lock.test.ts`: its gate fixture defines
+  `run_heavy_job() { with_heavy_lock; }`, so the nested path is never reached there and the
+  inherited variables are harmless (review of #873).
+
+### Faults (6.10, `bin/heavy-lock.test.sh`, `HEAVY_LOCK_TEST_SUITES=jobs`)
+
+| Injected fault                                                | Observed                                                                                                                                                    |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `run_heavy_job`'s `DASH_JOB_ID` branch replaced by `if false` | `49a: the payload runs under the derived label: want 'gate:abc/test-queued', got 'gate:abc'`; `49a: the nested call asked Dash again: … --label gate:abc …` |
+| scope comparison replaced by `if false`                       | `49c`/`49d … want exit 70, got 0`, `something ran beside a forged job identity`; 4 checks failed                                                            |
+| exclusive-unit refusal replaced by `if false`                 | `49f … want exit 70, got 0`; the payload ran as `gate:abc/solver-image-publish`; 2 checks failed                                                            |
+
+- **S6D-A4 Who counts as a job launched from the checkout (task 6.9).** It is any live process of
+  `puni1` whose working directory is the checkout or lies under it, except the processes of
+  `dash-resources-watch.service`, which runs there by design and is restarted after the move.
+  - This is the attribution Dash itself uses. `ops job run` reads the catalogue and the payload's
+    revision from the checkout that holds the launcher's working directory (`catalogue.ts`).
+    Every launcher stays alive as the outer shell of its job (J13). The ledger records no
+    checkout for a job (`launcherSha` is null), and the lock's holder record names only a pid and
+    a label, so neither can answer the question.
+  - The scan also catches what neither record would. A Dash waiter would otherwise be refused 64
+    when HEAD moves under it. It also catches a legacy launcher, a `test:queued` run in the
+    checkout, the weekly audit, and an operator's shell.
+  - Other accounts are not read: git refuses a checkout another account owns. A process whose
+    working directory the kernel refuses to `puni1` is skipped. Such a process is more privileged
+    than the account, or already leaving, and no launcher is either. Refusing on it instead
+    refused every run on this workstation, over `ssh-agent` and `systemd --user`.
+  - Busy is exit 75 with one journal line naming the checkout, both commits and each `pid
+command`. The unit lists 75 in `SuccessExitStatus`, so a busy hour is not a failed unit. The
+    next hour retries.
+  - A checkout already at `origin/main` exits 0 and nothing is restarted, so a busy host does not
+    wait on a scan.
+- **S6D-A5 Accepted window.** A launcher can start between the scan and the checkout. It then
+  sees one commit whole, old or new, because git replaces files rather than rewriting them. If
+  its catalogue read and its gate straddle the move, Dash's existing HEAD check refuses it 64,
+  which is loud and rerunnable. The window is the length of a detached checkout. Taking the heavy
+  lock around the move would close it for the legacy queue only. Concurrent-mode admissions do
+  not take that lock first, and a zero-budget caller would be refused 75 at random.
+- **S6D-A6 Restart and install.** The watch is restarted with `try-restart`, so before
+  `ops pool init` a stopped watch stays stopped. A restart while a job from another checkout runs
+  is what the unit is built for: `KillMode=process` keeps the concurrent-mode guard holder alive
+  across it (S6B-A8).
+  - When `bun.lock` changed between the two commits, the checkout's frozen install runs before
+    the restart, because the watch would otherwise start on modules the new commit does not pin.
+    The brief did not ask for this step; it is needed for the restart to be sound.
+  - A failed install returns the checkout to the old commit and reinstalls that commit. The
+    watch, never restarted, keeps running the code that matches, and the next hour retries the
+    whole move. If the return fails as well, the error names the manual steps.
+- **S6D-A7 Installed everywhere, enabled where enrolled, started by the operator.** The role
+  installs `gate-launcher-refresh.service` and `.timer` on every gate host, beside the other Dash
+  units. It enables only the timer, only where `puni_gate_host_pool_enroll` is true, and starts
+  nothing.
+  - gate-hosts.md step 5 starts the timer together with the watch and the audit timer, after the
+    first move. That move stays manual: the service runs the script from the checkout itself, so
+    a checkout older than the script cannot refresh itself.
+  - The timer runs `OnCalendar=hourly`, `RandomizedDelaySec=5min`, `Persistent=true`.
+  - The service is `WorkingDirectory=<home>`, so the refresh is never a process in the checkout.
+  - The script ends in one compound command, so bash has parsed the whole file before the
+    checkout holding it moves.
+  - validate requires both files and the timer enabled.
+- **S6D-A8 CI.** The shell test is a step of its own in `ci.yml`, beside the heavy-lock and gate
+  pinning suites, because no Nx project owns `bin/`. The script and its test are in the fleet
+  check's shellcheck list (`EXTRA_SHELL_SCRIPTS`), since both are executable. No `package.json`
+  script was added: `package.json` is an Nx shared global, and touching it would mark every
+  project affected.
+
+### Faults (6.9)
+
+| ID    | Injected fault                                                                                                 | Observed                                                                                                                                                           |
+| ----- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 6d-F1 | busy refusal (`if [[ -n $workers ]]`) replaced by `if false`                                                   | `1: a process in the checkout refuses the move: want exit 75, got 0`; `1: the checkout did not move` failed; `1b … want exit 75, got 0`                            |
+| 6d-F2 | watch-unit exclusion replaced by `:`                                                                           | `4: a watch process in the checkout does not block the move: want exit 0, got 75`; 2 checks failed                                                                 |
+| 6d-F3 | dirty-checkout refusal replaced by `if false`                                                                  | `5: a dirty checkout is refused: want exit 65, got 0`; the checkout moved, carrying the edit along (git keeps a non-conflicting edit)                              |
+| 6d-F4 | restart status ignored (`systemctl … \|\| :`)                                                                  | `8: a failed watch restart is reported: want exit 70, got 0`; 2 checks failed                                                                                      |
+| 6d-F5 | lockfile install replaced by `if false`                                                                        | `10: the frozen install ran in the checkout: want 'install --frozen-lockfile in <launcher>', got ''`, and 10b's failed install exited 0 with the watch restarted   |
+| 6d-F6 | return after a failed install replaced by `true`                                                               | `10b: the checkout returned to the commit the watch runs` failed; `10c … want exit 70, got 0`; 4 checks failed                                                     |
+| 6d-F7 | service template: `WorkingDirectory` set to the launcher checkout; `SuccessExitStatus=75` dropped              | `gate-host-pool.test.ts` "the launcher refresh runs hourly…": `- "/tmp/gate-host-pool-…"`, `+ ".../puni-00-gate-launcher"`; then `- ["75"]`, `+ undefined`         |
+| 6d-F8 | `host-pool.yml`: refresh service dropped from install; timer dropped from enable; enable task's `when` dropped | `ansible.test.ts` "configures a gate host…" failed each time (33 pass, 1 fail)                                                                                     |
+| 6d-F9 | the skip for a working directory the kernel refuses, replaced by a 70 refusal                                  | every run refused on this workstation: `cannot read the working directory of pid 10816` (`ssh-agent`), then pid 2226 (`systemd --user`, `CapEff 0000000800000000`) |
+
+Review of #873 additions: 6d-F10, the checked `HEAD` read in `bin/gate-launcher-refresh.sh`
+dropped, let a checkout with no HEAD commit move on with an empty head:
+`11: a checkout without a HEAD commit is refused: want exit 70, got 0`, then `fatal: Needed a
+single revision`. `read_own_cgroup` now refuses an unreadable `/proc/self/cgroup` with its own
+message, apart from a file with no `0::` line. That branch has no test: an unreadable
+`/proc/self/cgroup` cannot be arranged for an unprivileged test process.
+
+The controller-image evaluator's E3 now records five unit files and drops each of the eight
+conditions in turn. E4 records them too. E5 adds `refresh timer disabled`, which the probe
+refuses, and removing `failed_when` lets it through. The run's lines are in the commands table.
+
+### Commands (fresh, 2026-11-05, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, this workstation)
+
+| Command                                                                             | Result                                                                           |
+| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `bash bin/heavy-lock.test.sh`                                                       | `all heavy-lock checks passed`, cases 49a–49g included                           |
+| `bash bin/gate-launcher-refresh.test.sh`                                            | `all gate launcher refresh checks passed`                                        |
+| `bash bin/h2puni-gate.test.sh`                                                      | exit 0, `all cases passed`                                                       |
+| evaluator (`gate-host-assertions.py`, controller `@sha256:372f6f43…`, `--user 0:0`) | 102 `ok`, `{"failures": 0}`, exit 0                                              |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                    | 5714 pass, 53 skip, 0 fail across 183 files; exit 0                              |
+| `bunx nx run tool-fleet:check --skip-nx-cache`                                      | 604 pass, 0 fail; `shellcheck 0.11.0: 14 scripts`, `every family passed`, exit 0 |
+| `bunx nx format:check --all`                                                        | exit 0                                                                           |
+| `bunx openspec validate --all --json`                                               | 328 passed, 0 failed, exit 0                                                     |
+| Burokrat `check-indexes working <worktree> origin/main`                             | exit 0 (two pre-existing review-debt rows)                                       |
+| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2`                | 10 projects, exit 0                                                              |
+
+Not done: no host apply, so the units are not installed on h2puni or h4claw. That apply is owed
+with 6.3e's converging apply, and the timer starts at step 5 of the enrollment. No gate ran on a
+host.
+
+## Slice 6e: tmp identity, nested admission, catalogue bookkeeping (tasks 2.4, 6.10a, 1.1)
+
+Branch `feat/host-jobs-inode-identity-and-admission` from `main` at `0ff9b5a1f`. Nothing here
+touched a host: no ssh, no apply, no enrollment.
+
+### Assumptions (overrulable by id)
+
+- **S6E-A1 A content marker, not birth time or ctime, completes the tmp directory's identity
+  (task 2.4).** `prepareHostJob` writes a random UUID to `<locator>/.dash-tmp-identity` (mode
+  0600, `wx`) and persists it as `HostJob.tmpMarker`. Settlement requires device, inode and that
+  token: `hostJobTmpPresent` reads it with `O_NOFOLLOW` and requires a regular file with one
+  link, and the removal script reads it again through the directory descriptor it then erases,
+  so the check and the removal see the same directory.
+  - Why not ctime: it changes whenever an entry is added to or removed from the directory, which
+    every payload does to its `TMPDIR`. Why not birth time: `statx` reports it only where the
+    filesystem records it, and a missing birth time would leave the inode-reuse hole open
+    exactly there.
+  - The marker lives in the payload's `TMPDIR`, so a payload that deletes or rewrites it leaves
+    its tmp entry `blocked` with `identity changed: content marker differs` for an operator.
+    That is the fail-closed reading of "not provably the original", and a payload has no reason
+    to touch a dot-file it did not create. A deliberate same-account forger can copy the token;
+    the lock is advisory for the same account already (S6D-A1), and this closes the accidental
+    reuse, which is what the full-suite failure showed.
+  - The removal script erases the marker last, after everything else, so a removal refused
+    halfway (an outside hard link) leaves the directory still provably the original and the
+    next pass keeps the same reason instead of writing a new settlement event. A crash between
+    unlinking the marker and the final `rmdir` leaves an empty unmarked directory, which reads
+    `blocked` for an operator; that window is one syscall long.
+  - Measured on this workstation's ext4 `/tmp`: `rmdir` then `mkdir` returned the same inode on
+    the first attempt five times out of five. The old test passed alone only because its
+    `mkdir(outside)` between the two took the freed inode.
+- **S6E-A2 No ledger version bump.** `tmpMarker` is an optional key of the host-job snapshot,
+  the pattern `reserved?` set in slice 4. A row prepared before this change has device and
+  inode and no marker; it settles on device and inode as it did, so a job running across the
+  upgrade is not stranded. Every row prepared from now on carries one. `HostJobShape` rejects
+  undeclared keys, so a Dash from before this commit cannot read those new rows: an
+  un-restarted watch, or an older checkout's `ops job status`. The refresh restarts the watch
+  right after the checkout moves (S6D-A6), which makes that unlikely.
+
+- **S6E-A3 A nested call asks the ledger through a new read-only `ops job admission` (task
+  6.10a).** After the placement and exclusive-unit checks, `run_nested_heavy_job` runs
+  `bun <checkout>/…/entrypoint.ts ops job admission --config <fixed path> --job <id>` and
+  accepts only `{"job":"<id>","running":true}`.
+  - Why a new command: `ops job status` prints text for people and reads the shell lock's
+    queue, and `ops pool inspect` prints the whole pool plus that queue. Both are more work and a
+    wider contract than one yes or no. The new command opens the ledger as every `ops` command
+    does (`openPool`), reads one row and prints one JSON line. It takes no lock: SQLite WAL reads
+    do not wait on writers, and it neither sweeps nor settles.
+  - Running means launched (`held`), no exit code and no launch failure recorded, and the
+    leader recorded at launch still alive (pid, boot id and start time). A job admitted but not
+    launched has no payload that could be the caller. A finished job's id, reused by a forged
+    scope, is refused.
+  - The shell refuses 70 on an unenrolled host before asking: there is no ledger, so no job can
+    have been admitted. It also refuses 70 when Dash is missing, exits non-zero, or answers
+    anything but a boolean `running` for the same job id. "Cannot tell" is never "admitted".
+  - Cost: one Bun start and one SQLite read per nested call, about the cost of `ops job
+status`. Nested calls are rare: today only a `test:queued` run inside a gate.
+  - What it still does not stop: a same-account process that copies a running job's id into a
+    scope it makes. That process runs beside a job that really is admitted and measured. The
+    lock is advisory for the account (S6D-A1), and this closes the forged-id case the review of
+    #873 reproduced.
+  - The Dash queried is the nested caller's own checkout's (`resolve_dash_entrypoint`, from the
+    library the caller sourced). Inside a gate that is the gate tree at the candidate commit,
+    asked about the production ledger with the production `--config`. So `ops job admission`
+    opens the ledger with `ResourceRuntime.openReadOnly` (review of #876 F1). That means SQLite
+    `readonly`, the binding still compared, no eligibility check, and no migration. A ledger
+    whose `user_version` is not this Dash's `LEDGER_VERSION` is refused 70, and the shell treats
+    that refusal like any other Dash failure. A candidate that bumps the schema therefore
+    cannot migrate the production ledger from inside a gate. Its nested calls are refused
+    until production moves to that version.
+  - The query is bounded (review F2): `timeout --kill-after=5 60`. Exit 124 or 137 is refused
+    70 with its own message. `timeout` is coreutils, Essential on Ubuntu (gate-hosts.md,
+    Packages).
+
+- **S6E-A4 Task 1.1 was complete on `main`; only its box was open.** Each promise, checked
+  against `0ff9b5a1f`:
+  - `infra/jobs/catalogue.json` holds the four types (`jq -r '.jobs[].id'`: `gate`,
+    `release-build`, `test-queued`, `solver-image-publish`). `infra/jobs/README.md` has the
+    sections Fields, Heuristics (provisional) and Changing an envelope (the `calibrate` →
+    `propose` → pull request → `audit` loop). Both came in `aadff2c3f`.
+  - The comment goes on each catalogue `entrypoint`, not on every launcher. `gate` is at
+    `bin/h2puni-gate.sh:130` and `release-build` at `bin/publish-release.sh:15`.
+    `solver-image-publish` is at `tools/tool-devsync/src/solver-binding-runtime.ts:227`, its
+    catalogue entrypoint. `test-queued`'s entrypoint is `package.json#scripts.test:queued`, and
+    the README says JSON holds none. The launchers `bin/test-queued.sh` and
+    `bin/solver-image-publish.sh` already name their type in `HEAVY_LOCK_JOB_TYPE=<id>`, so a
+    comment there would only repeat it. None was added.
+  - `puni-pr-00` #75, with `website-dev-build`, merged at `022a7e8b8` on 2026-11-03.
+  - Tests: `job-catalogue.test.ts` (Burokrat contracts) has `parses this repository's catalogue
+and names its four job types` and `refuses arguments outside the argument profile`.
+
+### Faults (2.4, `bun test src/resources/host-jobs.test.ts` in its namespace)
+
+| ID    | Injected fault                                                       | Observed                                                                                                                                                                                                               |
+| ----- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6e-F0 | none: the new reuse test against `main`'s dev+inode identity         | `a replacement directory that reuses the inode stays charged and untouched`: `Expected: "blocked"`, `Received: "released"`                                                                                             |
+| 6e-F1 | TypeScript marker comparison replaced by `if (false && …)`           | the reuse test and `a tmp directory whose marker the payload removed stays charged` failed: `Expected to contain: "identity changed"`, `Received: "tmp directory cleanup failed: descriptor-relative removal refused"` |
+| 6e-F2 | 6e-F1 plus the removal script's `marker=` option dropped             | both failed: `Expected: "blocked"`, `Received: "released"`                                                                                                                                                             |
+| 6e-F3 | removal script erases the marker with the rest, not last             | `a blocked tmp directory adds no outbox rows and backs off its evidence reads`: `Expected: 4`, `Received: 5` (a new settlement event)                                                                                  |
+| 6e-F4 | a marker required of a row without one (`job.tmpMarker ?? "absent"`) | `a row prepared before markers settles on device and inode`: `Expected: "released"`, `Received: "blocked"`                                                                                                             |
+
+### Faults (6.10a)
+
+`bin/heavy-lock.test.sh` with `HEAVY_LOCK_TEST_SUITES=jobs`, then `admission.test.ts` in its
+namespace.
+
+| ID     | Injected fault                                                    | Observed                                                                                                                                                                                |
+| ------ | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6e-F5  | `if [[ $running != true ]]` replaced by `if false`                | `49h: a forged scope is refused when the ledger answers absent: want exit 70, got 0`; `49h: the payload ran on a forged scope (absent)`; 3 checks failed                                |
+| 6e-F6  | unenrolled refusal replaced by `if false`                         | `49k: a nested call on an unenrolled host is refused: want exit 70, got 0`; `49k: something ran or asked Dash on an unenrolled host`; 3 checks failed                                   |
+| 6e-F7  | the whole admission block dropped (the library as #873 merged it) | 49a `asked Dash something but its admission`, 49h and every 49i variant `want exit 70, got 0`, the payload ran; 49k `want exit 70, got 0`                                               |
+| 6e-F8  | answer-shape check reduced to `(.running \| tostring)`            | `49i … ledger answers another-job: want exit 70, got 0`, `the payload ran on a forged scope (another-job)`; the malformed answer was refused but not named as unusable; 4 checks failed |
+| 6e-F9  | `hostJobRunning` reduced to `job.state === 'held'`                | `a job whose payload exited, or whose process is gone, is not running`: `- "running": false`, `+ "running": true` (the exited job)                                                      |
+| 6e-F10 | the leader-liveness term dropped                                  | the same test: the killed payload's job read `"running": true`                                                                                                                          |
+| 6e-F11 | `--job` typed `flagValue('NAME')` instead of the job-id pattern   | `the grammar takes only a job id`: `Received function did not throw` for `--job gate`                                                                                                   |
+
+### Commands (fresh, 2026-11-05, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, this workstation)
+
+| Command                                                              | Result                                                                           |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `bun test src/resources/host-jobs.test.ts` (twilight-dash cli)       | 39 pass, 0 fail inside the namespace; outer wrapper 1 pass                       |
+| `bun test src/ops/admission.test.ts src/cli.test.ts`                 | 5 pass in the namespace; 127 pass with `no-ambient-clock.test.ts`, 0 fail        |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                     | 5717 pass, 53 skip, 0 fail across 184 files (3129 s); exit 0                     |
+| `bash bin/heavy-lock.test.sh`                                        | `all heavy-lock checks passed`, cases 49a–49k included                           |
+| `bash bin/h2puni-gate.test.sh`                                       | exit 0                                                                           |
+| `bun test tools/tool-dagger/src/heavy-lock.test.ts`                  | 9 pass, 0 fail                                                                   |
+| `bunx nx run tool-fleet:check --skip-nx-cache`                       | 604 pass, 0 fail; `shellcheck 0.11.0: 14 scripts`, `every family passed`, exit 0 |
+| `bunx nx format:check --all`                                         | exit 0                                                                           |
+| `bunx openspec validate --all --json`                                | 328 passed, 0 failed, exit 0                                                     |
+| Burokrat `check-indexes working <worktree> origin/main`              | exit 0 (two pre-existing review-debt rows)                                       |
+| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2` | 8 projects, exit 0                                                               |
+
+Not done: no host apply and no gate on a host. The admission check takes effect on h2puni and
+h4claw when their launcher checkouts move to a commit carrying it (the hourly refresh, S6D-A4).
+
+### Review fixes (Fable, #876)
+
+| ID     | Injected fault                                                     | Observed                                                                                                                                                                                                  |
+| ------ | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6e-F12 | `openReadOnly` calls `migrate` instead of refusing another version | `a read-only open refuses a ledger of another version and leaves it as it was`: `Expected substring: "resource ledger version 1 is not 2, …"`, `Received message: "attempt to write a readonly database"` |
+| 6e-F13 | 6e-F12 plus `readonly` dropped                                     | the same test: `Received function did not throw`; the open migrated the ledger                                                                                                                            |
+| 6e-F14 | `timeout` dropped from the admission query                         | `HEAVY_LOCK_TEST_SUITES=jobs`, bounded at 90 s from outside, ended 124 before printing `49j`                                                                                                              |
+| 6e-F15 | exit 124 folded into the generic refusal                           | `49j: the refusal did not say Dash timed out: … (exit 124)`; 1 check failed                                                                                                                               |
+
+The F3 marker contract is now one sentence each in `docs/resources.md` (the `TMPDIR` bullet of
+`ops job run`) and `docs/infra/heavy-job-launchers.md`. F4 adds the nested-call requirement to
+the `heavy-lock-queue` delta, with four scenarios. F6: the state text is `(.state // "none" | tostring)`.
+
+After the review fixes, fresh on this workstation: `bunx nx run twilight-dash:test
+--skip-nx-cache` 5717 pass, 53 skip, 0 fail across 184 files (3057 s), exit 0. Also:
+`bash bin/heavy-lock.test.sh` `all heavy-lock checks passed` (49a–49k, 49j new);
+`tool-fleet:check` 604 pass, shellcheck 14 scripts, exit 0; `format:check --all` exit 0;
+`openspec validate --all --json` 328 passed, 0 failed; Burokrat `check-indexes` exit 0 (the
+two existing review-debt rows); `nx affected -t lint typecheck` 8 projects, exit 0.
+
+## Slice 6f: run-record settlement evidence (task 6.8)
+
+Branch `feat/host-jobs-run-record-digest` from `main` at `3ad0b1b43`. Nothing here touched a
+host: no ssh, no apply, no enrollment. No migration: `resource_host_job.evidence` is JSON text.
+
+### Assumptions (overrulable by id)
+
+- **S6F-A1 WBS keeps one digest, over the run record's gate entry, under a locator naming the
+  record (task 6.8).** A returned host job's `release_verified` evidence is
+  `{ digest, locator, disposition: 'returned', reclaimedBytes: null }` where:
+  - **Locator** `dash-host-job-run://<enrollmentId>/<jobId>`: the `runs` row whose `job_id` is
+    the job, in `<pool root>/.dash/host-job-runs.sqlite` on the pool enrolled as `<enrollmentId>`
+    (the declaration's `host`). The run record already has a durable file and a primary key;
+    what it lacked was a name WBS could hold. The pool root is left out: WBS should not hold a
+    host's filesystem layout, and an operator finds the root from the enrollment's
+    `host-pool.json` (the fixed root of task 6.3). Built by `hostJobRunRecordLocator` in
+    `@wbs/contracts`, which Dash and be-01 both call.
+  - **Digest** the SHA-256 of the row's stored `start` text, byte for byte as `begin` wrote it.
+    `start` is written once, in the transaction that records the gate sample, before the gate
+    opens. The gated shell cannot exit until the launcher writes `start` or closes the gate, so
+    by the time a job is released its `start` is final. One window stays open: a scope killed
+    from outside after the gate sample and before `begin` can be settled by `watch` as
+    `not_created`, and then `begin` writes a `start` for a payload that never runs. That window
+    is a few synchronous statements long. `start` also holds `descriptorDigest`,
+    `launcherSha`, `argv`, unit, cgroup, tmp directory and units, so the descriptor is covered
+    through it.
+  - **No run record.** A job whose launcher never wrote the gate entry (withdrawn by
+    `withdrawUnlaunchedHostJob`, a `LaunchUnstarted` job settled by `watch`, or refused before
+    `begin`) has no `runs` row. Only that converse holds: a SIGINT after `begin` and before the
+    last `refuseIfInterrupted()` writes `start`, refuses 130 and publishes `returned` for a
+    payload that never ran (review of #877). It returns `not_created` under the same locator, with the digest of
+    `<locator> absent` (`hostJobRunRecordAbsence`). be-01 recomputes that digest and refuses
+    any other.
+  - **Refusal.** be-01 refuses with `400 invalid_body` any host-job `release_verified` whose
+    locator is not exactly `hostJobRunRecordLocator(use.host, useId)`. That covers S5-A11's
+    `dash-host-job://<authorityId>/<jobId>/<revision>` evidence, another host's record and
+    another job's record. It also refuses a `not_created` with any other digest, and `removed`
+    for a host job. A `returned` digest covers bytes only Dash holds, so WBS checks its shape
+    (64 hex) and nothing more. ADR 0061's reconciliation is the operator's: find the row by the
+    locator and recompute (the `bun -e` check in `docs/resources.md`).
+  - Alternatives rejected:
+    - `descriptorDigest` alone identifies the job type at a catalogue revision. Every gate run
+      of that revision shares it, so it attests nothing about this run.
+    - A digest over the run records file: the file holds every job's rows and changes with
+      every sample of every later job, so the digest could not be checked after the next run.
+    - A digest over `start`, outcome and samples together attests more but is unstable. `watch`
+      can settle and move the job between payload exit and the launcher's `finish`, and a
+      launcher that died never writes an outcome, so the published digest would cover a state
+      that later changes.
+    - Both `descriptorDigest` and the record digest: the second contains the first, so a second
+      field would add a contract change for no new evidence.
+    - Keeping the ledger-row digest beside the record's: WBS could not then refuse the old
+      shape, which is what the task asks for. Both name durable Dash state, and the run record
+      is the one that says what ran.
+- **S6F-A2 The runtime reads the run records itself.** `moveHostJobEvents` opens the records
+  read-only (`readRunRecordStart`, new `src/resources/run-record-file.ts`) for each settlement
+  it moves. The path, the owner-only check and the version check moved there from
+  `ops/run-records.ts`, which now imports them, because `resources` must not import `ops`
+  (`ops` depends on `resources`). Missing, linked, group-readable or other-version records
+  throw: the whole move rolls back and `watch` publishes nothing until they are restored. That
+  follows the launcher's own rule that records missing beside a ledger with host jobs are lost
+  state, never recreated.
+- **S6F-A3 No WBS migration and no change to stored rows.** The evidence column is JSON text
+  with no shape CHECK, and nothing in WBS parses a host job's evidence after ingest (the
+  resources read lists `registered` jobs only). Rows stored under S5-A11, if any, keep their
+  evidence as they are. Only ingest is stricter. No pool is enrolled yet (task 6.3: both hosts
+  unenrolled), so no outbox holds an old-shape event. One that did would be refused `400`,
+  retried for 30 minutes (S5-A20), then stop `watch` naming the refusal.
+- **S6F-A4 Either deploy order is safe today only because no pool is enrolled (corrected in
+  review of #877).** WBS first is the hazard once host jobs publish: an old Dash moves
+  `dash-host-job://…` evidence into its outbox, the new be-01 refuses it `400` for good, the
+  outbox retries the exact bytes, `watch` retries for 30 minutes (S5-A20), exits, restarts and
+  starts the bound again, forever, and the refused event blocks every later event of the
+  authority, worktree uses included. A moved event is never re-shaped. With host-job events in
+  flight, Dash must upgrade first (an old be-01 accepts the new `returned` evidence; only a
+  host job's `not_created` is refused, inside the S5-A20 bound) or the outbox must be drained
+  before be-01 moves. No operator command drops a permanently refused outbox event: follow-up
+  under task 6.8.
+
+### Fault injection
+
+Each fault went in as an exact text replacement through a scratch script outside the
+repository. The script ran the named tests, restored the file and checked its SHA-256. Every
+fault ran against the final code.
+
+| Fault injected                                                                   | Test that went red                                                                                                                                                                                                                            | Observed                                                          |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `settlementEvidence` treats the gate entry as absent                             | `a gate run while WBS is down publishes registered then returned, in order` (host-job-publication.test.ts, 7 pass 1 fail); `a returned gate digests its run record's gate entry under the record's locator` (job-run.test.ts, 35 pass 1 fail) | `toEqual` failed: `not_created` and the absence digest            |
+| S5-A11's ledger-row evidence restored in `moveHostJobEvents`                     | publication: the wbs-down case, `a job withdrawn before its gate publishes not_created…`, `run records missing beside a returned host job…` (5 pass 3 fail); job-run.test.ts: both 6.8 cases (34 pass 2 fail)                                 | `dash-host-job://…` locator; the missing records `"synchronized"` |
+| missing run records read as "no record" (`return null` on `ENOENT`)              | `run records missing beside a returned host job stop the move, publishing nothing` (7 pass 1 fail)                                                                                                                                            | `Received value: "synchronized"`                                  |
+| be-01 locator comparison made `true` (`namesRunRecord`)                          | `keeps the run record as a returned job's evidence and refuses the ledger-row shape` (host-job-use.controller.db.test.ts, 4 pass 1 fail)                                                                                                      | `Expected: 400`, `Received: 200`                                  |
+| be-01 absence digest comparison made `true`                                      | same test (4 pass 1 fail)                                                                                                                                                                                                                     | `Expected: 400`, `Received: 200`                                  |
+| be-01 disposition check made `false` (the S5 proof, rewritten for `not_created`) | `refuses what a host job cannot be, accepting nothing and advancing no sequence` (4 pass 1 fail)                                                                                                                                              | `Expected: 400`, `Received: 200`                                  |
+
+The negative the task names is the be-01 case: S5-A11's evidence, the ledger row's digest under
+`dash-host-job://dash-h2puni/<jobId>/5`, answers `400` and `accepted_sequence` stays 1. On the
+Dash side, restoring the ledger-row emission turns both launcher-level and runtime-level
+evidence tests red.
+
+### Commands
+
+Fresh on 2026-11-05 on the 24-core workstation, from the worktree root, `CLAUDECODE` and
+`CLAUDE_CODE_ENTRYPOINT` unset. The suites ran against `bd5bdc844` with this section's assumptions
+and fault table already in the working tree; the commit after it changes this file only.
+
+| Command                                                                            | Result                                                                                                                  |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                   | 5717 pass, 53 skip, 0 fail, `Ran 5770 tests across 184 files. [3120.48s]`, exit 0                                       |
+| `bunx nx affected -t test --base=origin/main --exclude=twilight-dash --parallel=1` | `Successfully ran target test for 20 projects and 2 tasks they depend on`, exit 0 (be-01 3909 tests, store-sqlite 2049) |
+| `bun test src/controller/host-job-use.controller.db.test.ts` (be-01)               | 5 pass, 0 fail; red first (`Expected: 400`, `Received: 200`) before the store change                                    |
+| `host-job-publication.test.ts` inside its namespace                                | 8 pass, 0 fail; red first (3 fail) before the runtime change                                                            |
+| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2`               | `Successfully ran targets lint, typecheck for 21 projects and 3 tasks they depend on`, exit 0                           |
+| `bunx nx format:check --all`                                                       | exit 0                                                                                                                  |
+| `bunx openspec validate --all --json`                                              | 328 passed, 0 failed, exit 0                                                                                            |
+| Burokrat `check-indexes working <worktree> origin/main`                            | exit 0 (the two existing review-debt rows: store-memory 53/40, plan-commands 48/40)                                     |
+
+`twilight-dash:test` is excluded from the affected run because it ran on its own above. Its
+53 skips are the real-scope cases (`systemd-run --user --scope`: `Failed to connect to bus`
+in this sandbox) and the PostgreSQL fixtures, as on `main`. No migration, so no migration lint.
+
+Not done: no host apply, no enrollment, no h2puni gate. No end-to-end publish against a
+composed be-01: the Dash tests check each event with the shared contract, and the be-01 test
+sends the same shapes through mcp-01's forwarded grant.
+
+### Review fixes (Fable, #877)
+
+Verdict "merge after fixes", no code defect. Docs, spec and JSDoc only, plus one contract test:
+
+- S6F-A4 rewritten: WBS first is the hazard once a pool publishes, because a moved old-shape
+  event is never re-shaped. Either order is safe today only because no pool is enrolled. The
+  missing drop-a-refused-event command is follow-up 6.8a in `tasks.md`.
+- The "no run record" claims now state only the converse (a job whose launcher never wrote the
+  gate entry), in the spec delta, `docs/resources.md`, S6F-A1 and the `settlementEvidence`
+  JSDoc. A SIGINT after `begin` writes `start`, refuses 130 and publishes `returned`.
+- `settlementEvidence`'s JSDoc names the admitted window. The spec says which host-job evidence
+  WBS refuses (locator or disposition; a `returned` digest is checked for shape only). The
+  scenario uses an example enrollment id `h2puni-host-pool`. `ingestHostJob`'s JSDoc names both
+  stored dispositions.
+- New `libs/wbs/domain/contracts/src/http/resource-runtime-shapes.test.ts` pins the locator
+  and the absence digest literally. Proof: with the absence statement's ` absent` changed to
+  ` missing`, `a not_created digest hashes a stable absence statement` failed (1 pass 1 fail,
+  `Received: "…/job-1 missing"`). `/` in a part is not refused by the helper: Dash's
+  enrollment and job ids are `Identifier`s (no `/`), and making be-01 throw on a label host
+  would answer 500 rather than a modelled refusal.
+
+## Slice 6g: dropping an outbox event WBS refuses for good (task 6.8a)
+
+Branch `feat/host-jobs-outbox-drop` from `main` at `60285da5d`. Nothing here touched a host: no
+ssh, no apply, no enrollment. New command `ops outbox drop --config <path> --event <id>
+--operator <name> --reason <text>` (`ops/commands.ts`, `ResourceRuntime.dropRefusedEvent`),
+tests in `ops/outbox-drop.test.ts`.
+
+### Assumptions (overrulable by id)
+
+- **S6G-A1 The durable refusal record covers the S5-A20 path only.** Each host-job event WBS
+  refuses `400` gets a row in `event_refusals`: event id, sequence, the SHA-256 of the stored
+  event bytes, status, message, first and last refusal time, count. A refusal of other bytes
+  under the same id starts the row again. An accepted publication deletes the row in the
+  transaction that marks the event published. The 30-minute bound keeps its in-process start
+  (a restarted `watch` starts it again), so S5-A20's behaviour does not change. Worktree-use
+  events refused 4xx still stop `watch` at once and get no row, since none of them may be
+  dropped (S6G-A4).
+- **S6G-A2 Ledger version 3, because new tables are unavoidable.** `event_refusals` and
+  `dropped_events` (`sequence`, JSON `record`, like `host_pool_mode_records`). `open` steps 0, 1
+  and 2 forward; version 2 only when its tables are exactly version 2's. `report-capacity`'s
+  reader (`compute/host-pool-ledger.ts`) now expects 3. An older Dash refuses a version-3 ledger:
+  read-only readers name both versions (`ops job admission` exits 70), and `open` refuses
+  "unknown to this Dash". That includes a nested launcher in a gate whose candidate is older
+  than this change, once its host runs the newer Dash. No pool is enrolled yet (task 6.3d/6.3e),
+  so no host has a ledger to migrate.
+- **S6G-A3 Later events take one sequence less.** be-01 ingests only
+  `sequence === acceptedSequence + 1` (`libs/wbs/adapters/store-sqlite/src/resource-runtime.ts`,
+  `409 conflict` otherwise), so leaving a gap would block the next event for good, as the
+  dropped one did. Every later outbox event is behind the refused head. None of them has reached
+  WBS, and WBS keys idempotency by event id only for events it accepted, so rewriting their
+  bytes is safe. The delete, the renumbering, the refusal row's removal and the journal entry
+  commit in one `BEGIN IMMEDIATE`.
+- **S6G-A4 What may be dropped.** Only the outbox head, a host job's event, with a recorded `400`
+  whose digest matches its current bytes, and no later outbox event of the same use (that one's
+  revision would follow one WBS never saw: `409`). Anything else refuses 64 naming why: unknown
+  id, published, not the head, a worktree use's (whose revisions continue through WBS cleanup
+  requests), no matching refusal, a same-use follower. Gap left open: a host job whose
+  `registered` is refused for good while its `release_verified` waits cannot be repaired by this
+  command. S6F-A4's case is a `release_verified`, the last event of its job.
+- **S6G-A5 Locking and the race.** The command opens the pool read-write through `openPool`, as
+  `pool inspect` does: the normal open, migration and eligibility check, then one ledger
+  transaction. It does not take the shell lock, which serializes payloads, not the outbox. The
+  operator stops `watch` first (docs). If WBS accepts the same event while the drop commits,
+  `synchronize` now finds the row it would mark published gone (`changes !== 1`) and throws
+  `resource outbox event … changed while it was published`. It no longer silently publishes the
+  renumbered next event under the sequence WBS just took. That state needs a hand repair, and the
+  docs say so. The stored row was the only evidence WBS still refuses the event: a `watch` that
+  crashes between WBS accepting it and the publish mark leaves a stale `400` row, and a drop then
+  renumbers the next event onto a sequence WBS holds (`409` for good). Task 6.8b (Slice 6h,
+  S6H-A1) closes it: the drop re-sends the event and drops only on a fresh `400`. In
+  concurrent mode with the guard on, the drop refuses 64 while the guard's holder is live (review
+  of #878 F1). The holder can outlive a stopped `watch`, and observe mode and a released guard
+  give no such signal.
+- **S6G-A6 Attribution and visibility.** "Who" is `--operator` plus the Dash account (`deps.user`),
+  as `switch-mode`'s mode records do. The journal record holds the stored bytes and their SHA-256,
+  the refusal, the next event and the renumbered count. No `ops outbox` listing command:
+  operators take the event id from `watch`'s refusal line and read the journal with the `bun -e`
+  one-liner in `docs/resources.md`. WBS keeps the job as its last accepted event left it: a
+  dropped `release_verified` leaves it `registered` there.
+
+### Fault injection
+
+Each fault went in as an exact text replacement through a scratch script outside the
+repository. The script ran the named test file (the ops file inside its private namespace),
+restored the file and checked its SHA-256. Every fault ran against the final code.
+
+| Fault injected                                           | Test that went red (file result)                                                        | Observed                                                              |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| absent refusal defaulted to a `400` of the event's bytes | `an event WBS has not refused is not dropped` (5 pass 1 fail)                           | `"code": 0`, stdout `dropped event … the outbox is now empty`         |
+| refusal check made to pass an absent record              | same test (5 pass 1 fail)                                                               | `TypeError: undefined is not an object (evaluating 'refusal.status')` |
+| missing-row check removed                                | `an id not in the outbox is not dropped` (5 pass 1 fail)                                | `TypeError: undefined is not an object (evaluating 'row.sequence')`   |
+| same-use check removed                                   | `a refused event its own use still follows is not dropped` (5 pass 1 fail)              | `"code": 0`                                                           |
+| later events left at their sequences                     | `a refused event is dropped, journalled, and the next one publishes` (5 pass 1 fail)    | `ResourceWbsRefusal: resource publication HTTP 409 conflict`          |
+| `marked.changes !== 1` check removed                     | `a drop racing the publication of the same event stops the publication` (5 pass 1 fail) | `Received value: "synchronized"`                                      |
+| `recordRefusal` call removed                             | the drop, same-use and race tests (3 pass 3 fail)                                       | no refusal row; the drops refused `has no recorded WBS refusal`       |
+| version-2 table check skipped                            | `refuses a version-2 ledger with unexpected tables` (host-jobs.test.ts, 42 pass 1 fail) | `Received function did not throw`                                     |
+| `--reason` parsed with `flagValue('NAME')`               | `the grammar takes an event id, an operator and a reason` (5 pass 1 fail)               | `Received function did not throw` for a blank reason                  |
+
+The task's negative is the second test: an unrefused head (`release_verified`, nothing of its
+use behind it) refuses 64 and leaves the outbox and journal as they were. With the record
+treated as present, the same command exits 0 and empties the outbox.
+
+### Commands
+
+Fresh on 2026-11-05/06 on the workstation, from the worktree root, `CLAUDECODE` and
+`CLAUDE_CODE_ENTRYPOINT` unset, against `33ec53979` (this section's text was added after).
+
+| Command                                                                                           | Result                                                                                      |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `bun test src/ops/outbox-drop.test.ts` (inside its namespace)                                     | 6 pass, 0 fail; red first (0 pass 6 fail: `Unexpected option or subcommand: outbox`)        |
+| targeted: cli, host-jobs, admission, host-job-publication, report-capacity.host-pool, outbox-drop | 131 pass, 0 fail                                                                            |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                                  | 5720 pass, 53 skip, 0 fail, `Ran 5773 tests across 185 files. [3064.22s]`, exit 0           |
+| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2`                              | `Successfully ran targets lint, typecheck for 7 projects and 1 task they depend on`, exit 0 |
+| `bunx nx format:check --all`                                                                      | exit 0                                                                                      |
+| `bunx openspec validate --all --json`                                                             | 328 passed, 0 failed, exit 0                                                                |
+| Burokrat `check-indexes working <worktree> origin/main`                                           | exit 0 (the two existing review-debt rows: store-memory 53/40, plan-commands 48/40)         |
+
+The 53 skips are the real-scope cases (`systemd-run --user --scope`: `Failed to connect to bus`)
+and the PostgreSQL fixtures, as on `main`. No WBS change, so no be-01 run; no migration lint
+(no SQL migration). `docs/infra/heavy-job-launchers.md` lists no operator repair commands
+(it names `ops job run` and `ops pool switch-mode` only), so it is unchanged.
+
+Not done: no host apply, no enrollment, no h2puni gate, no drop against a composed be-01 (the
+fake WBS in the tests applies be-01's sequence adjacency rule).
+
+### Review fixes (Fable, #878)
+
+Verdict "merge after fixes". Applied:
+
+- **F2 ghost refusal row.** `recordRefusal` now writes only while the exact event bytes are
+  still unpublished at their sequence. A `400` answered after a concurrent drop records nothing.
+  `dropRefusedEvent` deletes every refusal row whose event no longer waits, the dropped event's
+  own row included.
+- **F1.** (a) The crash window is in `docs/resources.md` and S6G-A5. (b) In concurrent mode with
+  the guard on, a live guard holder refuses the drop 64. (c) Follow-up 6.8b re-sends the event
+  for a fresh `400`.
+- **F3.** `--operator` takes the same non-blank pattern as `--reason`, and the journal shape
+  requires both to be non-blank.
+- **F4.** The docs name `dash-resources-watch.service` and state the worktree-use hazard.
+- **F5.** The heavy-job-launchers wording above is corrected.
+- **F6.** The migration line names its steps, e.g. `from version 2 to 3 (outbox refusals and
+drop journal)`.
+- **F7.** `--event` and `ops job admission --job` both take a UUID shape.
+- **F8.** The docs separate the ledger's `user_version` from the configuration's `schemaVersion`.
+
+| Fault injected                                | Test that went red (file result)                                                   | Observed                                                 |
+| --------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| presence check before `recordRefusal` removed | `a refusal answered after a drop records no ghost row` (7 pass 1 fail)             | a row for the dropped event id, `refusals: 1`            |
+| purge in `dropRefusedEvent` made `SELECT 1`   | the purge, happy-path and ghost-row tests (5 pass 3 fail)                          | the stale and the dropped event's rows kept              |
+| guard check removed                           | `a live singleton guard refuses the drop` (host-pool-mode.test.ts, 44 pass 1 fail) | stderr `… is not in the outbox of authority runtime-one` |
+| `--event` back to `/^[0-9a-f-]{36}$/u`        | `the grammar takes an event id, an operator and a reason` (7 pass 1 fail)          | 36 hyphens parsed                                        |
+| `--job` back to `/^[0-9a-f-]{36}$/u`          | `the grammar takes only a job id` (admission.test.ts, 1 fail)                      | 36 hyphens parsed                                        |
+| `--operator` as `flagValue('NAME')`           | `the grammar takes an event id, an operator and a reason` (7 pass 1 fail)          | blank operator parsed                                    |
+
+Every earlier fault (A to I) was rerun against this code and still turns its test red. The ghost-row
+test also goes red when renumbering is skipped (the head stays at sequence 3).
+
+Commands after the fixes, fresh on 2026-11-06 against `b1e7df052` (`CLAUDECODE` and
+`CLAUDE_CODE_ENTRYPOINT` unset): targeted outbox-drop (8 pass), admission, host-jobs,
+host-pool-mode (45 pass), cli, host-job-publication and report-capacity.host-pool, 0 fail;
+`bunx nx run twilight-dash:test --skip-nx-cache` 5720 pass, 53 skip, 0 fail,
+`Ran 5773 tests across 185 files. [3064.86s]`, exit 0; `bunx nx affected -t lint typecheck
+--base=origin/main --parallel=2` 7 projects, exit 0; `bunx nx format:check --all` exit 0;
+`bunx openspec validate --all --json` 328 passed; Burokrat `check-indexes` exit 0.
+
+## Slice 6h: the drop re-sends the event for a fresh refusal (task 6.8b)
+
+Branch `feat/host-jobs-outbox-drop-resend` from `main` at `45252b24a`. Nothing here touched a
+host: no ssh, no apply, no enrollment. `ResourceRuntime.dropRefusedEvent` is now async and takes
+the outbox's WBS tools; `ops outbox drop` builds them through the new `OpsDependencies.connect`,
+which `cli.ts` composes with the same `resourceTools` factory `resources` uses. Tests in
+`ops/outbox-drop.test.ts`; the fake WBS there now also answers be-01's idempotent replay (an
+accepted event id with the same bytes answers its first acknowledgment again, other bytes `409`).
+
+### Assumptions (overrulable by id)
+
+- **S6H-A1 Re-send rather than trust the row.** The refusal row records what WBS answered at
+  some earlier moment; it cannot tell a refusal that still holds from one WBS has since
+  superseded by accepting the same bytes (the crash window of S6G-A5), nor from a WBS whose
+  sequence moved by a restore or a hand repair. Asking WBS the same question again, with the
+  same bytes, client, endpoint, key, authority and 15-second deadline, is the only evidence that
+  is current, and it is safe: be-01 keys idempotency by event id, so a re-send of an accepted
+  event answers its first acknowledgment again and changes nothing there. Reading the
+  authority's `acceptedSequence` instead was rejected: it needs the organization-admin read
+  (`getApiOrganizationResourceAuthoritiesByAuthorityId`), a second auth path the
+  outbox does not use today, and it answers "where WBS is", not "does WBS refuse these bytes".
+- **S6H-A2 Outcomes.** A fresh `400` drops (the journal's new `refusal.confirmedAt` is its time,
+  and the refusal row is updated by the same `recordRefusal` the publication path uses). A `2xx`
+  marks the event published through the publication path's own `markPublished` (acknowledgment
+  check, `changes === 1`, refusal row deleted, one transaction), drops nothing and exits 0. `409`
+  refuses 64 naming the expected predecessor sequence and the hand repair. No answer
+  (`ResourceWbsUnavailable`: unreachable, `429`, uncompleted) and every other refusal status
+  refuse 70 `could not confirm`: neither is evidence. A refused credential throws as it does for
+  `watch` (exit 1). Nothing is renumbered or deleted before the fresh `400`.
+- **S6H-A3 Checks run twice.** Every ledger check (guard holder, presence, head, host job,
+  recorded `400` of these bytes, same-use follower) runs before the re-send, so a refused drop
+  sends nothing, and again inside the commit transaction, since another drop or a publication
+  can commit while WBS answers. Two concurrent drops of one event drop it once; the second
+  refuses 64 `not in the outbox`.
+- **S6H-A4 What remains.** A WBS that accepts the same event from another sender between the
+  re-send's `400` and the drop's commit. Only a running `watch` sends it, the docs say to stop it
+  first, and in concurrent mode a live guard holder refuses the drop before the re-send. The
+  journal shape gained a required `refusal.confirmedAt`; no pool is enrolled, so no ledger holds
+  a version-3 drop record without it (no compatibility read, as before users).
+
+### Fault injection
+
+Each fault went in as an exact text replacement through a scratch script outside the
+repository. The script ran the named test file inside its private namespace, restored the file
+and checked its content. Every fault ran against the final code (`5478879f7`).
+
+| Fault injected                                             | Test that went red (file result)                                                                            | Observed                                                                                             |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| re-send replaced by the stored `400` (the task's negative) | `an event WBS accepted before a crash is published by the re-send, not dropped`, and 3 more (8 pass 4 fail) | `dropped event …`, next in line renumbered to sequence 2, which WBS holds; the 409 test exited 0 too |
+| `409` check removed                                        | `a re-send WBS answers 409 refuses the drop, naming the sequence state` (11 pass 1 fail)                    | `code: 70`, `could not confirm … HTTP 409 conflict`                                                  |
+| exit-70 mapping in `ops/commands.ts` removed               | `a re-send WBS does not answer, or refuses but 400 or 409, …` (11 pass 1 fail)                              | `ResourceWbsUnavailable: resource publication not completed: server_error` thrown out of `runOps`    |
+| `cause.status !== 400` check removed                       | same test (11 pass 1 fail)                                                                                  | the `403` stored as the refusal, `code: 64` `has no recorded WBS refusal`, not 70                    |
+| fresh `recordRefusal` removed                              | `a refused event is dropped, journalled, and the next one publishes` (11 pass 1 fail)                       | journal `refusals: 2`, `lastRefusedAt` the last watch refusal                                        |
+| commit reuses the checks made before the re-send           | `two drops of the same event drop it once` and the happy path (10 pass 2 fail)                              | both drops exit 0; the journal kept the stale refusal                                                |
+| `markPublished` on `2xx` removed                           | `an event WBS accepted before a crash is published by the re-send, not dropped` (11 pass 1 fail)            | next in line printed as the accepted event itself (sequence 2)                                       |
+| guard check removed                                        | `a live singleton guard refuses the drop` (host-pool-mode.test.ts, 44 pass 1 fail)                          | stderr `… is not in the outbox of authority runtime-one`                                             |
+
+The red run before the implementation: 7 pass 4 fail (the happy path's stdout, the `2xx`, `409`
+and unavailable tests).
+
+### Commands
+
+Fresh on 2026-11-06 on the workstation, from the worktree root, `CLAUDECODE` and
+`CLAUDE_CODE_ENTRYPOINT` unset, against `5478879f7` (code; this section's text was added after).
+
+| Command                                                                                                                   | Result                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `bun test src/ops/outbox-drop.test.ts` (inside its namespace)                                                             | 12 pass, 0 fail; red first (7 pass 4 fail)                                                  |
+| targeted: cli, host-jobs, admission, host-job-publication, report-capacity.host-pool, outbox-drop, host-pool-mode, status | 133 pass, 0 fail across 8 files                                                             |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                                                          | 5720 pass, 53 skip, 0 fail, `Ran 5773 tests across 185 files. [3068.05s]`, exit 0           |
+| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2`                                                      | `Successfully ran targets lint, typecheck for 7 projects and 1 task they depend on`, exit 0 |
+| `bunx nx format:check --all`                                                                                              | exit 0                                                                                      |
+| `bunx openspec validate --all --json`                                                                                     | 328 passed, 0 failed, exit 0                                                                |
+| Burokrat `check-indexes working <worktree> origin/main`                                                                   | exit 0 (the two existing review-debt rows: store-memory 53/40, plan-commands 48/40)         |
+
+The 53 skips are the real-scope cases and the PostgreSQL fixtures, as on `main`. A first full
+run was stopped and discarded because the fault script edited sources while it ran; the run above
+started after every file was restored to the commit. No WBS change, so no be-01 run; no migration
+lint (no SQL migration). Not done: no host apply, no enrollment, no h2puni gate, no drop against a composed be-01 (the fake WBS applies be-01's
+sequence adjacency and idempotent replay).
+
+### Review notes (Fable, #879)
+
+Verdict "merge as is"; four low items folded in:
+
+- **L1.** be-01 also answers `409` for an epoch mismatch and for host-job state conflicts in
+  `ingestHostJob` (second registration, declaration or incarnation mismatch, not `registered`).
+  The refusal and `docs/resources.md` now name those too, and the hand repair reads the epoch and
+  the host job's state, not only `acceptedSequence`.
+- **L2.** A `2xx` is also a fresh acceptance (a be-01 redeployed with a fix, a healed
+  `observedAt` skew), not only a stale row: docs and the spec scenario say so.
+- **L3.** `deps.connect` moved inside the handler's `try`, so a throwing `connect` still closes
+  the ledger.
+- **L5.** `two drops of the same event drop it once` also asserts no refusal row is left.
+
+Commands after the fixes, fresh on 2026-11-06 (`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT`
+unset): `bun test src/ops/outbox-drop.test.ts src/cli.test.ts` 127 pass, 0 fail (12 pass inside
+the namespace); `bunx nx run twilight-dash:typecheck --skip-nx-cache` exit 0;
+`bunx nx format:check --all` exit 0; `bunx openspec validate --all --json` 328 passed; Burokrat
+`check-indexes` exit 0. No full-suite rerun: the changes are message strings, docs, one
+assertion and a `try` move.

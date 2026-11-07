@@ -55,18 +55,19 @@ const ReservingJob = type({
 });
 
 /**
- * The ledger schema `ResourceRuntime` writes: version 2 since `dash-host-jobs` slice 6b (the
- * transition state of J12). Its `host_jobs` and `host_job_events`, the only tables read here,
- * are unchanged from version 1; a version-1 ledger is stepped forward by the next runtime open.
+ * The ledger schema `ResourceRuntime` writes: version 3 since `dash-host-jobs` task 6.8a (the
+ * outbox refusals and drop journal; version 2 added J12's transition state). Its `host_jobs` and
+ * `host_job_events`, the only tables read here, are unchanged from version 1; an older ledger
+ * is stepped forward by the next runtime open.
  */
-const LEDGER_VERSION = 2;
+const LEDGER_VERSION = 3;
 
 /**
  * Opens the managed-resource ledger at `path` read-only. Change is noticed by reading the
  * largest `host_job_events` sequence every `pollMs`: the runtime commits one row with every
  * admission and every settlement, in the same transaction as the reservation change, so a new
  * sequence is exactly a new reservation state (S5-A3).
- * @throws when the file is absent or unreadable, or is not a version-2 ledger: a binding that
+ * @throws when the file is absent or unreadable, or is not a version-3 ledger: a binding that
  * names the host pool has no honest figure without it.
  */
 export function openHostPoolLedger(path: string, pollMs = LEDGER_POLL_MS): HostPoolLedger {
