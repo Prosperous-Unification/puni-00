@@ -503,3 +503,11 @@ The [prospective known-controller design](ordinary-known-controller-design-20261
 and [source evidence](verify-ordinary-known-controller-20261105.md) define the
 next implementation step after the compiler-input checkpoint. No runtime lease
 or production application is granted by that source-only decision.
+
+## Published known-controller source checkpoint — 2026-11-07
+
+[Known-controller evidence](verify-ordinary-known-controller-20261105.md) records
+the final inert source and retained independent reviews,161 passing owner tests
+and strict50-file semantic zero. The prospective compiler graph has290 covered
+identities and a distinct287-input prediction. Its actual builder/protocol,
+native/HOLD continuation and all parent acceptance obligations remain open.

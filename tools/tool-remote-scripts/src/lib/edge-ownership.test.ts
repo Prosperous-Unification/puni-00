@@ -5,6 +5,7 @@ import { runInNewContext } from 'node:vm';
 
 import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
+import type { Node } from 'typescript';
 
 import { assertNoEdgeOwner } from './edge-admission';
 import {
@@ -3409,4 +3410,795 @@ test('UC2 ordinary load packet refuses same-length valid hash corruption before 
   expect(changed.rows[0]?.sha256).toMatch(/^[0-9a-f]{64}$/);
   expect(changed.rows[0]?.sha256).toBe(changedHash);
   expect(() => decodeOrdinaryHoldLoadPacketV1(decoded.sourceRoot, corrupted)).toThrow('digest');
+});
+
+interface CoupledLedgerHarness {
+  reserveNative(label: string, kind: string, args: unknown[], receiver?: unknown): object;
+  attachNative<T>(ticket: object, original: T): T;
+  linkWrapper<T extends object>(wrapper: T, tickets: object[], kind: string): T;
+  captureOriginal(preparation: object, original: object, observed: object): void;
+  inspectLedger(): {
+    stopped: boolean;
+    fatalObservation?: { kind?: string; acquired?: object; observed?: object };
+  };
+  reserveScannerCall(args: unknown[]): object;
+  attachScannerCall(call: object, original: Promise<unknown>): Promise<unknown>;
+  reserveOperation(label: string, kind: string, receiver: unknown, args: unknown[]): object;
+  returnOperation(ticket: object, returned: unknown): unknown;
+  captureKeeper(owner: object, ownership: object, keeper: object): void;
+  captureSettlement(
+    record: object,
+    settlement: object,
+    original: Promise<unknown>,
+    observer: Promise<void>,
+  ): void;
+  reserveControllerControl(label: string): object;
+  attachControllerControl(ticket: object, original: Promise<unknown>): Promise<unknown>;
+  capturePreparation(preparation: object, record: object): void;
+  inspectKnownComposition(): {
+    controls: readonly {
+      label: string;
+      original?: Promise<unknown>;
+      observer?: Promise<void>;
+      phase: string;
+      cause?: unknown;
+    }[];
+    preparations: readonly { preparation: object; record: object }[];
+    scanners: readonly {
+      phase: string;
+      original?: object;
+      nativePhase: string;
+      closeCause?: unknown;
+      nativeEntries: number;
+    }[];
+  };
+  requireControllerPreparation(preparation: object): object;
+  reserveScanner(args: readonly unknown[]): object;
+  attachScannerPromise(ticket: object, original: Promise<unknown>): Promise<unknown>;
+  joinKnownComposition(): Promise<void>;
+}
+async function coupledLedger(): Promise<CoupledLedgerHarness> {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  expect(typeof fixture.ordinaryCoupledPortSourcesV1).toBe('function');
+  const source = fixture
+    .ordinaryCoupledPortSourcesV1('/ordinary-coupled')
+    .get('ordinary-hold-v1:ledger');
+  if (source === undefined) throw new Error('coupled ledger source absent');
+  const ts = await import('typescript');
+  const compiled = ts
+    .transpileModule(source.replaceAll('export ', ''), {
+      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+    })
+    .outputText.replace(/export \{\};?/, '');
+  expect(compiled).not.toMatch(/\bimport\b/);
+  return runInNewContext(
+    `${compiled}\n({reserveControllerControl,attachControllerControl,capturePreparation,inspectKnownComposition,requireControllerPreparation,reserveScanner,attachScannerPromise,joinKnownComposition,captureSettlement,reserveOperation,returnOperation,captureKeeper,reserveScannerCall,attachScannerCall,reserveNative,attachNative,linkWrapper,captureOriginal,inspectLedger})`,
+    {},
+  ) as CoupledLedgerHarness;
+}
+
+test('UC2 coupled control ledger retains rejected originals and refuses duplicate controls', async () => {
+  const ledger = await coupledLedger();
+  const cause = new Error('original body refusal');
+  const original = Promise.reject(cause);
+  const ticket = ledger.reserveControllerControl('completion');
+  const returned = ledger.attachControllerControl(ticket, original);
+  expect(returned).toBe(original);
+  await Promise.allSettled([original]);
+  const [observed] = ledger.inspectKnownComposition().controls;
+  expect(observed.original).toBe(original);
+  expect(observed.observer).not.toBe(original);
+  await observed.observer;
+  expect(ledger.inspectKnownComposition().controls[0].cause).toBe(cause);
+  expect(() => ledger.reserveControllerControl('completion')).toThrow('control');
+});
+
+test('UC2 coupled preparation tap retains exact association and refuses foreign identity', async () => {
+  const ledger = await coupledLedger();
+  const preparation = Object.freeze({});
+  const record = { owner: {}, ownership: {} };
+  ledger.capturePreparation(preparation, record);
+  expect(ledger.requireControllerPreparation(preparation)).toBe(record);
+  expect(ledger.inspectKnownComposition().preparations[0].preparation).toBe(preparation);
+  expect(() => ledger.requireControllerPreparation({})).toThrow('preparation');
+  ledger.capturePreparation(preparation, record);
+  expect(ledger.inspectKnownComposition().preparations).toHaveLength(1);
+});
+
+test('UC2 coupled scanner preserves original Promise monitor receiver and one close delegation', async () => {
+  const ledger = await coupledLedger();
+  const calls: unknown[][] = [];
+  const monitor = {
+    close(this: object, ...args: unknown[]) {
+      calls.push([this, ...args]);
+      return 7;
+    },
+  };
+  const original = Promise.resolve(monitor);
+  const ticket = ledger.reserveScanner(['/artifact', 123, true]);
+  expect(ledger.attachScannerPromise(ticket, original)).toBe(original);
+  expect(await original).toBe(monitor);
+  expect(monitor.close('argument')).toBe(7);
+  expect(calls).toEqual([[monitor, 'argument']]);
+  expect(ledger.inspectKnownComposition().scanners[0].nativePhase).toBe('returned');
+  expect(() => monitor.close()).toThrow('re-entry');
+  expect(calls).toHaveLength(1);
+});
+
+test('UC2 coupled scanner preserves thrown close cause and never retries a delegated throw', async () => {
+  const ledger = await coupledLedger();
+  const cause = new Error('original close unknown');
+  let entries = 0;
+  const monitor = {
+    close: () => {
+      entries++;
+      throw cause;
+    },
+  };
+  const original = Promise.resolve(monitor);
+  void ledger.attachScannerPromise(ledger.reserveScanner(['/artifact', 123, true]), original);
+  await original;
+  expect(() => monitor.close()).toThrow();
+  expect(ledger.inspectKnownComposition().scanners[0].closeCause).toBe(cause);
+  expect(() => monitor.close()).toThrow('re-entry');
+  expect(entries).toBe(1);
+});
+
+test('UC2 coupled graph layout binds actual projections once and rejects premature use', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  expect(typeof fixture.ordinaryCoupledPortSourcesV1).toBe('function');
+  const source = fixture
+    .ordinaryCoupledPortSourcesV1('/ordinary-coupled')
+    .get('ordinary-hold-v1:graph-layout');
+  if (source === undefined) throw new Error('coupled layout source absent');
+  const ts = await import('typescript');
+  const compiled = ts
+    .transpileModule(source.replaceAll('export ', ''), {
+      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+    })
+    .outputText.replace(/export \{\};?/, '');
+  const port = runInNewContext(`${compiled}\n({bindGraphLayouts,envLayout})`, {}) as {
+    bindGraphLayouts(layouts: object): void;
+    envLayout(name: string): object;
+  };
+  expect(() => port.envLayout('prod')).toThrow('unbound');
+  const prod = { stateDir: '/prod' },
+    dev = { stateDir: '/dev' };
+  port.bindGraphLayouts({ prod, dev });
+  expect(port.envLayout('prod')).toEqual(prod);
+  expect(port.envLayout('prod')).not.toBe(prod);
+  expect(Object.isFrozen(port.envLayout('prod'))).toBe(true);
+  expect(port.envLayout('dev')).toEqual(dev);
+  expect(Object.isFrozen(port.envLayout('dev'))).toBe(true);
+  prod.stateDir = '/changed';
+  expect(port.envLayout('prod')).toEqual({ stateDir: '/prod' });
+  expect(() => {
+    port.bindGraphLayouts({ prod, dev });
+  }).toThrow('bound');
+  expect(() => port.envLayout('foreign')).toThrow('name');
+});
+
+test('UC2 coupled prospective planner preserves physical bases and emits exact three-layer image', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  expect(typeof fixture.planOrdinaryCoupledBuildV1).toBe('function');
+  const root = new URL('../../../../', import.meta.url).pathname.replace(/\/$/, '');
+  const supplied = new Map<string, Uint8Array>();
+  for (const pin of fixture.ordinaryHoldSourceEpochV1.pins)
+    supplied.set(`${root}/${pin.relative}`, await readFile(`${root}/${pin.relative}`));
+  const authority = JSON.parse(
+    await readFile(
+      new URL('../fixtures/ordinary-coupled-r2-authority-20261105.json', import.meta.url),
+      'utf8',
+    ),
+  ) as { patch: { utf8: string }; manifest: { utf8: string } };
+  const patch = new TextEncoder().encode(authority.patch.utf8),
+    manifest = new TextEncoder().encode(authority.manifest.utf8);
+  const plan = fixture.planOrdinaryCoupledBuildV1(root, supplied, patch, manifest);
+  expect(plan.sourceEpoch).toBe('ordinary-uc2-coupled-r2-v1');
+  expect(plan.portSources.size).toBe(31);
+  const closure = JSON.parse(
+    await readFile(
+      new URL('../fixtures/ordinary-input-closure-manifest-20261105.json', import.meta.url),
+      'utf8',
+    ),
+  ) as { generatedEntry: { template: { exports: [string, string][]; ledger: string } } };
+  expect(closure.generatedEntry.template.exports).toHaveLength(17);
+  const previousEntry =
+    closure.generatedEntry.template.exports
+      .map(([name, path]) => `export * as ${name} from ${JSON.stringify(`${root}/${path}`)};`)
+      .join('\n') +
+    '\n' +
+    closure.generatedEntry.template.ledger;
+  expect(plan.entrySource).toBe(
+    previousEntry +
+      "export {runOrdinaryKnownComposition} from 'ordinary-hold-v1:controller';\nexport {inspectKnownComposition} from 'ordinary-hold-v1:ledger';\n",
+  );
+  expect(plan.entrySource.split(closure.generatedEntry.template.ledger).length - 1).toBe(1);
+
+  expect(plan.layers).toHaveLength(17);
+  const owner = plan.layers.find((layer) => layer.path.endsWith('/edge-ownership.ts'));
+  expect(owner?.physicalSha256).toBe(
+    'd979452d02089652c12515af8bfcaeede1fa13bc458a66013f5463555b528f68',
+  );
+  expect(owner?.proposedSha256).toBe(
+    '7e900fbd23ec048f677154f8659bfe8137af810c1309f534aa9b5a9ad7962de3',
+  );
+  expect(plan.appliedCuts.some((cut) => cut.id === 'owner.preparation')).toBe(true);
+  expect(plan.appliedCuts.some((cut) => cut.id === 'complete.acceptance')).toBe(true);
+  expect(plan.appliedCuts.some((cut) => cut.id === 'graph.layout')).toBe(true);
+  const wrong = new Map(supplied);
+  wrong.set(`${root}/tools/tool-remote-scripts/src/lib/edge-ownership.ts`, new Uint8Array());
+  expect(() => fixture.planOrdinaryCoupledBuildV1(root, wrong, patch, manifest)).toThrow(
+    'source bytes',
+  );
+  const altered = patch.slice();
+  altered[0] ^= 1;
+  expect(() => fixture.planOrdinaryCoupledBuildV1(root, supplied, altered, manifest)).toThrow();
+});
+
+test('UC2 coupled known join waits for the retained original before checking terminal custody', async () => {
+  const ledger = await coupledLedger();
+  let resolveOriginal: (() => void) | undefined;
+  const original = new Promise<void>((resolve) => {
+    resolveOriginal = resolve;
+  });
+  const compositionOriginal = Promise.resolve(),
+    projectionOriginal = Promise.resolve();
+  const compositionObserver = compositionOriginal.then(() => undefined),
+    projectionObserver = projectionOriginal.then(() => undefined);
+  const record = {
+    owner: {},
+    phase: 'closed',
+    ownership: { state: 'closing' },
+    originals: new Set(),
+    composition: { original: compositionOriginal, observer: compositionObserver },
+    projection: { original: projectionOriginal, observer: projectionObserver },
+  };
+  ledger.captureSettlement(record, record.composition, compositionOriginal, compositionObserver);
+  ledger.captureSettlement(record, record.projection, projectionOriginal, projectionObserver);
+  ledger.capturePreparation({}, record);
+  for (const label of ['fixture', 'owner-action', 'outer-owner', 'completion'])
+    void ledger.attachControllerControl(
+      ledger.reserveControllerControl(label),
+      label === 'completion' ? original : Promise.resolve(),
+    );
+  let settled = false;
+  const joined = ledger.joinKnownComposition();
+  const observation = joined.then(
+    () => {
+      settled = true;
+    },
+    () => {
+      settled = true;
+    },
+  );
+  try {
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(
+      ledger.inspectKnownComposition().controls.find((control) => control.label === 'completion')
+        ?.original,
+    ).toBe(original);
+  } finally {
+    if (resolveOriginal !== undefined) resolveOriginal();
+    await Promise.allSettled([original, joined, observation]);
+  }
+  expect(resolveOriginal).toBeDefined();
+  expect(settled).toBe(true);
+  await refuses(joined, 'keeper');
+});
+
+test('UC2 coupled scanner before-entry refusal permits only the saved first real close after STOP', async () => {
+  const ledger = await coupledLedger();
+  let entries = 0;
+  const monitor = {
+    close: () => {
+      entries++;
+      return 'closed';
+    },
+  };
+  const original = Promise.resolve(monitor);
+  void ledger.attachScannerPromise(ledger.reserveScanner(['/artifact', 123, true]), original);
+  await original;
+  expect(() => {
+    Reflect.apply(monitor.close, {}, []);
+  }).toThrow('receiver');
+  expect(entries).toBe(0);
+  expect(ledger.inspectKnownComposition().scanners[0].nativePhase).toBe('not-entered');
+  expect(monitor.close()).toBe('closed');
+  expect(entries).toBe(1);
+});
+
+test('UC2 coupled source generator leaves every old virtual load receipt unchanged', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  const packet = JSON.parse(
+    await readFile(
+      new URL('../fixtures/ordinary-input-load-expectations-20261105.json', import.meta.url),
+      'utf8',
+    ),
+  ) as {
+    sourceRoot: string;
+    rows: { namespace: string; identity: string; sha256: string; bytes: number }[];
+  };
+  const supplied = new Map<string, Uint8Array>();
+  for (const pin of fixture.ordinaryHoldSourceEpochV1.pins)
+    supplied.set(
+      `${packet.sourceRoot}/${pin.relative}`,
+      await readFile(`${packet.sourceRoot}/${pin.relative}`),
+    );
+  const oldPlan = fixture.planOrdinaryHoldBuildV1(packet.sourceRoot, supplied);
+  const ports = oldPlan.portSources;
+  const files = packet.rows.filter((row) => row.namespace === 'file');
+  expect(files).toHaveLength(16);
+  for (const row of files) {
+    const bytes = oldPlan.materialized.get(row.identity);
+    if (bytes === undefined) throw new Error('old rendered file receipt absent');
+    expect(bytes.byteLength).toBe(row.bytes);
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(row.sha256);
+  }
+  const rows = packet.rows.filter((row) => row.namespace !== 'file');
+  expect(rows).toHaveLength(28);
+  for (const row of rows) {
+    const source = ports.get(
+      row.identity.startsWith('ordinary-hold-v1:')
+        ? row.identity
+        : `ordinary-hold-v1:${row.identity}`,
+    );
+    if (source === undefined) throw new Error(`old virtual receipt absent: ${row.identity}`);
+    expect(Buffer.byteLength(source)).toBe(row.bytes);
+    expect(createHash('sha256').update(source).digest('hex')).toBe(row.sha256);
+  }
+});
+
+test('UC2 coupled generated controller and bootstrap express genuine source-only entries', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  const ports = fixture.ordinaryCoupledPortSourcesV1('/ordinary-coupled');
+  const controller = ports.get('ordinary-hold-v1:controller');
+  const acceptance = ports.get('ordinary-hold-v1:complete-acceptance');
+  if (controller === undefined || acceptance === undefined)
+    throw new Error('coupled control source absent');
+  expect(controller).toContain(
+    '/ordinary-coupled/tools/tool-remote-scripts/src/fixtures/dependency-participant-restoration.ts',
+  );
+  expect(controller).not.toContain('/fixtures/dependency-complete-activation.ts');
+  // Coverage: structural source contracts only; native composition execution is separately held.
+  for (const call of [
+    "participantActivationFixture(['prod'])",
+    'prepareInitialDependencyHandoffUnderOwner(owner,request,fixture.layouts,deadline,fixture.root,fixture.ports)',
+    'consumePreparedDependencyActivation(owner,prepared)',
+    'releasePreparedDependencyActivation(owner,prepared)',
+    'assertParticipantRestorationContext(context)',
+    "writerManifestContents:'x'.repeat(262145)",
+  ])
+    expect(controller).toContain(call);
+  expect(acceptance).toContain(
+    'return attachControllerControl(ticket,Reflect.apply(original,undefined,args))',
+  );
+  const bootstrap = fixture.ordinaryKnownBootstrapSourceV1(
+    '/owned/image.js',
+    'known-initial-prepared-release',
+  );
+  expect(bootstrap.indexOf('setInterval(')).toBeLessThan(
+    bootstrap.indexOf('const original=import('),
+  );
+  expect(bootstrap).not.toContain("from 'ordinary-hold-v1:ledger'");
+  expect(() => fixture.ordinaryKnownBootstrapSourceV1('/owned/image.js', 'foreign')).toThrow(
+    'case',
+  );
+});
+
+test('UC2 coupled archive refuses modified contexts hunk coordinates paths and output identities', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  const authority = JSON.parse(
+    await readFile(
+      new URL('../fixtures/ordinary-coupled-r2-authority-20261105.json', import.meta.url),
+      'utf8',
+    ),
+  ) as { patch: { utf8: string }; manifest: { utf8: string } };
+  const manifest = JSON.parse(authority.manifest.utf8) as {
+    files: {
+      path: string;
+      base: { sha256: string; bytes: number };
+      proposed: { sha256: string; bytes: number };
+      hunks: unknown[];
+    }[];
+  };
+  const root = new URL('../../../../', import.meta.url);
+  const bases = new Map<string, Uint8Array>();
+  for (const file of manifest.files) bases.set(file.path, await readFile(new URL(file.path, root)));
+  const identities = manifest.files.map((file) => ({
+    path: file.path,
+    baseSha256: file.base.sha256,
+    proposedSha256: file.proposed.sha256,
+    baseLength: file.base.bytes,
+    proposedLength: file.proposed.bytes,
+    hunkCount: file.hunks.length,
+  }));
+  const encode = (text: string) => new TextEncoder().encode(text);
+  const patch = authority.patch.utf8;
+  expect(() =>
+    fixture.applyPatchStructure(
+      bases,
+      encode(patch.replace('@@ -328,7 +328,10 @@', '@@ -329,7 +328,10 @@')),
+      identities,
+    ),
+  ).toThrow();
+  expect(() =>
+    fixture.applyPatchStructure(
+      bases,
+      encode(
+        patch.replace(
+          'record.ownership.composition === record &&',
+          'record.ownership.composition === foreign &&',
+        ),
+      ),
+      identities,
+    ),
+  ).toThrow('context');
+  expect(() =>
+    fixture.applyPatchStructure(
+      bases,
+      encode(
+        patch +
+          'diff --git a/foreign.ts b/foreign.ts\n--- a/foreign.ts\n+++ b/foreign.ts\n@@ -1,1 +1,1 @@\n-a\n+b\n',
+      ),
+      identities,
+    ),
+  ).toThrow();
+  expect(() =>
+    fixture.applyPatchStructure(
+      bases,
+      encode(patch),
+      identities.map((identity, index) =>
+        index === 0 ? { ...identity, proposedSha256: '0'.repeat(64) } : identity,
+      ),
+    ),
+  ).toThrow('proposed identity');
+  expect(() =>
+    fixture.applyCoupledArchive(bases, encode(patch), encode(authority.manifest.utf8 + ' ')),
+  ).toThrow('manifest authority');
+});
+
+test('UC2 coupled scanner port enrolls only retained returns before caller continuation', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  const ts = await import('typescript');
+  const ports = fixture.ordinaryCoupledPortSourcesV1('/ordinary-coupled');
+  const ledger = ports.get('ordinary-hold-v1:ledger');
+  const port = ports.get('ordinary-hold-v1:complete-scanner');
+  if (ledger === undefined || port === undefined) throw new Error('coupled scanner sources absent');
+  const begin = port.indexOf('export function scanMigrationArtifact');
+  if (begin < 0) throw new Error('coupled scanner forwarding declaration absent');
+  const calls: unknown[][] = [];
+  const nonretained = {
+    close: () => {
+      throw new Error('nonretained monitor must not be closed');
+    },
+  };
+  const retained = {
+    close: () => {
+      return 'closed';
+    },
+  };
+  const nonretainedClose = nonretained.close;
+  const unretainedPromise = Promise.resolve(nonretained);
+  const retainedPromise = Promise.resolve(retained);
+  const scanCause = new Error('sentinel nonretained scan rejection');
+  const original = (...args: unknown[]) => {
+    calls.push(args);
+    if (args[0] === '/rejected') return Promise.reject(scanCause);
+    return args[2] === true ? retainedPromise : unretainedPromise;
+  };
+  const compiled = ts.transpileModule(
+    `const original=provided;\n${ledger.replaceAll('export ', '')}\n${port.slice(begin).replaceAll('export ', '')}`,
+    { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } },
+  ).outputText;
+  const forwarded = runInNewContext(
+    `${compiled.replace(/export \{\};?/, '')}\n({scanMigrationArtifact,inspectKnownComposition,inspectLedger})`,
+    { provided: original },
+  ) as {
+    scanMigrationArtifact(...args: unknown[]): Promise<object>;
+    inspectKnownComposition(): {
+      scanners: readonly { original: object }[];
+      scannerCalls: readonly { phase: string; cause?: unknown }[];
+    };
+    inspectLedger(): { stopped: boolean };
+  };
+  expect(forwarded.scanMigrationArtifact('/source', 123)).toBe(unretainedPromise);
+  expect(await unretainedPromise).toBe(nonretained);
+  expect(nonretained.close).toBe(nonretainedClose);
+  expect(forwarded.inspectKnownComposition().scanners).toHaveLength(0);
+  const returned = forwarded.scanMigrationArtifact('/retained', 123, true);
+  expect(returned).toBe(retainedPromise);
+  expect(await returned).toBe(retained);
+  expect(forwarded.inspectKnownComposition().scanners[0].original).toBe(retained);
+  expect(retained.close()).toBe('closed');
+  expect(calls).toEqual([
+    ['/source', 123],
+    ['/retained', 123, true],
+  ]);
+  const rejected = forwarded.scanMigrationArtifact('/rejected', 123);
+  await Promise.allSettled([rejected]);
+  expect(forwarded.inspectLedger().stopped).toBe(true);
+  expect(forwarded.inspectKnownComposition().scannerCalls[2].phase).toBe('unknown');
+  expect(forwarded.inspectKnownComposition().scannerCalls[2].cause).toBe(scanCause);
+  expect(forwarded.inspectKnownComposition().scanners).toHaveLength(1);
+});
+
+test('UC2 coupled known join refuses absent actual owner body and projection observations', async () => {
+  const ledger = await coupledLedger();
+  ledger.capturePreparation(
+    {},
+    { phase: 'closed', ownership: { state: 'closing' }, originals: new Set() },
+  );
+  for (const label of ['fixture', 'owner-action', 'outer-owner', 'completion'])
+    void ledger.attachControllerControl(ledger.reserveControllerControl(label), Promise.resolve());
+  await refuses(ledger.joinKnownComposition(), 'owner observation');
+});
+
+function finiteCoupledJoin(ledger: CoupledLedgerHarness, failedObserver?: Promise<void>) {
+  const composition = Promise.resolve(),
+    projection = Promise.resolve();
+  const compositionObserver = failedObserver ?? composition.then(() => undefined);
+  const projectionObserver = projection.then(() => undefined);
+  const owner = {},
+    ownership = { state: 'closing' };
+  const record = {
+    owner,
+    ownership,
+    phase: 'closed',
+    originals: new Set(),
+    composition: { original: composition, observer: compositionObserver },
+    projection: { original: projection, observer: projectionObserver },
+  };
+  ledger.capturePreparation({}, record);
+  ledger.captureSettlement(record, record.composition, composition, compositionObserver);
+  ledger.captureSettlement(record, record.projection, projection, projectionObserver);
+  const interval = Object.freeze({ inert: 'production keeper interval' });
+  ledger.returnOperation(
+    ledger.reserveOperation('owner.interval', 'sync', undefined, [() => record, 60000]),
+    interval,
+  );
+  ledger.captureKeeper(owner, ownership, { interval, pending: Promise.resolve() });
+  ledger.returnOperation(
+    ledger.reserveOperation('owner.clear', 'sync', undefined, [interval]),
+    undefined,
+  );
+  for (const label of ['fixture', 'owner-action', 'outer-owner', 'completion'])
+    void ledger.attachControllerControl(ledger.reserveControllerControl(label), Promise.resolve());
+  return { compositionObserver, projectionObserver };
+}
+
+test('UC2 coupled known join accepts exact inert keeper creation and retirement records', async () => {
+  const ledger = await coupledLedger();
+  finiteCoupledJoin(ledger);
+  await ledger.joinKnownComposition();
+  expect(
+    ledger.inspectKnownComposition().controls.every((control) => control.phase === 'fulfilled'),
+  ).toBe(true);
+});
+
+test('UC2 coupled known join retains distinct rejected observer outcome including undefined', async () => {
+  const ledger = await coupledLedger();
+  const observer = new Promise<void>((_resolve, reject) => {
+    // Undefined is the deliberately tested original boundary cause.
+    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+    reject();
+  });
+  void observer.catch(() => undefined);
+  finiteCoupledJoin(ledger, observer);
+  await refuses(ledger.joinKnownComposition(), 'observer rejected');
+  const inspection = ledger.inspectKnownComposition() as unknown as {
+    joinOutcomes: readonly { observer?: Promise<void>; outcome: PromiseSettledResult<unknown> }[];
+  };
+  const retained = inspection.joinOutcomes.find((observation) => observation.observer === observer);
+  expect(retained?.outcome.status).toBe('rejected');
+  if (retained?.outcome.status !== 'rejected')
+    throw new Error('original observer rejection missing');
+  expect(retained.outcome.reason).toBeUndefined();
+});
+
+test('UC2 coupled scanner call tree admits five actual originals and refuses sixth before entry', async () => {
+  const ledger = await coupledLedger();
+  const originals: Promise<unknown>[] = [];
+  let entered = 0;
+  try {
+    for (let ordinal = 0; ordinal < 5; ordinal++) {
+      const call = ledger.reserveScannerCall(['/artifact', 123, ordinal === 4]);
+      entered++;
+      const original = Promise.resolve(ordinal);
+      originals.push(original);
+      expect(ledger.attachScannerCall(call, original)).toBe(original);
+    }
+    expect(() => {
+      ledger.reserveScannerCall(['/sixth', 123]);
+      entered++;
+    }).toThrow('cap');
+    expect(entered).toBe(5);
+  } finally {
+    await Promise.allSettled(originals);
+  }
+});
+
+test('UC2 coupled typing preserves unchanged forwarding runtime syntax trees', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  const ts = await import('typescript');
+  const root = new URL('../../../../', import.meta.url).pathname.replace(/\/$/, '');
+  const supplied = new Map<string, Uint8Array>();
+  for (const pin of fixture.ordinaryHoldSourceEpochV1.pins)
+    supplied.set(`${root}/${pin.relative}`, await readFile(`${root}/${pin.relative}`));
+  const previous = fixture.planOrdinaryHoldBuildV1(root, supplied).portSources;
+  const prospective = fixture.ordinaryCoupledPortSourcesV1(root);
+  function shape(node: Node): unknown {
+    if (ts.isParenthesizedExpression(node)) return shape(node.expression);
+    const children: unknown[] = [];
+    ts.forEachChild(node, (child) => {
+      children.push(shape(child));
+    });
+    const text = ts.isIdentifier(node)
+      ? String(node.escapedText)
+      : ts.isStringLiteralLike(node) || ts.isNumericLiteral(node)
+        ? node.text
+        : null;
+    return [node.kind, text, children];
+  }
+  const syntax = (source: string) =>
+    shape(
+      ts.createSourceFile(
+        'port.js',
+        ts.transpileModule(source, {
+          compilerOptions: {
+            target: ts.ScriptTarget.ESNext,
+            module: ts.ModuleKind.ESNext,
+            removeComments: true,
+          },
+        }).outputText,
+        ts.ScriptTarget.ESNext,
+        true,
+      ),
+    );
+  let checked = 0;
+  for (const [specifier, source] of previous) {
+    if (
+      [
+        'ordinary-hold-v1:ledger',
+        'ordinary-hold-v1:complete-scanner',
+        'ordinary-hold-v1:migration-fs',
+      ].includes(specifier)
+    )
+      continue;
+    const annotated = prospective.get(specifier);
+    if (annotated === undefined) throw new Error('typed forwarding port absent');
+    expect(syntax(annotated)).toEqual(syntax(source));
+    checked++;
+  }
+  expect(checked).toBe(25);
+});
+
+test('UC2 coupled scanner association explicitly refuses a native-linked scanner without an opaque obligation', async () => {
+  const ledger = await coupledLedger();
+  const native = ledger.reserveNative('storage.openSync', 'fd', ['inert descriptor'], undefined);
+  ledger.attachNative(native, 7);
+  const monitor = { close: () => undefined };
+  ledger.linkWrapper(monitor, [native], 'scanner');
+  const preparation = {},
+    original = {},
+    observed = {
+      acquisition: { kind: 'scanner', scanner: monitor },
+      preparation: { owner: {}, ownership: {} },
+    };
+  ledger.captureOriginal(preparation, original, observed);
+  const custody = ledger.inspectLedger();
+  expect(custody.stopped).toBe(true);
+  expect(custody.fatalObservation?.acquired).toBe(monitor);
+  expect(custody.fatalObservation?.observed).toBe(observed);
+  expect(custody.fatalObservation?.kind).toBeUndefined();
+});
+
+test('UC2 coupled scanner association accepts the exact retained opaque monitor', async () => {
+  const ledger = await coupledLedger();
+  const monitor = { close: () => undefined };
+  const original = Promise.resolve(monitor);
+  void ledger.attachScannerPromise(ledger.reserveScanner(['/inert', 123, true]), original);
+  await original;
+  ledger.captureOriginal(
+    {},
+    {},
+    {
+      acquisition: { kind: 'scanner', scanner: monitor },
+      preparation: { owner: {}, ownership: {} },
+    },
+  );
+  expect(ledger.inspectLedger().stopped).toBe(false);
+  monitor.close();
+});
+
+test('UC2 coupled migration overloads preserve named forwarding bodies with three explicit binding changes', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  const ts = await import('typescript');
+  const root = new URL('../../../../', import.meta.url).pathname.replace(/\/$/, '');
+  const supplied = new Map<string, Uint8Array>();
+  for (const pin of fixture.ordinaryHoldSourceEpochV1.pins)
+    supplied.set(`${root}/${pin.relative}`, await readFile(`${root}/${pin.relative}`));
+  const previous = fixture
+    .planOrdinaryHoldBuildV1(root, supplied)
+    .portSources.get('ordinary-hold-v1:migration-fs');
+  const prospective = fixture
+    .ordinaryCoupledPortSourcesV1(root)
+    .get('ordinary-hold-v1:migration-fs');
+  if (previous === undefined || prospective === undefined)
+    throw new Error('migration forwarding source missing');
+  function forwards(source: string) {
+    const emitted = ts.transpileModule(source, {
+      compilerOptions: {
+        target: ts.ScriptTarget.ESNext,
+        module: ts.ModuleKind.ESNext,
+        removeComments: true,
+      },
+    }).outputText;
+    const module = ts.createSourceFile('port.js', emitted, ts.ScriptTarget.ESNext, true);
+    const declarations = new Map<
+      string,
+      { name: string; parameters: string[]; body: string; binding: string }
+    >();
+    function retain(node: Node, binding: string) {
+      if (
+        (!ts.isFunctionDeclaration(node) && !ts.isFunctionExpression(node)) ||
+        node.name === undefined ||
+        node.body === undefined
+      )
+        throw new Error('named forwarding body missing');
+      declarations.set(node.name.text, {
+        name: node.name.text,
+        parameters: node.parameters.map((parameter) => parameter.getText(module)),
+        body: node.body.getText(module),
+        binding,
+      });
+    }
+    for (const statement of module.statements) {
+      if (ts.isFunctionDeclaration(statement)) retain(statement, 'declaration');
+      else if (ts.isVariableStatement(statement))
+        for (const declaration of statement.declarationList.declarations) {
+          let initializer = declaration.initializer;
+          if (initializer === undefined) continue;
+          while (ts.isParenthesizedExpression(initializer)) initializer = initializer.expression;
+          if (ts.isFunctionExpression(initializer)) {
+            if (
+              !ts.isIdentifier(declaration.name) ||
+              initializer.name?.text !== declaration.name.text
+            )
+              throw new Error('migration export name changed');
+            retain(initializer, 'binding');
+          }
+        }
+    }
+    return declarations;
+  }
+  const before = forwards(previous),
+    after = forwards(prospective);
+  expect(before.size).toBe(6);
+  expect(after.size).toBe(6);
+  const changed: string[] = [];
+  for (const [name, original] of before) {
+    const annotated = after.get(name);
+    if (annotated === undefined) throw new Error('migration export disappeared');
+    expect(annotated.name).toBe(original.name);
+    expect(annotated.parameters).toEqual(original.parameters);
+    expect(annotated.body).toBe(original.body);
+    if (annotated.binding !== original.binding) changed.push(name);
+  }
+  expect(changed.sort()).toEqual(['mkdtempSync', 'readFileSync', 'readdirSync']);
+});
+
+test('UC2 coupled fixture preserves the exact historical constructor prefix', async () => {
+  const bytes = await readFile(new URL('../fixtures/dependency-owner-custody.ts', import.meta.url));
+  expect(
+    bytes.indexOf("import { realpath as ordinaryHoldRealpath } from 'node:fs/promises';"),
+  ).toBe(95701);
+  const marker = "import { realpath as ordinaryHoldRealpath } from 'node:fs/promises';";
+  expect(bytes.toString('utf8').split(marker).length - 1).toBe(1);
+  expect(bytes.indexOf('\n' + marker)).toBe(95700);
+  expect(createHash('sha256').update(bytes.subarray(0, 95701)).digest('hex')).toBe(
+    '50281b36a01665b83062e7bb7d065361037182581fb791a89e1b049d65cf4b04',
+  );
 });
