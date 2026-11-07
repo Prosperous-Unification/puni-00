@@ -1,0 +1,1197 @@
+{
+  "base": "acfdc02c7f0acc98606c87312a694ed2b89302ea",
+  "sourcePins": {
+    "tools/tool-fleet/src/registry-journal-cli.ts": "82b275422a3f9fe50843092474b20df0f4e4bc7e4c86b8895287a10789811ae1",
+    "tools/tool-fleet/src/registry-journal.test.ts": "b7fb6913f53c223c93e5210d81d25c95415589312484c0cb93f2c2c8000aaa13",
+    "tools/tool-fleet/src/registry-journal.ts": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+    "tools/tool-fleet/src/registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+    "tools/tool-fleet/src/registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab"
+  },
+  "command": "bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-fleet/src/<paired-test> [-t <pattern>]",
+  "method": "Replace one exact needle with its replacement, run paired production-path tests, require a named failing test, restore original source in finally. Policy faults run the complete policy suite; journal/CLI faults use the recorded name pattern.",
+  "faults": [
+    {
+      "name": "P01 safe counts",
+      "filename": "registry-policy.ts",
+      "needle": "type('number.integer >= 0').narrow(Number.isSafeInteger)",
+      "replacement": "type('number')",
+      "pattern": "",
+      "index": 0,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > rejects missing capacity, zero budgets and fractional counts [2.34ms]",
+        "publication admission > throws for missing or invalid capacity %s [0.31ms]",
+        "publication admission > throws for missing or invalid capacity %s [0.13ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P02 positive capacity",
+      "filename": "registry-policy.ts",
+      "needle": "const PositiveCount = Count.narrow((count) => count > 0);",
+      "replacement": "const PositiveCount = Count;",
+      "pattern": "",
+      "index": 1,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > rejects missing capacity, zero budgets and fractional counts [3.16ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P03 immutable digest",
+      "filename": "registry-policy.ts",
+      "needle": "type(/^sha256:[0-9a-f]{64}$/)",
+      "replacement": "type('string')",
+      "pattern": "",
+      "index": 2,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > rejects unknown roots and mutable identities even when both references agree [0.76ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P04 canonical timestamp",
+      "filename": "registry-policy.ts",
+      "needle": "return Number.isFinite(milliseconds) && new Date(milliseconds).toISOString() === stamp;",
+      "replacement": "return true;",
+      "pattern": "",
+      "index": 3,
+      "exit": 1,
+      "failedTests": ["retirement planning > throws for malformed timestamp [0.37ms]"],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P05 required inode envelope",
+      "filename": "registry-policy.ts",
+      "needle": "const Envelope = type({ bytes: Count, inodes: Count });",
+      "replacement": "const Envelope = type({ bytes: Count, 'inodes?': Count });",
+      "pattern": "",
+      "index": 4,
+      "exit": 1,
+      "failedTests": ["publication admission > throws for missing inode envelope [0.51ms]"],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P06 complete history",
+      "filename": "registry-policy.ts",
+      "needle": "complete: 'true',\n    releases:",
+      "replacement": "complete: 'boolean',\n    releases:",
+      "pattern": "",
+      "index": 5,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > throws for absent or incomplete history instead of assuming first install [0.42ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P07 complete graph",
+      "filename": "registry-policy.ts",
+      "needle": "graph: { complete: 'true', nodes:",
+      "replacement": "graph: { complete: 'boolean', nodes:",
+      "pattern": "",
+      "index": 6,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > throws for incomplete graph, unknown references and mutable identities [0.90ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P08 actual usable budget",
+      "filename": "registry-policy.ts",
+      "needle": "return Math.min(capacity.maximumBytes, capacity.usableBytes);",
+      "replacement": "return capacity.maximumBytes;",
+      "pattern": "",
+      "index": 7,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > uses actual usable capacity when smaller than the configured budget [0.62ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P09 exact arithmetic",
+      "filename": "registry-policy.ts",
+      "needle": "return Number((BigInt(capacity) * BigInt(percent) + 99n) / 100n);",
+      "replacement": "return Math.ceil(capacity * percent / 100);",
+      "pattern": "",
+      "index": 8,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > refuses the exact byte cutoff near the safe-integer capacity limit [1.19ms]",
+        "publication admission > refuses the exact inode cutoff near the safe-integer capacity limit [0.15ms]",
+        "publication admission > keeps large safe-integer usage below its exact pressure threshold: %s [0.09ms]",
+        "publication admission > keeps large safe-integer usage below its exact pressure threshold: %s [0.03ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P10 byte stop",
+      "filename": "registry-policy.ts",
+      "needle": "capacity.usedBytes >= threshold(bytes, 90)",
+      "replacement": "capacity.usedBytes >= threshold(bytes, 91)",
+      "pattern": "",
+      "index": 9,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > fences writes at actual stop pressure or low host reserve [0.67ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P11 inode stop",
+      "filename": "registry-policy.ts",
+      "needle": "capacity.usedInodes >= threshold(capacity.totalInodes, 90)",
+      "replacement": "capacity.usedInodes >= threshold(capacity.totalInodes, 91)",
+      "pattern": "",
+      "index": 10,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > reports warning and stop pressure from inodes independently [0.60ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P12 byte cleanup",
+      "filename": "registry-policy.ts",
+      "needle": "capacity.usedBytes >= threshold(bytes, 80)",
+      "replacement": "capacity.usedBytes >= threshold(bytes, 81)",
+      "pattern": "",
+      "index": 11,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > admits strictly below both cutoffs and reports pressure [0.54ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P13 inode cleanup",
+      "filename": "registry-policy.ts",
+      "needle": "capacity.usedInodes >= threshold(capacity.totalInodes, 80)",
+      "replacement": "capacity.usedInodes >= threshold(capacity.totalInodes, 81)",
+      "pattern": "",
+      "index": 12,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > targets below seventy percent and requests pressure cleanup at eighty [0.97ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P14 byte warning",
+      "filename": "registry-policy.ts",
+      "needle": "capacity.usedBytes >= threshold(bytes, 70)",
+      "replacement": "capacity.usedBytes >= threshold(bytes, 71)",
+      "pattern": "",
+      "index": 13,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > admits strictly below both cutoffs and reports pressure [0.34ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P15 inode warning",
+      "filename": "registry-policy.ts",
+      "needle": "capacity.usedInodes >= threshold(capacity.totalInodes, 70)",
+      "replacement": "capacity.usedInodes >= threshold(capacity.totalInodes, 71)",
+      "pattern": "",
+      "index": 14,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > reports warning and stop pressure from inodes independently [0.49ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P16 byte reservation",
+      "filename": "registry-policy.ts",
+      "needle": "sum + reservation.bytes",
+      "replacement": "sum + 0",
+      "pattern": "",
+      "index": 15,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > charges existing reservations to both budgets [0.71ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P17 inode reservation",
+      "filename": "registry-policy.ts",
+      "needle": "sum + reservation.inodes",
+      "replacement": "sum + 0",
+      "pattern": "",
+      "index": 16,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > charges existing reservations to both budgets [0.39ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P18 byte admission",
+      "filename": "registry-policy.ts",
+      "needle": "if (requiredBytes > 0) reasons.push('bytes');",
+      "replacement": "",
+      "pattern": "",
+      "index": 17,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > refuses the exact byte cutoff near the safe-integer capacity limit [1.69ms]",
+        "publication admission > admits the last byte below ninety percent but refuses the exact cutoff [0.50ms]",
+        "publication admission > charges existing reservations to both budgets [0.58ms]",
+        "publication admission > rejects publication crossing ninety percent [0.56ms]",
+        "publication admission > uses actual usable capacity when smaller than the configured budget [0.32ms]",
+        "publication admission > fences writes at actual stop pressure or low host reserve [0.30ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P19 inode admission",
+      "filename": "registry-policy.ts",
+      "needle": "if (requiredInodes > 0) reasons.push('inodes');",
+      "replacement": "",
+      "pattern": "",
+      "index": 18,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > refuses the exact inode cutoff near the safe-integer capacity limit [0.86ms]",
+        "publication admission > charges existing reservations to both budgets [0.98ms]",
+        "publication admission > reports warning and stop pressure from inodes independently [0.44ms]",
+        "publication admission > rejects inode envelopes reaching ninety percent [0.78ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P20 root reserve",
+      "filename": "registry-policy.ts",
+      "needle": "if (capacity.rootFreeBytes < rootReserve) reasons.push('root-reserve');",
+      "replacement": "",
+      "pattern": "",
+      "index": 19,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > fences writes at actual stop pressure or low host reserve [0.70ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P21 publisher slot",
+      "filename": "registry-policy.ts",
+      "needle": "if (reservations.length > 0) reasons.push('publisher-busy');",
+      "replacement": "",
+      "pattern": "",
+      "index": 20,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > charges existing reservations to both budgets [0.96ms]",
+        "publication admission > retains crash reservations and refuses a second publisher [0.48ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P22 unique identity",
+      "filename": "registry-policy.ts",
+      "needle": "if (new Set(identities).size !== identities.length)",
+      "replacement": "if (false)",
+      "pattern": "",
+      "index": 21,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > rejects duplicate graph nodes, registered environments and histories [1.24ms]",
+        "retirement planning > rejects future publication receipts and unregistered environment histories [2.18ms]",
+        "retirement planning > throws for duplicate identities, future receipts and unknown historical releases [0.59ms]",
+        "refuses duplicate physical content owners and unknown or graph-overlapping content [1.31ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P23 cycle",
+      "filename": "registry-policy.ts",
+      "needle": "if (ancestors.has(digest))",
+      "replacement": "if (false)",
+      "pattern": "",
+      "index": 22,
+      "exit": 1,
+      "failedTests": ["retirement planning > rejects cyclic dependencies [1.22ms]"],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P24 unknown dependencies",
+      "filename": "registry-policy.ts",
+      "needle": "if (node === undefined) throw new Error(`Unknown dependency ${digest}`);",
+      "replacement": "if (node === undefined) return;",
+      "pattern": "",
+      "index": 23,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > rejects unknown roots and mutable identities even when both references agree [0.56ms]",
+        "retirement planning > throws for incomplete graph, unknown references and mutable identities [1.10ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P25 partial owner",
+      "filename": "registry-policy.ts",
+      "needle": "throw new Error('Partial content lacks reconciled abandonment');",
+      "replacement": ";",
+      "pattern": "",
+      "index": 24,
+      "exit": 1,
+      "failedTests": ["refuses partial operations without an abandoned owning bundle [0.85ms]"],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P26 retired identity",
+      "filename": "registry-policy.ts",
+      "needle": "throw new Error('Unknown retired operation or empty required roots');",
+      "replacement": ";",
+      "pattern": "",
+      "index": 25,
+      "exit": 1,
+      "failedTests": ["refuses unknown unfinished or empty-root retired declarations [0.56ms]"],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P27 known graph owner",
+      "filename": "registry-policy.ts",
+      "needle": "if (!owned.has(node.digest))",
+      "replacement": "if (false)",
+      "pattern": "",
+      "index": 26,
+      "exit": 1,
+      "failedTests": ["retirement planning > throws for unknown owner [0.46ms]"],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P28 physical owner",
+      "filename": "registry-policy.ts",
+      "needle": "throw new Error('Invalid unreferenced physical content ownership');",
+      "replacement": ";",
+      "pattern": "",
+      "index": 27,
+      "exit": 1,
+      "failedTests": [
+        "refuses duplicate physical content owners and unknown or graph-overlapping content [0.70ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P29 staging owner",
+      "filename": "registry-policy.ts",
+      "needle": "throw new Error('Unowned staged content');",
+      "replacement": ";",
+      "pattern": "",
+      "index": 28,
+      "exit": 1,
+      "failedTests": ["refuses staged content without an owning bundle [0.67ms]"],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P30 future bundle",
+      "filename": "registry-policy.ts",
+      "needle": "if (Date.parse(bundle.receipt.at) > currentTime)",
+      "replacement": "if (false)",
+      "pattern": "",
+      "index": 29,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > rejects future publication receipts and unregistered environment histories [0.62ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P31 missing history",
+      "filename": "registry-policy.ts",
+      "needle": "if (!inventory.histories.some((history) => history.environment === environment))",
+      "replacement": "if (false)",
+      "pattern": "",
+      "index": 30,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > throws for absent or incomplete history instead of assuming first install [0.56ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P32 registered history",
+      "filename": "registry-policy.ts",
+      "needle": "if (!inventory.registeredEnvironments.includes(history.environment))",
+      "replacement": "if (false)",
+      "pattern": "",
+      "index": 31,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > rejects future publication receipts and unregistered environment histories [1.19ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P33 first-install chronology",
+      "filename": "registry-policy.ts",
+      "needle": "if (Date.parse(history.at) > currentTime)",
+      "replacement": "if (false)",
+      "pattern": "",
+      "index": 32,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > throws for duplicate identities, future receipts and unknown historical releases [0.45ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P34 known history",
+      "filename": "registry-policy.ts",
+      "needle": "if (bundles.get(operationId)?.receipt.state !== 'promoted')",
+      "replacement": "if (false)",
+      "pattern": "",
+      "index": 33,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > throws for duplicate identities, future receipts and unknown historical releases [1.17ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P35 newest ten",
+      "filename": "registry-policy.ts",
+      "needle": "successful.slice(0, 10)",
+      "replacement": "successful.slice(0, 9)",
+      "pattern": "",
+      "index": 34,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > keeps ten complete bundles [1.83ms]",
+        "retirement planning > preserves older environment rollback [1.22ms]",
+        "retirement planning > uses stable operation IDs to order tied promotion receipts [0.76ms]",
+        "current consumer shared tier preserves its image while oldest four unique tiers retire [1.22ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P36 rollback history",
+      "filename": "registry-policy.ts",
+      "needle": "history.releases.slice(0, 3)",
+      "replacement": "history.releases.slice(0, 1)",
+      "pattern": "",
+      "index": 35,
+      "exit": 1,
+      "failedTests": ["retirement planning > preserves older environment rollback [2.27ms]"],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P37 retired history",
+      "filename": "registry-policy.ts",
+      "needle": "if (reasons.has(bundle.operationId))\n        throw new Error('Retired bundle remains required by release history');",
+      "replacement": "",
+      "pattern": "",
+      "index": 36,
+      "exit": 1,
+      "failedTests": ["refuses retired releases still required by successful history [0.35ms]"],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P38 unfinished retention",
+      "filename": "registry-policy.ts",
+      "needle": "if (bundle.receipt.state === 'unfinished') retain(bundle.operationId, 'unfinished');",
+      "replacement": "if (false) retain(bundle.operationId, 'unfinished');",
+      "pattern": "",
+      "index": 37,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > retains unfinished work regardless of age and excludes it from successful history [4.80ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P39 seven day grace",
+      "filename": "registry-policy.ts",
+      "needle": "const abandonmentDelay = 7 *",
+      "replacement": "const abandonmentDelay = 6 *",
+      "pattern": "",
+      "index": 38,
+      "exit": 1,
+      "failedTests": ["retirement planning > waits seven days after abandonment [1.17ms]"],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P40 exact protection closure",
+      "filename": "registry-policy.ts",
+      "needle": "bundle.roots.every((root) => protectedImages.has(root))",
+      "replacement": "bundle.roots.some((root) => protectedImages.has(root))",
+      "pattern": "",
+      "index": 39,
+      "exit": 1,
+      "failedTests": [
+        "current consumer shared tier preserves its image while oldest four unique tiers retire [0.70ms]",
+        "exact deployment roots remain protected across different owners without retaining unrelated old roots [0.34ms]",
+        "exact recovery roots remain protected across different owners without retaining unrelated old roots [0.25ms]",
+        "exact consumer roots remain protected across different owners without retaining unrelated old roots [0.40ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P41 protected digest",
+      "filename": "registry-policy.ts",
+      "needle": ".filter((digest) => !protectedDigests.has(digest))",
+      "replacement": ".filter(() => true)",
+      "pattern": "",
+      "index": 40,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > does not count shared blobs twice [1.00ms]",
+        "current consumer shared tier preserves its image while oldest four unique tiers retire [1.08ms]",
+        "exact deployment roots remain protected across different owners without retaining unrelated old roots [0.54ms]",
+        "exact recovery roots remain protected across different owners without retaining unrelated old roots [0.37ms]",
+        "exact consumer roots remain protected across different owners without retaining unrelated old roots [0.35ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P42 already retired",
+      "filename": "registry-policy.ts",
+      "needle": "!inventory.retiredOperations?.includes(bundle.operationId),",
+      "replacement": "true,",
+      "pattern": "",
+      "index": 41,
+      "exit": 1,
+      "failedTests": ["does not retire an already retired abandoned operation again [0.52ms]"],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P43 every orphan owner",
+      "filename": "registry-policy.ts",
+      "needle": "content.operations.every((operationId) => released.has(operationId))",
+      "replacement": "content.operations.some((operationId) => released.has(operationId))",
+      "pattern": "",
+      "index": 42,
+      "exit": 1,
+      "failedTests": [
+        "retains shared unreferenced content until every owning operation releases it [0.48ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P44 byte cleanup target",
+      "filename": "registry-policy.ts",
+      "needle": "threshold(budgetBytes(inventory.capacity), 70)",
+      "replacement": "threshold(budgetBytes(inventory.capacity), 80)",
+      "pattern": "",
+      "index": 43,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > reports all-protected exhaustion without weakening retention [0.59ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P45 inode cleanup target",
+      "filename": "registry-policy.ts",
+      "needle": "threshold(inventory.capacity.totalInodes, 70)",
+      "replacement": "threshold(inventory.capacity.totalInodes, 80)",
+      "pattern": "",
+      "index": 44,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > targets below seventy percent and requests pressure cleanup at eighty [0.73ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J01 schema boundary",
+      "filename": "registry-journal.ts",
+      "needle": "const parsed = schema(input);",
+      "replacement": "const parsed = input as T;",
+      "pattern": "rejects malformed claims",
+      "index": 45,
+      "exit": 1,
+      "failedTests": [
+        "rejects malformed claims and insecure journal paths before mutations [29.38ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J02 owner-only directory",
+      "filename": "registry-journal.ts",
+      "needle": "if (!status.isDirectory() || status.uid !== process.getuid?.() || (status.mode & 0o777) !== 0o700)",
+      "replacement": "if (false)",
+      "pattern": "rejects malformed claims",
+      "index": 46,
+      "exit": 1,
+      "failedTests": [
+        "rejects malformed claims and insecure journal paths before mutations [38.01ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J03 trusted file mode",
+      "filename": "registry-journal.ts",
+      "needle": "if (!status.isFile() || status.uid !== process.getuid?.() || (status.mode & 0o777) !== 0o600)",
+      "replacement": "if (false)",
+      "pattern": "rejects missing unreadable",
+      "index": 47,
+      "exit": 1,
+      "failedTests": [
+        "rejects missing unreadable and corrupt trusted state on command paths [14.49ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J04 nofollow journal",
+      "filename": "registry-journal.ts",
+      "needle": "constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK",
+      "replacement": "constants.O_RDONLY | constants.O_NONBLOCK",
+      "pattern": "rejects malformed claims",
+      "index": 48,
+      "exit": 1,
+      "failedTests": [
+        "rejects malformed claims and insecure journal paths before mutations [31.21ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J05 bounded journal read",
+      "filename": "registry-journal.ts",
+      "needle": "if (size > maximumJournalBytes)",
+      "replacement": "if (false)",
+      "pattern": "bounds valid oversized",
+      "index": 49,
+      "exit": 1,
+      "failedTests": [
+        "bounds valid oversized command and journal inputs and refuses exhausted revisions [89.21ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J06 read invariants",
+      "filename": "registry-journal.ts",
+      "needle": "requireConsistentState(journal);",
+      "replacement": "",
+      "pattern": "refuses reinitialization",
+      "index": 50,
+      "exit": 1,
+      "failedTests": [
+        "refuses reinitialization, clock reversal, duplicate roots and malformed trusted ownership [25.23ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J07 unique journal identities",
+      "filename": "registry-journal.ts",
+      "needle": "if (new Set(identities).size !== identities.length)",
+      "replacement": "if (false)",
+      "pattern": "refuses reinitialization",
+      "index": 51,
+      "exit": 1,
+      "failedTests": [
+        "refuses reinitialization, clock reversal, duplicate roots and malformed trusted ownership [26.85ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J08 image references",
+      "filename": "registry-journal.ts",
+      "needle": "throw new Error('Image roots and exact repository references disagree');",
+      "replacement": ";",
+      "pattern": "rejects malformed claims",
+      "index": 52,
+      "exit": 1,
+      "failedTests": [
+        "rejects malformed claims and insecure journal paths before mutations [32.20ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J09 replacement names",
+      "filename": "registry-journal.ts",
+      "needle": "if (!name.endsWith('.json') || Token(name.slice(8, -5)) instanceof type.errors)",
+      "replacement": "if (false)",
+      "pattern": "refuses unsafe replacement",
+      "index": 53,
+      "exit": 1,
+      "failedTests": [
+        "refuses unsafe replacement entries without deleting canonical or unrelated files [25.08ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J10 replacement regular file",
+      "filename": "registry-journal.ts",
+      "needle": "!status.isFile() ||\n    status.uid",
+      "replacement": "false ||\n    status.uid",
+      "pattern": "refuses unsafe replacement",
+      "index": 54,
+      "exit": 1,
+      "failedTests": [
+        "refuses unsafe replacement entries without deleting canonical or unrelated files [35.69ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J11 replacement owner",
+      "filename": "registry-journal.ts",
+      "needle": "status.uid !== process.getuid?.() ||\n    (status.mode",
+      "replacement": "false ||\n    (status.mode",
+      "pattern": "refuses a foreign-owner replacement",
+      "index": 55,
+      "exit": 1,
+      "failedTests": [
+        "refuses a foreign-owner replacement reported by the filesystem boundary [696.94ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J12 replacement mode",
+      "filename": "registry-journal.ts",
+      "needle": "(status.mode & 0o777) !== 0o600 ||\n    status.nlink",
+      "replacement": "false ||\n    status.nlink",
+      "pattern": "refuses unsafe replacement",
+      "index": 56,
+      "exit": 1,
+      "failedTests": [
+        "refuses unsafe replacement entries without deleting canonical or unrelated files [27.75ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J13 replacement links",
+      "filename": "registry-journal.ts",
+      "needle": "status.nlink !== 1",
+      "replacement": "false",
+      "pattern": "refuses unsafe replacement",
+      "index": 57,
+      "exit": 1,
+      "failedTests": [
+        "refuses unsafe replacement entries without deleting canonical or unrelated files [55.45ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J14 orphan cleanup",
+      "filename": "registry-journal.ts",
+      "needle": "for (const path of replacements) await unlink(path);",
+      "replacement": "",
+      "pattern": "reclaims a crashed pre-rename",
+      "index": 58,
+      "exit": 1,
+      "failedTests": [
+        "reclaims a crashed pre-rename replacement only after validating canonical state [1774.85ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J15 orphan fsync",
+      "filename": "registry-journal.ts",
+      "needle": "if (replacements.length > 0) await syncDirectory(directory, ports);",
+      "replacement": "",
+      "pattern": "propagates orphan directory fsync",
+      "index": 59,
+      "exit": 1,
+      "failedTests": [
+        "propagates orphan directory fsync failure without acknowledging the read command [19.39ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J16 kernel lock",
+      "filename": "registry-journal.ts",
+      "needle": "if (library.symbols.flock(descriptor.fd, 2 | 4) !== 0)",
+      "replacement": "if (false)",
+      "pattern": "refuses a competing process",
+      "index": 60,
+      "exit": 1,
+      "failedTests": [
+        "refuses a competing process holding the actual kernel lock without a locked bypass [25.98ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J17 failure growth",
+      "filename": "registry-journal.ts",
+      "needle": "replacementBytes + (recovery ? 0 : failureHeadroom)",
+      "replacement": "replacementBytes",
+      "pattern": "reserves failure growth",
+      "index": 61,
+      "exit": 1,
+      "failedTests": ["reserves failure growth below the bounded journal read limit [443.72ms]"],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J18 physical replacement",
+      "filename": "registry-journal.ts",
+      "needle": "    replacementAllocation +\n    (recovery",
+      "replacement": "    0n +\n    (recovery",
+      "pattern": "charges physical replacement",
+      "index": 62,
+      "exit": 1,
+      "failedTests": [
+        "charges physical replacement allocation before spending recovery headroom [25.32ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J19 journal budget",
+      "filename": "registry-journal.ts",
+      "needle": "neededBytes * (recovery ? 1n : 10n) >= BigInt(budget) * (recovery ? 1n : 9n)",
+      "replacement": "false",
+      "pattern": "refuses a full journal",
+      "index": 63,
+      "exit": 1,
+      "failedTests": [
+        "refuses a full journal including atomic replacement and retains failure headroom [16.13ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J20 file fsync",
+      "filename": "registry-journal.ts",
+      "needle": "      await sync(descriptor);",
+      "replacement": "",
+      "pattern": "propagates failed file and directory fsync",
+      "index": 64,
+      "exit": 1,
+      "failedTests": [
+        "propagates failed file and directory fsync without acknowledging mutation [48.09ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J21 directory fsync",
+      "filename": "registry-journal.ts",
+      "needle": "    await syncDirectory(directory, ports);\n  } catch (cause) {",
+      "replacement": "  } catch (cause) {",
+      "pattern": "propagates failed file and directory fsync",
+      "index": 65,
+      "exit": 1,
+      "failedTests": [
+        "propagates failed file and directory fsync without acknowledging mutation [50.67ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J22 failed replacement unlink",
+      "filename": "registry-journal.ts",
+      "needle": "        await unlink(replacement);",
+      "replacement": "",
+      "pattern": "removes its replacement after repeated fsync",
+      "index": 66,
+      "exit": 1,
+      "failedTests": [
+        "removes its replacement after repeated fsync failures while preserving canonical state [32.15ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J23 cleanup failure propagation",
+      "filename": "registry-journal.ts",
+      "needle": "throw new AggregateError(\n          [cause, cleanupFailure],\n          'Registry journal write and replacement cleanup failed',\n          { cause: cleanupFailure },\n        );",
+      "replacement": "throw cause;",
+      "pattern": "propagates replacement cleanup failure",
+      "index": 67,
+      "exit": 1,
+      "failedTests": [
+        "propagates replacement cleanup failure and reclaims the orphan after permission recovery [19.50ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J24 operation token",
+      "filename": "registry-journal.ts",
+      "needle": "owned.token !== request.token",
+      "replacement": "false",
+      "pattern": "rejects stale operation tokens",
+      "index": 68,
+      "exit": 1,
+      "failedTests": [
+        "rejects stale operation tokens and foreign owners before releasing protections [26.06ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J25 operation owner",
+      "filename": "registry-journal.ts",
+      "needle": "owned.owner !== request.owner",
+      "replacement": "false",
+      "pattern": "rejects stale operation tokens",
+      "index": 69,
+      "exit": 1,
+      "failedTests": [
+        "rejects stale operation tokens and foreign owners before releasing protections [44.42ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J26 maintenance phase membership",
+      "filename": "registry-journal.ts",
+      "needle": "!phases.includes(maintenance.resumePhase)",
+      "replacement": "false",
+      "pattern": "rejects corrupted active",
+      "index": 70,
+      "exit": 1,
+      "failedTests": [
+        "rejects corrupted active and failed maintenance phase combinations before recovery [53.02ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J27 maintenance phase consistency",
+      "filename": "registry-journal.ts",
+      "needle": ": maintenance.phase !== maintenance.resumePhase)",
+      "replacement": ": false)",
+      "pattern": "rejects corrupted active",
+      "index": 71,
+      "exit": 1,
+      "failedTests": [
+        "rejects corrupted active and failed maintenance phase combinations before recovery [17.97ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J28 failed phase evidence",
+      "filename": "registry-journal.ts",
+      "needle": "maintenance.failure === undefined || maintenance.failure.length === 0",
+      "replacement": "false",
+      "pattern": "rejects corrupted active",
+      "index": 72,
+      "exit": 1,
+      "failedTests": [
+        "rejects corrupted active and failed maintenance phase combinations before recovery [154.88ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J29 stale revision",
+      "filename": "registry-journal.ts",
+      "needle": "if (request.expectedRevision !== journal.revision)",
+      "replacement": "if (false)",
+      "pattern": "rejects stale revision",
+      "index": 73,
+      "exit": 1,
+      "failedTests": ["rejects stale revision without changing durable state [44.48ms]"],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J30 maintenance exclusion",
+      "filename": "registry-journal.ts",
+      "needle": "if (journal.maintenance !== null && !maintenanceCommand)",
+      "replacement": "if (false)",
+      "pattern": "preserves failed maintenance",
+      "index": 74,
+      "exit": 1,
+      "failedTests": [
+        "preserves failed maintenance ownership until explicit recovery and verified completion [43.19ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J31 publication reconciliation",
+      "filename": "registry-journal.ts",
+      "needle": "if (!request.reconciled) throw new Error('Publication uploads must be reconciled');",
+      "replacement": "",
+      "pattern": "rejects invalid journal measurements",
+      "index": 75,
+      "exit": 1,
+      "failedTests": [
+        "rejects invalid journal measurements and preserves unresolved publication ownership [54.98ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J32 phase sequence",
+      "filename": "registry-journal.ts",
+      "needle": "if (phases[phases.indexOf(maintenance.phase) + 1] !== request.phase)",
+      "replacement": "if (false)",
+      "pattern": "recovers crashed maintenance",
+      "index": 76,
+      "exit": 1,
+      "failedTests": [
+        "recovers crashed maintenance at its durable phase and completes only after every verification phase [39.99ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J33 bounded command",
+      "filename": "registry-journal.ts",
+      "needle": "if (typeof encoded !== 'string' || Buffer.byteLength(encoded) > maximumRequestBytes)",
+      "replacement": "if (false)",
+      "pattern": "bounds valid oversized",
+      "index": 77,
+      "exit": 1,
+      "failedTests": [
+        "bounds valid oversized command and journal inputs and refuses exhausted revisions [40.95ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J34 initialize recovery evidence",
+      "filename": "registry-journal.ts",
+      "needle": "if ((await listReplacements(directory)).length > 0)",
+      "replacement": "if (false)",
+      "pattern": "refuses initialize when an orphan",
+      "index": 78,
+      "exit": 1,
+      "failedTests": [
+        "refuses initialize when an orphan may be the only recoverable journal [7.98ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J35 numeric chronology omission",
+      "filename": "registry-journal.ts",
+      "needle": "if (Date.parse(at) < Date.parse(state.updatedAt))",
+      "replacement": "if (false)",
+      "pattern": "chronology",
+      "index": 79,
+      "exit": 1,
+      "failedTests": [
+        "chronology rejects standard reversal before durable mutation [13.00ms]",
+        "chronology rejects expanded-boundary reversal before durable mutation [6.31ms]",
+        "chronology rejects negative-expanded reversal before durable mutation [3.67ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J36 exhausted revisions",
+      "filename": "registry-journal.ts",
+      "needle": "if (!Number.isSafeInteger(state.revision + 1))",
+      "replacement": "if (false)",
+      "pattern": "bounds valid oversized",
+      "index": 80,
+      "exit": 1,
+      "failedTests": [
+        "bounds valid oversized command and journal inputs and refuses exhausted revisions [114.89ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J37 lexical chronology restoration",
+      "filename": "registry-journal.ts",
+      "needle": "if (Date.parse(at) < Date.parse(state.updatedAt))",
+      "replacement": "if (at < state.updatedAt)",
+      "pattern": "chronology",
+      "index": 81,
+      "exit": 1,
+      "failedTests": [
+        "chronology rejects expanded-boundary reversal before durable mutation [11.06ms]",
+        "chronology accepts expanded-boundary advancement from an earlier spelling [8.07ms]",
+        "chronology rejects negative-expanded reversal before durable mutation [7.23ms]",
+        "chronology accepts negative-expanded advancement from an earlier spelling [4.55ms]"
+      ],
+      "sourceSha256": "cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "C01 streaming input bound",
+      "filename": "registry-journal-cli.ts",
+      "needle": "if (bytes > 64 * 1024)",
+      "replacement": "if (false)",
+      "pattern": "runs the owner-only stdin CLI",
+      "index": 82,
+      "exit": 1,
+      "failedTests": [
+        "runs the owner-only stdin CLI with real measurements and bounds input [1041.80ms]"
+      ],
+      "sourceSha256": "82b275422a3f9fe50843092474b20df0f4e4bc7e4c86b8895287a10789811ae1",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "C02 argument count",
+      "filename": "registry-journal-cli.ts",
+      "needle": "if (directory === undefined || process.argv.length !== 3)",
+      "replacement": "if (directory === undefined)",
+      "pattern": "runs the owner-only stdin CLI",
+      "index": 83,
+      "exit": 1,
+      "failedTests": [
+        "runs the owner-only stdin CLI with real measurements and bounds input [1927.00ms]"
+      ],
+      "sourceSha256": "82b275422a3f9fe50843092474b20df0f4e4bc7e4c86b8895287a10789811ae1",
+      "observedAt": "2026-11-08"
+    }
+  ]
+}
