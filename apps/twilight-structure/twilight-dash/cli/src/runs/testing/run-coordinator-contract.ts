@@ -1,7 +1,10 @@
 import { rejects } from 'node:assert/strict';
 
 import { afterEach, describe, expect, test } from 'bun:test';
-import { type DagWorkTicket, materializeDagInputFromRecords } from 'configurable-tree-traversal';
+import {
+  type DagWorkSettlementTicket,
+  materializeMultiEntryDagInputFromRecordCatalog,
+} from 'configurable-tree-traversal';
 
 import { createRunCoordinator } from '../../coordination/run-coordinator';
 import type { WbsCoordinationFacts } from '../../coordination/run-facts';
@@ -37,7 +40,7 @@ function currentFacts(): WbsCoordinationFacts {
 function topology() {
   return prepareCoordination(materializeOrderedSteps('work', currentFacts().steps));
 }
-function firstTicket(tickets: readonly DagWorkTicket<string>[]) {
+function firstTicket(tickets: readonly DagWorkSettlementTicket<string>[]) {
   expect(tickets).toHaveLength(1);
   return tickets[0];
 }
@@ -102,7 +105,7 @@ export function runCoordinatorContract(
         readWbs: setup.readWbs,
       });
       expect((await coordinator.ready()).map((ticket) => ticket.vertexId)).toEqual([FIRST]);
-      expect(coordinator.summary().completedWorkIds).toEqual([]);
+      expect(coordinator.summary().workCompletionCommittedVertexIds).toEqual([]);
     });
     test('malformed WBS progress cannot become an executable unfinished step', async () => {
       const setup = await fixture();
@@ -110,7 +113,7 @@ export function runCoordinatorContract(
         ...currentFacts(),
         progress: [{ stepId: 'first', state: 'unexpected' }],
       } as unknown as WbsCoordinationFacts;
-      let tickets: readonly DagWorkTicket<string>[] = [];
+      let tickets: readonly DagWorkSettlementTicket<string>[] = [];
       const rejected = await createRunCoordinator({
         dag: topology(),
         runs: setup.runs,
@@ -146,7 +149,7 @@ export function runCoordinatorContract(
         },
       });
       await entered.promise;
-      Object.assign(dag.definition.vertices[0].data, { stepId: 'second' });
+      Object.assign(dag.definition.vertexDeclarations[0].data, { stepId: 'second' });
       release.resolve(undefined);
       const coordinator = await pending;
       expect(await coordinator.ready()).toEqual([]);
@@ -156,7 +159,7 @@ export function runCoordinatorContract(
       const setup = await fixture();
       expect((await setup.coordinator.ready()).map((ticket) => ticket.vertexId)).toEqual([FIRST]);
       setup.setFacts({ ...currentFacts(), progress: [{ stepId: 'first', state: 'done' }] });
-      expect(setup.coordinator.summary().completedWorkIds).toEqual([]);
+      expect(setup.coordinator.summary().workCompletionCommittedVertexIds).toEqual([]);
       const rebuilt = await createRunCoordinator({
         dag: topology(),
         runs: setup.runs,
@@ -164,7 +167,7 @@ export function runCoordinatorContract(
         readWbs: setup.readWbs,
       });
       expect((await rebuilt.ready()).map((ticket) => ticket.vertexId)).toEqual([SECOND]);
-      expect(setup.coordinator.summary().completedWorkIds).toEqual([]);
+      expect(setup.coordinator.summary().workCompletionCommittedVertexIds).toEqual([]);
     });
     test('unaccepted completion never releases a successor; accepted duplicate is explicit', async () => {
       const setup = await fixture();
@@ -173,7 +176,7 @@ export function runCoordinatorContract(
         () => false,
         () => true,
       );
-      expect(setup.coordinator.summary().completedWorkIds).toEqual([]);
+      expect(setup.coordinator.summary().workCompletionCommittedVertexIds).toEqual([]);
       expect((await setup.coordinator.ready()).map((ticket) => ticket.vertexId)).toEqual([FIRST]);
       expect(rejected).toBe(true);
       setup.setFacts({ ...currentFacts(), progress: [{ stepId: 'first', state: 'done' }] });
@@ -194,14 +197,14 @@ export function runCoordinatorContract(
       setup.setFacts({ ...currentFacts(), progress: [{ stepId: 'first', state: 'done' }] });
       for (const ticket of [
         old,
-        { vertexId: FIRST } as DagWorkTicket<string>,
-        { vertexId: SECOND } as DagWorkTicket<string>,
+        { vertexId: FIRST } as DagWorkSettlementTicket<string>,
+        { vertexId: SECOND } as DagWorkSettlementTicket<string>,
       ]) {
         const rejected = await rebuilt.complete(ticket).then(
           () => false,
           () => true,
         );
-        expect(rebuilt.summary().completedWorkIds).toEqual([]);
+        expect(rebuilt.summary().workCompletionCommittedVertexIds).toEqual([]);
         expect(rejected).toBe(true);
       }
     });
@@ -230,7 +233,7 @@ export function runCoordinatorContract(
       expect((await setup.coordinator.admit(ticket, setup.guard, setup.admission)).kind).toBe(
         'applied',
       );
-      expect(setup.coordinator.summary().completedWorkIds).toEqual([]);
+      expect(setup.coordinator.summary().workCompletionCommittedVertexIds).toEqual([]);
       expect(await setup.coordinator.ready()).toEqual([]);
       setup.setFacts({ ...currentFacts(), eligibleStepIds: [] });
       expect((await setup.coordinator.admit(ticket, setup.guard, setup.admission)).kind).toBe(
@@ -322,7 +325,7 @@ export function runCoordinatorContract(
         readWbs: setup.readWbs,
       });
       expect(await rebuilt.ready()).toEqual([]);
-      expect(rebuilt.summary().completedWorkIds).toEqual([]);
+      expect(rebuilt.summary().workCompletionCommittedVertexIds).toEqual([]);
       const other = await fixture();
       unwrapReply(
         await other.runs.admitAttempt(
@@ -333,7 +336,7 @@ export function runCoordinatorContract(
           }),
         ),
       );
-      let exposed: readonly DagWorkTicket<string>[] = [];
+      let exposed: readonly DagWorkSettlementTicket<string>[] = [];
       const refused = await createRunCoordinator({
         dag: topology(),
         runs: other.runs,
@@ -390,7 +393,7 @@ export function runCoordinatorContract(
         expect((await setup.coordinator.ready()).map((ticket) => ticket.vertexId)).toEqual(
           effect === 'absent' ? [FIRST] : [],
         );
-        expect(setup.coordinator.summary().completedWorkIds).toEqual([]);
+        expect(setup.coordinator.summary().workCompletionCommittedVertexIds).toEqual([]);
         const reply = await setup.coordinator.admit(
           ticket,
           { ...setup.guard, expectedRevision: 2 },
@@ -511,7 +514,7 @@ export function runCoordinatorContract(
         const snapshot = await setup.runs.readRun(setup.run.runId);
         expect(snapshot.capacity.reserved).toBe(mode === 'fresh' ? 0 : 1);
         expect(snapshot.attempts).toHaveLength(mode === 'fresh' ? 0 : 1);
-        expect(coordinator.summary().completedWorkIds).toEqual([]);
+        expect(coordinator.summary().workCompletionCommittedVertexIds).toEqual([]);
         if (mode === 'exact') {
           expect(reply.kind).toBe('duplicate');
           expect(unwrapReply(reply).identity).toEqual(setup.admission.identity);
@@ -560,7 +563,7 @@ export function runCoordinatorContract(
       const reply = await pending;
       expect((await setup.runs.readRun(setup.run.runId)).capacity.reserved).toBe(0);
       expect(reply).toEqual({ kind: 'refused', reason: 'state_conflict' });
-      expect(coordinator.summary().completedWorkIds).toEqual([]);
+      expect(coordinator.summary().workCompletionCommittedVertexIds).toEqual([]);
     });
 
     test('foreign admission tickets cannot reserve capacity even for the same ready activity', async () => {
@@ -644,7 +647,7 @@ export function runCoordinatorContract(
           readWbs: () => Promise.resolve(facts),
         });
         expect(await coordinator.ready()).toEqual([]);
-        expect(coordinator.summary().completedWorkIds).toEqual([]);
+        expect(coordinator.summary().workCompletionCommittedVertexIds).toEqual([]);
       });
 
     test('concurrent completion and readiness serialize accepted-progress undo across a finite barrier', async () => {
@@ -701,7 +704,7 @@ export function runCoordinatorContract(
         },
       });
       await entered.promise;
-      Object.assign(dag.definition.vertices[0].data, { stepId: 'second' });
+      Object.assign(dag.definition.vertexDeclarations[0].data, { stepId: 'second' });
       release.resolve(undefined);
       const coordinator = await pending;
       const ticket = firstTicket(await coordinator.ready());
@@ -710,7 +713,7 @@ export function runCoordinatorContract(
         () => false,
         () => true,
       );
-      expect(coordinator.summary().completedWorkIds).toEqual([]);
+      expect(coordinator.summary().workCompletionCommittedVertexIds).toEqual([]);
       expect(rejected).toBe(true);
     });
     for (const [fault, change] of [
@@ -741,7 +744,7 @@ export function runCoordinatorContract(
       test(`inconsistent ${fault} never exposes executable tickets`, async () => {
         const setup = await fixture();
         const facts = { ...currentFacts(), ...change };
-        let tickets: readonly DagWorkTicket<string>[] = [];
+        let tickets: readonly DagWorkSettlementTicket<string>[] = [];
         const rejected = await createRunCoordinator({
           dag: topology(),
           runs: setup.runs,
@@ -759,28 +762,29 @@ export function runCoordinatorContract(
       });
     test('omitted native prerequisites cannot satisfy undeclared WBS activity work', async () => {
       const setup = await fixture();
-      const input = materializeDagInputFromRecords(
+      const input = materializeMultiEntryDagInputFromRecordCatalog(
         [
           { workItemId: 'work', stepId: 'first' },
           { workItemId: 'work', stepId: 'second' },
         ],
         {
-          id: (node) => (node.stepId === 'first' ? FIRST : SECOND),
-          dependsOnWork: (node) => (node.stepId === 'first' ? ['omitted'] : [FIRST]),
+          selectVertexId: (node) => (node.stepId === 'first' ? FIRST : SECOND),
+          selectWorkPrerequisiteVertexIds: (node) =>
+            node.stepId === 'first' ? ['omitted'] : [FIRST],
         },
       );
       const dag = prepareCoordination({
         ...input,
-        traversableGraph: {
-          ...input.traversableGraph,
-          resolvePrerequisite: () => ({
-            kind: 'omitted',
-            identity: { vertexId: 'omitted' },
-            satisfiesDependencies: true,
+        dagDiscoverySource: {
+          ...input.dagDiscoverySource,
+          resolvePrerequisiteByVertexId: () => ({
+            kind: 'vertexIntentionallyOmitted',
+            omittedVertexIdentity: { vertexId: 'omitted' },
+            satisfiesWorkAndSubgraphCompletionPrerequisites: true,
           }),
         },
       });
-      let tickets: readonly DagWorkTicket<string>[] = [];
+      let tickets: readonly DagWorkSettlementTicket<string>[] = [];
       const rejected = await createRunCoordinator({
         dag,
         runs: setup.runs,
@@ -818,7 +822,7 @@ export function runCoordinatorContract(
           { id: 'second', position: 1 },
         ],
       });
-      let tickets: readonly DagWorkTicket<string>[] = [];
+      let tickets: readonly DagWorkSettlementTicket<string>[] = [];
       const rejected = await setup.coordinator.ready().then(
         (ready) => {
           tickets = ready;
@@ -839,13 +843,13 @@ export function runCoordinatorContract(
         readWbs: setup.readWbs,
       });
       const ticket = firstTicket(await coordinator.ready());
-      Object.assign(dag.definition.vertices[0].data, { stepId: 'second' });
+      Object.assign(dag.definition.vertexDeclarations[0].data, { stepId: 'second' });
       setup.setFacts({ ...currentFacts(), progress: [{ stepId: 'second', state: 'done' }] });
       const rejected = await coordinator.complete(ticket).then(
         () => false,
         () => true,
       );
-      expect(coordinator.summary().completedWorkIds).toEqual([]);
+      expect(coordinator.summary().workCompletionCommittedVertexIds).toEqual([]);
       expect(rejected).toBe(true);
       setup.setFacts({ ...currentFacts(), steps: [{ id: 'first', position: 0 }] });
       await rejects(setup.coordinator.ready(), /rebuild required/);
@@ -856,13 +860,13 @@ export function runCoordinatorContract(
         prepareCoordination(materializeOrderedSteps('work', [{ id: 'first', position: 0 }])),
         prepareCoordination(materializeOrderedSteps('foreign', currentFacts().steps)),
         prepareCoordination(
-          materializeDagInputFromRecords(
+          materializeMultiEntryDagInputFromRecordCatalog(
             [
               { workItemId: 'work', stepId: 'first' },
               { workItemId: 'work', stepId: 'first' },
             ],
             {
-              id: (() => {
+              selectVertexId: (() => {
                 let index = 0;
                 return (): string => (++index === 1 ? FIRST : SECOND);
               })(),
@@ -871,7 +875,7 @@ export function runCoordinatorContract(
         ),
       ];
       for (const dag of definitions) {
-        let tickets: readonly DagWorkTicket<string>[] = [];
+        let tickets: readonly DagWorkSettlementTicket<string>[] = [];
         const rejected = await createRunCoordinator({
           dag,
           runs: setup.runs,

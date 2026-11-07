@@ -73,6 +73,9 @@ if (insideOpsNamespace(import.meta.path))
         host: ampleHost,
         user: 'puni1',
         legacyLock: () => legacyLock,
+        connect: () => {
+          throw new Error('no WBS call expected');
+        },
       };
     }
 

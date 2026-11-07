@@ -1,0 +1,21 @@
+{
+  "file": "postgres-operation-order.json.gz",
+  "compressedSha256": "7e68ffb20bb5d1db2ba9e7f7eb9beb24156980a08d55be04c1066809456f6270",
+  "compressedBytes": 236659,
+  "originalSha256": "42366d38fe9776c524fa0e03db544d832b65c71647807e05e5d37e887b015f4e",
+  "originalBytes": 2307363,
+  "sourceCommit": "9917286d18ae327182558f9eec17463fe01339ac",
+  "sourceTree": "f40d36482cfdfb2bdf915e48b4a97be0fdaa732d",
+  "methods": 28,
+  "runMethods": 26,
+  "artifactMethods": 2,
+  "coreTypeScriptFiles": 208,
+  "adjacentTypeScriptFiles": 2,
+  "orientationDocuments": 2,
+  "inventoriedFiles": 212,
+  "exportedSuites": 27,
+  "registrations": 54,
+  "allReadbackBytesVerified": true,
+  "scope": "Source-analysis implementation prerequisite only; no runtime, compiler, database, gate, protocol adoption or provider acceptance.",
+  "wordingAmendment": "Clarified208+2+2file count in published Markdown after independent review; original raw JSON unchanged."
+}

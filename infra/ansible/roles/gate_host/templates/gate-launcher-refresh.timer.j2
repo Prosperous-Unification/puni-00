@@ -1,0 +1,12 @@
+# Managed by infra/ansible/roles/gate_host; local edits are reverted on the next run.
+[Unit]
+Description=Hourly gate launcher checkout refresh (dash-host-jobs 6.9)
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=5min
+Unit=gate-launcher-refresh.service
+
+[Install]
+WantedBy=timers.target

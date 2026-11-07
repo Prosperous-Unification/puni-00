@@ -10,6 +10,7 @@ import type {
 import type {
   Admission,
   Attempt,
+  AttemptGuard,
   AttemptId,
   CommandReceipt,
   Completion,
@@ -21,11 +22,23 @@ import type {
   ManifestDigest,
   OwnerId,
   Ownership,
-  Revision,
   Run,
+  RunGuard,
   RunId,
   RunSnapshot,
+  ScopedAttemptGuard,
 } from './records';
+import type {
+  RecoveryBeginCall,
+  RecoveryCall,
+  RecoveryClosure,
+  RecoveryFence,
+  RecoveryFenceInput,
+  RecoveryFenceReplyInput,
+  RecoveryHistory,
+  RecoveryObservation,
+  RecoveryResolveCall,
+} from './recovery-records';
 import type {
   RuntimeAcceptance,
   RuntimeAcceptanceInput,
@@ -35,6 +48,14 @@ import type {
   RuntimeScope,
   RuntimeScopeSnapshot,
 } from './runtime-records';
+import type {
+  WriteAcceptAck,
+  WriteAcceptCommand,
+  WriteStageAck,
+  WriteStageCommand,
+} from './write-records';
+
+export type { AttemptGuard, RunGuard, ScopedAttemptGuard } from './records';
 
 export type StoreRefusal =
   | 'owner_busy'
@@ -51,21 +72,28 @@ export type StoreReply<T> =
   | { readonly kind: 'applied'; readonly value: T }
   | { readonly kind: 'duplicate'; readonly value: T }
   | { readonly kind: 'refused'; readonly reason: StoreRefusal };
-export interface RunGuard {
-  readonly ownership: Ownership;
-  readonly runId: RunId;
-  readonly expectedRevision: Revision;
-}
-export interface AttemptGuard extends RunGuard {
-  readonly attemptId: AttemptId;
-  readonly expectedAttemptRevision: Revision;
-}
-export interface ScopedAttemptGuard extends AttemptGuard {
-  readonly scope: RuntimeScope;
-  readonly expectedScopeRevision: Revision;
-}
 /** Async semantic persistence boundary; conflicts refuse, missing/corrupt trusted state throws. */
 export interface RunStore {
+  /** Atomically retains a validated completion, exact write request, obligation and original acknowledgement, releasing local capacity once. */
+  stageWrite(
+    guard: ScopedAttemptGuard,
+    command: WriteStageCommand,
+  ): Promise<StoreReply<WriteStageAck>>;
+  /** Trusted boundary: complete original receipt bytes and projection were verified before the transaction. Publishes one terminal acknowledgement and removes its obligation atomically. */
+  recordWriteAcceptance(
+    guard: ScopedAttemptGuard,
+    command: WriteAcceptCommand,
+  ): Promise<StoreReply<WriteAcceptAck>>;
+  /** Atomically closes recovery with its scope barrier and target consequences while retaining capacity. Exact replay returns the immutable original closure without reapplying consequences. */
+  resolveRecovery(call: RecoveryResolveCall): Promise<StoreReply<RecoveryClosure>>;
+  /** Retains an immutable recovery journal without advancing scope or target revisions. */
+  beginRecovery(call: RecoveryBeginCall): Promise<StoreReply<RecoveryHistory>>;
+  /** Stages one of at most three dominating receiver fences, advancing only recovery revision. Exact replay retains original provenance; trusted projections do not authenticate transport. */
+  stageRecoveryFence(call: RecoveryCall<RecoveryFenceInput>): Promise<StoreReply<RecoveryFence>>;
+  /** Retains one complete immutable verified fence reply, advancing only recovery revision and observation count. */
+  recordRecoveryFence(
+    call: RecoveryCall<RecoveryFenceReplyInput>,
+  ): Promise<StoreReply<RecoveryObservation>>;
   /** Atomically retains one exact WBS claim request with its attempt transition; never sends it. */
   stageClaim(
     guard: ScopedAttemptGuard,

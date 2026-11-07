@@ -29,6 +29,7 @@ import {
 } from './compute/report-capacity';
 import { sshHostAdapter } from './compute/ssh-host';
 import { accountOutcomes } from './ledger/account-outcomes';
+import type { ApiKey, McpEndpoint } from './mcp/machine-token';
 import { McpWbsTools } from './mcp/wbs-tools';
 import { runOps } from './ops/commands';
 import { linuxScopeTelemetry } from './ops/scope';
@@ -41,6 +42,21 @@ type PlanEnrollment = (argv: readonly string[]) => Promise<void>;
 
 /** A resource runtime tool call's deadline, as its HTTP requests had. */
 const RESOURCE_CALL_TIMEOUT_MS = 15_000;
+
+/**
+ * The resource runtime's one WBS client: `resources` publishes the outbox with it and
+ * `ops outbox drop` re-sends through it (task 6.8b), same endpoint, key, deadline and name.
+ */
+function resourceTools(endpoint: McpEndpoint, key: ApiKey, monotonic: Monotonic): McpWbsTools {
+  return new McpWbsTools({
+    endpoint,
+    key,
+    send: (input, init) => fetch(input, init),
+    monotonic,
+    timeoutMs: RESOURCE_CALL_TIMEOUT_MS,
+    clientName: 'twilight-dash-resources',
+  });
+}
 
 /** Everything `runDash` reaches outside its arguments, composed once by `entrypoint.ts`. */
 export interface DashDependencies {
@@ -175,15 +191,7 @@ export const dashHandlers: Handlers = {
       command,
       deps.clock,
       (text) => deps.stdout.write(text),
-      (endpoint, key) =>
-        new McpWbsTools({
-          endpoint,
-          key,
-          send: (input, init) => fetch(input, init),
-          monotonic: deps.monotonic,
-          timeoutMs: RESOURCE_CALL_TIMEOUT_MS,
-          clientName: 'twilight-dash-resources',
-        }),
+      (endpoint, key) => resourceTools(endpoint, key, deps.monotonic),
       productionLegacyLock,
     );
   },
@@ -199,6 +207,7 @@ export const dashHandlers: Handlers = {
       host: linuxHostFacts,
       user: userInfo().username,
       legacyLock: productionLegacyLock,
+      connect: (endpoint, key) => resourceTools(endpoint, key, deps.monotonic),
     });
   },
 };

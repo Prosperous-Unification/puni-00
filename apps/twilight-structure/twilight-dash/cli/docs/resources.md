@@ -86,7 +86,10 @@ schema version 2 had no host pool and is refused naming the five fields to add. 
 accepted only on loopback for an explicit tunnel or test server; other endpoints require HTTPS
 and redirects are refused. `watch` keeps retrying while WBS does not answer, answers `429` or
 mcp-01 leaves a call uncompleted (`rate_limited`, `server_error`, …); a refused credential
-(`machine_credential_refused`) or any other refusal stops it.
+(`machine_credential_refused`) or any other refusal stops it. A worktree-use event WBS refuses
+`400` for good therefore stops `watch` on every start, with no refusal row and no command that
+removes it: only a hand repair of the ledger clears it (`ops outbox drop` takes host-job events
+only, task 6.8a).
 
 Commands below abbreviate the source entrypoint as `dash`:
 
@@ -97,10 +100,12 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts resources init -
 The sole ledger is `<root>/.dash/resources.sqlite`, with FULL-synchronous SQLite transactions,
 WAL, history and publication outbox. It pins root device/inode, machine identity, authority,
 epoch, provider, disk scale, budget policy and the host pool's budgets, headroom, units and
-enrollment identity. Its schema is `user_version` 1. A ledger written before the host pool
-(`user_version` 0) is migrated forward in one transaction the first time a schema-3
-configuration opens it, only when its pinned binding is exactly that configuration's earlier
-fields; any other version is refused, since nothing here can step a newer schema back. The
+enrollment identity. The ledger's own schema is SQLite `user_version` 3 (1 added the host pool,
+2 the mode lifecycle, 3 the outbox refusals and drop journal), which is unrelated to the
+configuration's `schemaVersion` 3. A ledger written before the host pool (`user_version` 0) is
+migrated forward in one transaction the first time a configuration of `schemaVersion` 3 opens it, only when its pinned binding is exactly that configuration's earlier
+fields; versions 1 and 2 step forward only when their tables are exactly theirs; any other
+version is refused, since nothing here can step a newer schema back. The
 migration prints one line naming the ledger and the step. A Dash of the earlier version already
 running keeps its open connection and does not count host jobs until it restarts, so drain and
 restart it before enrolling the host (J12's drain before enrollment). Another configuration cannot silently change
@@ -336,9 +341,22 @@ transaction, into the authority outbox as `resourceRuntimeUse` v2 (`kind: 'host_
 planning link, `type`, `label`, the pool's `enrollmentId` as `host`, `launcherSha: null` (the launching checkout's HEAD) until
 the launcher records one, one reservation entry per envelope dimension and exclusive id): an
 admission becomes `registered`, the settlement that returns every entry becomes
-`release_verified` with the SHA-256 of that ledger row, the locator
-`dash-host-job://<authorityId>/<jobId>/<revision>` and disposition `returned`; launches and
-partial or blocked settlements stay local. They then publish through
+`release_verified` with evidence naming the job's run record (task 6.8, S6F-A1); launches and
+partial or blocked settlements stay local. The locator is `dash-host-job-run://<enrollmentId>/<jobId>`:
+the `runs` row of that job in `<root>/.dash/host-job-runs.sqlite` on the host enrolled under that
+id. The digest is the SHA-256 of the row's stored `start` text, the gate entry the launcher writes
+once before the payload runs, and the disposition is `returned`. A job with no run record (its launcher never
+wrote the gate entry: withdrawn, never launched, or refused before `begin`) returns `not_created`, and
+its digest is the SHA-256 of `<locator> absent`. Missing run records beside a ledger with host jobs
+stop the move and publish nothing until they are restored. WBS refuses any other locator or disposition,
+including the ledger-row `dash-host-job://…` evidence of slice 5, with `400 invalid_body`. To check a
+returned job's digest on its host:
+
+```sh
+bun -e 'const { Database } = require("bun:sqlite"); const [file, job] = process.argv.slice(-2); const row = new Database(file, { readonly: true }).query("SELECT start FROM runs WHERE job_id=?").get(job); console.log(row === null ? "absent" : new Bun.CryptoHasher("sha256").update(row.start).digest("hex"));' <root>/.dash/host-job-runs.sqlite <jobId>
+```
+
+The moved events publish through
 `putApiResourceAuthoritiesByAuthorityIdEvents` in the authority's one sequence with the
 worktree uses' events, so a WBS that answers nothing only delays them. WBS keeps each host job
 owned by the authority and its organization; the project resources read lists the unreturned
@@ -357,7 +375,97 @@ that reserve that dimension.
 Deploy WBS before Dash: an outgoing WBS without `resourceRuntimeUse` v2 refuses a host-job event
 `400`, and every later outbox event waits behind it. `synchronize` retries such a refusal for 30
 minutes from the first one, naming it on stderr each time, then throws, which stops `watch`.
-Run `watch` under a unit that restarts it (task 6.7).
+Run `watch` under a unit that restarts it (task 6.7). Each refusal is also kept in the ledger
+(`event_refusals`, ledger version 3): the event id and sequence, the SHA-256 of the refused bytes,
+the status and message, the first and last refusal time and the count. A publication WBS
+accepts deletes the event's row.
+
+#### Dropping an event WBS refuses for good (`ops outbox drop`, tasks 6.8a and 6.8b)
+
+A refusal that outlives any deploy window never clears by itself. The case it exists for is
+S6F-A4: WBS deployed before Dash while host jobs publish. An old Dash moves a `release_verified`
+with the slice-5 evidence `dash-host-job://…` into the outbox; the new be-01 refuses it
+`400 invalid_body` for good; the outbox retries the exact bytes (a moved event is never
+re-shaped), `watch` retries for 30 minutes, exits, restarts and starts the bound again, and
+every later event of the authority, worktree uses included, waits behind it. The remedy:
+
+```sh
+systemctl --user stop dash-resources-watch.service     # nothing publishes while the outbox changes
+journalctl --user -u dash-resources-watch.service | grep 'WBS refused host-job event'   # the event id
+bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops outbox drop \
+  --config /path/to/host-pool.json --event <eventId> --operator dany \
+  --reason 'slice-5 evidence a newer be-01 refuses (S6F-A4)'
+systemctl --user start dash-resources-watch.service
+```
+
+Before it changes anything, the command checks the ledger (below), then re-sends the event's
+stored bytes to WBS once, through the same events tool, MCP endpoint, key, authority and
+15-second call deadline `resources watch` publishes with (task 6.8b). The stored refusal row is
+not evidence on its own; the answer to the re-send is:
+
+- a fresh `400`: the event is dropped, and the journal's `refusal.confirmedAt` is that answer's
+  time. It prints one line naming the dropped event and the next in line:
+
+  ```text
+  ops outbox: dropped event 9e3d… (sequence 7, host job 1c2b… release_verified, refused HTTP 400 again on re-send at 2026-11-05T10:00:00.000Z); next in line: event 4a5f… (sequence 7)
+  ```
+
+- a `2xx`: WBS had accepted the event (a `watch` died between WBS's acceptance and its publish
+  mark, so the `400` row was stale), or accepts it now (a be-01 redeployed with a fix, or a
+  healed `observedAt` skew). The event is marked published in the same transaction a
+  publication uses, its refusal row goes, nothing is dropped or renumbered, and it exits 0:
+
+  ```text
+  ops outbox: WBS accepted event 9e3d… (sequence 7, host job 1c2b… release_verified) on re-send; marked it published, nothing was dropped; next in line: event 4a5f… (sequence 8)
+  ```
+
+- `409 conflict`: WBS's accepted sequence is not the one before the event (WBS is ahead of or
+  behind the outbox), or it holds other bytes under the event id, or its epoch or this host
+  job's state (registration, declaration) conflicts. It refuses 64 and changes nothing. Repair by hand: read the authority's `acceptedSequence`
+  (`getApiOrganizationResourceAuthoritiesByAuthorityId`, organization admins) and epoch, and the
+  host job's state in WBS, and reconcile the outbox with them before any drop.
+- no answer (unreachable, `429`, an uncompleted call) or any other refusal: it refuses 70
+  `could not confirm WBS still refuses event …; nothing was dropped`. A refused credential
+  (`machine_credential_refused`) stops it as it stops `watch`.
+
+On the fresh `400`, in one ledger transaction, after checking the ledger again (another drop or a
+publication may have committed while WBS answered), it deletes the event, gives every later outbox event one sequence
+less (WBS takes only the authority's next sequence, so leaving the gap would block the next
+event `409 conflict`), deletes the refusal row, and appends a record to `dropped_events`: the
+operator, the account, the time, the reason, the event's id, sequence, use and kind, its stored
+bytes and their SHA-256, the refusal that justified it with the re-send's time, the event next in
+line and how many events were renumbered. To read the journal on the host:
+
+```sh
+bun -e 'const { Database } = require("bun:sqlite"); for (const row of new Database(process.argv.at(-1), { readonly: true }).query("SELECT record FROM dropped_events ORDER BY sequence").all()) console.log(row.record);' <root>/.dash/resources.sqlite
+```
+
+It refuses 64, changing nothing and sending nothing to WBS, unless the event:
+
+- is in the outbox and unpublished (an unknown or published id is named as such);
+- is the outbox head, the event every later one waits behind;
+- is a host job's (a worktree use's revisions continue through WBS cleanup requests, so its
+  events are never dropped here);
+- carries a recorded `400` whose digest matches its current bytes: an event WBS has not refused,
+  or refused only `409`, `429` or as unreachable, is not droppable;
+- has no later outbox event of the same use: that event's revision would follow one WBS never
+  saw, so dropping a host job's refused `registered` while its `release_verified` waits is
+  refused.
+
+A pool it cannot open refuses 70. WBS never sees the dropped event, so it keeps the host job as
+its last accepted event left it (a dropped `release_verified` leaves it `registered` there; the
+host pool itself has released it). The evidence that WBS still refuses the event is the drop's
+own re-send. A stale `400` row, left by a `watch` that crashed after WBS accepted the event and
+before its publish mark, is answered `2xx` and the event is published, not dropped. What remains
+is a window between the re-send's `400` and the drop's commit: a WBS that accepts the same event
+from another sender in that window (only a running `watch` sends it) holds the sequence the next
+event is renumbered to. In concurrent mode with the guard on, the drop also refuses 64, before
+the re-send, while the singleton guard's holder is live, since `watch` may then be publishing. The holder can outlive a stopped `watch`
+while jobs still ran; end it (its pid is in the refusal) once `watch` is stopped. Observe mode and
+a released guard have no such signal. Stop `watch` first: a publication of the same event that WBS
+accepts while the drop commits finds its row gone and stops with `resource outbox event … changed
+while it was published`, and the authority then needs a hand repair, because WBS holds the
+sequence the next event was renumbered to.
 
 ### `ops pool` and `ops job` (slice 3)
 
@@ -406,7 +514,9 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
     Its reservation is then settled;
   - with `TMPDIR` the job's private directory under the managed root, `DASH_JOB_ID`,
     `DASH_JOB_TYPE`, `DASH_JOB_UNIT_<ID>` per exclusive unit (the id upper-cased) and
-    `HEAVY_LOCK_LABEL` set to `--label`;
+    `HEAVY_LOCK_LABEL` set to `--label`. `$TMPDIR` holds `.dash-tmp-identity`, the marker that
+    proves the directory is the one prepared; a payload that deletes or rewrites it leaves its
+    tmp entry `blocked` for an operator (fail-closed, task 2.4);
   - sampled every ten seconds and at exit: the counters, the tmp directory's allocated bytes
     (no link followed) and, for a containers bound, the labelled containers' `docker stats`.
     The gated shell keeps the scope alive until the exit sample is stored, so even `true` gets
@@ -441,6 +551,14 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
   running gate gate:0a518a42 pid 4242 age 1m00s envelope 4 cores 6 GiB 0 GiB tmp peak 2.5 GiB units gate_tree=/home/puni1/puni-00-gate-tbf settlement held (compute held, tmp held, gate_tree held)
   waiting website-dev-build build:site pid 4343 age 55s budget 1m05s overtakes 0
   ```
+
+- **`ops job admission --job <id>`** prints one JSON line, `{"job":"<id>","state":…,"running":…}`.
+  `running` is true only for a launched (`held`) job with no exit or launch failure recorded
+  whose leader is still the process recorded at launch; `state` is null for an id the ledger
+  never admitted. It reads the ledger and nothing else: no sweep, no settlement, no lock. A
+  nested `run_heavy_job` (`bin/heavy-lock-lib.sh`) asks it before running on the enclosing
+  job's admission, because a scope named `dash-job-<id>` alone can be made for any id
+  (`dash-host-jobs` task 6.10a).
 
 Not yet: `ops pool switch-mode` (slice 6). In observe mode `ops job run` does not yet take the
 shell lock's queue protocol (J12); that arrives with `run_heavy_job` in slice 6, before any host
@@ -539,8 +657,8 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
 
 ### Mode lifecycle, `switch-mode` and the singleton guard (slice 6b)
 
-A host pool runs in one of two modes (`dash-host-jobs` J12, J13). The ledger (version 2)
-records the mode, the guard, the guard's holder, a `switch-mode` in progress, any hold
+A host pool runs in one of two modes (`dash-host-jobs` J12, J13). The ledger (version 2 and
+later) records the mode, the guard, the guard's holder, a `switch-mode` in progress, any hold
 corruption and every operator mode record.
 
 **Before the first observe-mode job on a host, `resources watch` must be installed and running
@@ -550,8 +668,10 @@ payload outlives its launcher keeps the shell lock until an operator runs
 and a launcher killed after launch. Until then every legacy gate and Dash job refuses 75.
 
 **Deploy order.** Deploy slice 6b's Dash to a host first, and run `watch` or any `ops job run`
-there before `report-capacity`. Either one migrates the ledger to version 2. Until then
-`report-capacity` refuses the version-1 ledger.
+there before `report-capacity`. Either one migrates the ledger to the current version (3 since
+task 6.8a). Until then `report-capacity` refuses the older ledger. A read-only reader of an
+older Dash (`ops job admission` run from a gate candidate's checkout, `report-capacity`) refuses
+a newer ledger naming both versions (`ops job admission` exits 70); it never reads one it does not know.
 
 - **`observe`** (the start): every host job, calibrations included, also queues on the host's
   shell lock (`bin/heavy-lock-lib.sh`, `/home/puni1/.cache/wbs-heavy-work.lock`) after the
@@ -605,7 +725,7 @@ status` shows the mark, and the run records it; `ops job audit` reports the run 
 The configuration gains two optional fields, neither pinned by the binding:
 `launcherCheckouts` (absolute paths, each named once: the checkouts whose launchers run heavy
 jobs here) and `concurrencyEligible` (job type ids, each named once; absent means none). Every
-`ops` pool open (`pool init`, `job run`, `job calibrate`, `job status`, `pool inspect`,
+`ops` pool open (`pool init`, `job run`, `job calibrate`, `job status`, `job admission`, `pool inspect`,
 `switch-mode` and the record readers) refuses 64 an eligible id that no listed checkout's
 catalogue names at HEAD. A typo added later therefore stops the next command rather than
 silently serialising the type it meant (S6B-A17). `resources watch` does not check this,
