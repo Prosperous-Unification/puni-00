@@ -6,4 +6,4 @@
 ## 2. Canonical chronology and reviewable delivery
 
 - [x] 2.1 Add ordinary production-command standard/expanded/negative-year reversal and advancement regressions before replacing the lexical receipt comparison; negative: removed predicate admits reversal and restored lexical ordering fails expanded-year cases.
-- [ ] 2.2 Record fresh focused tests, lint, typecheck, format, strict OpenSpec and failure-proof inventory; preserve dormant runtime scope and original feature work. Commit normally and prepare a draft PR for independent review, remote CI and exact-revision host gating; these merge requirements remain external to local validation.
+- [x] 2.2 Record fresh focused tests, lint, typecheck, changed-file formatting, strict OpenSpec and failure-proof inventory; preserve dormant runtime scope and original feature work. Commit normally and prepare a draft PR for independent review, remote CI and exact-revision host gating; these merge requirements remain external to local validation.

@@ -1,6 +1,6 @@
 # Foundation verification — local checkpoint 2026-11-08
 
-This records local foundation checks only. The original [PR #843](https://github.com/Prosperous-Unification/puni-00/pull/843) remains separate and unfinished. Whole-slice independent review, remote CI and a canonical exact-revision host gate remain required before merge. Their final receipts belong in the foundation PR so the reviewed candidate can stay frozen through gating.
+This records local foundation checks only. The original [PR #843](https://github.com/Prosperous-Unification/puni-00/pull/843) remains separate and unfinished. Whole-slice independent review, remote CI and a canonical exact-revision host gate remain required before merge. Their final receipts belong in [foundation PR #888](https://github.com/Prosperous-Unification/puni-00/pull/888) so the reviewed candidate can stay frozen through gating.
 
 ## Source and scope
 
@@ -47,7 +47,7 @@ Cache: 0/1 hit (0%)
 
 `openspec validate registry-policy-journal-foundation --strict --json`: 1 item, 1 passed, zero failed, no issues. `openspec validate --all --json`: 329 items, 329 passed, zero failed (309 changes and 20 specs); unrelated existing warnings remain nonfatal.
 
-Changed-file Prettier passed. Full `NX_DAEMON=false bunx nx format:check --all` is awaiting its final output at this local checkpoint; it must be recorded before publication. `git diff --check` passed before staging.
+Explicit changed-file Prettier passed, including normal commit-hook formatting. Full `NX_DAEMON=false bunx nx format:check --all` remains running at this dated local checkpoint; its final output belongs in [PR #888](https://github.com/Prosperous-Unification/puni-00/pull/888), separately from the completed changed-file check. The parent agent owns observing that existing process and final merge requirements. `git diff --check` passed before staging.
 
 Not run locally: whole-repo `bunx nx run-many -t test lint typecheck build`, full package test selection, e2e, remote CI and canonical host gate. The root agent arranges remote CI and the canonical gate against the final pushed SHA. There is no tool-fleet build target; broader build validation belongs to that gate.
 
@@ -145,3 +145,7 @@ The [machine-readable failure inventory](evidence/failure-proofs.json) records e
 | C02 argument count                 | `registry-journal-cli.ts` | runs the owner-only stdin CLI with real measurements and bounds input                                   | Named test failed; exit 1 |
 
 The inventory establishes the listed local guard observations only. It does not replace independent whole-slice review or prove the unfinished installed registry lifecycle.
+
+## Publication checkpoint
+
+The first normal-hook commit `69dfa6b43158e8df65b5a3b53f178e02ee096d9c` was pushed and [draft PR #888](https://github.com/Prosperous-Unification/puni-00/pull/888) created. Its hooks passed scoped lint, formatting, plaintext-secrets and private-nesting; tool-wiki returned explicitly inactive because its external activation root is not provisioned. This final documentation checkpoint links later external receipts without changing the five pinned source/test files. All four implementation/local-verification/publication tasks are complete; independent review, remote CI, full-format completion and the canonical gate remain merge requirements recorded on that PR.
