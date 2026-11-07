@@ -7876,3 +7876,7 @@ Actual component tests keep their original epochs: harmless80, real Graph202/11/
 [Exact integration and dependency evidence](verify-main-20261105.md) records the
 reviewed main union, owned frozen CTT0.13 install and focused actual consumers.
 Frontend response/custody, full gates, private acceptance and delivery remain open.
+
+## Known-main startup compatibility — 2026-11-08
+
+The canonical and separately traced historical 103-migration boot certificates, actual boot RED/GREEN, strict refusal matrix, watched production-path proof pairs and scoped checks are recorded in [current-main bootstrap verification](verify-bootstrap-current-main.md). This slice does not activate cross-project authoring or establish integration CI, host gate or deployment success.

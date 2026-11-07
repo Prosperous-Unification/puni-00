@@ -1411,3 +1411,11 @@ or executable HOLD push precedes accepted ordinary finite containment.
 - [ ] UC2D. Independently prepare/qualify the distinct ordinary finite protocol in the existing fixture. Migrate both throwing-close cases, missing-evidence fallback and every affected case; preserve private builder/pins/three constructor cases. Freeze literal expanded census and materialize its separate routing/receipt exception before editing. Accepted containment must accompany executable publication.
 - [ ] UC2E. Review/observe distinct physical negatives for enrollment/association, owner-backed resources, direct/inherited attribution, original Promise binding/observation, pending-cleanup exclusion, post-await revocation, composition slot, evidence transfer, both guards, owner joins, keeper and expiry/drop cleanup. Retain exact restores/original resources/streams; ungranted constructor predicates remain pending.
 - [ ] UC2F. After accepted finite routing, qualify actual owning ordinary files, unchanged complete39, configured statics/OpenSpec and independent source review, then publish fresh combined source and qualify storage/rest/peers/aggregate and exact-SHA canonical h2 gate. UC3, broader provenance, native grants, architecture adoption and deployment retain separate obligations.
+
+## Current-main dormant bootstrap — 2026-11-08
+
+[Intent](bootstrap-current-main-intent.md); [verification](verify-bootstrap-current-main.md).
+
+- [x] MB1. Reproduce the exact known-main startup refusal through actual boot, with immutable migration identity fixture and retained project-value expectations.
+- [x] MB2. Extend historical certification to exactly the known main name/hash set with all four delayed additions absent; replay and compare complete schema, preserve partial/unknown/enabled authority refusal.
+- [x] MB3. Run owning boot regression and altered/missing/unknown/unreadable/partial/schema negatives; watch exact-set and schema guard omissions fail the same owning consumers, restore and rerun. Record scoped statics and independent review; broader CI/gates/deploy remain separate.
