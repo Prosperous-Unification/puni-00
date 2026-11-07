@@ -1494,12 +1494,16 @@ cleanup-migration, complete census, full CI/host gate, main or deployment obliga
 [ordered plan](ordinary-setup-custody-plan-20261107.md) and
 [read-only evidence](known-native-preparation-20261107/README.md).
 
-- [ ] SPC1. Derive finite source/Git/tree setup budgets and implement the separate prospective planner/retained setup ledger, preserving old outputs and composition256/core8192 bounds.
-- [ ] SPC2. Execute actual generated-ledger finite tests, independent guard fault/restoration controls and original/deferred/cleanup custody checks with exact restoration.
-- [ ] SPC3. Pass configured/scoped checks, independent source/proof review, publish fresh source/evidence and record WBS/holder state.
+- [x] SPC1. Derive finite source/Git/tree setup budgets and implement the separate prospective planner/retained setup ledger, preserving old outputs and composition256/core8192 bounds.
+- [x] SPC2. Execute actual generated-ledger finite tests, independent guard fault/restoration controls and original/deferred/cleanup custody checks with exact restoration.
+- [x] SPC3. Pass configured/scoped checks, independent source/proof review, publish fresh source/evidence and record WBS/holder state.
 - [ ] SPC4. Seal separate prospective compiler authorities, enable only explicit validated variant dispatch and qualify a separately reviewed one-attempt actual compilation.
 - [ ] SPC5. Review and execute the two distinct genuine known runtime controls sequentially with actual parent/child/reader/input custody and honestly scoped module/scratch lifetimes.
 
 All39HOLD/cleanup migrations/census/routing/fullCI/host gate/main/deploy obligations
 remain required; SPC5 does not replace them. The current saved image is not
 executed to rediscover its statically proven capacity failure.
+
+The [reviewed setup source checkpoint](verify-ordinary-setup-custody-20261107.md)
+completes SPC1–3at their stated source/proof/publication boundary. SPC4/5and all
+full native/HOLD/migration/census/gate/main/deployment obligations remain open.

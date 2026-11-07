@@ -2966,3 +2966,16 @@ observations/authority SHALL retain their original meaning and bytes.
 - **WHEN** the prospective planner emits its changed ledger or controller
 - **THEN** its distinct epoch cannot execute under the historical compiler packets or fall back to them
 - **AND** its own independently sealed successful compiler and concrete native protocols remain required before runtime claims
+
+#### Scenario: Proc-FD budget has an actual helper envelope
+
+- **GIVEN** the prospective setup budget selects helper-only soft/hard FD1024 and a controlled Git/template/config recipe
+- **WHEN** its future runtime protocol admits the image
+- **THEN** it first verifies those exact limits and that every inherited/current descriptor is distinct numeric and below1024, with controlled stdio and close_fds
+- **AND** a missing prerequisite refuses entry rather than inheriting a larger host limit or treating static budget estimates as observed native success
+
+#### Scenario: Aggregate setup capacity is derived
+
+- **WHEN** all86 exact per-boundary capacities are enforced
+- **THEN** their sum bounds setup records at10540 without a redundant independent total predicate
+- **AND** finite proof attribution names only the actual reached guards; no independent total-guard omission claim is invented

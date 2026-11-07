@@ -63,3 +63,16 @@ Run the pre-await-manifest-refusal control first after its final packet is accep
 4. Continue the already-required39-case finite HOLD plan:37new+2existing migrations, anchor-close/operation-two-cleanups and missing-evidence with genuine originals and no loosened assertions. Complete pre-registration selection, census, routing, artifacts, all necessary independent guard faults and exact retirement/UNKNOWN behavior. Only then apply/publish the three production paths together with their contained tests. Draft PR CI must never receive uncontained HOLD cases. Complete39/Graph228/storage roster/private3 exclusions and phase/job/TERM budgets remain unchanged until their explicitly required amendment.
 
 This decision authorizes implementation/protocol preparation, not immediate native execution or a main/deploy architecture merge. Existing seven unqualified capabilities must be narrowed only against the actual new evidence; compiler success, this source audit and future known positives cannot stand in for full HOLD/capacity/gate completion. All readers for this review end on delivery.
+
+## Binding finite budget amendment
+
+[The exact budget and independent ruling](setup-custody-budget-20261107/README.md)
+complete the source slice's data derivation. The table has86 labels and10540
+setup records (10538Promise+2sync). Enforce per-boundary guards; the total is their
+sum and gets no redundant predicate or independent omission credit. Preserve the
+original parametric JSON status and let the separate final decision bind1024.
+
+The future owned helper must verify soft=hard RLIMIT_NOFILE1024 and all inherited and current descriptors distinct numeric and below1024 before image import, using
+controlled stdio/close_fds. This is not a host-wide setting or observed peak-fit
+claim. Controlled empty Git template/config and explicit joined admin-file
+assumptions remain preconditions. They authorize no runtime from this source slice.
