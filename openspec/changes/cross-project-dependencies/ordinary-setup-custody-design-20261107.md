@@ -45,7 +45,7 @@ Source-derived migration-port counts for these two fresh databases already fit: 
 
 Prepare two fixed bootstrap/launcher packets, one per case, with fresh independent helper processes and roots. Do not execute either until the amended image is sealed and its actual compilation accepted. Parent owns one helper and two pipe readers per case, separately from the image's child32/readers64/read8192/32MiB caps. Retain original spawn/exit, every admitted read and observer, pumps, EOF and reader-release outcomes. Start passive parent custody before spawning. The child bootstrap's passive keeper precedes image import. No signal/kill/cancel/retry/unref/production-keeper resolution is part of this protocol.
 
-Materialize the bootstrap's absolute image path and exact fixed case ID; do not leave `/owned/ordinary-known-image.js` as an unbound placeholder. Pin actual generated bootstrap bytes and parser semantics. Existing template emits literal backslash+n as its frame suffix: the least-change parent protocol recognizes that exact two-byte suffix after the bounded32KiB packet. Do not assume LF, trim arbitrary trailing bytes, accept multiple frames or change generator escapes incidentally. Any alternate framing needs explicit reviewed bytes. Retain raw stderr separately.
+Materialize the bootstrap's absolute image path and exact fixed case ID; do not leave `/owned/ordinary-known-image.js` as an unbound placeholder. Pin actual generated bootstrap bytes and parser semantics. The current template emits one terminal LF byte (0a), as independently reconstructed through both TypeScript literal stages. The parent admits exactly that suffix after one schema-valid JSON packet, counting prefix and LF within32768 bytes. It refuses literal backslash+n, CRLF, missing/double LF, extra bytes or whitespace, malformed UTF-8, duplicate JSON keys and multiple frames. Do not change generator escapes or recompile the accepted image to preserve the earlier inaccurate description. Retain raw stderr separately. The [framing and parent decision](ordinary-known-framing-decision-20261107.md) supersedes that historical claim and binds the concrete reader/exec/preimport scope.
 
 Seal, before entry: amended image and bootstrap; canonical scanner bytes and exact emitted import declarations; fixed Bun executable/config; private canonical cwd/TMPDIR and complete inherited environment; Git executable/templates/config and loader dependencies; BusyBox and Python interpreter/required standard-library/native-module identities; the actual107-directory218-file SQL roster with journal/optional-file absences; fixed frontend/profile package inputs and generated emitter/collector/namespace program recipes. Bind dynamic owned paths and nonce substitution rules instead of pretending their future bytes are compiler inputs. Use an exact fixed environment, no inherited arbitrary Git/loader/Python/Node/Bun options. Pin source/layout inputs under the same coordinated no-writer contract used for compiler sealing, without claiming host-wide atomicity.
 
@@ -76,3 +76,13 @@ The future owned helper must verify soft=hard RLIMIT_NOFILE1024 and all inherite
 controlled stdio/close_fds. This is not a host-wide setting or observed peak-fit
 claim. Controlled empty Git template/config and explicit joined admin-file
 assumptions remain preconditions. They authorize no runtime from this source slice.
+
+## Conditional Python startup closure
+
+The [fixed Apport import and early-return decision](ordinary-known-apport-decision-20261107.md)
+binds the installed collector startup hook. Preserve collector flags and source;
+seal its fixed conditional imports and finite read-only initialization inputs,
+then bind every stdin invocation's captured private path before its packaging
+prefix gate. Do not disable the hook, invoke it for a test, perform package
+queries, or infer complete failure-input closure from successful startup imports.
+The exact runtime supplement and owned-path preflight remain required before entry.

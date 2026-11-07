@@ -3005,3 +3005,27 @@ SHALL remain unchanged; missing or mixed packets SHALL refuse before effects.
 - **WHEN** the shared body reads source, checks closure, records loads, validates prediction and writes metadata/output
 - **THEN** each stage uses the resolved variant's exact fixed pins and format
 - **AND** historical decoder/API behavior, canonical scanner and raw SDK metadata safeguards remain unchanged
+
+### Requirement: Known-control transport retains exact framing and original custody
+
+A fixed known-control parent SHALL admit one exact LF-terminated bounded packet
+and retain actual child, reader, read, observer, pump and release outcomes. It
+SHALL verify the fixed FD envelope in the actual child before image import.
+
+#### Scenario: The generated bootstrap defines one LF frame
+
+- **WHEN** the complete helper stdout is decoded
+- **THEN** exactly one prefix, one schema-valid closed JSON packet and one terminal LF fit within32768 bytes
+- **AND** literal backslash+n, CRLF, missing/double LF, extra bytes or payload whitespace, duplicate keys, malformed UTF-8 and incorrect case/control fields refuse
+
+#### Scenario: EOF and reader release are separate observations
+
+- **WHEN** a fixed helper returns a packet or exits
+- **THEN** actual original read/observer and pump joins, both EOFs, both successful reader.releaseLock outcomes and genuine successful child exit remain required
+- **AND** failed or unproven outcomes retain actual references and UNKNOWN keeper custody without cancellation, retry or elapsed-time inference
+
+#### Scenario: The actual Bun child enforces its preimport envelope
+
+- **WHEN** the fixed exec wrapper starts Bun after setting soft and hard NOFILE1024
+- **THEN** Bun independently observes those exact limits and distinct canonical numeric current FD entries below1024 before bootstrap/image import
+- **AND** missing, unreadable, malformed or out-of-range observations refuse without substituting wrapper-only evidence

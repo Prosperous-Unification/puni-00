@@ -1530,3 +1530,16 @@ The [actual setup compiler checkpoint](setup-compiler-actual-20261107/README.md)
 completes SCB4/SPC4 with independently audited built-unqualified output. This
 closes no SPC5 native-control or full39HOLD/migration/census/routing/CI/hostgate/
 main/deployment obligation; all six KCT parent boxes remain unchecked.
+
+## Genuine known-control runtime protocol — 2026-11-07
+
+[Intent](ordinary-known-runtime-intent-20261107.md),
+[architecture decision](ordinary-known-framing-decision-20261107.md) and
+[verification](verify-ordinary-known-runtime-20261107.md) refine SPC5.
+The accepted image stays unchanged; historical5c6e framing descriptions are
+superseded by the independently reconstructed actualLF0a contract.
+
+- [x] NRP1. Implement the bounded Bun parent, fixed exec/preimport wrappers and exact LF/FD/lifecycle consumers; observe finite malformed and guard fault/restoration controls plus genuine inert-child EOF/exit/release, then independently review source/proofs.
+- [ ] NRP2. Close the fixed runtime file/Python/ELF/scanner-serialization identities and explicit startup conditions; bind exact image/bootstrap/argv/env/owned layout and review a fresh one-attempt first refusal protocol.
+- [ ] NRP3. Execute the first known-preawait-manifest-refusal once, retain actual original/observer/read/exit/release and input observations, and independently audit genuine custody before any next runtime entry.
+- [ ] NRP4. Separately freeze/review/execute/audit the distinct known-initial-prepared-release control; then continue all39HOLD/cleanup/migrations/census/routing/fullCI/hostgate/main/deployment obligations.
