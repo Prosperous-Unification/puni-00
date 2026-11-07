@@ -1515,9 +1515,13 @@ full native/HOLD/migration/census/gate/main/deployment obligations remain open.
 [ordered plan](ordinary-setup-compiler-plan-20261107.md) refine SPC4.
 
 - [x] SCB1. Review independent reconstructed/frozen setup packets and install only the exact four new authority files, preserving old bytes and no producer oracle.
-- [ ] SCB2. Implement two fixed decoder policies and one shared genuine builder/inspection path with exact variant provenance and no fallback.
-- [ ] SCB3. Observe finite R5/predicate restoration, configured/strict generated checks and independent source/proof review; publish all source/evidence freshly.
+- [x] SCB2. Implement two fixed decoder policies and one shared genuine builder/inspection path with exact variant provenance and no fallback.
+- [x] SCB3. Observe finite R5/predicate restoration, configured/strict generated checks and independent source/proof review; publish all source/evidence freshly.
 - [ ] SCB4. Freeze/review one exact compiler-only protocol, execute its single attempt and audit real callbacks/closure/metadata/output and parent terminal custody without output import or automatic retry.
 
 All native/HOLD/migration/census/gate/main/deployment parent requirements remain
 open; source acceptance and compilation are separate from SPC5 real controls.
+
+[Reviewed shared-builder source](verify-ordinary-setup-compiler-20261107.md)
+completes SCB1–3source/data/proof scope. SCB4/actual compilation, SPC5native
+controls and all fullHOLD/migration/census/gate/main/deploy obligations remain.

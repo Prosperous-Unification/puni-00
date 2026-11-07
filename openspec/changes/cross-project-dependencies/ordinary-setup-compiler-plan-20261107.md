@@ -19,13 +19,13 @@
 
 **Interfaces:** preserve decodeOrdinaryCoupledBuildRequestV1/buildOrdinaryCoupledImageV1/inspectOrdinaryCoupledBuildV1. Add corresponding decodeOrdinarySetupCustodyBuildRequestV1/buildOrdinarySetupCustodyImageV1/inspectOrdinarySetupCustodyBuildV1. New built format dependency-owner-ordinary-setup-custody-image-build. The exact format/path/pin table and all retention rules are in the linked design; use verbatim. Old/new requests have the same closed keys, with four exact raw strings and unchanged fixed r2patch/manifest.
 
-- [ ] Observe finite RED for new decoder/inspection APIs, then validate exact old/new packets and every cross/missing/near/tampered/malformed/extra-key/patch case before effects.
-- [ ] Refactor only common parsing/row/provenance/body/custody machinery behind two fixed private policies. Keep old exported closure decoder policy exact; add setup decoder only where callers/tests need it. Never cast a setup request into historical type.
-- [ ] Carry resolved fixed pins through every load, plan, closure, prediction, metadata and result field. Switch planners explicitly by private discriminator; setup planner receives its required fifth exact epoch.
-- [ ] Keep nonasync wrapper return identity, variant-safe private inspection, live frozen failure/output state, immutable pending snapshots, SAME successful operation array, not-entered/partial loads and actual original/observer joins including undefined reasons.
-- [ ] Preserve actual compiler private association and raw metadata representation contracts. Finite helper seams cannot register synthetic live attempts, callbacks or finish authority. No actual builder is called by ordinary tests.
-- [ ] Observe physical fault/restoration controls for new/changed raw admission, cross-policy/epoch binding, inspection association, selected digest provenance and any changed compiler association. Attribute reached predicates narrowly; retain original epochs/bridges for unchanged behavior.
-- [ ] Pass owning finite tests, configured project types/scoped lint/format and independent strict50generated-source checking. Preserve old output hashes and old raw file identities. Report exact commands/logs/hashes/limits; source remains unqualified for runtime.
+- [x] Observe finite RED for new decoder/inspection APIs, then validate exact old/new packets and every cross/missing/near/tampered/malformed/extra-key/patch case before effects.
+- [x] Refactor only common parsing/row/provenance/body/custody machinery behind two fixed private policies. Keep old exported closure decoder policy exact; add setup decoder only where callers/tests need it. Never cast a setup request into historical type.
+- [x] Carry resolved fixed pins through every load, plan, closure, prediction, metadata and result field. Switch planners explicitly by private discriminator; setup planner receives its required fifth exact epoch.
+- [x] Keep nonasync wrapper return identity, variant-safe private inspection, live frozen failure/output state, immutable pending snapshots, SAME successful operation array, not-entered/partial loads and actual original/observer joins including undefined reasons.
+- [x] Preserve actual compiler private association and raw metadata representation contracts. Finite helper seams cannot register synthetic live attempts, callbacks or finish authority. No actual builder is called by ordinary tests.
+- [x] Observe physical fault/restoration controls for new/changed raw admission, cross-policy/epoch binding, inspection association, selected digest provenance and any changed compiler association. Attribute reached predicates narrowly; retain original epochs/bridges for unchanged behavior.
+- [x] Pass owning finite tests, configured project types/scoped lint/format and independent strict50generated-source checking. Preserve old output hashes and old raw file identities. Report exact commands/logs/hashes/limits; source remains unqualified for runtime.
 
 ## Task 2: One separately reviewed compiler-only attempt
 
