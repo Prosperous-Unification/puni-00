@@ -197,13 +197,21 @@ test('killed session releases kernel lock but preserves recovery ownership again
   const marker = join(directory, 'session-started');
   const source = `import { runRegistryMaintenance } from './registry-journal';
     import { writeFile } from 'node:fs/promises';
-    const ports = { measureJournal: async () => (${JSON.stringify(await ports.measureJournal(enrollment))}), measureRegistry: async () => (${JSON.stringify(await ports.measureRegistry(enrollment))}) };
+    const capacities = await Bun.stdin.json();
+    const ports = { measureJournal: () => Promise.resolve(capacities.journal), measureRegistry: () => Promise.resolve(capacities.registry) };
     await runRegistryMaintenance(process.argv[1], { operationId: 'crashed', owner: 'operator', kind: 'retirement', recover: false }, ports, async () => {
       await writeFile(process.argv[2], 'held');
       await Bun.sleep(30000);
     });`;
+  // The evaluated program is constant; measured capacity travels only through the owned stdin pipe.
   const child = Bun.spawn([process.execPath, '-e', source, directory, marker], {
     cwd: import.meta.dir,
+    stdin: Buffer.from(
+      JSON.stringify({
+        journal: await ports.measureJournal(enrollment),
+        registry: await ports.measureRegistry(enrollment),
+      }),
+    ),
     stdout: 'pipe',
     stderr: 'pipe',
   });

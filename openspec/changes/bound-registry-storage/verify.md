@@ -9934,3 +9934,41 @@ repository was accessed by this attempted probe. No alternate route or indirect
 execution was tried. Explicit approval was requested for this exact read-only
 probe; the request remains pending independently of the stopped native proof.
 The rejection is not evidence that the repository is unavailable or unsafe.
+
+## CodeQL outcome and ordinary journal child transport — 2026-11-08
+
+For published head `cc539b3175283ec88a622b6e76f1387bbc37268f`, CodeQL
+workflow 42421038681 completed successfully at 22:38:35 UTC. All four analyses
+succeeded; JavaScript/TypeScript took 6 minutes 42 seconds. Observer 76530 exited
+0 and is terminal. The separate findings check 128549467025 failed with five
+reported new alerts, including two high-severity alerts. Workflow success does not
+establish a clean findings check. The scanner also could not retrieve the complete
+PR diff because it exceeds 300 changed files; novelty attribution is not assumed
+complete. No workflow was restarted and no finding was dismissed.
+
+One alert concerned measured JSON interpolated into the evaluated child program
+of the ordinary journal crash/lock test in `registry-maintenance-authority.test.ts`.
+The child program is now constant and receives the same measured capacities as
+JSON through its owned stdin pipe. Argument positions and all existing marker,
+competing-process, crash, held-lock, retained-fence, recovery-token and cleanup
+assertions remain unchanged. This is a test transport refactor; no production
+journal, native isolation guard, root profile or provisioning behavior changed.
+It does not decide whether the old path was exploitable.
+
+The existing file passed 17 tests, zero failed, 46 assertions before the refactor
+in 1.87 seconds and after it in 1.67 seconds. Targeted ESLint and whitespace checks
+exited zero. These tests use owned ordinary files and child processes under the
+caller; they do not execute the stopped privileged namespace/isolation proof.
+No new production safety predicate was introduced, so no new production omission
+proof is claimed. Scoped independent read-only review approved the transport
+refactor with no actionable findings, confirming stdin EOF, measurement/argument
+ordering and retained assertions; it did not rerun fixtures. Fresh remote CodeQL
+is still required before claiming the specific alert resolved. The remaining four alert instances
+are untouched; their metadata alone does not establish a defect or false positive.
+
+The complete dirty-feature suite, exact-feature host gate, native/installed
+profiles, funded backup/prune/restore integration and real alert/recovery proofs
+remain unverified. The authenticated repository probe remains rejected before
+execution with its exact approval request pending. No provider account request,
+credential file read, backup, restore, retirement, service change, notification,
+prod deployment or product migration was performed.
