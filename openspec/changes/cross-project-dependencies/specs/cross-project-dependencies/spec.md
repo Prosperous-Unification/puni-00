@@ -2979,3 +2979,29 @@ observations/authority SHALL retain their original meaning and bytes.
 - **WHEN** all86 exact per-boundary capacities are enforced
 - **THEN** their sum bounds setup records at10540 without a redundant independent total predicate
 - **AND** finite proof attribution names only the actual reached guards; no independent total-guard omission claim is invented
+
+### Requirement: Compiler variants use disjoint fixed authority and genuine shared custody
+
+The historical coupled and prospective setup compiler APIs SHALL select exactly
+two private fixed decoder policies over a single shared builder body. Each SHALL
+admit only its own epoch, raw packet bytes and result provenance. Old authorities
+SHALL remain unchanged; missing or mixed packets SHALL refuse before effects.
+
+#### Scenario: A setup request cannot borrow historical authority
+
+- **WHEN** either public decoder receives opposite-variant, changed, missing, malformed or extra-key authority
+- **THEN** it refuses without starting compiler/setup/keeper effects and never falls back to another policy
+- **AND** only the exact setup epoch and fixed new packet pins may select its explicit prospective planner
+
+#### Scenario: Shared builder preserves original identity and private settlement
+
+- **WHEN** either public build wrapper starts a validated request
+- **THEN** it returns the same genuine shared-body Promise and its inspector recognizes only that variant's registered original
+- **AND** actual compiler original/observer/private association, callback object/contents identity, live immutable failure state and SAME success-operation array remain preserved
+- **AND** partial failure observations and UNKNOWN keepers are never replaced by synthetic settlement or count-only success
+
+#### Scenario: Variant provenance survives all shared stages
+
+- **WHEN** the shared body reads source, checks closure, records loads, validates prediction and writes metadata/output
+- **THEN** each stage uses the resolved variant's exact fixed pins and format
+- **AND** historical decoder/API behavior, canonical scanner and raw SDK metadata safeguards remain unchanged
