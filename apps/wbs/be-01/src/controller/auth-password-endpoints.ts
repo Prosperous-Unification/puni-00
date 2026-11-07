@@ -99,7 +99,7 @@ export function authPasswordEndpoints(
             : await proveBrowserPredecessor(request, browserSession, appOrigin ?? '');
         // Proof: without predecessor admission the mounted registration made a
         // new account before discovering malformed or mixed browser identity.
-        if (predecessor === null)
+        if (predecessor.kind === 'refused')
           return { ok: false, status: 401, body: { error: 'unauthenticated' } } as const;
         // Proof: removing the switch made the mounted disabled registration receive 200 instead of 404.
         if (oidc !== undefined && oidc.passwordRegisterEnabled !== true) {
@@ -152,7 +152,7 @@ export function authPasswordEndpoints(
           browserSession === undefined
             ? { kind: 'none' as const }
             : await proveBrowserPredecessor(request, browserSession, appOrigin ?? '');
-        if (predecessor === null)
+        if (predecessor.kind === 'refused')
           return { ok: false, status: 401, body: { error: 'unauthenticated' } } as const;
         // Proof: removing the switch made the mounted disabled login receive 401 instead of 404.
         if (oidc?.passwordLoginEnabled === false) {

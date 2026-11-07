@@ -471,7 +471,10 @@ function linkCallbackFailure(
  * What the callback knows of the credential its sign-in replaces. An OIDC
  * predecessor's access token was proved associated with its lifecycle by
  * {@link proveBrowserPredecessor}, so its bytes are ones this server verified
- * when it issued them, and reading their `sub` unverified is safe.
+ * when it issued them, and reading their `sub` unverified is safe. A
+ * predecessor proved by its correlation cookie alone carries no access bytes,
+ * so its subject is null and {@link reauthenticatedAtOf} credits a
+ * `prompt=login` without `max_age` only to a proved same-connection subject.
  */
 function replacedCredentialOf(
   predecessor: BrowserPredecessor | { readonly kind: 'none' },
@@ -658,7 +661,13 @@ export function authOidcEndpoints(
             : await proveBrowserPredecessor(request, browserSession, options.appOrigin);
         // Proof: the mounted bound-callback recovery test first answered 401
         // instead of 302 with malformed old cookies (2026-11-02).
-        if (predecessor === null)
+        if (predecessor.kind === 'refused') {
+          // Proof: removing this log made all six `unverifiable predecessor`
+          // recovery cases find no info-level refusal entry (2026-11-07).
+          options.logger?.info(
+            { refusal: predecessor.refusal },
+            'oidc callback refused the browser predecessor',
+          );
           return {
             ok: true,
             status: 302,
@@ -668,6 +677,7 @@ export function authOidcEndpoints(
               ['location', '/?auth_error=browser_session_unverified'],
             ],
           };
+        }
         // Proof: bypassing this branch redirected access_denied to / in the mounted provider test.
         if (sent.has('error')) {
           const providerError = sent.get('error') ?? '';
