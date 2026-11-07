@@ -1135,6 +1135,12 @@ jobs:
       - name: Gate head pinning
         run: bash bin/h2puni-gate.test.sh
 
+      # The hourly refresh of an enrolled gate host's launcher checkout (dash-host-jobs 6.9): it
+      # must refuse to move the checkout while a job runs from it, and nothing else runs it
+      # before a host's timer does.
+      - name: Gate launcher refresh
+        run: bash bin/gate-launcher-refresh.test.sh
+
       # `bin/dev.sh` and the port preflight it calls. This is the dev image's
       # CMD (`deploy/dev-src/Dockerfile`), so a guard rotting here breaks the
       # dev deployment and not only somebody's terminal — and until 2026-09-12

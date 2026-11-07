@@ -1,6 +1,6 @@
 # PostgreSQL provider design in progress
 
-**Engine and serialized-write direction approved on 2026-11-04. The private connection/transaction/close prerequisite is implemented; physical-store protocol details remain proposed.** Current semantic contracts are pinned to merged PR787 source `9917286d18ae327182558f9eec17463fe01339ac`, tree `f40d36482cfdfb2bdf915e48b4a97be0fdaa732d`. [ADR0069](../../../docs/adr/0069-postgresql-is-the-second-workflow-store.md) records the selected direction. [The lifecycle plan](lifecycle-tasks.md) and [publication record](publication.md) distinguish accepted private work from the still-missing complete RunStore/ArtifactStore adapter, schema, configuration and transfer.
+**Engine and serialized-write direction approved on 2026-11-04. The private connection/transaction/close prerequisite is implemented; the [concrete physical-store protocol](physical-store-design.md) and [its TDD plan](physical-store-tasks.md) are proposed for owner review.** Current semantic contracts are pinned to merged PR787 source `9917286d18ae327182558f9eec17463fe01339ac`, tree `f40d36482cfdfb2bdf915e48b4a97be0fdaa732d`. [ADR0069](../../../docs/adr/0069-postgresql-is-the-second-workflow-store.md) records the selected direction. [The lifecycle plan](lifecycle-tasks.md) and [publication record](publication.md) distinguish accepted private work from the still-missing complete RunStore/ArtifactStore adapter, schema, configuration and transfer.
 
 ## Context
 
@@ -44,7 +44,7 @@ Future production-path negatives must independently disable fsync/full-page writ
 4. Preserve adapter guard/replay ordering, then run the existing pure planner. Write every affected row, acknowledgement, revision, history counter and reservation atomically. Expected refusals remain the existing unions and preserve existing clock-observation behavior. Artifact retention also participates in the write lock; it does not acquire semantic execution ownership.
 5. Await COMMIT acknowledgement before returning applied/duplicate/refused. Never expose a reply from the transaction callback before the driver confirms the commit. Do no remote WBS/worker work in the transaction.
 
-Proposed lock identity: retain one immutable signed-64-bit private key in physical metadata, read/validate it before mutation admission and use the same key in every writer. A collision between different stores only serializes them; it cannot merge records. All mutation instances opening the same store must observe the identical retained key. Bootstrap needs an explicit database-level serialization point before that metadata exists. Bootstrap/format changes require their own proofs and cannot reuse a missing-metadata fallback. This mechanism is proposed, not experimentally accepted.
+The [physical-store proposal](physical-store-design.md#namespace-and-writer-exclusion) specifies one explicit schema and a versioned signed64-bit advisory key derived from its exact name. Bootstrap and every later writer use the same database-scoped single-bigint transaction lock, including before metadata exists; locked admission revalidates the retained derivation and physical incarnation. [Proposed ADR0070](../../../docs/adr/0070-workflow-store-locks-bind-to-postgres-namespaces.md) records the alternatives. No physical protocol or new format is accepted or experimentally proved by publishing this design.
 
 ## Reads, retries and uncertain outcomes
 
@@ -90,7 +90,7 @@ The current inventory maps 27 exported shared-suite functions to 54 memory/SQLit
 
 ## Open Questions
 
-The owner selected PostgreSQL and serialized writes. Concrete physical-store lock/bootstrap coordination and the transfer envelope remain open. The supported private lifecycle topology is specified and tested; complete-provider integration must still honor it. The current PR's merge is independent of these new decisions. Tool-output and ACP choices already pending are separate and are not asked again here. This publication records that selected direction and the remaining implementation obligations; it does not claim that the adapter exists.
+The owner selected PostgreSQL and serialized writes. The concrete physical-store lock/bootstrap proposal awaits owner review and its real implementation/proofs; the transfer envelope remains unresolved. The supported private lifecycle topology is specified and tested; complete-provider integration must still honor it. The current PR's merge is independent of these new decisions. Tool-output and ACP choices already pending are separate and are not asked again here. This publication records that selected direction and the remaining implementation obligations; it does not claim that the adapter exists.
 
 Evidence: [SQL findings](evidence/postgres-index-findings.md), [official-source research](evidence/postgres-index-research.md), [current provider inventory](evidence/provider-acceptance-inventory-v3.md), [independent SQL audit](evidence/postgres-index-audit.json). Existing source references: `runs/run-store.ts`, `runs/artifact-store.ts`, `runs/open-stores.ts`, `runs/sqlite/run-store.ts`, `runs/plan-{runtime,recovery,writes}.ts` at the pinned source above.
 

@@ -171,6 +171,8 @@ describe('tree inventory helpers', () => {
   it('owns infra and deploy shell scripts plus the release and heavy-job launchers', () => {
     expect(fleetShellScripts(['infra/ci/a.sh', 'deploy/b.sh', 'bin/c.sh', 'infra/d.bash'])).toEqual(
       [
+        'bin/gate-launcher-refresh.sh',
+        'bin/gate-launcher-refresh.test.sh',
         'bin/h2puni-gate-payload.sh',
         'bin/publish-release-payload.sh',
         'bin/publish-release.sh',

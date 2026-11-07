@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { readProjectResources, resourceRuntimeEvent, validateSchema } from '@wbs/contracts';
 import { afterEach, beforeAll, beforeEach, expect, it } from 'bun:test';
 
@@ -118,7 +120,7 @@ function hostJobEvent(
       ? {
           evidence: {
             digest: DIGEST,
-            locator: `dash-host-job://${authorityId}/${useId}/5`,
+            locator: `dash-host-job-run://h2puni/${useId}`,
             disposition: 'returned',
             reclaimedBytes: null,
           },
@@ -183,7 +185,7 @@ it('projects two gates with no planning link beside the resource, until each is 
     state: 'release_verified',
     evidence: JSON.stringify({
       digest: DIGEST,
-      locator: `dash-host-job://${authorityId}/${first}/5`,
+      locator: `dash-host-job-run://h2puni/${first}`,
       disposition: 'returned',
       reclaimedBytes: null,
     }),
@@ -411,4 +413,61 @@ it('refuses what a host job cannot be, accepting nothing and advancing no sequen
     ).status,
   ).toBe(200);
   expect((await publish(hostJobEvent(4, worktree, 'registered', use))).status).toBe(409);
+});
+
+it("keeps the run record as a returned job's evidence and refuses the ledger-row shape", async () => {
+  const useId = crypto.randomUUID();
+  const use = gateUse('gate 1a2b3c4');
+  expect((await publish(hostJobEvent(1, useId, 'registered', use))).status).toBe(200);
+  const returned = hostJobEvent(2, useId, 'release_verified', use);
+  // S5-A11's evidence: the ledger row's digest under its `dash-host-job://` locator.
+  for (const locator of [
+    `dash-host-job://${authorityId}/${useId}/5`,
+    // The run record of another host, or of another job.
+    `dash-host-job-run://h4claw/${useId}`,
+    `dash-host-job-run://h2puni/${crypto.randomUUID()}`,
+  ])
+    expect(
+      (await publish({ ...returned, evidence: { ...returned.evidence, locator } })).status,
+    ).toBe(400);
+  // A job whose gate never opened has no run record: `not_created`, digesting that absence.
+  const absent = `dash-host-job-run://h2puni/${useId} absent`;
+  expect(
+    (
+      await publish({
+        ...returned,
+        evidence: { ...returned.evidence, disposition: 'not_created', digest: DIGEST },
+      })
+    ).status,
+  ).toBe(400);
+  expect(
+    h.sqlite
+      .query<{ accepted_sequence: number }, [string]>(
+        'SELECT accepted_sequence FROM resource_authority WHERE authority_id=?',
+      )
+      .get(authorityId),
+  ).toEqual({ accepted_sequence: 1 });
+  const digest = createHash('sha256').update(absent).digest('hex');
+  expect(
+    (
+      await publish({
+        ...returned,
+        evidence: { ...returned.evidence, disposition: 'not_created', digest },
+      })
+    ).status,
+  ).toBe(200);
+  expect(
+    h.sqlite
+      .query<{ evidence: string }, [string]>(
+        'SELECT evidence FROM resource_host_job WHERE use_id=?',
+      )
+      .get(useId),
+  ).toEqual({
+    evidence: JSON.stringify({
+      digest,
+      locator: `dash-host-job-run://h2puni/${useId}`,
+      disposition: 'not_created',
+      reclaimedBytes: null,
+    }),
+  });
 });

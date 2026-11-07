@@ -41,24 +41,30 @@ second, configured by `infra/ansible/playbooks/gate-host.yml` (WBS 070.05) and l
   logged in: `ops job run` measures every job in a `systemd-run --user` scope and refuses 70
   without one.
 - **Host pool paths.** The fixed root `~/.local/share/dash/host-pool` (0700, left empty because
-  `ops pool init` refuses a non-empty root), `~/.config/dash` (0700), and the `dagger_engine`
-  token unit `~/.local/share/dash/units/dagger_engine`: a Git tree with one empty commit, never
-  changed, since a pool unit must be a Git work tree (S6-A7).
+  `ops pool init` refuses a non-empty root), `~/.config/dash` (0700), and two token units,
+  `~/.local/share/dash/units/dagger_engine` and `~/.local/share/dash/units/docker_build`: each a
+  Git tree with one empty commit, never changed, since a pool unit must be a Git work tree
+  (S6-A7). `docker_build` stands for the host daemon's BuildKit cache, which puni-pr-00's
+  `website-dev-build` declares.
 - **Host pool configuration.** Only where `puni_gate_host_pool_enroll` is true, because the file
   existing is what enrolls a host: `~/.config/dash/host-pool.json`, 0600, rewritten only when it
   differs. Budgets are the host's `nproc` and MemTotal in whole GiB, headroom 1 core and 2 GiB,
-  `exclusiveUnits` the two gate trees and the token unit, `enrollmentId` `<inventory name>-host-pool`,
-  `launcherCheckouts` the launcher checkout, `concurrencyEligible` empty. The ledger pins all but
+  `exclusiveUnits` the two gate trees and the two token units, `enrollmentId`
+  `<inventory name>-host-pool`, `launcherCheckouts` the launcher checkout (on h2puni also
+  `~/wbs-dev/src`, from the inventory), `concurrencyEligible` empty. The ledger pins all but
   the last two, so changing a pinned field later makes every pool open refuse.
 - **Dash user units.** `dash-resources-watch.service` (`resources watch`, `Restart=on-failure`,
   `KillMode=process` so the concurrent-mode guard holder outlives a restart, skipped until the
   ledger exists), and the weekly `dash-job-audit.timer` with its service, the files
-  `ops job render-audit-units` renders. All three go to `~/.config/systemd/user`. On an enrolled
-  host the role enables the watch and the timer. It never starts either, and it never runs
-  `ops pool init`.
+  `ops job render-audit-units` renders. Beside them, the hourly `gate-launcher-refresh.timer`
+  and its oneshot service, which runs `bin/gate-launcher-refresh.sh` on the launcher checkout
+  (task 6.9). All five go to `~/.config/systemd/user`. On an enrolled host the role enables the
+  watch and both timers. It never starts any of them, and it never runs `ops pool init`.
 - **Packages.** It installs `git`, `jq`, `perl`, `python3-packaging`, `python3-venv`,
   `shellcheck`, `unzip`, `bubblewrap` and `busybox` from Ubuntu apt. The sandbox tools are
-  required by existing gate tests; installing them does not grant namespace capability. Docker must already be running. The role does not change Docker,
+  required by existing gate tests; installing them does not grant namespace capability. A
+  nested heavy job bounds its admission query with `timeout`, from `coreutils`, which Ubuntu
+  marks Essential, so the role installs nothing for it. Docker must already be running. The role does not change Docker,
   k3s, the firewall or the network.
 
 The last tasks are read-only probes run as `puni1` through its `~/.bashrc`:
@@ -69,7 +75,7 @@ The last tasks are read-only probes run as `puni1` through its `~/.bashrc`:
 - `bwrap` resolves to the system binary and runs its version command; BusyBox executes at
   both system paths used by callers (`/bin/busybox` and `/usr/bin/busybox`);
 - each of the three checkouts is a full, clean clone of the canonical URL with its install;
-- linger is on, the token unit is a clean tree with a commit, and the pool root and the three
+- linger is on, each token unit is a clean tree with a commit, and the pool root and the three
   user units exist;
 - on an enrolled host, the configuration is 0600, owned by `puni1`, and has exactly the
   documented fields with the fixed root and units (`jq`), and the watch and timer are enabled;
@@ -190,11 +196,13 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
      - Unchanged: login shells still get Volta. `~/.profile` prepends `~/.local/bin` and Volta
        after it sources `~/.bashrc`, so Volta's Node shadows the pin there. Gates are unaffected, because
        `ssh host CMD` is not a login shell.
-     - The role creates `~/.config/systemd/user`, the Dash directories and the token unit, and
+     - The role creates `~/.config/systemd/user`, the Dash directories and the token units, and
        installs the Dash units but does not enable them. It clones `~/puni-00-gate-tbf2` and
        `~/puni-00-gate-launcher`, which is why step 1's disk comes first.
-   - Not in step 0: before step 8, h2puni's `puni_gate_pool_launcher_checkouts` also needs
-     `~/wbs-dev/src`, for `solver-image-publish`.
+   - h2puni's `puni_gate_pool_launcher_checkouts` host var in
+     `infra/ansible/inventory/production-existing-hosts.yml` adds `~/wbs-dev/src`, from which the
+     dev poller launches `solver-image-publish`; `ops pool switch-mode concurrent` verifies both
+     checkouts. h4claw keeps the role default.
    - Before applying, check that the live shared `~/puni-00-gate-tbf` reports
      `git remote get-url origin` = `https://github.com/Prosperous-Unification/puni-00.git`, is not
      shallow or blobless, and has an empty `git status --porcelain`. `validate` refuses anything
@@ -204,8 +212,10 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
      pins, so applying with too little disk half-configures the host. The order is: disk
      (step 1); the backup; the key list staged from the live file and checked with `cmp` and the
      key count ([Add a gate host](#add-a-gate-host) step 2); `bin/with-heavy-lock.sh status`
-     reading `holder none`; apply 1; a `puni1` login from a second session before closing the
-     first; apply 2, with `changed=0`; then `--tags validate`.
+     reading `holder none` and the dev poller idle (a `pgrep -f` probe over ssh matches its own
+     remote shell, H2-A11, so filter it with `pgrep -af … | grep -v pgrep` or a bracket pattern); apply 1; a
+     `puni1` login from a second session before closing the first; apply 2, with `changed=0`;
+     then `--tags validate`.
 1. **Disk.** On h2puni, free space before step 0's apply: the recorded cleanup order is the "h2puni DISK, FOR DANY"
    entry of 2026-11-02 in the private `puni-plan` `RESUME.md`, and Dany approves it. The role
    refuses to clone below 5 GiB per missing checkout plus 10 GiB. On h2puni, which lacks two
@@ -228,21 +238,30 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
    launcher refuses, because the ledger is missing.
 5. **Initialize, then start the watch (6.4, 6.7).** Prerequisite: the `dash-host-jobs` plan is
    on `main`, so the launcher checkout's HEAD (it clones `origin/HEAD`, which is `main`) carries
-   `infra/jobs/catalogue.json` and `run_heavy_job`. As `puni1`, in `~/puni-00-gate-launcher`, run
-   as one line so the watch starts only on a successful init and before any job:
+   `infra/jobs/catalogue.json` and `run_heavy_job`. Ansible never moves its head after the
+   clone, so first bring it to current `main` while no job runs from it
+   (`git fetch -q origin && git checkout -q --detach origin/main`): h4claw's was found detached at
+   an older SHA (H4-A9). This first move stays manual: the refresh timer runs the script from the
+   checkout itself, so a checkout older than the script cannot refresh itself. As `puni1`, in
+   `~/puni-00-gate-launcher`, run as one line so the watch and the timers start only on a
+   successful init and before any job:
 
    ```sh
-   bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops pool init --config ~/.config/dash/host-pool.json && systemctl --user start dash-resources-watch.service dash-job-audit.timer
+   bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops pool init --config ~/.config/dash/host-pool.json && systemctl --user start dash-resources-watch.service dash-job-audit.timer gate-launcher-refresh.timer
    ```
 
    Prove the restart once: kill the watch process and watch systemd start it again
    (`journalctl --user -u dash-resources-watch.service`). Rerun `--tags validate`.
 
 6. **Observe for a week (6.4).** Every launcher goes through `run_heavy_job` in observe mode. Gates
-   launch from `~/puni-00-gate-launcher`. Its freshness is manual for now (a timer is owed,
-   task 6.9): move its head only while no job runs from it,
-   `git fetch -q origin && git checkout -q --detach origin/main`, then restart the watch, which
-   runs from the same checkout.
+   launch from `~/puni-00-gate-launcher`. From step 5 on, `gate-launcher-refresh.timer` keeps it
+   fresh: hourly, with up to five minutes' random delay and catching up after downtime, it
+   fetches `origin`. If `main` moved, and no process of `puni1` other than the watch's works in
+   the checkout, it checks out `origin/main` detached and runs the frozen install when `bun.lock`
+   changed. Then it restarts the watch, which runs from the same checkout, only if it was
+   running. Otherwise it exits 75 and the next hour retries. A checkout with edited tracked
+   files is refused 65, never moved over. A failed fetch, checkout, install or restart is 70.
+   Read the outcome with `journalctl --user -u gate-launcher-refresh.service`.
 7. **Calibrate and propose (6.4).** Run `ops job calibrate` cold and warm for each type, then
    `ops job propose`, and land the catalogue PRs. Budgets and headroom are pinned at step 5: once
    the pool is initialized, a changed `nproc`, MemTotal GiB, headroom, unit list, enrollment id or

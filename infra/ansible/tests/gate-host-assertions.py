@@ -189,7 +189,7 @@ UNIT = stat("unit", isreg=True)
 NONE = stat("absent")
 
 
-def recorded(root=ROOT, units=(UNIT, UNIT, UNIT)):
+def recorded(root=ROOT, units=(UNIT, UNIT, UNIT, UNIT, UNIT)):
     return {"puni_gate_pool_paths": {"results": [root, NONE, NONE, *units]}}
 
 
@@ -201,12 +201,18 @@ family("E3 pool root and unit files", paths, [
      refused(PATHS)),
     ("root foreign", {}, recorded(root=stat("root", isdir=True, mode="0700", pw_name="nobody")), None,
      refused(PATHS)),
-    ("watch unit missing", {}, recorded(units=(NONE, UNIT, UNIT)), None, refused(PATHS)),
-    ("audit service missing", {}, recorded(units=(UNIT, NONE, UNIT)), None, refused(PATHS)),
-    ("audit timer missing", {}, recorded(units=(UNIT, UNIT, NONE)), None, refused(PATHS)),
+    ("watch unit missing", {}, recorded(units=(NONE, UNIT, UNIT, UNIT, UNIT)), None, refused(PATHS)),
+    ("audit service missing", {}, recorded(units=(UNIT, NONE, UNIT, UNIT, UNIT)), None,
+     refused(PATHS)),
+    ("audit timer missing", {}, recorded(units=(UNIT, UNIT, NONE, UNIT, UNIT)), None, refused(PATHS)),
+    ("refresh service missing", {}, recorded(units=(UNIT, UNIT, UNIT, NONE, UNIT)), None,
+     refused(PATHS)),
+    ("refresh timer missing", {}, recorded(units=(UNIT, UNIT, UNIT, UNIT, NONE)), None,
+     refused(PATHS)),
 ], [(drop_that(0), "root missing"), (drop_that(1), "root 0755"), (drop_that(2), "root foreign"),
     (drop_that(3), "watch unit missing"), (drop_that(4), "audit service missing"),
-    (drop_that(5), "audit timer missing")])
+    (drop_that(5), "audit timer missing"), (drop_that(6), "refresh service missing"),
+    (drop_that(7), "refresh timer missing")])
 
 unenrolled = [task("validate.yml", "Require no host pool state on a host that is not enrolled")]
 
@@ -214,7 +220,7 @@ unenrolled = [task("validate.yml", "Require no host pool state on a host that is
 def state(config, ledger):
     return {"puni_gate_pool_paths": {"results": [ROOT, stat("c", isreg=True) if config else NONE,
                                                  stat("l", isreg=True) if ledger else NONE,
-                                                 UNIT, UNIT, UNIT]}}
+                                                 UNIT, UNIT, UNIT, UNIT, UNIT]}}
 
 
 STATE = "puni_gate_host_pool_enroll is false, but the configuration exists"
@@ -235,13 +241,18 @@ def systemctl(states, rc):
 
 
 family("E5 user units enabled", enabled, [
-    ("both enabled", {"puni_gate_host_pool_enroll": True}, None, systemctl(["enabled", "enabled"], 0),
-     ACCEPTED),
+    ("all enabled", {"puni_gate_host_pool_enroll": True}, None,
+     systemctl(["enabled", "enabled", "enabled"], 0), ACCEPTED),
     ("unenrolled skips", {"puni_gate_host_pool_enroll": False}, None,
-     systemctl(["disabled", "disabled"], 1), SKIPPED),
-    ("timer static", {"puni_gate_host_pool_enroll": True}, None, systemctl(["enabled", "static"], 0),
+     systemctl(["disabled", "disabled", "disabled"], 1), SKIPPED),
+    ("timer static", {"puni_gate_host_pool_enroll": True}, None,
+     systemctl(["enabled", "static", "enabled"], 0),
      refused("Read whether the Dash user units are enabled")),
-], [(drop_key("failed_when"), "timer static"), (drop_key("when"), "unenrolled skips")])
+    ("refresh timer disabled", {"puni_gate_host_pool_enroll": True}, None,
+     systemctl(["enabled", "enabled", "disabled"], 0),
+     refused("Read whether the Dash user units are enabled")),
+], [(drop_key("failed_when"), "timer static"), (drop_key("failed_when"), "refresh timer disabled"),
+    (drop_key("when"), "unenrolled skips")])
 
 dash = [task("validate.yml", "Name the Dash probes this host skips"),
         task("validate.yml", "Inspect the host pool and audit its envelopes")]
@@ -254,7 +265,7 @@ LAUNCHER = {"puni_gate_launcher_checkout": WORK + "/home/launcher"}
 def ledger(exists, audit_rc=0):
     pre = {**BASHRC, WORK + "/audit-rc": str(audit_rc)}
     return {"puni_gate_pool_paths": {"results": [ROOT, NONE, stat("l", isreg=True) if exists else NONE,
-                                                 UNIT, UNIT, UNIT]}}, pre
+                                                 UNIT, UNIT, UNIT, UNIT, UNIT]}}, pre
 
 
 SKIP = "Skipped `ops pool inspect` and `ops job audit`"
@@ -431,6 +442,70 @@ family("E13 validate counts the live file", imported("validate.yml", "Count the 
 ], [(drop_that(0), "joined live file")])
 
 
+
+# The token units on a fresh host, a rerun, and validate's read after one unit is broken.
+UNITS = WORK + "/home/units"
+DAGGER, DOCKER = UNITS + "/dagger_engine", UNITS + "/docker_build"
+TOKENS = {"puni_gate_pool_token_units": [DAGGER, DOCKER]}
+BREAK = {"name": "Break a token unit", "changed_when": False,
+         "ansible.builtin.command": {"argv": ["bash", "-c", "{{ puni_eval_break }}"],
+                                     "chdir": UNITS}}
+tokens = [task("host-pool.yml", "Create the token units"),
+          task("host-pool.yml", "Create the token units"), BREAK,
+          task("validate.yml", "Read the token units")]
+
+
+def broken(script):
+    return {**TOKENS, "puni_eval_break": script}
+
+
+def reduce_loop(task_name):
+    def mutate(tasks):
+        found = [t for t in tasks if t["name"] == task_name]
+        if not found:
+            raise SystemExit(f"no {task_name!r} to mutate")
+        for t in found:
+            t["loop"] = "{{ puni_gate_pool_token_units[:1] }}"
+    mutate.label = f"loop of {task_name!r} reduced to dagger_engine"
+    return mutate
+
+
+def drop_changed_when(task_name):
+    def mutate(tasks):
+        for t in tasks:
+            if t["name"] == task_name:
+                del t["changed_when"]
+    mutate.label = f"`changed_when` removed from {task_name!r}"
+    return mutate
+
+
+KEEP = {UNITS + "/.keep": ""}
+NOT_CLEAN = "token unit " + DOCKER + " exists but is not a clean Git tree with a commit"
+READ_FAILED = "failed: [localhost] (item=" + DOCKER + ")"
+family("E14 token units created once and both read by validate", tokens, [
+    ("fresh host converges", broken(":"), None, None, ("tokens", KEEP)),
+    ("docker_build left dirty", broken(":"), None, None,
+     ("refused-pre", {DOCKER + "/stray": ""}, NOT_CLEAN)),
+    ("docker_build dirtied", broken("touch docker_build/stray"), None, None,
+     ("refused-pre", KEEP, READ_FAILED)),
+    ("docker_build without a commit", broken("rm -rf docker_build && git init -q docker_build"),
+     None, None, ("refused-pre", KEEP, READ_FAILED)),
+], [(reduce_loop("Create the token units"), "fresh host converges"),
+    (drop_changed_when("Create the token units"), "fresh host converges"),
+    (reduce_loop("Read the token units"), "docker_build dirtied"),
+    (reduce_loop("Read the token units"), "docker_build without a commit")])
+
+
+def token_tree(path):
+    """A token unit as settlement needs it: the top of a clean Git tree with a commit."""
+    def git(*words):
+        return subprocess.run(["git", "-C", path, *words], capture_output=True, text=True,
+                              check=False)
+    top = git("rev-parse", "--show-toplevel")
+    return top.returncode == 0 and top.stdout.strip() == path and \
+        git("rev-parse", "-q", "--verify", "HEAD").returncode == 0 and \
+        git("status", "--porcelain", "--untracked-files=all").stdout == ""
+
 def recap(output, field):
     """One counter of localhost's PLAY RECAP line; None when the recap is missing."""
     found = re.search(r"^localhost\s*:.*\b" + field + r"=(\d+)", output, re.M)
@@ -463,6 +538,9 @@ def judge(expectation, rc, output):
         return rc == 0 and open(LIVE).read() == expectation[2] and not os.path.exists(STAGED)
     if kind == "converged":
         return judge(("installed", None, expectation[2]), rc, output) and recap(output, "changed") == 0
+    if kind == "tokens":
+        return rc == 0 and recap(output, "changed") == 1 and recap(output, "skipped") == 0 and \
+            all(token_tree(path) for path in (DAGGER, DOCKER))
     if kind == "refused-kept":
         return rc != 0 and expectation[2] in output and INSTALL_TASK not in output and \
             open(LIVE).read() == PREVIOUS
@@ -472,7 +550,7 @@ def judge(expectation, rc, output):
 def pre_of(expectation):
     kind, detail = expectation[:2]
     return detail if kind in ("ran", "skipped", "refused-pre", "accepted-pre", "installed",
-                                "refused-kept", "converged") else None
+                                "refused-kept", "converged", "tokens") else None
 
 
 failures = 0

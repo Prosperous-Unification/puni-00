@@ -137,6 +137,11 @@ if (insideOpsNamespace(import.meta.path)) {
       host: ampleHost,
       user: 'puni1',
       legacyLock: () => privateLegacyLock(join(cwd, '..')),
+      // The drop's guard refusal comes before its re-send (task 6.8b): no WBS call is expected.
+      connect: () => ({
+        call: (name) => Promise.reject(new Error(`unexpected WBS call ${name}`)),
+        close: () => Promise.resolve(),
+      }),
     };
   }
 
@@ -913,6 +918,32 @@ if (insideOpsNamespace(import.meta.path)) {
         concurrencyEligible: ['eligible'],
         launcherCheckouts: [fixture.checkout],
         legacyLock: { holder: { kind: 'none' }, waiters: [] },
+      });
+    });
+  });
+
+  describe('ops outbox drop beside the guard (task 6.8a, review of #878 F1)', () => {
+    test('a live singleton guard refuses the drop', async () => {
+      const fixture = await concurrentPool();
+      const hold = await heldGuardFor(fixture, runtimeOf(fixture));
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      const event = randomUUID();
+      const code = await runOps(
+        {
+          command: 'ops',
+          words: 'outbox drop',
+          config: fixture.config,
+          event,
+          operator: 'dany',
+          reason: 'refused for good',
+        },
+        opsDependencies(fixture.checkout, stdout, stderr),
+      );
+      expect({ code, stdout: stdout.join(''), stderr: stderr.join('') }).toEqual({
+        code: 64,
+        stdout: '',
+        stderr: `error: ops outbox drop: the singleton guard's holder (pid ${String(hold.pid)}) is live in concurrent mode, so resources watch may be publishing; stop dash-resources-watch.service, end that holder if it outlives watch, and retry\n`,
       });
     });
   });

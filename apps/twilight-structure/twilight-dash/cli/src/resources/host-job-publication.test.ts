@@ -1,12 +1,16 @@
 import { type ChildProcess, spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { once } from 'node:events';
+import { rmSync } from 'node:fs';
 
 import { resourceRuntimeEvent } from '@wbs/contracts';
+import { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import { fakeCredential } from '../compute/testing/credential';
 import { scriptedTools, type ToolCall } from '../mcp/testing/scripted-tools';
 import { type ToolAnswer, WbsUnreachable } from '../mcp/wbs-tools';
+import { HostJobRunRecords } from '../ops/run-records';
 import {
   ampleHost,
   build,
@@ -34,6 +38,7 @@ const REQUESTS_TOOL = 'getApiResourceAuthoritiesByAuthorityIdCleanupRequests';
  */
 if (insideLinuxNamespace(import.meta.path)) {
   const fixtures: { remove: () => void }[] = [];
+  const roots = new Map<ResourceRuntime, string>();
   const payloads: ChildProcess[] = [];
   afterEach(async () => {
     for (const payload of payloads.splice(0)) {
@@ -60,7 +65,64 @@ if (insideLinuxNamespace(import.meta.path)) {
       overrides,
     );
     fixtures.push(fixture);
-    return ResourceRuntime.initialize(loadResourceConfiguration(fixture.config), clock, ampleHost);
+    const runtime = ResourceRuntime.initialize(
+      loadResourceConfiguration(fixture.config),
+      clock,
+      ampleHost,
+    );
+    roots.set(runtime, fixture.root);
+    return runtime;
+  }
+
+  /**
+   * Writes the gate entry of `job`'s run record as `ops job run` does before the gate opens,
+   * creating the run records beside the ledger on first use.
+   */
+  function recordGate(runtime: ResourceRuntime, job: HostJob): void {
+    const root = roots.get(runtime);
+    if (root === undefined) throw new Error('runtime not opened by pool()');
+    const records = HostJobRunRecords.open(root, false);
+    records.begin(
+      {
+        jobId: job.id,
+        type: job.descriptor.id,
+        label: job.label,
+        descriptor: job.descriptor,
+        descriptorDigest: 'd'.repeat(64),
+        cataloguePath: '/srv/checkout/infra/jobs/catalogue.json',
+        launcherSha: 'a'.repeat(40),
+        argumentProfile: 'none',
+        argv: ['true'],
+        hostClass: 'linux-x64-8c-15g',
+        unit: `dash-job-${job.id}.scope`,
+        cgroup: `/user.slice/dash-job-${job.id}.scope`,
+        tmpDirectory: job.locator,
+        units: job.units.map((unit) => ({ exclusiveId: unit.exclusiveId, path: unit.path })),
+        startedAt: now,
+      },
+      {
+        kind: 'gate',
+        observedAt: now,
+        counters: null,
+        tmpBytes: null,
+        containers: null,
+        failure: null,
+      },
+    );
+    records.close();
+  }
+
+  /** The SHA-256 of `jobId`'s stored run record gate entry, read straight from the file. */
+  function storedStartDigest(runtime: ResourceRuntime, jobId: string): string {
+    const root = roots.get(runtime);
+    if (root === undefined) throw new Error('runtime not opened by pool()');
+    const db = new Database(HostJobRunRecords.pathOf(root), { readonly: true });
+    const row = db
+      .query<{ start: string }, [string]>('SELECT start FROM runs WHERE job_id=?')
+      .get(jobId);
+    db.close();
+    if (row === null) throw new Error(`no run record for ${jobId}`);
+    return createHash('sha256').update(row.start).digest('hex');
   }
 
   /** Admits a gate, runs a payload until its launch is recorded, and sweeps until it returned. */
@@ -74,7 +136,8 @@ if (insideLinuxNamespace(import.meta.path)) {
       { pollMs: 5, signal: new AbortController().signal, report: silent },
     );
     if (outcome.kind !== 'admitted') throw new Error(`expected admission, got ${outcome.kind}`);
-    runtime.prepareHostJob(outcome.job.id);
+    const prepared = runtime.prepareHostJob(outcome.job.id);
+    recordGate(runtime, prepared);
     const payload = spawn('/bin/sh', ['-c', 'read gate'], {
       detached: true,
       stdio: ['pipe', 'ignore', 'ignore'],
@@ -115,6 +178,11 @@ if (insideLinuxNamespace(import.meta.path)) {
       .map((call) => resourceRuntimeEvent.assert({ ...call.input, authorityId: undefined }));
 
   describe('host job publication (task 5.2)', () => {
+    const outcomeOf = (run: Promise<void>) =>
+      run.then(
+        () => 'synchronized',
+        (cause: unknown) => cause,
+      );
     test('a gate run while WBS is down publishes registered then returned, in order', async () => {
       const runtime = pool();
       const job = await runGate(runtime, 'gate:wbs-down');
@@ -158,12 +226,13 @@ if (insideLinuxNamespace(import.meta.path)) {
       });
       expect(returned.use).toEqual(registered.use);
       expect(returned.useId).toBe(job.id);
-      expect(returned.evidence?.digest).toMatch(/^[0-9a-f]{64}$/);
-      expect(returned.evidence?.locator).toMatch(
-        new RegExp(`^dash-host-job://runtime-one/${job.id}/\\d+$`),
-      );
-      expect(returned.evidence?.disposition).toBe('returned');
-      expect(returned.evidence?.reclaimedBytes).toBeNull();
+      // The evidence names the run record and digests its gate entry (task 6.8, S6F-A1).
+      expect(returned.evidence).toEqual({
+        digest: storedStartDigest(runtime, job.id),
+        locator: `dash-host-job-run://enrollment-one/${job.id}`,
+        disposition: 'returned',
+        reclaimedBytes: null,
+      });
       expect(runtime.outbox()).toEqual([]);
       expect(runtime.hostJobOutbox()).toEqual([]);
       // Nothing is published twice.
@@ -232,6 +301,52 @@ if (insideLinuxNamespace(import.meta.path)) {
       runtime.close();
     }, 60000);
 
+    test('a job withdrawn before its gate publishes not_created, naming the absent run record', async () => {
+      const runtime = pool();
+      const outcome = await runtime.admitHostJob(
+        { descriptor: gate, label: 'gate:withdrawn', waitSeconds: 1 },
+        { pollMs: 5, signal: new AbortController().signal, report: silent },
+      );
+      if (outcome.kind !== 'admitted') throw new Error(outcome.kind);
+      // Another job's run record exists: the file is there, this job's row is not.
+      await runGate(runtime, 'gate:ran');
+      runtime.withdrawUnlaunchedHostJob(outcome.job.id, 'the legacy queue refused it');
+      expect(runtime.inspectHostJob(outcome.job.id).state).toBe('released');
+      const up = scriptedTools(answering);
+      await runtime.synchronize(up);
+      const returned = published(up.calls).find(
+        (event) => event.useId === outcome.job.id && event.kind === 'release_verified',
+      );
+      const locator = `dash-host-job-run://enrollment-one/${outcome.job.id}`;
+      expect(returned?.evidence).toEqual({
+        digest: createHash('sha256').update(`${locator} absent`).digest('hex'),
+        locator,
+        disposition: 'not_created',
+        reclaimedBytes: null,
+      });
+      runtime.close();
+    }, 60000);
+
+    test('run records missing beside a returned host job stop the move, publishing nothing', async () => {
+      const runtime = pool();
+      const job = await runGate(runtime, 'gate:lost-records');
+      const root = roots.get(runtime);
+      if (root === undefined) throw new Error('runtime not opened by pool()');
+      rmSync(HostJobRunRecords.pathOf(root));
+      const up = scriptedTools(answering);
+      const stopped = await outcomeOf(runtime.synchronize(up));
+      expect(stopped).toBeInstanceOf(Error);
+      expect((stopped as Error).message).toBe(
+        `host job run records ${HostJobRunRecords.pathOf(root)} are missing beside a ledger that has host jobs; restore them from backup`,
+      );
+      expect(published(up.calls)).toEqual([]);
+      expect(runtime.outbox()).toEqual([]);
+      expect(
+        runtime.hostJobOutbox().map((row) => (row.event as { jobId: string }).jobId),
+      ).toContain(job.id);
+      runtime.close();
+    }, 60000);
+
     /** WBS refusing the host-job variant `400` (an outgoing be-01 without v2) `refusals` times. */
     function refusingFirst(refusals: number) {
       let refused = 0;
@@ -243,11 +358,6 @@ if (insideLinuxNamespace(import.meta.path)) {
         return answering(call);
       });
     }
-    const outcomeOf = (run: Promise<void>) =>
-      run.then(
-        () => 'synchronized',
-        (cause: unknown) => cause,
-      );
 
     // S5-A20: bounded convergence across a blue/green window.
     test('a host-job event refused 400 twice publishes in order once WBS accepts it', async () => {

@@ -44,6 +44,23 @@ export const resourceRuntimeHostJobUse = type({
   reservations: type({ dimension: label, units: 'number.integer >= 0' }).array(),
 }).onUndeclaredKey('reject');
 export type ResourceRuntimeHostJobUse = typeof resourceRuntimeHostJobUse.infer;
+/**
+ * The durable locator of a host job's run record (`dash-host-jobs` task 6.8, S6F-A1): the
+ * `runs` row of `job_id` `useId` in `<pool root>/.dash/host-job-runs.sqlite` on the host pool
+ * enrolled as `host` (the declaration's `host`). A returned host job's evidence names it with
+ * the SHA-256 of that row's stored `start` text, the gate entry written once before the
+ * payload ran.
+ */
+export function hostJobRunRecordLocator(host: string, useId: string): string {
+  return `dash-host-job-run://${host}/${useId}`;
+}
+/**
+ * What a `not_created` host job's evidence digest hashes: the statement that its gate never
+ * opened, so the run record `locator` names was never written.
+ */
+export function hostJobRunRecordAbsence(locator: string): string {
+  return `${locator} absent`;
+}
 /** Ordered attestation from an admin-bound runtime credential, never an ordinary worker assertion. */
 export const resourceRuntimeEvent = type({
   eventId: label,
@@ -57,7 +74,11 @@ export const resourceRuntimeEvent = type({
   reason: label,
   'requestId?': 'number.integer > 0',
   use: resourceRuntimeUse.or(resourceRuntimeHostJobUse),
-  /** `returned` is a host job's: every reservation entry settled on its terminal evidence (J2'). */
+  /**
+   * `returned` is a host job's: every reservation entry settled on its terminal evidence (J2'),
+   * the digest and locator naming its run record ({@link hostJobRunRecordLocator}); a host job
+   * whose gate never opened is `not_created` ({@link hostJobRunRecordAbsence}).
+   */
   'evidence?': {
     digest: 'string',
     locator: label,

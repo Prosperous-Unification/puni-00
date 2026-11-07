@@ -108,6 +108,8 @@ const YAML_ROOTS = ['infra', 'deploy/k8s', '.github/workflows'] as const;
  * the heavy-job launchers and payloads beside it (`dash-host-jobs` slice 6a).
  */
 const EXTRA_SHELL_SCRIPTS = [
+  'bin/gate-launcher-refresh.sh',
+  'bin/gate-launcher-refresh.test.sh',
   'bin/h2puni-gate-payload.sh',
   'bin/publish-release-payload.sh',
   'bin/publish-release.sh',

@@ -51,7 +51,7 @@ Work sessions SHALL use external completion. A ready or admitted ticket SHALL re
 
 ### Requirement: Reconstruction preserves business facts and discards local tickets
 
-The coordinator SHALL rebuild sessions from the current complete topology and accepted WBS completion facts. It SHALL preserve durable attempt identities and operation keys, and SHALL reject retained history that cannot be matched to the supplied activity identities. Traversal queues, ticket objects and settlement generations SHALL NOT be serialized or adopted into a replacement session.
+The coordinator SHALL rebuild sessions from the current complete topology and accepted WBS completion facts. It SHALL preserve durable attempt identities and operation keys, and SHALL reject retained history that cannot be matched to the supplied activity identities. Traversal queues, settlement tickets and external work sessions SHALL NOT be serialized or adopted into a replacement session.
 
 #### Scenario: Restart with running work
 
@@ -80,7 +80,7 @@ The coordinator SHALL overlay current WBS eligibility and durable execution, wai
 - **WHEN** a ticket's admission reaches a stale owner or stale run revision
 - **THEN** the existing store refusal propagates without reservation or traversal completion
 
-### Requirement: Ticket reports retain local identity and generation
+### Requirement: Ticket reports retain ticket and session identity
 
 Completion SHALL require a current-session ticket, exact activity identity and verified accepted WBS facts. Foreign, fabricated, retargeted and pre-rebuild tickets SHALL refuse without satisfying dependencies. Exact repeated accepted reports SHALL preserve the original acknowledgement without repeating durable or remote effects. Retryable business failures SHALL remain host policy, without automatic fatal traversal failure.
 

@@ -80,3 +80,8 @@ all:
           ansible_host: 10.1.0.3
           # puni1 still escalates for the dev poller (docs/infra/gate-hosts.md, step 0).
           puni_gate_account_may_sudo: true
+          # The dev poller launches solver-image-publish from ~/wbs-dev/src, so
+          # `ops pool switch-mode concurrent` verifies it beside the launcher-only checkout.
+          puni_gate_pool_launcher_checkouts:
+            - /home/puni1/puni-00-gate-launcher
+            - /home/puni1/wbs-dev/src

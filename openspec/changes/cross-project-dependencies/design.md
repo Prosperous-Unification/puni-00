@@ -808,7 +808,7 @@ folder and forward hash, then admits the complete name set through the adapter's
 the activation migration requires the existing strict authority inspector to prove
 DISABLED authority and an empty `external_dependency` table. Missing, unreadable,
 malformed or replaced authority/ledger/triggers refuses. ENABLED authority and
-retained edges require compatible recovery under ADR 0069.
+retained edges require compatible recovery under ADR 0071.
 
 Unrelated selections and no-ops do not inspect activation. Legacy `--to` and
 captured-set restoration converge through this admission; existing independent SQL
@@ -1277,11 +1277,11 @@ activation, rollback or host adoption is implemented by this prerequisite.
 
 ### Solver supervisor continuous exclusion and restoration delivery boundary
 
-[ADR 0071](../../../docs/adr/0071-supervisor-exclusion-does-not-require-an-identity-broker.md) separates delivery from the [proposed solver identity broker](../solver-supervisor-identity-broker/proposal.md). The broker's root provisioning, captured-byte bootstrap and per-client TLS identity protocol are future hardening; they are not a prerequisite for completing cross-project-dependencies. They establish no participant exclusion and grant no activation or recovery authority.
+[ADR 0073](../../../docs/adr/0073-supervisor-exclusion-does-not-require-an-identity-broker.md) separates delivery from the [proposed solver identity broker](../solver-supervisor-identity-broker/proposal.md). The broker's root provisioning, captured-byte bootstrap and per-client TLS identity protocol are future hardening; they are not a prerequisite for completing cross-project-dependencies. They establish no participant exclusion and grant no activation or recovery authority.
 
 Task 10.2 still requires actual coordinator-owned solver stop/drain and admission closure before protected storage work. Inventory and fence the effective supervisor service, Restart=always/user-manager and manual launch paths, every supported installer/replacement caller and the active managed solver attempts. Keep those restart/install/request barriers continuously enforced with the other required backend/gateway/MCP/ingress/replay/background participant barriers through maintenance, activation decision and final pre-exposure recheck. Existing canonical edge admission and retained owner guards are necessary but source lock adoption or a one-time stop cannot prove the whole interval. Missing, unreadable, changed, unrecognized or incomplete authority refuses, retaining evidence for attended recovery; no narrower exclusion promise is introduced.
 
-Restoration names an independently pinned compatible supervisor Bun/bundle/config/unit/solver-image mapping and admitted compatible participants. Under retained admission, verify actual installed/mapping identities, effective restart configuration, readiness and final pre-exposure exclusion readback before reopening requests. A failed or uncertain restoration retains barriers and the manual completion procedure. [ADR 0069](../../../docs/adr/0069-cross-project-dependency-activation-is-monotone.md) remains binding: possible semantic activation or uncertain exposure preserves the current store and requires attended compatible recovery; incapable old writers cannot return merely because live edges are absent. Only the separately proven eligible dormant rollback may reverse exact captured additions and compare the full ledger. The ordered S1–S4 tasks require production-path watched negatives and separate live acceptance; nothing in this docs reconciliation claims implementation or host authority.
+Restoration names an independently pinned compatible supervisor Bun/bundle/config/unit/solver-image mapping and admitted compatible participants. Under retained admission, verify actual installed/mapping identities, effective restart configuration, readiness and final pre-exposure exclusion readback before reopening requests. A failed or uncertain restoration retains barriers and the manual completion procedure. [ADR 0071](../../../docs/adr/0071-cross-project-dependency-activation-is-monotone.md) remains binding: possible semantic activation or uncertain exposure preserves the current store and requires attended compatible recovery; incapable old writers cannot return merely because live edges are absent. Only the separately proven eligible dormant rollback may reverse exact captured additions and compare the full ledger. The ordered S1–S4 tasks require production-path watched negatives and separate live acceptance; nothing in this docs reconciliation claims implementation or host authority.
 
 ### Dedicated dependency owner: first managed exclusion slice
 
@@ -1928,7 +1928,7 @@ The sole selected worker input is exactly176 bytes of canonical two-profile JSON
 
 Independent review72a62cc4049fd2258acd6f880d80497a24151b5237b0741c034572ad7af6d83d identified LP1/LP2; this correction specifies their exact data channel and full closing set. The proposed21-path amendment preserves both the original17-path lease and its issued two-path lint amendment as active19 lineage and adds only installed-authority-collector.ts and its owning test. Remove only collector.ts from the21 read-only dependency list;20 remain. Existing mutable code is WIP, not reset to original baselines or claimed absent. Root acceptance and independent review of this amendment precede any change to the two added paths.
 
-The persistent pin tradeoff is recorded in [proposed ADR-0072](../../../docs/adr/0072-runtime-launch-pins-exclude-verified-session-identity.md). Existing technical vocabulary is sufficient; no CONTEXT implementation glossary is added. All prior full-goal, publisher/preparation, native/capacity, policy proof and main/deploy obligations remain open.
+The persistent pin tradeoff is recorded in [proposed ADR-0074](../../../docs/adr/0074-runtime-launch-pins-exclude-verified-session-identity.md). Existing technical vocabulary is sufficient; no CONTEXT implementation glossary is added. All prior full-goal, publisher/preparation, native/capacity, policy proof and main/deploy obligations remain open.
 
 ## Joint ordinary controller admission prerequisite
 
