@@ -13,7 +13,7 @@ CP10's precedence) and fails only there.
 
 ## 1. Inside `wbs-permissions` slice 1 (amended there)
 
-- [ ] 1.1 `access_role` with `name`, nullable `level`, `reaches_restricted` (CP18: default 0,
+- [x] 1.1 `access_role` with `name`, nullable `level`, `reaches_restricted` (CP18: default 0,
       seeded 1 for `org-admin` and `org-super-admin`, organization-kind CHECK) and the built-in/custom CHECK,
       `access_role_permission`, the reserved-name trigger, the nine built-in sets seeded
       from `permission-matrix.md`, and `down.sql` naming the five tables in dependency
@@ -26,7 +26,7 @@ CP10's precedence) and fails only there.
       inserted; drop the custom-role guard and the rollback deletes the ungranted role;
       drop the kind CHECK and a project-kind role stores
       `reaches_restricted = 1`; watched.
-- [ ] 1.2 `@wbs/domain`: `PERMISSIONS` entries with `kind` metadata (CP16), `EffectiveRole`
+- [x] 1.2 `@wbs/domain`: `PERMISSIONS` entries with `kind` metadata (CP16), `EffectiveRole`
       with `permissions` and `via`, `may` as set membership, `CONTRIBUTOR_CAP` from the
       seed, `roleMayHold(objectKind, permission)` read from the metadata, and the CP18
       transformation `permissionsOnTarget(grant, target)` reading `reachesRestricted` — test: `access-role.test.ts`

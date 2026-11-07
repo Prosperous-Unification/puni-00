@@ -244,6 +244,7 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
       '20261101100000_widen_organization_audit_directory_capacity',
@@ -341,6 +342,7 @@ describe('20260905090000_add_calendar_marker', () => {
           n !== 'measure' &&
           n !== 'measure_estimate' &&
           n !== 'work_item_budget' &&
+          !n.startsWith('access_') &&
           n !== 'compute_provider' &&
           n !== 'resource_capacity_report' &&
           n !== 'resource_authority' &&

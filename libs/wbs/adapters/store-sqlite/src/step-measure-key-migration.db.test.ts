@@ -17,6 +17,7 @@ const BASELINE = '20261023140000_add_measure';
 /** The measure estimates, which reverse first over single-point token trios alone. */
 const MEASURE_ESTIMATES = '20261023160000_add_measure_estimate';
 const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
+const ACCESS_GRANTS = '20261102120000_add_access_grants';
 
 let dir: string;
 let path: string;
@@ -99,6 +100,7 @@ beforeEach(() => {
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
   expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    ACCESS_GRANTS,
     '20261101120000_add_host_job_projection',
     '20261101100100_add_resource_directory_capacity',
     '20261101100000_widen_organization_audit_directory_capacity',
@@ -256,6 +258,7 @@ describe(MIGRATION, () => {
     comeForward();
     db.close();
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      ACCESS_GRANTS,
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
       '20261101100000_widen_organization_audit_directory_capacity',

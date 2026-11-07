@@ -23,6 +23,7 @@ const MEASURE = '20261023140000_add_measure';
 const MEASURE_FACTS = '20261023150000_key_step_measure';
 const MEASURE_ESTIMATES = '20261023160000_add_measure_estimate';
 const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
+const ACCESS_GRANTS = '20261102120000_add_access_grants';
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const CLAIM_LEASE = '20261023100000_add_claim_lease';
 const roots: string[] = [];
@@ -131,7 +132,7 @@ describe(AUDIT_WIDENING, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: 20261101120000_add_host_job_projection, 20261101100100_add_resource_directory_capacity, 20261101100000_widen_organization_audit_directory_capacity, 20261028100100_widen_organization_audit_agent_pools, 20261028100000_add_agent_pool, 20261026130000_widen_organization_audit_machine_tokens, 20261026120000_add_command_journal_person, 20261025130000_add_resource_runtime, 20261025120000_add_resource_use, ${WORK_ITEM_BUDGETS}, ${MEASURE_ESTIMATES}, ${MEASURE_FACTS}, ${MEASURE}, ${CLAIM_LEASE}, ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, 20261022121000_add_runtime_commands, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}`,
+      `rolled back: ${ACCESS_GRANTS}, 20261101120000_add_host_job_projection, 20261101100100_add_resource_directory_capacity, 20261101100000_widen_organization_audit_directory_capacity, 20261028100100_widen_organization_audit_agent_pools, 20261028100000_add_agent_pool, 20261026130000_widen_organization_audit_machine_tokens, 20261026120000_add_command_journal_person, 20261025130000_add_resource_runtime, 20261025120000_add_resource_use, ${WORK_ITEM_BUDGETS}, ${MEASURE_ESTIMATES}, ${MEASURE_FACTS}, ${MEASURE}, ${CLAIM_LEASE}, ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, 20261022121000_add_runtime_commands, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}`,
     );
     expect(auditRows(dbPath)).toEqual([
       { action: 'restricted_project_recovery', subject_kind: 'project' },

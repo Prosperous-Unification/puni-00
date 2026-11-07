@@ -15,8 +15,10 @@ const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const AGENT_POOL_WIDENING = '20261028100100_widen_organization_audit_agent_pools';
 const AUDIT_WIDENING = '20261101100000_widen_organization_audit_directory_capacity';
 const DIRECTORY_CAPACITY = '20261101100100_add_resource_directory_capacity';
-/** The one folder stamped above this change's pair (`dash-host-jobs`); every rollback below it reverses it first. */
+/** The folder stamped above this change's pair (`dash-host-jobs`); every rollback below it reverses it right after {@link ACCESS_GRANTS}. */
 const HOST_JOB_PROJECTION = '20261101120000_add_host_job_projection';
+/** `wbs-permissions`' access grants, the newest folder, which reverses first. */
+const ACCESS_GRANTS = '20261102120000_add_access_grants';
 /** What the widening adds; every other value of the two vocabularies was admitted before it. */
 const NEW_ACTION = 'directory_capacity_changed';
 const NEW_KIND = 'resource';
@@ -213,7 +215,7 @@ describe(AUDIT_WIDENING, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}, ${AUDIT_WIDENING}\n`,
+      `rolled back: ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}, ${AUDIT_WIDENING}\n`,
     );
     expect(auditSchemaOf(dbPath)).toEqual(baseline);
   }, 60_000);
@@ -257,7 +259,9 @@ describe(DIRECTORY_CAPACITY, () => {
     const down = await rollBack(root, dbPath, AUDIT_WIDENING);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}\n`);
+    expect(down.stdout).toContain(
+      `rolled back: ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}\n`,
+    );
     expect(
       count(
         dbPath,

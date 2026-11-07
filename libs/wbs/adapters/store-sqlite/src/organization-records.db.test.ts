@@ -749,6 +749,7 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
       '20261101100000_widen_organization_audit_directory_capacity',
@@ -837,6 +838,7 @@ describe('20260927120000_add_organization_records', () => {
           name !== 'measure' &&
           name !== 'measure_estimate' &&
           name !== 'work_item_budget' &&
+          !name.startsWith('access_') &&
           name !== 'compute_provider' &&
           name !== 'resource_capacity_report' &&
           name !== 'resource_authority' &&

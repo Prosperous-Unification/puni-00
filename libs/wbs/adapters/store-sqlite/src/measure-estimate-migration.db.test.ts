@@ -12,6 +12,7 @@ import { rollbackTo } from './migrate-down';
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const MIGRATION = '20261023160000_add_measure_estimate';
 const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
+const ACCESS_GRANTS = '20261102120000_add_access_grants';
 const BASELINE = '20261023150000_key_step_measure';
 
 let dir: string;
@@ -94,6 +95,7 @@ beforeEach(() => {
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
   expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    ACCESS_GRANTS,
     '20261101120000_add_host_job_projection',
     '20261101100100_add_resource_directory_capacity',
     '20261101100000_widen_organization_audit_directory_capacity',
@@ -239,6 +241,7 @@ describe(MIGRATION, () => {
     const before = legacyRows();
     db.close();
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      ACCESS_GRANTS,
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
       '20261101100000_widen_organization_audit_directory_capacity',

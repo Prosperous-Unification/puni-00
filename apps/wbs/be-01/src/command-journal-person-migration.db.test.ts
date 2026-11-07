@@ -149,7 +149,7 @@ describe('the command journal person migration', () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${HOST_JOB_PROJECTION}, 20261101100100_add_resource_directory_capacity, 20261101100000_widen_organization_audit_directory_capacity, ${AGENT_POOL_AUDIT}, ${AGENT_POOL}, ${MACHINE_TOKENS}, ${JOURNAL_PERSON}`,
+      `rolled back: 20261102120000_add_access_grants, ${HOST_JOB_PROJECTION}, 20261101100100_add_resource_directory_capacity, 20261101100000_widen_organization_audit_directory_capacity, ${AGENT_POOL_AUDIT}, ${AGENT_POOL}, ${MACHINE_TOKENS}, ${JOURNAL_PERSON}`,
     );
     expect(columnsOf(dbPath)).not.toContain('person_id');
     expect(entryIds(dbPath)).toEqual(['human']);
@@ -183,7 +183,7 @@ describe('the command journal person migration', () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${HOST_JOB_PROJECTION}, 20261101100100_add_resource_directory_capacity, 20261101100000_widen_organization_audit_directory_capacity, ${AGENT_POOL_AUDIT}, ${AGENT_POOL}, ${MACHINE_TOKENS}, ${JOURNAL_PERSON}`,
+      `rolled back: 20261102120000_add_access_grants, ${HOST_JOB_PROJECTION}, 20261101100100_add_resource_directory_capacity, 20261101100000_widen_organization_audit_directory_capacity, ${AGENT_POOL_AUDIT}, ${AGENT_POOL}, ${MACHINE_TOKENS}, ${JOURNAL_PERSON}`,
     );
     expect(columnsOf(dbPath)).not.toContain('person_id');
     expect(newestApplied(dbPath)).toBe(baseline());
