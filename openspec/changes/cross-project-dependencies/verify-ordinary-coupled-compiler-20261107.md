@@ -140,3 +140,52 @@ suites179pass/0fail/1888assertions; force configured TypeScript exit0 with empty
 diagnostics. Document/index checks and required OpenSpec validation exit0
 (334of334). Exact outputs are retained in the archive. No compiler invocation
 or full host/CI/native gate is inferred from these checks.
+
+## Actual single attempt — known-terminal refusal
+
+The reviewed exact launcher ran once against clean published98aa3c7c2. PID/PGID
+4167612 exited1, no signal, both actual streamsEOF, source unchanged and no
+postflight error. The original compiler SDK call fulfilled with success=true,
+logs0, one1191087-byte output descriptor and exactly287 predicted input identities
+and byte lengths. The builder then refused `coupled compiler edge destination
+or classification differs`. No artifact.arrayBuffer, artifact.write or final
+metadata.write was entered; no bundle file/hash or output execution is claimed.
+
+[The actual attempt archive](coupled-compiler-attempt-20261107/README.md) preserves
+the final protocol, driver corrections, raw SDK metadata, all actual callback
+contents and reproducible compact custody extraction. Full private failure
+capture325481372 bytes retains SHA-256
+`f22e411b46a6c740bd29bd8dbcf19eefb92cb8a5ae79228b278d096d120c226c`.
+
+Actual recorded custody:44 setup effects,2064 closure observations and7 outside
+records at failure snapshot time. All558 closure byte reads and additional
+setup/outside reads were independently decoded/hashed; canonical identities,
+permissions, sizes, directory types and explicit absences match. Actual closure
+is1770 fulfilled plus294 exact named ENOENT, with every original/observer joined.
+All47 callback contents total538202 bytes and match fixed expectations and
+captured reference-preservation assertions. Serialized copies do not independently
+reconstruct JavaScript object identity. Parent289 pre/post pins match.
+
+The failure-file classification is provisional UNKNOWN while its own tracked
+write is unjoined; final retained stderr reports known-terminal/keeper released,
+actual original rejected, both observers fulfilled and failure.write fulfilled.
+Parent receipt contains1756 preceding operations; Root's separately retained
+tool-result observation reports final receipt.write fulfilled/joined and
+receiptJoined=true. Complete parent stdout was not locally saved. This is not
+represented as a complete raw-file stdout proof.
+
+Independent actual review44fb64e090c177d10e0c39f559e92165be7ac60f1dea788fdc304e4d1e655f5c
+and custody reviewc35462f6388979e969b713ef5f7d6f36aa4e85f6791c0f2e059fe33a610fa794
+accept the narrow failed checkpoint. The145 mismatches are118 Node-prefix and27
+relative Drizzle metadata spellings, all exact old accepted raw tuples. They
+expose a validator representation bug; they are not evidence of malicious
+dependencies, a successful builder, native cleanup or a required safety check.
+
+The next reviewed source slice preserves raw fields and associates them with
+presealed semantics using direct, exact Node-prefix and a closed27-tuple old
+relative representation roster with unchanged importer pins. No blanket flag
+dropping, new observed-set union, scanner relaxation or automatic retry is
+allowed. This attempt is consumed and immutable. Root released the original
+coordinated no-writer lease after terminal postflight/extraction. No human blocker
+is needed to implement the bounded correction; a separately frozen reviewed
+future protocol remains required before another compiler-only invocation.
