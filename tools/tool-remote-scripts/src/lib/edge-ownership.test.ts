@@ -3721,11 +3721,12 @@ test('UC2 coupled source generator leaves every old virtual load receipt unchang
     sourceRoot: string;
     rows: { namespace: string; identity: string; sha256: string; bytes: number }[];
   };
+  const physicalRoot = new URL('../../../../', import.meta.url).pathname.replace(/\/$/, '');
   const supplied = new Map<string, Uint8Array>();
   for (const pin of fixture.ordinaryHoldSourceEpochV1.pins)
     supplied.set(
       `${packet.sourceRoot}/${pin.relative}`,
-      await readFile(`${packet.sourceRoot}/${pin.relative}`),
+      await readFile(`${physicalRoot}/${pin.relative}`),
     );
   const oldPlan = fixture.planOrdinaryHoldBuildV1(packet.sourceRoot, supplied);
   const ports = oldPlan.portSources;
@@ -5147,7 +5148,7 @@ test('SC1 prospective planner refuses wrong epoch and leaves frozen old authorit
   expect(prospective.entrySource).toBe(old.entrySource);
   expect(prospective.portSources.size).toBe(31);
   expect(() => {
-    fixture.assertOrdinaryCoupledPlanV1(admitted, prospective as unknown as typeof old);
+    fixture.assertOrdinaryCoupledPlanV1(admitted, prospective);
   }).toThrow('coverage bytes');
   expect(() =>
     fixture.decodeOrdinaryCoupledBuildRequestV1({
@@ -5282,4 +5283,310 @@ test('SC1 first owned interval cleanup survives STOP before sentinel entry', asy
     ledger.returnOperation(ticket, undefined);
   }).not.toThrow();
   expect(entries).toBe(1);
+});
+
+async function setupCustodyBuildRequest() {
+  const historical = await coupledBuildRequest();
+  const read = (name: string) => readFile(new URL(`../fixtures/${name}`, import.meta.url), 'utf8');
+  return {
+    ...historical,
+    sourceEpoch: 'ordinary-uc2-coupled-setup-v1' as const,
+    loadExpectations: await read('ordinary-setup-load-expectations-20261107.json'),
+    closureManifest: await read('ordinary-setup-input-closure-20261107.json'),
+    coverage: await read('ordinary-setup-conservative-coverage-20261107.json'),
+    prediction: await read('ordinary-setup-compiler-prediction-20261107.json'),
+  };
+}
+
+test('SPC4 fixed setup admission binds raw authority and rejects cross-policy requests before effects', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  const setup = await setupCustodyBuildRequest();
+  const historical = await coupledBuildRequest();
+  const admitted = fixture.decodeOrdinarySetupCustodyBuildRequestV1(setup);
+  expect(admitted.sourceEpoch).toBe(setup.sourceEpoch);
+  expect(admitted.closureManifest.sourceEpoch).toBe(setup.sourceEpoch);
+  expect(admitted.closureManifest.format).toBe('ordinary-setup-input-closure-v1');
+  const historicalClosure = JSON.parse(historical.closureManifest) as Record<string, unknown>;
+  for (const epoch of [undefined, null, setup.sourceEpoch, historical.sourceEpoch + '-near'])
+    expect(() =>
+      fixture.decodeOrdinaryCoupledClosureManifestV1({ ...historicalClosure, sourceEpoch: epoch }),
+    ).toThrow('closure format or epoch');
+  expect(() =>
+    fixture.decodeOrdinaryCoupledClosureManifestV1(JSON.parse(setup.closureManifest)),
+  ).toThrow('closure format or epoch');
+  expect(admitted.coverage).toHaveLength(290);
+  expect(admitted.prediction).toHaveLength(287);
+  expect(admitted.loadExpectations).toHaveLength(47);
+  expect(admitted.closureManifest.closureOperationCount).toBe(2064);
+  for (const epoch of [undefined, null, historical.sourceEpoch, setup.sourceEpoch + '-near']) {
+    expect(() =>
+      fixture.decodeOrdinarySetupCustodyBuildRequestV1({ ...setup, sourceEpoch: epoch }),
+    ).toThrow('epoch');
+    expect(() =>
+      fixture.buildOrdinarySetupCustodyImageV1({
+        ...setup,
+        sourceEpoch: epoch,
+        loadExpectations: '{}',
+      }),
+    ).toThrow('epoch');
+  }
+  expect(() => fixture.decodeOrdinaryCoupledBuildRequestV1(setup)).toThrow('epoch');
+  expect(() => fixture.decodeOrdinarySetupCustodyBuildRequestV1(historical)).toThrow('epoch');
+  for (const name of ['loadExpectations', 'closureManifest', 'coverage', 'prediction'] as const) {
+    expect(() =>
+      fixture.decodeOrdinarySetupCustodyBuildRequestV1({ ...setup, [name]: historical[name] }),
+    ).toThrow('raw authority');
+    expect(() =>
+      fixture.decodeOrdinaryCoupledBuildRequestV1({ ...historical, [name]: setup[name] }),
+    ).toThrow('raw authority');
+    for (const replacement of [
+      undefined,
+      '{}',
+      '{',
+      JSON.parse(setup[name]) as unknown,
+      setup[name] + ' ',
+      setup[name].replace(
+        /[a-f0-9]{64}/,
+        (hash) => (hash.startsWith('a') ? 'b' : 'a') + hash.slice(1),
+      ),
+    ])
+      expect(() =>
+        fixture.decodeOrdinarySetupCustodyBuildRequestV1({ ...setup, [name]: replacement }),
+      ).toThrow('raw authority');
+  }
+  expect(() =>
+    fixture.decodeOrdinarySetupCustodyBuildRequestV1({ ...setup, extra: true }),
+  ).toThrow();
+  for (const name of ['patch', 'manifest'] as const) {
+    const changed = setup[name].slice();
+    changed[0] ^= 1;
+    expect(() =>
+      fixture.decodeOrdinarySetupCustodyBuildRequestV1({ ...setup, [name]: changed }),
+    ).toThrow('r2 raw authority');
+  }
+});
+
+test('SPC4 inspectors reject unknown genuine originals without entering a builder', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  const original = Promise.withResolvers<never>().promise;
+  expect(() => fixture.inspectOrdinaryCoupledBuildV1(original)).toThrow('original absent');
+  expect(() => fixture.inspectOrdinarySetupCustodyBuildV1(original)).toThrow('original absent');
+});
+
+test('SPC4 inert inspection association keeps live failure and immutable snapshots without registering attempts', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  type Attempt = NonNullable<Parameters<typeof fixture.inspectOrdinaryCompilerAttemptV1>[2]>;
+  for (const kind of ['coupled-r2', 'setup-custody'] as const) {
+    const original = Promise.withResolvers<never>();
+    const observer = original.promise.then(
+      () => undefined,
+      () => undefined,
+    );
+    const attempt: Attempt = {
+      original: original.promise,
+      kind,
+      observer,
+      state: 'pending',
+      operations: [],
+      closureOperations: () => [],
+    };
+    const view = fixture.inspectOrdinaryCompilerAttemptV1(original.promise, kind, attempt);
+    expect(Object.isFrozen(view)).toBe(true);
+    expect(view.observer).toBe(observer);
+    expect(view.state).toBe('pending');
+    expect(view.loads).toEqual({ status: 'not-entered' });
+    const pending = view.operations;
+    expect(Object.isFrozen(pending)).toBe(true);
+    expect(() =>
+      fixture.inspectOrdinaryCompilerAttemptV1(Promise.resolve(), kind, attempt),
+    ).toThrow('original absent');
+    expect(() =>
+      fixture.inspectOrdinaryCompilerAttemptV1(
+        original.promise,
+        kind === 'coupled-r2' ? 'setup-custody' : 'coupled-r2',
+        attempt,
+      ),
+    ).toThrow('original absent');
+    attempt.outputRoot = '/inert-output';
+    expect(view.outputRoot).toBe('/inert-output');
+    const cause = { failure: kind };
+    original.reject(cause);
+    await observer;
+    attempt.failure = cause;
+    attempt.state = 'rejected';
+    expect(view.failure).toBe(cause);
+    expect(view.state).toBe('rejected');
+    expect(pending).toHaveLength(0);
+    expect(() => fixture.inspectOrdinaryCoupledBuildV1(original.promise)).toThrow(
+      'original absent',
+    );
+    expect(() => fixture.inspectOrdinarySetupCustodyBuildV1(original.promise)).toThrow(
+      'original absent',
+    );
+  }
+});
+
+test('SPC4 raw spelling refuses semantically identical same-length setup packets', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  const request = await setupCustodyBuildRequest();
+  for (const name of ['loadExpectations', 'closureManifest', 'coverage', 'prediction'] as const) {
+    const changed = request[name].replace('  "', ' \t"');
+    expect(changed).not.toBe(request[name]);
+    expect(Buffer.byteLength(changed)).toBe(Buffer.byteLength(request[name]));
+    expect(JSON.parse(changed)).toEqual(JSON.parse(request[name]));
+    expect(() =>
+      fixture.decodeOrdinarySetupCustodyBuildRequestV1({ ...request, [name]: changed }),
+    ).toThrow('raw authority');
+  }
+});
+
+test('SPC4 packet provenance requires the selected epoch and all four independently sealed digests', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  const cases = await Promise.all([coupledBuildRequest(), setupCustodyBuildRequest()]);
+  const digest = (packet: string) => createHash('sha256').update(packet).digest('hex');
+  const authorities = cases.map((request) => ({
+    loadExpectationsSha256: digest(request.loadExpectations),
+    closureManifestSha256: digest(request.closureManifest),
+    coverageSha256: digest(request.coverage),
+    predictionSha256: digest(request.prediction),
+  }));
+  for (const [index, request] of cases.entries()) {
+    const provenance = authorities[index];
+    fixture.assertOrdinaryCompilerPacketProvenanceV1(request.sourceEpoch, provenance);
+    expect(() => {
+      fixture.assertOrdinaryCompilerPacketProvenanceV1(request.sourceEpoch, authorities[1 - index]);
+    }).toThrow('packet provenance');
+    for (const name of Object.keys(provenance) as (keyof typeof provenance)[])
+      expect(() => {
+        fixture.assertOrdinaryCompilerPacketProvenanceV1(request.sourceEpoch, {
+          ...provenance,
+          [name]: '0'.repeat(64),
+        });
+      }).toThrow('packet provenance');
+    for (const epoch of [undefined, 'near', request.sourceEpoch + '-near'])
+      expect(() => {
+        fixture.assertOrdinaryCompilerPacketProvenanceV1(epoch, provenance);
+      }).toThrow('packet provenance');
+  }
+});
+
+test('SPC4 diagnostic frames preserve partial callbacks, success array identity and undefined rejection', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  type Attempt = NonNullable<Parameters<typeof fixture.inspectOrdinaryCompilerAttemptV1>[2]>;
+  const request = fixture.decodeOrdinarySetupCustodyBuildRequestV1(
+    await setupCustodyBuildRequest(),
+  );
+  const recorder = fixture.createOrdinaryCoupledLoadRecorderV1(
+    request.sourceRoot,
+    request.loadExpectations,
+    createHash('sha256').update(JSON.stringify(request.loadExpectations)).digest('hex'),
+  );
+  const original = Promise.withResolvers<undefined>();
+  const observer = original.promise.then(
+    () => undefined,
+    () => undefined,
+  );
+  const operations: Attempt['operations'] = [];
+  const attempt: Attempt = {
+    original: original.promise,
+    kind: 'setup-custody',
+    observer,
+    state: 'pending',
+    operations,
+    closureOperations: () => [],
+  };
+  const view = fixture.inspectOrdinaryCompilerAttemptV1(original.promise, 'setup-custody', attempt);
+  const snapshot = view.operations;
+  const retained = Promise.withResolvers<string>();
+  const operation = fixture.ordinaryHoldSetupOperationV1(
+    operations,
+    'inert.setup',
+    () => retained.promise,
+  );
+  expect(snapshot).toHaveLength(0);
+  expect(view.operations).toHaveLength(1);
+  expect(Object.isFrozen(view.operations[0])).toBe(true);
+  attempt.loadObservations = recorder.inspect;
+  expect(view.loads).toEqual({ status: 'retained', observations: [] });
+  const ports = fixture.ordinarySetupCustodyPortSourcesV1(request.sourceRoot);
+  const contents = ports.get('ordinary-hold-v1:ledger');
+  if (contents === undefined) throw Error('inert ledger source absent');
+  const returned = { contents, loader: 'ts' as const };
+  expect(recorder.record('ordinary-hold-v1', 'ledger', returned)).toBe(returned);
+  expect(view.loads.status).toBe('retained');
+  const loads = view.loads;
+  if (loads.status !== 'retained') throw Error('inert observations absent');
+  expect(loads.observations).toHaveLength(1);
+  expect(loads.observations[0].contentsReferencePreserved).toBe(true);
+  expect(Object.isFrozen(loads.observations)).toBe(true);
+  retained.resolve('returned');
+  await operation;
+  const completed = Object.freeze(operations.map((record) => Object.freeze({ ...record })));
+  original.resolve(undefined);
+  await observer;
+  attempt.completed = { setupOperations: completed };
+  attempt.state = 'fulfilled';
+  expect(view.operations).toBe(completed);
+  expect(view.operations).toBe(view.operations);
+  expect(snapshot).toHaveLength(0);
+  const rejected = Promise.withResolvers<never>();
+  const rejectedObserver = rejected.promise.then(
+    () => undefined,
+    () => undefined,
+  );
+  const rejectedAttempt: Attempt = {
+    ...attempt,
+    original: rejected.promise,
+    observer: rejectedObserver,
+    completed: undefined,
+    state: 'pending',
+  };
+  const rejectedView = fixture.inspectOrdinaryCompilerAttemptV1(
+    rejected.promise,
+    'setup-custody',
+    rejectedAttempt,
+  );
+  rejected.reject(undefined);
+  await rejectedObserver;
+  rejectedAttempt.state = 'rejected';
+  rejectedAttempt.failure = undefined;
+  expect(rejectedView.state).toBe('rejected');
+  expect(rejectedView.failure).toBeUndefined();
+  expect(rejectedView.operations).toHaveLength(1);
+  expect(rejectedView.loads.status).toBe('retained');
+  expect(() => fixture.inspectOrdinarySetupCustodyBuildV1(rejected.promise)).toThrow(
+    'original absent',
+  );
+});
+
+test('SPC4 setup plan matches independent sealed callback and coverage bytes while preserving historical entry and layers', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  const setup = fixture.decodeOrdinarySetupCustodyBuildRequestV1(await setupCustodyBuildRequest());
+  const historical = fixture.decodeOrdinaryCoupledBuildRequestV1(await coupledBuildRequest());
+  const physicalRoot = new URL('../../../../', import.meta.url).pathname.replace(/\/$/, '');
+  const supplied = new Map<string, Uint8Array>();
+  for (const pin of fixture.ordinaryHoldSourceEpochV1.pins)
+    supplied.set(
+      `${setup.sourceRoot}/${pin.relative}`,
+      await readFile(`${physicalRoot}/${pin.relative}`),
+    );
+  const plan = fixture.planOrdinarySetupCustodyBuildV1(
+    setup.sourceRoot,
+    supplied,
+    setup.patch,
+    setup.manifest,
+    setup.sourceEpoch,
+  );
+  fixture.assertOrdinaryCoupledPlanV1(setup, plan);
+  const old = fixture.planOrdinaryCoupledBuildV1(
+    historical.sourceRoot,
+    supplied,
+    historical.patch,
+    historical.manifest,
+  );
+  fixture.assertOrdinaryCoupledPlanV1(historical, old);
+  expect(plan.layers).toEqual(old.layers);
+  expect([...plan.materialized]).toEqual([...old.materialized]);
+  expect(plan.entrySource).toBe(old.entrySource);
+  expect(plan.portSources.size).toBe(31);
 });

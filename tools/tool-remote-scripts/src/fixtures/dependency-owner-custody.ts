@@ -5854,9 +5854,10 @@ export function createOrdinaryCoupledLoadRecorderV1(
 
 export interface OrdinaryCoupledClosureManifestV1 extends Omit<
   OrdinaryHoldClosureManifestV1,
-  'format' | 'generatedEntry'
+  'format' | 'sourceEpoch' | 'generatedEntry'
 > {
   readonly format: 'ordinary-coupled-input-closure-v1';
+  readonly sourceEpoch: typeof ordinaryCoupledSourceEpochV1;
   readonly generatedEntry: Omit<OrdinaryHoldClosureGeneratedEntryV1, 'template'> & {
     readonly template: {
       readonly format: 'ordinary-coupled-entry-v1';
@@ -5867,10 +5868,29 @@ export interface OrdinaryCoupledClosureManifestV1 extends Omit<
   };
 }
 
+export interface OrdinarySetupCustodyClosureManifestV1 extends Omit<
+  OrdinaryCoupledClosureManifestV1,
+  'format' | 'sourceEpoch'
+> {
+  readonly format: 'ordinary-setup-input-closure-v1';
+  readonly sourceEpoch: typeof ordinarySetupCustodySourceEpochV1;
+}
+type OrdinaryCompilerClosureV1 =
+  OrdinaryCoupledClosureManifestV1 | OrdinarySetupCustodyClosureManifestV1;
+
 /** Coverage: independently sealed F/D/L/A admission is exercised; new layout/schema guard omission proofs remain open. */
 export function decodeOrdinaryCoupledClosureManifestV1(
   value: unknown,
 ): OrdinaryCoupledClosureManifestV1 {
+  const closure = decodeOrdinaryCompilerClosureV1(value, ordinaryCoupledPolicyV1);
+  return Object.freeze({
+    ...closure,
+    format: ordinaryCoupledPolicyV1.closureFormat,
+    sourceEpoch: ordinaryCoupledPolicyV1.sourceEpoch,
+  });
+}
+
+function decodeOrdinaryCompilerClosureV1(value: unknown, policy: OrdinaryCompilerPolicyV1) {
   const packet = ordinaryHoldFields(
     value,
     [
@@ -5894,10 +5914,11 @@ export function decodeOrdinaryCoupledClosureManifestV1(
     ],
     'coupled closure manifest',
   );
+  // Proof: omitting only the closure epoch comparison admitted a setup epoch through the historical decoder; SPC4 fixed setup admission failed and exact restoration passed (0/1/0, 2026-11-07). Other format/version predicates were not isolated.
   if (
-    packet['format'] !== 'ordinary-coupled-input-closure-v1' ||
+    packet['format'] !== policy.closureFormat ||
     packet['version'] !== 1 ||
-    packet['sourceEpoch'] !== 'ordinary-uc2-coupled-r2-v1'
+    packet['sourceEpoch'] !== policy.sourceEpoch
   )
     throw new Error('coupled closure format or epoch differs');
   const sourceRoot = ordinaryHoldClosurePathV1(packet['sourceRoot'], true);
@@ -6130,9 +6151,9 @@ export function decodeOrdinaryCoupledClosureManifestV1(
   )
     throw new Error('coupled closure operation census differs');
   return Object.freeze({
-    format: 'ordinary-coupled-input-closure-v1',
+    format: policy.closureFormat,
     version: 1,
-    sourceEpoch: 'ordinary-uc2-coupled-r2-v1',
+    sourceEpoch: policy.sourceEpoch,
     sourceRoot,
     sourceRootCanonical,
     compilerCwd,
@@ -6151,7 +6172,7 @@ export function decodeOrdinaryCoupledClosureManifestV1(
 }
 
 export function ordinaryCoupledClosureKeysV1(
-  manifest: OrdinaryCoupledClosureManifestV1,
+  manifest: OrdinaryCompilerClosureV1,
 ): readonly string[] {
   const keys: string[] = [];
   for (const phase of ['before', 'after'] as const) {
@@ -6174,7 +6195,7 @@ export function ordinaryCoupledClosureKeysV1(
 /** Each sealed key wraps exactly one actual filesystem Promise; default-loader resolution remains untouched. */
 /** Coverage: uses the existing ledger/file guards; the new full real-filesystem sweeps remain unexecuted before driver review. */
 async function observeOrdinaryCoupledClosureV1(
-  manifest: OrdinaryCoupledClosureManifestV1,
+  manifest: OrdinaryCompilerClosureV1,
   ledger: OrdinaryHoldClosureLedgerV1,
   phase: OrdinaryHoldClosurePhaseV1,
   entryPath: string,
@@ -6259,6 +6280,78 @@ const ordinaryCoupledPacketPinsV1 = Object.freeze({
     sha256: 'ae42f514a5acfe28de4a34fefc425345d30ee466db20f0cfc0b0076bd2a33488',
   },
 });
+const ordinarySetupCustodyPacketPinsV1 = Object.freeze({
+  loadExpectations: {
+    bytes: 12576,
+    sha256: '1369da47ecc3f0a1315ffe05842d6f9e08a3be4999407719eb23506e63add932',
+  },
+  coverage: {
+    bytes: 502225,
+    sha256: 'aad5072f0188f6c82196123f373b52470894bf03f6e59eb9af7b8a2182b29dfd',
+  },
+  prediction: {
+    bytes: 70196,
+    sha256: '771e340b665a33684f796efad83ac4688ea062136d35ef23750e0b87be43c74c',
+  },
+  closureManifest: {
+    bytes: 146048,
+    sha256: '21f6889a07aece7d23b7456269ee0927bbdad0e001ddcbd941cb8f9d2c9514cb',
+  },
+});
+const ordinaryCoupledPolicyV1 = Object.freeze({
+  kind: 'coupled-r2',
+  sourceEpoch: 'ordinary-uc2-coupled-r2-v1',
+  pins: ordinaryCoupledPacketPinsV1,
+  loadFormat: 'ordinary-coupled-load-expectations-v1',
+  coverageFormat: 'ordinary-coupled-conservative-coverage-v1',
+  predictionFormat: 'ordinary-coupled-compiler-prediction-v1',
+  closureFormat: 'ordinary-coupled-input-closure-v1',
+  builtFormat: 'dependency-owner-ordinary-coupled-image-build',
+} as const);
+const ordinarySetupCustodyPolicyV1 = Object.freeze({
+  kind: 'setup-custody',
+  sourceEpoch: 'ordinary-uc2-coupled-setup-v1',
+  pins: ordinarySetupCustodyPacketPinsV1,
+  loadFormat: 'ordinary-setup-load-expectations-v1',
+  coverageFormat: 'ordinary-setup-conservative-coverage-v1',
+  predictionFormat: 'ordinary-setup-compiler-prediction-v1',
+  closureFormat: 'ordinary-setup-input-closure-v1',
+  builtFormat: 'dependency-owner-ordinary-setup-custody-image-build',
+} as const);
+type OrdinaryCompilerPolicyV1 =
+  typeof ordinaryCoupledPolicyV1 | typeof ordinarySetupCustodyPolicyV1;
+
+interface OrdinaryCompilerPacketProvenanceV1 {
+  readonly loadExpectationsSha256: string;
+  readonly closureManifestSha256: string;
+  readonly coverageSha256: string;
+  readonly predictionSha256: string;
+}
+
+/** Checks emitted digest provenance against the fixed epoch without granting builder authority. */
+export function assertOrdinaryCompilerPacketProvenanceV1(
+  sourceEpoch: unknown,
+  provenance: OrdinaryCompilerPacketProvenanceV1,
+): void {
+  // Proof: substituting historical pins for setup pins failed SPC4 packet provenance; exact restoration passed (0/1/0, finite digests, 2026-11-07).
+  const pins =
+    sourceEpoch === ordinaryCoupledPolicyV1.sourceEpoch
+      ? ordinaryCoupledPolicyV1.pins
+      : sourceEpoch === ordinarySetupCustodyPolicyV1.sourceEpoch
+        ? ordinarySetupCustodyPolicyV1.pins
+        : undefined;
+  // Proof: omitting this guard replaced modeled unknown-epoch refusal with a property-access TypeError; SPC4 packet provenance failed its required message and exact restoration passed (0/1/0). This proves failure classification, not additional acceptance prevention.
+  if (pins === undefined) throw new Error('ordinary compiler packet provenance epoch differs');
+  // Proof: omitting only the coverage digest comparison admitted a changed digest and failed SPC4 packet provenance; restoration passed (0/1/0). Other comparisons were not independently omitted.
+  if (
+    provenance.loadExpectationsSha256 !== pins.loadExpectations.sha256 ||
+    provenance.closureManifestSha256 !== pins.closureManifest.sha256 ||
+    provenance.coverageSha256 !== pins.coverage.sha256 ||
+    provenance.predictionSha256 !== pins.prediction.sha256
+  )
+    throw new Error('ordinary compiler packet provenance differs');
+}
+
 interface OrdinaryCoupledEdgeV1 {
   readonly from: string;
   readonly specifier: string;
@@ -6291,11 +6384,32 @@ interface OrdinaryCoupledBuildRequestV1 {
   readonly manifest: Uint8Array;
 }
 
+export interface OrdinarySetupCustodyBuildRequestV1 extends Omit<
+  OrdinaryCoupledBuildRequestV1,
+  'sourceEpoch' | 'closureManifest'
+> {
+  readonly sourceEpoch: typeof ordinarySetupCustodySourceEpochV1;
+  readonly closureManifest: OrdinarySetupCustodyClosureManifestV1;
+}
+type OrdinaryCompilerAuthorityV1 =
+  | {
+      readonly kind: 'coupled-r2';
+      readonly request: OrdinaryCoupledBuildRequestV1;
+      readonly policy: typeof ordinaryCoupledPolicyV1;
+    }
+  | {
+      readonly kind: 'setup-custody';
+      readonly request: OrdinarySetupCustodyBuildRequestV1;
+      readonly policy: typeof ordinarySetupCustodyPolicyV1;
+    };
+
 function ordinaryCoupledPacketV1(
   name: keyof typeof ordinaryCoupledPacketPinsV1,
   value: unknown,
+  policy: OrdinaryCompilerPolicyV1,
 ): unknown {
-  const pin = ordinaryCoupledPacketPinsV1[name];
+  const pin = policy.pins[name];
+  // Proof: omitting this block admitted semantically identical same-length setup packet spellings; SPC4 raw spelling failed and exact restoration passed (0/1/0, pure decoder, 2026-11-07).
   // Proof: removing this raw admission block admitted same-length valid load JSON with a changed hash; KCT5 fixed packet test failed and restoration passed (2026-11-07, pure decoder). Other packet predicates were not isolated.
   if (
     typeof value !== 'string' ||
@@ -6327,6 +6441,35 @@ function decodeOrdinaryCoupledInputV1(value: unknown, imports: boolean): Ordinar
 
 /** Admits only four source-fixed raw packets and the fixed reviewed r2 archive before any setup effect. */
 export function decodeOrdinaryCoupledBuildRequestV1(value: unknown): OrdinaryCoupledBuildRequestV1 {
+  const request = decodeOrdinaryCompilerBuildRequestV1(value, ordinaryCoupledPolicyV1);
+  return Object.freeze({
+    ...request,
+    sourceEpoch: ordinaryCoupledPolicyV1.sourceEpoch,
+    closureManifest: Object.freeze({
+      ...request.closureManifest,
+      format: ordinaryCoupledPolicyV1.closureFormat,
+      sourceEpoch: ordinaryCoupledPolicyV1.sourceEpoch,
+    }),
+  });
+}
+
+/** Admits only the independently sealed setup packets before acquiring any setup effect. */
+export function decodeOrdinarySetupCustodyBuildRequestV1(
+  value: unknown,
+): OrdinarySetupCustodyBuildRequestV1 {
+  const request = decodeOrdinaryCompilerBuildRequestV1(value, ordinarySetupCustodyPolicyV1);
+  return Object.freeze({
+    ...request,
+    sourceEpoch: ordinarySetupCustodyPolicyV1.sourceEpoch,
+    closureManifest: Object.freeze({
+      ...request.closureManifest,
+      format: ordinarySetupCustodyPolicyV1.closureFormat,
+      sourceEpoch: ordinarySetupCustodyPolicyV1.sourceEpoch,
+    }),
+  });
+}
+
+function decodeOrdinaryCompilerBuildRequestV1(value: unknown, policy: OrdinaryCompilerPolicyV1) {
   const request = ordinaryHoldFields(
     value,
     [
@@ -6343,10 +6486,11 @@ export function decodeOrdinaryCoupledBuildRequestV1(value: unknown): OrdinaryCou
     ],
     'coupled build request',
   );
+  // Proof: omitting the request epoch comparison admitted a wrong-epoch pure request; SPC4 fixed setup admission failed and exact restoration passed (0/1/0, 2026-11-07).
   if (
     request['version'] !== 1 ||
     request['mode'] !== 'build-only' ||
-    request['sourceEpoch'] !== ordinaryCoupledSourceEpochV1
+    request['sourceEpoch'] !== policy.sourceEpoch
   )
     throw new Error('coupled build request epoch differs');
   const root = ordinaryHoldAbsolute(request['sourceRoot'], 'coupled root');
@@ -6356,14 +6500,14 @@ export function decodeOrdinaryCoupledBuildRequestV1(value: unknown): OrdinaryCou
     format: string,
   ) => {
     const packet = ordinaryHoldFields(
-      ordinaryCoupledPacketV1(name, request[name]),
+      ordinaryCoupledPacketV1(name, request[name], policy),
       fields,
       `coupled ${name}`,
     );
     if (
       packet['format'] !== format ||
       packet['sourceRoot'] !== root ||
-      packet['sourceEpoch'] !== ordinaryCoupledSourceEpochV1
+      packet['sourceEpoch'] !== policy.sourceEpoch
     )
       throw new Error(`coupled ${name} root or epoch differs`);
     return packet;
@@ -6371,20 +6515,21 @@ export function decodeOrdinaryCoupledBuildRequestV1(value: unknown): OrdinaryCou
   const load = decode(
     'loadExpectations',
     ['format', 'sourceRoot', 'sourceEpoch', 'rows'],
-    'ordinary-coupled-load-expectations-v1',
+    policy.loadFormat,
   );
   const coverage = decode(
     'coverage',
     ['format', 'sourceRoot', 'sourceEpoch', 'compiler', 'buildOptions', 'rows', 'external'],
-    'ordinary-coupled-conservative-coverage-v1',
+    policy.coverageFormat,
   );
   const prediction = decode(
     'prediction',
     ['format', 'sourceRoot', 'sourceEpoch', 'rows', 'omissions'],
-    'ordinary-coupled-compiler-prediction-v1',
+    policy.predictionFormat,
   );
-  const closureManifest = decodeOrdinaryCoupledClosureManifestV1(
-    ordinaryCoupledPacketV1('closureManifest', request['closureManifest']),
+  const closureManifest = decodeOrdinaryCompilerClosureV1(
+    ordinaryCoupledPacketV1('closureManifest', request['closureManifest'], policy),
+    policy,
   );
   if (closureManifest.sourceRoot !== root || closureManifest.sourceRootCanonical !== root)
     throw new Error('coupled closure canonical root differs');
@@ -6510,7 +6655,7 @@ export function decodeOrdinaryCoupledBuildRequestV1(value: unknown): OrdinaryCou
     version: 1,
     mode: 'build-only',
     sourceRoot: root,
-    sourceEpoch: ordinaryCoupledSourceEpochV1,
+    sourceEpoch: policy.sourceEpoch,
     loadExpectations: decodeOrdinaryCoupledLoadExpectationsV1(
       root,
       load['rows'],
@@ -6564,11 +6709,10 @@ function assertOrdinaryCoupledSetupCensusV1(
 
 /** Validates independently expected rendered/virtual/generated bytes before any compiler invocation. */
 export function assertOrdinaryCoupledPlanV1(
-  request: Pick<
-    OrdinaryCoupledBuildRequestV1,
-    'coverage' | 'loadExpectations' | 'sourceRoot' | 'closureManifest'
-  >,
-  plan: OrdinaryCoupledBuildPlanV1,
+  request: Pick<OrdinaryCoupledBuildRequestV1, 'coverage' | 'loadExpectations' | 'sourceRoot'> & {
+    readonly closureManifest: OrdinaryCompilerClosureV1;
+  },
+  plan: OrdinaryCoupledBuildPlanV1 | OrdinarySetupCustodyBuildPlanV1,
 ): void {
   if (plan.layers.length !== 17 || plan.portSources.size !== 31 || plan.materialized.size !== 17)
     throw new Error('coupled plan census differs');
@@ -6688,7 +6832,9 @@ interface OrdinaryCoupledMetadataAssociationV1 extends OrdinaryCoupledRawMetadat
  * Throws for unsealed importers, unsupported representations or incompatible semantic ambiguity.
  */
 export function associateOrdinaryCoupledMetadataEdgesV1(
-  request: Pick<OrdinaryCoupledBuildRequestV1, 'sourceRoot' | 'coverage' | 'closureManifest'>,
+  request: Pick<OrdinaryCoupledBuildRequestV1, 'sourceRoot' | 'coverage'> & {
+    readonly closureManifest: OrdinaryCompilerClosureV1;
+  },
   compilerCwd: string,
   entryPath: string,
   edges: readonly OrdinaryCoupledRawMetadataEdgeV1[],
@@ -6869,25 +7015,63 @@ export interface OrdinaryCoupledBuiltImageV1 extends Omit<
   readonly coverageSha256: string;
   readonly predictionSha256: string;
 }
+export interface OrdinarySetupCustodyBuiltImageV1 extends Omit<
+  OrdinaryCoupledBuiltImageV1,
+  'format' | 'sourceEpoch'
+> {
+  readonly format: 'dependency-owner-ordinary-setup-custody-image-build';
+  readonly sourceEpoch: typeof ordinarySetupCustodySourceEpochV1;
+}
+type OrdinaryCompilerBuiltImageV1 = OrdinaryCoupledBuiltImageV1 | OrdinarySetupCustodyBuiltImageV1;
+
 type OrdinaryCoupledLoadObservationsV1 = ReturnType<
   ReturnType<typeof createOrdinaryCoupledLoadRecorderV1>['inspect']
 >;
-interface OrdinaryCoupledBuildAttemptV1 extends OrdinaryHoldBuildAttemptV1 {
+interface OrdinaryCompilerInspectionV1 extends OrdinaryHoldBuildAttemptV1 {
+  readonly original: Promise<unknown>;
   failure?: unknown;
-  completed?: OrdinaryCoupledBuiltImageV1;
+  completed?: Pick<OrdinaryCompilerBuiltImageV1, 'setupOperations'>;
+  readonly kind: OrdinaryCompilerAuthorityV1['kind'];
   state: 'pending' | 'fulfilled' | 'rejected';
   loadObservations?: () => OrdinaryCoupledLoadObservationsV1;
 }
-const ordinaryCoupledBuilderAttempts = new WeakMap<
-  Promise<OrdinaryCoupledBuiltImageV1>,
-  OrdinaryCoupledBuildAttemptV1
+interface OrdinaryCompilerBuildAttemptV1 extends OrdinaryCompilerInspectionV1 {
+  completed?: OrdinaryCompilerBuiltImageV1;
+}
+const ordinaryCompilerAttemptsV1 = new WeakMap<
+  Promise<OrdinaryCompilerBuiltImageV1>,
+  OrdinaryCompilerBuildAttemptV1
 >();
 
 /** The same original build Promise keys its retained setup records and observer. */
 /** Diagnostic snapshots never expose the private mutable onLoad objects or grant settlement. Shape failure throws while all private references remain retained. */
 export function inspectOrdinaryCoupledBuildV1(original: Promise<OrdinaryCoupledBuiltImageV1>) {
-  const attempt = ordinaryCoupledBuilderAttempts.get(original);
-  if (attempt === undefined) throw new Error('coupled build original absent');
+  return inspectOrdinaryCompilerBuildV1(original, 'coupled-r2');
+}
+
+/** Inspects only the genuine setup variant original; getters retain live failure state. */
+export function inspectOrdinarySetupCustodyBuildV1(
+  original: Promise<OrdinarySetupCustodyBuiltImageV1>,
+) {
+  return inspectOrdinaryCompilerBuildV1(original, 'setup-custody');
+}
+
+function inspectOrdinaryCompilerBuildV1(
+  original: Promise<OrdinaryCompilerBuiltImageV1>,
+  kind: OrdinaryCompilerAuthorityV1['kind'],
+) {
+  return inspectOrdinaryCompilerAttemptV1(original, kind, ordinaryCompilerAttemptsV1.get(original));
+}
+
+/** Pure diagnostic association/snapshot seam; cannot register attempts, callbacks or settlement authority. */
+export function inspectOrdinaryCompilerAttemptV1(
+  original: Promise<unknown>,
+  kind: OrdinaryCompilerAuthorityV1['kind'],
+  attempt: OrdinaryCompilerInspectionV1 | undefined,
+) {
+  // Proof: independently omitting original identity and variant equality failed SPC4 inert inspection; each exact restoration passed (0/1/0, data-only frames, 2026-11-07). No private attempt was registered.
+  if (attempt?.original !== original || attempt.kind !== kind)
+    throw new Error('coupled build original absent');
   return Object.freeze({
     observer: attempt.observer,
     get state() {
@@ -6919,17 +7103,44 @@ export function inspectOrdinaryCoupledBuildV1(original: Promise<OrdinaryCoupledB
 export function buildOrdinaryCoupledImageV1(
   request: unknown,
 ): Promise<OrdinaryCoupledBuiltImageV1> {
-  const admitted = decodeOrdinaryCoupledBuildRequestV1(request);
+  return startOrdinaryCompilerBuildV1({
+    kind: 'coupled-r2',
+    request: decodeOrdinaryCoupledBuildRequestV1(request),
+    policy: ordinaryCoupledPolicyV1,
+  });
+}
+
+/** Starts the same genuine compiler body with the independently sealed setup authority. */
+export function buildOrdinarySetupCustodyImageV1(
+  request: unknown,
+): Promise<OrdinarySetupCustodyBuiltImageV1> {
+  return startOrdinaryCompilerBuildV1({
+    kind: 'setup-custody',
+    request: decodeOrdinarySetupCustodyBuildRequestV1(request),
+    policy: ordinarySetupCustodyPolicyV1,
+  });
+}
+
+function startOrdinaryCompilerBuildV1(
+  authority: Extract<OrdinaryCompilerAuthorityV1, { kind: 'coupled-r2' }>,
+): Promise<OrdinaryCoupledBuiltImageV1>;
+function startOrdinaryCompilerBuildV1(
+  authority: Extract<OrdinaryCompilerAuthorityV1, { kind: 'setup-custody' }>,
+): Promise<OrdinarySetupCustodyBuiltImageV1>;
+function startOrdinaryCompilerBuildV1(
+  authority: OrdinaryCompilerAuthorityV1,
+): Promise<OrdinaryCompilerBuiltImageV1> {
+  const admitted = authority.request;
   const operations: OrdinaryHoldSetupRecordV1[] = [];
   const closureLedger = createOrdinaryHoldClosureLedgerV1(
     ordinaryCoupledClosureKeysV1(admitted.closureManifest),
   );
-  const body = buildOrdinaryCoupledImageBodyV1(
-    admitted,
+  const body = buildOrdinaryCompilerImageBodyV1(
+    authority,
     operations,
     closureLedger,
     (outputRoot, loadObservations) => {
-      const attempt = ordinaryCoupledBuilderAttempts.get(body);
+      const attempt = ordinaryCompilerAttemptsV1.get(body);
       if (attempt === undefined) throw new Error('coupled private build attempt absent');
       attempt.outputRoot = outputRoot;
       if (loadObservations !== undefined) attempt.loadObservations = loadObservations;
@@ -6937,19 +7148,21 @@ export function buildOrdinaryCoupledImageV1(
   );
   const observer = body.then(
     (packet) => {
-      const attempt = ordinaryCoupledBuilderAttempts.get(body);
+      const attempt = ordinaryCompilerAttemptsV1.get(body);
       if (attempt === undefined) throw new Error('coupled private build attempt absent');
       attempt.completed = packet;
       attempt.state = 'fulfilled';
     },
     (cause: unknown) => {
-      const attempt = ordinaryCoupledBuilderAttempts.get(body);
+      const attempt = ordinaryCompilerAttemptsV1.get(body);
       if (attempt === undefined) throw new Error('coupled private build attempt absent');
       attempt.failure = cause;
       attempt.state = 'rejected';
     },
   );
-  ordinaryCoupledBuilderAttempts.set(body, {
+  ordinaryCompilerAttemptsV1.set(body, {
+    original: body,
+    kind: authority.kind,
     operations,
     observer,
     state: 'pending',
@@ -6958,15 +7171,16 @@ export function buildOrdinaryCoupledImageV1(
   return body;
 }
 
-async function buildOrdinaryCoupledImageBodyV1(
-  request: OrdinaryCoupledBuildRequestV1,
+async function buildOrdinaryCompilerImageBodyV1(
+  resolved: OrdinaryCompilerAuthorityV1,
   operations: OrdinaryHoldSetupRecordV1[],
   closureLedger: OrdinaryHoldClosureLedgerV1,
   retainOutputRoot: (
     outputRoot: string,
     loadObservations?: () => OrdinaryCoupledLoadObservationsV1,
   ) => void,
-): Promise<OrdinaryCoupledBuiltImageV1> {
+): Promise<OrdinaryCompilerBuiltImageV1> {
+  const { request, policy } = resolved;
   let retainedLoadRecorder: ReturnType<typeof createOrdinaryCoupledLoadRecorderV1> | undefined;
   const keeper = setInterval(() => ({ operations, retainedLoadRecorder, closureLedger }), 60000);
   try {
@@ -7000,7 +7214,16 @@ async function buildOrdinaryCoupledImageBodyV1(
         ),
       );
     }
-    const plan = planOrdinaryCoupledBuildV1(root, supplied, request.patch, request.manifest);
+    const plan =
+      resolved.kind === 'coupled-r2'
+        ? planOrdinaryCoupledBuildV1(root, supplied, request.patch, request.manifest)
+        : planOrdinarySetupCustodyBuildV1(
+            root,
+            supplied,
+            request.patch,
+            request.manifest,
+            resolved.request.sourceEpoch,
+          );
     const mappings = ordinaryHoldModuleModesV1.map((role) => ({
       path: `${root}/${role.relative}`,
       mode: role.mode,
@@ -7333,8 +7556,15 @@ async function buildOrdinaryCoupledImageBodyV1(
           Object.freeze({ key: record.key, state: record.state, joined: record.joined }),
         ),
     );
+    const packetProvenance = Object.freeze({
+      loadExpectationsSha256: policy.pins.loadExpectations.sha256,
+      closureManifestSha256: policy.pins.closureManifest.sha256,
+      coverageSha256: policy.pins.coverage.sha256,
+      predictionSha256: policy.pins.prediction.sha256,
+    });
+    assertOrdinaryCompilerPacketProvenanceV1(request.sourceEpoch, packetProvenance);
     const metadata = JSON.stringify({
-      closureManifestSha256: ordinaryCoupledPacketPinsV1.closureManifest.sha256,
+      ...packetProvenance,
       closureReadLeaseAssumption: request.closureManifest.readLeaseAssumption,
       closureGeneratedEntry: { path: entryPath, ...request.closureManifest.generatedEntry },
       closureCompilerCwd: request.closureManifest.compilerCwd,
@@ -7343,8 +7573,6 @@ async function buildOrdinaryCoupledImageBodyV1(
       qualification:
         'built-unqualified: compiler agreement does not grant runtime or scanner execution',
       layers: plan.layers,
-      coverageSha256: ordinaryCoupledPacketPinsV1.coverage.sha256,
-      predictionSha256: ordinaryCoupledPacketPinsV1.prediction.sha256,
       inputs: meta.inputs,
       outputs: meta.outputs,
       provenance,
@@ -7352,7 +7580,6 @@ async function buildOrdinaryCoupledImageBodyV1(
       normalizedInputs,
       normalizedEdges,
       loadReceipts,
-      loadExpectationsSha256: ordinaryCoupledPacketPinsV1.loadExpectations.sha256,
     });
     if (Buffer.byteLength(metadata) > 4 * 1024 * 1024)
       throw new Error('ordinary HOLD compiler metadata outside bound');
@@ -7363,11 +7590,10 @@ async function buildOrdinaryCoupledImageBodyV1(
     );
     assertOrdinaryCoupledSetupCensusV1(operations);
     const imageDigest = createHash('sha256').update(JSON.stringify(plan.layers)).digest('hex');
-    return Object.freeze({
-      format: 'dependency-owner-ordinary-coupled-image-build',
-      version: 1,
-      status: 'built-unqualified',
-      sourceEpoch: request.sourceEpoch,
+    const receipt = {
+      ...packetProvenance,
+      version: 1 as const,
+      status: 'built-unqualified' as const,
       imageDigest,
       titleDigest: ordinaryHoldTitleDigestV1,
       entryPath: entryBundle,
@@ -7380,14 +7606,10 @@ async function buildOrdinaryCoupledImageBodyV1(
       })),
       appliedCuts: plan.appliedCuts,
       loadReceipts,
-      loadExpectationsSha256: ordinaryCoupledPacketPinsV1.loadExpectations.sha256,
       resolutions: Object.freeze(resolutions),
       closureOperations,
-      closureManifestSha256: ordinaryCoupledPacketPinsV1.closureManifest.sha256,
       closureReadLeaseAssumption: request.closureManifest.readLeaseAssumption,
       setupOperations: Object.freeze(operations.map((record) => Object.freeze({ ...record }))),
-      coverageSha256: ordinaryCoupledPacketPinsV1.coverage.sha256,
-      predictionSha256: ordinaryCoupledPacketPinsV1.prediction.sha256,
       provenance,
       unqualified: Object.freeze([
         'runtime owner observer and keeper tap execution',
@@ -7398,7 +7620,18 @@ async function buildOrdinaryCoupledImageBodyV1(
         'scanner serialized-function equivalence',
         'actual native custody and finite HOLD retirement',
       ]),
-    });
+    };
+    return resolved.kind === 'coupled-r2'
+      ? Object.freeze({
+          ...receipt,
+          format: resolved.policy.builtFormat,
+          sourceEpoch: resolved.request.sourceEpoch,
+        })
+      : Object.freeze({
+          ...receipt,
+          format: resolved.policy.builtFormat,
+          sourceEpoch: resolved.request.sourceEpoch,
+        });
   } finally {
     if (operations.every(hasKnownOrdinaryHoldSetupOutcomeV1) && closureLedger.hasKnownOutcomes())
       clearInterval(keeper);
