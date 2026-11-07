@@ -239,6 +239,7 @@ const lifecycle =
   String.raw`
 import base64,hashlib,subprocess,tempfile,time
 fault=sys.argv[2]
+handoff_delay=sys.argv[3] if len(sys.argv)==4 else None
 sample['filesystem'].update(blocks=2,freeBlocks=1)
 child_source=r'''
 import base64,importlib.util,json,os,sys,time
@@ -246,7 +247,7 @@ ${providerStartup}
 spec=importlib.util.spec_from_file_location('guest',sys.argv[1]);p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
 complete_provider_import(fixture_import_descriptors)
 ${providerStat}
-request=json.loads(sys.argv[2]);sample=json.loads(sys.argv[3]);fault=sys.argv[4]
+request=json.loads(sys.argv[2]);sample=json.loads(sys.argv[3]);fault=sys.argv[4];handoff_fd=int(sys.argv[5])
 state=request['state'];directory=state+'/guest-'+request['nonce'];raw_fd=os.open(state+'/disk.raw',os.O_RDWR);kvm_fd=os.open('/dev/null',os.O_RDWR)
 directory_fd=p.raw.open_private(directory,True);lock=p.raw.acquire_staging(state)
 paths={'iso':state+'/seed-'+('b'*32)+'/seed.iso','qemu':state+'/tools-root/usr/bin/qemu-system-x86_64','bios':state+'/tools-root/usr/share/seabios/bios-256k.bin'}
@@ -260,6 +261,8 @@ if fault=='inode':binding['raw'][1]+=1
 if fault=='foreign-request':binding['request']='foreign'
 p.raw.send_frame(1,{'phase':'ready','binding':binding,'observedNs':time.time_ns()})
 try:
+    # Proof: replacing R with X refuses before mutation in wrong-initial-token.
+    assert os.read(handoff_fd,1)==b'R','initial handoff missing'
     ack=p.raw.receive_frame(0,.2);p.raw.check_ack(ack,binding,'d'*64)
     if fault=='source':raise p.raw.PreparationRefusal('changed-source')
     if fault=='raw-replace':
@@ -279,6 +282,8 @@ try:
     allocation=p.raw.load_inspector().inspect_file(state+'/disk.raw',8192)
     p.raw.send_frame(1,{'phase':'complete','record':record,'projection':{'measured':measured,'final':final},'allocation':allocation})
     if fault=='post-complete':p.raw.send_frame(1,{'phase':'output','stream':'serial','bytes':base64.b64encode(b'late\n').decode()})
+    # Proof: replacing D with X refuses durable acceptance in wrong-durability-token.
+    assert os.read(handoff_fd,1)==b'D','durability handoff missing'
     ack=p.raw.receive_frame(0,.5)
     if ack!={'durableDigest':p.raw.digest_json(record)}:raise p.raw.PreparationRefusal('wrong-durability')
 except BaseException:sys.exit(1)
@@ -301,7 +306,13 @@ with tempfile.TemporaryDirectory() as state:
     os.stat=device_stat
     original_lstat=os.lstat
     os.lstat=lambda path,*args,**kwargs:original_lstat('/dev/null' if path=='/dev/kvm' else path,*args,**kwargs)
-    p.service_arguments=lambda request,path,digest:['/usr/bin/python3','-I','-B','-c',child_source,sys.argv[1],json.dumps(request),json.dumps(sample),fault]
+    # The outer invocation owns liveness; frame clocks start after the coordinator's native work.
+    handoff_read,handoff_write=os.pipe()
+    launch=p.subprocess.Popen
+    def launch_child(*arguments,**keywords):
+        return launch(*arguments,**keywords,pass_fds=(handoff_read,))
+    p.subprocess.Popen=launch_child
+    p.service_arguments=lambda request,path,digest:['/usr/bin/python3','-I','-B','-c',child_source,sys.argv[1],json.dumps(request),json.dumps(sample),fault,str(handoff_read)]
     p.observe_active=lambda unit,pid:{'pid':pid,'start':p.raw.process_start(pid),'unit':unit,'invocation':'e'*32,'cgroup':'/fixture','caps':dict(p.CAPS)}
     p.raw.read_caps=lambda cgroup:dict(p.CAPS)
     unloaded={'LoadState':'not-found','ActiveState':'inactive','SubState':'dead','MainPID':'0','InvocationID':'','ControlGroup':'','Result':'','ExecMainStatus':''}
@@ -323,12 +334,21 @@ with tempfile.TemporaryDirectory() as state:
         if self.collector is None:self.collector=p.SerialCollector({'nonce':'b'*32,'bootstrapSha256':'f'*64},time.monotonic()-60.1)
         consume(self,frame,binding,request)
     p.Evidence.consume=consume_elapsed
+    synced=set()
     original_send=p.raw.send_frame
     def send(descriptor,frame):
-        if fault=='missing-ack' and 'bindingDigest' in frame:return
+        # Proof: omitting native worker-ready.json fsync fails with initial ACK preceded ready fsync.
+        if 'bindingDigest' in frame:assert 'worker-ready.json' in synced,'initial ACK preceded ready fsync'
+        # Proof: omitting native worker-counter.json fsync fails with durability ACK preceded evidence fsync.
+        if 'durableDigest' in frame:assert {'worker-counter.json','raw-serial.bin','client-stderr.bin','collector.json'}<=synced,'durability ACK preceded evidence fsync'
+        if fault=='missing-ack' and 'bindingDigest' in frame:
+            os.write(handoff_write,b'R')
+            return
         if fault=='wrong-ack' and 'bindingDigest' in frame:frame['request']='foreign'
         if fault=='durable' and 'durableDigest' in frame:frame['durableDigest']='foreign'
         original_send(descriptor,frame)
+        # Signal only after the entire native frame is buffered, preserving both receive budgets.
+        os.write(handoff_write,b'R' if 'bindingDigest' in frame else b'D')
     p.raw.send_frame=send
     publish=p.raw.persist
     def persist(directory,name,record,directory_fd=None):
@@ -338,6 +358,14 @@ with tempfile.TemporaryDirectory() as state:
             else:os.close(competing);raise AssertionError('original staging lock was released before durable ACK')
         return publish(directory,name,record,directory_fd=directory_fd)
     p.raw.persist=persist
+    sync=os.fsync
+    def sync_evidence(descriptor):
+        name=os.path.basename(os.readlink('/proc/self/fd/'+str(descriptor)))
+        if handoff_delay=='initial' and name=='worker-ready.json':time.sleep(.3)
+        if handoff_delay=='durability' and name=='worker-counter.json':time.sleep(.6)
+        sync(descriptor)
+        synced.add(name)
+    os.fsync=sync_evidence
     if fault=='short':os.pwrite=lambda *args:1
     if fault=='fsync':p.Evidence.durable=lambda self:(_ for _ in ()).throw(OSError('controlled fsync failure'))
     try:
@@ -357,6 +385,9 @@ with tempfile.TemporaryDirectory() as state:
         if fault=='iso-replace':assert not os.path.exists(directory+'/worker-counter.json'),'unsafe counter publication'
         assert failure['category']==expected[fault],(fault,failure)
         if fault in ('worker','creator','inode','foreign-request','missing-ack','wrong-ack','source'):assert open(state+'/disk.raw','rb').read(11)==b'\0'*11
+    finally:
+        p.subprocess.Popen=launch
+        os.close(handoff_read);os.close(handoff_write)
 print('verified guest lifecycle '+fault)
 `;
 
@@ -393,6 +424,21 @@ for (const fault of [
     expect(invocation.exitCode).toBe(0);
     expect(invocation.stdout.toString()).toBe(`verified guest lifecycle ${fault}\n`);
   });
+}
+
+// Proof: native fsync delayed .3s/.6s broke both ACK writes before the handoff pipe.
+for (const delay of ['initial', 'durability']) {
+  for (const fault of ['success', 'group']) {
+    test(`guest coordinator ${fault} preserves ${delay} handoff after delayed native fsync`, () => {
+      const invocation = Bun.spawnSync(
+        ['/usr/bin/python3', '-I', '-B', '-c', lifecycle, helper, fault, delay],
+        { timeout: 10000, maxBuffer: 65536 },
+      );
+      expect(invocation.stderr.toString()).toBe('');
+      expect(invocation.exitCode).toBe(0);
+      expect(invocation.stdout.toString()).toBe(`verified guest lifecycle ${fault}\n`);
+    });
+  }
 }
 
 const draining =
