@@ -1454,3 +1454,10 @@ any of the39ordinary HOLD rows, native/hosted gates or complete feature scope.
 - [ ] KCT4. Generate the two fixed genuine known-control paths and source-only passive bootstrap with actual body/projection/acceptance, operation and child joins; no top-level invocation, context stub, leaked-resource first-close success or production keeper tampering.
 - [ ] KCT5. Derive exact prospective31port/cut/setup/closure counts and independently sealed load/source authority packets; review finite inert R5 consumers, run owning/configured checks and prepare one separately reviewed compiler-only qualification. No new runtime invocation belongs to the source lease.
 - [ ] KCT6. Publish independently reviewed source/evidence with fresh pushes and WBS ownership. Then implement/qualify the complete finite native/HOLD/cleanup-migration and actual census continuation before applying or publishing executable production coupling; keep all parent acceptance obligations open.
+
+The [2026-11-07 source checkpoint](verify-ordinary-known-controller-20261105.md)
+implements the KCT1–4 source surfaces and publishes independent reviews/checks.
+Their full negative/restoration proof requirements remain open. KCT5's actual
+builder and separately sealed compiler protocol are not implemented; KCT6's
+publication part does not complete its native/HOLD continuation. All six boxes
+therefore remain unchecked.
