@@ -1,0 +1,22 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-resource-caller.test.ts:
+764 |   const state = join(lab.directory, '.puni/fleet-labs/k3d', captured.labId);
+765 |   await writeFile(join(state, 'creation-complete.json'), JSON.stringify({
+766 |     schemaVersion: 1, sha256: createHash('sha256').update(seal).digest('hex'),
+767 |   }));
+768 |   const execution = await lab.invoke(['down', '--profile', 'app', '--id', captured.labId, '--resource-evidence', 'creation-v1']);
+769 |   expect(execution.exit).not.toBe(0);
+                                   ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:769:30)
+(fail) Task37 historical cohort rejects effective observation records before teardown [1157.27ms]
+
+ 0 pass
+ 69 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [1389.00ms]

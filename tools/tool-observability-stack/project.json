@@ -24,6 +24,14 @@
     },
     "test": {
       "executor": "nx:run-commands",
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/docs/runbook-dev-observability-runtime.md",
+        "{workspaceRoot}/infra/platform/observability/elastic/settings/failure-fields.json",
+        "{workspaceRoot}/infra/platform/observability/otel/collector.yaml",
+        "{workspaceRoot}/infra/platform/telemetry/agent/agent.yaml"
+      ],
       "options": {
         "command": "bun test --timeout=10000",
         "cwd": "tools/tool-observability-stack"
@@ -46,6 +54,13 @@
       "options": {
         "command": "bunx tsc --build --force tools/tool-observability-stack/tsconfig.json"
       }
+    },
+    "validate-parity": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun tools/tool-observability-stack/src/configuration/parity-render-cli.ts . \"$PUNI_PARITY_TOOLS\""
+      },
+      "cache": false
     }
   }
 }

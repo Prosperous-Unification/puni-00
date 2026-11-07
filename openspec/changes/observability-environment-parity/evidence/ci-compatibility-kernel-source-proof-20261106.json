@@ -1,0 +1,37 @@
+{
+  "pausedBaselineFiles": 21,
+  "pausedSourceTestControlPaths": 16,
+  "ownedSourceChanges": 2,
+  "unchangedNonOwnedSourceTestControlPaths": 14,
+  "rootAuthorizedDocumentChanges": [
+    {
+      "path": "openspec/changes/observability-environment-parity/failed-repair-source-consumption.md",
+      "paused": {
+        "bytes": 26901,
+        "sha256": "bdc2751358b6d3eb210282e218e70dde7af8c199b9032c50e9f271c1dd2e7b95"
+      },
+      "current": {
+        "bytes": 27445,
+        "sha256": "2e6d8e992876c32c56bbe490375ff56740c04d02bdb893fcb83b1cf659bdc54e"
+      },
+      "attribution": "Root-confirmed authorized118readinessauthority clarification; unrelated to117behavior"
+    }
+  ],
+  "partialTask118Accepted": false,
+  "unchangedNativeControlPrepareBootstrap": 4,
+  "codeqlUnchanged": {
+    "bytes": 7383,
+    "sha256": "486883d69dbac907baad4f187da25ca726388b45edf11002a5f45ca4f184ca77"
+  },
+  "coldBytes": 8183,
+  "coldCap": 8192,
+  "controlBytes": 57342,
+  "controlCap": 57344,
+  "exactSharedModelAdditionBytes": 91,
+  "coldWorkerEntryUnchanged": true,
+  "embeddedPythonAstValid": true,
+  "finalTests": 56,
+  "finalRuntimeObservations": 61,
+  "outerAndColdReceiveControlledForeignHostBeforeSharedProvider": true,
+  "actualHostedKernelCaptured": false
+}

@@ -1,0 +1,12 @@
+{
+  "method": "Remove the sole 98-byte Proof comment to reconstruct 123967-byte cohort source. Parse embedded _SOURCE_BOOTSTRAP independently and compare its complete AST; compare complete entry AST with only that independently equal bootstrap constant normalized.",
+  "cohortBytes": 123967,
+  "cohortSha256": "0055da8a566800c9d91cb455d0b8133a1b6e8547a4360486d65821f7c87d9ca9",
+  "finalBytes": 124065,
+  "finalSha256": "2e6257aac4bfbd6e48d69abd94da5e3f7003d84aed0b5a26f542dadb0fd6bf66",
+  "equalEntryAst": true,
+  "equalBootstrapAst": true,
+  "entryAstSha256": "52c0ed52bd217b97d69d21f82c84352737b3dfe451821c40fc036ff9411adad7",
+  "bootstrapAstSha256": "b7533a0ca8e39ab78cabae414f146dfa658edcccc3db850de5133fb2b9e39c41",
+  "otherProductionFilesChangedAfterCohort": false
+}

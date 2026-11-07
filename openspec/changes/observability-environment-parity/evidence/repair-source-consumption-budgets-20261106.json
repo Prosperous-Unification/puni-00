@@ -1,0 +1,22 @@
+{
+  "conditional": true,
+  "sourceBytes": {
+    "lab-raw-repair.py": 124065,
+    "lab-raw-preparation.py": 55284,
+    "lab-repair-worker.py": 117435,
+    "lab-seed-preparation.py": 53199,
+    "lab-guest-preparation.py": 80680,
+    "lab-raw-allocation.py": 15534
+  },
+  "aggregateSourceBytes": 446197,
+  "requestBytes": 11236,
+  "heldEvidenceFiles": 26,
+  "heldEvidenceBytes": 40418,
+  "maximumEvidenceBytes": 7675,
+  "selectedMetadataFiles": 27,
+  "readyFrameBytes": 9754,
+  "peakDescriptorsIncludingMeasurement": 42,
+  "maximumDescriptorIncludingMeasurement": 41,
+  "descriptorLimit": 64,
+  "outsidePhysicalBytes": 618496
+}

@@ -52,6 +52,7 @@ spec:
                 - { name: HOME, value: /scratch }
                 - { name: TMPDIR, value: /scratch }
                 - { name: BUN_RUNTIME_TRANSPILER_CACHE_PATH, value: '0' }
+                - { name: S3_TRUST_MODE, value: system-roots }
                 - name: S3_ENDPOINT
                   valueFrom:
                     secretKeyRef: { name: sqlite-backup-s3, key: endpoint }

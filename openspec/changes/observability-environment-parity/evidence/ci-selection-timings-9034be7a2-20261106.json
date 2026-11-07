@@ -1,0 +1,160 @@
+{
+  "observedAt": "2026-11-06T04:27:44.558977+00:00",
+  "run": {
+    "conclusion": "",
+    "databaseId": 42156507372,
+    "headSha": "9034be7a2301f1944f30b524ada8f1a0303a7818",
+    "jobs": [
+      {
+        "completedAt": "2026-11-06T03:27:02Z",
+        "conclusion": "success",
+        "name": "gate_mode",
+        "startedAt": "2026-11-06T03:26:40Z",
+        "status": "completed"
+      },
+      {
+        "completedAt": "0001-01-01T00:00:00Z",
+        "conclusion": "",
+        "name": "gate workspace",
+        "startedAt": "2026-11-06T03:27:05Z",
+        "status": "in_progress"
+      },
+      {
+        "completedAt": "2026-11-06T03:27:27Z",
+        "conclusion": "success",
+        "name": "pixels_mode",
+        "startedAt": "2026-11-06T03:27:04Z",
+        "status": "completed"
+      },
+      {
+        "completedAt": "0001-01-01T00:00:00Z",
+        "conclusion": "",
+        "name": "gate twilight",
+        "startedAt": "2026-11-06T03:27:05Z",
+        "status": "in_progress"
+      },
+      {
+        "completedAt": "2026-11-06T03:27:03Z",
+        "conclusion": "skipped",
+        "name": "gate docs",
+        "startedAt": "2026-11-06T03:27:03Z",
+        "status": "completed"
+      },
+      {
+        "completedAt": "2026-11-06T03:44:11Z",
+        "conclusion": "success",
+        "name": "pixels shard 2/4",
+        "startedAt": "2026-11-06T03:27:29Z",
+        "status": "completed"
+      },
+      {
+        "completedAt": "2026-11-06T03:47:12Z",
+        "conclusion": "success",
+        "name": "pixels shard 1/4",
+        "startedAt": "2026-11-06T03:27:29Z",
+        "status": "completed"
+      },
+      {
+        "completedAt": "2026-11-06T03:40:24Z",
+        "conclusion": "success",
+        "name": "pixels shard 4/4",
+        "startedAt": "2026-11-06T03:27:29Z",
+        "status": "completed"
+      },
+      {
+        "completedAt": "2026-11-06T03:41:00Z",
+        "conclusion": "success",
+        "name": "pixels shard 3/4",
+        "startedAt": "2026-11-06T03:27:29Z",
+        "status": "completed"
+      },
+      {
+        "completedAt": "2026-11-06T03:47:18Z",
+        "conclusion": "success",
+        "name": "pixels",
+        "startedAt": "2026-11-06T03:47:14Z",
+        "status": "completed"
+      }
+    ],
+    "status": "in_progress"
+  },
+  "selectionArtifact": {
+    "id": 13474821588,
+    "name": "ci-selection-1",
+    "archiveBytes": 5403,
+    "member": "ci-selection.json",
+    "memberBytes": 61650,
+    "sha256": "bff4d97517b6219bbe1efce8e5dde7b1ca4fb240557a54579678feef7151ae08",
+    "base": "617d81e7afdf9e7bb48c592c8b81fa834975eaac",
+    "syntheticMergeHead": "95fe9fcc529a2dba1e8910b3623f46c709871f3c",
+    "mode": "affected",
+    "projectCount": 55,
+    "workspaceProjectCount": 53,
+    "twilightProjectCount": 2,
+    "reasonCount": 518,
+    "selectedProjects": [
+      "harness-example",
+      "shared-delivery",
+      "shared-delivery-github",
+      "shared-failures",
+      "shared-portability-format",
+      "shared-test-evidence",
+      "shared-test-levels",
+      "shared-ui-core-01",
+      "shared-ui-saas-01",
+      "shared-validation",
+      "tool-bootstrap",
+      "tool-compose",
+      "tool-dagger",
+      "tool-deploy",
+      "tool-dev-setup",
+      "tool-devsync",
+      "tool-fleet",
+      "tool-git-hooks",
+      "tool-observability-stack",
+      "tool-private",
+      "tool-remote-scripts",
+      "tool-rename-work-package",
+      "tool-secrets",
+      "tool-smoke",
+      "tool-test-clock-reads",
+      "tool-test-scratch",
+      "tool-workflows",
+      "twilight-burokrat",
+      "twilight-dash",
+      "twilight-navigator",
+      "wbs-auth",
+      "wbs-be-01",
+      "wbs-config",
+      "wbs-conformance",
+      "wbs-contracts",
+      "wbs-core",
+      "wbs-domain",
+      "wbs-fe-01",
+      "wbs-gw-01",
+      "wbs-mcp-01",
+      "wbs-observability",
+      "wbs-realtime",
+      "wbs-runtime-portable",
+      "wbs-solver-py",
+      "wbs-solver-supervisor-protocol",
+      "wbs-store-memory",
+      "wbs-store-sqlite",
+      "wbs-validation",
+      "website-analytics",
+      "website-be-01",
+      "website-contracts",
+      "website-fe-01",
+      "website-portability-fixture",
+      "website-store-sqlite",
+      "workspace-portability"
+    ],
+    "selectedReasonExamples": [
+      "Runtime or unreviewed input: .prettierignore -> .prettierignore",
+      "Runtime or unreviewed input: CONTEXT.md -> CONTEXT.md",
+      "Runtime or unreviewed input: LLM_README.md -> LLM_README.md",
+      "Runtime or unreviewed input: deploy/k8s/wbs/base/backup.yaml -> deploy/k8s/wbs/base/backup.yaml"
+    ]
+  },
+  "interpretation": "Actual affected selection is based on the full validated PR merge diff, not the latest fixture commit alone. Root/shared inputs are among its recorded triggers. Active job completion and total execution duration remain unknown. This observation does not alter CI routing, skip tests or certify pending gates."
+}

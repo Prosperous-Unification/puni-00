@@ -37,8 +37,8 @@ spec:
     tolerations:
       - operator: Exists
     resources:
-      requests: { cpu: 100m, memory: 128Mi }
-      limits: { cpu: '1', memory: 320Mi }
+      requests: { cpu: 100m, memory: 128Mi, ephemeral-storage: 16Mi }
+      limits: { cpu: '1', memory: 320Mi, ephemeral-storage: 64Mi }
     extraEnvs:
       - name: ELASTIC_PASSWORD
         valueFrom:
@@ -196,6 +196,13 @@ spec:
             http:
               endpoint: ${env:MY_POD_IP}:4318
       processors:
+        # Platform listeners cannot bypass the application collector's environment admission.
+        filter/platform-only:
+          error_mode: propagate
+          logs:
+            log_record: ['resource.attributes["deployment.environment.name"] != nil']
+          metrics:
+            datapoint: ['resource.attributes["deployment.environment.name"] != nil']
         memory_limiter:
           check_interval: 1s
           limit_mib: 240
@@ -269,10 +276,11 @@ spec:
         pipelines:
           logs:
             receivers: [filelog, otlp, otlp/mtls]
-            processors: [memory_limiter, transform/redact, resource/stream, batch]
+            processors:
+              [memory_limiter, filter/platform-only, transform/redact, resource/stream, batch]
             exporters: [elasticsearch]
           # Workers clusters ship host metrics here; Prometheus accepts them by remote write.
           metrics:
             receivers: [otlp, otlp/mtls]
-            processors: [memory_limiter, batch]
+            processors: [memory_limiter, filter/platform-only, batch]
             exporters: [prometheusremotewrite]

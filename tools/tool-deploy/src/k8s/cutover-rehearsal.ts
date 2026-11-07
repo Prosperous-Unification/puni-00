@@ -493,7 +493,7 @@ function git(cwd: string, ...args: string[]): string {
   return child.stdout.toString().trim();
 }
 
-/** Locked Flux controllers; only source and kustomize run, to keep the lab small. */
+/** Locked Flux vendor with shared scratch policy; only source and kustomize run, to keep the lab small. */
 async function installFlux(): Promise<void> {
   const path = join(ROOT, 'infra/platform/flux/install.yaml');
   const digest = createHash('sha256').update(readFileSync(path)).digest('hex');
@@ -502,7 +502,7 @@ async function installFlux(): Promise<void> {
       `${path} sha256 ${digest} is not the locked ${lock.manifests.fluxInstall.sha256}`,
     );
   }
-  await k(['apply', '--server-side', '-f', path]);
+  await k(['apply', '--server-side', '-k', join(ROOT, 'infra/platform/flux')]);
   await k([
     '-n',
     'flux-system',

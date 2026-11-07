@@ -1,0 +1,163 @@
+[
+  {
+    "path": "/rendered/observability~1kube-prometheus-stack/ServiceMonitor:observability:kube-prometheus-stack-kube-state-metrics/spec/endpoints/0/metricRelabelings/0/replacement",
+    "local": "platform-local",
+    "production": "platform-production",
+    "reason": "Preserved platform source marker follows placement; no application environment is invented.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/rendered/observability-dev~1elasticsearch/Elasticsearch:observability-dev:elasticsearch/spec/nodeSets/0/config/s3.client.default.endpoint",
+    "local": "object-store.puni-backup.svc:9000",
+    "production": "hel1.your-objectstorage.com",
+    "reason": "Declared HTTPS S3 endpoints differ; transport, trust program and credential references stay compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/rendered/observability-dev~1elasticsearch/Elasticsearch:observability-dev:elasticsearch/spec/nodeSets/0/podTemplate/spec/initContainers/0/env/0/value",
+    "local": "system-roots-plus-ca",
+    "production": "system-roots",
+    "reason": "Reviewed supplemental CA mode for local S3; the complete common verified trust program stays compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/rendered/observability~1elasticsearch/Elasticsearch:observability:elasticsearch/spec/nodeSets/0/config/s3.client.default.endpoint",
+    "local": "object-store.puni-backup.svc:9000",
+    "production": "hel1.your-objectstorage.com",
+    "reason": "Declared HTTPS S3 endpoints differ; transport, trust program and credential references stay compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/rendered/observability~1elasticsearch/Elasticsearch:observability:elasticsearch/spec/nodeSets/0/podTemplate/spec/initContainers/0/env/0/value",
+    "local": "system-roots-plus-ca",
+    "production": "system-roots",
+    "reason": "Reviewed supplemental CA mode for local S3; the complete common verified trust program stays compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/rendered/observability-dev~1native/ConfigMap:observability-dev:signal-configuration/data/collector.yaml/processors/filter~1platform/logs/log_record/0",
+    "local": "(resource.attributes[\"puni.cluster\"] != \"platform-local\" and resource.attributes[\"puni.cluster\"] != \"workers-local\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "reason": "Exact platform source allowlist expression follows placement; application identity and all predicate siblings stay compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/rendered/observability-dev~1native/ConfigMap:observability-dev:signal-configuration/data/collector.yaml/processors/filter~1platform/traces/span/0",
+    "local": "(resource.attributes[\"puni.cluster\"] != \"platform-local\" and resource.attributes[\"puni.cluster\"] != \"workers-local\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "reason": "Exact platform source allowlist expression follows placement; application identity and all predicate siblings stay compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/rendered/observability-dev~1native/ConfigMap:observability-dev:signal-configuration/data/collector.yaml/processors/filter~1platform/metrics/datapoint/0",
+    "local": "(resource.attributes[\"puni.cluster\"] != \"platform-local\" and resource.attributes[\"puni.cluster\"] != \"workers-local\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "reason": "Exact platform source allowlist expression follows placement; application identity and all predicate siblings stay compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/rendered/observability-dev~1native/ConfigMap:observability-dev:signal-configuration/data/gateway.yaml/processors/filter~1platform/logs/log_record/0",
+    "local": "(resource.attributes[\"puni.cluster\"] != \"platform-local\" and resource.attributes[\"puni.cluster\"] != \"workers-local\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "reason": "Exact platform source allowlist expression follows placement; application identity and all predicate siblings stay compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/rendered/observability-dev~1native/ConfigMap:observability-dev:signal-configuration/data/gateway.yaml/processors/filter~1platform/traces/span/0",
+    "local": "(resource.attributes[\"puni.cluster\"] != \"platform-local\" and resource.attributes[\"puni.cluster\"] != \"workers-local\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "reason": "Exact platform source allowlist expression follows placement; application identity and all predicate siblings stay compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/rendered/observability-dev~1native/ConfigMap:observability-dev:signal-configuration/data/gateway.yaml/processors/filter~1platform/metrics/datapoint/0",
+    "local": "(resource.attributes[\"puni.cluster\"] != \"platform-local\" and resource.attributes[\"puni.cluster\"] != \"workers-local\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "reason": "Exact platform source allowlist expression follows placement; application identity and all predicate siblings stay compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/rendered/observability~1native/ConfigMap:observability:signal-configuration/data/collector.yaml/processors/filter~1platform/logs/log_record/0",
+    "local": "(resource.attributes[\"puni.cluster\"] != \"platform-local\" and resource.attributes[\"puni.cluster\"] != \"workers-local\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "reason": "Exact platform source allowlist expression follows placement; application identity and all predicate siblings stay compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/rendered/observability~1native/ConfigMap:observability:signal-configuration/data/collector.yaml/processors/filter~1platform/traces/span/0",
+    "local": "(resource.attributes[\"puni.cluster\"] != \"platform-local\" and resource.attributes[\"puni.cluster\"] != \"workers-local\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "reason": "Exact platform source allowlist expression follows placement; application identity and all predicate siblings stay compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/rendered/observability~1native/ConfigMap:observability:signal-configuration/data/collector.yaml/processors/filter~1platform/metrics/datapoint/0",
+    "local": "(resource.attributes[\"puni.cluster\"] != \"platform-local\" and resource.attributes[\"puni.cluster\"] != \"workers-local\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "reason": "Exact platform source allowlist expression follows placement; application identity and all predicate siblings stay compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/rendered/observability~1native/ConfigMap:observability:signal-configuration/data/gateway.yaml/processors/filter~1platform/logs/log_record/0",
+    "local": "(resource.attributes[\"puni.cluster\"] != \"platform-local\" and resource.attributes[\"puni.cluster\"] != \"workers-local\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "reason": "Exact platform source allowlist expression follows placement; application identity and all predicate siblings stay compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/rendered/observability~1native/ConfigMap:observability:signal-configuration/data/gateway.yaml/processors/filter~1platform/traces/span/0",
+    "local": "(resource.attributes[\"puni.cluster\"] != \"platform-local\" and resource.attributes[\"puni.cluster\"] != \"workers-local\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "reason": "Exact platform source allowlist expression follows placement; application identity and all predicate siblings stay compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/rendered/observability~1native/ConfigMap:observability:signal-configuration/data/gateway.yaml/processors/filter~1platform/metrics/datapoint/0",
+    "local": "(resource.attributes[\"puni.cluster\"] != \"platform-local\" and resource.attributes[\"puni.cluster\"] != \"workers-local\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil",
+    "reason": "Exact platform source allowlist expression follows placement; application identity and all predicate siblings stay compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/handoffs/infra~1platform~1alerts~1base~1rules.yaml/resources/monitoring.coreos.com~1v1:PrometheusRule:observability:puni-platform/manifest/spec/groups/3/rules/0/expr",
+    "local": "absent(system_memory_usage_bytes{puni_cluster=\"workers-local\",k8s_namespace_name=\"observability\"})",
+    "production": "absent(system_memory_usage_bytes{puni_cluster=\"workers-production\",k8s_namespace_name=\"observability\"})",
+    "reason": "Retained alerts source uses the exact placement-specific platform or worker marker in this PromQL scalar; all rule siblings stay compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/handoffs/infra~1platform~1alerts~1base~1rules.yaml/resources/monitoring.coreos.com~1v1:PrometheusRule:observability:puni-platform/manifest/spec/groups/3/rules/1/expr",
+    "local": "(time() - max by (puni_cluster, namespace, cronjob) (\n  kube_cronjob_status_last_successful_time{puni_cluster=\"platform-local\",namespace=\"observability\",cronjob=\"elastic-snapshot-check\"}) >= 30 * 60)\nor ((time() - max by (puni_cluster, namespace, cronjob) (\n  kube_cronjob_created{puni_cluster=\"platform-local\",namespace=\"observability\",cronjob=\"elastic-snapshot-check\"}) >= 30 * 60)\n  unless on (puni_cluster, namespace, cronjob)\n  kube_cronjob_status_last_successful_time{puni_cluster=\"platform-local\",namespace=\"observability\",cronjob=\"elastic-snapshot-check\"})\nor absent(kube_cronjob_created{puni_cluster=\"platform-local\",namespace=\"observability\",cronjob=\"elastic-snapshot-check\"})",
+    "production": "(time() - max by (puni_cluster, namespace, cronjob) (\n  kube_cronjob_status_last_successful_time{puni_cluster=\"platform-production\",namespace=\"observability\",cronjob=\"elastic-snapshot-check\"}) >= 30 * 60)\nor ((time() - max by (puni_cluster, namespace, cronjob) (\n  kube_cronjob_created{puni_cluster=\"platform-production\",namespace=\"observability\",cronjob=\"elastic-snapshot-check\"}) >= 30 * 60)\n  unless on (puni_cluster, namespace, cronjob)\n  kube_cronjob_status_last_successful_time{puni_cluster=\"platform-production\",namespace=\"observability\",cronjob=\"elastic-snapshot-check\"})\nor absent(kube_cronjob_created{puni_cluster=\"platform-production\",namespace=\"observability\",cronjob=\"elastic-snapshot-check\"})",
+    "reason": "Retained alerts source uses the exact placement-specific platform or worker marker in this PromQL scalar; all rule siblings stay compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/handoffs/infra~1platform~1alerts~1production~1public-probes.yaml/enabled",
+    "local": false,
+    "production": true,
+    "reason": "Retained alerts production overlay alone owns public-endpoints; complete dormant local manifest and every target remain compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/requirements/observability-dev/backupCaRequired",
+    "local": true,
+    "production": false,
+    "reason": "Only local supplemental S3 trust requires the ca.crt key; the other keys and the actual trust mode remain compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/requirements/observability/backupCaRequired",
+    "local": true,
+    "production": false,
+    "reason": "Only local supplemental S3 trust requires the ca.crt key; the other keys and the actual trust mode remain compared.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  },
+  {
+    "path": "/platformAuthority/indices/0/names/0",
+    "local": "logs-puni.otel-local",
+    "production": "logs-puni.otel-production",
+    "reason": "Retained platform reader keeps its existing placement stream namespace; no application environment is added.",
+    "verification": "tools/tool-fleet/src/observability-source-parity.test.ts"
+  }
+]

@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "scope": "first actual native primitive attempt; failed before admission; readiness unavailable",
+  "requestSha256": "2a0bc82b930bdb5bf075fcb81eefc1ab445f9e29c7243ced13613253ef6e30b3",
+  "sourceCommit": "ca882c94d9c951848ee526db55be158fb630b6e9",
+  "sourceDigest": "08c5660c3cd6588791b412138d1d6cc48a1171f1449e170fb132571884515575",
+  "nonce": "dfe12909a3573a492d0ceac5ad1bd11c",
+  "unit": "puni-repair-primitives-dfe12909a3573a492d0ceac5ad1bd11c.service",
+  "controllerToolSession": 84432,
+  "controllerExitCode": 1,
+  "admissionFrameObserved": false,
+  "fixtureDirectoryPresent": false,
+  "durableOrTerminalProjectionPresent": false,
+  "workerStarted": true,
+  "workerExitCode": 1,
+  "workerPID": {
+    "state": "unavailable",
+    "reason": "no retained verified ready binding; journal emitter is the user manager, not the worker"
+  },
+  "workerFailureCategory": {
+    "state": "unavailable",
+    "reason": "pre-admission cause unavailable: worker streams were closed without retained failure evidence"
+  },
+  "counter": {
+    "state": "unavailable",
+    "reason": "no retained verified ready/complete evidence"
+  },
+  "effectiveLimitsVerified": false,
+  "nativeQualified": false,
+  "serviceStartedToExitMicroseconds": 659235,
+  "originalRequestPreserved": {
+    "inode": "18891397",
+    "bytes": 65536,
+    "sha256": "2a0bc82b930bdb5bf075fcb81eefc1ab445f9e29c7243ced13613253ef6e30b3"
+  },
+  "retryPerformed": false,
+  "retainedRawOrISOPayloadAccess": false,
+  "repairOrGuestAccepted": false,
+  "fullObservabilityAccepted": false,
+  "journalEvents": [
+    {
+      "kind": "starting",
+      "timestampMicroseconds": "1793874656966455",
+      "journalEmitterPID": 2226
+    },
+    {
+      "kind": "started",
+      "timestampMicroseconds": "1793874656969575",
+      "journalEmitterPID": 2226
+    },
+    {
+      "kind": "main-exited-1",
+      "timestampMicroseconds": "1793874657628810",
+      "journalEmitterPID": 2226
+    },
+    {
+      "kind": "failed-exit-code",
+      "timestampMicroseconds": "1793874657629466",
+      "journalEmitterPID": 2226
+    }
+  ],
+  "terminalUnitRepeatedlyAbsent": true,
+  "privateEvidence": {
+    "bytes": 5062,
+    "sha256": "327a466e88bd970c110a7773e99bd4c9aa70fb4b23eb8a5b76991e74823fbe76",
+    "journalSha256": "f5462e7594e75a28ce22c1c49935b7f99cb30ec25938701b72f382a59daad34f"
+  },
+  "controllerCategory": "refused-unexpected",
+  "readiness": {
+    "state": "unavailable",
+    "reason": "ready may have been received and rejected before admission; no verified frame retained"
+  },
+  "privateCaptureCorrection": "The immutable private capture uses before-ready wording; that historical operator label is unproven. Only failure before admission is established."
+}

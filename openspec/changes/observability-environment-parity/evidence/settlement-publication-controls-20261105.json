@@ -1,0 +1,867 @@
+[
+  {
+    "scenario": "platform-os",
+    "omission": "settlement-platform",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "platform-machine",
+    "omission": "settlement-platform",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "empty",
+    "omission": "settlement-record",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "list",
+    "omission": "settlement-record",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "scalar",
+    "omission": "settlement-record",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "foreign-name",
+    "omission": "settlement-name",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "traversal",
+    "omission": "settlement-name",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "parent-foreign",
+    "omission": "settlement-parent",
+    "witness": [
+      "[Errno 2] No such file or directory: '/tmp/puni-settlement111-sguze3y_/records/settlement-request.json'",
+      "FileNotFoundError"
+    ],
+    "events": ["open", "close-file"]
+  },
+  {
+    "scenario": "parent-mode",
+    "omission": "settlement-parent",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "parent-unreadable",
+    "omission": "settlement-parent",
+    "witness": ["settlement-open", "PreparationRefusal"],
+    "events": ["open"]
+  },
+  {
+    "scenario": "parent-symlink",
+    "omission": "settlement-parent",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "parent-during",
+    "omission": "settlement-parent",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "parent-replaced",
+    "omission": "settlement-parent",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "file-mode",
+    "omission": "settlement-file",
+    "witness": ["raw-private-file-required", "InspectionRefusal"],
+    "events": ["open", "allocate", "write", "close-file"]
+  },
+  {
+    "scenario": "file-links",
+    "omission": "settlement-file",
+    "witness": ["raw-private-file-required", "InspectionRefusal"],
+    "events": ["open", "allocate", "write", "close-file"]
+  },
+  {
+    "scenario": "file-substituted",
+    "omission": "settlement-file",
+    "witness": ["raw-map-extent", "InspectionRefusal"],
+    "events": ["open", "allocate", "write", "inspect", "close-file"]
+  },
+  {
+    "scenario": "file-size",
+    "omission": "settlement-file",
+    "witness": ["raw-allocation-invalid", "InspectionRefusal"],
+    "events": ["open", "allocate", "write", "close-file"]
+  },
+  {
+    "scenario": "file-fd",
+    "omission": "settlement-file",
+    "witness": ["settlement-direct", "PreparationRefusal"],
+    "events": ["open", "allocate", "write", "close-file"]
+  },
+  {
+    "scenario": "direct-cleared",
+    "omission": "settlement-direct",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "direct-cloexec",
+    "omission": "settlement-direct",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "direct-access",
+    "omission": "settlement-direct",
+    "witness": ["repair-allocation-failed", "PreparationRefusal"],
+    "events": ["open", "allocate", "write", "inspect", "allocate", "close-file"]
+  },
+  {
+    "scenario": "direct-dsync",
+    "omission": "settlement-direct",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "alignment",
+    "omission": "settlement-alignment",
+    "witness": ["settlement-write", "PreparationRefusal"],
+    "events": ["open", "allocate", "write", "close-file"]
+  },
+  {
+    "scenario": "prefix-unwritten",
+    "omission": "prefix",
+    "witness": ["settlement-content", "PreparationRefusal"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "allocate",
+      "write",
+      "allocate",
+      "write",
+      "truncate",
+      "read",
+      "close-file"
+    ]
+  },
+  {
+    "scenario": "prefix-hole",
+    "omission": "prefix",
+    "witness": ["settlement-content", "PreparationRefusal"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "allocate",
+      "write",
+      "allocate",
+      "write",
+      "truncate",
+      "read",
+      "close-file"
+    ]
+  },
+  {
+    "scenario": "prefix-extra",
+    "omission": "prefix",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "allocate",
+      "write",
+      "allocate",
+      "write",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "open-error",
+    "omission": "settlement-open",
+    "witness": [
+      "settlement publication cleanup failed (2 sub-exceptions)",
+      "ExceptionGroup",
+      "[Errno 9] Bad file descriptor",
+      "OSError",
+      "invalid-cleanup",
+      "RuntimeError"
+    ],
+    "events": ["open"]
+  },
+  {
+    "scenario": "open-eintr",
+    "omission": "settlement-open",
+    "witness": [
+      "settlement publication cleanup failed (2 sub-exceptions)",
+      "ExceptionGroup",
+      "[Errno 9] Bad file descriptor",
+      "OSError",
+      "invalid-cleanup",
+      "RuntimeError"
+    ],
+    "events": ["open"]
+  },
+  {
+    "scenario": "write-error",
+    "omission": "settlement-write",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "write-short",
+    "omission": "settlement-write",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "write-eintr",
+    "omission": "settlement-write",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "truncate-error",
+    "omission": "settlement-truncate",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "truncate-eintr",
+    "omission": "settlement-truncate",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "read-error",
+    "omission": "settlement-content",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "read-short",
+    "omission": "settlement-content",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "read-eintr",
+    "omission": "settlement-content",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "read-content",
+    "omission": "settlement-content",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "sync-file-error",
+    "omission": "settlement-file-sync",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "sync-file-eintr",
+    "omission": "settlement-file-sync",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "sync-directory-error",
+    "omission": "settlement-directory-sync",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "sync-directory-eintr",
+    "omission": "settlement-directory-sync",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "success-close-fd",
+    "omission": "success-close-fd",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "success-close-map",
+    "omission": "success-close-map",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "cleanup-primary",
+    "omission": "cleanup-primary",
+    "witness": ["unsafe-publication"],
+    "events": ["open", "allocate", "write", "close-file"]
+  },
+  {
+    "scenario": "cleanup-compound",
+    "omission": "cleanup-causes",
+    "witness": ["settlement-write", "PreparationRefusal"],
+    "events": ["open", "allocate", "write", "close-file"]
+  },
+  {
+    "scenario": "content-during-sync",
+    "omission": "settlement-completion",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "completion",
+    "omission": "settlement-completion",
+    "witness": ["unsafe-publication"],
+    "events": [
+      "open",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "allocate",
+      "write",
+      "inspect",
+      "truncate",
+      "read",
+      "sync-file",
+      "close-file",
+      "sync-directory"
+    ]
+  },
+  {
+    "scenario": "cleanup-fd",
+    "omission": "cleanup-fd",
+    "witness": ["settlement-write", "PreparationRefusal"],
+    "events": ["open", "allocate", "write"]
+  },
+  {
+    "scenario": "cleanup-map",
+    "omission": "cleanup-map",
+    "witness": ["settlement-write", "PreparationRefusal"],
+    "events": ["open", "allocate", "write", "close-file"]
+  },
+  {
+    "scenario": "flag-O_EXCL",
+    "omission": "flag-O_EXCL",
+    "witness": ["unsafe-open-flags", "RuntimeError"],
+    "events": ["open", "close-file"]
+  },
+  {
+    "scenario": "flag-O_NOFOLLOW",
+    "omission": "flag-O_NOFOLLOW",
+    "witness": ["unsafe-open-flags", "RuntimeError"],
+    "events": ["open", "close-file"]
+  },
+  {
+    "scenario": "flag-O_CLOEXEC",
+    "omission": "flag-O_CLOEXEC",
+    "witness": ["unsafe-open-flags", "RuntimeError"],
+    "events": ["open", "close-file"]
+  },
+  {
+    "scenario": "flag-O_DIRECT",
+    "omission": "flag-O_DIRECT",
+    "witness": ["unsafe-open-flags", "RuntimeError"],
+    "events": ["open", "close-file"]
+  },
+  {
+    "scenario": "flag-O_DSYNC",
+    "omission": "flag-O_DSYNC",
+    "witness": ["unsafe-open-flags", "RuntimeError"],
+    "events": ["open", "close-file"]
+  },
+  {
+    "scenario": "flag-O_RDWR",
+    "omission": "flag-O_RDWR",
+    "witness": ["unsafe-open-flags", "RuntimeError"],
+    "events": ["open", "close-file"]
+  },
+  {
+    "scenario": "flag-O_CREAT",
+    "omission": "flag-O_CREAT",
+    "witness": ["unsafe-open-flags", "RuntimeError"],
+    "events": ["open"]
+  }
+]

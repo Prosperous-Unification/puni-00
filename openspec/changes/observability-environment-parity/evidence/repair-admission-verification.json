@@ -1,0 +1,141 @@
+{
+  "scope": "closed-repair-admission-and-durable-reservations-only",
+  "reviewBase": "e10b992ac143cadda389f6f576ba3234a6dcff9f",
+  "source": {
+    "tools/tool-fleet/src/lab-raw-repair.py": {
+      "sha256": "e4a71835441c5224ca37d1464d43948f06c25df54a96fa8e48b25040ed798663",
+      "bytes": 16043,
+      "mode": "0644"
+    },
+    "tools/tool-fleet/src/lab-raw-repair.ts": {
+      "sha256": "d575b03969831669beb965b6b3dd3a43befb46dfb4aeb2fb7cbc06b6968f5c6e",
+      "bytes": 1206,
+      "mode": "0644"
+    },
+    "tools/tool-fleet/src/lab-raw-repair.test.ts": {
+      "sha256": "4096b9bfa43835a901e9298ab366201337513c1601530d36172464f057e47e15",
+      "bytes": 18856,
+      "mode": "0644"
+    }
+  },
+  "initialReviewSha256": "c6fae32f60e7fca7b6bd1347f57e74d173b7cb6237470c7065480723a4ad361d",
+  "fixReviewSha256": "e28ff16f0adaa50ca4d5ca8538de2408eabe78453bac004ec2bc26a4dd333080",
+  "ciCovering": {
+    "chunk_id": "519ab9",
+    "wall_time_seconds": 1.8927e-5,
+    "exit_code": 0,
+    "original_token_count": 253,
+    "output": "\u001b[0m\u001b[32m\u2713\u001b[0m\u001b[0m\u001b[1m native repair metadata-bounds guards protect logical admission\u001b[0m \u001b[0m\u001b[2m[\u001b[1m1405.89ms\u001b[0m\u001b[2m]\u001b[0m\n\u001b[0m\u001b[32m\u2713\u001b[0m\u001b[0m\u001b[1m native repair metadata-write guards protect logical admission\u001b[0m \u001b[0m\u001b[2m[\u001b[1m52.35ms\u001b[0m\u001b[2m]\u001b[0m\n\u001b[0m\u001b[32m\u2713\u001b[0m\u001b[0m\u001b[1m native repair metadata-file-sync guards protect logical admission\u001b[0m \u001b[0m\u001b[2m[\u001b[1m52.37ms\u001b[0m\u001b[2m]\u001b[0m\n\u001b[0m\u001b[32m\u2713\u001b[0m\u001b[0m\u001b[1m native repair metadata-dir-sync guards protect logical admission\u001b[0m \u001b[0m\u001b[2m[\u001b[1m53.02ms\u001b[0m\u001b[2m]\u001b[0m\n\u001b[0m\u001b[32m\u2713\u001b[0m\u001b[0m\u001b[1m native repair metadata-close guards protect logical admission\u001b[0m \u001b[0m\u001b[2m[\u001b[1m48.21ms\u001b[0m\u001b[2m]\u001b[0m\n\u001b[0m\u001b[32m\u2713\u001b[0m\u001b[0m\u001b[1m native repair metadata-read guards protect logical admission\u001b[0m \u001b[0m\u001b[2m[\u001b[1m48.00ms\u001b[0m\u001b[2m]\u001b[0m\n\u001b[0m\u001b[32m\u2713\u001b[0m\u001b[0m\u001b[1m native repair metadata-changed guards protect logical admission\u001b[0m \u001b[0m\u001b[2m[\u001b[1m48.93ms\u001b[0m\u001b[2m]\u001b[0m\n\n\u001b[0m\u001b[32m 13 pass\u001b[0m\n\u001b[0m\u001b[2m 0 fail\u001b[0m\n 100 expect() calls\nRan 13 tests across 1 file. \u001b[0m\u001b[2m[\u001b[1m2.10s\u001b[0m\u001b[2m]\u001b[0m\n",
+    "cmd": "env -u NO_COLOR CI=true FORCE_COLOR=1 TERM=xterm bun test tools/tool-fleet/src/lab-raw-repair.test.ts",
+    "pythonVersion": "3.14.7 (main, Aug 25 2026, 14:02:56) [Clang 22.1.3 ]"
+  },
+  "checks": [
+    {
+      "name": "focused",
+      "command": "bun test tools/tool-fleet/src/lab-raw-repair.test.ts",
+      "exit": 0,
+      "outputSha256": "3fa6a6785cd2b823f40fb62475391b6eb85addaa48a2cfcfc1e4fa6581835c7e"
+    },
+    {
+      "name": "format",
+      "command": "bunx prettier --check tools/tool-fleet/src/lab-raw-repair.ts tools/tool-fleet/src/lab-raw-repair.test.ts",
+      "exit": 0,
+      "outputSha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    {
+      "name": "lint",
+      "command": "bunx eslint tools/tool-fleet/src/lab-raw-repair.ts tools/tool-fleet/src/lab-raw-repair.test.ts",
+      "exit": 0,
+      "outputSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "typing",
+      "command": "bunx tsc --build --force tools/tool-fleet/tsconfig.json",
+      "exit": 0,
+      "outputSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "fixRoundChecks": [
+    {
+      "name": "metadata-green",
+      "command": [
+        "bun",
+        "test",
+        "tools/tool-fleet/src/lab-raw-repair.test.ts",
+        "--test-name-pattern",
+        "metadata-(duplicate|negative)"
+      ],
+      "environment": {
+        "CI": "true",
+        "FORCE_COLOR": "1",
+        "TERM": "xterm"
+      },
+      "NO_COLOR": "absent",
+      "fault": null,
+      "exit": 0,
+      "duplicateWitness": false
+    },
+    {
+      "name": "duplicate-canonical-fault",
+      "command": [
+        "bun",
+        "test",
+        "tools/tool-fleet/src/lab-raw-repair.test.ts",
+        "--test-name-pattern",
+        "metadata-duplicate"
+      ],
+      "environment": {
+        "CI": "true",
+        "FORCE_COLOR": "1",
+        "TERM": "xterm"
+      },
+      "NO_COLOR": "absent",
+      "fault": "repair-json-noncanonical",
+      "exit": 1,
+      "duplicateWitness": true
+    },
+    {
+      "name": "format",
+      "command": [
+        "bunx",
+        "prettier",
+        "--check",
+        "tools/tool-fleet/src/lab-raw-repair.ts",
+        "tools/tool-fleet/src/lab-raw-repair.test.ts"
+      ],
+      "environment": {
+        "CI": "true",
+        "FORCE_COLOR": "1",
+        "TERM": "xterm"
+      },
+      "NO_COLOR": "absent",
+      "fault": null,
+      "exit": 0,
+      "duplicateWitness": false
+    },
+    {
+      "name": "lint",
+      "command": [
+        "bunx",
+        "eslint",
+        "tools/tool-fleet/src/lab-raw-repair.ts",
+        "tools/tool-fleet/src/lab-raw-repair.test.ts"
+      ],
+      "environment": {
+        "CI": "true",
+        "FORCE_COLOR": "1",
+        "TERM": "xterm"
+      },
+      "NO_COLOR": "absent",
+      "fault": null,
+      "exit": 0,
+      "duplicateWitness": false
+    }
+  ],
+  "runtimeRepairAuthorized": false,
+  "nativeWriterImplemented": false,
+  "coordinatorLifecycleIntegrated": false,
+  "releaseImplemented": false,
+  "retainedRawAccessed": false,
+  "publicationModeCorrection": "root pin check refused0664; normalized only3newsourcefiles to0644 withreviewedbytesunchanged"
+}

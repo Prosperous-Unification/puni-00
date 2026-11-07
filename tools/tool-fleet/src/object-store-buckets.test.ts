@@ -14,6 +14,7 @@ interface BucketJob {
 async function initializeBuckets(fault: 'none' | 'version' | 'lifecycle') {
   const root = await scratchAsync('object-store-buckets-');
   await mkdir(join(root, 'bin'));
+  await writeFile(join(root, 'ca.crt'), 'fixture');
   await writeFile(
     join(root, 'bin/mc'),
     `#!/bin/sh
@@ -41,7 +42,9 @@ fi
   if (searchPath === undefined) throw new Error('Test PATH absent');
   return Bun.spawnSync(
     command.map((argument) =>
-      argument.replaceAll('/tmp/lifecycle.json', join(root, 'lifecycle.json')),
+      argument
+        .replaceAll('/tmp/lifecycle.json', join(root, 'lifecycle.json'))
+        .replaceAll('/object-store-ca/ca.crt', join(root, 'ca.crt')),
     ),
     {
       cwd: root,
@@ -51,6 +54,7 @@ fi
         MINIO_ROOT_USER: 'lab-only',
         MINIO_ROOT_PASSWORD: 'lab-only',
         FAULT: fault,
+        MC_CONFIG_DIR: join(root, 'mc'),
       },
     },
   );

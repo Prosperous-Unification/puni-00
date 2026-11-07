@@ -1,0 +1,462 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-05T06:07:27.634440+00:00",
+  "scope": "Task98 current-reservation release source composition; no native acceptance",
+  "base": "5161cf285ad7c4ecaaddccc2038e960128128c3a",
+  "sourcePins": [
+    {
+      "path": "tools/tool-fleet/src/lab-raw-preparation.py",
+      "sha256": "a4b54fa650172830402f07c169b4162d31a21fc2a8f22a7b3d8f4d5457c68574",
+      "bytes": 54639,
+      "mode": "0644"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-raw-repair.py",
+      "sha256": "9b46d5eb581527c69f9e0d9e777f38bc4f13a3350c0ba13b859ca663eda21949",
+      "bytes": 72428,
+      "mode": "0644"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-raw-repair.test.ts",
+      "sha256": "81f8f8d5d08b040933ce850072cb88e2d16c2af550559bab6938eb97bb3362ac",
+      "bytes": 67169,
+      "mode": "0644"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-repair-release.test.ts",
+      "sha256": "0775007b7f1a0952a73b7b2e6b2b519609442e8c95cdfa97f9be15119abd15b4",
+      "bytes": 24375,
+      "mode": "0644"
+    }
+  ],
+  "review": {
+    "initial": "one Important malformed timestamp finding",
+    "fixRound": 1,
+    "final": "approved; no remaining findings"
+  },
+  "records": [
+    {
+      "path": "report.md",
+      "bytes": 7515,
+      "sha256": "9b75bbb8591e7b0309b02dba880ddcd08dcc8d8fc7d38c9d922116cd8d7673df"
+    },
+    {
+      "path": "review.md",
+      "bytes": 11347,
+      "sha256": "9ef6fdeca9feaa8ac6875adf94b6dff1ccd37b85efeba79f1fc9a4fbb77fe3bb"
+    },
+    {
+      "path": "fix-report.md",
+      "bytes": 5842,
+      "sha256": "15f6f05fc5c707b07fb9ac2f2a7426955daab354c00ea12be9b1d2a8c6ff9322"
+    },
+    {
+      "path": "fix-review.md",
+      "bytes": 6802,
+      "sha256": "457c96d014563dfde17b07d8bcfc607db17ddd5c0e434fe259a13badc0dab81d"
+    },
+    {
+      "path": "source-pins.json",
+      "bytes": 758,
+      "sha256": "e16e1a59be5689889e6938415e74b592c44764ebc02d345dc0bc127368f6ca48"
+    },
+    {
+      "path": "fix-source-pins.json",
+      "bytes": 758,
+      "sha256": "2e3aca79ef13cc5c2c95b72581d9a48c39ac52fbec7b3b3435bd83cf73359419"
+    },
+    {
+      "path": "source.patch",
+      "bytes": 41240,
+      "sha256": "0d11d1323def998f802ce032ac050c1c87ceb495dc950bd8a3d3d93177d319cd"
+    },
+    {
+      "path": "fix-source.patch",
+      "bytes": 45735,
+      "sha256": "a29aeafef44043451508ab1a527fb039eca504da187d2f11da3bfa3d019232d6"
+    },
+    {
+      "path": "fix-from-review.patch",
+      "bytes": 6448,
+      "sha256": "8c646e5da73c9868761ca9a2f20c736b2fb798d662ef4e607a00a3ca7e9377a4"
+    },
+    {
+      "path": "commands.json",
+      "bytes": 5141,
+      "sha256": "507746b8298d1381abf42b7932a00f0e8bad954c49b0ea8b63231d02e0c0e7a7"
+    },
+    {
+      "path": "fix-commands.json",
+      "bytes": 2338,
+      "sha256": "f55e598f8ea9a0cbd208651cceb7ec224bae12afd544c8c1dd38dcd55b9bec99"
+    },
+    {
+      "path": "faults.json",
+      "bytes": 6649,
+      "sha256": "38f3bcc23bd8ce894f462798a9a62395f9d40fd4f105a8812e7e3d579dad2d1d"
+    },
+    {
+      "path": "fix-faults.json",
+      "bytes": 1619,
+      "sha256": "343b45bf273ed2743b24c61931cb9f222534e9c0fb560743a2810d45afdd7ef3"
+    }
+  ],
+  "verificationRuns": [
+    {
+      "tests": 63,
+      "assertions": 189,
+      "seconds": 14.68,
+      "scope": "40new release plus23necessary ledger/coordinator/raw/seed compatibility",
+      "log": "covering-tests.log"
+    },
+    {
+      "tests": 3,
+      "assertions": 9,
+      "scope": "initial scalar boundary corrections",
+      "log": "strict-records-green.log"
+    },
+    {
+      "tests": 2,
+      "assertions": 6,
+      "scope": "receipt/certificate actual persistence crash boundaries",
+      "log": "crash-boundaries.log"
+    },
+    {
+      "tests": 1,
+      "assertions": 3,
+      "scope": "required certificate producer",
+      "log": "required-certificate.log"
+    },
+    {
+      "tests": 18,
+      "assertions": 54,
+      "scope": "15new scalar/body scenarios,46malformed values plus valid release and2crash compatibility; no whole campaign replay",
+      "log": "fix-targeted-green.log"
+    }
+  ],
+  "proofs": [
+    {
+      "record": "faults.json",
+      "observed": 29,
+      "faults": [
+        {
+          "label": "skip-finalize",
+          "boundary": "skip-finalize",
+          "mutation": ["repair-release-absent"],
+          "exit": 1,
+          "witness": "unsafe durable receipt accepted skip-finalize",
+          "observed": true
+        },
+        {
+          "label": "native-change",
+          "boundary": "native-change",
+          "mutation": ["repair-release-native-changed"],
+          "exit": 1,
+          "witness": "unsafe durable receipt accepted native-change",
+          "observed": true
+        },
+        {
+          "label": "foreign-fs",
+          "boundary": "foreign-fs",
+          "mutation": ["repair-release-profile-changed"],
+          "exit": 1,
+          "witness": "unsafe durable receipt accepted foreign-fs",
+          "observed": true
+        },
+        {
+          "label": "counter-notification",
+          "boundary": "counter-notification",
+          "mutation": ["repair-release-publication-invalid"],
+          "exit": 1,
+          "witness": "unsafe durable receipt accepted counter-notification",
+          "observed": true
+        },
+        {
+          "label": "artifact-notification",
+          "boundary": "artifact-notification",
+          "mutation": ["repair-release-publication-invalid"],
+          "exit": 1,
+          "witness": "unsafe durable receipt accepted artifact-notification",
+          "observed": true
+        },
+        {
+          "label": "substituted-directory",
+          "boundary": "substituted-directory",
+          "mutation": ["repair-release-publication-invalid"],
+          "exit": 1,
+          "witness": "unsafe durable receipt accepted substituted-directory",
+          "observed": true
+        },
+        {
+          "label": "live-group",
+          "boundary": "live-group",
+          "mutation": ["repair-release-writer-live"],
+          "exit": 1,
+          "witness": "unsafe durable receipt accepted live-group",
+          "observed": true
+        },
+        {
+          "label": "live-child",
+          "boundary": "live-child",
+          "mutation": ["repair-release-writer-live"],
+          "exit": 1,
+          "witness": "unsafe durable receipt accepted live-child",
+          "observed": true
+        },
+        {
+          "label": "live-thread",
+          "boundary": "live-thread",
+          "mutation": ["repair-release-writer-live"],
+          "exit": 1,
+          "witness": "unsafe durable receipt accepted live-thread",
+          "observed": true
+        },
+        {
+          "label": "join-source",
+          "boundary": "ledger-source",
+          "mutation": ["repair-release-invalid"],
+          "exit": 1,
+          "witness": "unsafe credit for ledger-source",
+          "observed": true
+        },
+        {
+          "label": "join-directory",
+          "boundary": "ledger-directory",
+          "mutation": ["repair-release-invalid"],
+          "exit": 1,
+          "witness": "unsafe credit for ledger-directory",
+          "observed": true
+        },
+        {
+          "label": "join-reservation",
+          "boundary": "ledger-reservation",
+          "mutation": ["repair-release-invalid"],
+          "exit": 1,
+          "witness": "unsafe credit for ledger-reservation",
+          "observed": true
+        },
+        {
+          "label": "join-artifact",
+          "boundary": "ledger-artifact",
+          "mutation": ["repair-release-invalid"],
+          "exit": 1,
+          "witness": "unsafe credit for ledger-artifact",
+          "observed": true
+        },
+        {
+          "label": "join-binding",
+          "boundary": "ledger-binding",
+          "mutation": ["repair-release-invalid"],
+          "exit": 1,
+          "witness": "unsafe credit for ledger-binding",
+          "observed": true
+        },
+        {
+          "label": "join-receipt",
+          "boundary": "ledger-receipt",
+          "mutation": ["repair-release-invalid"],
+          "exit": 1,
+          "witness": "unsafe credit for ledger-receipt",
+          "observed": true
+        },
+        {
+          "label": "join-premature",
+          "boundary": "ledger-premature",
+          "mutation": ["repair-release-invalid"],
+          "exit": 1,
+          "witness": "unsafe credit for ledger-premature",
+          "observed": true
+        },
+        {
+          "label": "join-cleanup",
+          "boundary": "ledger-cleanup",
+          "mutation": ["repair-release-invalid"],
+          "exit": 1,
+          "witness": "unsafe credit for ledger-cleanup",
+          "observed": true
+        },
+        {
+          "label": "join-failure",
+          "boundary": "ledger-failure",
+          "mutation": ["repair-release-invalid"],
+          "exit": 1,
+          "witness": "unsafe credit for ledger-failure",
+          "observed": true
+        },
+        {
+          "label": "join-replay",
+          "boundary": "ledger-replay",
+          "mutation": ["repair-release-invalid"],
+          "exit": 1,
+          "witness": "unsafe credit for ledger-replay",
+          "observed": true
+        },
+        {
+          "label": "join-artifact-schema",
+          "boundary": "ledger-artifact-schema",
+          "mutation": ["repair-release-invalid"],
+          "exit": 1,
+          "witness": "unsafe credit for ledger-artifact-schema",
+          "observed": true
+        },
+        {
+          "label": "join-receipt-schema",
+          "boundary": "ledger-receipt-schema",
+          "mutation": ["repair-release-invalid"],
+          "exit": 1,
+          "witness": "unsafe credit for ledger-receipt-schema",
+          "observed": true
+        },
+        {
+          "label": "join-artifact-history",
+          "boundary": "ledger-artifact-history",
+          "mutation": ["repair-release-invalid"],
+          "exit": 1,
+          "witness": "unsafe credit for ledger-artifact-history",
+          "observed": true
+        },
+        {
+          "label": "join-counter",
+          "boundary": "ledger-counter",
+          "mutation": ["repair-release-invalid"],
+          "exit": 1,
+          "witness": "unsafe credit for ledger-counter",
+          "observed": true
+        },
+        {
+          "label": "join-profile",
+          "boundary": "ledger-profile",
+          "mutation": ["repair-profile-invalid"],
+          "exit": 1,
+          "witness": "unsafe credit for ledger-profile",
+          "observed": true
+        },
+        {
+          "label": "join-terminal",
+          "boundary": "ledger-terminal",
+          "mutation": ["raw-terminal-invalid"],
+          "exit": 1,
+          "witness": "unsafe credit for ledger-terminal",
+          "observed": true
+        },
+        {
+          "label": "directory-A-removed",
+          "boundary": "order",
+          "mutation": "        os.fsync(directory_fd) ->         if name != \"worker-counter.json\": os.fsync(directory_fd)",
+          "exit": 1,
+          "witness": "artifact created before A",
+          "observed": true
+        },
+        {
+          "label": "directory-C-removed",
+          "boundary": "order",
+          "mutation": "        os.fsync(directory_fd) ->         if name != \"repair.json\": os.fsync(directory_fd)",
+          "exit": 1,
+          "witness": "certificate before C",
+          "observed": true
+        },
+        {
+          "label": "exclusive-create-removed",
+          "boundary": "order",
+          "mutation": "os.O_CREAT | os.O_EXCL -> os.O_CREAT",
+          "exit": 1,
+          "witness": "publication reused a record",
+          "observed": true
+        },
+        {
+          "label": "counter-artifact-reordered",
+          "boundary": "order",
+          "mutation": "counter/artifact call order reversed",
+          "exit": 1,
+          "witness": "repair-release-publication-invalid",
+          "observed": true
+        }
+      ]
+    },
+    {
+      "record": "fix-faults.json",
+      "observed": 7,
+      "faults": [
+        {
+          "label": "ready-bool",
+          "boundary": "ledger-fix-ready-bool",
+          "category": "repair-release-ready-time",
+          "exit": 1,
+          "witness": "unsafe credit for ledger-fix-ready-bool",
+          "observed": true
+        },
+        {
+          "label": "receipt-float",
+          "boundary": "ledger-fix-receipt-float",
+          "category": "repair-release-receipt-time",
+          "exit": 1,
+          "witness": "unsafe credit for ledger-fix-receipt-float",
+          "observed": true
+        },
+        {
+          "label": "capacity-shape",
+          "boundary": "ledger-fix-capacity-shape",
+          "category": "repair-release-capacity-invalid",
+          "exit": 1,
+          "witness": "unsafe credit for ledger-fix-capacity-shape",
+          "observed": true
+        },
+        {
+          "label": "capacity-quantities",
+          "boundary": "ledger-fix-capacity-quantities",
+          "category": "repair-release-capacity-invalid",
+          "exit": 1,
+          "witness": "unsafe credit for ledger-fix-capacity-quantities",
+          "observed": true
+        },
+        {
+          "label": "capacity-observed",
+          "boundary": "ledger-fix-capacity-observed",
+          "category": "repair-release-capacity-invalid",
+          "exit": 1,
+          "witness": "unsafe credit for ledger-fix-capacity-observed",
+          "observed": true
+        },
+        {
+          "label": "capacity-retained",
+          "boundary": "ledger-fix-capacity-retained",
+          "category": "repair-release-capacity-invalid",
+          "exit": 1,
+          "witness": "unsafe credit for ledger-fix-capacity-retained",
+          "observed": true
+        },
+        {
+          "label": "trust",
+          "boundary": "ledger-fix-trust",
+          "category": "repair-release-trust-invalid",
+          "exit": 1,
+          "witness": "unsafe credit for ledger-fix-trust",
+          "observed": true
+        }
+      ]
+    }
+  ],
+  "statics": {
+    "original": "named lint/format, owning installed tsc,2PythonAST,diff passed",
+    "fix": "affected named lint/format,2PythonAST,diff passed",
+    "fixOwningTypecheck": "not rerun: only Python/String.raw and strings in existing string[]; original successful typing is prior evidence"
+  },
+  "semantics": {
+    "immutableReservations": true,
+    "releaseCurrentSuccessfulReservationOnly": true,
+    "priorFailureDebtRetained": true,
+    "floorsUnchanged": true,
+    "receiptBytesWitnessPriorCertificateReturnOnly": true,
+    "receiptFailureDoesNotProduceSuccessEnvelope": true
+  },
+  "limitations": {
+    "nativePoliciesOrUnitsRun": false,
+    "retainedRawReadOrWrite": false,
+    "kernelCallbackObserved": false,
+    "actualRepairAccepted": false,
+    "v2ConsumersImplemented": false,
+    "guestRetry": false,
+    "fullRehearsalAccepted": false,
+    "canonicalAcceptance": "4/11; Task97 open"
+  }
+}

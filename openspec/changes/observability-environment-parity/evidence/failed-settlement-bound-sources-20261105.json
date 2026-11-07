@@ -1,0 +1,226 @@
+{
+  "schemaVersion": 1,
+  "scope": "fixed-record-bound-primary-source-provenance",
+  "commit": "49748809f7e18ca62f2e054523f1e2c0eb7a88ad",
+  "files": [
+    {
+      "path": "fs/ext4/acl.c",
+      "bytes": 6841,
+      "gitBlob": "3bffe862f9549919a4ac38fe301becd3ac846775",
+      "sha256": "8742da7ae1629ff90567764c951a4a8381c1f6c1f0a2d43df0bb4a4a06e85e34",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/fs/ext4/acl.c"
+    },
+    {
+      "path": "fs/ext4/extents.c",
+      "bytes": 176520,
+      "gitBlob": "8cce1479be6d1e8d4f57428a0a0ed1088744e72e",
+      "sha256": "33b7ab6447666503a01ad07392bdec04d9c5a87d10e17092f429262692af9b4f",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/fs/ext4/extents.c"
+    },
+    {
+      "path": "fs/ext4/file.c",
+      "bytes": 26722,
+      "gitBlob": "f1dc5ce791a7df920e07ad37e6c8522b2f660501",
+      "sha256": "96f2ba2301254208e714b6449e051888ff4c1d31b00fa418fe22a365f8c21615",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/fs/ext4/file.c"
+    },
+    {
+      "path": "fs/ext4/ialloc.c",
+      "bytes": 45697,
+      "gitBlob": "b1bc1950c9f03b9dca9729cfac532ff95d504948",
+      "sha256": "23a9ee8afe8508b10db326c017e024263dce6dfaaaa6b2fb43a8dbb782b4e581",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/fs/ext4/ialloc.c"
+    },
+    {
+      "path": "fs/ext4/inline.c",
+      "bytes": 50800,
+      "gitBlob": "408677fa8196727563deaa830971511fd596205a",
+      "sha256": "3aecea0615987b9ccd9a3d34c6def23880d452791589229e0b334248fc73be36",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/fs/ext4/inline.c"
+    },
+    {
+      "path": "fs/ext4/inode.c",
+      "bytes": 199266,
+      "gitBlob": "1123d995494b588744ba47fcee88e9cd0cc992dd",
+      "sha256": "b2d4455d86ab2ce5c049ec42856352a2e28220ff2555334f47d47e051a9b4e99",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/fs/ext4/inode.c"
+    },
+    {
+      "path": "fs/ext4/mballoc.c",
+      "bytes": 209784,
+      "gitBlob": "bb58eafb87bcd6d865f63135f4df03d586a15523",
+      "sha256": "ff5c47fbbbe353356752b7f0628abe06ebdacadfbdb803fd90d853447b53892f",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/fs/ext4/mballoc.c"
+    },
+    {
+      "path": "fs/ext4/namei.c",
+      "bytes": 113382,
+      "gitBlob": "c4b5e252af0efbfcbaf83688a32d445327a74a02",
+      "sha256": "72e5348eea92c16dffa659c87040ebb630e736697a6bd77137fbde404a80b6e9",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/fs/ext4/namei.c"
+    },
+    {
+      "path": "fs/ext4/xattr.c",
+      "bytes": 86162,
+      "gitBlob": "a4eaee58e54503cb26b4609db1ddc7e314991a41",
+      "sha256": "2139f0bd4eb0fdb7d44cc95131bf6a16db889c72d92fb9229e5da8b5dc411e5e",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/fs/ext4/xattr.c"
+    },
+    {
+      "path": "fs/ext4/xattr.h",
+      "bytes": 8319,
+      "gitBlob": "1fedf44d4fb65ec89093016401bfc9aa07adf8ce",
+      "sha256": "857b12596624d370b9bac34872342c7c0159840ef70cad7350a2d0b944764653",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/fs/ext4/xattr.h"
+    },
+    {
+      "path": "fs/ext4/xattr_security.c",
+      "bytes": 1676,
+      "gitBlob": "776cf11d24ca10e016184304a15979d2c2898b94",
+      "sha256": "9ff6ed915a847cd4c2976f4d004ef99ce2d53adc718ec6db5a221825da29b4ac",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/fs/ext4/xattr_security.c"
+    },
+    {
+      "path": "fs/xattr.c",
+      "bytes": 41353,
+      "gitBlob": "3e49e612e1badc0b3a7c5ab1bf92e0559625bc00",
+      "sha256": "2f3737b36b44f4773c872d89bbb03cfc47906beebc2b0ab21635e6b65fe71228",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/fs/xattr.c"
+    },
+    {
+      "path": "include/crypto/hash.h",
+      "bytes": 37510,
+      "gitBlob": "586700332c731b0ae443a258380348ddf203bf35",
+      "sha256": "193aa104f7dd8670963d357cbbbe559984281fec57e59226b45b31b06b9549e8",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/include/crypto/hash.h"
+    },
+    {
+      "path": "include/crypto/hash_info.h",
+      "bytes": 1023,
+      "gitBlob": "d6927739f8b2c9c35b3994240b188838cb6a0f69",
+      "sha256": "20c5234de526a93de6c04002eaa7b50775d1969b9b508dddee41a8e3f62b9605",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/include/crypto/hash_info.h"
+    },
+    {
+      "path": "security/apparmor/lsm.c",
+      "bytes": 70252,
+      "gitBlob": "d3af2d10fc22c505439e098e6109e0adec468eb6",
+      "sha256": "b87b3cd20f3d910778a7a1a530f72489bece6dd62084bebe835d21fafb0d57cb",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/security/apparmor/lsm.c"
+    },
+    {
+      "path": "security/commoncap.c",
+      "bytes": 45073,
+      "gitBlob": "3399535808fec77f905573a75093b901f359d1c2",
+      "sha256": "93ed1f5a01c0439e8552bdd70429ce074a40240d9b9696bfb9bbc698760de810",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/security/commoncap.c"
+    },
+    {
+      "path": "security/integrity/evm/evm_crypto.c",
+      "bytes": 11705,
+      "gitBlob": "c0ca4eedb0fe5d5c30f45f515a4bc90248ec64ea",
+      "sha256": "02c419e099d0335b5e365ab85aef4db352cc76458e3cd7e4757038cf1bc97106",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/security/integrity/evm/evm_crypto.c"
+    },
+    {
+      "path": "security/integrity/evm/evm_main.c",
+      "bytes": 32144,
+      "gitBlob": "41b053c900f23173600b46692603967f66d1ca59",
+      "sha256": "f8e303a3f607d2656568715c0a0961d43bb2df5a670fe79a7d15e11892bcd582",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/security/integrity/evm/evm_main.c"
+    },
+    {
+      "path": "security/integrity/ima/ima.h",
+      "bytes": 18246,
+      "gitBlob": "89ebe98ffc5e57621e342d7c25672aeb4a357750",
+      "sha256": "185f38e20c927289331ff16d5262db9907423b8ba9bad74fd206068db6517c9a",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/security/integrity/ima/ima.h"
+    },
+    {
+      "path": "security/integrity/ima/ima_api.c",
+      "bytes": 13375,
+      "gitBlob": "d15becc8c640fcf63306c9c1c04e42d875d04b76",
+      "sha256": "292baff85c30caa95a0b1c4f36caad45ea2f21bc55aa4ab9efba095cb68d376d",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/security/integrity/ima/ima_api.c"
+    },
+    {
+      "path": "security/integrity/ima/ima_appraise.c",
+      "bytes": 23105,
+      "gitBlob": "16c20c578ea8781ce51892dda71dc5248aba92b0",
+      "sha256": "868b52959619f33a9621901b5c1e16621a8c71ac8a9f75e0b894358c430e329e",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/security/integrity/ima/ima_appraise.c"
+    },
+    {
+      "path": "security/integrity/ima/ima_crypto.c",
+      "bytes": 20852,
+      "gitBlob": "85c433e39c008a1e0c7942e8c599025dbbcce89a",
+      "sha256": "0ff4a6da5a0ac468c27367e5556136d6a090ce23c37a3572ed6f62469c4d4be8",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/security/integrity/ima/ima_crypto.c"
+    },
+    {
+      "path": "security/integrity/ima/ima_fs.c",
+      "bytes": 13933,
+      "gitBlob": "f3c461ad7062b872a316227465f247f3e5bb850a",
+      "sha256": "bb8cad2e184a8ca99c2fdc30878cf4892b3987e779a2ded3baa597d5567d18f0",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/security/integrity/ima/ima_fs.c"
+    },
+    {
+      "path": "security/integrity/ima/ima_main.c",
+      "bytes": 39643,
+      "gitBlob": "1d6229b156fb179b3da690a87f089ef54ceb7cb1",
+      "sha256": "dac486694c0c08d296821a16fc211fee9bb045c14690c59c849097fcc28d1bac",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/security/integrity/ima/ima_main.c"
+    },
+    {
+      "path": "security/integrity/ima/ima_policy.c",
+      "bytes": 64902,
+      "gitBlob": "bf2d7ba4c14a9c948f76a82e8e14394e23b9b687",
+      "sha256": "78db30dc7e4bbedd990a33f40d5bdd700f20403e6985d3364946946aa4d7798e",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/security/integrity/ima/ima_policy.c"
+    },
+    {
+      "path": "security/integrity/integrity.h",
+      "bytes": 7063,
+      "gitBlob": "7b388b66cf80d5bc92b4e28ac1d66ed671b5fe92",
+      "sha256": "e2f700cf585c5088ee4f86cce0e84f6a06841fa8bfd3ecd006db66b4401d16b9",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/security/integrity/integrity.h"
+    },
+    {
+      "path": "security/landlock/fs.c",
+      "bytes": 59748,
+      "gitBlob": "e764470f588c131c4b069c9cee768a69ef044d9c",
+      "sha256": "ff2a69e1e5e5d85e5243bbb6d18295f75165eb7d5bceeb6ddad3e1762c37b9f0",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/security/landlock/fs.c"
+    },
+    {
+      "path": "security/landlock/setup.c",
+      "bytes": 1803,
+      "gitBlob": "47dac1736f100a8971afec69929a66ced37d6ec6",
+      "sha256": "06df8f3e48a3a024045edb0ae85db5558c549cd75fc56506f588af423497335c",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/security/landlock/setup.c"
+    },
+    {
+      "path": "security/lockdown/lockdown.c",
+      "bytes": 4344,
+      "gitBlob": "8d46886d2cca080230f85bef6a3d3c4dcaae0515",
+      "sha256": "fec032ce5ae3a85f66db28a4454a819d70abfe5cbbecfe4f1a115276fc04e00a",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/security/lockdown/lockdown.c"
+    },
+    {
+      "path": "security/security.c",
+      "bytes": 169864,
+      "gitBlob": "048560ef6a1a40a86c2a6e44b081c92f97285464",
+      "sha256": "a4ffcd1c59ad668cc2a5364b1cca8eb55b77f4ead5951c8d7546664b4243583d",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/security/security.c"
+    },
+    {
+      "path": "security/yama/yama_lsm.c",
+      "bytes": 12090,
+      "gitBlob": "cef3776cf3b2ddcf5bbfa1572fcf580fca3f10a2",
+      "sha256": "0e601a4efae00e81c858fc0c07d9d2d633a1e71f25428502d1efdcf489951c2b",
+      "url": "https://github.com/pop-os/linux/blob/49748809f7e18ca62f2e054523f1e2c0eb7a88ad/security/yama/yama_lsm.c"
+    }
+  ],
+  "totalBytes": 1613197,
+  "runtimeAuthority": false
+}
