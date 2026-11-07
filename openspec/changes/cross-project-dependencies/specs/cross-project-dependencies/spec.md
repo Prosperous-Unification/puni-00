@@ -2940,3 +2940,42 @@ source, destination, importer or representation authority.
 - **WHEN** raw metadata identifies a scanner, foreign destination or incompatible semantic alternatives
 - **THEN** only the exact canonical external scanner is accepted and foreign, bundled or ambiguously associated dependencies refuse
 - **AND** equivalent duplicate source imports may share one distinct semantic association without widening the source graph
+
+### Requirement: Prospective fixture setup has separate finite custody
+
+The prospective ordinary-uc2-coupled-setup-v1 image SHALL retain setup operations
+in a separately bounded closed-label collection with source-derived finite total
+and per-boundary capacities. Production Promise256 and core event8192 limits
+SHALL remain unchanged. The historical coupled variant and its compiler
+observations/authority SHALL retain their original meaning and bytes.
+
+#### Scenario: Genuine fixture setup exceeds the production Promise count
+
+- **WHEN** finite admitted setup work crosses256 retained operations
+- **THEN** it remains subject to its own fixed budget and does not consume or enlarge the production Promise allowance
+- **AND** an unknown label or setup total/per-boundary overflow refuses before the next original is invoked
+
+#### Scenario: Setup settlement retains original custody
+
+- **WHEN** a setup original remains pending, rejects or its observer is uncertain
+- **THEN** the same original and independent observer remain strongly retained with receiver, arguments and actual cause, including undefined
+- **AND** observer-only settlement cannot establish completion, while already-owned first cleanup and original joins remain available after STOP
+
+#### Scenario: Prospective source does not retarget accepted authority
+
+- **WHEN** the prospective planner emits its changed ledger or controller
+- **THEN** its distinct epoch cannot execute under the historical compiler packets or fall back to them
+- **AND** its own independently sealed successful compiler and concrete native protocols remain required before runtime claims
+
+#### Scenario: Proc-FD budget has an actual helper envelope
+
+- **GIVEN** the prospective setup budget selects helper-only soft/hard FD1024 and a controlled Git/template/config recipe
+- **WHEN** its future runtime protocol admits the image
+- **THEN** it first verifies those exact limits and that every inherited/current descriptor is distinct numeric and below1024, with controlled stdio and close_fds
+- **AND** a missing prerequisite refuses entry rather than inheriting a larger host limit or treating static budget estimates as observed native success
+
+#### Scenario: Aggregate setup capacity is derived
+
+- **WHEN** all86 exact per-boundary capacities are enforced
+- **THEN** their sum bounds setup records at10540 without a redundant independent total predicate
+- **AND** finite proof attribution names only the actual reached guards; no independent total-guard omission claim is invented

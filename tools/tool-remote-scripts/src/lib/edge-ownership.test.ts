@@ -4737,3 +4737,549 @@ test('KCT5 coupled raw associations preserve SDK flags across direct Node and hi
     ),
   ).toThrow('classification');
 });
+
+interface SetupLedgerHarness extends CoupledLedgerHarness {
+  invokeSetupPromise<Returned extends Promise<unknown>>(
+    label: string,
+    provider: (...args: never[]) => Returned,
+    receiver: unknown,
+    args: readonly unknown[],
+  ): Returned;
+  inspectSetupLedger(): {
+    readonly limits: Readonly<Record<string, number>>;
+    readonly total: number;
+    readonly records: readonly {
+      readonly label: string;
+      readonly receiver: unknown;
+      readonly args: readonly unknown[];
+      readonly provider: unknown;
+      readonly original?: Promise<unknown>;
+      readonly observer?: Promise<void>;
+      readonly phase: string;
+      readonly cause: unknown;
+      readonly joined: boolean;
+      readonly originalOutcome?: PromiseSettledResult<unknown>;
+      readonly observerOutcome?: PromiseSettledResult<unknown>;
+    }[];
+  };
+  invokeSetupSync<Returned>(
+    label: string,
+    provider: (...args: never[]) => Returned,
+    receiver: unknown,
+    args: readonly unknown[],
+  ): Returned;
+  joinSetupOperations(): Promise<void>;
+  attachPromise(ticket: object, original: Promise<unknown>): Promise<unknown>;
+  beginClose(original: unknown, origin: string): object;
+  returnClose(ticket: object): void;
+  throwClose(ticket: object, cause: unknown): void;
+}
+async function setupLedger(): Promise<SetupLedgerHarness> {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  const source = fixture
+    .ordinarySetupCustodyPortSourcesV1('/ordinary-coupled')
+    .get('ordinary-hold-v1:ledger');
+  if (source === undefined) throw Error('setup ledger absent');
+  const ts = await import('typescript');
+  const compiled = ts
+    .transpileModule(source.replaceAll('export ', ''), {
+      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+    })
+    .outputText.replace(/export \{\};?/, '');
+  expect(compiled).not.toMatch(/\bimport\b/);
+  return runInNewContext(
+    `${compiled}\n({invokeSetupPromise,invokeSetupSync,inspectSetupLedger,joinSetupOperations,reserveOperation,attachPromise,inspectLedger,beginClose,returnClose,throwClose,reserveNative,attachNative,reserveControllerControl,attachControllerControl,capturePreparation,inspectKnownComposition,requireControllerPreparation,reserveScanner,attachScannerPromise,joinKnownComposition,captureSettlement,returnOperation,captureKeeper,reserveScannerCall,attachScannerCall,linkWrapper,captureOriginal})`,
+  ) as SetupLedgerHarness;
+}
+
+function invokeFiniteSetup(ledger: SetupLedgerHarness, label: string, enter: () => void): void {
+  if (label === 'setup.runMigrations') {
+    ledger.invokeSetupSync(label, enter, undefined, []);
+    return;
+  }
+  void ledger.invokeSetupPromise(
+    label,
+    () => {
+      enter();
+      return Promise.resolve();
+    },
+    undefined,
+    [],
+  );
+}
+
+test('SC1 finite setup traversals exceed256 without composition reservations', async () => {
+  const ledger = await setupLedger();
+  for (let ordinal = 0; ordinal < 436; ordinal++) {
+    const original = Promise.resolve(ordinal);
+    expect(
+      ledger.invokeSetupPromise('setup.startup.chmod', () => original, undefined, [ordinal]),
+    ).toBe(original);
+  }
+  const joined = await Promise.allSettled([ledger.joinSetupOperations()]);
+  expect(joined).toEqual([{ status: 'fulfilled', value: undefined }]);
+  expect(ledger.inspectSetupLedger().records).toHaveLength(436);
+  expect(ledger.inspectLedger()).toMatchObject({ operations: [], events: [] });
+  expect(ledger.inspectSetupLedger().records.every((record) => record.joined)).toBe(true);
+});
+
+test('SC1 boundary caps refuse exact plus1 before provider entry', async () => {
+  const limits = (await setupLedger()).inspectSetupLedger().limits;
+  expect(Object.keys(limits)).toHaveLength(86);
+  expect(createHash('sha256').update(JSON.stringify(limits)).digest('hex')).toBe(
+    '1e4b424b369479d7275969a5165395e784251b64633d984b41a66f9e3e66a1b8',
+  );
+  for (const [label, limit] of Object.entries(limits)) {
+    const ledger = await setupLedger();
+    let entries = 0;
+    const provider = () => {
+      entries++;
+    };
+    for (let ordinal = 0; ordinal < limit; ordinal++) invokeFiniteSetup(ledger, label, provider);
+    expect(() => {
+      invokeFiniteSetup(ledger, label, provider);
+    }).toThrow('setup boundary cap');
+    expect(entries).toBe(limit);
+    await ledger.joinSetupOperations();
+  }
+});
+
+test('SC1 derived total equals boundary sum and aggregate plus1 refuses before entry', async () => {
+  const ledger = await setupLedger();
+  const { limits, total } = ledger.inspectSetupLedger();
+  let entries = 0;
+  const provider = () => {
+    entries++;
+  };
+  expect(total).toBe(10540);
+  let remaining = total;
+  for (const [label, limit] of Object.entries(limits)) {
+    const count = Math.min(limit, remaining);
+    for (let ordinal = 0; ordinal < count; ordinal++) invokeFiniteSetup(ledger, label, provider);
+    remaining -= count;
+  }
+  expect(remaining).toBe(0);
+  expect(() => {
+    invokeFiniteSetup(ledger, 'setup.startup.chmod', provider);
+  }).toThrow('setup boundary cap');
+  expect(entries).toBe(total);
+  expect(ledger.inspectLedger()).toMatchObject({ operations: [], events: [] });
+  await ledger.joinSetupOperations();
+});
+
+test('SC1 closed labels and composition bucket cannot manufacture setup custody', async () => {
+  for (const label of [
+    'setup.startup.chmod-near',
+    'setup.unknown.chmod',
+    '__proto__',
+    'complete.storage',
+  ]) {
+    const ledger = await setupLedger();
+    let entered = false;
+    expect(
+      () =>
+        void ledger.invokeSetupPromise(
+          label,
+          () => {
+            entered = true;
+            return Promise.resolve();
+          },
+          undefined,
+          [],
+        ),
+    ).toThrow('setup boundary differs');
+    expect(entered).toBe(false);
+    expect(ledger.inspectSetupLedger().records).toHaveLength(0);
+  }
+  const ledger = await setupLedger();
+  for (let ordinal = 0; ordinal < 256; ordinal++)
+    void ledger.attachPromise(
+      ledger.reserveOperation('complete.storage', 'promise', undefined, []),
+      Promise.resolve(),
+    );
+  const original = Promise.resolve();
+  expect(ledger.invokeSetupPromise('setup.startup.chmod', () => original, undefined, [])).toBe(
+    original,
+  );
+  expect(() => ledger.reserveOperation('complete.storage', 'promise', undefined, [])).toThrow(
+    'Promise cap',
+  );
+  expect(ledger.inspectSetupLedger().records).toHaveLength(1);
+  const separate = await setupLedger();
+  expect(() => separate.reserveOperation('setup.startup.chmod', 'promise', undefined, [])).toThrow(
+    'operation boundary',
+  );
+});
+
+test('SC1 original identity receiver arguments and immutable pending records survive real join', async () => {
+  const ledger = await setupLedger();
+  let resolve: (value: string) => void = () => {
+    throw Error('deferred resolve absent');
+  };
+  const original = new Promise<string>((settle) => {
+    resolve = settle;
+  });
+  const receiver = {},
+    argument = {};
+  function provider(this: unknown, ...args: unknown[]) {
+    expect(ledger.inspectSetupLedger().records).toHaveLength(1);
+    expect(ledger.inspectSetupLedger().records[0].phase).toBe('entered');
+    expect(this).toBe(receiver);
+    expect(args).toEqual([argument]);
+    return original;
+  }
+  expect(ledger.invokeSetupPromise('setup.startup.chmod', provider, receiver, [argument])).toBe(
+    original,
+  );
+  const pending = ledger.inspectSetupLedger();
+  expect(pending.records[0]).toMatchObject({
+    phase: 'pending',
+    original,
+    provider,
+    receiver,
+    args: [argument],
+    joined: false,
+  });
+  expect(Object.isFrozen(pending)).toBe(true);
+  expect(Object.isFrozen(pending.records)).toBe(true);
+  expect(Object.isFrozen(pending.records[0])).toBe(true);
+  expect(Object.isFrozen(pending.records[0].args)).toBe(true);
+  let joined = false;
+  const join = ledger.joinSetupOperations().then(() => {
+    joined = true;
+  });
+  for (let turn = 0; turn < 20; turn++) await Promise.resolve();
+  expect(joined).toBe(false);
+  expect(ledger.inspectSetupLedger().records[0].original).toBe(original);
+  resolve('settled');
+  await join;
+  expect(ledger.inspectSetupLedger().records[0]).toMatchObject({
+    phase: 'fulfilled',
+    joined: true,
+    originalOutcome: { status: 'fulfilled', value: 'settled' },
+    observerOutcome: { status: 'fulfilled' },
+  });
+});
+
+test('SC1 undefined original rejection remains distinct from fulfilled observer', async () => {
+  const ledger = await setupLedger();
+  // Undefined is the deliberately tested original rejection boundary.
+  // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+  const original = Promise.reject();
+  void ledger.invokeSetupPromise('setup.startup.chmod', () => original, undefined, []);
+  await ledger.joinSetupOperations();
+  expect(ledger.inspectSetupLedger().records[0]).toMatchObject({
+    phase: 'rejected',
+    cause: undefined,
+    originalOutcome: { status: 'rejected', reason: undefined },
+    observerOutcome: { status: 'fulfilled' },
+    joined: true,
+  });
+});
+
+test('SC1 independent observer rejection cannot discharge original or known join', async () => {
+  for (const cause of [Error('independent observer rejected'), undefined]) {
+    const ledger = await setupLedger();
+    finiteCoupledJoin(ledger);
+    const observer = new Promise<void>((_resolve, reject) => {
+      // Undefined is a deliberately tested independent observer rejection boundary.
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+      reject(cause);
+    });
+    void observer.catch(() => undefined);
+    const original = Promise.resolve('original fulfillment');
+    void Object.defineProperty(original, 'then', { value: () => observer });
+    void ledger.invokeSetupPromise('setup.startup.chmod', () => original, undefined, []);
+    await refuses(ledger.joinKnownComposition(), 'setup original observation incomplete');
+    expect(ledger.inspectLedger().stopped).toBe(true);
+    const record = ledger.inspectSetupLedger().records[0];
+    expect(record).toMatchObject({
+      original,
+      observer,
+      joined: false,
+      originalOutcome: { status: 'fulfilled', value: 'original fulfillment' },
+      observerOutcome: { status: 'rejected', reason: cause },
+    });
+    expect(record.observerOutcome).toHaveProperty('reason', cause);
+  }
+});
+
+test('SC1 observer fulfillment alone cannot discharge a genuinely deferred original', async () => {
+  const ledger = await setupLedger();
+  let resolve: () => void = () => {
+    throw Error('deferred resolve absent');
+  };
+  const original = new Promise<void>((settle) => {
+    resolve = settle;
+  });
+  void Object.defineProperty(original, 'then', { value: () => Promise.resolve() });
+  void ledger.invokeSetupPromise('setup.startup.chmod', () => original, undefined, []);
+  let complete = false;
+  const join = ledger.joinSetupOperations().then(
+    () => {
+      complete = true;
+    },
+    () => {
+      complete = true;
+    },
+  );
+  for (let turn = 0; turn < 20; turn++) await Promise.resolve();
+  expect(complete).toBe(false);
+  expect(ledger.inspectSetupLedger().records[0].joined).toBe(false);
+  resolve();
+  await join;
+  expect(ledger.inspectSetupLedger().records[0].original).toBe(original);
+  expect(ledger.inspectSetupLedger().records[0].joined).toBe(false);
+});
+
+test('SC1 known composition join waits for genuine setup originals and observers', async () => {
+  const ledger = await setupLedger();
+  finiteCoupledJoin(ledger);
+  let resolve: () => void = () => {
+    throw Error('deferred resolve absent');
+  };
+  const original = new Promise<void>((settle) => {
+    resolve = settle;
+  });
+  void ledger.invokeSetupPromise('setup.startup.chmod', () => original, undefined, []);
+  let complete = false;
+  const join = ledger.joinKnownComposition().then(() => {
+    complete = true;
+  });
+  for (let turn = 0; turn < 20; turn++) await Promise.resolve();
+  expect(complete).toBe(false);
+  resolve();
+  await join;
+  expect(ledger.inspectSetupLedger().records[0].joined).toBe(true);
+});
+
+test('SC1 STOP permits first owned cleanup and joins while uncertain close remains nonretryable', async () => {
+  const ledger = await setupLedger();
+  finiteCoupledJoin(ledger);
+  const first = ledger.reserveNative('storage.openSync', 'fd', [], undefined),
+    second = ledger.reserveNative('storage.openSync', 'fd', [], undefined);
+  ledger.attachNative(first, 71);
+  ledger.attachNative(second, 72);
+  ledger.throwClose(ledger.beginClose(71, 'production'), undefined);
+  expect(() => ledger.beginClose(71, 'fixture')).toThrow('re-entry');
+  ledger.returnClose(ledger.beginClose(72, 'production'));
+  await ledger.joinSetupOperations();
+  expect(ledger.inspectLedger().stopped).toBe(true);
+});
+
+test('SC1 production interval first clear stays available after setup STOP with exact owned binding', async () => {
+  const ledger = await setupLedger();
+  const interval = {};
+  ledger.returnOperation(
+    ledger.reserveOperation('owner.interval', 'sync', undefined, [() => undefined, 60000]),
+    interval,
+  );
+  expect(
+    () =>
+      void ledger.invokeSetupPromise(
+        'setup.startup.chmod-near',
+        () => Promise.resolve(),
+        undefined,
+        [],
+      ),
+  ).toThrow();
+  expect(() => ledger.reserveOperation('owner.clear', 'sync', undefined, [{}])).toThrow(
+    'owned interval',
+  );
+  ledger.returnOperation(
+    ledger.reserveOperation('owner.clear', 'sync', undefined, [interval]),
+    undefined,
+  );
+  expect(() => ledger.reserveOperation('owner.clear', 'sync', undefined, [interval])).toThrow(
+    'owned interval',
+  );
+});
+
+test('SC1 prospective planner refuses wrong epoch and leaves frozen old authority usable', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  const request = await coupledBuildRequest();
+  const admitted = fixture.decodeOrdinaryCoupledBuildRequestV1(request);
+  const physicalRoot = new URL('../../../../', import.meta.url).pathname.replace(/\/$/, '');
+  const supplied = new Map<string, Uint8Array>();
+  for (const pin of fixture.ordinaryHoldSourceEpochV1.pins)
+    supplied.set(
+      `${request.sourceRoot}/${pin.relative}`,
+      await readFile(`${physicalRoot}/${pin.relative}`),
+    );
+  const old = fixture.planOrdinaryCoupledBuildV1(
+    request.sourceRoot,
+    supplied,
+    request.patch,
+    request.manifest,
+  );
+  fixture.assertOrdinaryCoupledPlanV1(admitted, old);
+  for (const epoch of [undefined, null, 'ordinary-uc2-coupled-setup-v1-near', old.sourceEpoch]) {
+    expect(() =>
+      fixture.planOrdinarySetupCustodyBuildV1(
+        request.sourceRoot,
+        supplied,
+        request.patch,
+        request.manifest,
+        epoch,
+      ),
+    ).toThrow('setup custody source epoch');
+    expect(() =>
+      fixture.planOrdinarySetupCustodyBuildV1(
+        '',
+        new Map(),
+        new Uint8Array(),
+        new Uint8Array(),
+        epoch,
+      ),
+    ).toThrow('setup custody source epoch');
+  }
+  const prospective = fixture.planOrdinarySetupCustodyBuildV1(
+    request.sourceRoot,
+    supplied,
+    request.patch,
+    request.manifest,
+    'ordinary-uc2-coupled-setup-v1',
+  );
+  expect(prospective.sourceEpoch).toBe('ordinary-uc2-coupled-setup-v1');
+  expect(prospective.layers).toEqual(old.layers);
+  expect([...prospective.materialized]).toEqual([...old.materialized]);
+  expect(prospective.appliedCuts).toEqual(old.appliedCuts);
+  expect(prospective.entrySource).toBe(old.entrySource);
+  expect(prospective.portSources.size).toBe(31);
+  expect(() => {
+    fixture.assertOrdinaryCoupledPlanV1(admitted, prospective as unknown as typeof old);
+  }).toThrow('coverage bytes');
+  expect(() =>
+    fixture.decodeOrdinaryCoupledBuildRequestV1({
+      ...request,
+      sourceEpoch: prospective.sourceEpoch,
+    }),
+  ).toThrow();
+  const changed = [...old.portSources]
+    .filter(([name, source]) => prospective.portSources.get(name) !== source)
+    .map(([name]) => name);
+  expect(changed).toEqual([
+    'ordinary-hold-v1:ledger',
+    'ordinary-hold-v1:setup-participant-fs',
+    'ordinary-hold-v1:setup-complete-fs',
+    'ordinary-hold-v1:setup-startup-fs',
+    'ordinary-hold-v1:setup-database-fs',
+    'ordinary-hold-v1:setup-frontend-fs',
+    'ordinary-hold-v1:setup-namespace-fs',
+    'ordinary-hold-v1:migration-call',
+    'ordinary-hold-v1:setup-complete-write',
+    'ordinary-hold-v1:setup-namespace-write',
+    'ordinary-hold-v1:controller',
+  ]);
+  expect(prospective.portSources.get('ordinary-hold-v1:controller')).toContain(
+    "sourceEpoch:'ordinary-uc2-coupled-setup-v1'",
+  );
+  const bootstrapPins = [
+    [
+      'known-initial-prepared-release',
+      '057a352882e87c983decde056d7677e9b9e6b69102289b2378e285ba00516ca9',
+    ],
+    [
+      'known-preawait-manifest-refusal',
+      '98f40fa7dfc7e9631a29a44cd55a0da20e8e38a9dddba26f10af297167c86d1c',
+    ],
+  ];
+  for (const [caseId, digest] of bootstrapPins) {
+    const historical = fixture.ordinaryKnownBootstrapSourceV1(
+      '/owned/ordinary-known-image.js',
+      caseId,
+    );
+    expect(createHash('sha256').update(historical).digest('hex')).toBe(digest);
+    expect(
+      fixture.ordinarySetupCustodyBootstrapSourceV1('/owned/ordinary-known-image.js', caseId),
+    ).toBe(historical.replaceAll(old.sourceEpoch, prospective.sourceEpoch));
+  }
+});
+
+test('SC1 known inspection retains setup custody through observer attachment uncertainty', async () => {
+  const ledger = await setupLedger();
+  const original = Promise.resolve();
+  void Object.defineProperty(original, 'then', {
+    get: () => {
+      // Undefined is the deliberately tested observer-attachment boundary.
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw undefined;
+    },
+  });
+  expect(
+    () => void ledger.invokeSetupPromise('setup.startup.chmod', () => original, undefined, []),
+  ).toThrow();
+  expect(ledger.inspectSetupLedger().records[0]).toMatchObject({
+    original,
+    phase: 'unknown',
+    cause: undefined,
+    joined: false,
+  });
+  const inspection = ledger.inspectKnownComposition() as unknown as {
+    setup: ReturnType<SetupLedgerHarness['inspectSetupLedger']>;
+  };
+  expect(inspection.setup.records[0].original).toBe(original);
+  expect(inspection.setup.records[0].cause).toBeUndefined();
+  await refuses(ledger.joinSetupOperations(), 'setup original observation absent');
+  expect(ledger.inspectSetupLedger().records).toHaveLength(1);
+});
+
+test('SC1 STOP and fixed setup kinds refuse before finite provider entry', async () => {
+  const ledger = await setupLedger();
+  let entries = 0;
+  const provider = () => {
+    entries++;
+    return Promise.resolve();
+  };
+  expect(() => ledger.invokeSetupPromise('setup.runMigrations', provider, undefined, [])).toThrow(
+    'setup kind differs',
+  );
+  expect(() => ledger.invokeSetupPromise('setup.startup.chmod', provider, undefined, [])).toThrow(
+    'setup acquisition stopped',
+  );
+  expect(entries).toBe(0);
+  expect(ledger.inspectSetupLedger().records).toHaveLength(0);
+  const sync = await setupLedger();
+  expect(() => sync.invokeSetupSync('setup.startup.chmod', provider, undefined, [])).toThrow(
+    'setup kind differs',
+  );
+  expect(entries).toBe(0);
+});
+
+test('SC1 synchronous setup failure keeps original cause and refuses retirement after STOP', async () => {
+  const ledger = await setupLedger();
+  const cause = Error('inert synchronous setup failure');
+  const provider = () => {
+    throw cause;
+  };
+  expect(() => ledger.invokeSetupSync('setup.runMigrations', provider, undefined, [])).toThrow(
+    cause,
+  );
+  expect(ledger.inspectSetupLedger().records[0]).toMatchObject({
+    provider,
+    phase: 'unknown',
+    cause,
+    joined: false,
+  });
+  await refuses(ledger.joinSetupOperations(), 'setup sync observation incomplete');
+  expect(ledger.inspectSetupLedger().records).toHaveLength(1);
+});
+
+test('SC1 first owned interval cleanup survives STOP before sentinel entry', async () => {
+  const ledger = await setupLedger();
+  const interval = {};
+  ledger.returnOperation(
+    ledger.reserveOperation('owner.interval', 'sync', undefined, [() => undefined, 60000]),
+    interval,
+  );
+  expect(() =>
+    ledger.invokeSetupPromise('setup.startup.chmod-near', () => Promise.resolve(), undefined, []),
+  ).toThrow();
+  let entries = 0;
+  expect(() => {
+    const ticket = ledger.reserveOperation('owner.clear', 'sync', undefined, [interval]);
+    entries++;
+    ledger.returnOperation(ticket, undefined);
+  }).not.toThrow();
+  expect(entries).toBe(1);
+});
