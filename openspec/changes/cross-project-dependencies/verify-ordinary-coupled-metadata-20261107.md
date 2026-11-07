@@ -82,3 +82,47 @@ plus one synchronous driver operation,2064 closure and1757 parent operations for
 The first failed attempt remains unchanged and consumed. Full genuine composition,
 scanner bridge,39HOLD/native/migrations/census/CI/host gates/main/deploy remain
 open. No private constructor grant is reused or architecture merged.
+
+## Actual second compiler-only attempt
+
+A fresh, separately frozen protocol ran once against clean published source
+`5f6587e61083616a6683025302d9ad3af33dd80a`. Its final expected manifest is139977
+bytes SHA-256 `3d94b90a5d3cd03c61da6af30eb8ba3d105f55a6ab45e0a535dc98b0b95cf3dd`;
+launcher `4d4bbed39c8422864a5bfa33b702df9b6cc1860975b02bf8946b1e91c6f3a292`;
+driver `500ee817b2e50674b74c426803477547ba964097d2b70c28ecbf01b079841e77`.
+The exact final protocol review accepted this single invocation. Historical
+preparation snapshots remain preserved and do not describe execution authority.
+
+Child24780 exited0, no signal, both actual streamsEOF, all289 pre/post pins exact,
+no postflight error. Actual genuine builder fulfilled with all47 setup effects
+joined,47 retained callback returns matching the fixed expectations, exactly287
+predicted input identities/byte lengths and1034 associated raw SDK edges:889
+direct,118 exact Node-prefix and27 closed historical-relative. Source packets,
+compiler custody and operation bounds did not change.
+
+The saved bundle is1191090 bytes SHA-256
+`13395124ddbb610c2dcb77879544297e95bf28976a54e760f430e66c7dc76738`.
+Its status is built-unqualified. No output import, native fixture, controller or
+scanner invocation occurred. All seven runtime qualification gaps remain.
+
+Closure evidence contains2064 exact ordered keys:1770 fulfilled and294 exact
+named ENOENT. Independent streaming audits decode/hash-check retained byte
+payloads against source seals. Parent receipt captures1756 operations preceding
+its own write; complete saved parent stdout captures all1757 fulfilled/joined
+unique operations, including receipt.write. Exact set/multiplicity matches the
+presealed roster; completion order is not represented as dispatch order.
+
+[The actual attempt archive](coupled-compiler-attempt2-20261107/README.md) retains
+final protocol, independently implemented driver controls, output, metadata,
+callbacks, actual receipts and independent reviews. Raw closure capture321171289
+bytes retains SHA-256
+`d36f834d9e778755d8fed6b0e3896723b7fcb27b01c587bf8d922e3ec0c62f75`
+privately, with reproducible verified compact extraction in the archive. Captured
+reference booleans do not independently recreate JavaScript object identity.
+
+Root released the coordinated source/install/config/layout no-writer lease after
+terminal postflight. This is not a host-wide atomic snapshot claim. The consumed
+first failed attempt stays unchanged. DKM1–5's bounded correction/compiler-only
+scope is now evidenced; KCT1–6 and all native/HOLD/migration/census/full CI/host
+gate/main/deployment parent obligations remain open. Publication is preservation
+for review, not main adoption or deploy readiness.
