@@ -7404,3 +7404,280 @@ async function buildOrdinaryCoupledImageBodyV1(
       clearInterval(keeper);
   }
 }
+
+/** Separate prospective source identity; no compiler authority is issued by planning it. */
+export const ordinarySetupCustodySourceEpochV1 = 'ordinary-uc2-coupled-setup-v1' as const;
+
+/**
+ * Conservative two-known-case recipe bounds, not observed call counts or all39HOLD capacity.
+ * Three modes walks: startup lstat946/chmod1564/readdir621 include bounded Git contents.
+ * Git must use the reviewed empty template/config recipe and pinned executable; the helper
+ * must inherit verified soft=hard NOFILE1024 with no inherited descriptor at or above it.
+ * Complete metadata preflights are bounded by six admitted collectors plus the first refusal.
+ * Non-traversal startup mkdir6/mkdtemp1/write12/symlink1 follows the four-tier seed.
+ * Database cp2/mkdtemp1/write11/mkdir3/chmod4 follows the two DBs and four tier inputs.
+ * Frontend read/mkdir/write18 and symlink1 follow the fixed profile roster.
+ * Participant mkdir2/write2/read1 follows the prod-only restoration fixture.
+ * Namespace mkdir10/stat4/link4/write8+2 follows two roots and four destinations.
+ * Complete cp1/mkdir3/rename1/write19 and two Bun writes follow the manifest recipe;
+ * seven metadata preflights contribute lstat56/readdir7 and adaptation contributes read21.
+ * The two synchronous migrations retain their separate existing native migration ledger.
+ * Full derivation: openspec/changes/cross-project-dependencies/ordinary-setup-custody-design-20261107.md.
+ * Zero means outside this fixed recipe, including retained-root deletion and fault-only writes.
+ */
+export const ordinarySetupCustodyLimitsV1 = Object.freeze({
+  'setup.participant.chmod': 0,
+  'setup.participant.cp': 0,
+  'setup.participant.lstat': 0,
+  'setup.participant.mkdir': 2,
+  'setup.participant.mkdtemp': 0,
+  'setup.participant.readdir': 0,
+  'setup.participant.symlink': 0,
+  'setup.participant.writeFile': 2,
+  'setup.participant.readFile': 1,
+  'setup.participant.rename': 0,
+  'setup.participant.stat': 0,
+  'setup.participant.link': 0,
+  'setup.participant.rm': 0,
+  'setup.complete.chmod': 0,
+  'setup.complete.cp': 1,
+  'setup.complete.lstat': 56,
+  'setup.complete.mkdir': 3,
+  'setup.complete.mkdtemp': 0,
+  'setup.complete.readdir': 7,
+  'setup.complete.symlink': 0,
+  'setup.complete.writeFile': 19,
+  'setup.complete.readFile': 21,
+  'setup.complete.rename': 1,
+  'setup.complete.stat': 7168, // 7 metadata preflights * helper NOFILE1024
+  'setup.complete.link': 0,
+  'setup.complete.rm': 0,
+  'setup.startup.chmod': 1564,
+  'setup.startup.cp': 0,
+  'setup.startup.lstat': 946,
+  'setup.startup.mkdir': 6,
+  'setup.startup.mkdtemp': 1,
+  'setup.startup.readdir': 621,
+  'setup.startup.symlink': 1,
+  'setup.startup.writeFile': 12,
+  'setup.startup.readFile': 0,
+  'setup.startup.rename': 0,
+  'setup.startup.stat': 0,
+  'setup.startup.link': 0,
+  'setup.startup.rm': 0,
+  'setup.database.chmod': 4,
+  'setup.database.cp': 2,
+  'setup.database.lstat': 0,
+  'setup.database.mkdir': 3,
+  'setup.database.mkdtemp': 1,
+  'setup.database.readdir': 0,
+  'setup.database.symlink': 0,
+  'setup.database.writeFile': 11,
+  'setup.database.readFile': 0,
+  'setup.database.rename': 0,
+  'setup.database.stat': 0,
+  'setup.database.link': 0,
+  'setup.database.rm': 0,
+  'setup.frontend.chmod': 0,
+  'setup.frontend.cp': 0,
+  'setup.frontend.lstat': 0,
+  'setup.frontend.mkdir': 18,
+  'setup.frontend.mkdtemp': 0,
+  'setup.frontend.readdir': 0,
+  'setup.frontend.symlink': 1,
+  'setup.frontend.writeFile': 18,
+  'setup.frontend.readFile': 18,
+  'setup.frontend.rename': 0,
+  'setup.frontend.stat': 0,
+  'setup.frontend.link': 0,
+  'setup.frontend.rm': 0,
+  'setup.namespace.chmod': 0,
+  'setup.namespace.cp': 0,
+  'setup.namespace.lstat': 0,
+  'setup.namespace.mkdir': 10,
+  'setup.namespace.mkdtemp': 0,
+  'setup.namespace.readdir': 0,
+  'setup.namespace.symlink': 0,
+  'setup.namespace.writeFile': 0,
+  'setup.namespace.readFile': 0,
+  'setup.namespace.rename': 0,
+  'setup.namespace.stat': 4,
+  'setup.namespace.link': 4,
+  'setup.namespace.rm': 0,
+  'complete.write.prod': 1,
+  'complete.write.dev': 1,
+  'namespace.write.0': 0,
+  'namespace.write.1': 8,
+  'namespace.write.2': 0,
+  'namespace.write.3': 2,
+  'namespace.write.4': 0,
+  'setup.runMigrations': 2,
+});
+/** One setup reservation record is its event; no duplicate setup event stream consumes core8192. */
+export const ordinarySetupCustodyTotalV1 = Object.values(
+  ordinarySetupCustodyLimitsV1,
+).reduce<number>((total, maximum) => total + maximum, 0);
+
+export interface OrdinarySetupCustodyBuildPlanV1 extends Omit<
+  OrdinaryCoupledBuildPlanV1,
+  'sourceEpoch'
+> {
+  readonly sourceEpoch: typeof ordinarySetupCustodySourceEpochV1;
+}
+
+/** Validates the explicit prospective epoch before the unchanged in-memory production overlay. */
+export function planOrdinarySetupCustodyBuildV1(
+  sourceRoot: string,
+  supplied: ReadonlyMap<string, Uint8Array>,
+  rawPatch: Uint8Array,
+  rawManifest: Uint8Array,
+  sourceEpoch: unknown,
+): OrdinarySetupCustodyBuildPlanV1 {
+  // Proof: omitting the epoch guard admitted a wrong epoch with valid inputs; SC1 prospective planner failed (0/1/0).
+  if (sourceEpoch !== ordinarySetupCustodySourceEpochV1)
+    throw new Error('setup custody source epoch differs');
+  const plan = planOrdinaryCoupledBuildV1(sourceRoot, supplied, rawPatch, rawManifest);
+  return Object.freeze({
+    ...plan,
+    sourceEpoch: ordinarySetupCustodySourceEpochV1,
+    portSources: ordinarySetupCustodyPortSourcesV1(sourceRoot),
+  });
+}
+
+/** Generates a new packet expectation while retaining the historical bootstrap byte for byte. */
+export function ordinarySetupCustodyBootstrapSourceV1(imagePath: string, caseId: unknown): string {
+  return ordinaryKnownBootstrapSourceV1(imagePath, caseId).replaceAll(
+    ordinaryCoupledSourceEpochV1,
+    ordinarySetupCustodySourceEpochV1,
+  );
+}
+
+/** Keeps setup reservations in a finite strong ledger, apart from core Promise and event capacities. */
+function ordinarySetupCustodyLedgerExtensionV1(): string {
+  return `
+const setupLimits=Object.freeze(${JSON.stringify(ordinarySetupCustodyLimitsV1)});
+type SetupBoundary=keyof typeof setupLimits;
+type SetupRecord=OperationRecord & {provider:(...args:never[])=>unknown;originalOutcome?:PromiseSettledResult<unknown>;observerOutcome?:PromiseSettledResult<unknown>};
+const setupRecords:SetupRecord[]=[];
+// Proof: omitting the record snapshot freeze failed SC1 original identity; this proves record immutability, not deep freezing of original values (0/1/0).
+export function inspectSetupLedger(){return Object.freeze({limits:setupLimits,total:${String(ordinarySetupCustodyTotalV1)},records:Object.freeze(setupRecords.map(record=>Object.freeze({...snapshot(record),originalOutcome:record.originalOutcome===undefined?undefined:Object.freeze({...record.originalOutcome}),observerOutcome:record.observerOutcome===undefined?undefined:Object.freeze({...record.observerOutcome})})))});}
+function reserveSetupOperation(label:string,kind:'sync'|'promise',provider:(...args:never[])=>unknown,receiver:unknown,args:readonly unknown[]){
+ // Proof: omitting closed-key admission entered an unknown-label sentinel; SC1 closed labels failed (0/1/0).
+ if(!Object.hasOwn(setupLimits,label))fail('ordinary setup boundary differs');
+ // Proof: omitting STOP admission entered a finite provider after kind refusal; SC1 STOP and fixed kinds failed (0/1/0).
+ if(custody.stopped)fail('ordinary setup acquisition stopped');
+ // Object.hasOwn above establishes this closed key; callers cannot select a bucket or capacity.
+ const boundary=label as SetupBoundary;
+ // Proof: omitting kind admission entered the Promise provider under the sync migration label; SC1 STOP and fixed kinds failed (0/1/0).
+ if(kind!==(boundary==='setup.runMigrations'?'sync':'promise'))fail('ordinary setup kind differs');
+ // Proof: omitting this bound entered the zero-cap boundary sentinel; SC1 boundary caps failed (0/1/0); the same consumer exhausts all86 exact limits.
+ if(setupRecords.filter(record=>record.label===boundary).length>=setupLimits[boundary])fail('ordinary setup boundary cap exceeded');
+ const record:SetupRecord={family:'operation',label:boundary,kind,receiver,args:Object.freeze([...args]),provider,phase:'entered',returned:undefined,original:undefined,observer:undefined,observerSettled:false,joined:false,cause:undefined};
+ // Proof: omitting strong reservation failed the provider's pre-entry record census; SC1 original identity failed (0/1/0).
+ setupRecords.push(record);return record;
+}
+export function invokeSetupSync<Returned>(label:string,provider:(...args:never[])=>Returned,receiver:unknown,args:readonly unknown[]):Returned{
+ const record=reserveSetupOperation(label,'sync',provider,receiver,args);
+ try{const returned=Reflect.apply(provider,receiver,args);record.returned=returned;record.phase='returned';return returned;}
+ catch(cause){record.cause=cause;record.phase='unknown';custody.stopped=true;custody.failures.push(cause);throw cause;}
+}
+export function invokeSetupPromise<Returned extends Promise<unknown>>(label:string,provider:(...args:never[])=>Returned,receiver:unknown,args:readonly unknown[]):Returned{
+ const record=reserveSetupOperation(label,'promise',provider,receiver,args);
+ try{
+  const original=Reflect.apply(provider,receiver,args);record.returned=original;record.original=original;record.phase='pending';
+  record.observer=original.then(value=>{record.value=value;record.phase='fulfilled';record.observerSettled=true;},cause=>{record.cause=cause;record.phase='rejected';record.observerSettled=true;});
+  // Proof: returning a then-projection failed SC1 original identity (0/1/0).
+  return original;
+ }catch(cause){record.cause=cause;record.phase='unknown';custody.stopped=true;custody.failures.push(cause);throw cause;}
+}
+export async function joinSetupOperations(){
+ for(const record of setupRecords){
+  // Proof: omitting returned-phase admission joined a thrown sync original; SC1 synchronous setup failure failed (0/1/0).
+  if(record.kind==='sync'){if(record.phase!=='returned')fail('ordinary setup sync observation incomplete');record.joined=true;continue;}
+  // Proof: suppressing observer storage left a genuine original without its observer; SC1 finite setup traversals failed and restoration passed (0/1/0).
+  if(record.original===undefined||record.observer===undefined)fail('ordinary setup original observation absent');
+  // The intrinsic observes the actual Promise even if the separate observer attachment was faulty.
+  // Proof: replacing this join with a resolved acknowledgement completed before a deferred original; SC1 observer fulfillment alone failed (0/1/0).
+  const originalJoin:Promise<PromiseSettledResult<unknown>>=Promise.prototype.then.call(record.original,(value:unknown)=>({status:'fulfilled' as const,value}),(reason:unknown)=>({status:'rejected' as const,reason}));
+  const [originalOutcome,observerOutcomes]=await Promise.all([originalJoin,Promise.allSettled([record.observer])]);
+  record.originalOutcome=originalOutcome;record.observerOutcome=observerOutcomes[0];
+  // Proof: omitting this combined completion predicate admitted an independently rejected observer; SC1 independent observer rejection failed (0/1/0). Individual conjunct omissions are not claimed.
+  if(record.observerOutcome.status!=='fulfilled'||!record.observerSettled||!['fulfilled','rejected'].includes(record.phase))fail('ordinary setup original observation incomplete');
+  record.joined=true;
+ }
+}
+function reserveOwnedIntervalClear(kind:'sync'|'promise',receiver:unknown,args:readonly unknown[]){
+ const intervals=custody.operations.filter(record=>record.label==='owner.interval');
+ // Proof: omitting this combined binding admitted an unrelated interval; SC1 production interval first clear failed (0/1/0). Individual conjunct omissions are not claimed.
+ if(kind!=='sync'||receiver!==undefined||args.length!==1||intervals.length!==1||intervals[0].phase!=='returned'||args[0]!==intervals[0].returned||custody.operations.some(record=>record.label==='owner.clear'))fail('ordinary owned interval clear differs');
+ const record:OperationRecord={family:'operation',label:'owner.clear',kind,receiver,args:Object.freeze([...args]),phase:'entered',returned:undefined,original:undefined,observer:undefined,observerSettled:false,joined:false,cause:undefined};
+ const ticket=createTicket(record);
+ // createTicket synchronously assigned this ticket before insertion; only the internal bookkeeping is refined.
+ custody.operations.push(record as ReservedOperationRecord);return ticket;
+}
+`;
+}
+
+/** Reuses fixed historical ports, changing only the closed setup forwarding, known join, and epoch. */
+export function ordinarySetupCustodyPortSourcesV1(sourceRoot: string): ReadonlyMap<string, string> {
+  const ports = new Map(ordinaryCoupledPortSourcesV1(sourceRoot));
+  for (const [specifier, source] of ports) {
+    if (specifier === 'ordinary-hold-v1:ledger') {
+      // Proof: removing only the clear dispatcher failed first cleanup after STOP; removing only the setup/core exclusion admitted a setup label through the core bucket (separate SC1 triplets0/1/0).
+      let ledger = replaceOnce(
+        source,
+        "export function reserveOperation(label:string,kind:'sync'|'promise',receiver:unknown,args:readonly unknown[]){",
+        "export function reserveOperation(label:string,kind:'sync'|'promise',receiver:unknown,args:readonly unknown[]){\n if(label==='owner.clear')return reserveOwnedIntervalClear(kind,receiver,args);\n if(Object.hasOwn(setupLimits,label))fail('ordinary HOLD operation boundary differs');",
+      );
+      ledger = replaceOnce(
+        ledger,
+        'export function inspectKnownComposition(){return Object.freeze({failures:',
+        'export function inspectKnownComposition(){return Object.freeze({setup:inspectSetupLedger(),failures:',
+      );
+      ledger = replaceOnce(
+        ledger,
+        ' const settled=await Promise.allSettled(pending);',
+        ' // Proof: omitting this genuine setup join completed the inert known case before a deferred original; SC1 known composition join failed (0/1/0).\n await joinSetupOperations();\n const settled=await Promise.allSettled(pending);',
+      );
+      ports.set(specifier, ledger + ordinarySetupCustodyLedgerExtensionV1());
+    } else if (specifier === 'ordinary-hold-v1:controller') {
+      ports.set(
+        specifier,
+        source.replaceAll(ordinaryCoupledSourceEpochV1, ordinarySetupCustodySourceEpochV1),
+      );
+    } else if (specifier === 'ordinary-hold-v1:migration-call') {
+      const forwarded = replaceOnce(
+        source,
+        "const invoke=<Fn extends (...args:never[])=>unknown>(label:string,original:Fn,receiver:unknown,args:Parameters<Fn>):ReturnType<Fn>=>{const record=reserveOperation(label,'sync',receiver,args);try{return returnOperation(record,Reflect.apply(original,receiver,args) as ReturnType<Fn>);}catch(cause){throwOperation(record,cause);throw cause;}};",
+        '// The canonical provider and unchanged tuple fix this exact return ABI.\nconst invoke=<Fn extends (...args:never[])=>unknown>(label:string,original:Fn,receiver:unknown,args:Parameters<Fn>):ReturnType<Fn>=>invokeSetupSync(label,original,receiver,args) as ReturnType<Fn>;',
+      );
+      ports.set(
+        specifier,
+        forwarded.replace('import {inspectLedger,', 'import {invokeSetupSync,inspectLedger,'),
+      );
+    } else if (
+      [
+        'ordinary-hold-v1:setup-participant-fs',
+        'ordinary-hold-v1:setup-complete-fs',
+        'ordinary-hold-v1:setup-startup-fs',
+        'ordinary-hold-v1:setup-database-fs',
+        'ordinary-hold-v1:setup-frontend-fs',
+        'ordinary-hold-v1:setup-namespace-fs',
+        'ordinary-hold-v1:setup-complete-write',
+        'ordinary-hold-v1:setup-namespace-write',
+      ].includes(specifier)
+    ) {
+      let forwarded = replaceOnce(
+        source,
+        "const invoke=<Fn extends (...args:never[])=>Promise<unknown>>(label:string,original:Fn,receiver:unknown,args:Parameters<Fn>):ReturnType<Fn>=>{const record=reserveOperation(label,'promise',receiver,args);try{return attachPromise(record,Reflect.apply(original,receiver,args) as ReturnType<Fn>);}catch(cause){throwOperation(record,cause);throw cause;}};",
+        'const invoke=<Fn extends (...args:never[])=>Promise<unknown>>(label:string,original:Fn,receiver:unknown,args:Parameters<Fn>):ReturnType<Fn>=>invokeSetupPromise(label,original,receiver,args) as ReturnType<Fn>;',
+      );
+      forwarded = forwarded.replace(
+        'import {inspectLedger,',
+        'import {invokeSetupPromise,inspectLedger,',
+      );
+      ports.set(specifier, forwarded);
+    }
+  }
+  return ports;
+}
