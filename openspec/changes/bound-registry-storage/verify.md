@@ -9862,3 +9862,75 @@ All inventoried publication files passed the repository plaintext-secret scan;
 strict owning OpenSpec and whitespace checks passed. The normal commit hooks are
 required and no bypass is used. Publication preserves the existing source and
 explicitly unfinished lifecycle; it performs no host deployment or product migration.
+
+## Installed legacy backup failure and source supersession — 2026-11-08
+
+Previous-turn classification: progress. The complete sixteen-path PR 844 audit
+proved its pinned monitoring snapshot already covered by merged PR 833 and the
+reviewed verifier-output/mounted-config corrections on main. Six paths matched
+exactly; the other ten contained the reviewed fixes/tests/documentation. PR 844
+was closed as superseded, with its remote branch and clean detached worktree
+retained. This does not establish live monitoring adoption or complete Task 5.1.
+Audited main: `1815fd9df9e508156729e8f133f874be755a35ef`.
+
+Fresh non-root metadata on identity-verified h4 at 2026-11-07 22:22 UTC still
+reported all five required pressure/retirement/alert-sender units not found.
+The legacy backup timer was active/waiting, but its service was failed:
+`Result=exit-code`, `ExecMainCode=1`, `ExecMainStatus=1`, no restarts. The last
+attempt started at 02:37:09 UTC and exited at 02:38:09 UTC that day.
+
+A fixed two-minute, eighty-entry journal window contained six records. Bounded
+classification using only the legacy runner's fixed failure grammar identified
+`restic cat`, exit 130, timeout true, cancellation false. No raw journal message,
+command arguments, credentials or configuration contents were emitted or retained.
+Initial broad diagnostic categories matched nothing; those observations did not
+establish a cause. The later exact command-category result narrows the failure
+but does not establish why repository access timed out or prove a valid snapshot.
+
+Credential-free HEAD probes at 22:25:46 UTC resolved both address families for
+`hel1.your-objectstorage.com`; IPv4 and IPv6 each returned HTTP 200, in 0.022870
+and 0.026504 seconds respectively. No bucket, object, repository or authenticated
+request was made. Current DNS/TCP/TLS success cannot explain or rule out the
+earlier authenticated repository failure. Last verified backup age/integrity and
+fresh authenticated repository access remain unverified; no backup was restarted.
+
+At 22:27 UTC the registry Deployment had one desired, ready and available replica.
+Both root `puni-cluster` and child `platform` Flux suspensions were false. Platform
+was ready at generation/observedGeneration 46. Root was not ready, with
+`HealthCheckFailed`, generation 32 and observedGeneration -1. Root reconciliation
+was not changed; prior documented held-stage health behavior does not authorize
+removing holds. Replica availability does not prove every manifest/blob or an
+uncached image pull, nor does it prove how the earlier backup attempt recovered.
+
+Receipt: `/tmp/registry-installed-backup-observation-20261108.json`.
+This turn produced new failure/readiness evidence without activation. The source
+admission adapter still refuses; original tasks 4.2, 4.3, 5.1 and 5.2 remain open.
+No native/provisioning/profile or stopped privileged-proof work was resumed. No
+credential file was read, backup/retirement effect requested, service changed,
+notification sent, prod deployed or existing product migrated.
+
+### Authenticated repository diagnostic prepared, approval pending
+
+The concrete next diagnostic is the existing pinned Restic 0.19.1 executable
+`/root/.puni/tools/restic-0.19.1`, SHA-256
+`20d4142678d0d95ec11a4759def1b73fd9190abc9ca19e4b62d067c0b387e639`,
+invoked only as `--no-lock --no-cache cat config` for the exact already observed
+repository. A fixed remote wrapper checks machine identity and binary/config
+metadata, loads only the selected installed credential environment internally,
+sets a thirty-second deadline, and emits only nonsecret repository ID/format or a
+fixed failure category. It requests no snapshot, restore, prune, deletion, cache
+write, lock write or service change. This is a diagnostic, not production admission.
+
+Prepared wrapper: `/tmp/registry-restic-readonly-probe-20261108.py`, SHA-256
+`5dbdf8ac14127569c2e4d8e677db9db3cfa030843b407530e658c294f6186373`.
+Its pure environment parser passed seven synthetic checks, including refusal of
+foreign repository, duplicate/missing/ambiguous selected values and shell-shaped
+repository input. These do not certify actual root, provider or process boundaries.
+
+Automatic approval review rejected the command before execution: using protected
+credentials for an authenticated external repository request exceeded the user's
+earlier bounded identity/configuration authorization. No credential file or
+repository was accessed by this attempted probe. No alternate route or indirect
+execution was tried. Explicit approval was requested for this exact read-only
+probe; the request remains pending independently of the stopped native proof.
+The rejection is not evidence that the repository is unavailable or unsafe.
