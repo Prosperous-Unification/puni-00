@@ -1278,15 +1278,35 @@ make_job_fixture() {
   mkdir -p "$checkout/bin" "$checkout/apps/twilight-structure/twilight-dash/cli/src" \
     "$job_scratch/fake-bin" "$job_scratch/root/.dash" "$job_scratch/config-dir"
   cp "$lock_lib" "$checkout/bin/heavy-lock-lib.sh"
+  # The real catalogue, so a nested job's exclusive units are the production types' own (case 49).
+  mkdir -p "$checkout/infra/jobs"
+  cp "$repo_root/infra/jobs/catalogue.json" "$checkout/infra/jobs/catalogue.json"
   : >"$checkout/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts"
   cat >"$job_scratch/fake-bin/bun" <<'FAKE'
 #!/usr/bin/env python3
-import os, signal, subprocess, sys, time
+import json, os, signal, subprocess, sys, time
 arguments = sys.argv[1:]
 with open(os.environ['JOB_TEST_LOG'], 'a') as log:
     log.write('argv ' + ' '.join(arguments) + '\n')
     for name in ('HEAVY_LOCK_WAIT_SECONDS', 'HEAVY_LOCK_POLL_SECONDS'):
         log.write('dash-env %s=%s\n' % (name, os.environ.get(name, 'unset')))
+# `ops job admission` (case 49): the ledger's answer for the job, as `JOB_TEST_ADMISSION` sets it.
+if arguments[1:4] == ['ops', 'job', 'admission']:
+    job = arguments[arguments.index('--job') + 1]
+    answer = os.environ.get('JOB_TEST_ADMISSION', 'absent')
+    if answer == 'running':
+        print(json.dumps({'job': job, 'state': 'held', 'running': True}))
+    elif answer == 'absent':
+        print(json.dumps({'job': job, 'state': None, 'running': False}))
+    elif answer == 'malformed':
+        print(json.dumps({'job': job}))
+    elif answer == 'hang':
+        time.sleep(600)
+    elif answer == 'another-job':
+        print(json.dumps({'job': 'ffffffff-4b5a-4968-8776-a5b4c3d2e1f0', 'state': 'held', 'running': True}))
+    else:
+        sys.exit(int(answer))
+    sys.exit(0)
 mode = os.environ.get('JOB_TEST_DASH', 'run')
 if mode == 'signal':
     def answer(number, _frame):
@@ -1314,6 +1334,8 @@ job_inner='source "$1"; shift
 resolve_host_pool_config_path() { printf "%s\n" "$JOB_TEST_CONFIG"; }
 resolve_host_pool_root() { printf "%s\n" "$JOB_TEST_ROOT"; }
 resolve_heavy_lock_path() { printf "%s\n" "$JOB_TEST_LOCK"; }
+if [[ -n ${JOB_TEST_CGROUP:-} ]]; then read_own_cgroup() { printf "%s\n" "$JOB_TEST_CGROUP"; }; fi
+if [[ -n ${JOB_TEST_ADMISSION_TIMEOUT:-} ]]; then resolve_admission_timeout_seconds() { printf "%s\n" "$JOB_TEST_ADMISSION_TIMEOUT"; }; fi
 trap "printf \"exit\n\" >>\"\$JOB_TEST_TRAPS\"" EXIT
 run_heavy_job "$@"'
 run_job() {
@@ -1334,8 +1356,11 @@ trap_runs() { if [[ -e $job_scratch/traps ]]; then wc -l <"$job_scratch/traps" |
 run_job_suite() {
   local sh=$1 status config="$job_scratch/config-dir/host-pool.json" ledger="$job_scratch/root/.dash/resources.sqlite"
   printf '\nrun_heavy_job with %s\n' "$sh"
-  # A type inherited from whoever runs this suite would hide case 43.
-  unset HEAVY_LOCK_JOB_TYPE
+  # A type inherited from whoever runs this suite would hide case 43, and inside an admitted job
+  # (an enrolled gate running this suite) its job variables would make every case below nested.
+  unset HEAVY_LOCK_JOB_TYPE HEAVY_LOCK_LABEL
+  local inherited
+  for inherited in $(compgen -v DASH_JOB_); do unset "$inherited"; done
 
   # 40a. A configuration missing beside a ledger is a broken enrolled host: 70, neither mechanism.
   reset_job_logs
@@ -1563,6 +1588,140 @@ run_job_suite() {
   expect_status 64 "$status" "46d: a command without the '--' is refused"
   if [[ -e $job_scratch/ran ]] || dash_was_called; then fail "46d: something ran without the '--'"
   else pass "46d: nothing ran without the '--'"; fi
+
+  # 49. A launcher inside an admitted job (`dash-host-jobs` 6.10, S6D-A1) runs on that job's
+  # admission under `<outer label>/<own type>`: no lock, no ticket, no second `ops job run`. The
+  # enrolled configuration is present, as on the host where a gate payload starts it.
+  local job_id=0f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0 nested_env="$job_scratch/nested-env"
+  local in_scope="/user.slice/user-1000.slice/user@1000.service/app.slice/dash-job-$job_id.scope"
+  # shellcheck disable=SC2016 # Single quotes are the point: the payload expands these itself.
+  local report_label='printf "%s\n" "$HEAVY_LOCK_LABEL" >"$0"; exit "${1:-0}"'
+  local asked="argv $entry ops job admission --config $config --job $job_id"
+  reset_job_logs
+  rm -f "$nested_env"
+  status=0
+  DASH_JOB_ID=$job_id DASH_JOB_TYPE=gate HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP=$in_scope \
+    JOB_TEST_ADMISSION=running \
+    HEAVY_LOCK_JOB_TYPE=test-queued run_job "$sh" -- bash -c "$report_label" "$nested_env" \
+    2>"$job_scratch/stderr" || status=$?
+  expect_status 0 "$status" '49a: a nested launcher inside an admitted job runs'
+  expect_equal 'gate:abc/test-queued' "$(cat "$nested_env" 2>/dev/null)" \
+    '49a: the payload runs under the derived label'
+  if grep -q "heavy job: gate:abc/test-queued runs inside dash job $job_id" "$job_scratch/stderr"; then
+    pass '49a: the derived label is recorded'
+  else fail "49a: the derived label was not recorded: $(cat "$job_scratch/stderr")"; fi
+  if [[ $(grep '^argv ' "$job_scratch/dash.log" 2>/dev/null) != "$asked" ]]; then
+    fail "49a: the nested call asked Dash something but its admission: $(cat "$job_scratch/dash.log" 2>/dev/null)"
+  elif [[ -e $job_scratch/heavy.lock.d ]] || compgen -G "$job_scratch/heavy.lock.queue/*" >/dev/null ||
+    grep -q 'heavy lock:' "$job_scratch/stderr"; then
+    fail "49a: the nested call took or queued for the heavy lock: $(cat "$job_scratch/stderr")"
+  else pass '49a: no lock, no ticket and no second admission'; fi
+  reset_job_logs
+  status=0
+  DASH_JOB_ID=$job_id HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP="$in_scope" JOB_TEST_ADMISSION=running \
+    HEAVY_LOCK_JOB_TYPE=test-queued run_job "$sh" -- bash -c "$report_label" "$nested_env" 42 \
+    2>/dev/null || status=$?
+  expect_status 42 "$status" "49b: the nested payload's status is the caller's"
+  expect_equal 1 "$(trap_runs)" "49b: the caller's EXIT trap ran once"
+
+  # 49c-49e. A DASH_JOB_ID this process's cgroup does not carry is refused, so an inherited or
+  # hand-set one is no way around the lock (placement, not admission: S6D-A1). 49c reads the real
+  # `/proc/self/cgroup`, which no test runner shares with a dash-job scope; it proves the real
+  # path on cgroup-v2 hosts, which CI's ubuntu-24.04 and both gate hosts are.
+  local other_scope="/user.slice/user-1000.slice/user@1000.service/app.slice/dash-job-ffffffff-4b5a-4968-8776-a5b4c3d2e1f0.scope"
+  local scenario
+  for scenario in "49c:$job_id:" "49d:$job_id:$other_scope" "49e:not-a-job-id:$in_scope"; do
+    local label=${scenario%%:*} rest=${scenario#*:}
+    local forged_id=${rest%%:*} forged_cgroup=${rest#*:}
+    reset_job_logs
+    status=0
+    DASH_JOB_ID=$forged_id HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP=$forged_cgroup \
+      HEAVY_LOCK_JOB_TYPE=test-queued run_job "$sh" -- touch "$job_scratch/ran" \
+      2>"$job_scratch/stderr" || status=$?
+    expect_status 70 "$status" "$label: a DASH_JOB_ID outside its job's scope is refused"
+    if [[ -e $job_scratch/ran || -e $job_scratch/heavy.lock.d ]] || dash_was_called; then
+      fail "$label: something ran beside a forged job identity"
+    else pass "$label: nothing ran, locked or admitted"; fi
+  done
+  if grep -q "DASH_JOB_ID is not-a-job-id" "$job_scratch/stderr"; then pass '49e: the refusal names the variable'
+  else fail "49e: the refusal did not name the variable: $(cat "$job_scratch/stderr")"; fi
+
+  # 49f. A type that declares an exclusive unit is refused nested: it would share the enclosing
+  # job's unit or hold none of its own. 49g: an uncatalogued type is 64, as Dash refuses it.
+  reset_job_logs
+  status=0
+  DASH_JOB_ID=$job_id HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP="$in_scope" \
+    HEAVY_LOCK_JOB_TYPE=solver-image-publish run_job "$sh" -- touch "$job_scratch/ran" \
+    2>"$job_scratch/stderr" || status=$?
+  expect_status 70 "$status" '49f: a nested type with an exclusive unit is refused'
+  if grep -q 'solver-image-publish declares the exclusive unit dagger_engine' "$job_scratch/stderr" &&
+    [[ ! -e $job_scratch/ran ]] && ! dash_was_called; then
+    pass '49f: the refusal names the unit and nothing ran'
+  else fail "49f: the refusal did not name the unit, or something ran: $(cat "$job_scratch/stderr")"; fi
+  status=0
+  DASH_JOB_ID=$job_id HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP="$in_scope" \
+    HEAVY_LOCK_JOB_TYPE=not-catalogued run_job "$sh" -- touch "$job_scratch/ran" \
+    2>"$job_scratch/stderr" || status=$?
+  expect_status 64 "$status" '49g: a nested uncatalogued type is refused'
+
+  # 49h-49k. Admission, not only placement (task 6.10a, S6E-A3): a scope of the right name is what
+  # `systemd-run --user --scope --unit dash-job-<id>` forges, so the ledger must have that job
+  # running. 49h: no such job; 49i: Dash fails, answers malformed or about another job; 49k: an unenrolled host has
+  # no ledger and so no admitted job. 49a pins the accepted path asking exactly once.
+  local answer
+  for answer in absent malformed another-job 70; do
+    reset_job_logs
+    status=0
+    DASH_JOB_ID=$job_id HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP="$in_scope" JOB_TEST_ADMISSION=$answer \
+      HEAVY_LOCK_JOB_TYPE=test-queued run_job "$sh" -- touch "$job_scratch/ran" \
+      2>"$job_scratch/stderr" || status=$?
+    local case_label=49i
+    [[ $answer == absent ]] && case_label=49h
+    expect_status 70 "$status" "$case_label: a forged scope is refused when the ledger answers $answer"
+    if [[ -e $job_scratch/ran || -e $job_scratch/heavy.lock.d ]]; then
+      fail "$case_label: the payload ran on a forged scope ($answer)"
+    else pass "$case_label: nothing ran on a forged scope ($answer)"; fi
+    expect_equal "$asked" "$(grep '^argv ' "$job_scratch/dash.log" 2>/dev/null)" \
+      "$case_label: the ledger was asked about the job ($answer)"
+    if [[ $answer == absent ]]; then
+      if grep -q "the host pool ledger has no running job $job_id (state none)" "$job_scratch/stderr"; then
+        pass '49h: the refusal says no such job runs'
+      else fail "49h: the refusal did not say no such job runs: $(cat "$job_scratch/stderr")"; fi
+    elif [[ $answer != 70 ]]; then
+      if grep -q "for job $job_id, not an admission answer" "$job_scratch/stderr"; then
+        pass "49i: the refusal names the unusable answer ($answer)"
+      else fail "49i: the refusal did not name the unusable answer ($answer): $(cat "$job_scratch/stderr")"; fi
+    fi
+  done
+  # 49j. A Dash that never answers is bounded: refused 70 once the admission timeout passes.
+  reset_job_logs
+  status=0
+  local started=$SECONDS
+  DASH_JOB_ID=$job_id HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP="$in_scope" JOB_TEST_ADMISSION=hang \
+    JOB_TEST_ADMISSION_TIMEOUT=1 HEAVY_LOCK_JOB_TYPE=test-queued run_job "$sh" -- touch "$job_scratch/ran" \
+    2>"$job_scratch/stderr" || status=$?
+  expect_status 70 "$status" '49j: a Dash that does not answer is refused'
+  if (( SECONDS - started < 30 )) && [[ ! -e $job_scratch/ran ]]; then
+    pass '49j: refused within the bound, nothing ran'
+  else fail "49j: took $((SECONDS - started))s or the payload ran"; fi
+  if grep -q "Dash did not say within 1s whether job $job_id is running" "$job_scratch/stderr"; then
+    pass '49j: the refusal says Dash did not answer in time'
+  else fail "49j: the refusal did not say Dash timed out: $(cat "$job_scratch/stderr")"; fi
+
+  reset_job_logs
+  mv "$config" "$config.away"
+  status=0
+  DASH_JOB_ID=$job_id HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP="$in_scope" JOB_TEST_ADMISSION=running \
+    HEAVY_LOCK_JOB_TYPE=test-queued run_job "$sh" -- touch "$job_scratch/ran" \
+    2>"$job_scratch/stderr" || status=$?
+  mv "$config.away" "$config"
+  expect_status 70 "$status" '49k: a nested call on an unenrolled host is refused'
+  if [[ -e $job_scratch/ran || -e $job_scratch/heavy.lock.d ]] || dash_was_called; then
+    fail '49k: something ran or asked Dash on an unenrolled host'
+  else pass '49k: nothing ran, locked or asked Dash'; fi
+  if grep -q 'this host is not enrolled in a Dash host pool, so no Dash job admitted it' "$job_scratch/stderr"; then
+    pass '49k: the refusal names the unenrolled host'
+  else fail "49k: the refusal did not name the unenrolled host: $(cat "$job_scratch/stderr")"; fi
 }
 
 # 47. The launchers' own argument refusals, through the real scripts (review F6). Each is refused

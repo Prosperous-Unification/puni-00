@@ -33,15 +33,15 @@ export function captureActivities(dag: CoordinationDag): ReadonlyMap<string, Ste
   // Proof: bypassing omission rejection exposed an executable first ticket in
   // `omitted native prerequisites cannot satisfy undeclared WBS activity work`.
   if (
-    dag.definition.omittedIds.length !== 0 ||
-    dag.definition.vertices.some((vertex) =>
-      vertex.slots.some((slot) => slot.kind === 'omitted'),
+    dag.definition.omittedVertexIds.length !== 0 ||
+    dag.definition.vertexDeclarations.some((vertex) =>
+      vertex.childDiscoverySlots.some((slot) => slot.kind === 'omitted'),
     ) ||
     (dag.definition.entry.kind === 'roots' &&
-      dag.definition.entry.slots.some((slot) => slot.kind === 'omitted'))
+      dag.definition.entry.entryDiscoverySlots.some((slot) => slot.kind === 'omitted'))
   )
     throw new Error('coordination topology contains omitted activities');
-  for (const vertex of dag.definition.vertices) {
+  for (const vertex of dag.definition.vertexDeclarations) {
     // Proof: retaining caller data by reference borrowed another step's eligibility
     // across the initial WBS barrier in `shallow caller mutation cannot borrow`.
     const node = parseOrThrow(StepNode, structuredClone(vertex.data));

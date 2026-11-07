@@ -1,0 +1,21 @@
+{
+  "file": "postgres-parallel-fixture-20261104.json.gz",
+  "sha256": "fb2077f283bdcbbb0c36e846f0a2ab513d85e4bb0e97dbd9d9019eb43dd1c9f1",
+  "bytes": 56990,
+  "originalFiles": 78,
+  "originalBytes": 191620,
+  "nativeRecords": 21,
+  "sourceCommit": "bb464253b8ad711b999907700a54d0ee3033f234",
+  "sourceSha256": {
+    "observer.ts": "13ca74a41a44d0600eb7bdc00a73f404092258a4c5cb7b5c5eca6ab2f7921096",
+    "deadline.ts": "c433b7674b6c9fe6a17d1a7159b477c74b2cda85ea6bff25c5f7683f93f2e6bb",
+    "session.ts": "c3ae1c71c95411569616cd6f526d8972c29a22e276fe25da631e7bd8efde24c0",
+    "observer.db.test.ts": "0b40ecfecf4f4dfb970e8de9c75c71e20e799913f20dedf5de909e386fdca89c"
+  },
+  "finalPrivateTests": 54,
+  "productionControls": ["O9", "O10"],
+  "fixtureControl": "F3",
+  "allReadbackHashesVerified": true,
+  "originalFailureCause": "unproven; original raw catalog snapshot was not retained",
+  "scope": "Fixture staging and exact captured-worker disappearance only; no production guard change, general process-reaping guarantee or complete-provider acceptance."
+}

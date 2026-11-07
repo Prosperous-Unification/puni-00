@@ -491,11 +491,25 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // See openspec/changes/burokrat-workflow-binding-validation/evidence/inventory-repair.json.
     // Proof (2026-10-27): P2 removed only the five BE inputs from the full declaration;
     // production lint emitted fact check.be-01.test authority-selector mismatch.
+    // Proof (2026-10-30): this pilot refused the undeclared R2 checkpoint gzip (59 assertions).
+    // Removing only its exact row from either shipped policy made production classify-candidate
+    // exit 1 naming that archive; restoration emitted exact binary metadata. Both policies still
+    // refused a same-byte unlisted sibling; the configured full pilot passed 24/0 (430 assertions).
     // Proof (2026-11-02): CI run41370408113 failed this pilot on undeclared binary content at
     // apps/website/be-01/src/assets/country/dbip-country-lite-2026-11.mmdb.gz. Both original
     // policies reproduced that refusal through production classify-candidate; removing the exact
     // DB-IP declaration from either corrected policy restored it. Both corrected policies accepted
     // the archive as binary gzip and still refused a same-byte unlisted gzip control.
+    // Proof (2026-11-05): CI run41931100840 failed the prose-check case on the first
+    // undeclared PostgreSQL evidence gzip. Both original policies reproduced that refusal.
+    // Removing each of the ten exact rows independently from each corrected policy made
+    // production classify-candidate reject that named archive; every restoration emitted
+    // exact binary/gzip/consumer/external-authority metadata. Both policies still refused
+    // a same-byte unlisted sibling, and the unchanged prose-check case passed after repair.
+    // Proof (2026-11-05): both original policies refused the committed physical-store
+    // proposal gzip. Removing its exact row from either corrected policy reproduced
+    // that refusal; restoration emitted exact binary/gzip/consumer/external-authority
+    // metadata. Both policies rejected a same-byte unlisted sibling; key pilot cases passed.
     expect(invocation.exitCode, output(invocation)).toBe(0);
     expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
       mode: 'observe',

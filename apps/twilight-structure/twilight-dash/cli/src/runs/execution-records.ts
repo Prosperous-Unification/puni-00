@@ -31,7 +31,9 @@ import type {
   Revision,
   Run,
 } from './records';
+import type { Attempt3, RecoveryClosure } from './recovery-records';
 import type { RuntimeAcceptance, RuntimeIntent } from './runtime-records';
+import type { Attempt4, RecordedWrite } from './write-records';
 
 /** Nonrecursive retained execution checkpoint; wrappers preserve it through uncertainty and settlement. */
 export type Checkpoint =
@@ -89,7 +91,9 @@ export type AttemptState =
       readonly receipt: CommandReceipt;
       readonly quiescence: Quiescence;
     };
-export interface Attempt {
+export type Attempt = Attempt2 | Attempt3 | Attempt4;
+export type { Attempt3 } from './recovery-records';
+export interface Attempt2 {
   readonly version: 2;
   readonly attemptId: AttemptId;
   readonly identity: ActivityIdentity;
@@ -149,26 +153,26 @@ export type ExecutionSubmission =
 export interface ExecutionAck {
   readonly version: 1;
   readonly kind: 'execution';
-  readonly attempt: Attempt;
+  readonly attempt: Attempt2;
 }
 export interface ClaimStageAck {
   readonly version: 1;
   readonly kind: 'claim_staged';
   readonly intent: RuntimeIntent;
-  readonly attempt: Attempt;
+  readonly attempt: Attempt2;
 }
 export interface ClaimAcceptAck {
   readonly version: 1;
   readonly kind: 'claim_accepted';
   readonly acceptance: RuntimeAcceptance;
   readonly binding: ClaimBinding;
-  readonly attempt: Attempt;
+  readonly attempt: Attempt2;
 }
 export interface TurnStageAck {
   readonly version: 1;
   readonly kind: 'turn_staged';
   readonly intent: TurnIntent;
-  readonly attempt: Attempt;
+  readonly attempt: Attempt2;
 }
 export interface ScopeContext {
   readonly version: 1;
@@ -205,10 +209,21 @@ export type RecordedExecution =
       readonly context: ScopeContext;
       readonly reply: TurnStageAck;
     };
-export interface ExecutionHistory {
+export type ExecutionHistory = ExecutionHistory1 | ExecutionHistory2 | ExecutionHistory3;
+export interface ExecutionHistory3 extends Omit<ExecutionHistory2, 'version' | 'attempt'> {
+  readonly version: 3;
+  readonly attempt: Attempt;
+  readonly writes: readonly RecordedWrite[];
+}
+export interface ExecutionHistory2 extends Omit<ExecutionHistory1, 'version' | 'attempt'> {
+  readonly version: 2;
+  readonly attempt: Attempt2 | Attempt3;
+  readonly recoveries: readonly RecoveryClosure[];
+}
+export interface ExecutionHistory1 {
   readonly version: 1;
   readonly run: Run;
-  readonly attempt: Attempt;
+  readonly attempt: Attempt2;
   readonly executions: readonly RecordedExecution[];
   readonly consumptions: readonly RecordedConsumption[];
   readonly decisions: readonly Decision[];
@@ -218,18 +233,18 @@ export interface ExecutionHistory {
 
 export interface RecordedCompletion {
   readonly version: 1;
-  readonly reply: Attempt;
+  readonly reply: Attempt2;
   readonly attemptId: AttemptId;
   readonly completion: Completion;
 }
 
 export interface RecordedReceipt {
   readonly receipt: CommandReceipt;
-  readonly reply: Attempt;
+  readonly reply: Attempt2;
 }
 
 export interface RecordedConsumption {
   readonly decisionId: DecisionId;
   readonly wait: HumanWait;
-  readonly reply: Attempt;
+  readonly reply: Attempt2;
 }

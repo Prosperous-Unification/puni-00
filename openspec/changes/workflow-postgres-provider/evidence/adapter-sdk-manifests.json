@@ -1,0 +1,16 @@
+[
+  {
+    "file": "adapter-sdk-20261101.json.gz",
+    "bytes": 4295458,
+    "sha256": "0a0b1295272339bf8186968c5c599318639e069aed8c6a2e5e7e12b0fdddba9e",
+    "originalFiles": 68,
+    "originalBytes": 5322418
+  },
+  {
+    "file": "adapter-sdk-20261103.json.gz",
+    "bytes": 4424816,
+    "sha256": "d31e17f7f278a468ca44a7a5d5b32323044b28b140a7667448177844bf74e5fe",
+    "originalFiles": 82,
+    "originalBytes": 5564153
+  }
+]

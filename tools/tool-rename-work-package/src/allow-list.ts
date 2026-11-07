@@ -48,6 +48,10 @@ export const EXCLUDED_PATHS: readonly ExcludedPath[] = [
   },
   { glob: 'openspec/changes/**', reason: 'other changes and the archive are history' },
   { glob: 'docs/findings/**', reason: 'dated proof details' },
+  {
+    glob: 'docs/platform-map.md',
+    reason: 'a dated snapshot re-taken by hand; it names the proposed changes in both senses',
+  },
   { glob: 'docs/superpowers/**', reason: 'dated plans and specs' },
   { glob: 'docs/plans/**', reason: 'dated plans' },
   { glob: 'docs/wbs/testing/**', reason: 'dated test records' },

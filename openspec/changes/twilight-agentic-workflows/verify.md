@@ -3433,3 +3433,113 @@ and business-attempt/budget mapping, supported logical and physical recovery,
 operator transitions, remaining adapters/full conformance, second durable
 provider/transfer and CTT consumption. New outcome/recovery/history/format,
 inspection and engine choices remain unaccepted. No production deployment.
+
+## Logical recovery R2 approval — 2026-10-28
+
+The owner approved the recommended R2 authority/claim recovery design for
+implementation, tests and review: preserve and explicitly upgrade populated
+histories, deliver authority/claim recovery first and retain the documented
+legacy artifact/clock exceptions. Architectural main merge remains held.
+The [logical recovery verification record](recovery-verify.md) owns the fresh
+baseline, sandbox diagnosis and all subsequent RED/GREEN/R5 evidence. The
+[ordered plan](recovery-tasks.md) keeps complete write and physical recovery
+and parent S0/S7a requirements open. No new recovery implementation or proof
+is credited by this approval entry.
+
+## Delayed receiver preparation allowance repair — 2026-11-03
+
+Merged-main CI `41633385782` at `d7070b0133e66c2fcc093a93cf9026e0cfec7289`
+completed with a workspace failure. The sole failed Nx target was `wbs-be-01:test`:
+3904 passed, three skipped and one failed across 268 files. The delayed real
+integration case exhausted its 22000 ms marker-preparation window at 22110.33 ms.
+Its owned child remained running; the parent joined it and retained sanitized
+output. The exact slow inner CI operation and product SLO remain unknown. Full
+artifact `nx-gate-log-workspace-1` (ID `13233324914`) retains the original output;
+its uncompressed `nx-gate.log` SHA-256 is
+`02e28e087a2f4eb447c558382b6e5c678614c5e1624ef012d12587a0dc9355d2`.
+The original focused case passed locally in 26873.15 ms, which is not a claim
+that the CI failure was reproduced without the controlled fault.
+
+The fixture intentionally delays before actual integration. Its delayed role
+previously shared the undelayed 22000 ms preparation allowance. The repair adds
+that declared delay consistently to preparation, child and parent budgets while
+preserving their existing margins. The control now waits 23000 ms, beyond the
+undelayed preparation window, so omitting its allowance is exposed without relying
+on incidental CI load. The case checks the actual measured preparation exceeds
+22000 ms, then retains real receiver/database/listener ownership, signal and
+joined-directory cleanup assertions. Production boot/dispatch behavior, all other
+fixture profiles and the missing-marker 8000 ms deadline are unchanged.
+
+The existing real regression was strengthened before its helper repair. With
+23000 ms controlled preparation and the old budget, the actual case failed at
+`contained receiver phase expired: disposal-held` after 22050.41 ms: zero passed,
+one failed, with no syntax/setup failure. The repaired case passed once in
+41859.42 ms, total 45.56 seconds. Exact executed healthy source SHA-256:
+`75f2f2321a67a23d3e947c1064bf81d4ffa797211cb0325bec3a8c00c98393e1`.
+
+Two controlled dependency omissions were then observed through that same real
+Bun/SQLite/HTTP integration:
+
+- Removing only the preparation-delay allowance failed the named disposal-held
+  deadline at 22055.35 ms; child and parent ceilings remained repaired.
+- Setting the shared delay constant from 23000 to zero also reduced the marker,
+  child and parent budgets to 22000/40000/45000 ms. The actual integration and
+  owned child cleanup still executed; the case failed at the measured-preparation
+  assertion, `real marker appeared within the undelayed preparation allowance`,
+  at 18758.36 ms, rather than at a shortened deadline. This is not an isolated
+  sleep-only omission.
+
+Both controls restored the exact healthy source hash above in `finally`; their
+archived fault inputs and restoration receipts identify the single edit. These
+are observed behavioral failures, not source-text tests or manufactured markers.
+Inputs and raw logs live under `/tmp/runtime-dispatch-preparation-proof-20261103/`:
+`red.log`, `green.log`, `omit-allowance.log`, `omit-delay.log`, their exact test-file
+copies and `*-outcome.json` receipts. Adjacent Proof notes describe the observations.
+
+The delayed role now permits 45000 ms marker preparation, 63000 ms child and
+68000 ms parent; its configured worst parent path is 62400 ms. Undelayed held
+integration remains 22000/40000/45000 ms. The formatted test source is SHA-256
+`4a7bf06198ca5ec88a2e1abfda1c409e1268f1b87a0bcd2d6e98a345a37d3a7a`.
+Bun 1.4.4 transpiles that source and the executed healthy proof input to identical
+JavaScript, SHA-256 `caaa6f200ef650070049b23e66c2864429e86ac6d5cf7f9af2920aac0fb9d4f6`.
+`final-provenance.json` records that comments/formatting did not change the executed
+behavior; this identity check does not replace the subsequent final-source run.
+
+The complete ordinary boot-test file passed **14 cases, zero failures**, in
+160.67 seconds on the final formatted source. That includes the named missing-marker
+refusal, readonly health cause, dual failure and owned cleanup cases. Uncached
+backend lint passed in 1 minute 21 seconds; forced typecheck plus its module check
+passed in 16.9 seconds; build plus six dependencies passed in 4.2 seconds, including
+1587 bundled backend modules, the static restore bundle and OpenAPI emission.
+Touched formatting and scoped diff whitespace checks passed. Raw outputs are
+`full-boot.log`, `lint.log`, `typecheck.log` and `build.log` beside the proof inputs.
+
+Strict owning OpenSpec validation was run and **failed** on 13 overlong-requirement
+warnings. It is not reported as passing. A separate baseline project extracted
+from `d7070b0133e66c2fcc093a93cf9026e0cfec7289`, using its own change/config/schema
+bytes and the same installed validator, also failed with the exact same 13 warning
+identities. All are unchanged requirement-length warnings; there are no additional
+issues. Normal owning validation passed one change, zero failures, retaining those
+warnings. `openspec-baseline-comparison.json` stores the validator/archive hashes,
+validation outcomes and exact warning comparison; the raw `base-strict.json`,
+`current-strict.json` and `current-normal.json` reports are retained alongside it. No specification
+requirement or validator mode was changed to obtain that outcome.
+
+Independent review, normal-hook commit/publication, fresh CI and an exact-candidate
+host gate remain pending. The complete backend target has not been rerun locally;
+the fourteen-case file and owning static checks are the recorded local scope. This
+focused repair does not complete host lifecycle, business mapping, S0/S7a or the
+separate bound-registry-storage activation.
+
+## Preparation repair independent review — 2026-11-03
+
+Independent review of `dedc8ca82dc31a1498953d81ab87b91f7ff85153` approved the
+source with no Critical or Important findings. One Minor correction now describes
+the zero-delay constant mutation and its derived budget reductions precisely; the
+adjacent Proof comment agrees. This changes evidence wording only. The original
+executed inputs and receipts remain unchanged. Report:
+`/tmp/runtime-dispatch-preparation-review-20261103.md`.
+
+The original commit completed normal hooks and left a clean checkout. Fresh CI,
+publication and the exact committed-candidate host gate remain pending. Strict
+owning validation still fails on the thirteen unchanged baseline warnings above.

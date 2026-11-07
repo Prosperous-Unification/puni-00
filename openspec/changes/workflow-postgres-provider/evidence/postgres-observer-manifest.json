@@ -1,0 +1,17 @@
+{
+  "file": "postgres-observer-20261104.json.gz",
+  "sha256": "c4a8549783c95723b011e27714af8cf7b4f20c21039de751d6fc927872d7cba6",
+  "bytes": 142626,
+  "originalFiles": 150,
+  "originalBytes": 386551,
+  "sourceHead": "0a1658be27912903d7321b9942ccfa0b609aa016",
+  "sourceSha256": {
+    "deadline.ts": "c433b7674b6c9fe6a17d1a7159b477c74b2cda85ea6bff25c5f7683f93f2e6bb",
+    "deadline.test.ts": "2954eca3d1834ef4a8de635b7fcaa9db87646924bb9be219f54d25d6bda299f7",
+    "observer.ts": "13ca74a41a44d0600eb7bdc00a73f404092258a4c5cb7b5c5eca6ab2f7921096",
+    "observer.db.test.ts": "70498ca947ceed618964f6cf4fac0e7816e19804eb03ea1db3fc661614795a28"
+  },
+  "allReadbackHashesVerified": true,
+  "taskReview": "task-1-review-round-2.md",
+  "scope": "Private observer/deadline component only; no complete provider, session owner, transfer or deployment acceptance. Historical Python runner is preserved for provenance, never executed by this publication."
+}

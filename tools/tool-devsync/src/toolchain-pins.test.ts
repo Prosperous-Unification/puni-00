@@ -517,7 +517,7 @@ const OWNER_PACKAGES = {
   'di-bag': '0.5.2',
   'application-exception': '0.9.0',
   'caught-object-report-json': '15.0.0',
-  'configurable-tree-traversal': '0.12.0',
+  'configurable-tree-traversal': '0.13.0',
 } as const;
 
 // Proof: `"di-bag": "^0.4.0"` failed `are pinned to exact versions in the root manifest` on the
@@ -540,8 +540,8 @@ describe('the owner-maintained libraries', () => {
     // Proof: on 2026-09-25, pinning di-bag to 0.4.0 failed 'are pinned to exact
     // versions in the root manifest' on `expect(received).toEqual(expected)`;
     // weakening this assertion to an object type check made the same fault pass.
-    // Proof: changing only the CTT manifest pin to ^0.12.0 failed this exact-map
-    // assertion with expected 0.12.0 and received ^0.12.0 (2026-10-31).
+    // Proof: changing only the CTT manifest pin to ^0.13.0 failed this exact-map
+    // assertion, 25 pass and 1 fail, and the unedited tree passed 26 (2026-11-07).
     expect(pinned).toEqual({ ...OWNER_PACKAGES });
   });
 
@@ -569,16 +569,16 @@ describe('the owner-maintained libraries', () => {
         );
       return entry === null ? [] : [`${entry[1]}@${entry[2]}`];
     });
-    // Proof: changing only CTT's locked identity to @0.11.0 failed this assertion
-    // with expected @0.12.0 and received @0.11.0 (2026-10-31).
-    expect(copies).toEqual(['configurable-tree-traversal@0.12.0']);
+    // Proof: changing only CTT's locked identity to @0.12.0 failed this assertion,
+    // 25 pass and 1 fail, and the restored lock passed 26 (2026-11-07).
+    expect(copies).toEqual(['configurable-tree-traversal@0.13.0']);
   });
 
   it('installs the coordination library at the pinned version', () => {
     const fromRoot = createRequire(new URL('package.json', WORKSPACE));
     const { version } = fromRoot('configurable-tree-traversal/package.json') as { version: string };
-    // Proof: changing only installed CTT package metadata to 0.11.0 failed this
-    // runtime-resolution assertion with expected 0.12.0 and received 0.11.0 (2026-10-31).
+    // Proof: changing only the installed CTT package metadata to 0.12.0 failed this
+    // runtime-resolution assertion with expected 0.13.0 and received 0.12.0 (2026-11-07).
     expect(version).toBe(OWNER_PACKAGES['configurable-tree-traversal']);
   });
 

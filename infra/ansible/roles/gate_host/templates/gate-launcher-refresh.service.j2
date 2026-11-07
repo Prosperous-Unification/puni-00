@@ -1,0 +1,13 @@
+# Managed by infra/ansible/roles/gate_host; local edits are reverted on the next run.
+[Unit]
+Description=Move the gate launcher checkout to origin/main while no job runs from it (dash-host-jobs 6.9)
+Documentation=file://{{ puni_gate_launcher_checkout }}/docs/infra/gate-hosts.md
+
+[Service]
+Type=oneshot
+# Outside the checkout it moves, so the refresh never counts as a job working in it.
+WorkingDirectory={{ puni_gate_home }}
+Environment=PATH={{ puni_gate_service_path }}
+ExecStart=/bin/bash {{ puni_gate_launcher_checkout }}/bin/gate-launcher-refresh.sh {{ puni_gate_launcher_checkout }}
+# 75 is a job running from the checkout: the refusal is in the journal and the next hour retries.
+SuccessExitStatus=75
