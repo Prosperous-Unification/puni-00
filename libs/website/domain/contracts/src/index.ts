@@ -112,6 +112,7 @@ export interface SubmissionView {
 }
 
 export * from './analytics';
+export * from './analytics-region';
 export * from './brief';
 export * from './browser-check';
 export * from './conversation-admission';

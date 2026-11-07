@@ -19,6 +19,7 @@ export interface ScopingScenario {
   stopOnBrief: boolean;
   ending?: 'exploration';
   transportFault?: 'truncation' | 'refusal';
+  guardedSecurityTurn?: 1;
 }
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -45,6 +46,7 @@ export function parseScopingScenario(
       'stopOnBrief',
       'ending',
       'transportFault',
+      'guardedSecurityTurn',
     ])
   )
     refuse('fields');
@@ -75,8 +77,20 @@ export function parseScopingScenario(
     transportFault !== 'refusal'
   )
     refuse('transportFault');
+  const guardedSecurityTurn = script['guardedSecurityTurn'];
+  // Proof: removing the name restriction admitted the ordinary-script declaration in eval-guarded.test.ts.
+  if (
+    guardedSecurityTurn !== undefined &&
+    (name !== 'scoping-injection' ||
+      guardedSecurityTurn !== 1 ||
+      script['stopOnBrief'] !== false ||
+      ending !== undefined ||
+      transportFault !== undefined)
+  )
+    refuse('guardedSecurityTurn');
   const turns = script['turns'];
   if (!Array.isArray(turns) || turns.length > 7) return refuse('turn count');
+  if (guardedSecurityTurn !== undefined && turns.length !== 1) refuse('guardedSecurityTurn');
   const parsed = turns.map((turn: unknown): ScopingTurn => {
     if (!isRecord(turn) || !hasKeys(turn, ['message', 'answers', 'edit'])) return refuse('turn');
     const message = turn['message'];
@@ -125,6 +139,7 @@ export function parseScopingScenario(
   });
   return {
     protocol: 'scoping',
+    ...(guardedSecurityTurn === 1 ? { guardedSecurityTurn } : {}),
     ...(isStartingChoiceId(startingChoice) ? { startingChoice } : {}),
     ...(typeof description === 'string' ? { description } : {}),
     turns: parsed,

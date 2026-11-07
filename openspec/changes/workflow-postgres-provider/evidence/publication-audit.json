@@ -1,0 +1,223 @@
+{
+  "recordedAt": "2026-11-04T20:04:54.527Z",
+  "scope": "This session attachments only; unrelated worktrees not changed",
+  "baseline": "f158ed1b79d2b38b7a5d918290f44cedc1a00fa1",
+  "worktrees": [
+    {
+      "root": "/home/df/.codex/worktrees/d4f8/puni-00",
+      "head": "e277ca40a252340257be5e26965165ec887c5cbf",
+      "branch": "fix/mixed-rate-refusal-detail",
+      "status": "",
+      "prs": [
+        {
+          "number": 739,
+          "state": "MERGED",
+          "head": "e277ca40a252340257be5e26965165ec887c5cbf",
+          "url": "https://github.com/Prosperous-Unification/puni-00/pull/739"
+        }
+      ],
+      "headReachableFromMain": true
+    },
+    {
+      "root": "/home/df/.codex/worktrees/c66f/puni-00",
+      "head": "5ba6ccbdf98b0794dacfed441464fb28a8b8e5ed",
+      "branch": "feat/agentic-runtime-receiver",
+      "status": "",
+      "prs": [
+        {
+          "number": 649,
+          "state": "CLOSED",
+          "head": "5ba6ccbdf98b0794dacfed441464fb28a8b8e5ed",
+          "url": "https://github.com/Prosperous-Unification/puni-00/pull/649"
+        }
+      ],
+      "headReachableFromMain": true
+    },
+    {
+      "root": "/home/df/.codex/worktrees/f3cd/puni-00",
+      "head": "3ae7fb5e132d574d8fd13c75186a8297853d6585",
+      "branch": "feat/agentic-api-executor",
+      "status": "",
+      "prs": [
+        {
+          "number": 652,
+          "state": "CLOSED",
+          "head": "3ae7fb5e132d574d8fd13c75186a8297853d6585",
+          "url": "https://github.com/Prosperous-Unification/puni-00/pull/652"
+        }
+      ],
+      "headReachableFromMain": true
+    },
+    {
+      "root": "/home/df/.codex/worktrees/e0d5/puni-00",
+      "head": "ebda8a216c73a38050579bdc46f5da927223b3eb",
+      "branch": "feat/agentic-integration",
+      "status": "",
+      "prs": [
+        {
+          "number": 653,
+          "state": "CLOSED",
+          "head": "ebda8a216c73a38050579bdc46f5da927223b3eb",
+          "url": "https://github.com/Prosperous-Unification/puni-00/pull/653"
+        }
+      ],
+      "headReachableFromMain": true
+    },
+    {
+      "root": "/home/df/.codex/worktrees/969d/puni-00",
+      "head": "e7c2e9a25e21a01cd3184e607c7659bca3f33354",
+      "branch": "feat/agentic-runtime-codec",
+      "status": "",
+      "prs": [
+        {
+          "number": 655,
+          "state": "CLOSED",
+          "head": "e7c2e9a25e21a01cd3184e607c7659bca3f33354",
+          "url": "https://github.com/Prosperous-Unification/puni-00/pull/655"
+        }
+      ],
+      "headReachableFromMain": true
+    },
+    {
+      "root": "/home/df/.codex/worktrees/13fb/puni-00",
+      "head": "f978678f7b698cef085788559a1a94c2380231f6",
+      "branch": "feat/agentic-receipt-correspondence",
+      "status": "",
+      "prs": [],
+      "headReachableFromMain": true
+    },
+    {
+      "root": "/home/df/.codex/worktrees/4994/puni-00",
+      "head": "3fdc85cdcffa41e57936764c8de62a2557cf166b",
+      "branch": "feat/agentic-limits-integration",
+      "status": "",
+      "prs": [
+        {
+          "number": 660,
+          "state": "CLOSED",
+          "head": "3fdc85cdcffa41e57936764c8de62a2557cf166b",
+          "url": "https://github.com/Prosperous-Unification/puni-00/pull/660"
+        }
+      ],
+      "headReachableFromMain": true
+    },
+    {
+      "root": "/home/df/.codex/worktrees/de55/puni-00",
+      "head": "88638404f8f70daf12047611fa0182bbe6b08e53",
+      "branch": "feat/agentic-durable-execution",
+      "status": "",
+      "prs": [
+        {
+          "number": 742,
+          "state": "MERGED",
+          "head": "88638404f8f70daf12047611fa0182bbe6b08e53",
+          "url": "https://github.com/Prosperous-Unification/puni-00/pull/742"
+        }
+      ],
+      "headReachableFromMain": true
+    },
+    {
+      "root": "/home/df/.codex/worktrees/b8c9/puni-00",
+      "head": "4267f659a1a927478bc6adda5eb61f7be1423019",
+      "branch": "fix/ci-workspace-budget-120-20261030",
+      "status": "",
+      "prs": [
+        {
+          "number": 790,
+          "state": "MERGED",
+          "head": "4267f659a1a927478bc6adda5eb61f7be1423019",
+          "url": "https://github.com/Prosperous-Unification/puni-00/pull/790"
+        }
+      ],
+      "headReachableFromMain": true
+    },
+    {
+      "root": "/home/df/.codex/worktrees/5dd2/puni-00",
+      "head": "3cd6e2751cccdead5c7c442549c92cbccec8e9b9",
+      "branch": "",
+      "status": "A  apps/twilight-structure/twilight-dash/cli/src/runs/prepare-activity.test.ts\nA  apps/twilight-structure/twilight-dash/cli/src/runs/prepare-activity.ts\nA  apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/prepare-activity.db.test.ts\nA  apps/twilight-structure/twilight-dash/cli/src/runs/testing/preparation-dispatch-contract.ts\nA  openspec/changes/twilight-agentic-workflows/preparation-dispatch-design.md\nA  openspec/changes/twilight-agentic-workflows/preparation-dispatch-tasks.md\nM  openspec/changes/twilight-agentic-workflows/specs/twilight/run-coordination/spec.md\nM  openspec/changes/twilight-agentic-workflows/tasks.md\nM  openspec/changes/twilight-agentic-workflows/verify.md",
+      "prs": [],
+      "headReachableFromMain": true
+    },
+    {
+      "root": "/home/df/.codex/worktrees/9a53/puni-00",
+      "head": "3fe837fddc94803d7bdc34812877513e23d7edc5",
+      "branch": "feat/agentic-store-lifecycle",
+      "status": "",
+      "prs": [],
+      "headReachableFromMain": true
+    },
+    {
+      "root": "/home/df/.codex/worktrees/bfde/puni-00",
+      "head": "55365dfb164155d0f0ed05ba732349bddca77ee0",
+      "branch": "feat/agentic-runtime-state-reader",
+      "status": "",
+      "prs": [],
+      "headReachableFromMain": true
+    },
+    {
+      "root": "/home/df/.codex/worktrees/ac2c/puni-00",
+      "head": "9917286d18ae327182558f9eec17463fe01339ac",
+      "branch": "",
+      "status": "",
+      "prs": [
+        {
+          "number": 787,
+          "state": "OPEN",
+          "head": "9917286d18ae327182558f9eec17463fe01339ac",
+          "url": "https://github.com/Prosperous-Unification/puni-00/pull/787"
+        }
+      ],
+      "headReachableFromMain": false
+    }
+  ],
+  "oldStaging": [
+    {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runs/prepare-activity.test.ts",
+      "blob": "c05c212d3e5cc745ff0a21a7c7a6df4d4dacd71d",
+      "exactBytesInPublishedHistory": true
+    },
+    {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runs/prepare-activity.ts",
+      "blob": "9e0f3d6ff7d2339b91b8d2f666c5416a14140eba",
+      "exactBytesInPublishedHistory": true
+    },
+    {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/prepare-activity.db.test.ts",
+      "blob": "44ed438b162a475fd763edfa1810be09b99e389d",
+      "exactBytesInPublishedHistory": true
+    },
+    {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runs/testing/preparation-dispatch-contract.ts",
+      "blob": "407d565a7be3916d9af15179796a2af4af3a7a48",
+      "exactBytesInPublishedHistory": true
+    },
+    {
+      "path": "openspec/changes/twilight-agentic-workflows/preparation-dispatch-design.md",
+      "blob": "56e054283d8d28cb1099ed5d4fa5329da2acd546",
+      "exactBytesInPublishedHistory": true
+    },
+    {
+      "path": "openspec/changes/twilight-agentic-workflows/preparation-dispatch-tasks.md",
+      "blob": "42f580210dc6952a5f59291af593fc4dcb5e7ec6",
+      "exactBytesInPublishedHistory": true
+    },
+    {
+      "path": "openspec/changes/twilight-agentic-workflows/specs/twilight/run-coordination/spec.md",
+      "blob": "6d3fe718661ca3e794981e3a6855710664eff6ae",
+      "exactBytesInPublishedHistory": true
+    },
+    {
+      "path": "openspec/changes/twilight-agentic-workflows/tasks.md",
+      "blob": "27e144ab9949d9fc56c3bc67700f2c82630f791a",
+      "exactBytesInPublishedHistory": true
+    },
+    {
+      "path": "openspec/changes/twilight-agentic-workflows/verify.md",
+      "blob": "580140aceab34b5a3ad0f1aa32202d269b9bc765",
+      "exactBytesInPublishedHistory": true
+    }
+  ],
+  "implementationPr": 787,
+  "implementationHead": "9917286d18ae327182558f9eec17463fe01339ac"
+}

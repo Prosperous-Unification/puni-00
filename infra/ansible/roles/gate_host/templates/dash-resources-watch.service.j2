@@ -1,0 +1,21 @@
+# Managed by infra/ansible/roles/gate_host; local edits are reverted on the next run.
+[Unit]
+Description=Twilight Dash resources watch for the host pool (dash-host-jobs 6.7)
+Documentation=file://{{ puni_gate_launcher_checkout }}/apps/twilight-structure/twilight-dash/cli/docs/resources.md
+# Skipped, not failed, until `ops pool init` creates the ledger (task 6.4).
+ConditionPathExists={{ puni_gate_pool_ledger }}
+
+[Service]
+Type=simple
+WorkingDirectory={{ puni_gate_launcher_checkout }}
+Environment=PATH={{ puni_gate_service_path }}
+Environment=TMPDIR={{ puni_gate_tmpdir }}
+ExecStart={{ puni_gate_bun_path }} {{ puni_gate_dash_entrypoint }} resources watch --config {{ puni_gate_pool_config }}
+Restart=on-failure
+RestartSec=30
+# The concurrent-mode singleton guard's holder must outlive a restarted watch; the default
+# control-group mode would kill it with the watch (S6B-A8).
+KillMode=process
+
+[Install]
+WantedBy=default.target

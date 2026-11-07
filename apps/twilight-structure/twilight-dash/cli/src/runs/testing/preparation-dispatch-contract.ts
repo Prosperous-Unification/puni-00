@@ -509,6 +509,7 @@ export function preparationDispatchContract(
               const reply = await context.stores.runs.recordExecution(guard, command);
               if (command.fact.kind !== 'preparation_intended' || reply.kind !== 'applied')
                 return reply;
+              if (reply.value.version !== 2) throw new Error('expected predecessor attempt');
               if (fault === 'capacity')
                 return { ...reply, value: { ...reply.value, holdsCapacity: false } };
               if (fault === 'checkpoint')

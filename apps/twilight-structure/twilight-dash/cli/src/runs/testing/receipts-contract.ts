@@ -1,3 +1,5 @@
+import { deepEqual } from 'node:assert/strict';
+
 import { parseOrThrow } from '@shared/validation';
 import { describe, expect, test } from 'bun:test';
 
@@ -127,7 +129,7 @@ export function receiptsContract(name: string, create: () => Promise<OutcomeFixt
         });
         const history = await runs.readExecutionHistory(setup.run.runId, setup.admission.attemptId);
         expect(history.completion?.reply.state.kind).toBe('outcome_pending_progress');
-        expect(history.receipt?.reply).toEqual(terminal);
+        deepEqual(history.receipt?.reply, terminal);
         expect(await runs.readRun(setup.run.runId)).toEqual(before);
       } finally {
         await stores.close();

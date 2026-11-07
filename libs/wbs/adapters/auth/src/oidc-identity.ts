@@ -45,9 +45,10 @@ export function oidcIdentityFromClaims(
     scopes: SCOPES.filter((scope) => granted.has(scope)),
     // Presence, not content: an empty claim is still a browser token.
     // Proof: answering true always made `tells a token without the groups
-    // claim from one with an empty claim` (`oidc-identity.test.ts`) and four
-    // cases of `fleet-credential.controller.db.test.ts` fail; an unlinked
-    // machine token minted an account (watched 2026-10-20).
+    // claim from one with an empty claim` (`oidc-identity.test.ts`) fail, and
+    // five cases of `fleet-credential.controller.db.test.ts`: an unlinked
+    // machine token minted an account (watched 2026-10-20), a retired link's
+    // row admitted its token (watched 2026-10-25).
     groupsClaimed: Object.hasOwn(claims, options.groupsClaim),
   };
 }

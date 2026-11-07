@@ -20,7 +20,7 @@ of physical capacity.
 ## Non-Goals
 
 - Claiming provider coverage before the corresponding implementation proofs pass.
-- Changing schedule calculations, WBS claim occupancy, or the meaning of step progress.
+- Changing schedule calculations, WBS claim occupancy, or the meaning of step progress. (superseded for a resource with a directory capacity by `wbs-shared-occupancy` design S9: its claims count across the organization and its schedule pool is clamped).
 - Treating a claim expiry, process exit or directory age as proof of disk release.
 - Deleting unregistered resources, a laptop-wide janitor, or claiming unmanaged agent
   commands are constrained.
@@ -29,7 +29,9 @@ of physical capacity.
 ## Constraints
 
 - Reuse Dash's reservation and settlement authority; WBS holds a read projection and
-  authenticated requests, not a competing capacity ledger.
+  authenticated requests, not a competing capacity ledger. A directory capacity
+  (`wbs-shared-occupancy` S1, S9) is WBS's logical ledger of declared units, not Dash's
+  physical one; neither reads the other's numbers.
 - Preserve required work and evidence, stop writers and resolve dependent resources before
   destructive cleanup. Unknown evidence keeps capacity held.
 - Runtime admission counts unreleased reservations across projects on the same host pool.

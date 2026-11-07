@@ -3,21 +3,48 @@
 Dash owns the runtime admission authority ([`src/authority`](src/authority/authority-store.ts))
 and exposes the local commands below, plus the managed resource runtime:
 
-| Command                                                                                                                                                                   | What it does                                                                                                                                                                                     |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `bootstrap-authority <repository>`                                                                                                                                        | the only command that creates an authority; the other authority commands refuse an absent one                                                                                                    |
-| `inspect-authority <repository> [--session <id>]`                                                                                                                         | prints the authority state, read-only                                                                                                                                                            |
-| `recover-publication <repository> --integration-id <id>`                                                                                                                  | finishes an interrupted publication from its durable record                                                                                                                                      |
-| `submit-admission <repository> <packet-json> <staged\|committed> <revision-or-base>`                                                                                      | freezes a bound packet's candidate and prints its submission report; judges the packet through Twilight Burokrat's [admission judge](../../twilight-burokrat/cli/src/judge-facade.ts)            |
-| `render-observation-units <layout.json> <new-dir>`                                                                                                                        | renders the uninstalled `twilight-dash-observation.{service,timer}` units and their `runtime.sha256` into a new directory; see the [observation service runbook](src/activation/units/README.md) |
-| `run-activation-checks --candidate-repository <checkout> --candidate-sha <sha> --candidate-policy <path> --check-runs <new-dir>`                                          | runs a candidate's activation checks and writes the CheckRun ledger both Burokrat preparers take as `--check-runs`; see [activation checks](#activation-checks)                                  |
-| `bootstrap-observation`, `migrate-observation`                                                                                                                            | create or migrate the observation store; see [observation store](#observation-store)                                                                                                             |
-| `plan-enrollment`                                                                                                                                                         | delegates enrollment planning to the existing fleet CLI; see [`plan-enrollment`](#plan-enrollment)                                                                                               |
-| `record-progress`, `record-progress-v2`                                                                                                                                   | record operator progress assertions as a receipt; see [`record-progress`](#record-progress)                                                                                                      |
-| `account-outcomes --repository <path> --since <instant> --until <instant> --rate-card <path> --output <new-dir> [--claude-projects <dir>]... [--codex-sessions <dir>]...` | writes the period's efficiency breakdown: cost per accepted outcome from harness logs; see [`account-outcomes`](#account-outcomes)                                                               |
-| `report-capacity --config <owner-only file>`                                                                                                                              | measures each bound resource through its compute provider and reports it to WBS until a refusal; see [`report-capacity`](#report-capacity)                                                       |
-| `mcp token --resource <url> (--key-file <path> \| --assertion-file <path> \| --github-actions-audience <aud>) [--run <id>]`                                               | prints a fresh WBS MCP bearer as a header map for Claude Code's `headersHelper`, from an API key or a workload token; see [`mcp token`](#mcp-token)                                              |
-| `pool import <pool-keys.json> --store <directory>`                                                                                                                        | stores an agent pool's keys for `mcp token`, each agent with its own MCP config and run, after every key issued a token; see [`pool import`](#pool-import)                                       |
+| Command                                                                                                                                                                   | What it does                                                                                                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bootstrap-authority <repository>`                                                                                                                                        | the only command that creates an authority; the other authority commands refuse an absent one                                                                                                                            |
+| `inspect-authority <repository> [--session <id>]`                                                                                                                         | prints the authority state, read-only                                                                                                                                                                                    |
+| `recover-publication <repository> --integration-id <id>`                                                                                                                  | finishes an interrupted publication from its durable record                                                                                                                                                              |
+| `submit-admission <repository> <packet-json> <staged\|committed> <revision-or-base>`                                                                                      | freezes a bound packet's candidate and prints its submission report; judges the packet through Twilight Burokrat's [admission judge](../../twilight-burokrat/cli/src/judge-facade.ts)                                    |
+| `render-observation-units <layout.json> <new-dir>`                                                                                                                        | renders the uninstalled `twilight-dash-observation.{service,timer}` units and their `runtime.sha256` into a new directory; see the [observation service runbook](src/activation/units/README.md)                         |
+| `run-activation-checks --candidate-repository <checkout> --candidate-sha <sha> --candidate-policy <path> --check-runs <new-dir>`                                          | runs a candidate's activation checks and writes the CheckRun ledger both Burokrat preparers take as `--check-runs`; see [activation checks](#activation-checks)                                                          |
+| `bootstrap-observation`, `migrate-observation`                                                                                                                            | create or migrate the observation store; see [observation store](#observation-store)                                                                                                                                     |
+| `plan-enrollment`                                                                                                                                                         | delegates enrollment planning to the existing fleet CLI; see [`plan-enrollment`](#plan-enrollment)                                                                                                                       |
+| `record-progress`, `record-progress-v2`                                                                                                                                   | record operator progress assertions as a receipt; see [`record-progress`](#record-progress)                                                                                                                              |
+| `account-outcomes --repository <path> --since <instant> --until <instant> --rate-card <path> --output <new-dir> [--claude-projects <dir>]... [--codex-sessions <dir>]...` | writes the period's efficiency breakdown: cost per accepted outcome from harness logs; see [`account-outcomes`](#account-outcomes)                                                                                       |
+| `report-capacity --config <owner-only file>`                                                                                                                              | measures each bound resource through its compute provider and reports it to WBS until a refusal; see [`report-capacity`](#report-capacity)                                                                               |
+| `mcp token --resource <url> (--key-file <path> \| --assertion-file <path> \| --github-actions-audience <aud>) [--run <id>]`                                               | prints a fresh WBS MCP bearer as a header map for Claude Code's `headersHelper`, from an API key or a workload token; see [`mcp token`](#mcp-token)                                                                      |
+| `pool import <pool-keys.json> --store <directory>`                                                                                                                        | stores an agent pool's keys for `mcp token`, each agent with its own MCP config and run, after every key issued a token; see [`pool import`](#pool-import)                                                               |
+| `ops job run --config <path> --type <id> [--label <lane>] [--wait-seconds <n>] [--poll-seconds <n>] -- <command>...`                                                      | admits a host job from the host pool, runs it measured in its own systemd user scope and exits with its status; see [host jobs](docs/resources.md#ops-pool-and-ops-job-slice-3)                                          |
+| `ops job status --config <path>`                                                                                                                                          | prints the running host jobs, then the waiters oldest first; see [host jobs](docs/resources.md#ops-pool-and-ops-job-slice-3)                                                                                             |
+| `ops job admission --config <path> --job <id>`                                                                                                                            | prints `{"job","state","running"}`: whether that host job's payload runs now; a nested launcher asks before it runs on the job's admission (task 6.10a); see [host jobs](docs/resources.md#ops-pool-and-ops-job-slice-3) |
+| `ops job calibrate --config <path> --type <id> [--label <lane>] [--wait-seconds <n>] [--poll-seconds <n>] -- <command>...`                                                | waits for the pool to drain, holds all of it, runs the job with no memory bound and records a calibration; see [calibration](docs/resources.md#calibration-proposal-and-audit-slice-4)                                   |
+| `ops job propose --config <path> --type <id> [--host-class <class>] [--toolchain <name>]`                                                                                 | prints the replacement catalogue entry from the nearest-rank p95 of comparable run records, or refuses naming the count; writes nothing; see [calibration](docs/resources.md#calibration-proposal-and-audit-slice-4)     |
+| `ops job audit --config <path> [--now <instant>]`                                                                                                                         | names every envelope drift and exits 1, or prints `no drift`; see [calibration](docs/resources.md#calibration-proposal-and-audit-slice-4)                                                                                |
+| `ops job render-audit-units --config <path> --bun <path> --dash <path> --checkout <path> --output-directory <dir>`                                                        | writes the weekly systemd user timer and service for `ops job audit`; installs nothing; see [calibration](docs/resources.md#calibration-proposal-and-audit-slice-4)                                                      |
+| `ops pool init --config <path>`, `ops pool inspect --config <path>`                                                                                                       | initialize the host pool (the resource ledger and its run records), or print it as JSON; see [host jobs](docs/resources.md#ops-pool-and-ops-job-slice-3)                                                                 |
+
+`twilight-dash --help`, `twilight-dash help <command>` and `twilight-dash <command> --help` print
+help generated from the [command-line parser](src/cli-parser.ts) on stdout and exit 0;
+`twilight-dash completion bash|zsh|fish` prints a shell completion script. Every command's grammar
+is typed there and refused before any handler runs, so a refused line reads no file and opens no
+store or connection. A refused command line prints one `error: ` line on stderr and exits 1 (64
+for an `ops` command other than `ops release`): `Unsupported Dash command: <name>`, or the usage of the deepest command it
+names (`usage: twilight-dash resources cleanup …`) with the reason, which never quotes an operand.
+Options accept `--flag=value` as well as `--flag value`, in any order around the positional
+operands: the generated usage lists options first, while the table above and the runbooks show the
+operands first, and both parse.
+
+## Release operations
+
+`ops release plan|run TARGET --config PATH --environment development|production --profile dev-fast|full`
+selects an owner-configured adapter with optional `--ref REF` and `--public-ref REF` overrides.
+`dev-fast` is development-only and carries a distinct acceptance claim from `full`.
+See [release operations](docs/releases.md) for protected configuration, source selection and the
+adapter protocol. `ops release --help` prints the command grammar without loading any configuration.
 
 ## Managed resource cleanup
 
@@ -26,6 +53,8 @@ directories, Git worktrees and their commands through a separate durable reserva
 Start with the [resource runbook](docs/resources.md) for the current-account setup and cleanup inspection requirements,
 owner-only enrollment, automatic Claude/Codex command wrappers, copied generated dependencies,
 WBS authority binding and truthful cleanup blockers. Existing unmanaged sessions are untracked.
+The same ledger is the host pool that admits host jobs (gates, release builds) by cores, memory,
+disk and exclusive units, host-locally: see [host pool and host jobs](docs/resources.md#host-pool-and-host-jobs).
 
 ## Activation controller
 
@@ -172,7 +201,10 @@ continues producing schema 1 for the existing conversion workflow.
 ## `report-capacity`
 
 Measures the resources a tenant's hosts fulfil and reports each to WBS as a capacity report
-(`openspec/changes/compute-providers` P8 to P11; port in [`src/compute`](src/compute/provider.ts)):
+(`openspec/changes/compute-providers` P8 to P11; port in [`src/compute`](src/compute/provider.ts)),
+through WBS's MCP endpoint with its API key, as every machine calls WBS
+(`openspec/changes/wbs-mcp-agent-surface` M9, M12; be-01's `/api` refuses the key itself
+`401 machine_bearer_not_accepted`):
 
 ```sh
 bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts report-capacity --config /path/to/reporter.json
@@ -184,8 +216,8 @@ credential:
 
 ```json
 {
-  "schemaVersion": 1,
-  "wbsOrigin": "https://wbs.example",
+  "schemaVersion": 2,
+  "mcpResource": "https://wbs.example/mcp",
   "credential": "<wbs_mk_ API key of an agent person>",
   "cadenceSeconds": 300,
   "instances": [
@@ -216,8 +248,10 @@ credential:
 }
 ```
 
-- `wbsOrigin` is an origin only: `https:`, or `http:` on loopback. `cadenceSeconds` defaults to
-  300 (30 to 86,400). A resource is bound once in the whole file.
+- `mcpResource` is WBS's MCP endpoint (`MCP_PUBLIC_URL`): `https:`, or `http:` on loopback,
+  with no user info, query or fragment. Schema version 1 named a `wbsOrigin` for `/api`; it is
+  refused `config_malformed`. `cadenceSeconds` defaults to 300 (30 to 86,400). A resource is
+  bound once in the whole file.
 - `ssh_host` reaches `host` through the `sshTransportFile` that fleet discovery uses
   ([`readSshTransport`](../../../../tools/tool-fleet/src/ssh-transport.ts)): the remote user, an
   owner-only `known_hosts` pinning `host`, and the agent in `SSH_AUTH_SOCK`. `ssh` must be on
@@ -253,16 +287,23 @@ credential:
   `provider_not_implemented` (`kubernetes`, whose adapter is a stub answering
   `not_implemented`), `unsupported_measure`, and the SSH transport's own refusals.
 
-Each tick observes every binding and `PUT`s one report per binding with `cadenceSeconds`; a tick
-runs every cadence and right after a run starts or ends. Each report prints one JSON line on
-stdout (instance, resource, `observedAt`, outcome, evidence or reason, WBS's answer). An
-unreachable host (connection refused, timeout, host-key mismatch, authentication failure, name
-or route fault) is reported as `unreachable`; any other answer the adapter cannot parse ends the
-command with that error. The command exits 1 with one `error:` line on: three consecutive
-`report_superseded` on one binding (`another_reporter`), any `4xx` or redirect (`refused`, with
-the status and WBS's error code), or a `5xx` or transport fault to WBS that repeats on the retry
-one cadence later (`wbs_unavailable`). The credential appears only in the `Authorization`
-header; no output, refusal or error carries it.
+The reporter takes an access token at `<mcpResource>/oauth/token` with its key
+(`client_credentials`, the key as HTTP Basic, as [`mcp token`](#mcp-token) does) and renews it
+on a 401; it never sends the key anywhere else, and never follows a redirect. Each tick observes
+every binding and calls the capacity report tool
+(`putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report`) once per binding with
+`cadenceSeconds`; a tick runs every cadence and right after a run starts or ends. Each report
+prints one JSON line on stdout (instance, resource, `observedAt`, outcome, evidence or reason,
+WBS's answer). An unreachable host (connection refused, timeout, host-key mismatch,
+authentication failure, name or route fault) is reported as `unreachable`; any other answer the
+adapter cannot parse ends the command with that error. The command exits 1 with one `error:`
+line on: three consecutive `report_superseded` on one binding (`another_reporter`); any refusal
+be-01 relays (`refused`, with the status and WBS's error code); mcp-01's
+`machine_credential_refused` (a revoked or expired key, also when the token endpoint refuses it
+`invalid_client`) or `insufficient_scope` (`refused`); or a call that got no answer, or that
+mcp-01 left uncompleted for another reason (`rate_limited`, `server_error`, …), repeating on the
+retry one cadence later (`wbs_unavailable`). An answer it cannot attribute ends the command at
+once. No output, refusal or error carries the key.
 
 ## `mcp token`
 

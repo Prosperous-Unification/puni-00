@@ -50,6 +50,7 @@ import type { AttemptGuard, RunStore, StoreReply } from '../run-store';
 import { acceptRuntimeReceipt } from '../runtime-history';
 import type { RuntimeIntent } from '../runtime-records';
 import { createMemoryStores } from './memory-stores';
+import type { HistoricalRunStore } from './predecessor-fixture';
 
 export class FixtureClock implements WallClock {
   #timestamp = 1000;
@@ -129,15 +130,25 @@ export async function createAdmissionFixture(options: {
   };
 }
 
-export interface OutcomeFixture {
-  readonly runs: RunStore;
+export interface OutcomeFixture<
+  Runs extends Omit<
+    HistoricalRunStore,
+    'beginRecovery' | 'stageRecoveryFence' | 'recordRecoveryFence' | 'resolveRecovery'
+  > = RunStore,
+> {
+  readonly runs: Runs;
   readonly artifacts: ArtifactStore;
   readonly ownership: { readonly epoch: number };
   readonly clock: FixtureClock;
   close(): Promise<void>;
 }
 
-export async function prepareAttempt(stores: OutcomeFixture) {
+export async function prepareAttempt<
+  Runs extends Omit<
+    HistoricalRunStore,
+    'beginRecovery' | 'stageRecoveryFence' | 'recordRecoveryFence' | 'resolveRecovery'
+  > = RunStore,
+>(stores: OutcomeFixture<Runs>) {
   const ownership = unwrapReply(
     await stores.runs.acquireOwnership(ownerId('owner'), stores.ownership.epoch),
   );
@@ -250,9 +261,18 @@ export function createRunGuard(guard: AttemptGuard) {
 }
 
 /** Admits a real accepted binding and schema-valid WBS observation without preparing a session. */
-export async function admitExecution(
-  stores: OutcomeFixture,
-  context?: { readonly ownership: Ownership; readonly suffix: string },
+export async function admitExecution<
+  Runs extends Omit<
+    HistoricalRunStore,
+    'beginRecovery' | 'stageRecoveryFence' | 'recordRecoveryFence' | 'resolveRecovery'
+  > = RunStore,
+>(
+  stores: OutcomeFixture<Runs>,
+  context?: {
+    readonly ownership: Ownership;
+    readonly suffix: string;
+    readonly occurrenceId?: string;
+  },
   manifestChanges: Partial<Manifest> = {},
 ) {
   const suffix = context === undefined ? '' : '-' + context.suffix;
@@ -293,7 +313,7 @@ export async function admitExecution(
     identity: {
       version: 1,
       runId: run.runId,
-      occurrenceId: 'occurrence',
+      occurrenceId: context?.occurrenceId ?? 'occurrence',
       operationKey: 'operation',
     },
     ordinal: 1,
@@ -457,7 +477,10 @@ export async function admitExecution(
   };
 }
 
-export async function retainClaimReceipt(stores: OutcomeFixture, intent: RuntimeIntent) {
+export async function retainClaimReceipt(
+  stores: Pick<OutcomeFixture, 'artifacts'>,
+  intent: RuntimeIntent,
+) {
   const { scope, operation } = parseCanonicalRuntimeRequest(intent.canonicalRequest);
   if ('kind' in operation || operation.action.kind !== 'claim')
     throw new Error('fixture claim required');
@@ -485,11 +508,20 @@ export async function retainClaimReceipt(stores: OutcomeFixture, intent: Runtime
 }
 
 /** Prepares a retained session through the verified binding and target operation. */
-export async function prepareSession(
-  stores: OutcomeFixture,
-  context?: { readonly ownership: Ownership; readonly suffix: string },
+export async function prepareSession<
+  Runs extends Omit<
+    HistoricalRunStore,
+    'beginRecovery' | 'stageRecoveryFence' | 'recordRecoveryFence' | 'resolveRecovery'
+  > = RunStore,
+>(
+  stores: OutcomeFixture<Runs>,
+  context?: {
+    readonly ownership: Ownership;
+    readonly suffix: string;
+    readonly occurrenceId?: string;
+  },
 ) {
-  const setup = await admitExecution(stores, context);
+  const setup = await admitExecution<Runs>(stores, context);
   const guard = await setup.currentGuard();
   const owner = { ownerId: setup.ownership.ownerId, epoch: setup.ownership.epoch };
   const preparedIntent = unwrapReply(
@@ -506,11 +538,20 @@ export async function prepareSession(
 }
 
 /** Builds a claim through the real canonical stage and verified receipt acceptance. */
-export async function prepareClaimed(
-  stores: OutcomeFixture,
-  context?: { readonly ownership: Ownership; readonly suffix: string },
+export async function prepareClaimed<
+  Runs extends Omit<
+    HistoricalRunStore,
+    'beginRecovery' | 'stageRecoveryFence' | 'recordRecoveryFence' | 'resolveRecovery'
+  > = RunStore,
+>(
+  stores: OutcomeFixture<Runs>,
+  context?: {
+    readonly ownership: Ownership;
+    readonly suffix: string;
+    readonly occurrenceId?: string;
+  },
 ) {
-  const setup = await prepareSession(stores, context);
+  const setup = await prepareSession<Runs>(stores, context);
   const staged = unwrapReply(
     await stageClaimRequest(stores.runs, stores.artifacts, await setup.scopedGuard(), {
       commandId: executionCommandId('stage-claim' + setup.suffix),
@@ -545,8 +586,13 @@ export async function prepareClaimed(
   };
 }
 
-export async function stageFixtureTurn(
-  setup: Awaited<ReturnType<typeof prepareClaimed>>,
+export async function stageFixtureTurn<
+  Runs extends Omit<
+    HistoricalRunStore,
+    'beginRecovery' | 'stageRecoveryFence' | 'recordRecoveryFence' | 'resolveRecovery'
+  > = RunStore,
+>(
+  setup: Awaited<ReturnType<typeof prepareClaimed<Runs>>>,
   cause: TurnRequest['cause'] = { kind: 'initial' },
   turnKey = 'turn',
 ) {
@@ -560,12 +606,21 @@ export async function stageFixtureTurn(
   );
 }
 
-export async function prepareTurn(
-  stores: OutcomeFixture,
-  context?: { readonly ownership: Ownership; readonly suffix: string },
+export async function prepareTurn<
+  Runs extends Omit<
+    HistoricalRunStore,
+    'beginRecovery' | 'stageRecoveryFence' | 'recordRecoveryFence' | 'resolveRecovery'
+  > = RunStore,
+>(
+  stores: OutcomeFixture<Runs>,
+  context?: {
+    readonly ownership: Ownership;
+    readonly suffix: string;
+    readonly occurrenceId?: string;
+  },
 ) {
-  const setup = await prepareClaimed(stores, context);
-  const turn = await stageFixtureTurn(setup);
+  const setup = await prepareClaimed<Runs>(stores, context);
+  const turn = await stageFixtureTurn<Runs>(setup);
   const checkpoint = turn.attempt.state;
   if (checkpoint.kind !== 'turn_pending') throw new Error('fixture expected pending turn');
   return { ...setup, turn, checkpoint };

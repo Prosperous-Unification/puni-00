@@ -213,20 +213,22 @@ with its ordered implementation slices in [storage tasks](storage-tasks.md).
 
 ### One hints API
 
-Use CTT's existing hint adapters/runners with accepted-work seeds, `DEFER_READY`, guarded
-host settlement and ID-keyed `summary()`. There is no separate `planDag` graph input or
-scheduler entry point. A compatibility adapter maps the current ordered steps into explicit
-edges; the later type-workflow adapter supplies pinned DAG instances through the same hints.
-The full declared graph must be discovered and validated before WBS admission, independently
-of deferred work. Include disconnected/source-less cycle components. A lazy summary states
-that discovery is incomplete; summary itself invokes no user callbacks.
+Use CTT 0.13.0's native `materializeMultiEntryDagInputFromRecordCatalog` and `discoverValidateAndCaptureDag`, then
+`createExternalWorkSession({ acceptedCompletedWorkVertexIds })`, `runUntilWorkBoundary()` and its work tickets. A compatibility
+adapter maps ordered steps into explicit work prerequisites; the later type-workflow
+adapter supplies pinned DAG instances through the same native materialized input. There
+is no second public graph format or traversal interpreter. Prepare the full declared graph
+before admission, including disconnected/source-less cycles and missing prerequisites.
+Work (W) completion and subgraph (C) completion remain distinct native milestones.
 
-Deferred work does not satisfy dependencies. Kernel-ready IDs are filtered against durable
-running/wait/retry facts, current WBS eligibility and capacity before launch. `settle` is
-bound to the current runner/execution generation and only reports WBS-accepted business
-outcomes; late/conflicting results refuse and identical duplicates are idempotent. Rebuilt
-runners consume durable accepted facts, not serialized queues or deferred handles. Agent
-turn completion alone never advances business progress.
+Unfinished tickets do not satisfy dependencies. Filter native ready tickets against current
+WBS eligibility and durable running/wait/retry state before atomic RunStore admission.
+Admission does not complete work. Only current WBS-accepted business completion authorizes
+`acceptCompletedWork(ticket)`; native receipts distinguish `accepted` and `alreadyAccepted`.
+Reject foreign, retargeted and pre-rebuild tickets without releasing successors. Rebuild
+independent sessions from accepted WBS facts and durable attempt history, never serialized
+queues or tickets. Callback-free `summary()` inspects local session state and does not
+claim a fresh WBS observation. Agent turn completion alone never advances business progress.
 
 ### Admission and recovery
 
@@ -281,7 +283,12 @@ follow, but surviving-worker/uncertain-effect safety is mandatory in S7a already
 
 The shared planning project is
 [Agentic workflows — WBS, CTT and portable persistence](https://dev.wbs.bulletpoints.club/?project=eeb8e50a-6ee6-49e4-a533-e10b1e29939d).
-Current main targets CTT0.11.0: unified completed-work seeds, DEFER_READY, settle and ID-keyed summary, with prerequisite resolution and native ESM. Exact dependency acquisition and compatibility conformance remain required before coordinator admission in this candidate. CTT owns no durable journal, storage provider or agent SDK.
+The [native CTT integration](../ctt-work-session-integration/design.md) pinned published
+CTT 0.12.0, since moved to 0.13.0 (current pin in [ctt-coordination](../../specs/ctt-coordination/spec.md)), and connects complete prepared topology and independent work sessions to actual
+local RunStore admission. Accepted WBS facts control completion; current eligibility and
+durable attempt state filter readiness. This bounded component does not complete exact
+remote claim, admission/launch intent ordering or coordinator CLI composition; parent
+6a.4 remains open. CTT owns no durable journal, storage provider or agent SDK.
 
 The internal [runtime authority history](runtime-authority-design.md) retains sender intent
 and acceptance before run creation, keeping local epochs separate from receiver grants.
@@ -307,14 +314,14 @@ The runbook (`docs/runbook-agentic-workflows.md`) names the commands and the ref
 
 ## Risks and the spikes that retire them
 
-| Risk                                                     | Spike                           | Fallback                                                                                                                                                        |
-| -------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HarnessAgent` or a local sandbox does not run under Bun | 0.1                             | Claude Agent SDK direct behind the same port                                                                                                                    |
-| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2                             | plain tool calling for `plan`                                                                                                                                   |
-| Harness packages break between 1.0.x releases            | 0.3                             | exact pins, one renovate lane, the port absorbs                                                                                                                 |
-| ACP attempts report no usage                             | modelled                        | `Usage.unknown`, shown, never defaulted                                                                                                                         |
-| Concurrent owners or workers surviving coordinator death | S7a recovery proof              | fence local and receiver authority, retain the claim and capacity while work may survive, inspect workers/effects by retained identity; unresolved blocks retry |
-| CTT minor releases change the hints API                  | exact pin0.11.0 and conformance | the compatibility adapter absorbs                                                                                                                               |
+| Risk                                                     | Spike                            | Fallback                                                                                                                                                        |
+| -------------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HarnessAgent` or a local sandbox does not run under Bun | 0.1                              | Claude Agent SDK direct behind the same port                                                                                                                    |
+| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2                              | plain tool calling for `plan`                                                                                                                                   |
+| Harness packages break between 1.0.x releases            | 0.3                              | exact pins, one renovate lane, the port absorbs                                                                                                                 |
+| ACP attempts report no usage                             | modelled                         | `Usage.unknown`, shown, never defaulted                                                                                                                         |
+| Concurrent owners or workers surviving coordinator death | S7a recovery proof               | fence local and receiver authority, retain the claim and capacity while work may survive, inspect workers/effects by retained identity; unresolved blocks retry |
+| CTT minor releases change the hints API                  | exact pin 0.13.0 and conformance | the compatibility adapter absorbs                                                                                                                               |
 
 ## Conditional WBS runtime receiver
 
@@ -332,6 +339,15 @@ The bounded [runtime request design](runtime-request-design.md) publishes the ex
 The bounded [receipt design](runtime-receipt-design.md) shares complete content matching and existing identity predicates for the receiver and future durable sender. Authenticated transport, trusted artifact decoding and sender persistence remain separate.
 
 [Runtime limits integration](limits-integration-design.md) reconciles the existing receiver with current main's separately owned organization limits; no new limit policy or coordinator behavior is proposed.
+
+### Logical request recovery
+
+The owner approved [logical authority and claim recovery](recovery-design.md) on
+2026-10-28 for implementation, tests and review, including preserving populated stores,
+incremental authority/claim-first delivery and documented legacy artifact/clock exceptions.
+[ADR 0066](../../../docs/adr/0066-uncertain-runtime-requests-use-journaled-recovery.md)
+records the alternatives. The user subsequently authorized normal commit, push and merge: “you can commit and push it and than merge”. Normal hooks, independent review, applicable CI and the exact-SHA canonical gate remain required. The exact import-policy scope was approved on 2026-11-02; [execution evidence](../runtime-write-delivery/verify.md) records its verification. Operator-store migration and production remain excluded. Full write and physical
+recovery remain separate requirements of the parent coordinator.
 
 ### Pending renames
 

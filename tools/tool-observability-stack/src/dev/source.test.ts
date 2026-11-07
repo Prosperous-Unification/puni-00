@@ -23,6 +23,54 @@ function fixture() {
   const argumentsPath = join(directory, 'arguments.json');
   const measurementPath = join(directory, 'measurement.json');
   const executable = join(directory, 'ssh');
+  const preloadPath = join(directory, 'fetch.preload.ts');
+  const routePath = join(directory, 'route.json');
+  const fetchAuditPath = join(directory, 'fetch-audit.json');
+  const requests: string[] = [];
+  // The fake SSH child executes the original production stdin. Only its fetch transport
+  // crosses from container loopback to this fixture's independently allocated listener.
+  writeFileSync(
+    preloadPath,
+    `import { readFileSync, writeFileSync } from 'node:fs';
+const nativeFetch = globalThis.fetch;
+globalThis.fetch = (input, options) => {
+  writeFileSync(${JSON.stringify(fetchAuditPath)}, JSON.stringify({
+    url: typeof input === 'string' ? input : 'non-string',
+    redirect: options?.redirect,
+    signal: options?.signal instanceof AbortSignal,
+  }));
+  if (input !== 'http://127.0.0.1:3100/health') throw new Error('fixture original health URL differs');
+  const route = JSON.parse(readFileSync(${JSON.stringify(routePath)}, 'utf8'));
+  if (typeof route !== 'string') throw new Error('fixture route differs');
+  const endpoint = new URL(route);
+  if (endpoint.protocol !== 'http:' || endpoint.hostname !== '127.0.0.1' ||
+      endpoint.port === '' || endpoint.pathname !== '/health' || endpoint.search !== '' ||
+      endpoint.hash !== '' || endpoint.username !== '' || endpoint.password !== '')
+    throw new Error('fixture route differs');
+  return nativeFetch(route, options);
+};
+`,
+  );
+  function serveHealth(fetch: (request: Request) => Response | Promise<Response>) {
+    const server = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch: (request) => {
+        requests.push(new URL(request.url).pathname);
+        return fetch(request);
+      },
+    });
+    writeFileSync(routePath, JSON.stringify(`http://127.0.0.1:${String(server.port)}/health`));
+    return server;
+  }
+  function assertRequests() {
+    expect(JSON.parse(readFileSync(fetchAuditPath, 'utf8'))).toEqual({
+      url: 'http://127.0.0.1:3100/health',
+      redirect: 'manual',
+      signal: true,
+    });
+    expect(requests).toEqual(['/health']);
+  }
   const inspect = [
     {
       Id: 'd'.repeat(64),
@@ -46,22 +94,114 @@ function fixture() {
  else if(settings.mode==='malformed')console.log('invalid-json');
  else if(settings.mode==='old'||settings.mode==='future'){
  const time=Date.now()+(settings.mode==='old'?-10000:10000);console.log(JSON.stringify({success:true,revision:'${revision}',reason:null,startedAt:time,finishedAt:time,requestDurationMs:0,transportDurationMs:null}));
- }else {const child=Bun.spawn([process.execPath,'run','-'],{stdin:'inherit',stdout:'pipe',stderr:'inherit'});const measured=await new Response(child.stdout).text();writeFileSync(${JSON.stringify(measurementPath)},measured);process.stdout.write(measured);process.exitCode=await child.exited;}
+ }else {const child=Bun.spawn([process.execPath,'run','--preload',${JSON.stringify(preloadPath)},'-'],{stdin:'inherit',stdout:'pipe',stderr:'inherit'});const measured=await new Response(child.stdout).text();writeFileSync(${JSON.stringify(measurementPath)},measured);process.stdout.write(measured);process.exitCode=await child.exited;}
  `,
   );
   chmodSync(executable, 0o700);
-  return { directory, settings, argumentsPath, measurementPath, executable, inspect };
+  return {
+    directory,
+    settings,
+    argumentsPath,
+    measurementPath,
+    executable,
+    inspect,
+    preloadPath,
+    routePath,
+    fetchAuditPath,
+    requests,
+    serveHealth,
+    assertRequests,
+  };
 }
+
+test('fixture transport refuses a wrong original URL before any real HTTP request', async () => {
+  const source = fixture();
+  const server = source.serveHealth(() => Response.json({ status: 'ok', commit: revision }));
+  try {
+    const child = Bun.spawn([process.execPath, 'run', '--preload', source.preloadPath, '-'], {
+      stdin: new TextEncoder().encode(
+        "await fetch('http://127.0.0.1:3100/foreign', {signal: AbortSignal.timeout(1000), redirect: 'manual'});",
+      ),
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const [exitCode, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+    expect(exitCode).not.toBe(0);
+    expect(stdout).toBe('');
+    expect(stderr).toContain('fixture original health URL differs');
+    expect(JSON.parse(readFileSync(source.fetchAuditPath, 'utf8'))).toEqual({
+      url: 'http://127.0.0.1:3100/foreign',
+      redirect: 'manual',
+      signal: true,
+    });
+    expect(source.requests).toEqual([]);
+  } finally {
+    await server.stop(true);
+  }
+});
+
+test('fixture transport refuses missing routing state without a real HTTP request', async () => {
+  const source = fixture();
+  const server = source.serveHealth(() => Response.json({ status: 'ok', commit: revision }));
+  rmSync(source.routePath);
+  try {
+    const observation = await collectProbe({
+      readHealth: createSshHealthReader(source.executable),
+      publication,
+      producerVersion: 'test',
+    });
+    expect(observation.success).toBe(false);
+    expect(observation.reason).toBe('source-unavailable');
+    expect(source.requests).toEqual([]);
+    expect(JSON.parse(readFileSync(source.fetchAuditPath, 'utf8'))).toMatchObject({
+      url: 'http://127.0.0.1:3100/health',
+    });
+  } finally {
+    await server.stop(true);
+  }
+});
+
+test('fixed stdin reaches only its own ephemeral fixture listener', async () => {
+  const first = fixture();
+  const second = fixture();
+  const firstServer = first.serveHealth(() =>
+    Response.json({ status: 'ok', commit: 'a'.repeat(40) }),
+  );
+  const secondServer = second.serveHealth(() =>
+    Response.json({ status: 'ok', commit: 'b'.repeat(40) }),
+  );
+  try {
+    expect(firstServer.port).not.toBe(secondServer.port);
+    const [firstObservation, secondObservation] = await Promise.all([
+      collectProbe({
+        readHealth: createSshHealthReader(first.executable),
+        publication,
+        producerVersion: 'test',
+      }),
+      collectProbe({
+        readHealth: createSshHealthReader(second.executable),
+        publication,
+        producerVersion: 'test',
+      }),
+    ]);
+    expect(firstObservation.revision).toBe('a'.repeat(40));
+    expect(secondObservation.revision).toBe('b'.repeat(40));
+    first.assertRequests();
+    second.assertRequests();
+  } finally {
+    await Promise.all([firstServer.stop(true), secondServer.stop(true)]);
+  }
+});
 
 test('fixed SSH argv executes fixed stdin source with actual HTTP timing', async () => {
   const source = fixture();
-  const server = Bun.serve({
-    hostname: '127.0.0.1',
-    port: 3100,
-    fetch: async () => {
-      await Bun.sleep(10);
-      return Response.json({ status: 'ok', commit: revision, cookie: 'never-export' });
-    },
+  const server = source.serveHealth(async () => {
+    await Bun.sleep(10);
+    return Response.json({ status: 'ok', commit: revision, cookie: 'never-export' });
   });
   try {
     const observation = await collectProbe({
@@ -93,8 +233,9 @@ test('fixed SSH argv executes fixed stdin source with actual HTTP timing', async
       ]),
     );
     expect(JSON.stringify(observation)).not.toContain('never-export');
+    source.assertRequests();
   } finally {
-    void server.stop(true);
+    await server.stop(true);
   }
 });
 
@@ -186,11 +327,7 @@ test('checkpoint first start is explicit and missing/malformed state throws', ()
 test('checkpoint roundtrips bounded observation and rejects future time', async () => {
   const source = fixture();
   const path = join(source.directory, 'checkpoint');
-  const server = Bun.serve({
-    hostname: '127.0.0.1',
-    port: 3100,
-    fetch: () => Response.json({ status: 'ok', commit: revision }),
-  });
+  const server = source.serveHealth(() => Response.json({ status: 'ok', commit: revision }));
   try {
     const observation = await collectProbe({
       readHealth: createSshHealthReader(source.executable),
@@ -216,8 +353,9 @@ test('checkpoint roundtrips bounded observation and rejects future time', async 
       }),
     );
     expect(() => readCheckpoint(path)).toThrow();
+    source.assertRequests();
   } finally {
-    void server.stop(true);
+    await server.stop(true);
   }
 });
 
@@ -252,7 +390,7 @@ test.each([
   ['http-status', () => new Response('private-cookie', { status: 500 })],
 ] as const)('fixed remote stdin rejects actual %s response', async (reason, fetch) => {
   const source = fixture();
-  const server = Bun.serve({ hostname: '127.0.0.1', port: 3100, fetch });
+  const server = source.serveHealth(fetch);
   try {
     const observation = await collectProbe({
       readHealth: createSshHealthReader(source.executable),
@@ -262,6 +400,7 @@ test.each([
     expect(observation.success).toBe(false);
     expect(observation.reason).toBe(reason);
     expect(JSON.stringify(encodeOtlp(observation))).not.toContain('private-cookie');
+    source.assertRequests();
   } finally {
     await server.stop(true);
   }
@@ -269,11 +408,7 @@ test.each([
 
 test('fixed remote revision guard independently emits modeled invalid-health before translation', async () => {
   const source = fixture();
-  const server = Bun.serve({
-    hostname: '127.0.0.1',
-    port: 3100,
-    fetch: () => Response.json({ status: 'ok', commit: 'HEAD' }),
-  });
+  const server = source.serveHealth(() => Response.json({ status: 'ok', commit: 'HEAD' }));
   try {
     const outcome = await collectProbe({
       readHealth: createSshHealthReader(source.executable),
@@ -287,6 +422,7 @@ test('fixed remote revision guard independently emits modeled invalid-health bef
     const measured: unknown = JSON.parse(readFileSync(source.measurementPath, 'utf8'));
     expect(measured).toMatchObject({ success: false, revision: null, reason: 'invalid-health' });
     expect(outcome).toBe('completed');
+    source.assertRequests();
   } finally {
     await server.stop(true);
   }
@@ -295,11 +431,7 @@ test('fixed remote revision guard independently emits modeled invalid-health bef
 test('recreated dev name cannot replace the already inspected container ID', async () => {
   const source = fixture();
   writeFileSync(source.settings, JSON.stringify({ inspect: source.inspect, mode: 'recreated' }));
-  const server = Bun.serve({
-    hostname: '127.0.0.1',
-    port: 3100,
-    fetch: () => Response.json({ status: 'ok', commit: revision }),
-  });
+  const server = source.serveHealth(() => Response.json({ status: 'ok', commit: revision }));
   try {
     const observation = await collectProbe({
       readHealth: createSshHealthReader(source.executable),
@@ -313,6 +445,7 @@ test('recreated dev name cannot replace the already inspected container ID', asy
     });
     expect(readFileSync(source.argumentsPath, 'utf8')).toContain('d'.repeat(64));
     expect(readFileSync(source.settings, 'utf8')).toContain('e'.repeat(64));
+    source.assertRequests();
   } finally {
     await server.stop(true);
   }

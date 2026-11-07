@@ -52,6 +52,7 @@ import {
   salesPromptVersion,
   scopingPromptVersion,
 } from './conversation/system-prompt';
+import type { CountryDatabase } from './country-database';
 import {
   deliverAlert,
   FloodCounter,
@@ -62,6 +63,8 @@ import { parseScopingEdit } from './scoping-edit';
 
 export interface WebsiteApiConfig {
   databasePath: string;
+  /** Main injects the verified local reader; omitted programmatic instances return unknown/null. */
+  countryDatabase?: CountryDatabase;
   apiBindHost?: string;
   publicOrigin: string;
   appOrigin: string;
@@ -455,18 +458,18 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     return outcome;
   }
 
-  /** The salted source hash of a request, or null when its client address is undeterminable. */
+  /** The selected address and salted source hash, or null when the address is undeterminable. */
   function requestSource(
     request: Request,
     clientAddress: string | undefined,
     now: number,
-  ): string | null {
+  ): { address: string; hash: string } | null {
     const address = selectClientAddress(
       request.headers.get('x-forwarded-for'),
       clientAddress,
       trustedProxyHops,
     );
-    return address === null ? null : hashSource(address, now);
+    return address === null ? null : { address, hash: hashSource(address, now) };
   }
 
   /**
@@ -780,14 +783,33 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     const now = clock();
     if (path === '/health' && request.method === 'GET')
       return json({ ok: true, service: 'puni-website-api' });
-    const withCors = (response: Response) =>
-      origin === config.publicOrigin ? attachSiteCors(response) : attachCors(response, origin);
-    const source = requestSource(request, clientAddress, now);
-    if (source === null) return withCors(failure('source_unavailable', 400));
+    const withCors = (response: Response) => {
+      // Proof: removing this setting made the missing-hop regional refusal lack no-store.
+      if (path === '/analytics/region') response.headers.set('Cache-Control', 'no-store');
+      return origin === config.publicOrigin
+        ? attachSiteCors(response)
+        : attachCors(response, origin);
+    };
+    // Proof: using socket-only selection failed the regional trusted-hop integration test.
+    const selected = requestSource(request, clientAddress, now);
+    if (selected === null) return withCors(failure('source_unavailable', 400));
+    const source = selected.hash;
     // The general window runs before any store read; the day salt behind `source` is cached.
     // Proof: keying the general window on the path admitted the 121st request in the windowless-route test.
     const general = admitWindows(generalWindowKeys(source), now);
+    // Proof: exempting /analytics/region admitted request 121 and failed its window test.
     if (general.kind !== 'admitted') return withCors(rateRefusal(general));
+    if (path === '/analytics/region' && request.method === 'GET') {
+      // Proof: removing this refusal returned 200 for the regional foreign-Origin test.
+      if (origin !== null && origin !== config.publicOrigin && origin !== config.appOrigin)
+        return withCors(failure('origin_forbidden', 403));
+      // Proof: substituting a /64 failed the real-reader wrapper's exact-address assertion.
+      const response =
+        config.countryDatabase === undefined
+          ? { region: 'unknown', database: null }
+          : config.countryDatabase.resolveRegion(selected.address, now);
+      return withCors(json(response, 200, { 'Cache-Control': 'no-store' }));
+    }
     if (path === '/entry' && request.method === 'GET') {
       // Proof: the foreign-origin entry test fails if this exact-origin guard is removed.
       if (origin !== config.publicOrigin && origin !== config.appOrigin)
@@ -797,7 +819,10 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       return attachCors(response, origin);
     }
     if (request.method === 'OPTIONS') {
-      if (origin === config.publicOrigin && (path === '/entry' || path === '/intakes'))
+      if (
+        origin === config.publicOrigin &&
+        (path === '/entry' || path === '/intakes' || path === '/analytics/region')
+      )
         return attachSiteCors(
           new Response(null, {
             status: 204,

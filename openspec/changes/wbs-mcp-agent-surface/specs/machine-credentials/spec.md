@@ -2,10 +2,13 @@
 
 ### Requirement: be-01's HTTP API refuses machine bearers
 
-Once #731 has retired operator links, every `/api` route SHALL refuse a `wbs_mk_` key, a
-trusted-issuer token and a groups-less configured-issuer token presented as
-`Authorization: Bearer` with `401 { error: 'machine_bearer_not_accepted' }` naming the MCP
-endpoint, before any credential read. No environment variable SHALL disable this refusal.
+Every `/api` route SHALL refuse a `wbs_mk_` key, well-formed or not, and any JWT whose `iss`
+is not the configured sign-in issuer (a trusted issuer's or nobody's), presented as
+`Authorization: Bearer`, with `401 { error: 'machine_bearer_not_accepted', endpoint: '/mcp' }`,
+before any read: no credential, registration or key set is read for it, so the answer reveals
+nothing of which issuers an organization trusts. Once #731 has retired operator links, a
+groups-less configured-issuer token SHALL be refused the same way. No environment variable SHALL
+disable this refusal.
 Verification of the sources SHALL remain reachable only through
 `POST /internal/mcp/machine-grants` under `MCP_BE_INTERNAL_SECRET`.
 
@@ -15,9 +18,17 @@ Verification of the sources SHALL remain reachable only through
 - **THEN** the answer is `401 machine_bearer_not_accepted`, `last_used_at` is unchanged and no
   credential row was read
 
-#### Scenario: A groups-less Auth0 token
+#### Scenario: Any other issuer's token, trusted or not
 
-- **WHEN** a verified configured-issuer token without the groups claim calls `GET /api/projects`
+- **WHEN** a JWT whose `iss` is a trusted issuer, or no organization's issuer, calls
+  `GET /api/projects`
+- **THEN** the answer is `401 machine_bearer_not_accepted`, and no registration, credential or
+  key set was read
+
+#### Scenario: A groups-less Auth0 token (after #731)
+
+- **WHEN**, once #731 has merged, a verified configured-issuer token without the groups claim
+  calls `GET /api/projects`
 - **THEN** the answer is `401 machine_bearer_not_accepted`
 
 #### Scenario: The internal route still verifies
@@ -95,9 +106,10 @@ lists any row not named in `WBS_ACCEPT_BREAKING_AUDIENCES`.
 
 The API-key and trusted-issuer branches below, and the groups-less refusal, SHALL be reached
 only through `POST /internal/mcp/machine-grants` (which answers a machine grant or the refusal
-named) and through the test-only composition seam. On `/api`, an API key, a trusted-issuer
-token and a groups-less configured-issuer token are refused `machine_bearer_not_accepted`
-before them (`wbs-mcp-agent-surface` M9). The consent-delegation branch stays on `/api`, where
+named) and through the test-only composition seam. On `/api`, an API key and any JWT of an
+issuer other than the configured sign-in issuer are refused `machine_bearer_not_accepted`
+before them, and, after #731, a groups-less configured-issuer token too
+(`wbs-mcp-agent-surface` M9). The consent-delegation branch stays on `/api`, where
 mcp-01 presents it. be-01 SHALL admit a presented token by exactly one of: a
 WBS-signed delegation naming a live `mcp_consent` credential; an API key
 `wbs_mk_<credential id>.<secret>` whose id selects an unrevoked credential by primary key
@@ -156,8 +168,10 @@ credential B>`
 
 #### Scenario: A token of a stranger issuer
 
-- **WHEN** a JWT's `iss` is neither the configured issuer nor any organization's trusted issuer
-- **THEN** WBS answers `401 invalid_token` without fetching any key set
+- **WHEN** a JWT's `iss` is neither the configured issuer nor any organization's trusted issuer,
+  given to the grant route
+- **THEN** WBS answers `401 invalid_token` without fetching any key set; on `/api` it is
+  `401 machine_bearer_not_accepted`, as for a trusted issuer's
 
 #### Scenario: The key set cannot be fetched
 

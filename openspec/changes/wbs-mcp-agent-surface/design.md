@@ -7,7 +7,7 @@ Read on 2026-10-25 at `origin/main` 277fdf03c. Amended after the Fable reviews o
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | Admitting a caller at `/mcp`      | `caller-auth.ts` `authenticateCaller`. Standalone mode first tries an mcp-01 JWT (`verifyLocal`, session row by `jti`). If that fails, `McpOAuthServer.verify` and `callerSessionFor` (`oauth.ts` 362–381) fall back to `verifyUpstream`, whose audience is be-01's `AUTH_AUDIENCE` (`token-verifier.ts` 81). `bearerFor` with a null session then forwards that raw token (`oauth.ts` 446). Gateway mode decodes the JWT unverified. | **mcp-01 already accepts and passes through a be-01-audience Auth0 token.** Nothing admits a machine. |
 | mcp-01's authorization server     | `oauth.ts` `McpOAuthServer`: `authorization_code` and `refresh_token`, public clients (`none`), 1 h access TTL, families and sessions in `McpSessionStore`. `credentialEpoch()` reads SQLite on every use (`session-store.ts` 151–153). `sourceOf` trusts the leftmost `X-Forwarded-For` (`oauth.ts` 1879–1882).                                                                                                                      | a grant with no human; a trustworthy source address                                                   |
-| Verifying a machine credential    | be-01 `authentication.feature.ts`: `parseMachineKey`, `authenticateMachineKey` → `admitMachineCredential`, the trusted-issuer path (A13 step 3, A25), `machinePrincipalOf`, `organizationRoleOf` (A23). A groups-less configured-issuer token still resolves through an operator link (the `!identity.groupsClaimed` branch, line 294) until #731 lands.                                                                              | a route mcp-01 can ask; refusal on `/api`                                                             |
+| Verifying a machine credential    | be-01 `authentication.feature.ts`: `parseMachineKey`, `authenticateMachineKey` → `admitMachineCredential`, the trusted-issuer path (A13 step 3, A25), `machinePrincipalOf`, `organizationRoleOf` (A23). A groups-less configured-issuer token is refused `machine_bearer_not_accepted` on `/api` since #731 retired operator links (slice 21).                                                                                        | a route mcp-01 can ask; refusal on `/api`                                                             |
 | be-01 learning who an MCP call is | `/internal/mcp/delegation`: a single-use `wbs-be-01/via-mcp-01` delegation, at most `MOST_DELEGATION_SECONDS` = 300 (`delegation.ts` 12, 286), no `kid` and no previous key, with one consume write per use. `directAudienceOf` (`identity.ts` 164–172) sends every non-`direct` audience to the via-mcp-01 verifier.                                                                                                                 | a separately keyed, separately verified per-call bearer                                               |
 | The service secret                | `x-internal-auth`. It is shared with gw-01, tool-smoke and tool-devsync, and compared with `===` (`identity.ts` 35, 42, 71).                                                                                                                                                                                                                                                                                                          | a dedicated, constant-time-compared mcp-01↔be-01 secret                                               |
 | Tool path values                  | `wbs-client.ts` 199–212 encodes each value with `encodeURIComponent`, which leaves `.` and `..` intact, so `/api/projects/{..}/claims` normalises to `/api/claims`.                                                                                                                                                                                                                                                                   | a refusal of dot segments                                                                             |
@@ -456,10 +456,11 @@ _Alternative:_ a 1 h cap, which breaks any orchestrator that hands out a token p
   mcp-01's one access-token key. Machine tokens carry `token_use: machine` and
   `wbs_machine_grant`; consent tokens issued since slice 2 carry `token_use: consent`. Section
   3's machine path requires `token_use: machine` **and** `wbs_machine_grant`, and its consent
-  path refuses any `token_use` other than `consent` (an absent one only until the consent
-  tokens issued before slice 2 have expired, at most `MCP_ACCESS_TOKEN_TTL`). Slice 3 still
-  admits an absent one; task 3.8 removes that branch once `MCP_ACCESS_TOKEN_TTL` has passed
-  since the slice-2 release reached each deployment (review of PR #764). Since slice 2,
+  path refuses any `token_use` other than `consent`, an absent one included. Slice 3 still
+  admitted an absent one; task 3.8 removed that branch on 2026-10-30, once
+  `MCP_ACCESS_TOKEN_TTL` had passed since the slice-2 release reached dev; no prod mcp-01 has run (Compose
+  routes no `/mcp` and the Kubernetes cutover is not yet authorized)
+  yet, so its first one never issued a token without the claim (review of PR #764). Since slice 2,
   a token naming mcp-01's issuer that fails local verification is never handed to the
   upstream verifier.
 - be-01 refuses, `invalid_token`, a workload assertion whose `iss` is
@@ -553,8 +554,17 @@ _Alternatives:_ the path list; admin tools for consented humans.
 
 - The refusal is `401 machine_bearer_not_accepted`, which names `/mcp`, for `wbs_mk_` keys,
   trusted-issuer tokens and **groups-less configured-issuer tokens**.
-- **Precondition: #731 merged.** It retires operator links, so the groups-less branch admits
-  nobody.
+- **It ships in two halves** (0.2 (e) ASSUMED, slice 18; Dany may reverse): keys and every
+  JWT of a non-sign-in issuer now; the groups-less configured-issuer half after #731. Both
+  have landed: slice 18 and, with #731, slice 21.
+- **Precondition, for the groups-less half only: #731 merged.** It retires operator links, so
+  the groups-less branch admits nobody.
+- **No read before the refusal, and no issuer oracle** (slice 18, review of PR #785): any JWT
+  whose `iss` is not the sign-in issuer is refused, whether or not an organization trusts it.
+  Telling the two apart would take a registration read and tell a caller which issuers are
+  trusted, and EKS and GKE issuer URLs embed account and cluster ids. No human path carries
+  another `iss`: registering the sign-in issuer as trusted is refused (`issuer_reserved`), and
+  mcp-01 forwards only configured-issuer human tokens.
 - There is no environment switch. Tests that need raw-key `/api` behaviour use a test-only
   composition seam in `src/testing`, which `production-entrypoint.test.ts` keeps unreachable
   from `main.ts`.
@@ -788,6 +798,67 @@ each is stated so a pool's N persons, all bound to one admin, are not a surprise
 | Project owner edits and the super-admin recovery reads (`canEditProjectInOrganization`, `scope.userId`) | account  | accepted: a pool agent edits every project its admin owns, as the owner (`canEditProject` compares the account); the super-admin arm needs the role, capped at `member` (A23), so never |
 
 Task 6.0 greps every `userId` key and adds any check missing from this table before slice 6.
+
+**M17. Confidential consent clients (slice 20, 2026-10-31).** Since #751 the metadata lists
+`client_secret_basic` and `client_secret_post` for the machine grants, so claude.ai's custom
+connector registers `client_secret_post` and was refused `400 invalid_client_metadata`
+("Couldn't register with WBS (dev)'s sign-in service"); Claude Code registers `none` and kept
+working.
+
+- _Registration._ `none`, `client_secret_basic` and `client_secret_post` are accepted, and an
+  absent method is `client_secret_basic`, RFC 7591 §2's default; any other method stays
+  `invalid_client_metadata`, and so does a machine grant (M2). A confidential client gets 32
+  random bytes, base64url, as `client_secret` in the `201` only (RFC 7591 §3.2.1), with
+  `Cache-Control: no-store`. `client_secret_expires_at` mirrors `client_id_expires_at`: the
+  secret lives exactly as long as the client, whose lifetime slides with use as a public
+  client's does, so both values understate a used client's life. The registration caps, TTLs
+  and allowlist are unchanged.
+- _Metadata._ `token_endpoint_auth_methods_supported` lists `none`, `client_secret_basic` and
+  `client_secret_post` in every deployment, since every one serves confidential consent
+  clients; `grant_types_supported` still lists the machine grants only where M11 serves them.
+- _Storage._ Migration `20261031120000_mcp_client_secret` adds `token_endpoint_auth_method`
+  and `client_secret_sha256` to `mcp_client`, both NULL for a public client and CHECKed
+  together, and `client_auth_method` to `mcp_family`, the method of the client the family was
+  issued to. Plain SHA-256 suffices for a 256-bit random secret, as for refresh-token digests.
+  mcp-01 runs as one replica with the Recreate strategy, and a release without the migration
+  refuses to open a store whose ledger records it, so no older process reads a confidential
+  row as public. Rollback refuses while a confidential client is live or a confidential
+  family is usable.
+- _Token endpoint._ Machine grants dispatch first and never look up a registered client
+  (M2), so a client secret is no API key. For `authorization_code` and `refresh_token`,
+  `presentedClientOf` reads Basic, body secret or neither: two methods, a repeated field or a
+  Basic user unlike the body `client_id` are `invalid_request`; a non-Basic `Authorization`
+  header, an empty Basic user (no stand-in from the body `client_id`) and a `client_assertion`
+  are `invalid_client`. `authenticatesClient` requires the registered method and, for a
+  confidential client, the secret's digest in constant time. A public client that presents a
+  secret, or any `Authorization` header, now fails `401` too: a tightening for every
+  allowlisted connector, not only claude.ai, and the reason an API key never authenticates a
+  consent grant. Every failure is `401 invalid_client` with the Basic challenge; a code is
+  burned on it, and a refresh authenticates before the token is judged, so a caller without
+  the secret cannot end the family by replay. PKCE S256 stays mandatory.
+- _Exchange atomicity._ The access token is signed before anything is written; the family,
+  its session and refresh token, and the client's promotion then commit in one transaction. A
+  process killed mid-exchange leaves nothing or everything, never a 30-day family beside an
+  unproven client the sweep removes in minutes.
+- _Fail closed on refresh._ A family with a recorded confidential method refreshes only
+  through a live client of that method that authenticates: a swept client row, or one
+  re-admitted as public under the same id, answers `invalid_client`. A public family whose
+  client row is gone is judged as public, as before.
+- _Swept clients._ Re-admission at `/authorize` stays public-only: a swept confidential
+  client's secret is gone, its connector's next token request fails `invalid_client`, and the
+  MCP SDK re-registers on that.
+- _Unchanged._ `/authorize` needs no change: it already checks the registered callback and
+  PKCE for every client. Revocation stays possession-based for every client, a recorded
+  deviation: RFC 7009 §2.1 has the server authenticate a confidential client there, but
+  revoking only ends the grant the presenter already holds, and a client that sends its
+  credentials anyway is still served.
+
+_Alternative:_ answer `token_endpoint_auth_method: none` in the `201` instead of refusing. RFC
+7591 §3.2.1 lets the server replace the value, and MCP SDK 1.31.0 would follow it, but a
+client may reject a replaced method and claude.ai's behaviour is unobserved, so real support
+was chosen. Advertising only `none` again would break the machine grants. The review of PR
+#791 (S2-1) found the one residual this first missed: an absent client row was judged public
+even for a confidential family; the family column and the atomic exchange close it.
 
 ## Risks / Trade-offs
 

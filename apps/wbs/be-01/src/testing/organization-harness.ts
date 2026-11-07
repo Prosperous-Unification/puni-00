@@ -556,6 +556,9 @@ export class OrganizationHarness {
                 new SqliteDelegationUse(db, gate).consume(issuer, jti, expiresAt, now),
               Date.now,
               (userId) => new UserRepository(db, OPEN).findById(userId),
+              // An MCP consent delegation acting as an agent person, read live
+              // as boot.ts reads it (`wbs-machine-credentials` A20).
+              (credentialId) => new MachineCredentialRepository(db, gate).findById(credentialId),
             ),
           }),
       ...(directSigningKey === undefined
@@ -848,6 +851,10 @@ export class OrganizationHarness {
                   ),
                 () => services.clock.now(),
                 (userId) => new UserRepository(source.db, OPEN).findById(userId),
+                // An MCP consent delegation acting as an agent person, read live
+                // as boot.ts reads it (`wbs-machine-credentials` A20).
+                (credentialId) =>
+                  new MachineCredentialRepository(source.db, services.gate).findById(credentialId),
               ),
             }),
         ...(machineGrants === undefined
@@ -865,7 +872,8 @@ export class OrganizationHarness {
                 activationState: () => readOrganizationActivation(source.db),
                 keys: machineGrants.keys,
                 authorizationServer: machineGrants.authorizationServer,
-                admitProof: (presented) => services.auth.admitMachineProof(presented),
+                admitProof: (presented, audienceRoot) =>
+                  services.auth.admitMachineProof(presented, audienceRoot),
                 audit: new MachineTokenAuditRepository(source.db, services.gate),
                 now: () => services.clock.now(),
                 ...(machineGrants.newId === undefined ? {} : { newId: machineGrants.newId }),

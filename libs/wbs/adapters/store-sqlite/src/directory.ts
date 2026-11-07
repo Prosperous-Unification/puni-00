@@ -1,5 +1,7 @@
 import type {
   AssignmentWritten,
+  AuditedAct,
+  DirectoryCapacitySet,
   DirectoryCatalog,
   DirectoryCatalogRows,
   DirectoryRemoved,
@@ -38,7 +40,7 @@ import type {
   WorkItemTypeWritten,
   WriteStamp,
 } from '@wbs/core';
-import type { MeasureDefinition, MeasureUsage } from '@wbs/domain';
+import type { MeasureDefinition, MeasureUsage, ResourceCapacity } from '@wbs/domain';
 import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -71,10 +73,12 @@ import {
   personOrganization,
   personTeam,
   project,
+  projectOrganization,
   projectResourceCapacity,
   projectTeamCapacity,
   resource,
   resourceCapacityReport,
+  resourceDirectoryCapacity,
   resourceOrganization,
   service,
   serviceOrganization,
@@ -107,7 +111,6 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   people: [],
   members: [],
   claims: [],
-  pinnedCredentials: 0,
   machineCredentials: 0,
   capacityOf: new Map(),
 };
@@ -310,20 +313,9 @@ function usageRowsIn(
     people,
     members,
     claims: [],
-    pinnedCredentials: 0,
     machineCredentials: 0,
     capacityOf: new Map(stated.map((row) => [row.projectId, row.size])),
   };
-}
-
-/** The ids of the linked credentials pinned to one person (`external_identity.person_id`). */
-function credentialsPinnedTo(reader: Reader, personId: string): string[] {
-  return reader
-    .select({ id: externalIdentity.id })
-    .from(externalIdentity)
-    .where(eq(externalIdentity.personId, personId))
-    .all()
-    .map(({ id }) => id);
 }
 
 /**
@@ -357,7 +349,6 @@ function personUsageIn(
   return {
     ...usageRowsIn(reader, projectIds, []),
     claims: claimsTakenWith(reader, personId),
-    pinnedCredentials: credentialsPinnedTo(reader, personId).length,
     machineCredentials: liveMachineCredentialsOf(reader, personId).length,
   };
 }
@@ -1033,6 +1024,104 @@ export class DirectoryRepository implements DirectoryStore {
     });
   }
 
+  /** The stated directory capacities of `resourceIds`, on this repository's connection. */
+  async directoryCapacitiesOf(resourceIds: readonly string[]): Promise<ResourceCapacity[]> {
+    await Promise.resolve();
+    if (resourceIds.length === 0) return [];
+    return this.db
+      .select({
+        resourceId: resourceDirectoryCapacity.resourceId,
+        units: resourceDirectoryCapacity.units,
+      })
+      .from(resourceDirectoryCapacity)
+      .where(inArray(resourceDirectoryCapacity.resourceId, [...resourceIds]))
+      .orderBy(asc(resourceDirectoryCapacity.resourceId))
+      .all();
+  }
+
+  /**
+   * States or clears a directory capacity with its audit row in one
+   * transaction (`wbs-shared-occupancy` S1, S11). The organization is the
+   * resource's own `resource_organization` row: a legacy resource has none
+   * and is refused `organization_required` (S2). The projects it answers for
+   * the announce (S7) are those that demand, state or hold the resource, the
+   * holders being the organization's projects whose claims occupy units of it
+   * (review S3-1): a claim's `resources` can name a resource no demand or
+   * capacity of its project does.
+   *
+   * Proof: with the audit append removed, `writes one audit row per change,
+   * never a journal entry` (directory-capacity.controller.db.test.ts) found no
+   * row; with the organization refusal removed, the SQLite certification's
+   * `directory.setDirectoryCapacity:state-clear-remove` failed on the audit
+   * insert for the unowned stage; watched 2026-10-25.
+   */
+  async setDirectoryCapacity(
+    resourceId: string,
+    units: number | null,
+    act: AuditedAct,
+  ): Promise<DirectoryCapacitySet> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction((tx): DirectoryCapacitySet => {
+        const held = tx
+          .select({ organizationId: resourceOrganization.organizationId })
+          .from(resource)
+          .leftJoin(resourceOrganization, eq(resourceOrganization.resourceId, resource.id))
+          .where(eq(resource.id, resourceId))
+          .get();
+        if (held === undefined) return { ok: false, reason: 'not_found' };
+        const { organizationId } = held;
+        if (organizationId === null) return { ok: false, reason: 'organization_required' };
+        const before =
+          tx
+            .select({ units: resourceDirectoryCapacity.units })
+            .from(resourceDirectoryCapacity)
+            .where(eq(resourceDirectoryCapacity.resourceId, resourceId))
+            .get()?.units ?? null;
+        if (units === null)
+          tx.delete(resourceDirectoryCapacity)
+            .where(eq(resourceDirectoryCapacity.resourceId, resourceId))
+            .run();
+        else
+          tx.insert(resourceDirectoryCapacity)
+            .values({ resourceId, units, ...auditOnCreate(act.stamp) })
+            .onConflictDoUpdate({
+              target: resourceDirectoryCapacity.resourceId,
+              set: { units, ...auditOnUpdate(act.stamp) },
+            })
+            .run();
+        appendOrganizationAudit(tx, {
+          id: act.auditId,
+          organizationId,
+          actorId: act.actor,
+          action: 'directory_capacity_changed',
+          subjectKind: 'resource',
+          subjectId: resourceId,
+          detail: { before, after: units },
+          at: act.stamp.at,
+        });
+        return {
+          ok: true,
+          before,
+          after: units,
+          organizationId,
+          // Proof: with the holders left out, `announces directory_changed to a
+          // project that holds the resource only through a claim`
+          // (directory-capacity.controller.db.test.ts) found no announce for C,
+          // and the SQLite certification's
+          // `directory.setDirectoryCapacity:state-clear-remove` read `[]`;
+          // watched 2026-11-01.
+          projectIds: [
+            ...new Set([
+              ...this.projectsNamingResource(tx, resourceId),
+              ...this.projectsHoldingResource(tx, resourceId, organizationId),
+            ]),
+          ].sort(),
+        };
+      });
+    });
+  }
+
   /**
    * What names one resource right now — a fast path for the confirmation.
    * {@link DirectoryRepository.removeResource} decides.
@@ -1067,7 +1156,10 @@ export class DirectoryRepository implements DirectoryStore {
       return this.db.transaction((tx) => {
         const usage = this.resourceUsageIn(tx, resourceId);
         const inUse =
-          usage.demands.length > 0 || usage.capacities.length > 0 || usage.occupancies > 0;
+          usage.demands.length > 0 ||
+          usage.capacities.length > 0 ||
+          usage.occupancies > 0 ||
+          usage.directoryCapacity !== null;
         // Proof: removing outstandingUses admitted cascade deletion with unresolved runtime responsibility (2026-10-25).
         if ((!cascade && inUse) || (usage.outstandingUses ?? 0) > 0)
           return { ok: false, reason: 'in_use', usage };
@@ -1167,6 +1259,16 @@ export class DirectoryRepository implements DirectoryStore {
       // its removal is refused in_use` in `compute-provider.controller.db.test.ts`
       // read `providerId: null`; watched 2026-10-22.
       providerId: referenced?.providerId ?? null,
+      // Proof: with null answered here, `refuses removing a resource with a
+      // stated directory capacity, counting it` (directory-capacity.controller.db.test.ts)
+      // and the SQLite certification's `directory.setDirectoryCapacity:state-clear-remove`
+      // failed; watched 2026-10-25.
+      directoryCapacity:
+        reader
+          .select({ units: resourceDirectoryCapacity.units })
+          .from(resourceDirectoryCapacity)
+          .where(eq(resourceDirectoryCapacity.resourceId, resourceId))
+          .get()?.units ?? null,
       ...(tracked.count > 0 ? { outstandingUses: tracked.count } : {}),
     };
   }
@@ -1185,6 +1287,37 @@ export class DirectoryRepository implements DirectoryStore {
       .where(eq(projectResourceCapacity.resourceId, resourceId))
       .all();
     return [...new Set(projectsOf([...demanding, ...stating]))].sort();
+  }
+
+  /**
+   * Every project of `organizationId` whose claims hold units of the resource
+   * (`claim_occupancy → claim → work_item → project_organization`), the
+   * holders `ClaimStore.organizationOccupancyOf` counts; a holder in
+   * another organization's project is skipped as that read skips it.
+   *
+   * Proof: with the organization condition removed, the SQLite certification's
+   * `directory.setDirectoryCapacity:state-clear-remove` also announced the
+   * other organization's holder; watched 2026-11-01.
+   */
+  private projectsHoldingResource(
+    reader: Reader,
+    resourceId: string,
+    organizationId: string,
+  ): string[] {
+    const holding = reader
+      .select({ projectId: workItem.projectId })
+      .from(claimOccupancy)
+      .innerJoin(claim, eq(claim.id, claimOccupancy.claimId))
+      .innerJoin(workItem, eq(workItem.id, claim.workItemId))
+      .innerJoin(projectOrganization, eq(projectOrganization.resourceId, workItem.projectId))
+      .where(
+        and(
+          eq(claimOccupancy.resourceId, resourceId),
+          eq(projectOrganization.organizationId, organizationId),
+        ),
+      )
+      .all();
+    return [...new Set(holding.map(({ projectId }) => projectId))];
   }
 
   /** Every tag in the global directory, by name — {@link DirectoryStore.listTeams}' shape. */
@@ -1643,17 +1776,6 @@ export class DirectoryRepository implements DirectoryStore {
     return row.accountId;
   }
 
-  /** {@link DirectoryStore.credentialPinOf}: `external_identity.person_id` of the pair. */
-  async credentialPinOf(issuer: string, subject: string): Promise<string | null> {
-    await Promise.resolve();
-    const row = this.db
-      .select({ personId: externalIdentity.personId })
-      .from(externalIdentity)
-      .where(and(eq(externalIdentity.issuer, issuer), eq(externalIdentity.subject, subject)))
-      .get();
-    return row?.personId ?? null;
-  }
-
   /**
    * The projects a person's assignments reach into, read for the refusal that
    * names them.
@@ -2039,23 +2161,14 @@ export class DirectoryRepository implements DirectoryStore {
         // Own and delegated: the delegated go by the parent cascade, and their
         // work items' revisions move with the rest.
         const claimed = claimsTakenWith(tx, personId);
-        const pinned = credentialsPinnedTo(tx, personId);
         const machines = liveMachineCredentialsOf(tx, personId);
         // Proof: with `claimed` left out of this test, the SQLite certification's
         // `directory.removePerson:claims-in-use` case failed; watched 2026-10-19.
-        // Proof: with `pinned` left out of this test, the SQLite certification's
-        // `directory.removePerson:pinned-credential` case removed the person
-        // unconfirmed; with the revoking delete below removed, the confirmed
-        // removal failed on the `external_identity.person_id` foreign key
-        // (both watched 2026-10-20).
         // Proof: with `machines` left out of this test, `refuses removing a
         // person with a live machine credential unless cascaded` in
         // `machine-credential-admin.controller.db.test.ts` removed the person
         // unconfirmed; watched 2026-10-22.
-        if (
-          !cascade &&
-          (held.length > 0 || claimed.length > 0 || pinned.length > 0 || machines.length > 0)
-        ) {
+        if (!cascade && (held.length > 0 || claimed.length > 0 || machines.length > 0)) {
           return {
             ok: false,
             reason: 'in_use',
@@ -2073,11 +2186,15 @@ export class DirectoryRepository implements DirectoryStore {
         tx.delete(assignment).where(eq(assignment.personId, personId)).run();
         // Delegated claims under these go with them: `parent_claim_id` cascades.
         tx.delete(claim).where(eq(claim.personId, personId)).run();
-        // Revoked, not unpinned: `person_id` null would let the fleet claim as
-        // any person of its account. `external_identity.person_id` has no
-        // `ON DELETE` action, so without this the person delete fails on it.
-        if (pinned.length > 0)
-          tx.delete(externalIdentity).where(inArray(externalIdentity.id, pinned)).run();
+        // The rows the retired operator link pinned to this person admit
+        // nothing (`wbs-machine-credentials` A18) and go with it, unasked:
+        // `external_identity.person_id` has no `ON DELETE` action. This write
+        // is the column's last use until a cleanup change drops it.
+        // Proof: with this delete removed, `removes a person with a pinned row
+        // unconfirmed, taking the inert row with it`
+        // (`fleet-credential.controller.db.test.ts`) answered 500 on the
+        // foreign key; watched 2026-10-25.
+        tx.delete(externalIdentity).where(eq(externalIdentity.personId, personId)).run();
         // Proof: without this, the confirmed removals in `refuses removing a
         // person with a live machine credential unless cascaded` and `removes a
         // person whose credentials are all revoked …` failed on the

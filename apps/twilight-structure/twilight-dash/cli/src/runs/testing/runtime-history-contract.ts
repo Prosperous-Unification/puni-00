@@ -16,6 +16,7 @@ import { acceptRuntimeReceipt } from '../runtime-history';
 import type { RuntimeGuard, RuntimeIntent } from '../runtime-records';
 import { closeFixtures } from './close-fixtures';
 import { createManifest, createRun, unwrapReply } from './fixtures';
+import type { HistoricalRunStore } from './predecessor-fixture';
 import type { StoreFixture } from './run-store-contract';
 
 export const runtimeScope: RuntimeScope = {
@@ -68,10 +69,18 @@ export function authorityReceipt(intent: RuntimeIntent) {
 /** One semantic authority-history contract exercises both independently persisted providers. */
 export function runtimeHistoryContract(
   name: string,
-  create: () => Promise<StoreFixture & { artifacts: ArtifactStore }>,
+  create: () => Promise<
+    Omit<StoreFixture, 'runs'> & {
+      runs: Omit<
+        HistoricalRunStore,
+        'beginRecovery' | 'stageRecoveryFence' | 'recordRecoveryFence' | 'resolveRecovery'
+      >;
+      artifacts: ArtifactStore;
+    }
+  >,
 ): void {
   describe(name, () => {
-    const opened: StoreFixture[] = [];
+    const opened: { close(): Promise<void> }[] = [];
     afterEach(async () => {
       await closeFixtures(opened.splice(0));
     });
@@ -93,10 +102,13 @@ export function runtimeHistoryContract(
       expect(typeof stores.runs.stageRuntimeRequest).toBe('function');
       expect(typeof stores.runs.recordRuntimeAcceptance).toBe('function');
       expect(await stores.runs.readRuntimeScope(runtimeScope)).toEqual({
-        version: 1,
+        version: 3,
         kind: 'uninitialized',
         scope: runtimeScope,
         ownerEpoch: 1,
+        recoveries: [],
+        activeRecoveryId: null,
+        generationFloor: null,
       });
       await rejects(
         stores.runs.stageRuntimeRequest(stores.guard, authorityRequest()),

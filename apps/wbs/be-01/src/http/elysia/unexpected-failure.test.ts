@@ -1,4 +1,5 @@
 import type { FailureReporting } from '@shared/failures';
+import { runWhileReportingThrows } from '@shared/failures/testing';
 import type { LogFields, Logger, LogMethod } from '@wbs/contracts';
 import { createLogger, LogRecord } from '@wbs/observability';
 import { parseOrThrow } from '@wbs/validation';
@@ -68,18 +69,21 @@ test('logs one registered, redacted report under its original occurrence', () =>
   expect(captured.reports.public.occurrence_id).toBe(captured.reports.diagnostic.occurrence_id);
 });
 
-test('logs one visible loss when reporting cannot inspect the failure', () => {
+test('logs one visible loss when the report library throws', () => {
   const lines: string[] = [];
   const logger = createLogger({
     service: 'be-01',
     destination: { write: (chunk: string) => void lines.push(chunk) },
   });
   const report = createUnexpectedFailureReporter(logger, []);
-  const revocable = Proxy.revocable({}, {});
-  revocable.revoke();
 
+  // Proof: on 2026-11-02, making `reportFailure`'s catch rethrow failed this test on
+  // `not.toThrow()` with `injected reporting fault: makeReportPair threw`; leaving
+  // `makeReportPair` unfaulted failed it on `reported: true`.
   expect(() => {
-    report(new Error('boom', { cause: revocable.proxy }));
+    runWhileReportingThrows(() => {
+      report(new Error('boom'));
+    });
   }).not.toThrow();
 
   expect(lines).toHaveLength(1);

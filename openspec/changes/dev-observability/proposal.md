@@ -8,7 +8,7 @@ Provide a bounded dev deployment using the existing observability tool, pinned p
 
 Autonomous collection and a bounded dev probe produce queryable service/revision-correlated signals, with missing, stale and incomplete observations visible. Verify actual dev activity and stored output, including trace structure, rather than relying on endpoint status or synthetic fixture success.
 
-Provide reproducible rollout, preflight, rollback, private operator access and outage/recovery evidence. Prepare tested commits and an implementation PR.
+Provide reproducible rollout, preflight, rollback, private operator access and outage/recovery evidence. Prepare tested commits and an implementation PR. Preserve the separately authorized infrastructure Slack recipient using its existing protected secret reference.
 
 ## Non-Goals
 

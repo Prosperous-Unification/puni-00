@@ -83,7 +83,6 @@ export function createWorkingPlanDirectory(
     addPerson: afterWrite((...parameters) => source().addPerson(...parameters), ok),
     patchPerson: afterWrite((...parameters) => source().patchPerson(...parameters), ok),
     boundAccountOf: (personId) => source().boundAccountOf(personId),
-    credentialPinOf: (issuer, subject) => source().credentialPinOf(issuer, subject),
     usageOfPerson: (personId) => source().usageOfPerson(personId),
     usageOfTeam: (teamId) => source().usageOfTeam(teamId),
     removePerson: afterWrite((...parameters) => source().removePerson(...parameters), ok),
@@ -94,6 +93,13 @@ export function createWorkingPlanDirectory(
     setResourceProvider: afterWrite(
       (...parameters) => source().setResourceProvider(...parameters),
       ok,
+    ),
+    // Read through, uncached: the claim check reads it inside the batch's turn.
+    directoryCapacitiesOf: (resourceIds) => source().directoryCapacitiesOf(resourceIds),
+    // A directory capacity names no plan row: nothing a working plan retains moves.
+    setDirectoryCapacity: afterWrite(
+      (...parameters) => source().setDirectoryCapacity(...parameters),
+      never,
     ),
     usageOfResource: (resourceId) => source().usageOfResource(resourceId),
     // A cascaded removal takes demands and moves their rows' revisions, so the

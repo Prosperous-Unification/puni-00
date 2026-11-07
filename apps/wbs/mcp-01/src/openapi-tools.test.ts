@@ -424,6 +424,8 @@ describe('toolsFromDocument, on the generated document', () => {
       'createResource',
       'patchResource',
       'deleteResource',
+      // `wbs-shared-occupancy`: the organization's units of a shared resource.
+      'setDirectoryCapacity',
       'createMeasure',
       'patchMeasure',
       'deleteMeasure',

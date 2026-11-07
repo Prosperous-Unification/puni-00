@@ -1,6 +1,6 @@
 # Website funnel analytics implementation plan
 
-Read [intent](proposal.md), [behavior](specs/funnel-analytics/spec.md), [design](design.md) and [ADR 0064](../../../docs/adr/0064-consented-traffic-analytics-stays-separate-from-request-content.md). Use executing-plans in an isolated worktree. Public code can be implemented with a fake sink before property access or private source is available. Proposed configuration is reviewed before activation, not assumed live.
+Read [intent](proposal.md), [behavior](specs/funnel-analytics/spec.md), [design](design.md) and [ADR 0065](../../../docs/adr/0065-consented-traffic-analytics-stays-separate-from-request-content.md). Use executing-plans in an isolated worktree. Public code can be implemented with a fake sink before property access or private source is available. Proposed configuration is reviewed before activation, not assumed live.
 
 ## 1. Shared event and consent boundary
 

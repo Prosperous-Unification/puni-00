@@ -55,3 +55,25 @@ test('the validator and executable bundles carry no activation runtime', async (
     ).toEqual([]);
   }
 }, 120_000);
+
+/**
+ * `dist/bin.mjs` as built at the Optique migration (twilight-cli-optique C1), in bytes: 9,639,774
+ * before, 10,333,764 after, measured on 2026-11-02 with Bun 1.4.4. A build outside this band
+ * changed what the executable carries; measure it and record the new size here and in the
+ * change's verify.md.
+ */
+const RECORDED_EXECUTABLE_BYTES = 10_333_764;
+
+test('the executable bundle carries the Optique parser, at its recorded size', async () => {
+  // Proof: marking `@optique/*` external in this build failed the first assertion: the bundle no
+  // longer carried Optique's refusal text (2026-11-02).
+  const built = await Bun.build(executableBuildConfig());
+  if (!built.success || built.outputs.length !== 1) {
+    throw new Error(`cannot build bin.mjs: ${built.logs.map(String).join('; ')}`);
+  }
+  const executable = await built.outputs[0].text();
+  expect(executable).toContain('Unexpected option or subcommand');
+  const bytes = new TextEncoder().encode(executable).length;
+  expect(bytes).toBeGreaterThan(RECORDED_EXECUTABLE_BYTES * 0.95);
+  expect(bytes).toBeLessThan(RECORDED_EXECUTABLE_BYTES * 1.05);
+}, 120_000);

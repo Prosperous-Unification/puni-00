@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 
 import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
-import type { AuthenticationRefusal } from '@wbs/core/module/authentication/authentication.feature';
+import type { BearerRefusal } from '@wbs/core/module/authentication/authentication.feature';
 import type { AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
 import { decodeJwt, errors } from 'jose';
 
@@ -16,6 +16,12 @@ import { declaresMachineGrant, type MachineGrantVerifier } from '../runtime/mach
 import { organizationCookieCarrier } from '../runtime/organization-cookie';
 import type { VerifiedCredentialOf } from '../runtime/organization-credential';
 import type { IdentityResolver } from './endpoint';
+
+/**
+ * Where a deployment serves mcp-01 beside `/api`, named by the
+ * `machine_bearer_not_accepted` refusal (`wbs-mcp-agent-surface` M9).
+ */
+const MCP_ENDPOINT_PATH = '/mcp';
 
 /**
  * mcp-01's service identity at be-01 (`wbs-mcp-agent-surface` M3, M14): its
@@ -166,6 +172,9 @@ export function identityResolver(
     // not verify (`wbs-machine-credentials` A13 step 5).
     if (principal === 'invalid_token')
       return { ok: false, status: 401, body: { error: 'invalid_token' } };
+    // A machine bearer: machines call WBS through mcp-01 (`wbs-mcp-agent-surface` M9).
+    if (principal === 'machine_bearer_not_accepted')
+      return { ok: false, status: 401, body: { error: principal, endpoint: MCP_ENDPOINT_PATH } };
     // A machine grant without mcp-01's dedicated secret, or under no
     // configured key (`wbs-mcp-agent-surface` M3).
     if (principal === 'internal_unauthorized' || principal === 'unknown_grant_key')
@@ -214,7 +223,7 @@ async function delegatedOrSession(
   isMcpSecret: (presented: string | null) => boolean,
   headers: Headers,
 ): Promise<
-  AuthenticatedUser | AuthenticationRefusal | 'internal_unauthorized' | 'unknown_grant_key' | null
+  AuthenticatedUser | BearerRefusal | 'internal_unauthorized' | 'unknown_grant_key' | null
 > {
   const flat = Object.fromEntries(headers.entries());
   const bearer = headers.get('authorization');

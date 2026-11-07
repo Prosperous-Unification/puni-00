@@ -19,6 +19,48 @@ export const resourceRuntimeUse = type({
   reservedDiskUnits: 'number.integer >= 0',
   reservedWorkspaceUnits: 'number.integer >= 0',
 });
+/**
+ * A host job (`dash-host-jobs` J10), the use variant of `resourceRuntimeUse` v2: admitted by
+ * Dash's host pool alone and published afterwards, so its project, work item and person links
+ * are optional and its owner is the authority the event arrives through (and that authority's
+ * organization), never a planning row. `reservations` holds one entry per dimension the
+ * envelope names (`cpuCores`, `memoryGib`, `tmpDiskGib`, one per exclusive id). `launcherSha` is
+ * the HEAD of the checkout that launched the job (the run record's own field; for a gate the
+ * tested SHA is in its argv), null while the launcher records none. A v1 use (`resourceRuntimeUse`)
+ * is unchanged byte for byte.
+ */
+// Proof: with `projectId` required, a gate without a link failed to register in
+// `projects two gates with no planning link` (host-job-use.controller.db.test.ts) and Dash's
+// outbox move refused it in host-job-publication.test.ts; watched 2026-11-01.
+export const resourceRuntimeHostJobUse = type({
+  kind: "'host_job'",
+  'projectId?': label,
+  'workItemId?': label,
+  'responsiblePersonId?': label,
+  type: label,
+  label,
+  host: label,
+  launcherSha: type(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/).or('null'),
+  reservations: type({ dimension: label, units: 'number.integer >= 0' }).array(),
+}).onUndeclaredKey('reject');
+export type ResourceRuntimeHostJobUse = typeof resourceRuntimeHostJobUse.infer;
+/**
+ * The durable locator of a host job's run record (`dash-host-jobs` task 6.8, S6F-A1): the
+ * `runs` row of `job_id` `useId` in `<pool root>/.dash/host-job-runs.sqlite` on the host pool
+ * enrolled as `host` (the declaration's `host`). A returned host job's evidence names it with
+ * the SHA-256 of that row's stored `start` text, the gate entry written once before the
+ * payload ran.
+ */
+export function hostJobRunRecordLocator(host: string, useId: string): string {
+  return `dash-host-job-run://${host}/${useId}`;
+}
+/**
+ * What a `not_created` host job's evidence digest hashes: the statement that its gate never
+ * opened, so the run record `locator` names was never written.
+ */
+export function hostJobRunRecordAbsence(locator: string): string {
+  return `${locator} absent`;
+}
 /** Ordered attestation from an admin-bound runtime credential, never an ordinary worker assertion. */
 export const resourceRuntimeEvent = type({
   eventId: label,
@@ -31,20 +73,34 @@ export const resourceRuntimeEvent = type({
   observedAt: 'number.integer >= 0',
   reason: label,
   'requestId?': 'number.integer > 0',
-  use: resourceRuntimeUse,
+  use: resourceRuntimeUse.or(resourceRuntimeHostJobUse),
+  /**
+   * `returned` is a host job's: every reservation entry settled on its terminal evidence (J2'),
+   * the digest and locator naming its run record ({@link hostJobRunRecordLocator}); a host job
+   * whose gate never opened is `not_created` ({@link hostJobRunRecordAbsence}).
+   */
   'evidence?': {
     digest: 'string',
     locator: label,
-    disposition: "'removed' | 'not_created'",
+    disposition: "'removed' | 'not_created' | 'returned'",
     reclaimedBytes: 'null',
   },
   'retention?': { ownerPersonId: label, reviewAt: 'number.integer > 0' },
 });
 export type ResourceRuntimeEvent = typeof resourceRuntimeEvent.infer;
-/** Durable attribution admission precedes physical work and ordered source publication. */
-export const resourceRuntimeAdmission = resourceRuntimeEvent
-  .pick('eventId', 'epoch', 'useId', 'incarnation', 'observedAt', 'reason', 'use')
-  .onUndeclaredKey('reject');
+/**
+ * Durable attribution admission precedes physical work and ordered source publication. Only a
+ * v1 use is admitted: a host job is admitted by its host pool and never by WBS (J10).
+ */
+export const resourceRuntimeAdmission = type({
+  eventId: label,
+  epoch: label,
+  useId: label,
+  incarnation: label,
+  observedAt: 'number.integer >= 0',
+  reason: label,
+  use: resourceRuntimeUse,
+}).onUndeclaredKey('reject');
 export type ResourceRuntimeAdmission = typeof resourceRuntimeAdmission.infer;
 export const resourceRuntimeAdmissionReceipt = type({
   eventId: label,
