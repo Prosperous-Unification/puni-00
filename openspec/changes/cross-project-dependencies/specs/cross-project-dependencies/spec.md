@@ -2913,3 +2913,30 @@ NOT enlarge the compiler prediction or authorize an implicit retry.
 - **THEN** the immutable attempt retains actual causes, originals, observers and diagnostic evidence
 - **AND** UNKNOWN retains its keeper and never becomes cleanup through timeout, cancellation, signal or disappearance
 - **AND** another attempt requires a separately reviewed fixed packet and protocol rather than adopting the discovered input set
+
+### Requirement: Compiler representation preserves sealed source authority
+
+Compiler metadata admission SHALL associate each raw edge with a fixed sealed
+source edge while preserving raw SDK fields separately from canonical source
+semantics. Only direct, exact Node-prefix and the fixed historical-relative
+representation contract SHALL be accepted. Actual metadata SHALL NOT extend
+source, destination, importer or representation authority.
+
+#### Scenario: Exact Node-prefix presentation
+
+- **WHEN** raw external metadata spells a canonical node: destination without its single leading prefix
+- **THEN** the raw original must equal the sealed node: specifier, the canonical target must match and sourceExternal must remain true
+- **AND** another original, path, kind or external classification refuses
+
+#### Scenario: Closed historical relative presentation
+
+- **WHEN** a fixed historical-relative SDK tuple reports external=true without an original
+- **THEN** its unchanged default importer pin, exact literal, kind, physical coverage and sealed source edge must match
+- **AND** lexical resolution must equal the already sealed internal destination, while raw external=true remains recorded
+- **AND** an unrostered tuple, changed importer/destination or inserted original refuses
+
+#### Scenario: Association retains scanner and ambiguity safeguards
+
+- **WHEN** raw metadata identifies a scanner, foreign destination or incompatible semantic alternatives
+- **THEN** only the exact canonical external scanner is accepted and foreign, bundled or ambiguously associated dependencies refuse
+- **AND** equivalent duplicate source imports may share one distinct semantic association without widening the source graph

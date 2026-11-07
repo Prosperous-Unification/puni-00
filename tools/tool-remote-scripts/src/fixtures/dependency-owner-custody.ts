@@ -6607,36 +6607,190 @@ export function assertOrdinaryCoupledPlanV1(
   );
 }
 
-/** Rejects unsealed observed destinations; omitted input rows remain permitted only as presealed edges. */
-export function assertOrdinaryCoupledMetadataEdgesV1(
-  request: OrdinaryCoupledBuildRequestV1,
+/** Closed SDK spellings from the accepted old metadata and unchanged source importer pins. */
+const ordinaryCoupledHistoricalRelativeV1 = Object.freeze([
+  {
+    importer: 'node_modules/drizzle-orm/bun-sqlite/index.js',
+    bytes: 208,
+    sha256: 'f6dda1d755517112c1480a2ef9b697403ab39c0bc674592e6ffdead0e1b6c7cb',
+    specifiers: ['./session.js'],
+  },
+  {
+    importer: 'node_modules/drizzle-orm/index.js',
+    bytes: 5091,
+    sha256: 'c3615a7f031a2f486a45b05ec69b7ab83735d8ec4bdc228cc0a61bf408ef40d0',
+    specifiers: [
+      './query-promise.js',
+      './entity.js',
+      './column.js',
+      './table.js',
+      './errors.js',
+      './sql/expressions/conditions.js',
+      './sql/expressions/select.js',
+      './subquery.js',
+      './view-common.js',
+      './alias.js',
+      './utils.js',
+      './relations.js',
+      './column-builder.js',
+      './logger.js',
+      './sql/functions/aggregate.js',
+      './sql/functions/vector.js',
+    ],
+  },
+  {
+    importer: 'node_modules/drizzle-orm/sqlite-core/query-builders/index.js',
+    bytes: 538,
+    sha256: 'a5f9925517c289c624dff5c4d46f8a6b409af4536777218d3db8aff8dd9b8069',
+    specifiers: ['./delete.js'],
+  },
+  {
+    importer: 'node_modules/drizzle-orm/sql/index.js',
+    bytes: 1437,
+    sha256: '4a8ebd013007165d1298cb2ac54c5cbe5ac619311d21e29dd04fa211f3abaaca',
+    specifiers: ['./expressions/select.js', './functions/aggregate.js', './functions/vector.js'],
+  },
+  {
+    importer: 'node_modules/drizzle-orm/sqlite-core/columns/index.js',
+    bytes: 1513,
+    sha256: 'bcb176677f6acd60ca5223823303dce4c461f5aaa1ce4ad62b248a361ca00a21',
+    specifiers: [
+      './blob.js',
+      './custom.js',
+      './integer.js',
+      './numeric.js',
+      './real.js',
+      './text.js',
+    ],
+  },
+]);
+
+interface OrdinaryCoupledRawMetadataEdgeV1 {
+  readonly rawImporter: string;
+  readonly rawPath: string;
+  readonly original?: string | undefined;
+  readonly external?: boolean;
+  readonly kind: string;
+}
+interface OrdinaryCoupledMetadataAssociationV1 extends OrdinaryCoupledRawMetadataEdgeV1 {
+  readonly originalPresent: boolean;
+  readonly importerIdentity: string;
+  readonly identity: string;
+  readonly sourceExternal: boolean;
+  readonly sealedSpecifier: string;
+  readonly representation: 'direct' | 'node-prefix' | 'historical-relative';
+}
+
+/** Associates raw SDK records with sealed source semantics without resolving or reading files.
+ * The closed relative roster derives from accepted metadata SHA310ec432d8d6e83a2609e7a816766d1d7f2a0fa9d294a13971430f8faf430fdd
+ * and the unchanged conservative coverage SHAb54481e48ddb1470b9c08c3614c7ef59a54b3447c8b5faa87ae27b8cbaec4ee2.
+ * Raw SDK flags and original presence survive independently of sourceExternal; present originals must be strings, and historical relatives require absence.
+ * Throws for unsealed importers, unsupported representations or incompatible semantic ambiguity.
+ */
+export function associateOrdinaryCoupledMetadataEdgesV1(
+  request: Pick<OrdinaryCoupledBuildRequestV1, 'sourceRoot' | 'coverage' | 'closureManifest'>,
+  compilerCwd: string,
   entryPath: string,
-  edges: readonly {
-    readonly importerIdentity: string;
-    readonly identity: string;
-    readonly external: boolean;
-    readonly kind: string;
-  }[],
-): void {
-  for (const edge of edges) {
-    const importer =
-      edge.importerIdentity === entryPath
-        ? 'generated:ordinary-image-entry.ts'
-        : edge.importerIdentity;
-    const destination =
-      edge.identity === entryPath ? 'generated:ordinary-image-entry.ts' : edge.identity;
-    const row = request.coverage.find((row) => row.identity === importer);
-    // Proof: removing this entire edge predicate admitted a bundled scanner classification; KCT5 observed edges test failed and restoration passed (2026-11-07, inert metadata). Individual conjuncts were not isolated.
-    if (
-      !row?.imports.some(
-        (sealed) =>
-          sealed.destination === destination &&
-          sealed.external === edge.external &&
-          sealed.kind === edge.kind,
-      )
-    )
-      throw new Error('coupled compiler edge destination or classification differs');
-  }
+  edges: readonly OrdinaryCoupledRawMetadataEdgeV1[],
+): readonly OrdinaryCoupledMetadataAssociationV1[] {
+  // Proof: omitting the sealed cwd comparison admitted an absolute scanner record under a foreign cwd; the pure cwd negative failed and restoration passed (2026-11-07).
+  if (compilerCwd !== request.closureManifest.compilerCwd)
+    throw new Error('coupled compiler cwd differs');
+  const canonical = (rawPath: string) => {
+    const identity = identifyOrdinaryCoupledMetafilePathV1(
+      request.sourceRoot,
+      compilerCwd,
+      rawPath,
+    );
+    return identity === entryPath ? 'generated:ordinary-image-entry.ts' : identity;
+  };
+  return Object.freeze(
+    edges.map((edge) => {
+      const originalPresent = Object.prototype.hasOwnProperty.call(edge, 'original');
+      const importerIdentity = canonical(edge.rawImporter);
+      const importer = request.coverage.find((row) => row.identity === importerIdentity);
+      if (importer === undefined) throw new Error('coupled compiler edge importer differs');
+      const rawIdentity =
+        edge.external === true && !edge.rawPath.startsWith('/')
+          ? edge.rawPath
+          : canonical(edge.rawPath);
+      const associations = new Map<string, OrdinaryCoupledMetadataAssociationV1>();
+      for (const sealed of importer.imports) {
+        // Proof: restoring both old value-based original checks admitted a direct own-present undefined original; the portable presence refusal failed, then passed after exact restoration (2026-11-07). Historical own-undefined refusal is coverage, not isolated proof.
+        // Proof: removing the exact kind comparison admitted changed node kind; the isolated pure test failed and restoration passed (2026-11-07).
+        if (
+          sealed.from !== importerIdentity ||
+          sealed.kind !== edge.kind ||
+          (originalPresent &&
+            (typeof edge.original !== 'string' || edge.original !== sealed.specifier))
+        )
+          continue;
+        let representation: OrdinaryCoupledMetadataAssociationV1['representation'] | undefined;
+        // Proof: removing the direct external comparison admitted bundled-scanner metadata; the pure scanner negative failed and restoration passed (2026-11-07).
+        if (rawIdentity === sealed.destination && (edge.external === true) === sealed.external)
+          representation = 'direct';
+        // Proof: removing single-prefix path equality admitted a forged Node path; the isolated pure negative failed and restoration passed (2026-11-07). Missing original refusal remains covered.
+        else if (
+          edge.external === true &&
+          sealed.external &&
+          sealed.specifier.startsWith('node:') &&
+          sealed.destination === sealed.specifier &&
+          edge.original === sealed.specifier &&
+          edge.rawPath === sealed.specifier.slice(5)
+        )
+          representation = 'node-prefix';
+        else {
+          const historical = ordinaryCoupledHistoricalRelativeV1.find(
+            (contract) => importerIdentity === `${request.sourceRoot}/${contract.importer}`,
+          );
+          const physical = request.closureManifest.files.find(
+            (file) =>
+              `${request.sourceRoot}/${file.identity}` === importerIdentity &&
+              file.roles.includes('compiler'),
+          );
+          // Proof: isolated omissions admitted an unrostered existing relative, changed default/closure importer hash, changed lexical target, or missing coverage target; each pure negative failed and restoration passed (2026-11-07).
+          if (
+            historical !== undefined &&
+            historical.specifiers.includes(edge.rawPath) &&
+            edge.external === true &&
+            !originalPresent &&
+            edge.kind === 'import-statement' &&
+            importer.mode === 'default' &&
+            importer.bytes === historical.bytes &&
+            importer.sha256 === historical.sha256 &&
+            physical?.bytes === historical.bytes &&
+            physical.sha256 === historical.sha256 &&
+            sealed.specifier === edge.rawPath &&
+            sealed.rule === 'default-bun-resolveSync' &&
+            !sealed.external &&
+            ordinaryHoldResolve(importerIdentity, '..', edge.rawPath) === sealed.destination &&
+            request.coverage.some((row) => row.identity === sealed.destination)
+          )
+            representation = 'historical-relative';
+        }
+        if (representation === undefined) continue;
+        const association = Object.freeze({
+          ...edge,
+          originalPresent,
+          importerIdentity,
+          identity: sealed.destination,
+          sourceExternal: sealed.external,
+          sealedSpecifier: sealed.specifier,
+          representation,
+        });
+        associations.set(
+          JSON.stringify([sealed.destination, sealed.specifier, sealed.external, representation]),
+          association,
+        );
+      }
+      // Proof: admitting more than one association accepted incompatible scanner specifiers; the pure ambiguity negative failed and restoration passed (2026-11-07).
+      if (associations.size !== 1)
+        throw new Error('coupled compiler edge destination or classification differs');
+      const association = associations.values().next().value;
+      if (association === undefined) throw new Error('coupled compiler edge association absent');
+      return association;
+    }),
+  );
 }
 
 export function identifyOrdinaryCoupledMetafilePathV1(
@@ -7132,22 +7286,22 @@ async function buildOrdinaryCoupledImageBodyV1(
       if (normalizedInputs.filter((input) => input.identity === mapping.path).length !== 1)
         throw new Error('ordinary HOLD classifier or mapped input identity differs');
     }
-    const normalizedEdges = inputs.flatMap(([rawImporter, input]) =>
-      input.imports.map((edge) => ({
-        rawImporter,
-        importerIdentity: identifyOrdinaryCoupledMetafilePathV1(root, compilerCwd, rawImporter),
-        rawPath: edge.path,
-        kind: edge.kind,
-        identity:
-          edge.external === true && !edge.path.startsWith('/')
-            ? edge.path
-            : identifyOrdinaryCoupledMetafilePathV1(root, compilerCwd, edge.path),
-        external: edge.external === true,
-      })),
+    const normalizedEdges = associateOrdinaryCoupledMetadataEdgesV1(
+      request,
+      compilerCwd,
+      entryPath,
+      inputs.flatMap(([rawImporter, input]) =>
+        input.imports.map((edge) => ({
+          rawImporter,
+          rawPath: edge.path,
+          kind: edge.kind,
+          ...('original' in edge ? { original: edge.original } : {}),
+          ...('external' in edge ? { external: edge.external } : {}),
+        })),
+      ),
     );
-    assertOrdinaryCoupledMetadataEdgesV1(request, entryPath, normalizedEdges);
     const scannerEdges = normalizedEdges.filter((edge) => edge.identity === scanner);
-    if (scannerEdges.length === 0 || scannerEdges.some((edge) => !edge.external))
+    if (scannerEdges.length === 0 || scannerEdges.some((edge) => edge.external !== true))
       throw new Error('ordinary HOLD scanner external edge differs');
     const output = built.outputs.at(0);
     if (output === undefined) throw new Error('ordinary HOLD compiler artifact absent');

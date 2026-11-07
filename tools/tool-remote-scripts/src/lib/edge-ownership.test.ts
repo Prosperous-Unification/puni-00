@@ -4514,31 +4514,31 @@ test('KCT5 coupled compiler finish requires the genuine retained setup original 
 
 test('KCT5 coupled observed edges require sealed destinations and external classifications including fixed omissions', async () => {
   const fixture = await import('../fixtures/dependency-owner-custody');
-  expect(typeof fixture.assertOrdinaryCoupledMetadataEdgesV1).toBe('function');
+  expect(typeof fixture.associateOrdinaryCoupledMetadataEdgesV1).toBe('function');
   const request = fixture.decodeOrdinaryCoupledBuildRequestV1(await coupledBuildRequest());
   const scanner = `${request.sourceRoot}/tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts`;
   const sealed = request.coverage.flatMap((row) => row.imports);
   const scannerEdge = sealed.find((edge) => edge.destination === scanner);
   if (scannerEdge === undefined) throw Error('sealed scanner edge absent');
   const edge = {
-    importerIdentity: scannerEdge.from,
-    identity: scannerEdge.destination,
+    rawImporter: scannerEdge.from,
+    rawPath: scannerEdge.destination,
     kind: scannerEdge.kind,
     external: scannerEdge.external,
   };
-  fixture.assertOrdinaryCoupledMetadataEdgesV1(request, '/entry.ts', [edge]);
+  fixture.associateOrdinaryCoupledMetadataEdgesV1(request, request.sourceRoot, '/entry.ts', [edge]);
   expect(() => {
-    fixture.assertOrdinaryCoupledMetadataEdgesV1(request, '/entry.ts', [
+    fixture.associateOrdinaryCoupledMetadataEdgesV1(request, request.sourceRoot, '/entry.ts', [
       { ...edge, external: false },
     ]);
   }).toThrow('classification');
   expect(() => {
-    fixture.assertOrdinaryCoupledMetadataEdgesV1(request, '/entry.ts', [
-      { ...edge, identity: scanner + '.alias' },
+    fixture.associateOrdinaryCoupledMetadataEdgesV1(request, request.sourceRoot, '/entry.ts', [
+      { ...edge, rawPath: scanner + '.alias' },
     ]);
   }).toThrow('destination');
   expect(() => {
-    fixture.assertOrdinaryCoupledMetadataEdgesV1(request, '/entry.ts', [
+    fixture.associateOrdinaryCoupledMetadataEdgesV1(request, request.sourceRoot, '/entry.ts', [
       { ...edge, kind: 'require-call' },
     ]);
   }).toThrow('classification');
@@ -4548,13 +4548,192 @@ test('KCT5 coupled observed edges require sealed destinations and external class
   for (const omission of prediction.omissions) {
     const inherited = sealed.find((edge) => edge.destination === omission);
     if (inherited === undefined) throw Error('sealed omission edge absent');
-    fixture.assertOrdinaryCoupledMetadataEdgesV1(request, '/entry.ts', [
+    fixture.associateOrdinaryCoupledMetadataEdgesV1(request, request.sourceRoot, '/entry.ts', [
       {
-        importerIdentity: inherited.from,
-        identity: inherited.destination,
+        rawImporter: inherited.from,
+        rawPath: inherited.destination,
         kind: inherited.kind,
         external: inherited.external,
       },
     ]);
   }
+});
+
+test('KCT5 coupled raw associations preserve SDK flags across direct Node and historical representations', async () => {
+  const fixture = await import('../fixtures/dependency-owner-custody');
+  const request = fixture.decodeOrdinaryCoupledBuildRequestV1(await coupledBuildRequest());
+  const root = request.sourceRoot;
+  const scanner = `${root}/tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts`;
+  const sourceEdges = request.coverage.flatMap((row) => row.imports);
+  const scannerSource = sourceEdges.find((edge) => edge.destination === scanner);
+  const nodeSource = sourceEdges.find((edge) => edge.specifier.startsWith('node:'));
+  const relativeImporter = `${root}/node_modules/drizzle-orm/index.js`;
+  const relativeSource = sourceEdges.find(
+    (edge) => edge.from === relativeImporter && edge.specifier === './sql/functions/aggregate.js',
+  );
+  if (scannerSource === undefined || nodeSource === undefined || relativeSource === undefined)
+    throw new Error('sealed association witnesses absent');
+  const direct = {
+    rawImporter: scannerSource.from,
+    rawPath: scanner,
+    original: scannerSource.specifier,
+    external: true,
+    kind: scannerSource.kind,
+  };
+  const node = {
+    rawImporter: nodeSource.from,
+    rawPath: nodeSource.specifier.slice(5),
+    original: nodeSource.specifier,
+    external: true,
+    kind: nodeSource.kind,
+  };
+  const relative = {
+    rawImporter: relativeImporter,
+    rawPath: relativeSource.specifier,
+    external: true,
+    kind: relativeSource.kind,
+  };
+  const associate = (
+    edges: Parameters<typeof fixture.associateOrdinaryCoupledMetadataEdgesV1>[3],
+    sealed = request,
+  ) => fixture.associateOrdinaryCoupledMetadataEdgesV1(sealed, root, '/entry.ts', edges);
+  expect(() =>
+    fixture.associateOrdinaryCoupledMetadataEdgesV1(request, '/foreign', '/entry.ts', [direct]),
+  ).toThrow('cwd');
+  const associations = associate([direct, node, relative]);
+  expect(associations.map((edge) => edge.representation)).toEqual([
+    'direct',
+    'node-prefix',
+    'historical-relative',
+  ]);
+  expect(associations.map((edge) => edge.external)).toEqual([true, true, true]);
+  expect(associations.map((edge) => edge.sourceExternal)).toEqual([true, true, false]);
+  expect(associations.map((edge) => edge.originalPresent)).toEqual([true, true, false]);
+  expect(associations.map((edge) => edge.identity)).toEqual([
+    scanner,
+    nodeSource.destination,
+    relativeSource.destination,
+  ]);
+  expect(associate([{ ...node, rawPath: nodeSource.specifier }])[0]?.representation).toBe('direct');
+  expect(() => associate([{ ...direct, original: undefined }])).toThrow('classification');
+  expect(() => associate([{ ...relative, original: undefined }])).toThrow('classification');
+  for (const forged of [
+    { ...direct, original: 'forged' },
+    { ...direct, external: false },
+    { ...direct, rawPath: `${scanner}.foreign` },
+    { ...node, original: 'node:forged' },
+    { ...node, rawPath: `${node.rawPath}.forged` },
+    { ...node, original: undefined },
+    { ...node, external: false },
+    { ...node, kind: 'require-call' },
+    { ...relative, rawImporter: `${root}/node_modules/drizzle-orm/column.js` },
+    { ...relative, rawPath: './unrostered.js' },
+    { ...relative, rawPath: './sql/sql.js' },
+    { ...relative, original: relative.rawPath },
+    { ...relative, external: false },
+    { ...relative, kind: 'require-call' },
+  ])
+    expect(() => associate([forged])).toThrow('coupled compiler edge');
+  const cloneRequest = () => ({
+    ...request,
+    coverage: request.coverage.map((row) => ({
+      ...row,
+      imports: row.imports.map((edge) => ({ ...edge })),
+    })),
+    closureManifest: {
+      ...request.closureManifest,
+      files: request.closureManifest.files.map((row) => ({ ...row })),
+    },
+  });
+  const changeImporter = (
+    change: (row: {
+      mode: string;
+      sha256: string;
+      imports: { specifier: string; destination: string; rule: string }[];
+    }) => void,
+  ) => {
+    const changed = cloneRequest();
+    const importer = changed.coverage.find((row) => row.identity === relativeImporter);
+    if (importer === undefined) throw new Error('historical importer absent');
+    change(importer);
+    return changed;
+  };
+  expect(() =>
+    associate(
+      [relative],
+      changeImporter((row) => {
+        row.sha256 = '0'.repeat(64);
+      }),
+    ),
+  ).toThrow('classification');
+  expect(() =>
+    associate(
+      [relative],
+      changeImporter((row) => {
+        row.mode = 'transform';
+      }),
+    ),
+  ).toThrow('classification');
+  expect(() =>
+    associate(
+      [relative],
+      changeImporter((row) => {
+        for (const edge of row.imports)
+          if (edge.specifier === relative.rawPath) edge.destination += '.foreign';
+      }),
+    ),
+  ).toThrow('classification');
+  expect(() =>
+    associate(
+      [relative],
+      changeImporter((row) => {
+        for (const edge of row.imports)
+          if (edge.specifier === relative.rawPath) edge.rule = 'foreign';
+      }),
+    ),
+  ).toThrow('classification');
+  expect(() =>
+    associate(
+      [relative],
+      changeImporter((row) => {
+        for (const edge of row.imports)
+          if (edge.specifier === relative.rawPath)
+            edge.destination = `${root}/node_modules/drizzle-orm/column.js`;
+      }),
+    ),
+  ).toThrow('classification');
+  const missingTarget = cloneRequest();
+  missingTarget.coverage = missingTarget.coverage.filter(
+    (row) => row.identity !== relativeSource.destination,
+  );
+  expect(() => associate([relative], missingTarget)).toThrow('classification');
+  const changedClosure = cloneRequest();
+  const physical = changedClosure.closureManifest.files.find(
+    (row) => `${root}/${row.identity}` === relativeImporter,
+  );
+  if (physical === undefined) throw new Error('historical physical pin absent');
+  physical.sha256 = '0'.repeat(64);
+  expect(() => associate([relative], changedClosure)).toThrow('classification');
+  const duplicate = cloneRequest();
+  const importer = duplicate.coverage.find((row) => row.identity === relativeImporter);
+  if (importer === undefined) throw new Error('historical importer absent');
+  importer.imports.push({ ...relativeSource });
+  expect(associate([relative], duplicate)).toHaveLength(1);
+  const ambiguous = cloneRequest();
+  const scannerImporter = ambiguous.coverage.find((row) => row.identity === scannerSource.from);
+  if (scannerImporter === undefined) throw new Error('scanner importer absent');
+  scannerImporter.imports.push({ ...scannerSource, specifier: 'foreign-scanner-specifier' });
+  expect(() =>
+    associate(
+      [
+        {
+          rawImporter: direct.rawImporter,
+          rawPath: direct.rawPath,
+          external: true,
+          kind: direct.kind,
+        },
+      ],
+      ambiguous,
+    ),
+  ).toThrow('classification');
 });
