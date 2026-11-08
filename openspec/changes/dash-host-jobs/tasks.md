@@ -198,7 +198,7 @@
         new unit only, apply 2 `changed=0`, validate `failed=0`; both still unenrolled, so
         `ops pool init`, which pins the unit list, comes after (verify.md, "2026-11-05 token-unit
         apply converged on both hosts").
-- [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
+- [x] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
       `Restart=on-failure` and `KillMode=process` (beside the observation units of 4.2). It
       lands before 6.4, because observe mode needs a running `watch` (review H1 of #818). A host
       job whose compute outlives its launcher keeps the shell lock until `watch`, or an
@@ -210,6 +210,10 @@
       `apps/twilight-structure/twilight-dash/cli/docs/resources.md`. Proof: kill the process and
       watch systemd restart it with the guard holder surviving; a converging `gate_host` apply
       reports `changed=0` the second time.
+      Done on h4claw 2026-11-08 (verify.md, "2026-11-08 h4claw enrolled in observe mode"):
+      `NRestarts=2` with the 30 s `RestartSec` gap and holders unchanged (EV-A2, EV-A3); the
+      enrolled apply's recaps were lost and a fresh `--tags validate` stands in (EV-A1). h2puni
+      gets the same proof at its enrollment.
 - [x] 6.7a Code (slice 6c): the role installs `dash-resources-watch.service`
       (`Restart=on-failure`, `RestartSec=30`, `KillMode=process`, skipped until the ledger
       exists) and the audit pair `ops job render-audit-units` renders. It enables them on an
