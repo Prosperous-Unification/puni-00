@@ -47,3 +47,11 @@ and all required controls remain unchanged.
 - [x] Preserve both partition and upstream120-minute source/history without replacing the private workflow wholesale.
 - [x] Verify current owning source tests, configured types, lint/format and OpenSpec, then obtain independent merge review.
 - [ ] Require exact-head hosted CI and canonical host-gate acceptance for the eventual complete candidate; local declarations do not prove capacity.
+
+## Workspace phase amendment — 2026-11-08
+
+- [x] Retain exact 0906 cold-run exit 124 evidence and distinguish whole-job 120 from phase 75.
+- [x] Observe both existing parsed-workflow consumers fail 105m expectations against the real 75m wrapper.
+- [x] Change only residual workspace phase to 105m, preserve every other bound/command and prove parsed-workflow scope.
+- [x] Complete focused existing production failure/log controls, statics and independent review; commit normally.
+- [ ] Root: qualify the successor in fresh hosted CI and canonical actual-main host gate before delivery acceptance.

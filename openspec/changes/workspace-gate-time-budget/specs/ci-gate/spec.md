@@ -2,7 +2,7 @@
 
 ### Requirement: Bounded whole-project workspace partitions
 
-CI SHALL assign `wbs-be-01`, `tool-remote-scripts` and `wbs-fe-01` to dedicated runtime jobs and every other non-Twilight project to the residual workspace job. The residual workspace job SHALL have a finite 120-minute whole-job budget; other runtime jobs SHALL retain their finite 90-minute budgets, existing phase cutoffs and Nx parallelism of two. Non-remote runtime phases SHALL retain their 75-minute cutoff; fixed remote phase limits remain governed by ci-remote-capacity. The original runtime targets and Nx task dependencies SHALL remain required. The sole fixed physical execution exception is `ci-remote-capacity`: remote retains exactly one logical project owner and selection bit, with its complete physical leaf coverage and independently required jobs governed by that capability's validated contract. This exception SHALL preserve full module coverage, static/dependency ownership, source validation and the unchanged canonical local/host target.
+CI SHALL assign `wbs-be-01`, `tool-remote-scripts` and `wbs-fe-01` to dedicated runtime jobs and every other non-Twilight project to the residual workspace job. The residual workspace job SHALL have a finite 120-minute whole-job budget; other runtime jobs SHALL retain their finite 90-minute budgets, existing phase cutoffs and Nx parallelism of two. The residual workspace runtime phase SHALL have a finite 105-minute cutoff within its 120-minute whole-job budget, retaining 15 minutes for setup and collection. Other non-remote runtime phases SHALL retain their 75-minute cutoff; fixed remote phase limits remain governed by ci-remote-capacity. The original runtime targets and Nx task dependencies SHALL remain required. The sole fixed physical execution exception is `ci-remote-capacity`: remote retains exactly one logical project owner and selection bit, with its complete physical leaf coverage and independently required jobs governed by that capability's validated contract. This exception SHALL preserve full module coverage, static/dependency ownership, source validation and the unchanged canonical local/host target.
 
 #### Scenario: Full or shared-input scope
 
@@ -42,3 +42,9 @@ CI SHALL run every former non-Nx workspace check in a required `gate_checks` job
 
 - **WHEN** the workspace job reaches its 120-minute limit
 - **THEN** GitHub Actions cancels the job and the required gate cannot pass
+
+#### Scenario: Residual workspace exceeds the former phase cutoff
+
+- **WHEN** successful workspace runtime and independent lint commands together approach 75 minutes and required source lint remains unfinished
+- **THEN** the 105-minute phase permits remaining required commands to determine their actual outcomes
+- **AND** the existing 120-minute outer job still bounds the job and all other phase/operation/test cutoffs remain unchanged

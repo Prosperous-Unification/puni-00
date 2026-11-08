@@ -425,10 +425,13 @@ jobs:
             printf 'invalid runtime gate mode: %s\n' "$GATE_MODE" >&2
             exit 1
           fi
+          # The workspace job is 120m; preserve the same 15m reserve as dedicated 90m/75m jobs.
+          # Run 42437062542 completed 74m21s of commands, then 75m killed source lint unfinished.
+          # This bounded 105m allowance needs fresh hosted proof; it changes no operation limit.
           phase_started=$SECONDS
           printf 'runtime phase start partition=workspace head=%s utc=%s\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > nx-gate.log
           set +e
-          timeout --signal=TERM --kill-after=30s 75m \
+          timeout --signal=TERM --kill-after=30s 105m \
             bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts workspace "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \
             >> nx-gate.log 2>&1
           gate_status=$?

@@ -12,7 +12,7 @@ frontend ownership plus residual workspace coverage, with the fixed remote
 execution layout governed by ci-remote-capacity. Preserve exact validated
 selection, runtime phases, provision, commands, annotations, logs and reduction.
 Carry main's finite120-minute allowance for gate_workspace; dedicated runtime
-jobs retain their existing90-minute ceilings and phase limits. Required non-Nx
+jobs retain their existing90-minute ceilings and phase limits. The residual workspace phase receives 105 minutes inside its unchanged 120-minute job, preserving the same 15-minute reserve as the dedicated 90/75 budgets. Required non-Nx
 checks retain their30-minute job, and Twilight remains75 minutes.
 
 ## Non-goals

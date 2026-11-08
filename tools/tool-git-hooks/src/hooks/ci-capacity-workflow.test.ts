@@ -66,6 +66,8 @@ test('all Python consumers use a hosted distribution available for the pinned ru
   }
 });
 
+// Proof: the original production workspace 75m failed this consumer expecting 105m;
+// dedicated 75m and whole-job 120m/90m controls remain, restoration passed.
 test('each whole-project runtime has a finite Nx phase and whole-job limit with durable status and log', () => {
   for (const [partition, title] of [
     ['workspace', 'Gate'],
@@ -81,7 +83,9 @@ test('each whole-project runtime has a finite Nx phase and whole-job limit with 
         : `\${{ needs.gate_mode.outputs.mode == 'full' || needs.gate_mode.outputs.${partition} == 'run' }}`,
     );
     const execution = step(runtime, `${title} — test, lint, typecheck, build`);
-    expect(execution.run).toContain('timeout --signal=TERM --kill-after=30s 75m \\');
+    expect(execution.run).toContain(
+      `timeout --signal=TERM --kill-after=30s ${partition === 'workspace' ? '105' : '75'}m \\`,
+    );
     expect(execution.run).toContain(
       `ci-run-runtime.ts ${partition} "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE"`,
     );

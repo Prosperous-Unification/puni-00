@@ -364,6 +364,8 @@ describe('the CI gate scope', () => {
     expect(commands).not.toContain('grep');
   });
 
+  // Proof: the production 75m wrapper failed the unchanged command expectation 105m;
+  // the exact workspace-only correction passed without changing caller identity.
   it('runs validated PR and full workspace partitions within the Nx phase budget', async () => {
     const workflow = await readCiWorkflow();
     const step = gateStep(workflow, 'gate_workspace', 'Gate — test, lint, typecheck, build');
@@ -376,7 +378,7 @@ describe('the CI gate scope', () => {
     });
     const commands = oneLine(commandsOf(step.run ?? ''));
     expect(commands).toContain(
-      'timeout --signal=TERM --kill-after=30s 75m \\ bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts workspace "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \\ >> nx-gate.log 2>&1',
+      'timeout --signal=TERM --kill-after=30s 105m \\ bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts workspace "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \\ >> nx-gate.log 2>&1',
     );
     expect(workflow.jobs?.gate_workspace?.['timeout-minutes']).toBe(120);
   });
