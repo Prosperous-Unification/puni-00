@@ -1428,3 +1428,10 @@ or executable HOLD push precedes accepted ordinary finite containment.
 - [x] RD2. Add finite actual-source lifecycle controls before the bounded ready registry, successful-mint enrollment, consume transfer and owner-return sweep; retain UNKNOWN without broad R2/native changes.
 - [x] RD3. Pass unchanged four actual drop/release controls and existing consumption/restoration regressions; watch separate production enrollment/order/discharge/transfer/HOLD/forward/outcome omissions fail owning consumers and exact restoration pass.
 - [x] RD4. Complete scoped statics, format/OpenSpec and independent source/evidence review, then normal commit. Full required owning69/CI/exact-SHA host gate and deployment remain explicit integration gates.
+
+## Explicit existing legacy-reader adoption
+
+- [x] Actual initializer selected-lock/parent drift: original RED missing rejection, restored prepublication refusal.
+- [x] Explicit dry-run and actual isolated adoption preserve the installed tuple; original opening-observation absence observed RED then GREEN.
+- [x] Cover actual refusal/publication phases and 32 watched omission/restoration families.
+- [x] Verify existing routes, configured static checks, OpenSpec and independent source review.

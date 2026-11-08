@@ -12,7 +12,7 @@ import { readOrdinaryEdgePolicy } from './edge-policy';
 import { withExistingCanonicalLock } from './lock';
 import { readClosed, readInteger, readString } from './managed-cohort';
 
-interface SolverReaderOrigin {
+export interface SolverReaderOrigin {
   readonly state: string;
   readonly receiptPath: string;
   readonly attemptId: string;
@@ -114,7 +114,10 @@ function assertIdentity(
     throw new Error(`original identity changed: ${expected.path}`);
 }
 
-async function readPrivateReceipt(expected: SolverReaderOrigin): Promise<EdgePolicyOriginReceipt> {
+/** Reads the original initializer receipt under its exact private directory and attempt identity. */
+export async function readPrivateReceipt(
+  expected: SolverReaderOrigin,
+): Promise<EdgePolicyOriginReceipt> {
   const parent = await lstat(dirname(expected.receiptPath), { bigint: true });
   const uid = process.getuid?.();
   if (
@@ -174,7 +177,11 @@ async function readPrivateReceipt(expected: SolverReaderOrigin): Promise<EdgePol
   }
 }
 
-async function assertOrigin(receipt: EdgePolicyOriginReceipt, descriptor: number): Promise<void> {
+/** Rechecks the initializer original parent, held lock, policy bytes and absent owner markers. */
+export async function assertOrigin(
+  receipt: EdgePolicyOriginReceipt,
+  descriptor: number,
+): Promise<void> {
   if ((await realpath(receipt.edgeState)) !== receipt.edgeState)
     throw new Error('original state alias changed');
   assertIdentity(await lstat(receipt.edgeState, { bigint: true }), receipt.parent, true);

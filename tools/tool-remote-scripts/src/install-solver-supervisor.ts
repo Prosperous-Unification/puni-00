@@ -1,8 +1,15 @@
+import { constants } from 'node:fs';
+import { lstat, open, realpath } from 'node:fs/promises';
 import { builtinModules } from 'node:module';
 import { dirname, extname } from 'node:path';
 
 import type { BundleFile } from './lib/deploy-contract';
 import { requireInheritedEdgeLock, retainUnknownControllerObservation } from './lib/edge-admission';
+import {
+  decodeSolverReaderAdoption,
+  type SolverReaderAdoption,
+  type SolverReaderAdoptionLayout,
+} from './lib/solver-reader-adoption';
 import {
   captureSolverReaderArtifact,
   decodeSolverReaderSelection,
@@ -306,10 +313,14 @@ export async function installSolverSupervisor(
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
-  if (argv[0] === '--prepare-first-reader' || argv[0] === '--transition-controller-reader') {
+  if (
+    argv[0] === '--prepare-first-reader' ||
+    argv[0] === '--transition-controller-reader' ||
+    argv[0] === '--adopt-legacy-reader'
+  ) {
     const plan = await runSolverSupervisorInstaller(argv);
     for (const step of plan) console.log(`  ${step.description}`);
-    if (argv[0] === '--transition-controller-reader') {
+    if (argv[0] === '--transition-controller-reader' || argv[0] === '--adopt-legacy-reader') {
       const operation = plan.at(-1);
       if (operation === undefined) throw new Error('missing selected reader transition operation');
       console.log(operation.failureContext);
@@ -557,6 +568,7 @@ export async function runSolverSupervisorInstaller(
   dependencies: SolverSupervisorInstallerDependencies = DEFAULT_DEPENDENCIES,
   construction?: SolverReaderLayout,
 ): Promise<readonly SolverSupervisorInstallStep[]> {
+  if (argv[0] === '--adopt-legacy-reader') return adoptLegacyReaderInstallation(argv, dependencies);
   if (argv[0] === '--transition-controller-reader')
     return transitionSolverReaderInstallation(
       parseSolverReaderTransitionArgs(argv),
@@ -657,11 +669,24 @@ export function parseSolverReaderTransitionArgs(
 async function buildSolverReaderTransitionBundle(
   selection: SolverReaderTransition,
   layout: SolverReaderLayout,
+  adoption?: {
+    readonly selection: SolverReaderAdoption;
+    readonly digest: string;
+    readonly layout: SolverReaderAdoptionLayout;
+  },
 ) {
   const compiler = await captureSolverReaderArtifact(process.execPath);
-  const source = new URL('./lib/solver-reader-transition.ts', import.meta.url).pathname;
+  const source = new URL(
+    adoption === undefined
+      ? './lib/solver-reader-transition.ts'
+      : './lib/solver-reader-adoption.ts',
+    import.meta.url,
+  ).pathname;
   const entrypoint = 'solver-reader-transition-entry';
-  const contents = `import { transitionSolverReader } from ${JSON.stringify(source)}; await transitionSolverReader(${JSON.stringify(selection)}, ${JSON.stringify(layout)});`;
+  const contents =
+    adoption === undefined
+      ? `import { transitionSolverReader } from ${JSON.stringify(source)}; await transitionSolverReader(${JSON.stringify(selection)}, ${JSON.stringify(layout)});`
+      : `import { adoptLegacySolverReader, decodeAdoptionStagingIdentity } from ${JSON.stringify(source)}; await adoptLegacySolverReader(${JSON.stringify(adoption.selection)}, ${JSON.stringify(adoption.digest)}, ${JSON.stringify(adoption.layout)}, {staging:decodeAdoptionStagingIdentity(JSON.parse(process.argv[2]))});`;
   const inputs: SolverReaderArtifactObservation[] = [];
   const externals = new Set<string>();
   const compilation = await Bun.build({
@@ -897,4 +922,232 @@ exec ${quote(layout.bun)} ${quote(operation.path)}`),
     }
   }
   return steps;
+}
+
+/** Reads the administrative JSON once from its original bounded regular descriptor. */
+export async function readLegacyReaderAdoptionSelection(
+  path: string,
+): Promise<{ selection: SolverReaderAdoption; digest: string }> {
+  if (!path.startsWith('/') || (await realpath(path)) !== path)
+    // Proof: selection-canonical-file fault made solver-reader-adoption.test.ts `selection input refuses alias` fail (1); restored passed (0). Boundary classification only; downstream refusal remains.
+    throw new Error('legacy adoption selection requires canonical absolute path');
+  const descriptor = await open(
+    path,
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+  );
+  try {
+    const opening = await descriptor.stat({ bigint: true });
+    if (!opening.isFile() || opening.size < 1n || opening.size > 32768n)
+      // Proof: selection-bounded-file fault made solver-reader-adoption.test.ts `selection input refuses oversized` fail (1); restored passed (0). Boundary classification only; downstream refusal remains.
+      throw new Error('legacy adoption selection requires bounded regular file');
+    const bytes = Buffer.alloc(32769);
+    const { bytesRead } = await descriptor.read(bytes, 0, bytes.length, 0);
+    if (BigInt(bytesRead) !== opening.size)
+      // Proof: selection-short-read fault made solver-reader-adoption.test.ts `selection original short read` fail (1); restored passed (0).
+      throw new Error('legacy adoption selection changed during read');
+    for (const observed of [
+      await descriptor.stat({ bigint: true }),
+      await lstat(path, { bigint: true }),
+    ])
+      if (
+        observed.dev !== opening.dev ||
+        observed.ino !== opening.ino ||
+        observed.mode !== opening.mode ||
+        observed.uid !== opening.uid ||
+        observed.gid !== opening.gid ||
+        observed.size !== opening.size ||
+        observed.mtimeNs !== opening.mtimeNs ||
+        observed.ctimeNs !== opening.ctimeNs
+      )
+        // Proof: selection-original-metadata fault made solver-reader-adoption.test.ts `selection original descriptor metadata` fail (1); restored passed (0).
+        throw new Error('legacy adoption selection original changed');
+    const selected = bytes.subarray(0, bytesRead);
+    const parsed: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(selected));
+    return {
+      selection: decodeSolverReaderAdoption(parsed),
+      digest: new Bun.CryptoHasher('sha256').update(selected).digest('hex'),
+    };
+  } finally {
+    await descriptor.close();
+  }
+}
+
+/** Separate existing-legacy route. No old-reader flag or service/configuration step is generated. */
+export async function adoptLegacyReaderInstallation(
+  argv: readonly string[],
+  dependencies: SolverSupervisorInstallerDependencies = DEFAULT_DEPENDENCIES,
+  construction?: SolverReaderAdoptionLayout,
+): Promise<readonly SolverSupervisorInstallStep[]> {
+  if (argv[0] !== '--adopt-legacy-reader')
+    throw new Error('explicit legacy adoption action required');
+  let host: string | undefined;
+  let selectedPath: string | undefined;
+  let mode: 'execute' | 'dry-run' | undefined;
+  for (const argument of argv.slice(1)) {
+    if (argument.startsWith('--host=') && host === undefined) host = argument.slice(7);
+    else if (argument.startsWith('--selection=') && selectedPath === undefined)
+      selectedPath = argument.slice(12);
+    else if ((argument === '--execute' || argument === '--dry-run') && mode === undefined)
+      mode = argument === '--execute' ? 'execute' : 'dry-run';
+    else
+      /* Proof: closed-cli fault made solver-reader-adoption.test.ts `adoption CLI closed arguments --skip-old-check` fail (1); restored passed (0). */ throw new Error(
+        `unexpected or duplicate legacy adoption argument: ${argument}`,
+      );
+  }
+  if (host === undefined || !HOST.test(host) || selectedPath === undefined)
+    throw new Error('legacy adoption requires host and selection');
+  const { selection, digest } = await readLegacyReaderAdoptionSelection(selectedPath);
+  if (
+    construction === undefined &&
+    (selection.target.account.name !== 'puni1' ||
+      selection.target.account.uid !== 1000 ||
+      selection.target.account.gid !== 1000)
+  )
+    // Proof: production-account fault made solver-reader-adoption.test.ts `adoption default production account` fail (1); restored passed (0).
+    throw new Error('legacy adoption requires production account puni1/1000/1000');
+  const staging = `/home/puni1/.cache/wbs-solver/adopt-${selection.attemptId}`;
+  const layout: SolverReaderAdoptionLayout = construction ?? {
+    state: SOLVER_READER_STATE,
+    staging,
+    bun: SOLVER_SUPERVISOR_BUN,
+    reader: SOLVER_SUPERVISOR_BUNDLE.remote,
+    config: SOLVER_SUPERVISOR_CONFIG,
+    unit: SOLVER_SUPERVISOR_UNIT,
+    parents: {
+      home: '/home/puni1',
+      cache: '/home/puni1/.cache',
+      local: '/home/puni1/.local',
+      lib: '/home/puni1/.local/lib',
+      readerParent: '/home/puni1/.local/lib/wbs-solver',
+      configParent: '/home/puni1/.config/wbs-solver',
+      unitParent: '/home/puni1/.config/systemd/user',
+      state: SOLVER_READER_STATE,
+      privateSolverCache: '/home/puni1/.cache/wbs-solver',
+    },
+  };
+  const candidate = await captureSolverReaderArtifact(selection.reader.path);
+  if (
+    candidate.artifact.sha256 !== selection.reader.sha256 ||
+    candidate.artifact.byteLength !== selection.reader.byteLength
+  )
+    // Proof: local-candidate-pin fault made solver-reader-adoption.test.ts `adoption dry-run refuses changed` fail (1); restored passed (0).
+    throw new Error('legacy adoption selected candidate differs');
+  const transported = {
+    ...selection,
+    reader: { ...selection.reader, path: `${layout.staging}/reader` },
+  };
+  const built = await buildSolverReaderTransitionBundle(transported, layout, {
+    selection: transported,
+    digest,
+    layout,
+  });
+  const operation = {
+    path: `${layout.staging}/operation`,
+    byteLength: built.bytes.byteLength,
+    sha256: new Bun.CryptoHasher('sha256').update(built.bytes).digest('hex'),
+  };
+  const failureContext = `legacy adoption selection=${digest}; attempt=${selection.attemptId}; staging=${layout.staging}; createdStaging=unmaterialized-until-original-creation-observation; operation=${JSON.stringify(operation)}; compiler=${JSON.stringify(built.compiler)}; buildInputs=${JSON.stringify(built.inputs)}; virtualEntry=${JSON.stringify(built.virtualEntry)}; externals=${JSON.stringify(built.externals)}; preserve partial policy/reader/evidence; no automatic retry or inverse; Bun/config/unit/service unchanged`;
+  const quote = quoteInstallShell;
+  const shell = (script: string) => ['ssh', host, `sh -c ${quote(script)}`];
+  const step = (description: string, script: string): SolverSupervisorInstallStep => ({
+    phase: 'files',
+    description,
+    argv: shell(`set -eu\n${script}`),
+    failureContext,
+  });
+  const parent = selection.parents.privateSolverCache;
+  const plan: SolverSupervisorInstallStep[] = [
+    step(
+      'create exclusive selected private adoption staging',
+      `test "$(hostname)" = ${quote(selection.target.hostname)}; test "$(id -un)" = ${quote(selection.target.account.name)}; test "$(id -u)" = ${quote(String(selection.target.account.uid))}; test "$(id -g)" = ${quote(String(selection.target.account.gid))}; test -d ${quote(dirname(layout.staging))}; test ! -L ${quote(dirname(layout.staging))}; test "$(realpath -- ${quote(dirname(layout.staging))})" = ${quote(dirname(layout.staging))}; test "$(stat -c '%d:%i:%a:%u:%g' -- ${quote(dirname(layout.staging))})" = ${quote(`${parent.device}:${parent.inode}:700:${String(selection.target.account.uid)}:${String(selection.target.account.gid)}`)}; mkdir -m 0700 -- ${quote(layout.staging)}; stat -c '%d:%i:%a:%u:%g' -- ${quote(layout.staging)}`,
+    ),
+    {
+      phase: 'files',
+      description: 'stage selected inert adoption reader',
+      argv: ['scp', selection.reader.path, `${host}:${transported.reader.path}`],
+      failureContext,
+    },
+  ];
+  // Independent inert chunks bound each SSH argument below the platform single-argument limit.
+  const parts: string[] = [];
+  for (let offset = 0; offset < built.bytes.length; offset += 24000) {
+    const path = `${layout.staging}/operation-part-${String(parts.length)}`;
+    parts.push(path);
+    plan.push(
+      step(
+        'stage bounded inert adoption operation chunk',
+        `(umask 077; set -C; printf %s ${quote(Buffer.from(built.bytes.subarray(offset, offset + 24000)).toString('base64'))} | base64 -d > ${quote(path)})`,
+      ),
+    );
+  }
+  plan.push(
+    step(
+      'assemble exact selected adoption operation',
+      `(umask 077; set -C; cat -- ${parts.map(quote).join(' ')} > ${quote(operation.path)})`,
+    ),
+  );
+  const pins = [{ path: layout.bun, ...selection.oldBun }, operation];
+  plan.push(
+    step(
+      'adopt only legacy reader through actual initializer and original receipt',
+      `${pins.map((pin) => `test -f ${quote(pin.path)}; test ! -L ${quote(pin.path)}; test "$(realpath -- ${quote(pin.path)})" = ${quote(pin.path)}; test "$(stat -c %s -- ${quote(pin.path)})" = ${quote(String(pin.byteLength))}; printf '%s  %s\\n' ${quote(pin.sha256)} ${quote(pin.path)} | sha256sum -c -`).join('\n')}\ntest "$(stat -c '%a:%u:%g' -- ${quote(layout.bun)})" = ${quote(`755:${String(selection.target.account.uid)}:${String(selection.target.account.gid)}`)}\nexec ${quote(layout.bun)} ${quote(operation.path)} '__CREATED_ADOPTION_STAGING__'`,
+    ),
+  );
+  // Proof: dry-run-default fault made solver-reader-adoption.test.ts `explicit generated adoption dry-run` fail (1); restored passed (0).
+  if (mode === 'execute') {
+    const command = dependencies.readerCommand;
+    if (command === undefined)
+      throw new Error('legacy adoption requires observed original transport');
+    console.log(failureContext);
+    let createdStaging: string | undefined;
+    for (const [index, operationStep] of plan.entries()) {
+      let observation: CommandOutput;
+      try {
+        let commandArgv = operationStep.argv;
+        // Proof: transport-created-stage fault made solver-reader-adoption.test.ts `created staging replacement between transport` fail (1); restored passed (0).
+        if (index > 0) {
+          if (createdStaging === undefined)
+            throw new Error('legacy adoption created staging observation absent');
+          const fields = createdStaging.split(':');
+          const identity = {
+            device: fields[0],
+            inode: fields[1],
+            mode: 0o700,
+            uid: fields[3],
+            gid: fields[4],
+          };
+          const script = commandArgv.at(2);
+          if (commandArgv[0] === 'ssh' && script !== undefined) {
+            const guard = `set -eu; test ! -L ${quote(layout.staging)}; test "$(realpath -- ${quote(layout.staging)})" = ${quote(layout.staging)}; test "$(stat -c '%d:%i:%a:%u:%g' -- ${quote(layout.staging)})" = ${quote(createdStaging)}; `;
+            commandArgv = [
+              'ssh',
+              host,
+              `sh -c ${quote(guard)} && ${script.replace('__CREATED_ADOPTION_STAGING__', JSON.stringify(identity))}`,
+            ];
+          } else if (commandArgv[0] === 'scp') {
+            const guard = `set -eu; test ! -L ${quote(layout.staging)}; test "$(realpath -- ${quote(layout.staging)})" = ${quote(layout.staging)}; test "$(stat -c '%d:%i:%a:%u:%g' -- ${quote(layout.staging)})" = ${quote(createdStaging)}`;
+            const checked = await command(shell(`set -eu; ${guard}`), false);
+            if (checked.code !== 0 || checked.signal !== null)
+              throw new Error('legacy adoption created staging changed before copy');
+          }
+        }
+        observation = await command(commandArgv, index === plan.length - 1);
+      } catch (cause) {
+        throw new Error(`legacy adoption transport settlement unknown; ${failureContext}`, {
+          cause,
+        });
+      }
+      if (observation.code !== 0 || observation.signal !== null)
+        throw new Error(`legacy adoption transport abnormal or unknown; ${failureContext}`);
+      if (index === 0) {
+        createdStaging = observation.stdout.trim();
+        if (!/^[0-9]+:[1-9][0-9]*:700:[0-9]+:[0-9]+$/.test(createdStaging))
+          throw new Error('legacy adoption created staging observation malformed');
+        console.log(
+          `legacy adoption createdStaging=${createdStaging}; selection=${digest}; attempt=${selection.attemptId}`,
+        );
+      }
+    }
+  }
+  return plan;
 }

@@ -7,7 +7,7 @@ import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
 import { openDirectoryFile } from './directory-file';
 import { assertNoEdgeOwner } from './edge-admission';
-import { withCanonicalLock } from './lock';
+import { withCanonicalLock, withExistingCanonicalLock } from './lock';
 import { readClosed, readString } from './managed-cohort';
 
 /** Optional evidence destination and attempt correlation; grants no policy or startup authority. */
@@ -667,6 +667,7 @@ async function publishOriginReceipt(
 export async function initializeOrdinaryEdgePolicy(
   edgeState: string,
   origin?: EdgePolicyOriginRequest,
+  expected?: { readonly parent: BigIntStats; readonly lock: BigIntStats },
 ): Promise<OrdinaryEdgePolicy> {
   const initialParent = await assertPolicyDirectory(edgeState);
   const destination = origin === undefined ? undefined : await prepareOriginDestination(origin);
@@ -676,7 +677,28 @@ export async function initializeOrdinaryEdgePolicy(
     // Proof: releasing the real lock before its initializer callback let a real contender
     // report ACQUIRED instead of REFUSED; edge-policy.test.ts "origin receipt publication
     // excludes a real lock contender until original return" failed (callback interval).
-    return await withCanonicalLock(join(edgeState, 'edge.lock'), async (lockDescriptor) => {
+    // Proof: initializer-existing-only fault made solver-reader-adoption.test.ts `exact custody refuses parent-before-init` fail (1); restored passed (0).
+    const acquire = expected === undefined ? withCanonicalLock : withExistingCanonicalLock;
+    return await acquire(join(edgeState, 'edge.lock'), async (lockDescriptor) => {
+      // Proof: selected initializer lock/parent drift tests fail with this expectation omitted.
+      if (expected !== undefined) {
+        const parent = await assertPolicyDirectory(edgeState);
+        const lock = fstatSync(lockDescriptor, { bigint: true });
+        const named = await lstat(join(edgeState, 'edge.lock'), { bigint: true });
+        const matches = (original: BigIntStats, current: BigIntStats) =>
+          original.dev === current.dev &&
+          original.ino === current.ino &&
+          original.mode === current.mode &&
+          original.uid === current.uid &&
+          original.gid === current.gid;
+        if (
+          !matches(expected.parent, parent) ||
+          !matches(expected.lock, lock) ||
+          !matches(expected.lock, named)
+        )
+          // Proof: initializer-original-tuple fault made edge-policy.test.ts `selected initializer` fail (1); restored passed (0).
+          throw new Error('selected initializer namespace changed before publication');
+      }
       // Proof: init-marker omission published beneath retained markers; edge-policy.test.ts exited 1.
       await assertNoEdgeOwner(edgeState);
       if (destination !== undefined)
