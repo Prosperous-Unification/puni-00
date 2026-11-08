@@ -14,7 +14,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { afterEach, expect, test } from 'bun:test';
+import { afterEach, expect, spyOn, test } from 'bun:test';
 
 import {
   controllerAccountPlugin,
@@ -155,6 +155,8 @@ function spawnOwnedWaitingChild(
               signalFailure instanceof Error &&
               'code' in signalFailure &&
               signalFailure.code === 'ESRCH';
+            // Proof: treating every signal failure as absent kept the injected-EPERM regression's
+            // bounded observer at finished false, exiting 1 before emergency rescue; restoring passes.
             if (!groupAbsent)
               throw new AggregateError(
                 [...primary, ...failures, signalFailure],
@@ -336,6 +338,126 @@ test('release-write failure terminates the original owned flock group before rep
     expect(contention.exit).toBe(0);
   } finally {
     // Emergency rescue follows the failing or passing oracle and never supplies its proof.
+    await mkdir(signals, { recursive: true });
+    await writeFile(release, 'release');
+    await owned.settled;
+    await completion;
+  }
+});
+
+test('release-write failure refuses unjoinable observations when owned group signalling fails', async () => {
+  const state = await mkdtemp(join(tmpdir(), 'edge-signal-failure-'));
+  roots.push(state);
+  const signals = join(state, 'signals');
+  await mkdir(signals);
+  const lock = join(state, 'edge.lock');
+  const ready = join(state, 'ready');
+  const release = join(signals, 'release');
+  const owned = spawnOwnedWaitingChild(
+    [
+      'flock',
+      '-n',
+      lock,
+      'bash',
+      '-c',
+      'touch "$1"; while [ ! -e "$2" ]; do sleep 0.01; done',
+      'hold',
+      ready,
+      release,
+    ],
+    release,
+  );
+  const group = owned.child.pid;
+  const primary = new Error('forced body failure before an unwritable release and failed signal');
+  const signalFailure = Object.assign(
+    new Error('injected kill(2) EPERM for the owned fixture group'),
+    { code: 'EPERM', syscall: 'kill' },
+  );
+  let intercepted = 0;
+  // Undefined only while no mock is installed: the body failed before installation or
+  // spyOn itself threw. Once installed, finally restores it before the emergency rescue.
+  let restoreKill: (() => void) | undefined;
+  let finished = false;
+  let observationsSettled = false;
+  let settledAtCompletion = false;
+  void owned.settled.then(() => {
+    observationsSettled = true;
+  });
+  const completion = owned
+    .run(async () => {
+      for (let attempt = 0; attempt < 100 && !(await Bun.file(ready).exists()); attempt++)
+        await Bun.sleep(5);
+      expect(await Bun.file(ready).exists()).toBe(true);
+      // Installation stays inside the owned body: if it throws, run captures that failure
+      // and cooperatively writes release, so the holder cannot leak.
+      const originalKill = process.kill.bind(process);
+      const kill = spyOn(process, 'kill').mockImplementation(
+        (pid: number, signal?: string | number) => {
+          // Only this fixture's exact owned group SIGKILL is refused; nothing is delivered
+          // to it, and every other call reaches the captured original unchanged.
+          if (pid === -group && signal === 'SIGKILL') {
+            intercepted++;
+            throw signalFailure;
+          }
+          return originalKill(pid, signal);
+        },
+      );
+      restoreKill = () => {
+        kill.mockRestore();
+      };
+      await rmdir(signals);
+      throw primary;
+    })
+    .then(
+      () => {
+        settledAtCompletion = observationsSettled;
+        finished = true;
+        return undefined;
+      },
+      (cause: unknown) => {
+        settledAtCompletion = observationsSettled;
+        finished = true;
+        return cause;
+      },
+    );
+  const hasFinished = () => finished;
+  try {
+    // Same bounded observer; a refusal that awaited the live group never finishes here.
+    for (let attempt = 0; attempt < 200 && !hasFinished(); attempt++) await Bun.sleep(5);
+    expect(finished).toBe(true);
+    // Physical observation: original exit and both pipes were still pending at refusal.
+    expect(settledAtCompletion).toBe(false);
+    const refusal = await completion;
+    expect(observationsSettled).toBe(false);
+    expect(owned.child.exitCode).toBeNull();
+    expect(intercepted).toBe(1);
+    expect(refusal).toBeInstanceOf(AggregateError);
+    if (!(refusal instanceof AggregateError))
+      throw new Error('signal failure refusal was not retained');
+    expect(refusal.message).toBe(
+      'owned waiting group termination failed; original observations not joined',
+    );
+    expect(refusal.errors).toHaveLength(3);
+    expect(refusal.errors[0]).toBe(primary);
+    expect(refusal.errors[1]).toHaveProperty('code', 'ENOENT');
+    expect(refusal.errors[2]).toBe(signalFailure);
+    expect(refusal.cause).toBe(signalFailure);
+    // The surviving original member still holds the lock: the refusal did not wait for it.
+    const contender = Bun.spawn(['flock', '-n', lock, 'true'], {
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const contention = await joinChild(
+      contender.exited,
+      new Response(contender.stdout).text(),
+      new Response(contender.stderr).text(),
+    );
+    expect(contention.exit).toBe(1);
+  } finally {
+    // Restore an installed mock first; the fixture-only cooperative rescue then follows
+    // every oracle above, never depends on the mock and never supplies its proof.
+    if (restoreKill !== undefined) restoreKill();
     await mkdir(signals, { recursive: true });
     await writeFile(release, 'release');
     await owned.settled;

@@ -320,3 +320,46 @@ before that flag's reaction runs is not formally protected against PID reuse.
 These limits concern disposable test fixtures; no production group is accepted
 as an argument to the factory. No interruption handler or additional runtime
 identity check was introduced without a corresponding proof.
+
+### Signal-refusal proof completion
+
+Fable noted that the non-`ESRCH` signal-failure branch had no regression. This
+changed safety refusal needs an R5 negative even though the code review approved
+the two-file repair. A final test-only follow-up closes that proof gap; the
+50-case receipts above describe the preceding revision.
+
+The additional test creates a real owned flock group and removes only its own
+release directory. A mock at the `process.kill` dependency boundary injects
+`EPERM` only for that fixture's exact group and SIGKILL; other calls retain their
+original behavior. Mock installation occurs inside the owned body, and an
+installed mock is restored before independent cooperative rescue. Before rescue,
+the test observes the refusal returning with original observations still pending
+and a live original member retaining the real lock. It checks the identical
+primary failure, `ENOENT`, injected signal error and aggregate cause, plus the
+explicit report that the observations were not joined. This is dependency fault
+injection, not a claim of live kernel permission-denial or native qualification.
+
+Observed: the complete owning file passed 51 tests, 206 assertions, in 15.30
+seconds. Removing just the non-`ESRCH` refusal made this regression exit 1 at its
+unfinished-completion oracle before rescue. The source was restored byte-for-byte
+(SHA-256 `dfb9f32fe5b85f5d76efd9425d72e54da4130fc9507cab54b3356824809353e6`),
+and the restored regression exited 0. Existing READY budgets, production code,
+helper behavior and the two documented nonblocking fixture limits are unchanged.
+
+The actual scoped Fable review approved this proof addition and closed the
+missing-refusal-test limitation. One further nonblocking test-tool limit remains:
+if Bun installs the spy but its subsequent `mockImplementation` operation throws
+internally, the restoration callback has not yet been registered. The default
+spy is pass-through; no claim is made to harden Bun's own partial-install failure.
+The existing two fixture limits remain documented above.
+
+A later complete run produced 50 passed, 1 failed (198 assertions, 43.52 seconds):
+the unchanged forced-READY configure regression did not reach its deliberate
+absent-READY failure, leaving its captured failure undefined. Its cleanup still
+settled. This failure is retained alongside the earlier 51/206 pass; no polling
+budget or assertion was weakened. A bounded serial rerun follows.
+
+The bounded serial rerun completed with 51 passed, 0 failed, 206 assertions in
+18.21 seconds. Configured typecheck passed in 9.2 seconds and lint in 31.2
+seconds after the proof addition. The final scoped review approved the added
+case; hosted CI and a canonical gate for the final published head remain pending.
