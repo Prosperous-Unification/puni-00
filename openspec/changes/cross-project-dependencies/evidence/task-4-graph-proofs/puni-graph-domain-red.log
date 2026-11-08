@@ -1,0 +1,14 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/connected-step-node.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+error: Cannot find module './connected-step-node' from '/tmp/puni-cross-graph/libs/wbs/domain/domain/src/connected-step-node.test.ts'
+-------------------------------
+
+
+ 0 pass
+ 1 fail
+ 1 error
+Ran 1 test across 1 file. [20.00ms]

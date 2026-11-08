@@ -1,0 +1,46 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/compensating.test.ts:
+(pass) normalizes legacy local typed history and preserves touched identities [0.52ms]
+(pass) refuses partial scoped history and malformed new scoped history [0.13ms]
+(pass) conditional blockage replay vocabulary > decodes nested commands and carries their owner and step through every index [0.28ms]
+(pass) conditional blockage replay vocabulary > refuses unknown nested commands and malformed blockage times [0.10ms]
+(pass) a batch as one compensating command > touches what its steps touch, each once [0.02ms]
+(pass) a batch as one compensating command > takes its first step as its subject [0.02ms]
+(pass) a batch as one compensating command > reads back from the journal as a command this release can apply [0.02ms]
+(pass) journal estimate unit bindings > collects nested estimate-bearing commands in both directions [0.09ms]
+(pass) journal estimate unit bindings > interprets a legacy absent map as workdays and preserves a present map [0.18ms]
+(pass) journal estimate unit bindings > refuses malformed and incomplete present maps as damaged trusted journal state [0.12ms]
+(pass) move historical progress snapshots > reads exact move snapshots through nested journal commands and keeps legacy moves absent [0.13ms]
+(pass) move historical progress snapshots > tracks only explicit snapshot owners across nested directions [0.05ms]
+(pass) move historical progress snapshots > refuses malformed present snapshots instead of treating them as empty history [0.08ms]
+(pass) move destination progress preconditions > reads empty and populated destination snapshots without defaulting malformed metadata [0.10ms]
+(pass) advertises move safety metadata without accepting its capability as a command [0.02ms]
+(pass) attributes exact progress writes to the selected command through nested and structural replay [0.09ms]
+(pass) deletion state boundary > refuses malformed deletion state null [0.03ms]
+(pass) deletion state boundary > refuses malformed deletion state {}
+(pass) deletion state boundary > refuses malformed deletion state {"blockages":[{"workItemId":"child","stepId":"dev","blockedAt":-10}],"parentId":"","parentBlockages":[],"restoredParentProgress":[]}
+(pass) deletion state boundary > refuses malformed deletion state {"blockages":null,"parentId":"parent","parentBlockages":[],"restoredParentProgress":[]} [0.05ms]
+(pass) deletion state boundary > refuses malformed deletion state {"blockages":[{"workItemId":"stray","stepId":"dev","blockedAt":-10}],"parentId":"parent","parentBlockages":[],"restoredParentProgress":[]} [0.04ms]
+(pass) deletion state boundary > refuses malformed deletion state {"blockages":[{"workItemId":"child","stepId":"dev","blockedAt":1.5}],"parentId":"parent","parentBlockages":[],"restoredParentProgress":[]}
+(pass) deletion state boundary > refuses malformed deletion state {"blockages":[{"workItemId":"child","stepId":"dev","blockedAt":-10},{"workItemId":"child","stepId":"dev","blockedAt":-10}],"parentId":"parent","parentBlockages":[],"restoredParentProgress":[]}
+(pass) deletion state boundary > refuses malformed deletion state {"blockages":[{"workItemId":"child","stepId":"dev","blockedAt":-10}],"parentId":"parent","parentBlockages":[{"workItemId":"child","stepId":"dev","blockedAt":-10}],"restoredParentProgress":[]}
+(pass) deletion state boundary > refuses malformed deletion state {"blockages":[{"workItemId":"child","stepId":"dev","blockedAt":-10}],"parentId":"parent","parentBlockages":[],"restoredParentProgress":null}
+(pass) deletion state boundary > refuses malformed deletion state {"blockages":[{"workItemId":"child","stepId":"dev","blockedAt":-10}],"parentId":null,"parentBlockages":[],"restoredParentProgress":[{"workItemId":"parent","stepId":"dev","state":"done","statedAt":1}]}
+(pass) deletion state boundary > validates nested restore owners and includes empty snapshot parent and step references [0.13ms]
+(pass) deletion state boundary > binds restore deletion metadata to the recorded root parent [0.04ms]
+(pass) claim replay vocabulary > reads both directions back and names their rows, steps, people and progress [0.26ms]
+(pass) claim replay vocabulary > refuses a malformed claim replay [0.19ms]
+(pass) claim replay vocabulary > reads a claim move back and names both work items [0.10ms]
+(pass) claim replay vocabulary > refuses a malformed claim move [0.09ms]
+(pass) claim replay vocabulary > reads a claim replay written before occupancy as holding nothing [0.03ms]
+(pass) claim replay vocabulary > refuses a claim replay whose occupancy is malformed or names a claim it does not carry [0.06ms]
+(pass) demand replay vocabulary > reads both directions back and names their row and resource [0.04ms]
+(pass) demand replay vocabulary > refuses a malformed demand replay [0.08ms]
+(pass) demand replay vocabulary > names the resources a restore’s demands name [0.08ms]
+(pass) demand replay vocabulary > refuses a malformed restored demand [0.12ms]
+
+ 38 pass
+ 0 fail
+ 127 expect() calls
+Ran 38 tests across 1 file. [140.00ms]

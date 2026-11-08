@@ -1,0 +1,21 @@
+
+tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:
+
+test/dependency-source-restoration-model-child.test.ts:
+SOURCE_RESTORATION_REACHED: original prepare/consume/solver/backend/gateway complete; source cold and dev openers excluded
+SOURCE_RESTORATION_READY: one original source start, nonempty dev backend opener, six actual HTTP responses, original stores and fenced ready publication
+(pass) source restoration retains original gateway authority through ready [104811.43ms]
+
+ 1 pass
+ 0 fail
+ 590 expect() calls
+Ran 1 test across 1 file. [104.88s]
+SOURCE_RESTORATION_INNER_CUSTODY: {"name":"source restoration retains original gateway authority through ready","exitCode":0,"signal":null,"stdoutEof":true,"stderrEof":true}
+(pass) isolated source restoration retains original gateway authority through ready [104903.13ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 1 pass
+ 0 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [104.91s]

@@ -1,0 +1,80 @@
+# Independent Astra High review: task 9.1
+
+**Verdict: changes required. Do not approve or integrate this frontend packet yet.** Two mounted flows can author the wrong stable project; draft/focus/cancellation behavior also needs correction, and the frozen regression suite is not green.
+
+Reviewed `/tmp/puni-cross-autocomplete`, commit `ffc402742b614f6b6d4580dabd2376b0a5f002ca`, base `427d34c41`, against the binding `architecture/autocomplete-editor.md` and current task 9.1. All 55 owned SHA256 values matched before and after review. The three dirty command-owned provisional dependencies matched the brief exactly and remained unchanged; this review does not independently approve them. No source, Git, WBS, or OpenSpec edits were made. Review-only probes and this report are under `/tmp`.
+
+## Findings
+
+### F1 — P1: completing a token discards its explicit stable project binding
+
+Locations: `apps/wbs/fe-01/src/components/wbs/use-dependency-search.ts:53`, `:59`, `:91`; `plan-columns/depends.tsx:974`; `dependency-draft.ts:57`.
+
+The only selected project observation belongs to the active token. Appending a comma/space makes the new active token empty, clears `scope`, and passes no observation to batch resolution. The earlier qualified token is then rediscovered by mutable abbreviation. An explicitly selected stable project can therefore be silently replaced by a later holder of its abbreviation.
+
+Mounted actual-table reproducer `REVIEW a selected stable project stays pinned after a trailing comma`: select project `remote`/PUNI, make discovery subsequently return `reused-project`/PUNI, type `PUNI.080.s1-dev,`, press Enter. The observed command uses `projectId: 'reused-project'`; the expected pinned identity is `remote`. The failure is an exact command-argument assertion, not a setup failure.
+
+**Required seam:** preserve explicit token observations/coordinates across delimiter and new-token transitions. Active-query scope may reset, but it must not erase the identity of an earlier retained token. Bind observations to the actual token occurrence/source span and preserve them while that token is unchanged; an abbreviation-wide alias alone cannot represent two separately selected occurrences. Submit through the existing `resolveDependencyDraft` / `PlanCommands` path using the pinned stable ID. An address change may refuse or require explicit reselection; it must never rediscover and author against a new holder. Keep the existing bounded query and numeric-local rules.
+
+### F2 — P1: remote Customize reuses the previous target's project state and offers its endpoints
+
+Locations: `apps/wbs/fe-01/src/components/wbs/plan-columns/depends.tsx:1014`; `plan-cards.tsx:2344`; `remote-dependency-editor.tsx:36`, `:49`, `:58`; `use-dependency-search.ts:54`.
+
+Unlike the local editor, both remote caller branches have no identity key. `initialProject`, `expectedRevision`, and manual endpoint choice state initialize once and survive a new selection. The remote choice builder filters only by workItemId, without checking the selected stable project.
+
+Two actual-table probes establish the consequences:
+
+- `REVIEW switching remote Customize follows the newly selected stable project`: open PUNI Customize, select OTHER in the still-open picker and open its Customize. Add remains disabled instead of loading the new project's endpoint choices.
+- `REVIEW switching same-abbreviation remote Customize never offers the previous project endpoint`: open `remote`/PUNI Customize, switch to `other`/PUNI with equal opaque row/step IDs, open Customize, select an offered scope and Add. The command sends `projectId: 'remote'`, although the user selected `other`. The exact payload assertion fails.
+
+**Required seam:** define/reset the editor instance by the selected scoped identity, including project and endpoint, and the observation lifecycle needed for revision/runtime changes. Ensure the lookup is explicitly bound to that selected stable project, never merely an initialized abbreviation prefix. Filter/validate offered evidence against both selected projectId and workItemId before it can be selected or written. Reset manual choice/default/revision state when the target changes; retain it only for compatible updates to the same target. Use the existing scoped endpoint editor and authoring conversion. Do not add another write path, synthesize a remote row, or use the abbreviation as identity. Cover distinct abbreviations, reused abbreviations, equal bare IDs, and revisions.
+
+### F3 — P2: local Customize erases earlier unsubmitted tokens on successful Add
+
+Locations: `apps/wbs/fe-01/src/components/wbs/plan-columns/depends.tsx:781`, `:1098`, `:1140`.
+
+The success callback correctly strips the active token, but closing local Customize focuses the dependency input. Its unconditional `onFocus` reset replaces the entire draft with an empty string. Reproducer `REVIEW local Customize retains previous mixed tokens after successful Add`: type `999, 010`, Customize local 010, Add. The command succeeds, but the observed input is `''`, not `'999, '`. Earlier unresolved work is lost.
+
+**Correction:** distinguish opening a fresh picker from returning focus to its existing draft. Preserve the current draft and stable token observations when restoring focus; success may remove only the submitted occurrence when it still matches the captured draft. Exercise local and remote success/cancel/back with earlier tokens and newer edits. Do not fix F4 by copying this destructive focus behavior.
+
+### F4 — P2: leaving remote Customize loses keyboard focus
+
+Location: `apps/wbs/fe-01/src/components/wbs/plan-columns/depends.tsx:1027`.
+
+The remote `onCancel` only unmounts the editor. Its focused Back button disappears and focus falls to body; no dependency field regains focus. Reproducer `REVIEW remote Customize returns keyboard focus to its dependency input`: open remote Customize and activate Back. `document.activeElement` is body, not the dependency input. Escape, ArrowLeft and successful Save share this callback.
+
+**Correction:** return focus to the originating dependency input/picker with the draft-preserving behavior required by F3. Test the actual caller and real `.focus()` behavior, not only a callback spy.
+
+### F5 — P2: a current cancelled lookup has no visible outcome
+
+Locations: `apps/wbs/fe-01/src/components/wbs/dependency-options.tsx:189`; `remote-dependency-editor.tsx:99`.
+
+The hook explicitly returns `state: 'cancelled'`, but neither options view renders it. In the actual field, a current request returning cancellation removes Loading and leaves only unrelated local options or an empty list, with no explanation or current-query recovery action. Reproducer `REVIEW current lookup cancellation is visible in the actual field` drives the installed lookup feature through its real address port returning `{kind:'failure', failure:{code:'cancelled'}}`; the mounted cancellation-message assertion fails. Task 9.1 and the ruling explicitly require cancellation to be modeled as a visible current-query outcome. Aborts of superseded queries should continue to be silently fenced rather than shown over the new question.
+
+**Correction:** render a distinct current cancellation state in the ordinary picker and Customize, with the appropriate deliberate current-query retry/reopen action. Preserve stale/withdrawn request fencing and the service's no-send-after-close behavior.
+
+### F6 — P2: the frozen regression suite fails, contradicting the final all-green report
+
+Location: `apps/wbs/fe-01/src/components/wbs/dependency-autocomplete.test.tsx:157`; evidence report `/tmp/puni-dependency-autocomplete-report.md`.
+
+The exact reported 15-file configured View command freshly produced **335 passing / 1 failing tests**, not 336 passing. The failing test is `retains a refused remote draft and locks repeated taps by endpoint identity`, at the assertion requiring an alert containing raw `external_dependencies_inactive`. The focused two-file actual caller/client run independently repeats the same failure: **11 passing / 1 failing tests**. These are assertions in collected tests; no import/setup failure or unavailable tool explains them. The current source maps this refusal to a readable sentence. The mismatch must be resolved and final evidence rerun after the last correction; do not retain the current all-green claim or weaken the retained-draft/repeated-tap behavior assertions.
+
+## Fresh verification and bounded positive observations
+
+- Configured View command exactly as listed in the implementation report: 15 files, 335 passed / 1 failed, 133.87 seconds. `/tmp/puni-review-autocomplete-view.log`.
+- Configured actual caller and HTTP serializer tests: `TZ=UTC bunx vitest run src/components/wbs/dependency-autocomplete.test.tsx src/lib/dependency-command-serialization.test.ts --no-file-parallelism --maxWorkers=1`: 11 passed / 1 failed. `/tmp/puni-review-autocomplete-actual.log`. The five real HTTP serializer/lookup metadata/refusal tests pass; the failure is the mounted raw-refusal assertion above.
+- Configured Node: `TZ=UTC bunx vitest run --config vitest.node.config.ts src/components/wbs/dependency-draft.test.ts src/modules/dependency-lookup/dependency-lookup.feature.test.ts src/runtime/dependency-lookup.test.ts src/modules/plan-writer/plan-writer.test.ts --no-file-parallelism --maxWorkers=1`: 4 files / 26 tests passed. `/tmp/puni-review-autocomplete-node.log`.
+- Independent mounted actual-table probes live in `/tmp/puni-autocomplete-review-probes/autocomplete.test.tsx`. `/tmp/puni-autocomplete-review-probes/review.vitest.config.ts` imports the actual frontend Vitest config, retains its aliases/plugin/jsdom setup, and collects only review copies outside the frozen tree. It does not substitute implementations of the picker/editor/runtime. Command from the frozen frontend directory: `TZ=UTC bunx vitest run --config /tmp/puni-autocomplete-review-probes/review.vitest.config.ts -t REVIEW --no-file-parallelism --maxWorkers=1`. Final run: **6 failing behavioral probes / 1 passing HTTP integration probe / 7 original tests intentionally filtered out**; log `/tmp/puni-review-autocomplete-probes.log`. The six failures reproduce F1–F5 (F2 has two probes). The passing additional probe mounts the real table, invokes `httpProjectApi` through its actual PlanCommands/writer path, feeds the exact HTTP 409 body, and verifies the readable refusal, retained mixed draft, one request, successor-owned route and explicit remote node payload. Initial review-harness attempts had an external setup-file resolution error and an incomplete test-only location stub; these were corrected in `/tmp` and are not counted as product failures or R5 evidence.
+- All 55 owned file hashes matched after checks, `/tmp/puni-review-autocomplete-hashes.log`. The three provisional dependency hashes remained `438ebadf…603f`, `d1e5fbe3…f84f`, `7853e77b…108e`; `git status --short` still names only those three dirty contract files. `git diff --check` passed.
+
+The code and passing focused assertions establish actual desktop/phone callers, required session/project lookup composition with the same credential and ResourceScope, disposal, limit 25, 200ms debounce, alphabetic-only initial discovery, stable scoped endpoint serialization, candidate step-evidence validation, per-page revision refusal, explicit completeness before folded-code defaults, and code-only step snapshot publication within the exercised paths. These strengths do not cover the target/token lifetime gaps above.
+
+## R5 evidence audit
+
+Read the final mutation scripts and all reported `/tmp/puni-autocomplete-negative-*.log` files. The claimed final alphabetic, debounce, rendered-query identity, ignored-abort response, hook abort, initial/page revision, project evidence, scope/project key, completeness, remote-step key, required-step metadata, request bound, runtime/close/disposal, code publication, discovery completeness, multi-token highlight, dormant-refusal and sentence faults each have actual behavioral assertion failures in the named production-path suites. The obsolete `negative-runtime.log` is a timeout and is **not** accepted as a proof; the report explicitly excludes that attempt and the later runtime-current log has a request-count assertion. The strengthened scope-key fixture distinguishes node and descendant-step with the same step ID, rather than relying on whole/node differences that other key fields already separate.
+
+The scripts for response-generation remove the entire conjunctive response fence, so the log proves that composite fence, not each conjunct individually. Abort-only resource-release assertions and late runtime/caller cancellation assertions are separate evidence. I did not mutate the frozen source or rerun all historical mutations. This audit accepts the bounded observed claims, not a blanket proof of all identity lifetimes: the new mounted failures show untested transitions.
+
+## Limits and completion boundary
+
+No full Nx/repository gate, h2/h4 gate, heavy build, browser/manual visual pass, production activation, or full backend semantic integration was run. Typecheck/lint/format were inspected as author-reported evidence and were not independently rerun in this review; the failure verdict does not rely on them. Provisional command contract ownership remains separate. New-selection frontend support does not complete persisted remote chips/navigation/edit transport, settings/calendar/certificate views, task 9.2, or production activation. Root owns integration and final gate evidence.

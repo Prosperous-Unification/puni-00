@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-lease.test.ts:
+185 |       const effects = cluster.adapter();
+186 |       await effects.createLease(cluster.holder, cluster.journal.path);
+187 |       await effects.requireJournal(cluster.holder);
+188 |       if (fault === 'missing') rmSync(cluster.journal.path);
+189 |       if (fault === 'corrupt') writeFileSync(cluster.journal.path, '{');
+190 |       await expect(effects.releaseLease(cluster.holder)).rejects.toThrow();
+                                                                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-lease.test.ts:190:66)
+(fail) real Lease cleanup refuses recoverable marked journal [163.46ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [210.00ms]

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-lease.test.ts:
+140 |     const cluster = fixture();
+141 |     try {
+142 |       const effects = cluster.adapter();
+143 |       await effects.createLease(cluster.holder, cluster.journal.path);
+144 |       writeFileSync(cluster.faults, JSON.stringify(fault));
+145 |       await expect(effects.requireJournal(cluster.holder)).rejects.toThrow();
+                                                                         ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-lease.test.ts:145:68)
+(fail) real Lease marker refuses no-apply race or uncertainty [110.82ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [159.00ms]

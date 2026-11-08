@@ -1,0 +1,77 @@
+focused
+
+ 267 pass
+ 0 fail
+ 4401 expect() calls
+Ran 267 tests across 7 files. [58.17s]
+
+strengthened drift
+
+ 1 pass
+ 3 filtered out
+ 0 fail
+ 22 expect() calls
+Ran 1 test across 1 file. [4.36s]
+
+backend sandbox
+
+1 tests failed:
+(fail) admits dormant authority and serves health after dev migrations [106.99ms]
+
+ 31 pass
+ 1 fail
+ 100 expect() calls
+Ran 32 tests across 3 files. [55.28s]
+
+backend socket diagnostic
+EPERM: operation not permitted, listen (existing health server boot positive)
+
+backend permitted boot
+
+ 8 pass
+ 0 fail
+ 32 expect() calls
+Ran 8 tests across 1 file. [3.57s]
+
+Nx lint
+
+
+
+ NX   Successfully ran target lint for project tool-remote-scripts
+
+
+  Run duration:      23.7s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     23.7s (1 task)
+  Recoverable time:  <1ms
+
+Nx typecheck
+
+
+
+ NX   Successfully ran target typecheck for project tool-remote-scripts
+
+
+  Run duration:      319ms
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     308ms (1 task)
+  Recoverable time:  <1ms
+
+Nx build
+
+ NX   Successfully ran target build for project tool-remote-scripts and 3 tasks it depends on
+
+
+Output of 3 successful tasks were not shown. Run with --verbose or --output-style=static to see it.
+
+  Run duration:      307ms
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     290ms (3 tasks)
+  Recoverable time:  <1ms
+
+format
+Checking formatting...
+All matched files use Prettier code style!
+
+OpenSpec
+268 passed, 0 failed; 250 changes and 18 specs

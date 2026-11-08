@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/connected-step-node.test.ts:
+211 |     expect(() =>
+212 |       resolveConnectedGraph({
+213 |         projects: [{ ...a, slicesByLeaf }, b],
+214 |         external: [link('whole', ['a', 'A'], ['b', 'B'])],
+215 |       }),
+216 |     ).toThrow(/slice.*A/);
+            ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /slice.*A/
+Received message: "undefined is not an object (evaluating 'slices.length')"
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/domain/domain/src/connected-step-node.test.ts:216:7)
+(fail) refuses absent and empty slices instead of creating a boundary [0.50ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [25.00ms]

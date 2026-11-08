@@ -1,0 +1,101 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-resource-caller.test.ts:
+706 |       '--id',
+707 |       labId,
+708 |       '--resource-evidence',
+709 |       'creation-v1',
+710 |     ]);
+711 |     expect(execution.exit).not.toBe(0);
+                                     ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:711:32)
+(fail) Task37 sealed reader refuses inputs-version before teardown [2758.30ms]
+706 |       '--id',
+707 |       labId,
+708 |       '--resource-evidence',
+709 |       'creation-v1',
+710 |     ]);
+711 |     expect(execution.exit).not.toBe(0);
+                                     ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:711:32)
+(fail) Task37 sealed reader refuses plan-cohort before teardown [2819.49ms]
+706 |       '--id',
+707 |       labId,
+708 |       '--resource-evidence',
+709 |       'creation-v1',
+710 |     ]);
+711 |     expect(execution.exit).not.toBe(0);
+                                     ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:711:32)
+(fail) Task37 sealed reader refuses config-cohort before teardown [2787.31ms]
+706 |       '--id',
+707 |       labId,
+708 |       '--resource-evidence',
+709 |       'creation-v1',
+710 |     ]);
+711 |     expect(execution.exit).not.toBe(0);
+                                     ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:711:32)
+(fail) Task37 sealed reader refuses selection-cohort before teardown [2838.58ms]
+706 |       '--id',
+707 |       labId,
+708 |       '--resource-evidence',
+709 |       'creation-v1',
+710 |     ]);
+711 |     expect(execution.exit).not.toBe(0);
+                                     ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:711:32)
+(fail) Task37 sealed reader refuses observation-cohort before teardown [2832.13ms]
+706 |       '--id',
+707 |       labId,
+708 |       '--resource-evidence',
+709 |       'creation-v1',
+710 |     ]);
+711 |     expect(execution.exit).not.toBe(0);
+                                     ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:711:32)
+(fail) Task37 sealed reader refuses observation-missing before teardown [2682.11ms]
+706 |       '--id',
+707 |       labId,
+708 |       '--resource-evidence',
+709 |       'creation-v1',
+710 |     ]);
+711 |     expect(execution.exit).not.toBe(0);
+                                     ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:711:32)
+(fail) Task37 sealed reader refuses lineage-cohort before teardown [2651.85ms]
+(pass) Task37 sealed reader refuses unknown-version before teardown [2121.67ms]
+
+ 1 pass
+ 61 filtered out
+ 7 fail
+ 44 expect() calls
+Ran 8 tests across 1 file. [21.69s]

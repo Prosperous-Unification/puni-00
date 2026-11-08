@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/caddy-target.test.ts:
+(pass) requires real Caddy boundaries in the CI and host test target [0.25ms]
+(pass) refuses a native Caddy override in CI before starting the suite [14.90ms]
+(pass) refuses an absent native development binary before starting the suite [16.08ms]
+(pass) refuses failed required image preparation before starting the suite [17.39ms]
+
+ 4 pass
+ 0 fail
+ 13 expect() calls
+Ran 4 tests across 1 file. [81.00ms]

@@ -1,0 +1,41 @@
+
+ NX   Running target typecheck for 5 projects and 2 tasks they depend on:
+
+- wbs-contracts
+- wbs-gw-01
+- wbs-mcp-01
+- wbs-be-01
+- wbs-fe-01
+
+
+✔  nx run wbs-fe-01:"typecheck:module"
+✔  nx run wbs-be-01:"typecheck:module"
+
+> nx run wbs-gw-01:typecheck
+
+> bunx tsc --build --force apps/wbs/gw-01/tsconfig.json
+
+apps/wbs/gw-01/src/service/dependency-forwarding.test.ts(32,70): error TS2322: Type 'string | undefined' is not assignable to type '"cross-project-dependencies-v1" | undefined'.
+  Type 'string' is not assignable to type '"cross-project-dependencies-v1"'.
+apps/wbs/gw-01/src/service/dependency-forwarding.test.ts(38,7): error TS2322: Type 'string | undefined' is not assignable to type '"cross-project-dependencies-v1" | undefined'.
+  Type 'string' is not assignable to type '"cross-project-dependencies-v1"'.
+Warning: command "bunx tsc --build --force apps/wbs/gw-01/tsconfig.json" exited with non-zero status code
+✔  nx run wbs-contracts:typecheck
+✔  nx run wbs-mcp-01:typecheck
+✔  nx run wbs-fe-01:typecheck
+✔  nx run wbs-be-01:typecheck
+
+
+
+ NX   Running target typecheck for 5 projects and 2 tasks they depend on failed
+
+Failed tasks:
+
+- wbs-gw-01:typecheck
+
+Output of 6 successful tasks were not shown. Run with --verbose or --output-style=static to see it.
+
+  Run duration:      28.4s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     28.4s (2 tasks)
+  Recoverable time:  29ms (0% of the run)

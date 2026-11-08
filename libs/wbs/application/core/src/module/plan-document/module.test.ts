@@ -8,7 +8,9 @@ import type { CalendarMarker } from '../../ports/calendar-marker-store';
 import { clockOf } from '../../ports/clock';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
+import { expectCreated } from '../../testing/expect-created';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { installPlanDocument } from './check';
 import { PLAN_DOCUMENT_LABEL } from './contract';
@@ -29,12 +31,13 @@ async function seeded() {
   let next = 0;
   const clock = clockOf({ now: () => EXPORTED_AT, newId: () => `id-${String(++next)}` });
   const services = servicesOver(source.stores, {
+    dependencyContext: createLocalDependencyContext(source.stores),
     admission: CREATOR_ADMISSION,
     clock,
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
   });
-  const { project } = await services.projects.create('Plan', 'owner');
+  const { project } = expectCreated(await services.projects.create('Plan', 'owner'));
   const tree = await services.workItems.tree(project.id);
   if (tree === null || 'kind' in tree) throw new Error('the seeded project has no tree');
   const marker: CalendarMarker = {

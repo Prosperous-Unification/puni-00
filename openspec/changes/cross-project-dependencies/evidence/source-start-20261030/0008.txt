@@ -1,0 +1,187 @@
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
+import { mock } from 'bun:test';
+
+import { runDockerExec } from '../lib/docker-exec';
+import type { ProductMetadataChild, SpawnProductMetadata } from '../lib/docker-product-metadata';
+import { GROUP_PROGRAM } from '../lib/mount-exec-program';
+import { sourceBytes } from './participant-process-bytes';
+import { participantActivationFixture } from './dependency-participant-restoration';
+import { assertReadinessByteTransportFixture } from './product-readiness-byte-transport';
+
+export const sourceFault = {
+  name: 'none',
+  execs: 0,
+  closing: false,
+  settlements: 0,
+  receiptFailures: 0,
+  collectionTokens: 0,
+  collectionAcks: 0,
+};
+// Raw modeled /proc bytes only. No observer or consumed context accepts a host-reader seam.
+await mock.module('../lib/product-host-proc', () => ({
+  readProductHostProc: (path: string) => {
+    return sourceBytes.read(path, sourceFault);
+  },
+}));
+
+function echoChild(contents: string): ProductMetadataChild {
+  const child = Bun.spawn(
+    ['/usr/bin/python3', '-I', '-c', 'import sys;sys.stdout.buffer.write(sys.stdin.buffer.read())'],
+    {
+      stdin: new TextEncoder().encode(contents),
+      stdout: 'pipe',
+      stderr: 'pipe',
+      killSignal: 'SIGKILL',
+    },
+  );
+  return {
+    stdout: child.stdout,
+    stderr: child.stderr,
+    exited: child.exited,
+    kill: () => {
+      child.kill('SIGKILL');
+    },
+  };
+}
+
+const frames = (label: 'before' | 'after') => sourceBytes.frames(label, sourceFault);
+
+/** Genuine preparation fixture with modeled source metadata and actual raw byte transport/owned peer cleanup. */
+export async function sourceProcessFixture() {
+  const fixture = await participantActivationFixture();
+  let tops = 0;
+  const spawnProductMetadata: SpawnProductMetadata = (request) => {
+    if (request.kind === 'container') {
+      if (request.id !== fixture.source.Id) throw new Error('source fixture foreign container');
+      return echoChild(JSON.stringify(fixture.source));
+    }
+    if (request.kind !== 'top' || request.id !== fixture.source.Id)
+      throw new Error('source fixture foreign metadata');
+    tops++;
+    const parent =
+      sourceFault.name === 'parent' ? 999 : sourceFault.name === 'role-parent' ? 60004 : 60002;
+    return echoChild(
+      `PID PPID\n60001 1\n60002 60001\n60003 ${String(parent)}\n60004 60002\n${sourceFault.name === 'missing' ? '' : '60005 60002\n'}60006 60002\n${['extra', 'duplicate'].includes(sourceFault.name) ? '60007 60002\n' : ''}`,
+    );
+  };
+  const ports = { ...fixture.ports, spawnProductMetadata };
+  const generatedPath = join(fixture.sourceRoot, 'apps/wbs/mcp-01/src/openapi.json');
+  const generated =
+    '{"openapi":"3.1.0","info":{"title":"native pinned participant emitter"},"paths":{}}\n';
+  async function writeGenerated(contents = generated): Promise<void> {
+    await writeFile(generatedPath, contents, { mode: 0o644 });
+  }
+  async function start(): Promise<void> {
+    Object.assign(fixture.source.State, {
+      Running: true,
+      Status: 'running',
+      Pid: 60001,
+      StartedAt: '2026-10-29T08:00:00Z',
+    });
+    await writeGenerated();
+    ports.execDocker = async (args, nonce, receive, signal) => {
+      sourceFault.execs++;
+      const cleanup = args.includes(GROUP_PROGRAM) || args.at(-5) === 'cleanup';
+      const directory = join(fixture.root, `source-bytes-${nonce}`);
+      await mkdir(directory);
+      const receipt = join(directory, 'receipt');
+      const pidPath = join(directory, 'pid');
+      const tokens = [
+        'SESSION',
+        nonce,
+        '70001',
+        '70001',
+        '70001',
+        '80001',
+        ...(cleanup
+          ? sourceFault.name === 'source-group-member'
+            ? ['MEMBER', '70001', 'S', '80001']
+            : []
+          : [...frames('before'), ...frames('after')]),
+        'DONE',
+        nonce,
+        '2',
+      ];
+      if (!cleanup && sourceFault.name === 'source-reap-foreign')
+        tokens.push('REAPED', 'foreign-source-nonce');
+      if (!cleanup && sourceFault.name === 'source-member-observe')
+        tokens.splice(6, 0, 'MEMBER', '70001', 'S', '80001');
+      if (!cleanup && sourceFault.name === 'source-no-session') tokens.splice(0, 6);
+      if (!cleanup && sourceFault.name === 'source-unknown-tag')
+        tokens.splice(6, 0, 'SOURCE_UNKNOWN', 'value');
+      if (!cleanup && sourceFault.name === 'source-token-bound')
+        tokens[1] = 'x'.repeat(4 * 1024 * 1024 + 1);
+      if (!cleanup && sourceFault.name === 'source-frame-bound')
+        tokens.splice(
+          6,
+          tokens.length - 6,
+          ...Array.from({ length: 40002 }, () => ['FD', '3', '0', '/dev/null']).flat(),
+          'DONE',
+          nonce,
+          '2',
+        );
+      if (!cleanup && sourceFault.name === 'source-session-nonce')
+        tokens[1] = 'foreign-source-nonce';
+      if (!cleanup && sourceFault.name === 'source-session-group') tokens[3] = '70002';
+      if (!cleanup && sourceFault.name === 'source-completion-count')
+        tokens[tokens.length - 1] = '1';
+      if (!cleanup && sourceFault.name === 'source-duplicate-done') tokens.push('DONE', nonce, '2');
+      if (cleanup && sourceFault.name === 'cleanup') tokens.push('PRIVATE_CLEANUP_FAILURE');
+      await Bun.write(receipt, tokens.join('\0') + '\0');
+      await assertReadinessByteTransportFixture();
+      let transportFailure: { readonly cause: unknown } | undefined;
+      try {
+        let skipped = 0;
+        const consume = (token: string) => {
+          if (!cleanup && sourceFault.name === 'source-missing-reap') {
+            if (token === 'REAPED') {
+              skipped = 1;
+              return false;
+            }
+            if (skipped === 1) {
+              skipped = 2;
+              return false;
+            }
+          }
+          if (!cleanup) sourceFault.collectionTokens++;
+          const acknowledged = receive(token);
+          if (!cleanup && acknowledged) sourceFault.collectionAcks++;
+          return acknowledged;
+        };
+        await runDockerExec(['--', nonce, receipt, pidPath], nonce, consume, signal);
+      } catch (cause) {
+        sourceFault.receiptFailures++;
+        transportFailure = { cause };
+      }
+      try {
+        const pid = Number(await readFile(pidPath, 'utf8'));
+        let alive = true;
+        try {
+          process.kill(pid, 0);
+        } catch (cause) {
+          if (!(cause instanceof Error) || !('code' in cause) || cause.code !== 'ESRCH')
+            throw cause;
+          alive = false;
+        }
+        if (alive) throw new Error('source fixture raw peer remains');
+        sourceFault.settlements++;
+      } catch (cause) {
+        if (transportFailure !== undefined)
+          throw new AggregateError(
+            [transportFailure.cause, cause],
+            'source fixture transport and peer settlement failed',
+            { cause },
+          );
+        throw cause;
+      }
+      if (transportFailure !== undefined) throw transportFailure.cause;
+      if (cleanup && sourceFault.name === 'closing-host') sourceFault.closing = true;
+      if (cleanup && sourceFault.name === 'closing-runtime')
+        fixture.source.State.StartedAt = '2026-10-29T09:00:00Z';
+      if (!cleanup && sourceFault.name === 'closing-output') await writeGenerated('{}\n');
+    };
+  }
+  return { ...fixture, ports, start, writeGenerated, tops: () => tops };
+}

@@ -1,0 +1,36 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/solver-binding-command.test.ts:
+(pass) solver command remaps the verified inherited lock to child FD3 through the real child path [70.27ms]
+(pass) missing inherited descriptor refuses before launching solver command [30.77ms]
+(pass) invalid inherited descriptor refuses before launching solver command [38.11ms]
+(pass) foreign inherited descriptor refuses before launching solver command [22.23ms]
+(pass) independent inherited descriptor refuses before launching solver command [26.25ms]
+86 | for (const mode of ['missing', 'invalid', 'foreign', 'independent', 'unsafe']) {
+87 |   test(`${mode} inherited descriptor refuses before launching solver command`, async () => {
+88 |     const host = await fixture();
+89 |     const attempt = await host.run(mode);
+90 |     expect(attempt.code).not.toBe(0);
+91 |     expect(attempt.output.split('\n').find((line) => line.startsWith('error: '))).toContain(
+                                                                                       ^
+error: Received value must be an array type, or both received and expected values must be strings.
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:91:83)
+(fail) unsafe inherited descriptor refuses before launching solver command [25.72ms]
+(pass) edge-owner.json malformed refuses inherited solver command [27.71ms]
+(pass) edge-owner.json unreadable refuses inherited solver command [25.80ms]
+(pass) edge-owner.json directory refuses inherited solver command [24.53ms]
+(pass) edge-owner.json dangling refuses inherited solver command [33.65ms]
+(pass) edge-owner.pending malformed refuses inherited solver command [22.80ms]
+(pass) edge-owner.pending unreadable refuses inherited solver command [29.08ms]
+(pass) edge-owner.pending directory refuses inherited solver command [26.78ms]
+(pass) edge-owner.pending dangling refuses inherited solver command [30.53ms]
+(pass) symlink canonical state refuses verified solver command [28.28ms]
+(pass) symlink canonical lock refuses verified solver command [30.27ms]
+(pass) missing canonical state refuses before child launch [27.10ms]
+(pass) directory canonical state refuses before child launch [25.01ms]
+(pass) unreadable canonical state refuses before child launch [28.12ms]
+
+ 18 pass
+ 1 fail
+ 68 expect() calls
+Ran 19 tests across 1 file. [602.00ms]

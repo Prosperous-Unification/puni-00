@@ -1,0 +1,27 @@
+import {expect,test} from 'bun:test';
+import {stage,prepare} from './fixture';
+import {validateConnectedSolverRequest} from '/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/validate-connected-solver-request.ts';
+test('nested retained calendars match the forward union and installed receiver', async()=>{
+ const base=prepare(stage()); if(base.pri.kind!=='boundary-infeasible')throw Error(base.pri.kind);
+ const request=structuredClone(base.pri.request);
+ request.slices[0].personId='ana';request.horizonUnits=1000;
+ const placements=[['foreign-one',0,10],['foreign-two',1,2],['foreign-three',3,4]] as const;
+ for(const [key,start,finish] of placements){request.scope.fixed.push({key,projectId:'A',start,finish});request.scope.occupancy.push({key,projectId:'A',personId:'ana',start,finish});}
+ request.elsewhere={ana:[[0,480]]};
+ await Bun.write('/tmp/puni-round2-review-nested-request.json',JSON.stringify(request));
+ const cli=Bun.spawnSync(['/tmp/puni-cross-solver-wire/.venv-solver/bin/wbs-solver'],{stdin:Buffer.from(JSON.stringify(request))});
+ await Bun.write('/tmp/puni-round2-review-nested-cli.json',JSON.stringify({exitCode:cli.exitCode,stdout:cli.stdout.toString(),stderr:cli.stderr.toString()}));
+ expect(cli.exitCode).toBe(0);
+ expect(()=>validateConnectedSolverRequest(request)).not.toThrow();
+});
+test('production preparation accepts retained nested holders and emits their calendar union',()=>{
+ const candidate=stage();Object.assign(candidate,{mode:'shared'});
+ candidate.input.slices[1].personId='ana';
+ for(const [id,start,finish] of [['foreign-one',0,10],['foreign-two',1,2],['foreign-three',3,4]] as const){
+  candidate.input.rows.push({id,parentId:null,position:candidate.input.rows.length,priority:0,frozenNumber:null});
+  candidate.input.slices.push({workItemId:id,stepId:null,days:finish-start,width:1,personId:'ana',poolIds:[]});
+  candidate.input.graph.nodes.push({kind:'boundary',workItemId:id,at:0});
+  candidate.input.order.projectIdByWorkItem.set(id,'A');candidate.starts.set(id+'\0',start);candidate.finishes.set(id+'\0',finish);
+ }
+ expect(()=>prepare(candidate)).not.toThrow();
+});

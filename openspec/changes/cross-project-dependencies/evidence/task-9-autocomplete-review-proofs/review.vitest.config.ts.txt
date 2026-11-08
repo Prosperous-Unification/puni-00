@@ -1,0 +1,2 @@
+import base from '/tmp/puni-cross-autocomplete/apps/wbs/fe-01/vitest.config';
+export default {...base, root: '/tmp/puni-autocomplete-review-probes', server: {fs: {allow: ['/tmp/puni-cross-autocomplete','/tmp/puni-autocomplete-review-probes']}}, test: {...base.test, setupFiles: ['./vitest.setup.ts'], include: ['*.test.tsx']}};

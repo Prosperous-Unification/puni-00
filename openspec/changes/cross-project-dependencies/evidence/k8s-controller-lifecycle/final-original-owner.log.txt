@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+961 |           fixture.fake,
+962 |           () => undefined,
+963 |           fixture.options,
+964 |         ),
+965 |       ).rejects.toThrow('rollback-failed');
+966 |       expect(fixture.fake.calls).not.toContain('observeReplayInventory');
+                                           ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "observeReplayInventory"
+Received: [
+  "observeCluster", "readLease", "createLease", "renewLease", "renewLease", "admitBackendImages",
+  "renewLease", "renewLease", "closeWrites", "renewLease", "drainGateway", "renewLease", "stopWriter",
+  "renewLease", "renewLease", "renewLease", "renewLease", "requireJournal", "renewLease", "renewLease",
+  "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease",
+  "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "observeReplayInventory",
+  "observeReplayCapabilities", "observeReplayCapabilities", "renewLease", "renewLease", "renewLease",
+  "parkLease"
+]
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:966:38)
+(fail) mounted owner template drift after drain refuses before source replay [1316.83ms]
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1360.00ms]

@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts:
+237 |       throw new Error('expected shared');
+238 |     expect(shared.influencers.map((each) => each.projectId)).toEqual(['a1', 'a2']);
+239 |     expect(await reader.readProject('absent')).toEqual({ kind: 'not_found' });
+240 |     write('DROP TRIGGER project_organization_frozen_update');
+241 |     write("UPDATE project_organization SET organization_id = 'org-b' WHERE resource_id = 'a3'");
+242 |     expect((await failureOf(reader.readProject('a3'))).message).toContain(
+                                                                      ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "references outside its organization"
+Received: "project a3 abbreviation namespace is malformed"
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts:242:65)
+(fail) the chain snapshot > resolves background reads from actual ownership and activation [222.59ms]
+269 |       'invalid stored shared_people',
+270 |     );
+271 |     write("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+272 |     write('DROP TRIGGER project_organization_frozen_delete');
+273 |     write("DELETE FROM project_organization WHERE resource_id = 'a3'");
+274 |     expect((await failureOf(reader.readProject('a3'))).message).toContain(
+                                                                      ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "project ownership is absent"
+Received: "project a3 abbreviation namespace is malformed"
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts:274:65)
+(fail) the chain snapshot > refuses corrupt mode and broken background ownership [168.17ms]
+
+ 0 pass
+ 33 filtered out
+ 2 fail
+ 8 expect() calls
+Ran 2 tests across 1 file. [2.56s]

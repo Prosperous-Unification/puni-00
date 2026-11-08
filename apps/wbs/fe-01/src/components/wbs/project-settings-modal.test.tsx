@@ -152,7 +152,7 @@ function mounted(
   };
   // A test that owns its own slot renders its own provider inside the file's;
   // the nearer provider is the one the modal reads.
-  render(
+  const view = render(
     slot === null ? (
       <ProjectSettingsModal {...props} />
     ) : (
@@ -162,6 +162,9 @@ function mounted(
     ),
   );
   return {
+    rerender: (updates: Partial<ProjectSettingsModalProps>) => {
+      view.rerender(<ProjectSettingsModal {...props} {...updates} />);
+    },
     setCapacity,
     setBands,
     addStep,
@@ -222,6 +225,7 @@ describe('one modal for the project’s five settings', () => {
     expect(
       [...list.querySelectorAll('[role="tab"]')].map((each) => each.textContent.trim()),
     ).toEqual([
+      'General',
       'Teams',
       'Priorities',
       'Steps',
@@ -276,11 +280,11 @@ describe('one modal for the project’s five settings', () => {
     fireEvent.keyDown(tab('Timezone'), { key: 'ArrowRight' });
     expect(tab('Resources')).toHaveAttribute('aria-selected', 'true');
     fireEvent.keyDown(tab('Resources'), { key: 'ArrowRight' });
-    expect(tab('Teams')).toHaveAttribute('aria-selected', 'true');
+    expect(tab('General')).toHaveAttribute('aria-selected', 'true');
     fireEvent.keyDown(tab('Teams'), { key: 'End' });
     expect(tab('Resources')).toHaveAttribute('aria-selected', 'true');
     fireEvent.keyDown(tab('Resources'), { key: 'Home' });
-    expect(tab('Teams')).toHaveAttribute('aria-selected', 'true');
+    expect(tab('General')).toHaveAttribute('aria-selected', 'true');
   });
 
   itDom('a half-typed value survives a look at another section', () => {
@@ -561,6 +565,7 @@ describe('closing over an edit', () => {
     open();
     const footers: string[] = [];
     for (const name of [
+      'General',
       'Teams',
       'Priorities',
       'Steps',
@@ -1076,5 +1081,219 @@ describe('the project timezone (step-node-attempts D3)', () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Timezone' })).toBeNull();
+  });
+});
+
+describe('project abbreviation in General settings', () => {
+  // Proof: requiring two characters in GeneralPanel's production regex failed
+  // the `p` case: the field retained lowercase p instead of the canonical P.
+  // The twenty-character control still passed (2026-10-23).
+  itDom.each([
+    ['p', 'P'],
+    ['puni2-core_main12345', 'PUNI2-CORE_MAIN12345'],
+  ])('applies the boundary code %s and shows its canonical value', async (draft, canonical) => {
+    const setAbbreviation = vi.fn(() => Promise.resolve(canonical));
+    mounted({
+      general: { abbreviation: 'PUNI', setAbbreviation, onChanged: () => Promise.resolve() },
+    });
+    open();
+    fireEvent.click(tab('General'));
+    const field = screen.getByRole('textbox', { name: 'Project abbreviation' });
+    expect(field).toHaveValue('PUNI');
+    fireEvent.change(field, { target: { value: draft } });
+    fireEvent.keyDown(field, { key: 'Enter' });
+    await waitFor(() => expect(field).toHaveValue(canonical));
+    expect(setAbbreviation).toHaveBeenCalledWith(draft);
+  });
+  itDom.each(['', '2PUNI', 'P'.repeat(21), 'PUNI.CORE', '-PUNI', '_PUNI', 'PÜNI'])(
+    'retains invalid draft %s visibly',
+    (code) => {
+      const setAbbreviation = vi.fn(() => Promise.resolve('PUNI'));
+      mounted({
+        general: { abbreviation: 'PUNI', setAbbreviation, onChanged: () => Promise.resolve() },
+      });
+      open();
+      fireEvent.click(tab('General'));
+      const field = screen.getByRole('textbox', { name: 'Project abbreviation' });
+      fireEvent.change(field, { target: { value: code } });
+      fireEvent.blur(field);
+      expect(screen.getByRole('alert')).toHaveTextContent('Start with a letter');
+      expect(field).toHaveValue(code);
+      expect(setAbbreviation).not.toHaveBeenCalled();
+    },
+  );
+  itDom('shows an occupied-code refusal, retains the draft and lets Escape revert it', async () => {
+    mounted({
+      general: {
+        abbreviation: 'PUNI',
+        setAbbreviation: () => Promise.reject(new Error('abbreviation_taken')),
+        onChanged: () => Promise.resolve(),
+      },
+    });
+    open();
+    fireEvent.click(tab('General'));
+    const field = screen.getByRole('textbox', { name: 'Project abbreviation' });
+    fireEvent.change(field, { target: { value: 'TAKEN' } });
+    fireEvent.blur(field);
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('already uses'));
+    expect(field).toHaveValue('TAKEN');
+    fireEvent.keyDown(field, { key: 'Escape' });
+    expect(field).toHaveValue('PUNI');
+    expect(dialog()).toBeInTheDocument();
+  });
+  itDom('sends nothing for the unchanged normalized code', async () => {
+    const setAbbreviation = vi.fn(() => Promise.resolve('PUNI'));
+    mounted({
+      general: { abbreviation: 'PUNI', setAbbreviation, onChanged: () => Promise.resolve() },
+    });
+    open();
+    fireEvent.click(tab('General'));
+    const field = screen.getByRole('textbox', { name: 'Project abbreviation' });
+    fireEvent.change(field, { target: { value: 'puni' } });
+    fireEvent.blur(field);
+    await settle();
+    expect(setAbbreviation).not.toHaveBeenCalled();
+    expect(field).toHaveValue('PUNI');
+  });
+});
+
+describe('General settings lifetime and close behavior', () => {
+  itDom(
+    'keeps a write over a section switch and closes only after it lands, restoring trigger focus',
+    async () => {
+      const write = held();
+      mounted({
+        general: {
+          abbreviation: 'PUNI',
+          setAbbreviation: async () => {
+            await write.promise;
+            return 'NEXT';
+          },
+          onChanged: () => Promise.resolve(),
+        },
+      });
+      open();
+      fireEvent.click(tab('General'));
+      const field = screen.getByRole('textbox', { name: 'Project abbreviation' });
+      fireEvent.change(field, { target: { value: 'next' } });
+      fireEvent.keyDown(field, { key: 'Enter' });
+      expect(field).toHaveAttribute('readonly');
+      fireEvent.click(tab('Teams'));
+      fireEvent.click(tab('General'));
+      expect(field).toHaveValue('next');
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+      expect(dialog()).toBeInTheDocument();
+      await act(async () => {
+        write.land();
+        await write.promise;
+      });
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog', { name: 'Project settings' })).toBeNull();
+      });
+      expect(document.activeElement).toBe(trigger());
+    },
+  );
+  itDom(
+    'an old response after a project switch cannot overwrite or refresh the current field',
+    async () => {
+      const write = held();
+      const oldRefresh = vi.fn(() => Promise.resolve());
+      const view = mounted({
+        general: {
+          abbreviation: 'PUNI',
+          setAbbreviation: async () => {
+            await write.promise;
+            return 'OLD';
+          },
+          onChanged: oldRefresh,
+        },
+      });
+      open();
+      fireEvent.click(tab('General'));
+      fireEvent.change(screen.getByRole('textbox', { name: 'Project abbreviation' }), {
+        target: { value: 'old' },
+      });
+      fireEvent.keyDown(screen.getByRole('textbox', { name: 'Project abbreviation' }), {
+        key: 'Enter',
+      });
+      view.rerender({
+        projectId: 'p2',
+        general: {
+          abbreviation: 'OTHER',
+          setAbbreviation: () => Promise.resolve('OTHER'),
+          onChanged: () => Promise.resolve(),
+        },
+      });
+      await act(async () => {
+        write.land();
+        await write.promise;
+      });
+      expect(screen.getByRole('textbox', { name: 'Project abbreviation' })).toHaveValue('OTHER');
+      expect(oldRefresh).not.toHaveBeenCalled();
+    },
+  );
+});
+
+itDom('does not normalize a non-ASCII draft into an unchanged abbreviation', () => {
+  const setAbbreviation = vi.fn(() => Promise.resolve('I'));
+  mounted({ general: { abbreviation: 'I', setAbbreviation, onChanged: () => Promise.resolve() } });
+  open();
+  fireEvent.click(tab('General'));
+  const field = screen.getByRole('textbox', { name: 'Project abbreviation' });
+  fireEvent.change(field, { target: { value: 'ı' } });
+  fireEvent.blur(field);
+  expect(screen.getByRole('alert')).toHaveTextContent('Start with a letter');
+  expect(field).toHaveValue('ı');
+  expect(setAbbreviation).not.toHaveBeenCalled();
+});
+itDom('shows the unavailable catalog observation without inventing an abbreviation', () => {
+  mounted();
+  open();
+  fireEvent.click(tab('General'));
+  expect(screen.getByRole('tabpanel', { name: 'General' })).toHaveTextContent(
+    'not available until the selected project is read',
+  );
+  expect(screen.queryByRole('textbox', { name: 'Project abbreviation' })).toBeNull();
+});
+
+describe('General settings catalog refresh', () => {
+  itDom.each(['invalid', 'conflict'] as const)(
+    'keeps a %s draft and refusal when the same project receives a refreshed abbreviation',
+    async (refusal) => {
+      const setAbbreviation = () => Promise.reject(new Error('abbreviation_taken'));
+      const onChanged = () => Promise.resolve();
+      const view = mounted({
+        general: { abbreviation: 'PUNI', setAbbreviation, onChanged },
+      });
+      open();
+      fireEvent.click(tab('General'));
+      const field = screen.getByRole('textbox', { name: 'Project abbreviation' });
+      const draft = refusal === 'invalid' ? '2PUNI' : 'TAKEN';
+      fireEvent.change(field, { target: { value: draft } });
+      fireEvent.blur(field);
+      const sentence = refusal === 'invalid' ? 'Start with a letter' : 'already uses';
+      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(sentence));
+
+      view.rerender({ general: { abbreviation: 'FRESH', setAbbreviation, onChanged } });
+
+      expect(field).toHaveValue(draft);
+      expect(screen.getByRole('alert')).toHaveTextContent(sentence);
+      expect(screen.getByText(/Saved as FRESH/)).toBeInTheDocument();
+      fireEvent.keyDown(field, { key: 'Escape' });
+      expect(field).toHaveValue('FRESH');
+      expect(screen.queryByRole('alert')).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+      expect(screen.queryByRole('dialog', { name: 'Project settings' })).toBeNull();
+    },
+  );
+
+  itDom('updates an untouched abbreviation from a same-project catalog refresh', () => {
+    const setAbbreviation = () => Promise.resolve('FRESH');
+    const onChanged = () => Promise.resolve();
+    const view = mounted({ general: { abbreviation: 'PUNI', setAbbreviation, onChanged } });
+    open();
+    fireEvent.click(tab('General'));
+    view.rerender({ general: { abbreviation: 'FRESH', setAbbreviation, onChanged } });
+    expect(screen.getByRole('textbox', { name: 'Project abbreviation' })).toHaveValue('FRESH');
   });
 });

@@ -1,0 +1,53 @@
+bun test v1.4.2 (744846f84)
+
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+1149 |         case 'clear-estimate': return service.clearEstimate(a.workItemId, fixture.principal.id, dev);
+1150 |         case 'step-remove': return graph.steps.removeWithin(a.projectId, dev, fixture.principal.id, true, fixture.expectedAccess);
+1151 |         case 'project-reach': return graph.projects.updateWithin(a.projectId, fixture.principal.id, { depReach: 'whole-item' }, fixture.expectedAccess);
+1152 |       }
+1153 |     });
+1154 |     expect(refused).toMatchObject({ ok: false, reason: transition === 'clear-estimate' ? 'cycle' : 'dependency_cycle' });
+                           ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": false,
+-   "reason": "dependency_cycle",
++   "ok": true,
++   "value": {
++     "abbreviation": "OWN",
++     "createdAt": 1792654766051,
++     "depReach": "whole-item",
++     "estimateMethod": "pert",
++     "estimateRounding": "ceil",
++     "id": "6ac65608-89f1-4288-98e5-21a6a84a893d",
++     "name": "Owner",
++     "optimizationEnabled": false,
++     "ownerId": "e927b601-09fc-4c18-a7c4-61159107b1eb",
++     "pertWeights": {
++       "optimistic": 1,
++       "pessimistic": 1,
++       "realistic": 4,
++     },
++     "restricted": false,
++     "revision": 2,
++     "scheduleEngine": "fast",
++     "scheduleObjective": "pri",
++     "solutionRef": null,
++     "startDate": null,
++     "timezone": "UTC",
++   },
+  }
+
+- Expected  - 2
++ Received  + 24
+
+      at <anonymous> (/tmp/puni-cross-graph-closure/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1154:21)
+(fail) admitted project-reach moves a legacy anchor into a real remote cycle and rolls back [618.70ms]
+
+ 0 pass
+ 86 filtered out
+ 1 fail
+ 24 expect() calls
+Ran 1 test across 1 file. [3.64s]

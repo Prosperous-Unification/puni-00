@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/typed-dependency.db.test.ts:
+(pass) TypedDependencyRepository > returns a doomed set of links and bumps only surviving endpoints [158.39ms]
+(pass) TypedDependencyRepository > refuses an endpoint outside the project or in the wrong shape [105.18ms]
+(pass) TypedDependencyRepository > adds, lists, updates and removes a link while bumping both endpoints [100.07ms]
+(pass) TypedDependencyRepository > refuses update of an unknown id without changing rows or revisions [107.16ms]
+(pass) TypedDependencyRepository > refuses removal of an unknown id without changing rows or revisions [100.46ms]
+(pass) TypedDependencyRepository > refuses moving a typed dependency to another project without changing rows or revisions [96.14ms]
+(pass) TypedDependencyRepository > reads stored SS and FF relationships [121.18ms]
+(pass) TypedDependencyRepository > refuses an unsupported stored relationship type on read [101.10ms]
+(pass) TypedDependencyRepository > refuses unsupported rows during bulk removal before deleting them [95.27ms]
+(pass) TypedDependencyRepository > refuses unknown scopes and scope/step mismatches on read [114.55ms]
+(pass) refuses absent endpoint project state during typed authoring admission [111.44ms]
+(pass) refuses unreadable endpoint project state during typed authoring admission [108.76ms]
+
+libs/wbs/adapters/store-sqlite/src/typed-dependency-rollback.db.test.ts:
+(pass) typed dependency rollback > saves all columns in id order, removes, rolls back, reapplies and restores readable rows [282.80ms]
+(pass) typed dependency rollback > restores saved SS and FF relationships as readable rows [109.92ms]
+(pass) typed dependency rollback > refuses a same-count save with a different id or column and deletes nothing [123.26ms]
+(pass) typed dependency rollback > refuses malformed saved input before removing rows [110.58ms]
+(pass) typed dependency rollback > refuses a malformed save with the parser’s own reason and restores nothing [154.40ms]
+(pass) typed dependency rollback > refuses the whole restore when a node endpoint became a parent [120.43ms]
+(pass) typed dependency rollback > refuses the whole restore when a row names another project [126.60ms]
+(pass) typed dependency rollback > refuses the whole restore when a saved row has an unreadable relationship [102.44ms]
+
+ 20 pass
+ 0 fail
+ 83 expect() calls
+Ran 20 tests across 2 files. [5.50s]

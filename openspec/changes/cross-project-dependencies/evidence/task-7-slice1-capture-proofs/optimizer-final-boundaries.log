@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module-boundaries.test.ts:
+(pass) closed feature modules do not reference repository ports and debt stays live [12574.33ms]
+(pass) resolved alias type from a repository port is refused [4637.01ms]
+(pass) repository method reached through compatibility options is refused [4502.97ms]
+(pass) renamed scope inside a nested transaction callback is refused [5180.24ms]
+(pass) import transaction cannot return a raw scope through a nested resource callback [13166.66ms]
+(pass) public resource surfaces cannot pass raw repository authority to a feature [13242.59ms]
+(pass) indexed resource results cannot contain raw scope but may contain value records [13472.23ms]
+(pass) feature wrappers cannot hide a resource with a public raw scope [9268.32ms]
+(pass) repository-owned value types are refused without a Store suffix [1331.96ms]
+(pass) named value import from a repository port is refused [1578.96ms]
+(pass) wildcard export of a repository port is refused [1328.90ms]
+(pass) malformed import type cannot silently leave the audit [2293.34ms]
+(pass) new feature debt cannot be added to the shrink-only ledger [0.29ms]
+(pass) a closed module with no directory is refused [1486.57ms]
+(pass) every feature module is closed or recorded as debt [959.82ms]
+
+ 15 pass
+ 0 fail
+ 20 expect() calls
+Ran 15 tests across 1 file. [85.22s]

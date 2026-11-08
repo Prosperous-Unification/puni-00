@@ -1,0 +1,706 @@
+{
+  "token": "5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+  "registry": "wbs-task7-registry-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+  "tags": [
+    "wbs-be-01:task7-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+    "127.0.0.1:33136/wbs-be-01:baseline-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+    "127.0.0.1:33136/wbs-be-01:source-binding-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+    "127.0.0.1:33136/wbs-be-01:owned-close-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+    "127.0.0.1:33136/wbs-be-01:baseline-publication-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+    "127.0.0.1:33136/wbs-be-01:healthy-reuse-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+  ],
+  "events": [
+    {
+      "started": true,
+      "sha": "6effc8f653fa0c6d67f903f576b6d97cd6f2adad"
+    },
+    {
+      "nestedInventory": "/run/user/1000/wbs-solver-proof-inventory-dc52b789-8328-4961-a7ba-b99fce70b084",
+      "snapshot": "/tmp/task7-image-receipt-6effc8f65-20261023/built-green-inventory-dc52b789-8328-4961-a7ba-b99fce70b084",
+      "cleanupToken": "dc52b789-8328-4961-a7ba-b99fce70b084"
+    },
+    {
+      "smoke": "built-green",
+      "command": [
+        "bash",
+        "/home/puni1/task7-image-proof-6effc8f65/apps/wbs/be-01/scripts/solver-image-smoke.sh"
+      ],
+      "cleanupToken": "dc52b789-8328-4961-a7ba-b99fce70b084",
+      "status": 0,
+      "signal": null,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/built-green.log"
+    },
+    {
+      "nestedRecovery": "/run/user/1000/wbs-solver-proof-inventory-dc52b789-8328-4961-a7ba-b99fce70b084",
+      "containers": [
+        "wbs-solver-smoke-caller-30713734-970e-4caf-80bc-f8f66693e7e2",
+        "wbs-solver-30713734-970e-4caf-80bc-f8f66693e7e2",
+        "wbs-solver-smoke-registry-30713734-970e-4caf-80bc-f8f66693e7e2",
+        "wbs-solver-smoke-baseline-30713734-970e-4caf-80bc-f8f66693e7e2",
+        "wbs-solver-3366bc30-2ade-4bcb-ba89-206f8df272c2",
+        "wbs-solver-a293302c-e6db-4a7e-8029-fcaa9f53af10",
+        "wbs-solver-ae67cbb0-a8c4-489d-8f92-bbf9db4e8fff",
+        "wbs-solver-60646e49-e735-41f9-995b-f555c42065cd",
+        "wbs-solver-8af92d9f-4440-446b-b072-3f5745c435f7"
+      ],
+      "images": [
+        "wbs-be-01:solver-smoke-30713734-970e-4caf-80bc-f8f66693e7e2",
+        "127.0.0.1:33135/wbs-be-01:solver-smoke-30713734-970e-4caf-80bc-f8f66693e7e2"
+      ],
+      "supervisors": [
+        "1024183:518769666"
+      ],
+      "supervisorStopped": true,
+      "callerStopped": true,
+      "stable": true,
+      "failures": []
+    },
+    {
+      "ownedTag": "wbs-be-01:task7-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+    },
+    {
+      "command": [
+        "docker",
+        "build",
+        "--file",
+        "/home/puni1/task7-image-proof-6effc8f65/apps/wbs/be-01/Dockerfile",
+        "--tag",
+        "wbs-be-01:task7-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+        "/home/puni1/task7-image-proof-6effc8f65"
+      ],
+      "status": 0,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/command-5.log"
+    },
+    {
+      "ownedRegistry": "wbs-task7-registry-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+    },
+    {
+      "command": [
+        "docker",
+        "run",
+        "--detach",
+        "--rm",
+        "--publish",
+        "127.0.0.1::5000",
+        "--name",
+        "wbs-task7-registry-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+        "registry:2"
+      ],
+      "status": 0,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/command-7.log"
+    },
+    {
+      "command": [
+        "docker",
+        "inspect",
+        "--format",
+        "{{(index (index .NetworkSettings.Ports \"5000/tcp\") 0).HostPort}}",
+        "wbs-task7-registry-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+      ],
+      "status": 0,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/command-8.log"
+    },
+    {
+      "ownedTag": "127.0.0.1:33136/wbs-be-01:baseline-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+    },
+    {
+      "command": [
+        "docker",
+        "tag",
+        "wbs-be-01:task7-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+        "127.0.0.1:33136/wbs-be-01:baseline-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+      ],
+      "status": 0,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/command-10.log"
+    },
+    {
+      "command": [
+        "docker",
+        "push",
+        "127.0.0.1:33136/wbs-be-01:baseline-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+      ],
+      "status": 0,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/command-11.log"
+    },
+    {
+      "command": [
+        "docker",
+        "image",
+        "inspect",
+        "--format",
+        "{{range .RepoDigests}}{{println .}}{{end}}",
+        "127.0.0.1:33136/wbs-be-01:baseline-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+      ],
+      "status": 0,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/command-12.log"
+    },
+    {
+      "tag": "127.0.0.1:33136/wbs-be-01:baseline-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+      "digest": "127.0.0.1:33136/wbs-be-01@sha256:02e0ab60dc83e4e72f252b14f60530917c0ab71749fbc72a4a1a18b3764bd706"
+    },
+    {
+      "nestedInventory": "/run/user/1000/wbs-solver-proof-inventory-b29f4fbb-7e46-4764-af9c-4d878eb6b041",
+      "snapshot": "/tmp/task7-image-receipt-6effc8f65-20261023/supplied-green-inventory-b29f4fbb-7e46-4764-af9c-4d878eb6b041",
+      "cleanupToken": "b29f4fbb-7e46-4764-af9c-4d878eb6b041"
+    },
+    {
+      "smoke": "supplied-green",
+      "command": [
+        "bash",
+        "/home/puni1/task7-image-proof-6effc8f65/apps/wbs/be-01/scripts/solver-image-smoke.sh",
+        "--image=127.0.0.1:33136/wbs-be-01@sha256:02e0ab60dc83e4e72f252b14f60530917c0ab71749fbc72a4a1a18b3764bd706"
+      ],
+      "image": "127.0.0.1:33136/wbs-be-01@sha256:02e0ab60dc83e4e72f252b14f60530917c0ab71749fbc72a4a1a18b3764bd706",
+      "cleanupToken": "b29f4fbb-7e46-4764-af9c-4d878eb6b041",
+      "status": 0,
+      "signal": null,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/supplied-green.log"
+    },
+    {
+      "nestedRecovery": "/run/user/1000/wbs-solver-proof-inventory-b29f4fbb-7e46-4764-af9c-4d878eb6b041",
+      "containers": [
+        "wbs-solver-smoke-caller-22f9f89f-575d-4ff3-b64c-51961a3175e4",
+        "wbs-solver-22f9f89f-575d-4ff3-b64c-51961a3175e4",
+        "wbs-solver-223962ac-6d97-4e93-968e-5313e9c13a6e",
+        "wbs-solver-67fb22a8-9fc1-464e-b8ec-f43b569e38a5",
+        "wbs-solver-0c00e9c3-5e24-4950-a464-da4d27157c8a",
+        "wbs-solver-f3668fdc-fabd-4e0c-b191-85ef0a77b728",
+        "wbs-solver-90f3095d-00e0-4bd3-b886-95e3d231eabb"
+      ],
+      "images": [],
+      "supervisors": [
+        "1037948:518786666"
+      ],
+      "supervisorStopped": true,
+      "callerStopped": true,
+      "stable": true,
+      "failures": []
+    },
+    {
+      "fault": "source-binding",
+      "source": "apps/wbs/be-01/src/services.ts",
+      "replacementSha256": "0ae509a3afe051e984c74c77807efcfd48523c3869e1426bd20341fb635863e6"
+    },
+    {
+      "ownedTag": "127.0.0.1:33136/wbs-be-01:source-binding-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+    },
+    {
+      "command": [
+        "docker",
+        "build",
+        "--pull=false",
+        "--file",
+        "/tmp/task7-image-receipt-6effc8f65-20261023/source-binding/Dockerfile",
+        "--tag",
+        "127.0.0.1:33136/wbs-be-01:source-binding-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+        "/tmp/task7-image-receipt-6effc8f65-20261023/source-binding"
+      ],
+      "status": 0,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/command-19.log"
+    },
+    {
+      "command": [
+        "docker",
+        "push",
+        "127.0.0.1:33136/wbs-be-01:source-binding-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+      ],
+      "status": 0,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/command-20.log"
+    },
+    {
+      "command": [
+        "docker",
+        "image",
+        "inspect",
+        "--format",
+        "{{range .RepoDigests}}{{println .}}{{end}}",
+        "127.0.0.1:33136/wbs-be-01:source-binding-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+      ],
+      "status": 0,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/command-21.log"
+    },
+    {
+      "tag": "127.0.0.1:33136/wbs-be-01:source-binding-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+      "digest": "127.0.0.1:33136/wbs-be-01@sha256:d487a0bcc027bbe9014beca85e2e6b9ba41b639fd48fa0c4ba103379471cdc9b"
+    },
+    {
+      "nestedInventory": "/run/user/1000/wbs-solver-proof-inventory-e9c7b7e8-fb98-443a-bd95-2814416dc1df",
+      "snapshot": "/tmp/task7-image-receipt-6effc8f65-20261023/source-binding-inventory-e9c7b7e8-fb98-443a-bd95-2814416dc1df",
+      "cleanupToken": "e9c7b7e8-fb98-443a-bd95-2814416dc1df"
+    },
+    {
+      "smoke": "source-binding",
+      "command": [
+        "bash",
+        "/home/puni1/task7-image-proof-6effc8f65/apps/wbs/be-01/scripts/solver-image-smoke.sh",
+        "--image=127.0.0.1:33136/wbs-be-01@sha256:d487a0bcc027bbe9014beca85e2e6b9ba41b639fd48fa0c4ba103379471cdc9b"
+      ],
+      "image": "127.0.0.1:33136/wbs-be-01@sha256:d487a0bcc027bbe9014beca85e2e6b9ba41b639fd48fa0c4ba103379471cdc9b",
+      "cleanupToken": "e9c7b7e8-fb98-443a-bd95-2814416dc1df",
+      "status": 1,
+      "signal": null,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/source-binding.log"
+    },
+    {
+      "nestedRecovery": "/run/user/1000/wbs-solver-proof-inventory-e9c7b7e8-fb98-443a-bd95-2814416dc1df",
+      "containers": [
+        "wbs-solver-smoke-caller-23a5c317-17bf-4a7b-af0f-0fc0d317e48c",
+        "wbs-solver-23a5c317-17bf-4a7b-af0f-0fc0d317e48c",
+        "wbs-solver-66228dc5-cc99-47ca-83f5-f4be4fce5408",
+        "wbs-solver-43629169-1062-41bf-9a98-9f293d00456e",
+        "wbs-solver-dc84754c-11c0-40f8-822d-7406975b1a0d"
+      ],
+      "images": [],
+      "supervisors": [
+        "1040561:518790107"
+      ],
+      "supervisorStopped": true,
+      "callerStopped": true,
+      "stable": true,
+      "failures": []
+    },
+    {
+      "nestedInventory": "/run/user/1000/wbs-solver-proof-inventory-1e824660-20dc-4440-b3c8-812ff6d691c3",
+      "snapshot": "/tmp/task7-image-receipt-6effc8f65-20261023/source-binding-restored-inventory-1e824660-20dc-4440-b3c8-812ff6d691c3",
+      "cleanupToken": "1e824660-20dc-4440-b3c8-812ff6d691c3"
+    },
+    {
+      "smoke": "source-binding-restored",
+      "command": [
+        "bash",
+        "/home/puni1/task7-image-proof-6effc8f65/apps/wbs/be-01/scripts/solver-image-smoke.sh",
+        "--image=127.0.0.1:33136/wbs-be-01@sha256:02e0ab60dc83e4e72f252b14f60530917c0ab71749fbc72a4a1a18b3764bd706"
+      ],
+      "image": "127.0.0.1:33136/wbs-be-01@sha256:02e0ab60dc83e4e72f252b14f60530917c0ab71749fbc72a4a1a18b3764bd706",
+      "cleanupToken": "1e824660-20dc-4440-b3c8-812ff6d691c3",
+      "status": 0,
+      "signal": null,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/source-binding-restored.log"
+    },
+    {
+      "nestedRecovery": "/run/user/1000/wbs-solver-proof-inventory-1e824660-20dc-4440-b3c8-812ff6d691c3",
+      "containers": [
+        "wbs-solver-smoke-caller-09100add-6aae-4520-abb3-26f529bb4a9d",
+        "wbs-solver-09100add-6aae-4520-abb3-26f529bb4a9d",
+        "wbs-solver-b682309e-eadf-433c-923b-68f9875a4b8b",
+        "wbs-solver-3d2511fc-b335-4106-bca3-2e180258ca77",
+        "wbs-solver-2c74d8a0-6b25-4b33-b523-66789c7f80a0",
+        "wbs-solver-ed088d52-d9e1-4c29-97d9-1e99e347ec2b",
+        "wbs-solver-48e26761-7748-4ddd-9b82-2f47ea71ddfc"
+      ],
+      "images": [],
+      "supervisors": [
+        "1042879:518792890"
+      ],
+      "supervisorStopped": true,
+      "callerStopped": true,
+      "stable": true,
+      "failures": []
+    },
+    {
+      "fault": "owned-close",
+      "source": "libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts",
+      "replacementSha256": "ed988abf11c85d3b40ee9b7d4720e62466792d478bc63d8503bab7ef7bad5421"
+    },
+    {
+      "ownedTag": "127.0.0.1:33136/wbs-be-01:owned-close-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+    },
+    {
+      "command": [
+        "docker",
+        "build",
+        "--pull=false",
+        "--file",
+        "/tmp/task7-image-receipt-6effc8f65-20261023/owned-close/Dockerfile",
+        "--tag",
+        "127.0.0.1:33136/wbs-be-01:owned-close-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+        "/tmp/task7-image-receipt-6effc8f65-20261023/owned-close"
+      ],
+      "status": 0,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/command-31.log"
+    },
+    {
+      "command": [
+        "docker",
+        "push",
+        "127.0.0.1:33136/wbs-be-01:owned-close-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+      ],
+      "status": 0,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/command-32.log"
+    },
+    {
+      "command": [
+        "docker",
+        "image",
+        "inspect",
+        "--format",
+        "{{range .RepoDigests}}{{println .}}{{end}}",
+        "127.0.0.1:33136/wbs-be-01:owned-close-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+      ],
+      "status": 0,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/command-33.log"
+    },
+    {
+      "tag": "127.0.0.1:33136/wbs-be-01:owned-close-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+      "digest": "127.0.0.1:33136/wbs-be-01@sha256:b0db59a35a05802475b85324fbd610641444c8d56417bb07763369cc4f20100d"
+    },
+    {
+      "nestedInventory": "/run/user/1000/wbs-solver-proof-inventory-be4ae9bb-30e7-4685-8553-7ad5417aef45",
+      "snapshot": "/tmp/task7-image-receipt-6effc8f65-20261023/owned-close-inventory-be4ae9bb-30e7-4685-8553-7ad5417aef45",
+      "cleanupToken": "be4ae9bb-30e7-4685-8553-7ad5417aef45"
+    },
+    {
+      "smoke": "owned-close",
+      "command": [
+        "bash",
+        "/home/puni1/task7-image-proof-6effc8f65/apps/wbs/be-01/scripts/solver-image-smoke.sh",
+        "--image=127.0.0.1:33136/wbs-be-01@sha256:b0db59a35a05802475b85324fbd610641444c8d56417bb07763369cc4f20100d"
+      ],
+      "image": "127.0.0.1:33136/wbs-be-01@sha256:b0db59a35a05802475b85324fbd610641444c8d56417bb07763369cc4f20100d",
+      "cleanupToken": "be4ae9bb-30e7-4685-8553-7ad5417aef45",
+      "status": 1,
+      "signal": null,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/owned-close.log"
+    },
+    {
+      "nestedRecovery": "/run/user/1000/wbs-solver-proof-inventory-be4ae9bb-30e7-4685-8553-7ad5417aef45",
+      "containers": [
+        "wbs-solver-smoke-caller-6b71145f-fbfa-4bf6-9516-dcc59ce77c01",
+        "wbs-solver-6b71145f-fbfa-4bf6-9516-dcc59ce77c01",
+        "wbs-solver-a44caa21-8464-45a7-ac1f-bfcc3f4f8ed5",
+        "wbs-solver-72eab4ae-8e5c-4a91-b0e4-c13c99a5f5e1",
+        "wbs-solver-b7e1773f-67b5-4eee-b25c-e4a9c563d880"
+      ],
+      "images": [],
+      "supervisors": [
+        "1047431:518796384"
+      ],
+      "supervisorStopped": true,
+      "callerStopped": true,
+      "stable": true,
+      "failures": []
+    },
+    {
+      "nestedInventory": "/run/user/1000/wbs-solver-proof-inventory-bb149025-1f40-4aaa-9453-b13ab049b371",
+      "snapshot": "/tmp/task7-image-receipt-6effc8f65-20261023/owned-close-restored-inventory-bb149025-1f40-4aaa-9453-b13ab049b371",
+      "cleanupToken": "bb149025-1f40-4aaa-9453-b13ab049b371"
+    },
+    {
+      "smoke": "owned-close-restored",
+      "command": [
+        "bash",
+        "/home/puni1/task7-image-proof-6effc8f65/apps/wbs/be-01/scripts/solver-image-smoke.sh",
+        "--image=127.0.0.1:33136/wbs-be-01@sha256:02e0ab60dc83e4e72f252b14f60530917c0ab71749fbc72a4a1a18b3764bd706"
+      ],
+      "image": "127.0.0.1:33136/wbs-be-01@sha256:02e0ab60dc83e4e72f252b14f60530917c0ab71749fbc72a4a1a18b3764bd706",
+      "cleanupToken": "bb149025-1f40-4aaa-9453-b13ab049b371",
+      "status": 0,
+      "signal": null,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/owned-close-restored.log"
+    },
+    {
+      "nestedRecovery": "/run/user/1000/wbs-solver-proof-inventory-bb149025-1f40-4aaa-9453-b13ab049b371",
+      "containers": [
+        "wbs-solver-smoke-caller-e227c7d6-bc7b-4066-8845-c7920f3b8d87",
+        "wbs-solver-e227c7d6-bc7b-4066-8845-c7920f3b8d87",
+        "wbs-solver-96e9650e-56b6-414a-b769-fa0e1508525d",
+        "wbs-solver-deaf181e-8496-494f-bdaf-f7617fc29bdc",
+        "wbs-solver-2e68d820-f988-45b0-92b9-15799b30b9bb",
+        "wbs-solver-255605af-43c2-492b-893a-237e4a5f25df",
+        "wbs-solver-296772cd-d3a5-4e7a-b44f-98cdb0535d20"
+      ],
+      "images": [],
+      "supervisors": [
+        "1049648:518799212"
+      ],
+      "supervisorStopped": true,
+      "callerStopped": true,
+      "stable": true,
+      "failures": []
+    },
+    {
+      "fault": "baseline-publication",
+      "source": "libs/wbs/domain/domain/src/connected-publication.ts",
+      "replacementSha256": "2926ddaccb10050dd66a040906fa792605c7d07c06ac24dc1d146337376876cb"
+    },
+    {
+      "ownedTag": "127.0.0.1:33136/wbs-be-01:baseline-publication-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+    },
+    {
+      "command": [
+        "docker",
+        "build",
+        "--pull=false",
+        "--file",
+        "/tmp/task7-image-receipt-6effc8f65-20261023/baseline-publication/Dockerfile",
+        "--tag",
+        "127.0.0.1:33136/wbs-be-01:baseline-publication-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+        "/tmp/task7-image-receipt-6effc8f65-20261023/baseline-publication"
+      ],
+      "status": 0,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/command-43.log"
+    },
+    {
+      "command": [
+        "docker",
+        "push",
+        "127.0.0.1:33136/wbs-be-01:baseline-publication-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+      ],
+      "status": 0,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/command-44.log"
+    },
+    {
+      "command": [
+        "docker",
+        "image",
+        "inspect",
+        "--format",
+        "{{range .RepoDigests}}{{println .}}{{end}}",
+        "127.0.0.1:33136/wbs-be-01:baseline-publication-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+      ],
+      "status": 0,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/command-45.log"
+    },
+    {
+      "tag": "127.0.0.1:33136/wbs-be-01:baseline-publication-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+      "digest": "127.0.0.1:33136/wbs-be-01@sha256:2c0e1087218c2cd77862962486f540af557d7e30bf9ccd4421cff6dfed720967"
+    },
+    {
+      "nestedInventory": "/run/user/1000/wbs-solver-proof-inventory-045ad925-3ecd-4789-80bf-87e862c3e995",
+      "snapshot": "/tmp/task7-image-receipt-6effc8f65-20261023/baseline-publication-inventory-045ad925-3ecd-4789-80bf-87e862c3e995",
+      "cleanupToken": "045ad925-3ecd-4789-80bf-87e862c3e995"
+    },
+    {
+      "smoke": "baseline-publication",
+      "command": [
+        "bash",
+        "/home/puni1/task7-image-proof-6effc8f65/apps/wbs/be-01/scripts/solver-image-smoke.sh",
+        "--image=127.0.0.1:33136/wbs-be-01@sha256:2c0e1087218c2cd77862962486f540af557d7e30bf9ccd4421cff6dfed720967"
+      ],
+      "image": "127.0.0.1:33136/wbs-be-01@sha256:2c0e1087218c2cd77862962486f540af557d7e30bf9ccd4421cff6dfed720967",
+      "cleanupToken": "045ad925-3ecd-4789-80bf-87e862c3e995",
+      "status": 1,
+      "signal": null,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/baseline-publication.log"
+    },
+    {
+      "nestedRecovery": "/run/user/1000/wbs-solver-proof-inventory-045ad925-3ecd-4789-80bf-87e862c3e995",
+      "containers": [
+        "wbs-solver-smoke-caller-4d1a7afd-80ae-40f6-9da8-ea0686526d37",
+        "wbs-solver-4d1a7afd-80ae-40f6-9da8-ea0686526d37",
+        "wbs-solver-05b2a70d-5822-40b7-882b-b3623aba42f7",
+        "wbs-solver-ee2d6352-5e16-4bf6-b70f-24133bcb8486",
+        "wbs-solver-4743c79d-5951-49a1-89e7-af5042e9fb5b",
+        "wbs-solver-19ee7a4e-fcca-4ccd-b16d-590548ce57e1",
+        "wbs-solver-f6fd93a5-5473-4159-a4d7-af00af8b94b7"
+      ],
+      "images": [],
+      "supervisors": [
+        "1052454:518802736"
+      ],
+      "supervisorStopped": true,
+      "callerStopped": true,
+      "stable": true,
+      "failures": []
+    },
+    {
+      "nestedInventory": "/run/user/1000/wbs-solver-proof-inventory-a2cba563-f0b6-4930-a8ed-4be4a5212d44",
+      "snapshot": "/tmp/task7-image-receipt-6effc8f65-20261023/baseline-publication-restored-inventory-a2cba563-f0b6-4930-a8ed-4be4a5212d44",
+      "cleanupToken": "a2cba563-f0b6-4930-a8ed-4be4a5212d44"
+    },
+    {
+      "smoke": "baseline-publication-restored",
+      "command": [
+        "bash",
+        "/home/puni1/task7-image-proof-6effc8f65/apps/wbs/be-01/scripts/solver-image-smoke.sh",
+        "--image=127.0.0.1:33136/wbs-be-01@sha256:02e0ab60dc83e4e72f252b14f60530917c0ab71749fbc72a4a1a18b3764bd706"
+      ],
+      "image": "127.0.0.1:33136/wbs-be-01@sha256:02e0ab60dc83e4e72f252b14f60530917c0ab71749fbc72a4a1a18b3764bd706",
+      "cleanupToken": "a2cba563-f0b6-4930-a8ed-4be4a5212d44",
+      "status": 0,
+      "signal": null,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/baseline-publication-restored.log"
+    },
+    {
+      "nestedRecovery": "/run/user/1000/wbs-solver-proof-inventory-a2cba563-f0b6-4930-a8ed-4be4a5212d44",
+      "containers": [
+        "wbs-solver-smoke-caller-bee56d01-6833-44c5-8d08-a6d0739e1232",
+        "wbs-solver-bee56d01-6833-44c5-8d08-a6d0739e1232",
+        "wbs-solver-634ba017-7833-47ea-9580-8db6357c3ad4",
+        "wbs-solver-b0c42a4a-b1d2-4366-a92d-9ec15c0779cf",
+        "wbs-solver-f0a757bf-5388-45d5-a769-9bae653efc12",
+        "wbs-solver-4da33506-3b44-44d3-92a8-b798076f40f7",
+        "wbs-solver-b6411f4b-c1b5-4be6-8292-3cdfde0aafa0"
+      ],
+      "images": [],
+      "supervisors": [
+        "1057214:518805755"
+      ],
+      "supervisorStopped": true,
+      "callerStopped": true,
+      "stable": true,
+      "failures": []
+    },
+    {
+      "fault": "healthy-reuse",
+      "source": "apps/wbs/be-01/src/repository/optimization.ts",
+      "replacementSha256": "7a80bcba32f0e5fdbdc724e9995235df781893e30c72f63c5f656506afc99ca7"
+    },
+    {
+      "ownedTag": "127.0.0.1:33136/wbs-be-01:healthy-reuse-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+    },
+    {
+      "command": [
+        "docker",
+        "build",
+        "--pull=false",
+        "--file",
+        "/tmp/task7-image-receipt-6effc8f65-20261023/healthy-reuse/Dockerfile",
+        "--tag",
+        "127.0.0.1:33136/wbs-be-01:healthy-reuse-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+        "/tmp/task7-image-receipt-6effc8f65-20261023/healthy-reuse"
+      ],
+      "status": 0,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/command-55.log"
+    },
+    {
+      "command": [
+        "docker",
+        "push",
+        "127.0.0.1:33136/wbs-be-01:healthy-reuse-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+      ],
+      "status": 0,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/command-56.log"
+    },
+    {
+      "command": [
+        "docker",
+        "image",
+        "inspect",
+        "--format",
+        "{{range .RepoDigests}}{{println .}}{{end}}",
+        "127.0.0.1:33136/wbs-be-01:healthy-reuse-5258a758-10ff-49a5-abbd-331d4c5f8f0c"
+      ],
+      "status": 0,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/command-57.log"
+    },
+    {
+      "tag": "127.0.0.1:33136/wbs-be-01:healthy-reuse-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+      "digest": "127.0.0.1:33136/wbs-be-01@sha256:591f00044415d9f02e1f72f3395045fb9120b09e9f97e0c1b4c14bba57d0cd77"
+    },
+    {
+      "nestedInventory": "/run/user/1000/wbs-solver-proof-inventory-1fdb0bee-dd68-4066-8953-ea4cccd5a217",
+      "snapshot": "/tmp/task7-image-receipt-6effc8f65-20261023/healthy-reuse-inventory-1fdb0bee-dd68-4066-8953-ea4cccd5a217",
+      "cleanupToken": "1fdb0bee-dd68-4066-8953-ea4cccd5a217"
+    },
+    {
+      "smoke": "healthy-reuse",
+      "command": [
+        "bash",
+        "/home/puni1/task7-image-proof-6effc8f65/apps/wbs/be-01/scripts/solver-image-smoke.sh",
+        "--image=127.0.0.1:33136/wbs-be-01@sha256:591f00044415d9f02e1f72f3395045fb9120b09e9f97e0c1b4c14bba57d0cd77"
+      ],
+      "image": "127.0.0.1:33136/wbs-be-01@sha256:591f00044415d9f02e1f72f3395045fb9120b09e9f97e0c1b4c14bba57d0cd77",
+      "cleanupToken": "1fdb0bee-dd68-4066-8953-ea4cccd5a217",
+      "status": 1,
+      "signal": null,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/healthy-reuse.log"
+    },
+    {
+      "nestedRecovery": "/run/user/1000/wbs-solver-proof-inventory-1fdb0bee-dd68-4066-8953-ea4cccd5a217",
+      "containers": [
+        "wbs-solver-smoke-caller-a7736d55-a1fa-46a3-bd88-ee2b19f37cd9",
+        "wbs-solver-a7736d55-a1fa-46a3-bd88-ee2b19f37cd9",
+        "wbs-solver-b6cddd7c-8bef-4a3c-8bae-4b31300307b9",
+        "wbs-solver-5383260d-08cd-461a-9bcf-5767c535389e",
+        "wbs-solver-ba146c7a-8343-46a8-8dfd-eb4a7ca2658c",
+        "wbs-solver-8872b25b-37c3-435d-9e08-287993fc8bd6",
+        "wbs-solver-a4d4c3b5-4479-4e5a-be84-c67d936d3466"
+      ],
+      "images": [],
+      "supervisors": [
+        "1064401:518809283"
+      ],
+      "supervisorStopped": true,
+      "callerStopped": true,
+      "stable": true,
+      "failures": []
+    },
+    {
+      "nestedInventory": "/run/user/1000/wbs-solver-proof-inventory-c9ee3453-3bc8-4e53-a767-034fe2415134",
+      "snapshot": "/tmp/task7-image-receipt-6effc8f65-20261023/healthy-reuse-restored-inventory-c9ee3453-3bc8-4e53-a767-034fe2415134",
+      "cleanupToken": "c9ee3453-3bc8-4e53-a767-034fe2415134"
+    },
+    {
+      "smoke": "healthy-reuse-restored",
+      "command": [
+        "bash",
+        "/home/puni1/task7-image-proof-6effc8f65/apps/wbs/be-01/scripts/solver-image-smoke.sh",
+        "--image=127.0.0.1:33136/wbs-be-01@sha256:02e0ab60dc83e4e72f252b14f60530917c0ab71749fbc72a4a1a18b3764bd706"
+      ],
+      "image": "127.0.0.1:33136/wbs-be-01@sha256:02e0ab60dc83e4e72f252b14f60530917c0ab71749fbc72a4a1a18b3764bd706",
+      "cleanupToken": "c9ee3453-3bc8-4e53-a767-034fe2415134",
+      "status": 0,
+      "signal": null,
+      "log": "/tmp/task7-image-receipt-6effc8f65-20261023/healthy-reuse-restored.log"
+    },
+    {
+      "nestedRecovery": "/run/user/1000/wbs-solver-proof-inventory-c9ee3453-3bc8-4e53-a767-034fe2415134",
+      "containers": [
+        "wbs-solver-smoke-caller-bf06c2dd-7a46-4850-96cf-9361f494ff51",
+        "wbs-solver-bf06c2dd-7a46-4850-96cf-9361f494ff51",
+        "wbs-solver-8f1f43e2-df1d-4393-97d7-99c81370b4b1",
+        "wbs-solver-4bad2b58-4465-47b5-abc8-1984f847e899",
+        "wbs-solver-b968b87c-4ba2-4980-ba4f-57bfb537121f",
+        "wbs-solver-1cc20d73-c192-425d-9ca9-fb680be0eb82",
+        "wbs-solver-2e59622f-ea0d-40d2-afbf-8761bf5898e5"
+      ],
+      "images": [],
+      "supervisors": [
+        "1068108:518812308"
+      ],
+      "supervisorStopped": true,
+      "callerStopped": true,
+      "stable": true,
+      "failures": []
+    },
+    {
+      "cleaned": "container",
+      "reference": "wbs-task7-registry-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+      "absent": true
+    },
+    {
+      "cleaned": "image",
+      "reference": "127.0.0.1:33136/wbs-be-01:healthy-reuse-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+      "absent": true
+    },
+    {
+      "cleaned": "image",
+      "reference": "127.0.0.1:33136/wbs-be-01:baseline-publication-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+      "absent": true
+    },
+    {
+      "cleaned": "image",
+      "reference": "127.0.0.1:33136/wbs-be-01:owned-close-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+      "absent": true
+    },
+    {
+      "cleaned": "image",
+      "reference": "127.0.0.1:33136/wbs-be-01:source-binding-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+      "absent": true
+    },
+    {
+      "cleaned": "image",
+      "reference": "127.0.0.1:33136/wbs-be-01:baseline-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+      "absent": true
+    },
+    {
+      "cleaned": "image",
+      "reference": "wbs-be-01:task7-5258a758-10ff-49a5-abbd-331d4c5f8f0c",
+      "absent": true
+    },
+    {
+      "cleanupFailures": []
+    }
+  ]
+}

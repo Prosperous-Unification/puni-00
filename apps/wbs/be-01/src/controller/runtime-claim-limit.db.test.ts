@@ -25,8 +25,16 @@ beforeEach(async () => {
   harness.sqlite.run(
     "INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('person','org-a','Agent')",
   );
+  // Pin/cap/receipt fixtures require an unstarted first step before the project's default Dev/QA.
+  const first = harness.sqlite
+    .query<{ position: number }, [string]>(
+      'SELECT position FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+    )
+    .get(projectId);
+  if (first === null) throw new Error('fixture default workflow steps missing');
+  expect(first.position).toBeGreaterThan(0);
   harness.sqlite.run(
-    "INSERT INTO step (id,project_id,name,position,code) VALUES ('dev',?,'Runtime cap dev',100,'runtime-cap-dev')",
+    "INSERT INTO step (id,project_id,name,position,code) VALUES ('dev',?,'Runtime cap dev',0,'runtime-cap-dev')",
     [projectId],
   );
   for (const id of ['leaf', 'other'])

@@ -14,6 +14,7 @@ import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
 import type { SavedPlanWrite } from './saved-plan';
 import { bodyByteLength, SavedPlanRepository } from './saved-plan';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import {
   openSqliteSourceWithNonAtomicSavedPlanFault,
   sqliteLateWriteControl,
@@ -130,7 +131,7 @@ describe('SavedPlanRepository', () => {
     const control = sqliteLateWriteControl('saved-plan-schedule-body');
     control.arm();
     const source = openSqliteSourceWithNonAtomicSavedPlanFault(
-      { dbPath: path },
+      { dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY, dbPath: path },
       control,
       () => undefined,
     );
@@ -161,9 +162,10 @@ describe('SavedPlanRepository', () => {
     let connections = 0;
     let writerCloseCalls = 0;
     let sourceCloseCalls = 0;
-    const source = Reflect.apply(openSqliteSourceWithNonAtomicSavedPlanFault, undefined, [
+    const source = openSqliteSourceWithNonAtomicSavedPlanFault(
       {
         dbPath: path,
+        dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
         openConnection: (dbPath: string) => {
           const connection = openConnection(dbPath);
           connections += 1;
@@ -192,7 +194,7 @@ describe('SavedPlanRepository', () => {
         blockerTx.begin();
         blockerState.isBlocking = true;
       },
-    ]);
+    );
     let failure: unknown;
     try {
       await source.history.savedPlans.write(bothSides({ id: 'late-target' }), () =>
@@ -265,6 +267,7 @@ describe('SavedPlanRepository', () => {
     const blockerState = { isBlocking: false };
     const source = openSqliteSourceWithNonAtomicSavedPlanFault(
       {
+        dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
         dbPath: path,
         openConnection: (dbPath) => {
           const connection = openConnection(dbPath);

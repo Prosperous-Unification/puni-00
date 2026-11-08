@@ -1,0 +1,65 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:
+193 |       expect((await claim()).status).toBe(200);
+194 |       expect(readAttempts()).toEqual(attempts);
+195 |       expect((await harness.call('ada', 'POST', `/api/projects/${target}/undo`)).status).toBe(200);
+196 |       expect(readProgress()).toEqual([]);
+197 |       expect(readAttempts()).toEqual(attempts);
+198 |       expect((await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).status).toBe(200);
+                                                                                               ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:198:90)
+(fail) isolated local attempt-only continuation survives unmet prerequisites and claim replay [520.15ms]
+193 |       expect((await claim()).status).toBe(200);
+194 |       expect(readAttempts()).toEqual(attempts);
+195 |       expect((await harness.call('ada', 'POST', `/api/projects/${target}/undo`)).status).toBe(200);
+196 |       expect(readProgress()).toEqual([]);
+197 |       expect(readAttempts()).toEqual(attempts);
+198 |       expect((await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).status).toBe(200);
+                                                                                               ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:198:90)
+(fail) isolated remote attempt-only continuation survives unmet prerequisites and claim replay [539.75ms]
+193 |       expect((await claim()).status).toBe(200);
+194 |       expect(readAttempts()).toEqual(attempts);
+195 |       expect((await harness.call('ada', 'POST', `/api/projects/${target}/undo`)).status).toBe(200);
+196 |       expect(readProgress()).toEqual([]);
+197 |       expect(readAttempts()).toEqual(attempts);
+198 |       expect((await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).status).toBe(200);
+                                                                                               ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:198:90)
+(fail) shared local attempt-only continuation survives unmet prerequisites and claim replay [439.98ms]
+193 |       expect((await claim()).status).toBe(200);
+194 |       expect(readAttempts()).toEqual(attempts);
+195 |       expect((await harness.call('ada', 'POST', `/api/projects/${target}/undo`)).status).toBe(200);
+196 |       expect(readProgress()).toEqual([]);
+197 |       expect(readAttempts()).toEqual(attempts);
+198 |       expect((await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).status).toBe(200);
+                                                                                               ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:198:90)
+(fail) shared remote attempt-only continuation survives unmet prerequisites and claim replay [496.82ms]
+
+ 0 pass
+ 20 filtered out
+ 4 fail
+ 72 expect() calls
+Ran 4 tests across 1 file. [4.88s]

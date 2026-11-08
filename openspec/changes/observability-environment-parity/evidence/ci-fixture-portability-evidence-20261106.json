@@ -1,0 +1,420 @@
+{
+  "schema": "observability-fixture-portability-verification-v1",
+  "recorded_at": "2026-11-06T06:11:37.941334+00:00",
+  "baseline": "2e3931fb800356e23cfa45664e729c35e6ebd6d5",
+  "source_pins": [
+    {
+      "path": "tools/tool-fleet/src/lab-staging-native-control.test.ts",
+      "bytes": 58055,
+      "sha256": "020a3895225339c3e9dfe5ca2f0653a54c53dc87ec66e9bcc730c1f20a57a99d"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-staging-native-cold-fixture.py",
+      "bytes": 7771,
+      "sha256": "ac1f7eff05465765c2c01f44b4f5325ed9978300fcb402c8cfaac896fcaa0b25"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "bytes": 54276,
+      "sha256": "4ba0c82c0499b4f49f3cc138950eb4718df23b31d170708cb5fa5794db54bff4"
+    }
+  ],
+  "preserved_nonowned_pins": [
+    {
+      "path": "openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
+      "bytes": 68193,
+      "sha256": "92c5011dac4c803c2f1e241f069f454d94c27ebdb17f9f5b199b5f7e6dd7ab7c"
+    },
+    {
+      "path": "openspec/changes/observability-environment-parity/evidence/staging-native-control.py",
+      "bytes": 30699,
+      "sha256": "e30a28472334fe23c5d39ae7f694a289b24eb9836463f28ae5078034d0e735f9"
+    },
+    {
+      "path": "openspec/changes/observability-environment-parity/evidence/staging-native-prepare-draft.py",
+      "bytes": 33242,
+      "sha256": "c9c2040f795372cfa99de0707c2fc68df5148e5929b23727a6f4601faac94b34"
+    },
+    {
+      "path": "openspec/changes/observability-environment-parity/evidence/staging-native-prepare-bootstrap.py",
+      "bytes": 3248,
+      "sha256": "7c23633b8e693fb5406f8947c0999fb21ddf286bc6085e75b1cb84089f9d0f03"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-raw-repair.py",
+      "bytes": 124065,
+      "sha256": "2e6257aac4bfbd6e48d69abd94da5e3f7003d84aed0b5a26f542dadb0fd6bf66"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-repair-worker.py",
+      "bytes": 117435,
+      "sha256": "6c8f8d284bd5e1b1c63894e198e6dfbe72633601f9374a4d7bbd9a57a29a158f"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-raw-preparation.py",
+      "bytes": 55284,
+      "sha256": "3e78d2ea8aecced76bd82ea07fb006ce99a1b2212fec15fb805a8e8f7b27e8e8"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-guest-preparation.py",
+      "bytes": 80680,
+      "sha256": "6d180f9c1d2cd116ef314215a75c88774789d29daa882f81fbbf06a2e9263f2c"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-seed-preparation.py",
+      "bytes": 53199,
+      "sha256": "a226b0fb582fb41636d04e83c5e7e1a54640811cd16cee465341835aa7c24c88"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-raw-allocation.py",
+      "bytes": 15534,
+      "sha256": "be25ffe1740848c2dad861d87f42123a1a1664c8ffc0df6aa0a3062cf4d13ea8"
+    },
+    {
+      "path": "openspec/changes/observability-environment-parity/evidence/audit-status-inspection.py",
+      "bytes": 9442,
+      "sha256": "20ebfae763bdd9fcc2ffee03b64b72be5f00b17fb7e8b9a5a825ade73333ca16"
+    },
+    {
+      "path": "tools/tool-fleet/src/audit-status-inspection.test.ts",
+      "bytes": 28616,
+      "sha256": "b58b6e2e3dfbb3e73ce259c06393064419a8986913d9addba5a11cb676e784af"
+    },
+    {
+      "path": "tools/tool-fleet/project.json",
+      "bytes": 6250,
+      "sha256": "bdc8368bc3e3ac037ae25e3f8a89dc2df7f2a7b47d62117b3f4bd20460e64552"
+    }
+  ],
+  "verified_index_entries": 16,
+  "log_index": [
+    {
+      "path": "/tmp/puni-task120-evidence/diagnose-links-red.log",
+      "bytes": 1150,
+      "sha256": "cfbfd54848c82c6815fe906814084c4fdcaf1e5d4ccbf0a742cbab7ca769603d"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/diagnose-mode-red.log",
+      "bytes": 1150,
+      "sha256": "b41e89170b9c5d8677d6d3be1ce688c56163f29f8bb6ac49f42368243275eaa3"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/recovery-missing-path-red.log",
+      "bytes": 1388,
+      "sha256": "469d05eddabcd706347eac7e7e1b8399596a098f1ee7001588530de28a6aedac"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/staging-test-red.log",
+      "bytes": 1524,
+      "sha256": "9a664aa9e4632c8cb21302504623cd6d1d8c7dd9bbd781dc2adf41d78f6e74fa"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/recovery-test-red.log",
+      "bytes": 1532,
+      "sha256": "bb66fd705c2bd906329602e81ffd77cea03c52082f117a848cf2b7cfc3b8eab8"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/staging-frozen-cohort.log",
+      "bytes": 5048,
+      "sha256": "e4c132b47912e2051b7188fa842094d182ae8aba19dced0fe254d63decfe72e7"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/recovery-frozen-cohort.log",
+      "bytes": 2113,
+      "sha256": "307f803a22cf0c404e317fb9d8c86f2a73b9d446fd77544026abd2b53a5d2a1a"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/python314-compatibility.log",
+      "bytes": 1113,
+      "sha256": "8c66aca2b9b979dc273e2ec92bad906f729c970715929d7e40a69baa9c7a8d62"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/cap-controls.log",
+      "bytes": 230,
+      "sha256": "1823b8e0c8c488fa0f2055daf853b5420586a6b0c95edea9b97708a55746be08"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/lint.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/format.log",
+      "bytes": 66,
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/ast.log",
+      "bytes": 117,
+      "sha256": "192e30ff4bd6455cf9a5e5c7f85b186a28cc74cf04cfdb61cf1fb1cff004c250"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/source-sha256.txt",
+      "bytes": 363,
+      "sha256": "2c0e1a7e2ca8ccb39b6a986a34199edb8eaa8ad23b7f6974e2a42e0087bf6fa9"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/source-caps.log",
+      "bytes": 98,
+      "sha256": "62e7dfbd9d6e2fe39fe19e4446bafc4d987cf022876a09c691ce3caf544bff11"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/setup-omission-red.log",
+      "bytes": 1565,
+      "sha256": "1ffa3911470eaa6cb5941c65b5bf3993a475b08cd409b6391a06358ef6b0e59d"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/setup-amendment-green.log",
+      "bytes": 814,
+      "sha256": "1a46609d4160f132306edd538911ad81d8126683e219bf4accd97e382678d1f5"
+    }
+  ],
+  "logs": [
+    {
+      "path": "/tmp/puni-task120-evidence/ast.log",
+      "bytes": 117,
+      "sha256": "192e30ff4bd6455cf9a5e5c7f85b186a28cc74cf04cfdb61cf1fb1cff004c250",
+      "content": "3.12.3 (main, Jun 19 2026, 12:46:00) [GCC 13.3.0]\ntools/tool-fleet/src/lab-staging-native-cold-fixture.py: AST-valid\n"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/cap-controls.log",
+      "bytes": 230,
+      "sha256": "1823b8e0c8c488fa0f2055daf853b5420586a6b0c95edea9b97708a55746be08",
+      "content": "oversized protected refusal bytes=8193\noversized omission EXERCISE bytes=8193\nmissing protected refusal bytes=7726\nmissing omission EXERCISE bytes=7726\nduplicate protected refusal bytes=7817\nduplicate omission EXERCISE bytes=7817\n"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/diagnose-links-red.log",
+      "bytes": 1150,
+      "sha256": "cfbfd54848c82c6815fe906814084c4fdcaf1e5d4ccbf0a742cbab7ca769603d",
+      "content": "fixture_bytes 56962 cold_bytes 8183\nreturncode 1\n\nPIN_FAILURE {\"pin\": {\"path\": \"/usr/bin/git\", \"sha256\": \"2a8c18fbf43da9f692d75474c72bea9dfd796c260b0f3dfe456376abc3bbd668\", \"bytes\": 4066232, \"uid\": 0, \"mode\": 493}, \"observed\": {\"st_mode\": 33261, \"st_nlink\": 2, \"st_uid\": 0, \"st_size\": 4066232}, \"category\": \"pin-identity\"}\nTraceback (most recent call last):\n  File \"<string>\", line 555, in <module>\n  File \"/tmp/staging-native-fixture-d1ad64f7/openspec/changes/observability-environment-parity/evidence/repair-native-control.py\", line 382, in verify_environment\n  File \"<string>\", line 463, in verify_file\n  File \"/tmp/staging-native-fixture-d1ad64f7/openspec/changes/observability-environment-parity/evidence/repair-native-control.py\", line 297, in verify_file\n  File \"/tmp/staging-native-fixture-d1ad64f7/openspec/changes/observability-environment-parity/evidence/repair-native-control.py\", line 100, in require\nstaging_shared_control.Refusal: pin-identity\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"<string>\", line 556, in <module>\nAssertionError: ('version', 'pin-identity')\n\n"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/diagnose-mode-red.log",
+      "bytes": 1150,
+      "sha256": "b41e89170b9c5d8677d6d3be1ce688c56163f29f8bb6ac49f42368243275eaa3",
+      "content": "fixture_bytes 56962 cold_bytes 8183\nreturncode 1\n\nPIN_FAILURE {\"pin\": {\"path\": \"/usr/bin/git\", \"sha256\": \"2a8c18fbf43da9f692d75474c72bea9dfd796c260b0f3dfe456376abc3bbd668\", \"bytes\": 4066232, \"uid\": 0, \"mode\": 493}, \"observed\": {\"st_mode\": 33277, \"st_nlink\": 1, \"st_uid\": 0, \"st_size\": 4066232}, \"category\": \"pin-identity\"}\nTraceback (most recent call last):\n  File \"<string>\", line 555, in <module>\n  File \"/tmp/staging-native-fixture-vdtsp032/openspec/changes/observability-environment-parity/evidence/repair-native-control.py\", line 382, in verify_environment\n  File \"<string>\", line 463, in verify_file\n  File \"/tmp/staging-native-fixture-vdtsp032/openspec/changes/observability-environment-parity/evidence/repair-native-control.py\", line 297, in verify_file\n  File \"/tmp/staging-native-fixture-vdtsp032/openspec/changes/observability-environment-parity/evidence/repair-native-control.py\", line 100, in require\nstaging_shared_control.Refusal: pin-identity\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"<string>\", line 556, in <module>\nAssertionError: ('version', 'pin-identity')\n\n"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/format.log",
+      "bytes": 66,
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+      "content": "Checking formatting...\nAll matched files use Prettier code style!\n"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/lint.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "content": ""
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/python314-compatibility.log",
+      "bytes": 1113,
+      "sha256": "8c66aca2b9b979dc273e2ec92bad906f729c970715929d7e40a69baa9c7a8d62",
+      "content": "bun test v1.4.4 (38afee6c8)\n\n../../../../../../tmp/puni-task120-evidence/python314-lab-staging-native-control.test.ts:\n(pass) native staging source cold-runtime uses bounded ordinary ownership [2116.04ms]\n(pass) native staging source runtime-provider uses bounded ordinary ownership [1164.40ms]\n\n../../../../../../tmp/puni-task120-evidence/python314-lab-raw-repair-recovery.test.ts:\nrecovery-budget:{\"conditional\":true,\"sourceBytes\":{\"lab-raw-repair.py\":124065,\"lab-raw-preparation.py\":55284,\"lab-repair-worker.py\":117435,\"lab-seed-preparation.py\":53199,\"lab-guest-preparation.py\":80680,\"lab-raw-allocation.py\":15534},\"aggregateSourceBytes\":446197,\"requestBytes\":11236,\"heldEvidenceFiles\":26,\"heldEvidenceBytes\":40418,\"maximumEvidenceBytes\":7675,\"selectedMetadataFiles\":27,\"readyFrameBytes\":9754,\"peakDescriptorsIncludingMeasurement\":42,\"maximumDescriptorIncludingMeasurement\":41,\"descriptorLimit\":64,\"outsidePhysicalBytes\":618496}\n(pass) repair recovery exports its budget with an absent prior scratch directory [433.60ms]\n\n 3 pass\n 99 filtered out\n 0 fail\n 28 expect() calls\nRan 3 tests across 2 files. [3.73s]\n"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/recovery-frozen-cohort.log",
+      "bytes": 2113,
+      "sha256": "307f803a22cf0c404e317fb9d8c86f2a73b9d446fd77544026abd2b53a5d2a1a",
+      "content": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-fleet/src/lab-raw-repair-recovery.test.ts:\nrecovery-budget:{\"conditional\":true,\"sourceBytes\":{\"lab-raw-repair.py\":124065,\"lab-raw-preparation.py\":55284,\"lab-repair-worker.py\":117435,\"lab-seed-preparation.py\":53199,\"lab-guest-preparation.py\":80680,\"lab-raw-allocation.py\":15534},\"aggregateSourceBytes\":446197,\"requestBytes\":11236,\"heldEvidenceFiles\":26,\"heldEvidenceBytes\":40418,\"maximumEvidenceBytes\":7675,\"selectedMetadataFiles\":27,\"readyFrameBytes\":9722,\"peakDescriptorsIncludingMeasurement\":42,\"maximumDescriptorIncludingMeasurement\":41,\"descriptorLimit\":64,\"outsidePhysicalBytes\":618496}\n(pass) repair recovery traverses actual coordinator and worker observations before writing [460.10ms]\nrecovery-budget:{\"conditional\":true,\"sourceBytes\":{\"lab-raw-repair.py\":124065,\"lab-raw-preparation.py\":55284,\"lab-repair-worker.py\":117435,\"lab-seed-preparation.py\":53199,\"lab-guest-preparation.py\":80680,\"lab-raw-allocation.py\":15534},\"aggregateSourceBytes\":446197,\"requestBytes\":11236,\"heldEvidenceFiles\":26,\"heldEvidenceBytes\":40418,\"maximumEvidenceBytes\":7675,\"selectedMetadataFiles\":27,\"readyFrameBytes\":9722,\"peakDescriptorsIncludingMeasurement\":42,\"maximumDescriptorIncludingMeasurement\":41,\"descriptorLimit\":64,\"outsidePhysicalBytes\":618496}\n(pass) repair recovery exports its budget with an absent prior scratch directory [464.33ms]\nrecovery-budget:{\"conditional\":true,\"sourceBytes\":{\"lab-raw-repair.py\":124065,\"lab-raw-preparation.py\":55284,\"lab-repair-worker.py\":117435,\"lab-seed-preparation.py\":53199,\"lab-guest-preparation.py\":80680,\"lab-raw-allocation.py\":15534},\"aggregateSourceBytes\":446197,\"requestBytes\":11236,\"heldEvidenceFiles\":26,\"heldEvidenceBytes\":40418,\"maximumEvidenceBytes\":7675,\"selectedMetadataFiles\":27,\"readyFrameBytes\":9722,\"peakDescriptorsIncludingMeasurement\":42,\"maximumDescriptorIncludingMeasurement\":41,\"descriptorLimit\":64,\"outsidePhysicalBytes\":618496}\n(pass) repair recovery continues through seed history after successful successor mutation [594.34ms]\n\n 3 pass\n 43 filtered out\n 0 fail\n 45 expect() calls\nRan 3 tests across 1 file. [1.55s]\n"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/recovery-missing-path-red.log",
+      "bytes": 1388,
+      "sha256": "469d05eddabcd706347eac7e7e1b8399596a098f1ee7001588530de28a6aedac",
+      "content": "RED returncode 1\n\n541 |   const script = recoveryFixture().replace(\"    print('conditional-recovery-relation')\", producer);\n542 |   const invocation = Bun.spawnSync(\n543 |     ['/usr/bin/python3', '-I', '-B', '-S', '-c', script, \"/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src\", 'complete'],\n544 |     { stdout: 'pipe', stderr: 'pipe', timeout: 30000 },\n545 |   );\n546 |   expect(invocation.stderr.toString()).toBe('');\n                                             ^\nerror: expect(received).toBe(expected)\n\n- \"\"\n+ \"Traceback (most recent call last):\n+   File \"<string>\", line 900, in <module>\n+   File \"/usr/lib/python3.12/pathlib.py\", line 1049, in write_text\n+     with self.open(mode='w', encoding=encoding, errors=errors, newline=newline) as f:\n+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n+   File \"/usr/lib/python3.12/pathlib.py\", line 1015, in open\n+     return io.open(self, mode, buffering, encoding, errors, newline)\n+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n+ FileNotFoundError: [Errno 2] No such file or directory: '/tmp/puni-task120-evidence/absent-owned-budget/producer-budget.json'\n+ \"\n\n- Expected  - 1\n+ Received  + 10\n\n      at <anonymous> (/tmp/puni-task120-evidence/recovery-red-program.ts:546:40)\n      at /tmp/puni-task120-evidence/recovery-red-program.ts:859:76\n\nBun v1.4.4 (Linux x64)\n\n"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/recovery-test-red.log",
+      "bytes": 1532,
+      "sha256": "bb66fd705c2bd906329602e81ffd77cea03c52082f117a848cf2b7cfc3b8eab8",
+      "content": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-fleet/src/lab-raw-repair-recovery.test.ts:\n559 |     accepted=repair.coordinator(`);\n560 |   const invocation = Bun.spawnSync(\n561 |     ['/usr/bin/python3', '-I', '-B', '-S', '-c', script, import.meta.dir, 'complete'],\n562 |     { stdout: 'pipe', stderr: 'pipe', timeout: 30000 },\n563 |   );\n564 |   expect(invocation.stderr.toString()).toBe('');\n                                             ^\nerror: expect(received).toBe(expected)\n\n- \"\"\n+ \"Traceback (most recent call last):\n+   File \"<string>\", line 907, in <module>\n+   File \"<string>\", line 886, in owned_write\n+   File \"/usr/lib/python3.12/pathlib.py\", line 1049, in write_text\n+     with self.open(mode='w', encoding=encoding, errors=errors, newline=newline) as f:\n+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n+   File \"/usr/lib/python3.12/pathlib.py\", line 1015, in open\n+     return io.open(self, mode, buffering, encoding, errors, newline)\n+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n+ FileNotFoundError: [Errno 2] No such file or directory: '/tmp/puni-settlement-chain113-mpu_zrsa/absent-prior-scratch/producer-budget.json'\n+ \"\n\n- Expected  - 1\n+ Received  + 11\n\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/lab-raw-repair-recovery.test.ts:564:40)\n(fail) repair recovery exports its budget with an absent prior scratch directory [434.40ms]\n\n 0 pass\n 45 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [454.00ms]\n"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/setup-amendment-green.log",
+      "bytes": 814,
+      "sha256": "1a46609d4160f132306edd538911ad81d8126683e219bf4accd97e382678d1f5",
+      "content": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-fleet/src/lab-raw-repair-recovery.test.ts:\nrecovery-budget:{\"conditional\":true,\"sourceBytes\":{\"lab-raw-repair.py\":124065,\"lab-raw-preparation.py\":55284,\"lab-repair-worker.py\":117435,\"lab-seed-preparation.py\":53199,\"lab-guest-preparation.py\":80680,\"lab-raw-allocation.py\":15534},\"aggregateSourceBytes\":446197,\"requestBytes\":11236,\"heldEvidenceFiles\":26,\"heldEvidenceBytes\":40418,\"maximumEvidenceBytes\":7675,\"selectedMetadataFiles\":27,\"readyFrameBytes\":9722,\"peakDescriptorsIncludingMeasurement\":42,\"maximumDescriptorIncludingMeasurement\":41,\"descriptorLimit\":64,\"outsidePhysicalBytes\":618496}\n(pass) repair recovery exports its budget with an absent prior scratch directory [470.64ms]\n\n 1 pass\n 45 filtered out\n 0 fail\n 16 expect() calls\nRan 1 test across 1 file. [501.00ms]\n"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/setup-omission-red.log",
+      "bytes": 1565,
+      "sha256": "1ffa3911470eaa6cb5941c65b5bf3993a475b08cd409b6391a06358ef6b0e59d",
+      "content": "bun test v1.4.4 (38afee6c8)\n\n../../../../../../tmp/puni-task120-evidence/setup-omission.test.ts:\n591 |   );\n592 |   expect(invocation.stderr.toString()).toBe('');\n593 |   expect(invocation.exitCode).toBe(0);\n594 |   expect(invocation.stdout.toString()).toContain('conditional-recovery-producer');\n595 |   // Proof: omitting interception plus marker leaves the component successful but fails this assertion.\n596 |   expect(invocation.stdout.toString()).toContain('EXERCISE owned budget interception installed');\n                                             ^\nerror: expect(received).toContain(expected)\n\nExpected to contain: \"EXERCISE owned budget interception installed\"\nReceived: \"recovery-budget:{\\\"conditional\\\":true,\\\"sourceBytes\\\":{\\\"lab-raw-repair.py\\\":124065,\\\"lab-raw-preparation.py\\\":55284,\\\"lab-repair-worker.py\\\":117435,\\\"lab-seed-preparation.py\\\":53199,\\\"lab-guest-preparation.py\\\":80680,\\\"lab-raw-allocation.py\\\":15534},\\\"aggregateSourceBytes\\\":446197,\\\"requestBytes\\\":11236,\\\"heldEvidenceFiles\\\":26,\\\"heldEvidenceBytes\\\":40418,\\\"maximumEvidenceBytes\\\":7675,\\\"selectedMetadataFiles\\\":27,\\\"readyFrameBytes\\\":9722,\\\"peakDescriptorsIncludingMeasurement\\\":42,\\\"maximumDescriptorIncludingMeasurement\\\":41,\\\"descriptorLimit\\\":64,\\\"outsidePhysicalBytes\\\":618496}\\nconditional-recovery-producer\\n\"\n\n      at <anonymous> (/tmp/puni-task120-evidence/setup-omission.test.ts:596:40)\n(fail) repair recovery exports its budget with an absent prior scratch directory [485.36ms]\n\n 0 pass\n 45 filtered out\n 1 fail\n 4 expect() calls\nRan 1 test across 1 file. [496.00ms]\n"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/source-caps.log",
+      "bytes": 98,
+      "sha256": "62e7dfbd9d6e2fe39fe19e4446bafc4d987cf022876a09c691ce3caf544bff11",
+      "content": "{'ts': 58055, 'cold': 7771, 'outer': 57221, 'fault': 123, 'coldFault': 7894, 'outerFault': 57344}\n"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/staging-frozen-cohort.log",
+      "bytes": 5048,
+      "sha256": "e4c132b47912e2051b7188fa842094d182ae8aba19dced0fe254d63decfe72e7",
+      "content": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-fleet/src/lab-staging-native-control.test.ts:\n(pass) finite staging entry compiles before importing its native helpers [36.34ms]\n(pass) native staging source state-replaced uses bounded ordinary ownership [862.37ms]\n(pass) native staging source omit-state-replaced uses bounded ordinary ownership [876.09ms]\n(pass) native staging source dead-start-cleanup uses bounded ordinary ownership [266.37ms]\n(pass) native staging source cold-runtime uses bounded ordinary ownership [2049.72ms]\n(pass) native staging source runtime-provider uses bounded ordinary ownership [1052.00ms]\n(pass) native staging source foreign-runtime uses bounded ordinary ownership [281.89ms]\n(pass) native staging source global-lifetime uses bounded ordinary ownership [1242.20ms]\n(pass) native staging source global-holder uses bounded ordinary ownership [464.73ms]\n(pass) native staging source global-dependency uses bounded ordinary ownership [504.19ms]\n(pass) native staging source startup uses bounded ordinary ownership [290.87ms]\n(pass) native staging source metadata uses bounded ordinary ownership [88.37ms]\n(pass) native staging source packets uses bounded ordinary ownership [76.50ms]\n(pass) native staging source positive uses bounded ordinary ownership [1241.23ms]\n(pass) native staging source request-purpose uses bounded ordinary ownership [265.06ms]\n(pass) native staging source request-version uses bounded ordinary ownership [247.83ms]\n(pass) native staging source request-role uses bounded ordinary ownership [261.92ms]\n(pass) native staging source request-fixture uses bounded ordinary ownership [511.36ms]\n(pass) native staging source fixture-nonempty uses bounded ordinary ownership [504.83ms]\n(pass) native staging source identity uses bounded ordinary ownership [1000.30ms]\n(pass) native staging source caps uses bounded ordinary ownership [997.64ms]\n(pass) native staging source forged-pid uses bounded ordinary ownership [1018.73ms]\n(pass) native staging source forged-start uses bounded ordinary ownership [1178.65ms]\n(pass) native staging source stale-ready uses bounded ordinary ownership [1066.46ms]\n(pass) native staging source pidfd-start uses bounded ordinary ownership [1010.93ms]\n(pass) native staging source case-outcome uses bounded ordinary ownership [1011.85ms]\n(pass) native staging source complete-phase uses bounded ordinary ownership [1077.25ms]\n(pass) native staging source counter uses bounded ordinary ownership [1092.42ms]\n(pass) native staging source early-unlock uses bounded ordinary ownership [1013.15ms]\n(pass) native staging source lost-handoff uses bounded ordinary ownership [801.48ms]\n(pass) native staging source cleanup uses bounded ordinary ownership [859.49ms]\n(pass) native staging source private-stderr uses bounded ordinary ownership [860.18ms]\n(pass) native staging source trailing-stdout uses bounded ordinary ownership [857.45ms]\n(pass) native staging source output-overflow uses bounded ordinary ownership [861.26ms]\n(pass) native staging source packet-oversize uses bounded ordinary ownership [1008.82ms]\n(pass) native staging source SIGINT uses bounded ordinary ownership [724.70ms]\n(pass) native staging source SIGTERM uses bounded ordinary ownership [725.70ms]\n(pass) native staging source foreign-signal uses bounded ordinary ownership [794.48ms]\n(pass) native staging source stale-controller uses bounded ordinary ownership [783.59ms]\n(pass) native staging source wrong-controller uses bounded ordinary ownership [796.58ms]\n(pass) native staging source signal-timeout uses bounded ordinary ownership [7542.60ms]\n(pass) native staging source persistence uses bounded ordinary ownership [1087.41ms]\n(pass) native staging source foreign-ack uses bounded ordinary ownership [865.86ms]\n(pass) native staging source dead-foreign-enoent uses bounded ordinary ownership [1172.53ms]\n(pass) native staging source omit-request-purpose uses bounded ordinary ownership [1249.43ms]\n(pass) native staging source omit-request-version uses bounded ordinary ownership [1237.39ms]\n(pass) native staging source omit-request-fixture uses bounded ordinary ownership [1234.77ms]\n(pass) native staging source omit-fixture-nonempty uses bounded ordinary ownership [1230.40ms]\n(pass) native staging source omit-stale-ready uses bounded ordinary ownership [1245.94ms]\n(pass) native staging source omit-case-outcome uses bounded ordinary ownership [1250.72ms]\n(pass) native staging source omit-complete-phase uses bounded ordinary ownership [1225.55ms]\n(pass) native staging source omit-stale-controller uses bounded ordinary ownership [1244.79ms]\n(pass) native staging source omit-wrong-controller uses bounded ordinary ownership [1210.55ms]\n(pass) native staging source omit-cleanup uses bounded ordinary ownership [1229.74ms]\n(pass) native staging source omit-foreign-ack uses bounded ordinary ownership [1245.47ms]\n(pass) native staging source omit-dead-foreign-enoent uses bounded ordinary ownership [1231.27ms]\n\n 56 pass\n 0 fail\n 175 expect() calls\nRan 56 tests across 1 file. [56.20s]\n"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/staging-test-red.log",
+      "bytes": 1524,
+      "sha256": "9a664aa9e4632c8cb21302504623cd6d1d8c7dd9bbd781dc2adf41d78f6e74fa",
+      "content": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-fleet/src/lab-staging-native-control.test.ts:\n883 |         stdout: 'pipe',\n884 |         stderr: 'pipe',\n885 |         timeout: 20000,\n886 |       },\n887 |     );\n888 |     expect(new TextDecoder().decode(child.stderr)).toBe('');\n                                                         ^\nerror: expect(received).toBe(expected)\n\n- \"\"\n+ \"Traceback (most recent call last):\n+   File \"<string>\", line 542, in <module>\n+   File \"/tmp/staging-native-fixture-4s2hore0/openspec/changes/observability-environment-parity/evidence/repair-native-control.py\", line 382, in verify_environment\n+   File \"/tmp/staging-native-fixture-4s2hore0/openspec/changes/observability-environment-parity/evidence/repair-native-control.py\", line 297, in verify_file\n+   File \"/tmp/staging-native-fixture-4s2hore0/openspec/changes/observability-environment-parity/evidence/repair-native-control.py\", line 100, in require\n+ staging_shared_control.Refusal: pin-identity\n+ \n+ During handling of the above exception, another exception occurred:\n+ \n+ Traceback (most recent call last):\n+   File \"<string>\", line 543, in <module>\n+ AssertionError: ('version', 'pin-identity')\n+ \"\n\n- Expected  - 1\n+ Received  + 13\n\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/lab-staging-native-control.test.ts:888:52)\n(fail) native staging source runtime-provider uses bounded ordinary ownership [292.40ms]\n\n 0 pass\n 55 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [313.00ms]\n"
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/typecheck-parent-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "content": ""
+    },
+    {
+      "path": "/tmp/puni-task120-evidence/typecheck-parent.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "content": ""
+    }
+  ],
+  "test_rosters": {
+    "staging-frozen-cohort.log": [
+      "finite staging entry compiles before importing its native helpers",
+      "native staging source state-replaced uses bounded ordinary ownership",
+      "native staging source omit-state-replaced uses bounded ordinary ownership",
+      "native staging source dead-start-cleanup uses bounded ordinary ownership",
+      "native staging source cold-runtime uses bounded ordinary ownership",
+      "native staging source runtime-provider uses bounded ordinary ownership",
+      "native staging source foreign-runtime uses bounded ordinary ownership",
+      "native staging source global-lifetime uses bounded ordinary ownership",
+      "native staging source global-holder uses bounded ordinary ownership",
+      "native staging source global-dependency uses bounded ordinary ownership",
+      "native staging source startup uses bounded ordinary ownership",
+      "native staging source metadata uses bounded ordinary ownership",
+      "native staging source packets uses bounded ordinary ownership",
+      "native staging source positive uses bounded ordinary ownership",
+      "native staging source request-purpose uses bounded ordinary ownership",
+      "native staging source request-version uses bounded ordinary ownership",
+      "native staging source request-role uses bounded ordinary ownership",
+      "native staging source request-fixture uses bounded ordinary ownership",
+      "native staging source fixture-nonempty uses bounded ordinary ownership",
+      "native staging source identity uses bounded ordinary ownership",
+      "native staging source caps uses bounded ordinary ownership",
+      "native staging source forged-pid uses bounded ordinary ownership",
+      "native staging source forged-start uses bounded ordinary ownership",
+      "native staging source stale-ready uses bounded ordinary ownership",
+      "native staging source pidfd-start uses bounded ordinary ownership",
+      "native staging source case-outcome uses bounded ordinary ownership",
+      "native staging source complete-phase uses bounded ordinary ownership",
+      "native staging source counter uses bounded ordinary ownership",
+      "native staging source early-unlock uses bounded ordinary ownership",
+      "native staging source lost-handoff uses bounded ordinary ownership",
+      "native staging source cleanup uses bounded ordinary ownership",
+      "native staging source private-stderr uses bounded ordinary ownership",
+      "native staging source trailing-stdout uses bounded ordinary ownership",
+      "native staging source output-overflow uses bounded ordinary ownership",
+      "native staging source packet-oversize uses bounded ordinary ownership",
+      "native staging source SIGINT uses bounded ordinary ownership",
+      "native staging source SIGTERM uses bounded ordinary ownership",
+      "native staging source foreign-signal uses bounded ordinary ownership",
+      "native staging source stale-controller uses bounded ordinary ownership",
+      "native staging source wrong-controller uses bounded ordinary ownership",
+      "native staging source signal-timeout uses bounded ordinary ownership",
+      "native staging source persistence uses bounded ordinary ownership",
+      "native staging source foreign-ack uses bounded ordinary ownership",
+      "native staging source dead-foreign-enoent uses bounded ordinary ownership",
+      "native staging source omit-request-purpose uses bounded ordinary ownership",
+      "native staging source omit-request-version uses bounded ordinary ownership",
+      "native staging source omit-request-fixture uses bounded ordinary ownership",
+      "native staging source omit-fixture-nonempty uses bounded ordinary ownership",
+      "native staging source omit-stale-ready uses bounded ordinary ownership",
+      "native staging source omit-case-outcome uses bounded ordinary ownership",
+      "native staging source omit-complete-phase uses bounded ordinary ownership",
+      "native staging source omit-stale-controller uses bounded ordinary ownership",
+      "native staging source omit-wrong-controller uses bounded ordinary ownership",
+      "native staging source omit-cleanup uses bounded ordinary ownership",
+      "native staging source omit-foreign-ack uses bounded ordinary ownership",
+      "native staging source omit-dead-foreign-enoent uses bounded ordinary ownership"
+    ],
+    "recovery-frozen-cohort.log": [
+      "repair recovery traverses actual coordinator and worker observations before writing",
+      "repair recovery exports its budget with an absent prior scratch directory",
+      "repair recovery continues through seed history after successful successor mutation"
+    ],
+    "python314-compatibility.log": [
+      "native staging source cold-runtime uses bounded ordinary ownership",
+      "native staging source runtime-provider uses bounded ordinary ownership",
+      "repair recovery exports its budget with an absent prior scratch directory"
+    ],
+    "setup-amendment-green.log": [
+      "repair recovery exports its budget with an absent prior scratch directory"
+    ]
+  },
+  "diagnostic_harnesses": {
+    "diagnose.py": "import hashlib,json,os,pathlib,subprocess,sys\nroot=pathlib.Path('/home/df/.codex/worktrees/aa39/puni-00')\nsource=root/'tools/tool-fleet/src/lab-staging-native-control.test.ts'\ntext=source.read_text()\ncold=(root/'tools/tool-fleet/src/lab-staging-native-cold-fixture.py').read_text()\nprovider=cold.split('\\n# Worker entry follows the runtime provider.\\n')[0]\nfixture=text.split('const fixture = String.raw`')[1].split('`;')[0].replace('${runtimeProvider}',provider)\nprint('fixture_bytes',len(fixture.encode()),'cold_bytes',len(cold.encode()),flush=True)\n# Observe the real production verify_file boundary, without admitting or skipping anything.\ndiagnostic='''    original_verify_file=control.verify_file\n    def verify_file(pin,**kwargs):\n        try:return original_verify_file(pin,**kwargs)\n        except control.Refusal as failure:\n            before=os.lstat(pin['path'])\n            print('PIN_FAILURE '+json.dumps(dict(pin=pin,observed={name:getattr(before,name) for name in ('st_mode','st_nlink','st_uid','st_size')},category=str(failure))),file=sys.stderr)\n            raise\n    control.verify_file=verify_file\n'''\nfixture=fixture.replace('    with control.select_purpose(\\'staging-channel\\'):\\n        # Prime',diagnostic+'    with control.select_purpose(\\'staging-channel\\'):\\n        # Prime')\nif len(sys.argv)>1:\n    field=sys.argv[1]\n    # Physical metadata difference is injected at the installed-stat boundary; no shared file changes.\n    fault=\"\\n_original_lstat=os.lstat\\ndef _physical_fault(path,*args,**kwargs):\\n    observed=_original_lstat(path,*args,**kwargs)\\n    if str(path)=='/usr/bin/git':\\n        fields={name:getattr(observed,name) for name in dir(observed) if name.startswith('st_')}\\n        fields[FIELD]=VALUE\\n        return types.SimpleNamespace(**fields)\\n    return observed\\nos.lstat=_physical_fault\\n\"\n    fields={'links':(\"'st_nlink'\",'2'),'mode':(\"'st_mode'\",'observed.st_mode|0o020')}\n    name,value=fields[field]\n    fixture=fixture.replace('source_path, mode = Path(sys.argv[1]), sys.argv[2]',fault.replace('FIELD',name).replace('VALUE',value)+'source_path, mode = Path(sys.argv[1]), sys.argv[2]')\ncompleted=subprocess.run(['/usr/bin/python3','-I','-S','-B','-c',fixture,str(root/'openspec/changes/observability-environment-parity/evidence/staging-native-control.py'),'runtime-provider',cold],capture_output=True,text=True,timeout=20)\nprint('returncode',completed.returncode)\nprint(completed.stdout)\nprint(completed.stderr)\nsys.exit(completed.returncode)\n",
+    "recovery-red.ts": "import { readFileSync } from 'node:fs';\nconst root='/home/df/.codex/worktrees/aa39/puni-00';\nconst path=root+'/tools/tool-fleet/src/lab-raw-repair-recovery.test.ts';\nconst source=readFileSync(path,'utf8')\n.replace(\"import { expect, test } from 'bun:test';\",`import { expect } from 'bun:test';\\nconst selected: Array<()=>void>=[];\\nfunction test(name: string, callback: ()=>void) {if(name==='repair recovery traverses actual coordinator and worker observations before writing')selected.push(callback);}`)\n.replaceAll('import.meta.url',JSON.stringify('file://'+path))\n.replaceAll('import.meta.dir',JSON.stringify(root+'/tools/tool-fleet/src'))\n.replaceAll('/tmp/puni-task118-evidence/producer-budget.json','/tmp/puni-task120-evidence/absent-owned-budget/producer-budget.json');\nawait Bun.write('/tmp/puni-task120-evidence/recovery-red-program.ts',source+'\\nif(selected.length!==1)throw new Error(\"missing diagnostic case\");selected[0]();\\n');\nconst child=Bun.spawnSync(['bun','run','/tmp/puni-task120-evidence/recovery-red-program.ts'],{stdout:'pipe',stderr:'pipe',timeout:30000});\nconsole.log('RED returncode',child.exitCode);console.log(child.stdout.toString());console.log(child.stderr.toString());\nif(child.exitCode===0)throw new Error('missing-path fault did not fail');\n",
+    "python314.ts": "import { readFileSync } from 'node:fs';\nconst root='/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src';\nfor(const name of ['lab-staging-native-control.test.ts','lab-raw-repair-recovery.test.ts']) {\n  const path=root+'/'+name;\n  const source=readFileSync(path,'utf8').replaceAll('import.meta.url',JSON.stringify('file://'+path)).replaceAll('import.meta.dir',JSON.stringify(root)).replaceAll(\"'/usr/bin/python3'\", \"'/home/df/.local/bin/python3.14'\");\n  await Bun.write('/tmp/puni-task120-evidence/python314-'+name,source);\n}\n",
+    "cap-controls.ts": "import { readFileSync } from 'node:fs';\nconst root='/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src';\nconst path=root+'/lab-staging-native-control.test.ts';\nconst harness=readFileSync(path,'utf8');\nconst cold=readFileSync(root+'/lab-staging-native-cold-fixture.py','utf8');\nconst start=harness.indexOf('const coldWorker = readFileSync(');\nconst end=harness.indexOf('\\n);',start)+4;\nconst boundary='\\n# Worker entry follows the runtime provider.\\n';\nfor(const [name,payload] of [ ['oversized',cold+'#'.repeat(8193-cold.length)], ['missing',cold.replace(boundary,'\\n')], ['duplicate',cold+boundary] ]) {\n  for(const omitted of [false,true]) {\n    let source=harness.slice(0,start)+'const coldWorker = '+JSON.stringify(payload)+';'+harness.slice(end);\n    source=source.replaceAll('import.meta.url',JSON.stringify('file://'+path));\n    const guardStart=source.indexOf('if (\\n  Buffer.byteLength(coldWorker)');\n    const guardEnd=source.indexOf('\\nconst runtimeProvider',guardStart);\n    if(omitted)source=source.slice(0,guardStart)+source.slice(guardEnd);\n    source=source.replace('const runtimeProvider = coldWorker.slice(0, providerEnd);',\"const runtimeProvider = coldWorker.slice(0, providerEnd);\\nthrow new Error('EXERCISE provider extraction reached');\");\n    const file='/tmp/puni-task120-evidence/cap-'+name+'-'+String(omitted)+'.test.ts';\n    await Bun.write(file,source);\n    const child=Bun.spawnSync(['bun','test',file],{stdout:'pipe',stderr:'pipe',timeout:5000});\n    const output=child.stdout.toString()+child.stderr.toString();\n    const expected=omitted?'EXERCISE provider extraction reached':'bounded cold fixture must contain exactly one runtime-provider boundary';\n    if(child.exitCode===0 || !output.includes(expected))throw new Error(name+' '+omitted+' unexpected: '+output);\n    console.log(name+' '+(omitted?'omission EXERCISE':'protected refusal')+' bytes='+Buffer.byteLength(payload));\n  }\n}\n",
+    "caps.py": "from pathlib import Path\nroot=Path('/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src')\ns=(root/'lab-staging-native-control.test.ts').read_text();c=(root/'lab-staging-native-cold-fixture.py').read_text()\np=c.split('\\n# Worker entry follows the runtime provider.\\n')[0]\nf=s.split('const fixture = String.raw`')[1].split('`;')[0].replace('${runtimeProvider}',p)\nfault=\"\\n    if str(path).startswith('/usr/'):observed=change_stat(observed,st_uid=1234,st_nlink=3,st_mode=observed.st_mode|0o022)\\n\"\nprint(dict(ts=len(s.encode()),cold=len(c.encode()),outer=len(f.encode()),fault=len(fault.encode()),coldFault=len(c.encode())+len(fault.encode()),outerFault=len(f.encode())+len(fault.encode())))\n",
+    "setup-amendment.py": "from pathlib import Path\np=Path('/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/lab-raw-repair-recovery.test.ts');s=p.read_text();a=s.index(\"test('repair recovery exports its budget with an absent prior scratch directory'\");b=s.index('\\nfunction relationAdmissionFixture',a);test=s[a:b]\ntest=test.replace('    pathlib.Path.write_text=owned_write\\n', \"    pathlib.Path.write_text=owned_write\\n    print('EXERCISE owned budget interception installed')\\n\")\ntest=test.replace(\"  expect(invocation.stdout.toString()).toContain('conditional-recovery-producer');\", \"  expect(invocation.stdout.toString()).toContain('conditional-recovery-producer');\\n  // Proof: omitting interception plus marker leaves the component successful but fails this assertion.\\n  expect(invocation.stdout.toString()).toContain('EXERCISE owned budget interception installed');\")\ns=s[:a]+test+s[b:];p.write_text(s)\n# Omit only the interception+marker from the injected Python block, preserving the owning assertion.\na=s.index('    write_text=pathlib.Path.write_text',a);b=s.index('    accepted=repair.coordinator(',a)\nmutant=s[:a]+s[b:]\nmutant=mutant.replace('import.meta.url',repr(p.as_uri())).replace('import.meta.dir',repr(str(p.parent)))\nPath('/tmp/puni-task120-evidence/setup-omission.test.ts').write_text(mutant)\n"
+  },
+  "results": {
+    "staging": {
+      "pass": 56,
+      "fail": 0,
+      "assertions": 175,
+      "seconds": 56.2
+    },
+    "recovery": {
+      "pass": 3,
+      "fail": 0,
+      "assertions": 45,
+      "seconds": 1.55
+    },
+    "python314": {
+      "pass": 3,
+      "fail": 0,
+      "assertions": 28,
+      "seconds": 3.73
+    },
+    "setup_amendment": {
+      "pass": 1,
+      "fail": 0,
+      "assertions": 16,
+      "seconds": 0.501,
+      "owning_omission": "real component succeeded, missing EXERCISE marker assertion failed"
+    },
+    "final_parent_fleet_typecheck": {
+      "exit": 0,
+      "log": {
+        "path": "/tmp/puni-task120-evidence/typecheck-parent-final.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  },
+  "executed_script_bytes": {
+    "ordinary": 57221,
+    "ordinary_faulted": 57344,
+    "ordinary_cap": 57344,
+    "cold": 7771,
+    "cold_faulted": 7894,
+    "cold_cap": 8192,
+    "typescript_harness_artifact": 58055
+  },
+  "rulings": [
+    "Consolidate existing trusted-system metadata fixture models; retain physical bytes/device/inode/times and real owned source/state metadata. Post-model negatives preserve actual admission guards. Cost: conditional modeling is not physical-host qualification.",
+    "Write budget into owned state and return/assert its values; remove default fixed/global temporary output. Cost: private evidence consumers use the explicit stdout protocol.",
+    "8192/57344 caps constrain actual executed cold/ordinary Python including injected variants. Record TypeScript file size separately; no native/physical floor changes. Cost: larger test artifact, no new helper/cap evasion."
+  ],
+  "limits": [
+    "Exact offending physical hosted pin remains unknown; local link/mode injections reproduce the predicate but are not hosted metadata evidence.",
+    "Earlier frozen cohorts plus one setup-only amendment; no single complete final-source rerun is claimed.",
+    "No native/admin/library/audit/service/VM/retained operation or CI policy/routing change.",
+    "Full Fleet/app/browser/host gates were not run locally.",
+    "Whole-input qualification remains false; runtime4/11, Task97 and oldG/K/floors/history remain unchanged.",
+    "Hosted success is pending natural CI for the next published commit."
+  ],
+  "review": {
+    "specification": "PASS for scoped fixture implementation; hosted acceptance open",
+    "quality": "PASS",
+    "findings": [],
+    "report": "ci-fixture-portability-review-20261106.md"
+  }
+}

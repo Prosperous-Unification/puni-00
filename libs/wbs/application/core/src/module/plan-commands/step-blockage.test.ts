@@ -7,8 +7,11 @@ import { servicesOver } from '../../compose';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { ScheduleRead } from '../../ports/scheduler';
 import type { Scope } from '../../ports/unit-of-work';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
+import { expectCreated } from '../../testing/expect-created';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from './composition';
@@ -24,12 +27,15 @@ async function seeded(fault?: 'refuse' | 'throw') {
     broadcast,
     scheduler: fastScheduler,
   };
-  const graph = servicesOver(source.stores, options);
+  const graph = servicesOver(source.stores, {
+    ...options,
+    dependencyContext: createLocalDependencyContext(source.stores),
+  });
   await source.stores.users.create(
     { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: OWNER },
   );
-  const created = await graph.projects.create('Blockage authoring', OWNER);
+  const created = expectCreated(await graph.projects.create('Blockage authoring', OWNER));
   const projectId = created.project.id;
   await source.stores.projects.update(projectId, { restricted: true }, { at: 1, by: OWNER });
   const step = created.steps[0];
@@ -42,6 +48,7 @@ async function seeded(fault?: 'refuse' | 'throw') {
     by: OWNER,
   });
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: broadcast,
     publicServices: graph,
@@ -58,7 +65,11 @@ async function seeded(fault?: 'refuse' | 'throw') {
             },
           },
         },
-        { ...options, broadcast: announcements },
+        {
+          ...options,
+          broadcast: announcements,
+          dependencyContext: createLocalDependencyContext(scope.stores),
+        },
       ),
   });
   const snapshot = () =>

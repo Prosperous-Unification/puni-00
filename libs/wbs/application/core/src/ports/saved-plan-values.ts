@@ -1,3 +1,5 @@
+import type { OrganizationRole } from '@wbs/domain';
+
 /** The saved-plan header exactly as a source returns it. */
 export interface SavedPlanRow {
   readonly id: string;
@@ -46,10 +48,11 @@ export interface SavedPlanWrite {
   readonly schedule: SavedPlanScheduleWrite;
 }
 
-/** Current scoped actor, reclassified inside the saved-plan writer's own transaction. */
+/** Scoped actor and authenticated ceiling, intersected with current membership in the writer's transaction. */
 export interface ScopedSavedPlanWrite {
   readonly organizationId: string;
   readonly actorId: string;
+  readonly role: OrganizationRole;
   readonly operation: 'save' | 'rename' | 'delete';
 }
 

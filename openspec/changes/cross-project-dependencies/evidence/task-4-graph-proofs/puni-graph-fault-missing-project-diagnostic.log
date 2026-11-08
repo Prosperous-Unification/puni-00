@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/connected-step-node.test.ts:
+201 |     expect(() =>
+202 |       resolveConnectedGraph({
+203 |         projects: [a, b, project('c', [], [])],
+204 |         external: [{ ...forward, predecessor: endpoint }],
+205 |       }),
+206 |     ).toThrow(message);
+            ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /project missing/
+Received message: "undefined is not an object (evaluating 'project.tree')"
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/domain/domain/src/connected-step-node.test.ts:206:7)
+(fail) refuses missing endpoint project, cross-owned work item, absent work item and absent step [0.52ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [23.00ms]

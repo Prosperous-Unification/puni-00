@@ -1,0 +1,47 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:
+893 |                 expect(children[0]?.signalCode).toBe('SIGKILL');
+894 |                 const after = (await readdir(f.root)).filter((name) =>
+895 |                   name.endsWith('-readback.json'),
+896 |                 ).length;
+897 |                 expect(after).toBe(before + (cleanup === 'complete' ? 1 : 0));
+898 |                 expect(inspectFailure(outcome.failure, { depth: null })).not.toContain(
+                                                                                   ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "PRIVATE_DOCKER"
+Received: "AggregateError: source observer Docker deadline exceeded; abort join failed\n    at readObserverDocker (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:97:17)\n    at async inspectInventory (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:183:17)\n    at async inspectScope (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:236:53)\n    at async inspectSourceDevExclusion (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:411:9) {\n  [cause]: Error: source observer Docker deadline exceeded\n      at expire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:80:19),\n  [errors]: [\n    Error: source observer Docker deadline exceeded\n        at expire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:80:19),\n    Error: PRIVATE_DOCKER_STDERR_CONFIG_ENV_SENTINEL\n        at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:799:30) {\n      [cause]: { Config: { Env: [ 'PRIVATE_DOCKER_ENV_CAUSE' ] } }\n    }\n  ]\n}"
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:898:78)
+      at async withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:332:18)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:844:19)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source inspection deadline joins failure child and owner cleanup before returning [217.07ms]
+893 |                 expect(children[0]?.signalCode).toBe('SIGKILL');
+894 |                 const after = (await readdir(f.root)).filter((name) =>
+895 |                   name.endsWith('-readback.json'),
+896 |                 ).length;
+897 |                 expect(after).toBe(before + (cleanup === 'complete' ? 1 : 0));
+898 |                 expect(inspectFailure(outcome.failure, { depth: null })).not.toContain(
+                                                                                   ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "PRIVATE_DOCKER"
+Received: "AggregateError: source observer Docker deadline exceeded; abort join failed\n    at readObserverDocker (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:97:17)\n    at async inspectInventory (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:183:17)\n    at async inspectExcludedSourceMember (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:376:25) {\n  [cause]: Error: source observer Docker deadline exceeded\n      at expire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:80:19),\n  [errors]: [\n    Error: source observer Docker deadline exceeded\n        at expire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:80:19),\n    Error: PRIVATE_DOCKER_STDERR_CONFIG_ENV_SENTINEL\n        at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:799:30) {\n      [cause]: { Config: { Env: [ 'PRIVATE_DOCKER_ENV_CAUSE' ] } }\n    }\n  ]\n}"
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:898:78)
+      at async withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:332:18)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:844:19)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source recognition deadline joins failure child and owner cleanup before returning [215.56ms]
+
+ 0 pass
+ 51 filtered out
+ 2 fail
+ 18 expect() calls
+Ran 2 tests across 1 file. [478.00ms]

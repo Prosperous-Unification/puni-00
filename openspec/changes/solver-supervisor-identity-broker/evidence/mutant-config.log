@@ -1,0 +1,26 @@
+{"name":"baseline","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"cwd-bunfig","exit":0,"stdout":"{\"fault\":\"PRELOAD\",\"env\":null}","stderr":"PRELOAD_EXECUTED"}
+{"name":"explicit-null-config","exit":0,"stdout":"{\"fault\":\"PRELOAD\",\"env\":null}","stderr":"PRELOAD_EXECUTED"}
+42 |   assert.equal(baseline.stdout, '{"fault":null,"env":null}');
+43 |   const config = `preload = [${JSON.stringify(preload)}]\n`;
+44 |   writeFileSync(join(working, 'bunfig.toml'), config);
+45 |   assert.match(probe('cwd-bunfig').stderr, /PRELOAD_EXECUTED/);
+46 |   // Proof: --mutant=config admits cwd bunfig preload and this empty-stderr assertion fails.
+47 |   assert.equal(
+              ^
+AssertionError: Expected values to be strictly equal:
++ actual - expected
+
++ 'PRELOAD_EXECUTED'
+- ''
+
+ generatedMessage: true,
+     actual: "PRELOAD_EXECUTED",
+   expected: "",
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /tmp/puni-supervisor-ambient-packet/openspec/changes/cross-project-dependencies/effective-supervisor-identity/evidence/ambient-spike.mjs:47:10
+
+Bun v1.4.2 (Linux x64)

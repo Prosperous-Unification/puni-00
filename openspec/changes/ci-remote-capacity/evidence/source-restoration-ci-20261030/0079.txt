@@ -1,0 +1,7 @@
+{
+  "source": ".github/workflows/ci.yml",
+  "restoredSHA256": "591a1f14cb9ffb04b8ad070c05625754278cb5667e1a89a3d9ce65a8f06e426a",
+  "mode": 436,
+  "device": 66307,
+  "inode": 20547657
+}

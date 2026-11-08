@@ -1,0 +1,37 @@
+Commit: 5001319a9
+Fault: graph.connections replaced with graph.connections.slice(0, 0) in compareDependencyFanout incident traversal.
+Command: bun test apps/wbs/be-01/src/controller/cross-project-events.controller.db.test.ts --test-name-pattern number-only --timeout=10000
+Exit: 1
+
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-events.controller.db.test.ts:
+310 |     commands: [{ kind: 'unfreezeWorkItem', workItemId: upstream.rowId }],
+311 |   });
+312 |   expect(changed.status).toBe(200);
+313 |   // Proof: dropping incident traversal made this mounted number-only command retain no successor events.
+314 |   for (const project of [downstream, tail])
+315 |     expect(events(project.id)).toEqual([
+                                     ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "causeProjectId": "19b730e8-b97f-460c-acb3-4aad4b8ad285",
+-     "projectId": "8bd1a669-4980-4e01-a6bb-7c541f296e78",
+-     "type": "elsewhere_changed",
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-fanout-52/apps/wbs/be-01/src/controller/cross-project-events.controller.db.test.ts:315:32)
+(fail) number-only edits refresh dependency labels without retargeting or foreign events [429.83ms]
+
+ 0 pass
+ 8 filtered out
+ 1 fail
+ 9 expect() calls
+Ran 1 test across 1 file. [3.40s]

@@ -1,0 +1,41 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/memory-source.test.ts:
+1043 |     await scope.stores.typedDependencies.incidents.restore(mapped,original,{at:2,by:'owner'});
+1044 |     return {commit:true,value:undefined};
+1045 |   });
+1046 |   expect(await source.stores.typedDependencies.incidents.capture('incident')).toEqual(mapped);
+1047 |   const before = await source.stores.workItems.listByProject('p1');
+1048 |   expect(before.map(({id,revision})=>({id,revision})).sort((a,b)=>a.id.localeCompare(b.id))).toEqual([
+                                                                                                    ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+      "id": "child",
+-     "revision": 1,
++     "revision": 0,
+    },
+    {
+      "id": "parent",
+-     "revision": 1,
++     "revision": 0,
+    },
+    {
+      "id": "peer",
+-     "revision": 1,
++     "revision": 0,
+    },
+  ]
+
+- Expected  - 3
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-incident-handdown/libs/wbs/adapters/store-memory/src/memory-source.test.ts:1048:94)
+(fail) incident source restore preserves receipts across commit rollback and bumps only completed endpoint unions [10.48ms]
+
+ 0 pass
+ 26 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.28s]

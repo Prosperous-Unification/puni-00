@@ -1,0 +1,83 @@
+{
+  "authority": "Both production qualification and durable consumption still refuse; no operational authority.",
+  "baseline": "4c0a1aef699806e9a3b870dde7a5cda0ef7038ad",
+  "changedSinceFrozen136Suite": [
+    "lab-failed-settlement-source.test.ts",
+    "lab-failed-settlement.test.ts",
+    "lab-repair-worker.py"
+  ],
+  "files": {
+    "lab-failed-settlement-source.test.ts": {
+      "bytes": 12183,
+      "sha256": "a7410871898eff31051343f4fb246bb7fad315b71b0a1448acca17e27f9f0829"
+    },
+    "lab-failed-settlement.test.ts": {
+      "bytes": 55366,
+      "sha256": "0744993b686340c0fde8000521e66dad30d98714dc1d8dab2fa2e221d3f658a0"
+    },
+    "lab-guest-preparation.py": {
+      "bytes": 80680,
+      "sha256": "6d180f9c1d2cd116ef314215a75c88774789d29daa882f81fbbf06a2e9263f2c"
+    },
+    "lab-raw-preparation.py": {
+      "bytes": 55284,
+      "sha256": "3e78d2ea8aecced76bd82ea07fb006ce99a1b2212fec15fb805a8e8f7b27e8e8"
+    },
+    "lab-raw-repair-cli.ts": {
+      "bytes": 1531,
+      "sha256": "3660a9a36600a84e553deee32f2c745a96ba59f352058a3d8c8cfde6311f1c4a"
+    },
+    "lab-raw-repair.py": {
+      "bytes": 114265,
+      "sha256": "472c50fe321df0073079547e43642868d76146e862d354638618a8551eff7162"
+    },
+    "lab-raw-repair.ts": {
+      "bytes": 6643,
+      "sha256": "08541ff04c21a911ad43f5812a86f607b22af3b0e9b654a52a25b20031d9aef4"
+    },
+    "lab-repair-lineage.py": {
+      "bytes": 18162,
+      "sha256": "58fdac698e5bb2102b7f7c86f880a46699afab6e39e4420f8591754da4048ecd"
+    },
+    "lab-repair-lineage.test.ts": {
+      "bytes": 9283,
+      "sha256": "174489e2efe3f3f1a2d2ca514339edab44b6cfb0e854bd11fe37d433bffd6d89"
+    },
+    "lab-repair-worker.py": {
+      "bytes": 88773,
+      "sha256": "b9c617931b3d4f1b14e8fa78e3010075422b55898e7d47dd6d481179bfc4f049"
+    },
+    "lab-seed-preparation.py": {
+      "bytes": 53199,
+      "sha256": "a226b0fb582fb41636d04e83c5e7e1a54640811cd16cee465341835aa7c24c88"
+    }
+  },
+  "frozenManifestSha256": "0053a25ed7d2f2fd4c13106c9249e46e1e105c2595fa9e8b83b732c0c21c6131",
+  "roles": {
+    "lab-guest-preparation.py": {
+      "bytes": 80680,
+      "sha256": "6d180f9c1d2cd116ef314215a75c88774789d29daa882f81fbbf06a2e9263f2c"
+    },
+    "lab-raw-allocation.py": {
+      "bytes": 15534,
+      "sha256": "be25ffe1740848c2dad861d87f42123a1a1664c8ffc0df6aa0a3062cf4d13ea8"
+    },
+    "lab-raw-preparation.py": {
+      "bytes": 55284,
+      "sha256": "3e78d2ea8aecced76bd82ea07fb006ce99a1b2212fec15fb805a8e8f7b27e8e8"
+    },
+    "lab-raw-repair.py": {
+      "bytes": 114265,
+      "sha256": "472c50fe321df0073079547e43642868d76146e862d354638618a8551eff7162"
+    },
+    "lab-repair-worker.py": {
+      "bytes": 88773,
+      "sha256": "b9c617931b3d4f1b14e8fa78e3010075422b55898e7d47dd6d481179bfc4f049"
+    },
+    "lab-seed-preparation.py": {
+      "bytes": 53199,
+      "sha256": "a226b0fb582fb41636d04e83c5e7e1a54640811cd16cee465341835aa7c24c88"
+    }
+  },
+  "sourceBytes": 407735
+}

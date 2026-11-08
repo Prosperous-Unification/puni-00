@@ -1,0 +1,49 @@
+import { type ConnectedOptimizationStage, sliceKey } from '/tmp/puni-cross-solver-wire/libs/wbs/domain/domain/src/index.ts';
+
+import { buildConnectedSolverRequestPair } from "/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/build-connected-solver-request.ts";
+import { revalidateSolverResult } from "/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/revalidate-solver-result.ts";
+
+const key = sliceKey('b', null);
+const stage: ConnectedOptimizationStage = {
+  kind: 'connected-stage',
+  projectId: 'B',
+  mode: 'isolated',
+  originOrdinal: 0,
+  projects: [{ projectId: 'B', rank: 0, anchorOrdinal: 0 }],
+  input: {
+    rows: [{ id: 'b', parentId: null, position: 0, priority: 0, frozenNumber: null }],
+    slices: [{ workItemId: 'b', stepId: null, days: 1, width: 1, personId: null, poolIds: [] }],
+    graph: { nodes: [{ kind: 'boundary', workItemId: 'b', at: 0 }], edges: [] },
+    notBefore: new Map(),
+    deadlines: new Map(),
+    poolSizes: new Map(),
+    resourceCapacities: new Map(),
+    elsewhere: new Map(),
+    order: {
+      kind: 'connected',
+      projectIdByWorkItem: new Map([['b', 'B']]),
+      rankByProject: new Map([['B', 0]]),
+    },
+  },
+  relationships: [],
+  starts: new Map([[key, 0]]),
+  finishes: new Map([[key, 1]]),
+};
+
+if (typeof revalidateSolverResult !== 'function') throw new Error('local revalidator is absent');
+const pair = buildConnectedSolverRequestPair(
+  stage,
+  { inputHash: 'input', questionHashes: { pri: 'pri-hash', time: 'time-hash' } },
+  { solverVersion: '0.4.0', budgetMs: 1000 },
+);
+if (pair.pri.kind !== 'request' || pair.time.kind !== 'request')
+  throw new Error('connected preparation did not return requests');
+if (pair.pri.request.scope.questionHash !== 'pri-hash')
+  throw new Error('connected question identity was not retained');
+process.stdout.write('local=function connected=request\n');
+
+const request={wireVersion:5,scope:{kind:'local'},contractVersion:'7+0.4.0',solverVersion:'0.4.0',objective:'pri',budgetMs:30000,stageBudgetSplit:[0.6,0.25,0.15],quantum:48,horizonUnits:100,slices:[{key:'a',workItemKey:'a',durationUnits:10,width:1,personId:null,poolIds:[],priorityWeight:0,notBeforeUnits:0,deadlineUnits:null,workItemIsMilestone:false,demands:[]}],edges:[],pools:{},baselineOffsets:{a:0},fastHint:{a:0},elsewhere:{},resources:{}};
+const term=(value:number)=>({value,stageValue:value,bound:value,status:'feasible'});
+const accepted=revalidateSolverResult(request,{wireVersion:5,scope:{kind:'local'},status:'feasible',offsets:{a:0},objectiveValues:{makespan:term(10),priority:term(0),movement:term(0)}});
+if(!accepted.ok||!accepted.published)throw Error(JSON.stringify(accepted));
+console.log('local=published connected=request');

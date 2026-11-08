@@ -1,0 +1,351 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/service/saved-plan-read.db.test.ts:
+(pass) reading a saved plan back > returns the stored bytes without calling the scheduler [223.75ms]
+(pass) reading a saved plan back > still returns those bytes when the live plan has moved underneath them [225.27ms]
+(pass) reading a saved plan back > refuses a body whose stored bytes no longer hash to the header [136.36ms]
+(pass) reading a saved plan back > refuses the schedule side by itself, naming that body and not the input [113.69ms]
+(pass) reading a saved plan back > refuses a header whose body row is gone [213.63ms]
+(pass) reading a saved plan back > reports a plan that was never saved as absent, not as corrupt [102.27ms]
+(pass) reading a saved plan back > refuses a schedule whose stored input hash is not this record's (5.2) [205.85ms]
+(pass) reading a saved plan back > reads a saved plan with plan_event truncated entirely (5.3) [173.36ms]
+(pass) reading a saved plan back > a saved plan with no schedule (5.4) > reports pending and borrows no dates from the live scheduler [121.70ms]
+(pass) reading a saved plan back > a saved plan with no schedule (5.4) > reports infeasible and borrows no dates from the live scheduler [208.01ms]
+(pass) reading a saved plan back > a saved plan with no schedule (5.4) > reports unavailable and borrows no dates from the live scheduler [171.69ms]
+(pass) reading a saved plan back > a saved plan with no schedule (5.4) > is still a plan: the input body reads back whole [169.92ms]
+(pass) reading a saved plan back > throws, naming the version, when a stored body is at one this reader does not know (5.5) [153.29ms]
+(pass) reading a saved plan back > checks the schedule body's version too, not just the input's [180.76ms]
+(pass) reading a saved plan back > watched negative: restating one hash over the damage does not launder the record [288.30ms]
+
+apps/wbs/be-01/src/service/saved-plan-schedule-body.db.test.ts:
+(pass) the stored schedule body > is deep-equal to what schedule() returned, plus the dates [273.88ms]
+(pass) the stored schedule body > is computed over a plan whose resource fields are set [110.26ms]
+(pass) the stored schedule body > serializes to the same bytes whatever order the value was assembled in [188.11ms]
+(pass) the stored schedule body > carries the version and the algorithm identity [271.84ms]
+(pass) the stored schedule body > never stores eventsVisited [160.98ms]
+(pass) the stored schedule body > stores null dates rather than absent keys when the project has no start date [108.97ms]
+
+apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:
+(pass) the saved-plan routes > refuses undeclared save fields before capture and undeclared list queries [635.39ms]
+(pass) the saved-plan routes > reads captured node endpoints after live step and relationship edits [591.19ms]
+(pass) the saved-plan routes > stores the caller as the creator, not anything the body said [586.92ms]
+(pass) the saved-plan routes > names a plan saved without one from the same clock that stamped it [592.46ms]
+(pass) the saved-plan routes > refuses an empty name rather than defaulting it [608.92ms]
+(pass) the saved-plan routes > refuses a JSON array body without writing a plan [573.79ms]
+(pass) the saved-plan routes > lists a project’s plans to any authenticated account [583.00ms]
+(pass) the saved-plan routes > lets the creator and the project owner rename, and refuses a third party [578.57ms]
+(pass) the saved-plan routes > answers 204 on a delete and 404 on the read that follows [584.93ms]
+(pass) the saved-plan routes > answers 404 for a project that is not there [539.20ms]
+(pass) the saved-plan routes > refuses an unauthenticated caller before it decides anything else [613.72ms]
+(pass) the saved-plan routes > compares a saved plan with itself and reports no difference [641.61ms]
+(pass) the saved-plan routes > compares a saved plan with `current` [603.89ms]
+(pass) the saved-plan routes > reads complete connected history as exact stored bytes and compares it without live foreign projects [810.72ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed input context on read and either comparison side [744.29ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed external project label on read and either comparison side [691.73ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed graph ownership on read and either comparison side [572.02ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed stage packet on read and either comparison side [682.15ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed candidate question on read and either comparison side [625.15ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target membership on read and either comparison side [566.44ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target placement on read and either comparison side [590.27ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed body version on read and either comparison side [794.28ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed local input with connected schedule on read and either comparison side [529.98ms]
+(pass) the saved-plan routes > refuses correctly hashed invalid input JSON before returning bytes [530.25ms]
+(pass) the saved-plan routes > refuses correctly hashed invalid schedule JSON before returning bytes [529.35ms]
+(pass) the saved-plan routes > requires selected evidence but reads an explicitly unavailable connected capture without dates [534.58ms]
+(pass) the saved-plan routes > refuses a saved plan that belongs to another project [498.63ms]
+(pass) the saved-plan routes > answers 422 naming the side whose stored bytes are damaged [514.70ms]
+(pass) the saved-plan routes > does not admit that another project’s plan exists, even when it is damaged [623.02ms]
+(pass) the saved-plan routes > refuses a plan written by a newer node instead of crashing on it [559.61ms]
+(pass) the saved-plan routes > reads `current` as the live plan and never as a saved-plan id [470.82ms]
+(pass) the saved-plan routes > answers 404 when the compare route names a project that is not there [473.65ms]
+(pass) the saved-plan routes > the permission matrix > unrestricted: anonymous against all six routes [492.97ms]
+(pass) the saved-plan routes > the permission matrix > unrestricted: owner against all six routes [565.97ms]
+(pass) the saved-plan routes > the permission matrix > unrestricted: ada against all six routes [538.96ms]
+(pass) the saved-plan routes > the permission matrix > unrestricted: mallory against all six routes [523.20ms]
+(pass) the saved-plan routes > the permission matrix > restricted: anonymous against all six routes [505.92ms]
+(pass) the saved-plan routes > the permission matrix > restricted: owner against all six routes [575.55ms]
+(pass) the saved-plan routes > the permission matrix > restricted: ada against all six routes [570.64ms]
+(pass) the saved-plan routes > the permission matrix > restricted: mallory against all six routes [586.46ms]
+(pass) the saved-plan routes > the broadcast > announces a save on the saved project, and on no other [854.76ms]
+(pass) the saved-plan routes > the broadcast > says nothing when the save is refused [1162.21ms]
+(pass) the saved-plan routes > the broadcast > announces a rename and a delete on the project the plan belongs to [1648.61ms]
+(pass) the saved-plan routes > the broadcast > delivers a save made while an unrelated batch is collecting [1503.15ms]
+(pass) the saved-plan routes > the broadcast > says nothing when a rename is refused [982.34ms]
+(pass) mounted contention remains 503 for save, rename and delete without announcements [27.28ms]
+(pass) mounted quota keeps every limit detail and project disappearance remains 404 [23.03ms]
+{"level":"error","time":1792689652481,"service":"be-01","err":{"occurrence_id":"AE_7MP6TFP3HESR5JZE1WP4C1A879","fingerprint":"fp1_187ef140c97dff84ba5f41ccc224752d","stack":["Error: store unavailable","    at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:1369:36)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) mounted known version refusal preserves all fields and unknown store failures remain 500 [28.39ms]
+(pass) mounted compare preserves last query values, opaque differences, and corrupt-side detail [15.20ms]
+(pass) mounted name admission distinguishes required bodies and save versus rename names [16.91ms]
+(pass) mounted policies precede malformed writes and anonymous malformed comparison [14.30ms]
+{"level":"error","time":1792689652543,"service":"be-01","err":{"occurrence_id":"AE_3JCYA2FTD615REYEGZ2V40T7CJ","fingerprint":"fp1_593800a472f836a64b4d18b446bc0ffb","stack":["Error: Endpoint postApiProjectsByIdSaved-plans returned an undeclared success representation","    at renderReply (/tmp/puni-saved-resource/apps/wbs/be-01/src/http/elysia/mount.ts:491:13)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792689652544,"service":"be-01","err":{"occurrence_id":"AE_4NRHDABC25YHXX3P8XBJ71Y6DD","fingerprint":"fp1_593800a472f836a64b4d18b446bc0ffb","stack":["Error: Endpoint getApiSaved-plansById returned an undeclared success representation","    at renderReply (/tmp/puni-saved-resource/apps/wbs/be-01/src/http/elysia/mount.ts:491:13)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) mounted stored-response validation requires creator and schedule fields but tolerates additive metadata [16.42ms]
+{"level":"error","time":1792689652560,"service":"be-01","err":{"occurrence_id":"AE_BZS6F6P4Y6T4RVZ1A200SKYAR4","fingerprint":"fp1_938187b25707ab8d0b127a2079b19831","stack":["Error: Endpoint getApiSaved-plansById returned an undeclared refusal","    at renderReply (/tmp/puni-saved-resource/apps/wbs/be-01/src/http/elysia/mount.ts:465:15)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792689652561,"service":"be-01","err":{"occurrence_id":"AE_ZPB59D9J19S9BWKAM565Q1NX0N","fingerprint":"fp1_938187b25707ab8d0b127a2079b19831","stack":["Error: Endpoint getApiProjectsByIdSaved-plansCompare returned an undeclared refusal","    at renderReply (/tmp/puni-saved-resource/apps/wbs/be-01/src/http/elysia/mount.ts:465:15)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792689652562,"service":"be-01","err":{"occurrence_id":"AE_AMFBZ004KQVAV3DQ1KMP2JCG9N","fingerprint":"fp1_938187b25707ab8d0b127a2079b19831","stack":["Error: Endpoint getApiSaved-plansById returned an undeclared refusal","    at renderReply (/tmp/puni-saved-resource/apps/wbs/be-01/src/http/elysia/mount.ts:465:15)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792689652563,"service":"be-01","err":{"occurrence_id":"AE_6NPT6DG34CTYR1QVD7A6YZSZ6M","fingerprint":"fp1_938187b25707ab8d0b127a2079b19831","stack":["Error: Endpoint getApiProjectsByIdSaved-plansCompare returned an undeclared refusal","    at renderReply (/tmp/puni-saved-resource/apps/wbs/be-01/src/http/elysia/mount.ts:465:15)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) mounted malformed-history refusal requires its path and code on read and compare [18.36ms]
+(pass) mounted integrity variants retain their distinct operational details [19.20ms]
+{"level":"error","time":1792689652606,"service":"be-01","err":{"occurrence_id":"AE_YS83DPDHGRBRQ91NHB9R07FHBB","fingerprint":"fp1_b5f2142ce3cd87770f8ce9d0efa0e45e","as_json":{"savedPlanId":"unrelated","body":"input","version":99,"supported":[1],"name":"UnknownSavedPlanBodyVersionError"},"stack":["UnknownSavedPlanBodyVersionError: saved plan unrelated: input body is at schema version 99, which this reader does not know (knows 1)","    at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:1545:23)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792689652609,"service":"be-01","err":{"occurrence_id":"AE_YS83DPDHGRBRQ91NHB9R07FHBB","fingerprint":"fp1_b5f2142ce3cd87770f8ce9d0efa0e45e","as_json":{"savedPlanId":"unrelated","body":"input","version":99,"supported":[1],"name":"UnknownSavedPlanBodyVersionError"},"stack":["UnknownSavedPlanBodyVersionError: saved plan unrelated: input body is at schema version 99, which this reader does not know (knows 1)","    at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:1545:23)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792689652611,"service":"be-01","err":{"occurrence_id":"AE_YS83DPDHGRBRQ91NHB9R07FHBB","fingerprint":"fp1_b5f2142ce3cd87770f8ce9d0efa0e45e","as_json":{"savedPlanId":"unrelated","body":"input","version":99,"supported":[1],"name":"UnknownSavedPlanBodyVersionError"},"stack":["UnknownSavedPlanBodyVersionError: saved plan unrelated: input body is at schema version 99, which this reader does not know (knows 1)","    at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:1545:23)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) does not classify project version-shaped failures as saved-plan refusals [28.62ms]
+{"level":"error","time":1792689652634,"service":"be-01","err":{"occurrence_id":"AE_HXQHZRFE3B4YHBZDYM977B68CT","fingerprint":"fp1_9be07a4678d46551db9b95445e620b0c","as_json":{"savedPlanId":"unrelated","body":"input","version":99,"supported":[1],"name":"UnknownSavedPlanBodyVersionError"},"stack":["UnknownSavedPlanBodyVersionError: saved plan unrelated: input body is at schema version 99, which this reader does not know (knows 1)","    at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:1558:23)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792689652637,"service":"be-01","err":{"occurrence_id":"AE_HXQHZRFE3B4YHBZDYM977B68CT","fingerprint":"fp1_9be07a4678d46551db9b95445e620b0c","as_json":{"savedPlanId":"unrelated","body":"input","version":99,"supported":[1],"name":"UnknownSavedPlanBodyVersionError"},"stack":["UnknownSavedPlanBodyVersionError: saved plan unrelated: input body is at schema version 99, which this reader does not know (knows 1)","    at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:1558:23)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792689652639,"service":"be-01","err":{"occurrence_id":"AE_HXQHZRFE3B4YHBZDYM977B68CT","fingerprint":"fp1_9be07a4678d46551db9b95445e620b0c","as_json":{"savedPlanId":"unrelated","body":"input","version":99,"supported":[1],"name":"UnknownSavedPlanBodyVersionError"},"stack":["UnknownSavedPlanBodyVersionError: saved plan unrelated: input body is at schema version 99, which this reader does not know (knows 1)","    at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:1558:23)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) does not classify announcement version-shaped failures as saved-plan refusals [28.46ms]
+{"level":"error","time":1792689652662,"service":"be-01","err":{"occurrence_id":"AE_Z62YEDMVJP6EM3A0BC54W9E0JF","fingerprint":"fp1_938187b25707ab8d0b127a2079b19831","stack":["Error: Endpoint getApiProjectsByIdSaved-plansCompare returned an undeclared refusal","    at renderReply (/tmp/puni-saved-resource/apps/wbs/be-01/src/http/elysia/mount.ts:465:15)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) rejects a malformed known comparison missing-side id while preserving optional omission [23.99ms]
+(pass) classifies saved-plan service versions on each of the six operations [23.75ms]
+
+apps/wbs/be-01/src/controller/saved-plan-organization.controller.db.test.ts:
+(pass) after activation > audits a super-admin save, rename and delete of another creator’s restricted project [1401.74ms]
+(pass) after activation > refuses member, admin and viewer writers and leaves creator writes unaudited [1231.97ms]
+{"level":"error","time":1792689656992,"service":"be-01","err":{"occurrence_id":"AE_ZRH86Z49076VK9FX0ZRAHMAB30","fingerprint":"fp1_3f5f6a7517c4d5f4238ec575def307f2","constructor_name":"DrizzleQueryError","message":"Failed query: insert into \"organization_audit\" (\"id\", \"organization_id\", \"actor_id\", \"action\", \"subject_kind\", \"subject_id\", \"detail\", \"created_at\") values (?, ?, ?, ?, ?, ?, ?, ?)\nparams: 5ff09643-c6c2-4a6b-b6f1-804ad76a4c81,org-a,4679aba3-e5be-4f3a-a771-d2eb431cd5e2,restricted_project_recovery,project,9fdd0f2d-c414-4c44-8b3d-79949cb946ee,{\"savedPlan\":\"save\"},1792689656988","as_string":"DrizzleQueryError: Failed query: insert into \"organization_audit\" (\"id\", \"organization_id\", \"actor_id\", \"action\", \"subject_kind\", \"subject_id\", \"detail\", \"created_at\") values (?, ?, ?, ?, ?, ?, ?, ?)\nparams: 5ff09643-c6c2-4a6b-b6f1-804ad76a4c81,org-a,4679aba3-e5be-4f3a-a771-d2eb431cd5e2,restricted_project_recovery,project,9fdd0f2d-c414-4c44-8b3d-79949cb946ee,{\"savedPlan\":\"save\"},1792689656988","as_json":{"query":"insert into \"organization_audit\" (\"id\", \"organization_id\", \"actor_id\", \"action\", \"subject_kind\", \"subject_id\", \"detail\", \"created_at\") values (?, ?, ?, ?, ?, ?, ?, ?)","params":["5ff09643-c6c2-4a6b-b6f1-804ad76a4c81","org-a","4679aba3-e5be-4f3a-a771-d2eb431cd5e2","restricted_project_recovery","project","9fdd0f2d-c414-4c44-8b3d-79949cb946ee","{\"savedPlan\":\"save\"}",1792689656988],"name":"DrizzleQueryError"},"stack":["DrizzleQueryError: Failed query: insert into \"organization_audit\" (\"id\", \"organization_id\", \"actor_id\", \"action\", \"subject_kind\", \"subject_id\", \"detail\", \"created_at\") values (?, ?, ?, ?, ?, ?, ?, ?)","params: 5ff09643-c6c2-4a6b-b6f1-804ad76a4c81,org-a,4679aba3-e5be-4f3a-a771-d2eb431cd5e2,restricted_project_recovery,project,9fdd0f2d-c414-4c44-8b3d-79949cb946ee,{\"savedPlan\":\"save\"},1792689656988","    at run (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js:77:14)","    at recordRecovery (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/project.ts:1537:6)","    at <anonymous> (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/project.ts:1102:11)","    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)","    at transaction (bun:sqlite:400:27)","    at transaction (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)","    at async admitEditInOrganization (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/project.ts:1095:28)","    at async <anonymous> (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/saved-plan.ts:328:68)","    at async write (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/saved-plan.ts:470:17)","    at async save (/tmp/puni-saved-resource/libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts:543:46)"],"children":[{"id":"0","path":"$.cause","level":1,"constructor_name":"Error","message":"audit refused","as_json":{"code":"SQLITE_CONSTRAINT_TRIGGER","errno":1811,"byteOffset":-1},"stack":["SQLiteError: audit refused","    at run (unknown)","    at #run (bun:sqlite:187:20)","    at run (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js:75:21)","    at recordRecovery (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/project.ts:1537:6)","    at <anonymous> (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/project.ts:1102:11)","    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)","    at transaction (bun:sqlite:400:27)","    at transaction (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)","    at async admitEditInOrganization (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/project.ts:1095:28)","    at async <anonymous> (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/saved-plan.ts:328:68)","    at async write (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/saved-plan.ts:470:17)","    at async save (/tmp/puni-saved-resource/libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts:543:46)","    at async savePlan (/tmp/puni-saved-resource/libs/wbs/application/core/src/module/saved-plans/save-plan.ts:81:33)","    at async <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/http/saved-plan.routes.ts:176:27)"],"as_string_format":"derived"}],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792689657037,"service":"be-01","err":{"occurrence_id":"AE_2HNBQ7VF8N182F9TNT71MV5Y8T","fingerprint":"fp1_4e096a86b9b926a261676955117ab3c4","constructor_name":"DrizzleQueryError","message":"Failed query: insert into \"organization_audit\" (\"id\", \"organization_id\", \"actor_id\", \"action\", \"subject_kind\", \"subject_id\", \"detail\", \"created_at\") values (?, ?, ?, ?, ?, ?, ?, ?)\nparams: 1967dcbd-ca07-40c9-89c4-497a4f4c6646,org-a,4679aba3-e5be-4f3a-a771-d2eb431cd5e2,restricted_project_recovery,project,9fdd0f2d-c414-4c44-8b3d-79949cb946ee,{\"savedPlan\":\"rename\"},1792689657028","as_string":"DrizzleQueryError: Failed query: insert into \"organization_audit\" (\"id\", \"organization_id\", \"actor_id\", \"action\", \"subject_kind\", \"subject_id\", \"detail\", \"created_at\") values (?, ?, ?, ?, ?, ?, ?, ?)\nparams: 1967dcbd-ca07-40c9-89c4-497a4f4c6646,org-a,4679aba3-e5be-4f3a-a771-d2eb431cd5e2,restricted_project_recovery,project,9fdd0f2d-c414-4c44-8b3d-79949cb946ee,{\"savedPlan\":\"rename\"},1792689657028","as_json":{"query":"insert into \"organization_audit\" (\"id\", \"organization_id\", \"actor_id\", \"action\", \"subject_kind\", \"subject_id\", \"detail\", \"created_at\") values (?, ?, ?, ?, ?, ?, ?, ?)","params":["1967dcbd-ca07-40c9-89c4-497a4f4c6646","org-a","4679aba3-e5be-4f3a-a771-d2eb431cd5e2","restricted_project_recovery","project","9fdd0f2d-c414-4c44-8b3d-79949cb946ee","{\"savedPlan\":\"rename\"}",1792689657028],"name":"DrizzleQueryError"},"stack":["DrizzleQueryError: Failed query: insert into \"organization_audit\" (\"id\", \"organization_id\", \"actor_id\", \"action\", \"subject_kind\", \"subject_id\", \"detail\", \"created_at\") values (?, ?, ?, ?, ?, ?, ?, ?)","params: 1967dcbd-ca07-40c9-89c4-497a4f4c6646,org-a,4679aba3-e5be-4f3a-a771-d2eb431cd5e2,restricted_project_recovery,project,9fdd0f2d-c414-4c44-8b3d-79949cb946ee,{\"savedPlan\":\"rename\"},1792689657028","    at run (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js:77:14)","    at recordRecovery (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/project.ts:1537:6)","    at <anonymous> (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/project.ts:1102:11)","    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)","    at transaction (bun:sqlite:400:27)","    at transaction (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)","    at async admitEditInOrganization (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/project.ts:1095:28)","    at async touchScoped (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/saved-plan.ts:755:64)"],"children":[{"id":"0","path":"$.cause","level":1,"constructor_name":"Error","message":"audit refused","as_json":{"code":"SQLITE_CONSTRAINT_TRIGGER","errno":1811,"byteOffset":-1},"stack":["SQLiteError: audit refused","    at run (unknown)","    at #run (bun:sqlite:187:20)","    at run (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js:75:21)","    at recordRecovery (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/project.ts:1537:6)","    at <anonymous> (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/project.ts:1102:11)","    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)","    at transaction (bun:sqlite:400:27)","    at transaction (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)","    at async admitEditInOrganization (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/project.ts:1095:28)","    at async touchScoped (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/saved-plan.ts:755:64)"],"as_string_format":"derived"}],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792689657069,"service":"be-01","err":{"occurrence_id":"AE_0AE1GG1D4TCJMRFZQ0RWC6HZYG","fingerprint":"fp1_4e096a86b9b926a261676955117ab3c4","constructor_name":"DrizzleQueryError","message":"Failed query: insert into \"organization_audit\" (\"id\", \"organization_id\", \"actor_id\", \"action\", \"subject_kind\", \"subject_id\", \"detail\", \"created_at\") values (?, ?, ?, ?, ?, ?, ?, ?)\nparams: bc36e3e6-5939-460e-8bf7-57414ef4a5ff,org-a,4679aba3-e5be-4f3a-a771-d2eb431cd5e2,restricted_project_recovery,project,9fdd0f2d-c414-4c44-8b3d-79949cb946ee,{\"savedPlan\":\"delete\"},1792689657066","as_string":"DrizzleQueryError: Failed query: insert into \"organization_audit\" (\"id\", \"organization_id\", \"actor_id\", \"action\", \"subject_kind\", \"subject_id\", \"detail\", \"created_at\") values (?, ?, ?, ?, ?, ?, ?, ?)\nparams: bc36e3e6-5939-460e-8bf7-57414ef4a5ff,org-a,4679aba3-e5be-4f3a-a771-d2eb431cd5e2,restricted_project_recovery,project,9fdd0f2d-c414-4c44-8b3d-79949cb946ee,{\"savedPlan\":\"delete\"},1792689657066","as_json":{"query":"insert into \"organization_audit\" (\"id\", \"organization_id\", \"actor_id\", \"action\", \"subject_kind\", \"subject_id\", \"detail\", \"created_at\") values (?, ?, ?, ?, ?, ?, ?, ?)","params":["bc36e3e6-5939-460e-8bf7-57414ef4a5ff","org-a","4679aba3-e5be-4f3a-a771-d2eb431cd5e2","restricted_project_recovery","project","9fdd0f2d-c414-4c44-8b3d-79949cb946ee","{\"savedPlan\":\"delete\"}",1792689657066],"name":"DrizzleQueryError"},"stack":["DrizzleQueryError: Failed query: insert into \"organization_audit\" (\"id\", \"organization_id\", \"actor_id\", \"action\", \"subject_kind\", \"subject_id\", \"detail\", \"created_at\") values (?, ?, ?, ?, ?, ?, ?, ?)","params: bc36e3e6-5939-460e-8bf7-57414ef4a5ff,org-a,4679aba3-e5be-4f3a-a771-d2eb431cd5e2,restricted_project_recovery,project,9fdd0f2d-c414-4c44-8b3d-79949cb946ee,{\"savedPlan\":\"delete\"},1792689657066","    at run (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js:77:14)","    at recordRecovery (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/project.ts:1537:6)","    at <anonymous> (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/project.ts:1102:11)","    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)","    at transaction (bun:sqlite:400:27)","    at transaction (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)","    at async admitEditInOrganization (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/project.ts:1095:28)","    at async touchScoped (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/saved-plan.ts:755:64)"],"children":[{"id":"0","path":"$.cause","level":1,"constructor_name":"Error","message":"audit refused","as_json":{"code":"SQLITE_CONSTRAINT_TRIGGER","errno":1811,"byteOffset":-1},"stack":["SQLiteError: audit refused","    at run (unknown)","    at #run (bun:sqlite:187:20)","    at run (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js:75:21)","    at recordRecovery (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/project.ts:1537:6)","    at <anonymous> (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/project.ts:1102:11)","    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)","    at transaction (bun:sqlite:400:27)","    at transaction (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)","    at async admitEditInOrganization (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/project.ts:1095:28)","    at async touchScoped (/tmp/puni-saved-resource/libs/wbs/adapters/store-sqlite/src/saved-plan.ts:755:64)"],"as_string_format":"derived"}],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > rolls back every recovered saved-plan write when audit insertion fails [1721.96ms]
+(pass) after activation > refuses a removed super-admin before touching a saved plan [1411.48ms]
+(pass) after activation > answers 404 alike for a foreign and an absent project on every saved-plan and history route [2309.60ms]
+(pass) after activation > answers a foreign saved plan exactly as an absent one [1652.97ms]
+(pass) after activation > refuses a viewer every saved-plan write and lets the viewer read [1516.52ms]
+(pass) after activation > lets a member save, rename and delete a plan of the own project [1957.78ms]
+(pass) after activation > maps a plan saved after activation to its project's organization [858.23ms]
+(pass) after activation > refuses an unbound session and a removed member before any lookup [1125.36ms]
+
+libs/wbs/domain/contracts/src/http/saved-plan-shapes.test.ts:
+(pass) publishes six existing operation ids and required save/rename bodies with explicit media [0.78ms]
+(pass) requires an object for save, permits its absent name, and requires rename name [0.29ms]
+(pass) creation requires creator identity while reads retain additional fields and exact stored bytes [0.31ms]
+(pass) comparison validates known metadata while preserving opaque historical differences [0.16ms]
+
+libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:
+(pass) versioned saved input readers > reads frozen input v1 as local without rewriting bytes [1.16ms]
+(pass) versioned saved input readers > reads frozen input v2 as local without rewriting bytes [0.38ms]
+(pass) versioned saved input readers > reads frozen input v3 as local without rewriting bytes [0.56ms]
+(pass) versioned saved input readers > reads frozen input v4 as local without rewriting bytes [0.43ms]
+(pass) versioned saved input readers > reads frozen input v5 as local without rewriting bytes [0.33ms]
+(pass) versioned saved input readers > reads frozen input v6 as local without rewriting bytes [0.31ms]
+(pass) versioned saved input readers > reads frozen input v7 as local without rewriting bytes [0.63ms]
+(pass) versioned saved input readers > reads frozen input v8 as local without rewriting bytes [0.56ms]
+(pass) versioned saved input readers > keeps the dormant v8 writer byte-identical to the frozen v8 builder [0.27ms]
+(pass) versioned saved input readers > preserves the frozen legacy schedule1 byte contract and retired algorithm identity [0.38ms]
+(pass) versioned saved input readers > requires explicit dependency history on input9 [1.05ms]
+(pass) versioned saved input readers > refuses header/body version mismatch and malformed new fields [3.65ms]
+(pass) versioned saved input readers > refuses external claims before a legacy local upgrade can erase them [0.23ms]
+(pass) versioned saved input readers > refuses original v1 scoped claims before an upgrade can erase them [0.18ms]
+(pass) versioned saved input readers > refuses original v2 scoped claims before an upgrade can erase them [0.05ms]
+(pass) versioned saved input readers > canonicalizes unordered captured history before future writer activation [3.12ms]
+(pass) versioned saved input readers > retains direct-fact ownership and duplicate refusal in new bodies [1.37ms]
+(pass) versioned saved input readers > folds converted connected context without live capabilities [3.72ms]
+
+libs/wbs/domain/domain/src/saved-plan/normalise-plan-input.test.ts:
+(pass) normalising a stored plan input forward — 7.4 > is the identity at the reader’s own version [0.07ms]
+(pass) normalising a stored plan input forward — 7.4 > leaves the stored bytes untouched, by hash [0.07ms]
+(pass) normalising a stored plan input forward — 7.4 > a normalised body still compares clean against the same plan [0.29ms]
+(pass) normalising a stored plan input forward — 7.4 > refuses a body from the future rather than reading it [0.11ms]
+(pass) normalising a stored plan input forward — 7.4 > refuses a version that is not a version [0.11ms]
+(pass) normalising a stored plan input forward — 7.4 > refuses an older body when no step is registered for it [0.04ms]
+(pass) normalising a stored plan input forward — 7.4 > runs the registered steps in order, once each [0.07ms]
+(pass) normalising a stored plan input forward — 7.4 > catches a step that mutates the body it was given [0.07ms]
+(pass) the version-1 to version-2 upgrade — step allowances > reads a version-1 body’s steps at 0% allowance [0.09ms]
+(pass) the version-1 to version-2 upgrade — step allowances > refuses a version-1 body whose steps are not a list [0.03ms]
+(pass) the version-1 to version-2 upgrade — step allowances > writes version 2 with each step’s allowance [0.04ms]
+(pass) the version-2 to version-3 upgrade — typed dependencies > rejects malformed version-2 steps instead of inventing captured identities [0.03ms]
+(pass) the version-2 to version-3 upgrade — typed dependencies > compares an upgraded version-2 body with the equivalent version-3 body without changing stored bytes [0.23ms]
+(pass) the version-2 to version-3 upgrade — typed dependencies > reads a version-2 body with no typed relationships [0.05ms]
+(pass) the version-3 to version-4 upgrade — readiness and holds > reads a version-3 body with nothing said about readiness or holds, and compares clean [0.14ms]
+(pass) the version-3 to version-4 upgrade — readiness and holds > refuses a version-3 body whose work items are not a list of objects [0.04ms]
+(pass) the version-4 to version-5 upgrade — the project timezone > reads a version-4 body as UTC and compares clean, leaving the stored bytes alone [0.11ms]
+(pass) the version-4 to version-5 upgrade — the project timezone > refuses a version-4 body that holds no project object [0.02ms]
+(pass) upgrades version-5 steps to historical workdays without changing the source body [0.14ms]
+
+libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.test.ts:
+(pass) canonicalisePlanInput > serializes identically whatever order the rows arrived in [0.51ms]
+(pass) canonicalisePlanInput > stamps the schema version the body carries [0.09ms]
+(pass) canonicalisePlanInput > captures typed endpoints by value in relationship id order [0.14ms]
+(pass) canonicalisePlanInput > captures coded and uncoded step identities [0.13ms]
+(pass) canonicalisePlanInput > keeps no key the closed field list does not name [0.59ms]
+(pass) canonicalisePlanInput > stores every work-item type a row states, not one of them [0.15ms]
+(pass) canonicalisePlanInput > orders external refs by system then url, and keeps the shown position [0.16ms]
+(pass) canonicalisePlanInput > keeps one measure per step, not one per item and metric [0.10ms]
+(pass) canonicalisePlanInput > keeps who does which step, not merely who is on the item [0.09ms]
+(pass) canonicalisePlanInput > the byte comparison is what catches a dropped sort [0.25ms]
+(pass) canonicalisePlanInput round trip > canonicalise, serialize, parse, canonicalise again — identical bytes [48.28ms]
+(pass) captures a minute unit in the canonical body rather than restating it as workdays [0.33ms]
+
+libs/wbs/domain/domain/src/saved-plan/connected-history.test.ts:
+(pass) immutable connected history codec > preserves captured selectors, null labels and pre-selection stages without scheduling [9.42ms]
+(pass) immutable connected history codec > detaches nested caller mutations [9.37ms]
+(pass) immutable connected history codec > canonicalizes unordered insertion while preserving stage execution order [9.78ms]
+(pass) immutable connected history codec > refuses malformed dependency evidence: missing-field [1.86ms]
+(pass) immutable connected history codec > refuses malformed dependency evidence: duplicate [0.76ms]
+(pass) immutable connected history codec > refuses malformed dependency evidence: unknown-owner [2.36ms]
+(pass) immutable connected history codec > refuses malformed dependency evidence: unknown-endpoint [1.22ms]
+(pass) immutable connected history codec > refuses malformed dependency evidence: nonfinite [0.30ms]
+(pass) immutable connected history codec > refuses malformed dependency evidence: unknown-field [1.83ms]
+(pass) immutable connected history codec > refuses candidate question mismatching its captured stage [1.39ms]
+(pass) immutable connected history codec > requires every explicitly empty canonical stage collection [6.74ms]
+(pass) immutable connected history codec > retains unavailable calendar reason without manufacturing placement [3.57ms]
+(pass) explicit map encoding retains every slice and work item [8.02ms]
+(pass) empty component has null axis and no fabricated stage [1.00ms]
+(pass) boundary-infeasible keeps the scoped certificate and displayed schedule [3.89ms]
+(pass) refuses a later boundary rewritten from final placements [4.12ms]
+(pass) historical reader operates with the live scheduler module poisoned [676.17ms]
+(pass) refuses conflicting historical references: readiness-cause [0.89ms]
+(pass) refuses conflicting historical references: graph-endpoint [0.35ms]
+(pass) refuses conflicting historical references: node-scope [0.20ms]
+(pass) refuses conflicting historical references: duplicate-map [1.16ms]
+(pass) refuses conflicting historical references: nonfinite-placement [0.40ms]
+(pass) refuses conflicting historical references: candidate-keys [0.72ms]
+(pass) refuses conflicting historical references: target-mismatch [0.81ms]
+(pass) refuses incomplete component evidence: missing-node-and-reading [0.44ms]
+(pass) refuses incomplete component evidence: wrong-node-position [0.22ms]
+(pass) refuses incomplete component evidence: missing-stage-member [0.71ms]
+(pass) refuses incomplete component evidence: forged-stage-selector [1.20ms]
+(pass) names the missing endpoint lookup boundary [0.32ms]
+(pass) reviewed historical stage invariants > retains enabled Fast without selecting observed candidates [1.36ms]
+(pass) reviewed historical stage invariants > retains disabled optimized without selecting observed candidates [0.94ms]
+(pass) reviewed historical stage invariants > refuses swapped stage step identities at otherwise complete positions [0.59ms]
+(pass) reviewed historical stage invariants > refuses authored stage edge with foreign predecessor ownership [0.62ms]
+(pass) reviewed historical stage invariants > refuses authored stage edge with foreign successor ownership [0.53ms]
+(pass) reviewed historical stage invariants > refuses reversed work-item intervals in baseline [0.59ms]
+(pass) reviewed historical stage invariants > refuses reversed work-item intervals in composite [0.35ms]
+(pass) reviewed historical stage invariants > refuses reversed work-item intervals in decision baseline [0.63ms]
+(pass) reviewed historical stage invariants > refuses reversed work-item intervals in decision schedule [0.62ms]
+(pass) Fast cannot select an observed ready objective [0.39ms]
+(pass) refuses inconsistent stage enablement: disabled observed [1.30ms]
+(pass) refuses inconsistent stage enablement: enabled optimized unobserved [0.87ms]
+
+libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts:
+(pass) saved sparse step parallelism > captures ordered detached explicit facts including equality and sibling absence [10.15ms]
+(pass) saved sparse step parallelism > validates and captures the same maximum from a changing accessor [0.41ms]
+(pass) saved sparse step parallelism > upgrades schema7 to absent overrides without changing historical bytes [0.21ms]
+(pass) saved sparse step parallelism > compares additions removals and maximum changes by structured pair [1.49ms]
+(pass) saved sparse step parallelism > compares distinct tuples containing colons without losing an override [1.03ms]
+(pass) saved sparse step parallelism > refuses missing parallel facts at capture [0.09ms]
+(pass) saved sparse step parallelism > refuses missing parallel facts at stored read [0.03ms]
+(pass) saved sparse step parallelism > refuses malformed parallel facts at capture [0.01ms]
+(pass) saved sparse step parallelism > refuses malformed parallel facts at stored read
+(pass) saved sparse step parallelism > refuses null fact parallel facts at capture
+(pass) saved sparse step parallelism > refuses null fact parallel facts at stored read [0.01ms]
+(pass) saved sparse step parallelism > refuses duplicate parallel facts at capture [0.01ms]
+(pass) saved sparse step parallelism > refuses duplicate parallel facts at stored read
+(pass) saved sparse step parallelism > refuses unknown owner parallel facts at capture
+(pass) saved sparse step parallelism > refuses unknown owner parallel facts at stored read
+(pass) saved sparse step parallelism > refuses parent owner parallel facts at capture
+(pass) saved sparse step parallelism > refuses parent owner parallel facts at stored read
+(pass) saved sparse step parallelism > refuses unknown step parallel facts at capture
+(pass) saved sparse step parallelism > refuses unknown step parallel facts at stored read
+(pass) saved sparse step parallelism > refuses string maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses string maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses fractional maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses fractional maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses zero maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses zero maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses oversized maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses oversized maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses missing maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses missing maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses malformed owner list while validating stored parallel facts [0.03ms]
+(pass) saved sparse step parallelism > refuses malformed step list while validating stored parallel facts
+(pass) saved sparse step parallelism > refuses malformed owner row while validating stored parallel facts
+(pass) saved sparse step parallelism > refuses malformed step row while validating stored parallel facts
+
+libs/wbs/domain/domain/src/saved-plan/diff-plans.test.ts:
+(pass) diffPlans — 7.1, the two sides > reports nothing when a plan is re-serialized unchanged [0.21ms]
+(pass) diffPlans — 7.1, the two sides > reports nothing when the same plan arrives in the opposite row order [0.18ms]
+(pass) diffPlans — 7.1, the two sides > is one function in both directions: swapping the sides swaps left and right [0.60ms]
+(pass) diffPlans — 7.2, the presentation categories > reports an added and a removed work item as added and removed, not as changed [0.27ms]
+(pass) diffPlans — 7.2, the presentation categories > separates renamed, reparented and reordered [0.18ms]
+(pass) diffPlans — 7.2, the presentation categories > reports freeze, which the category list omitted until spec named it [0.36ms]
+(pass) diffPlans — 7.2, the presentation categories > reaches every category the spec names, one field at a time [3.35ms]
+(pass) diffPlans — 7.2, the presentation categories > names a timezone change under settings with both values [0.21ms]
+(pass) diffPlans — 7.2, the presentation categories > groups dependency and assignment changes as themselves [0.23ms]
+(pass) diffPlans — 7.2, the presentation categories > reports a typed endpoint edit under dependencies by relationship id [0.24ms]
+(pass) diffPlans — 7.2, the presentation categories > files a rewired relationship under its own heading on both sides [0.24ms]
+(pass) diffPlans — 7.2, the presentation categories > files a registry row that arrived or left under registry [0.34ms]
+(pass) diffPlans — 7.2b, the diff-completeness property > names every field of the canonical plan input that can differ [18.50ms]
+(pass) diffPlans — 7.2b, the diff-completeness property > covers the registry rows a label resolves through [0.55ms]
+(pass) diffPlans — 7.2b, the diff-completeness property > reports a changed row identity as removed and re-added, not as a changed id [0.32ms]
+(pass) diffPlans — 7.2b, the diff-completeness property > catches a comparison that drops freeze, and one that drops a tag id [0.68ms]
+(pass) diffPlans — 7.2c, the schedule side > reports differing dates between byte-identical inputs [0.30ms]
+(pass) diffPlans — 7.2c, the schedule side > names every field of the stored schedule body that can differ [1.73ms]
+(pass) diffPlans — 7.2c, the schedule side > reports the algorithm identity, which is a header column and not a body key [0.28ms]
+(pass) diffPlans — 7.2c, the schedule side > reports absence and its reason per side [0.33ms]
+(pass) diffPlans — 7.2c, the schedule side > reports nothing on the schedule half when both sides are absent for the same reason [0.10ms]
+(pass) diffPlans — the catch-all > reports an unlisted field under other, naming it [0.29ms]
+(pass) diffPlans — the catch-all > reports a whole collection the field list gains later [0.25ms]
+(pass) reports a captured estimate unit change under steps [0.15ms]
+
+libs/wbs/domain/domain/src/saved-plan/step-blockages.test.ts:
+(pass) saved direct step blockage > captures sorted direct facts and changes saved bytes [0.45ms]
+(pass) saved direct step blockage > retains direct facts on done nodes without deriving proxy facts [0.07ms]
+(pass) saved direct step blockage > upgrades schema6 without mutating stored facts or bytes [0.10ms]
+(pass) saved direct step blockage > compares additions, removals and time changes by owner and step [0.50ms]
+(pass) saved direct step blockage > refuses missing current facts on capture [0.06ms]
+(pass) saved direct step blockage > refuses missing current facts on stored read [0.03ms]
+(pass) saved direct step blockage > refuses malformed current facts on capture
+(pass) saved direct step blockage > refuses malformed current facts on stored read
+(pass) saved direct step blockage > refuses null fact current facts on capture [0.01ms]
+(pass) saved direct step blockage > refuses null fact current facts on stored read
+(pass) saved direct step blockage > refuses duplicate current facts on capture
+(pass) saved direct step blockage > refuses duplicate current facts on stored read
+(pass) saved direct step blockage > refuses unknown owner current facts on capture
+(pass) saved direct step blockage > refuses unknown owner current facts on stored read
+(pass) saved direct step blockage > refuses parent owner current facts on capture
+(pass) saved direct step blockage > refuses parent owner current facts on stored read
+(pass) saved direct step blockage > refuses unknown step current facts on capture
+(pass) saved direct step blockage > refuses unknown step current facts on stored read
+(pass) saved direct step blockage > refuses fractional time current facts on capture
+(pass) saved direct step blockage > refuses fractional time current facts on stored read
+(pass) saved direct step blockage > refuses unsafe time current facts on capture
+(pass) saved direct step blockage > refuses unsafe time current facts on stored read
+(pass) saved direct step blockage > refuses missing time current facts on capture
+(pass) saved direct step blockage > refuses missing time current facts on stored read
+(pass) refuses malformed owner list while checking stored direct facts [0.03ms]
+(pass) refuses malformed step list while checking stored direct facts
+(pass) refuses malformed owner row while checking stored direct facts
+(pass) refuses malformed step row while checking stored direct facts
+
+libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.test.ts:
+(pass) verifyBody > accepts bytes whose recomputed digest is the stored one [0.15ms]
+(pass) verifyBody > names the plan and the body when the digest disagrees [0.08ms]
+(pass) verifyBody > reports an absent body as absent rather than as a hash fault [0.05ms]
+(pass) verifyBody > refuses an empty body against a real digest instead of treating it as absent [0.05ms]
+(pass) verifyBody > hashes over utf8 bytes, so a multi-byte character is not two code units [0.07ms]
+(pass) assertKnownBodyVersion > accepts a body at an older version the reader still knows [0.04ms]
+(pass) assertKnownBodyVersion > throws naming the plan, the body and the version it does not know [0.11ms]
+(pass) assertKnownBodyVersion > never defaults an unknown version to the newest it knows (R5) [0.02ms]
+(pass) assertKnownBodyVersion > knows the version this build writes, on both sides [0.02ms]
+
+libs/wbs/application/core/src/module/saved-plans/module.test.ts:
+(pass) the Saved plans module > saves and reads back a plan over the graph installSavedPlans wires [6.40ms]
+(pass) the Saved plans module > refuses installed shared save and current before capture without admitted access [1.69ms]
+(pass) the Saved plans module > passes a supplied quota through to the installed feature [2.90ms]
+(pass) the Saved plans module > saves and announces through savePlan over the installed feature [2.26ms]
+(pass) the Saved plans module > exposes only the contract exports from its installer [1.33ms]
+(pass) the Saved plans module > keeps its private bindings out of a host graph [0.42ms]
+(pass) the Saved plans module > labels its private bindings with the module name [0.87ms]
+(pass) the Saved plans module > names itself when a host omits a requirement [0.63ms]
+(pass) a saved plan and step allowances > keeps the allowance it was saved with when the live step changes later [3.09ms]
+
+libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:
+(pass) new saved body integrity > accepts detached complete connected bodies and retains the supplied bytes [2.58ms]
+(pass) new saved body integrity > refuses missing frozen target slice identity and scheduling fields [12.31ms]
+(pass) new saved body integrity > refuses missing, foreign or mismatched target placement membership [14.70ms]
+(pass) new saved body integrity > refuses altered selected offsets, spans and dates with an intact captured composite [16.31ms]
+(pass) new saved body integrity > validates the captured target anchor rather than using another project calendar [8.32ms]
+(pass) new saved body integrity > refuses a captured stage anchor that contradicts its stored target date [2.70ms]
+(pass) new saved body integrity > accepts a genuinely empty connected component without inventing an anchor or stage [1.82ms]
+(pass) new saved body integrity > refuses impossible target calendar text and invented waiting facts [7.20ms]
+(pass) new saved body integrity > reports correctly hashed malformed new JSON as typed body_invalid [0.34ms]
+(pass) new saved body integrity > refuses mismatched targets, missing connection and local input with connected schedule [2.75ms]
+(pass) new saved body integrity > requires absent schedules for unavailable connected context and preserves local schedule1 reads [1.56ms]
+(pass) new saved body integrity > refuses missing selected evidence and malformed timings without replaying schedules [1.59ms]
+
+ 298 pass
+ 0 fail
+ 1091 expect() calls
+Ran 298 tests across 15 files. [54.25s]

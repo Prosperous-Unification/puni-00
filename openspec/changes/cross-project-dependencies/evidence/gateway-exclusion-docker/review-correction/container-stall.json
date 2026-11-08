@@ -1,0 +1,77 @@
+{
+  "project": "gateway-proof-5abf22a5-6426-4ef4-9219-5103bf61a6a1",
+  "root": "/tmp/gateway-proof-5abf22a5-6426-4ef4-9219-5103bf61a6a1-qACSmV",
+  "network": "gateway-proof-5abf22a5-6426-4ef4-9219-5103bf61a6a1-net",
+  "image": "docker.io/wbs-gw-01@sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4",
+  "sha": "5e34d3b0dc610fc98d2b720f0b8f6cf874553ecd",
+  "sourceProvenance": {
+    "head": "5e34d3b0dc610fc98d2b720f0b8f6cf874553ecd",
+    "verified": true,
+    "changes": ""
+  },
+  "createdIds": ["d2112a4f12b79347194bbf14458a83b637bc0469ffc40c8b59ccf760016874ff"],
+  "networkId": "6d11b941fa23eb3cb403277097043e4cb9aeb95bde7ed72f8390e527230d538a",
+  "pendingNetwork": false,
+  "pendingContainers": [],
+  "observations": [
+    {
+      "label": "creation-pending",
+      "proof": {
+        "kind": "network",
+        "name": "gateway-proof-5abf22a5-6426-4ef4-9219-5103bf61a6a1-net"
+      }
+    },
+    {
+      "label": "creation-resolved",
+      "proof": {
+        "kind": "network",
+        "name": "gateway-proof-5abf22a5-6426-4ef4-9219-5103bf61a6a1-net",
+        "id": "6d11b941fa23eb3cb403277097043e4cb9aeb95bde7ed72f8390e527230d538a"
+      }
+    },
+    {
+      "label": "creation-pending",
+      "proof": {
+        "kind": "container",
+        "name": "gateway-proof-5abf22a5-6426-4ef4-9219-5103bf61a6a1-bystander"
+      }
+    },
+    {
+      "label": "failure",
+      "proof": "Error: Docker operation deadline exceeded: create"
+    },
+    {
+      "label": "creation-reconciliation",
+      "proof": {
+        "containers": [
+          {
+            "id": "d2112a4f12b79347194bbf14458a83b637bc0469ffc40c8b59ccf760016874ff",
+            "name": "gateway-proof-5abf22a5-6426-4ef4-9219-5103bf61a6a1-bystander"
+          }
+        ],
+        "networks": [
+          {
+            "id": "6d11b941fa23eb3cb403277097043e4cb9aeb95bde7ed72f8390e527230d538a",
+            "name": "gateway-proof-5abf22a5-6426-4ef4-9219-5103bf61a6a1-net"
+          }
+        ]
+      }
+    },
+    {
+      "label": "cleanup-inventory",
+      "proof": {
+        "remainingContainers": [],
+        "remainingNetworks": []
+      }
+    },
+    {
+      "label": "cleanup",
+      "proof": {
+        "ids": ["d2112a4f12b79347194bbf14458a83b637bc0469ffc40c8b59ccf760016874ff"],
+        "networkId": "6d11b941fa23eb3cb403277097043e4cb9aeb95bde7ed72f8390e527230d538a",
+        "complete": true
+      }
+    }
+  ],
+  "cleanupFailures": []
+}

@@ -42,6 +42,10 @@ describe('the generated shared OpenAPI document', () => {
     expect(paths).toHaveProperty(['/api/auth/login', 'post', 'operationId'], 'postApiAuthLogin');
     expect(paths).toHaveProperty('/health.get.operationId', 'getHealth');
     expect(paths).toHaveProperty('/metrics.get.operationId', 'getMetrics');
+    expect(paths).toHaveProperty(
+      ['/internal/mcp/machine-grants', 'post', 'operationId'],
+      'postInternalMcpMachineGrants',
+    );
   });
   it('does not change descriptors after another app parses requests', async () => {
     const before = serialiseDocument(await documentFromApp(testApp()));

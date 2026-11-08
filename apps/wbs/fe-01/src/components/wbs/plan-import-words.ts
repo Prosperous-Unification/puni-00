@@ -87,8 +87,16 @@ function refusalWords(refusal: PlanImportRefusal): string {
       return 'This plan export gives a work item more than one type.';
     case 'engine_unavailable':
       return 'This plan uses the optimizing scheduler, which this server does not have.';
+    case 'abbreviation_exhausted':
+      return 'There is no available abbreviation for this project name, so nothing was imported.';
+    case 'abbreviation_taken':
+      return 'That project abbreviation is already in use, so nothing was imported.';
     case 'source_refused':
       return 'The server could not write one of this plan’s work items, so nothing was imported.';
+    // Proof: omitting this arm made the real import-refusal sentence test throw
+    // `Unexpected response variant: object`; watched 2026-10-22.
+    case 'external_dependencies_inactive':
+      return 'This server does not accept dependencies between projects yet, so nothing was imported.';
     case 'step_blockage_inactive':
       return 'This server does not take blocked steps yet, so nothing was imported.';
     case 'unauthenticated':

@@ -1,0 +1,122 @@
+{
+  "amendment.diff": {
+    "bytes": 3387,
+    "sha256": "1cedccb37c762ce513ecbbf8462a8f5b476f60444e06723382dc90d8bd43681b"
+  },
+  "covering-tests.json": {
+    "bytes": 4136,
+    "sha256": "247fd9f21633ed573d3c6dae51ee338f4cd142e95e339807b0b989b5d10e09c6"
+  },
+  "eslint.log": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "eslint.run.json": {
+    "bytes": 323,
+    "sha256": "f60e1f2632a6b3b3f109fffd0b4328801505eeed77ec7d76da15def1e51ffc2e"
+  },
+  "final-staging-cohort.log": {
+    "bytes": 5049,
+    "sha256": "15eed29caefe292e29ddcbec2311cd4e7ad2835765239bcc356bb65661265ad6"
+  },
+  "final-staging-cohort.run.json": {
+    "bytes": 469,
+    "sha256": "c1be20626694e0e9c9eb16dd43f4ba2d89af2c27fb1d9e5585b8caaff3c2b0ab"
+  },
+  "foreign-kernel-red.log": {
+    "bytes": 1702,
+    "sha256": "f0a167ff8fd8ef3f1ca7c86e409a8e344c56e85af3100d7d91b70c03141d7451"
+  },
+  "foreign-kernel-red.run.json": {
+    "bytes": 514,
+    "sha256": "421d319b5ab7872e662cbf9ecbfcbc86f37c39560f63805b638d49e0e5379f96"
+  },
+  "freeze.json": {
+    "bytes": 3622,
+    "sha256": "5e3dfe2a24a9d27593963649cbdd6132e1beef006d8cd73c1adf99ad5a28f3d3"
+  },
+  "kernel-observations.before-final.jsonl": {
+    "bytes": 2060,
+    "sha256": "f904b350a23812bb2218e9f9ffc30bd0eac559c10d78dd2720dbc546f4444004"
+  },
+  "kernel-observations.jsonl": {
+    "bytes": 12552,
+    "sha256": "83d1158ad638e7b0641a1335e0b540c6981d6544247c554d3d365d5c4db8fd40"
+  },
+  "kernel-preload.ts": {
+    "bytes": 686,
+    "sha256": "08ea77ad2a8d4d8a23ba51e56e4a3b65eafb8f65196ed011fce6245593ebd749"
+  },
+  "kernel-shim.py": {
+    "bytes": 1312,
+    "sha256": "e15b7b510735cf42f85f32c3a76a4692f10445720c7b047d39664f35eb8d1395"
+  },
+  "lab-staging-native-cold-fixture.py": {
+    "bytes": 8092,
+    "sha256": "e39338f975a91dc8633794623f0ed776ee50a1a046f72156788e6dc14af862d2"
+  },
+  "lab-staging-native-control.test.ts": {
+    "bytes": 57095,
+    "sha256": "ad82f40f3879a09a7e42a9e0a97bf4f7fa3d9d76f16e031d300d4f32c0716f67"
+  },
+  "modeled-kernel-focused-green.log": {
+    "bytes": 519,
+    "sha256": "54ff3d30feb570226ae622aa7ef790922ad35110b2f86fba72c8dd16d111476a"
+  },
+  "modeled-kernel-focused-green.run.json": {
+    "bytes": 560,
+    "sha256": "3a5e05e4bfc95a2e25af442d4e01bbab633bd5d2b52fd28eca3bd02d6c3cad6f"
+  },
+  "non-owned-observed-changes.json": {
+    "bytes": 369,
+    "sha256": "f946261a47961ee51542b914ba8edb31f83d32aee8df093a132cbd9260d83498"
+  },
+  "paused-baseline.json": {
+    "bytes": 4536,
+    "sha256": "7bab4b1fa4f851bc375d0cf6cbbacedcfea33a70b2deea1040d27fdec298e4a7"
+  },
+  "prettier-write.log": {
+    "bytes": 73,
+    "sha256": "3c092bdd18cc7564518f0af032dcd8b38b2ac454014c5f7d1d38c6751030efef"
+  },
+  "prettier.log": {
+    "bytes": 66,
+    "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+  },
+  "prettier.run.json": {
+    "bytes": 342,
+    "sha256": "ebeac3f9d8111d82cc806ba06e3f50d9275f52facbf295582ac16ed341b9fd32"
+  },
+  "report.before.md": {
+    "bytes": 24559,
+    "sha256": "ba191302bdab04d4309ac048bd0ae82966ce0827714196acbdcc61266b28a5b7"
+  },
+  "run.py": {
+    "bytes": 755,
+    "sha256": "e33e5be5046baafdc922c6d414c27e7b6fbab6cf057b72dd2f117d09e42262ae"
+  },
+  "selected-kernel-baseline-green.log": {
+    "bytes": 258,
+    "sha256": "66ab2db52fa7000a1916c4447f6bfc9423e3ece2bca40e007479e3a777e3fb85"
+  },
+  "selected-kernel-baseline-green.run.json": {
+    "bytes": 512,
+    "sha256": "5dee14db50b3f51553f6f737339ffa81cc5c916155d88c086e5074906434e96d"
+  },
+  "source-proof.json": {
+    "bytes": 1257,
+    "sha256": "1beafc76193443096487ba88892f6fc6fc69b77a7d55c4fa610571b5e11b4714"
+  },
+  "task-117-report.md": {
+    "bytes": 32141,
+    "sha256": "ad24d4e5f03faa939cdd39eeb8d8b1070aa5455f3824b8441f60378418d34c84"
+  },
+  "whitespace.log": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "whitespace.run.json": {
+    "bytes": 384,
+    "sha256": "ed9d739da9eccd1078fa484fac7b819d679be11724eeffd5a4ddff93c0f1ea4f"
+  }
+}

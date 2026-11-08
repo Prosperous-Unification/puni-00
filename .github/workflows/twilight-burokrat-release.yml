@@ -84,11 +84,11 @@ jobs:
           set -euo pipefail
           transfer="$RUNNER_TEMP/twilight-burokrat-release"
           mkdir "$transfer"
-          cp dist/twilight-burokrat-pack/twilight-burokrat-0.1.0.tgz "$transfer/"
+          cp dist/twilight-burokrat-pack/twilight-burokrat-0.2.0.tgz "$transfer/"
           bun apps/twilight-structure/twilight-burokrat/cli/src/packaging/release-cli.ts prepare \
             --tag "$GITHUB_REF_NAME" \
             --repository "$GITHUB_WORKSPACE" \
-            --tarball "$transfer/twilight-burokrat-0.1.0.tgz" \
+            --tarball "$transfer/twilight-burokrat-0.2.0.tgz" \
             --record "$transfer/release.json" \
             --source-revision "$GITHUB_SHA"
 
@@ -124,17 +124,17 @@ jobs:
       - name: Verify transferred package
         run: |
           bun apps/twilight-structure/twilight-burokrat/cli/src/packaging/release-cli.ts verify \
-            --tarball "$RUNNER_TEMP/twilight-burokrat-release/twilight-burokrat-0.1.0.tgz" \
+            --tarball "$RUNNER_TEMP/twilight-burokrat-release/twilight-burokrat-0.2.0.tgz" \
             --record "$RUNNER_TEMP/twilight-burokrat-release/release.json" \
             --source-revision "$GITHUB_SHA"
 
       - name: Registry dry run
-        run: bun publish "$RUNNER_TEMP/twilight-burokrat-release/twilight-burokrat-0.1.0.tgz" --dry-run
+        run: bun publish "$RUNNER_TEMP/twilight-burokrat-release/twilight-burokrat-0.2.0.tgz" --dry-run
 
       - name: Publish tested package
         env:
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: bun publish "$RUNNER_TEMP/twilight-burokrat-release/twilight-burokrat-0.1.0.tgz" --access public
+        run: bun publish "$RUNNER_TEMP/twilight-burokrat-release/twilight-burokrat-0.2.0.tgz" --access public
 
       - name: Verify published package from a fresh consumer
         run: |
@@ -144,7 +144,7 @@ jobs:
           consumer="$(mktemp -d)"
           cd "$consumer"
           printf '{"name":"twilight-burokrat-registry-proof","private":true}\n' > package.json
-          bun add --exact --ignore-scripts twilight-burokrat@0.1.0
+          bun add --exact --ignore-scripts twilight-burokrat@0.2.0
           bun install --frozen-lockfile --ignore-scripts
           bun node_modules/twilight-burokrat/dist/bin.mjs --version
 
@@ -152,7 +152,7 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           files: |
-            ${{ runner.temp }}/twilight-burokrat-release/twilight-burokrat-0.1.0.tgz
+            ${{ runner.temp }}/twilight-burokrat-release/twilight-burokrat-0.2.0.tgz
             ${{ runner.temp }}/twilight-burokrat-release/release.json
           fail_on_unmatched_files: true
           overwrite_files: false

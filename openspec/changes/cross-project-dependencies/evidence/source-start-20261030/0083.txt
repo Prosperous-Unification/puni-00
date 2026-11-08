@@ -1,0 +1,46 @@
+
+tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:
+
+test/dependency-source-restoration-model-child.test.ts:
+SOURCE_RESTORATION_REACHED: original prepare/consume/solver/backend/gateway complete; source cold and dev openers excluded
+SOURCE_RESTORATION_ADMISSION_REPAIRED: original physical fence restored before genuine continuation
+730 |     if (phase?.state !== 'gateway-ready')
+731 |       throw new Error('original gateway readiness is not retained');
+732 |     sourceContinuations.set(context, { state: 'source-attempted' });
+733 |     return await phase.restoreSource();
+734 |   } catch {
+735 |     throw new Error('source participant restoration refused');
+                    ^
+error: source participant restoration refused
+      at restoreSourceAfterGateway (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-participant-restoration.ts:735:15)
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.model.ts:266:40)
+(fail) source restoration refuses absent and copied phases before genuine continuation [90454.78ms]
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 483 expect() calls
+Ran 1 test across 1 file. [90.52s]
+SOURCE_RESTORATION_INNER_CUSTODY: {"name":"source restoration refuses absent and copied phases before genuine continuation","exitCode":1,"signal":null,"stdoutEof":true,"stderrEof":true}
+60 |       // This receipt follows the ORIGINAL child exit and both EOF joins, with
+61 |       // normal exit0/1 and null signal; an outcome line alone proves no custody.
+62 |       process.stderr.write(
+63 |         `SOURCE_RESTORATION_INNER_CUSTODY: ${JSON.stringify({ name, exitCode: exit.value, signal: null, stdoutEof: true, stderrEof: true })}\n`,
+64 |       );
+65 |       expect(exit.value).toBe(0);
+                              ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:65:26)
+(fail) isolated source restoration refuses absent and copied phases before genuine continuation [90541.20ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [90.55s]

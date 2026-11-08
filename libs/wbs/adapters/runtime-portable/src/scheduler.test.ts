@@ -5,7 +5,12 @@ import type {
   OptimizedScheduleRead,
   ScheduleAsk,
 } from '@wbs/core';
-import { type Schedule, ScheduleCycleError } from '@wbs/domain';
+import {
+  resolveScheduleInput,
+  type Schedule,
+  ScheduleCycleError,
+  scheduleResolved,
+} from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { describe, expect, it } from 'bun:test';
 
@@ -105,7 +110,7 @@ describe('createScheduler', () => {
     const scheduler = createScheduler(() => {
       fastCalls += 1;
       return FAST;
-    });
+    }, scheduleResolved);
 
     expect(scheduler.supports('fast')).toBe(true);
     expect(scheduler.supports('optimized')).toBe(false);
@@ -133,6 +138,7 @@ describe('createScheduler', () => {
         fastCalls.push(args);
         return FAST;
       },
+      scheduleResolved,
       {
         readLive: (optimizationAsk) => {
           liveAsks.push(optimizationAsk);
@@ -216,7 +222,7 @@ describe('createScheduler', () => {
     const scheduler = createScheduler((...args) => {
       seen.push(args[8]);
       return FAST;
-    });
+    }, scheduleResolved);
     void scheduler.read(ask({ input: { ...INPUT, elsewhere } }));
     expect(seen).toEqual([elsewhere]);
   });
@@ -227,7 +233,7 @@ describe('createScheduler', () => {
     const scheduler = createScheduler((...args) => {
       seen.push(args[9]);
       return FAST;
-    });
+    }, scheduleResolved);
     void scheduler.read(ask({ input: { ...INPUT, resourceCapacities } }));
     void scheduler.read(ask({ input: INPUT }));
     expect(seen).toEqual([resourceCapacities, new Map()]);
@@ -245,7 +251,7 @@ describe('createScheduler', () => {
 
   it.each(states)('retains the installed selected variant state %#', async (state) => {
     const optimization = optimizedRead(state);
-    const scheduler = createScheduler(() => FAST, {
+    const scheduler = createScheduler(() => FAST, scheduleResolved, {
       readLive: () => Promise.resolve(optimization),
       readCaptured: () => optimization,
     });
@@ -258,7 +264,7 @@ describe('createScheduler', () => {
 
   it('throws when a ready optimized variant carries no schedule', async () => {
     const malformed = { ...optimizedRead(), schedules: { pri: null, time: TIME } };
-    const scheduler = createScheduler(() => FAST, {
+    const scheduler = createScheduler(() => FAST, scheduleResolved, {
       readLive: () => Promise.resolve(malformed),
       readCaptured: () => malformed,
     });
@@ -273,7 +279,7 @@ describe('createScheduler', () => {
 
   it('preserves unexpected adapter failures and domain cycles', () => {
     const outage = new Error('cache unavailable');
-    const broken = createScheduler(() => FAST, {
+    const broken = createScheduler(() => FAST, scheduleResolved, {
       readLive: () => {
         throw outage;
       },
@@ -284,7 +290,26 @@ describe('createScheduler', () => {
     const cycle = new ScheduleCycleError();
     const cyclic = createScheduler(() => {
       throw cycle;
-    });
+    }, scheduleResolved);
     expect(() => cyclic.read(ask())).toThrow(cycle);
   });
+});
+
+it('runs the installed resolved Fast engine without an optimizer read', () => {
+  const input = resolveScheduleInput({ ...INPUT, edges: [], typed: [] });
+  const scheduler = createScheduler(
+    () => {
+      throw new Error('local Fast must not run');
+    },
+    scheduleResolved,
+    {
+      readLive: () => {
+        throw new Error('optimizer admission');
+      },
+      readCaptured: () => {
+        throw new Error('optimizer cache read');
+      },
+    },
+  );
+  expect(scheduler.readResolvedFast(input)).toEqual(scheduleResolved(input));
 });

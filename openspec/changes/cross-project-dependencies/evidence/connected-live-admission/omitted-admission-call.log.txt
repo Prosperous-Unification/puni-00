@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/services-connected.db.test.ts:
+506 |       (selection) => selection.stage.projectId === 'a1',
+507 |     )?.stage;
+508 |     if (stage === undefined) throw Error('target stage missing');
+509 |     const opened = f.probe.opened;
+510 |     const first = await f.tree();
+511 |     expect(f.launched).toHaveLength(2);
+                             ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 2
+Received length: 0
+
+      at <anonymous> (/tmp/puni-connected-live-admission/apps/wbs/be-01/src/services-connected.db.test.ts:511:24)
+(fail) cold mounted isolated connected tree admits only its detached target after read closure [286.99ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [3.40s]
+
+Watched exit: 1

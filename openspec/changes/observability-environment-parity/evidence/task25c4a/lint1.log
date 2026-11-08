@@ -1,0 +1,100 @@
+
+/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/creation-resources.ts
+  254:9  error  Prefer using an optional chain expression instead, as it's more concise and easier to read  @typescript-eslint/prefer-optional-chain
+
+/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.test.ts
+  480:41  error  Unsafe member access .snapshots on an `any` value      @typescript-eslint/no-unsafe-member-access
+  481:51  error  Unsafe member access .schemaVersion on an `any` value  @typescript-eslint/no-unsafe-member-access
+  482:44  error  Unsafe member access .schemaVersion on an `any` value  @typescript-eslint/no-unsafe-member-access
+  483:50  error  Unsafe member access .plan on an `any` value           @typescript-eslint/no-unsafe-member-access
+  484:38  error  Unsafe call of an `any` typed value                    @typescript-eslint/no-unsafe-call
+  484:44  error  Unsafe member access .transients on an `any` value     @typescript-eslint/no-unsafe-member-access
+  484:66  error  Unsafe member access .snapshots on an `any` value      @typescript-eslint/no-unsafe-member-access
+
+/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts
+  340:7  error  Prefer using an optional chain expression instead, as it's more concise and easier to read  @typescript-eslint/prefer-optional-chain
+
+/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-helper-images.test.ts
+  34:11  error  Unsafe assignment of an `any` value                                                                     @typescript-eslint/no-unsafe-assignment
+  35:10  error  Unsafe member access .k3dHelpers on an `any` value                                                      @typescript-eslint/no-unsafe-member-access
+  36:42  error  Unsafe member access .k3dHelpers on an `any` value                                                      @typescript-eslint/no-unsafe-member-access
+  37:36  error  Unsafe member access .k3dHelpers on an `any` value                                                      @typescript-eslint/no-unsafe-member-access
+  38:35  error  Unsafe member access .k3dHelpers on an `any` value                                                      @typescript-eslint/no-unsafe-member-access
+  39:42  error  Unsafe member access .binaries on an `any` value                                                        @typescript-eslint/no-unsafe-member-access
+  40:32  error  Unsafe member access .k3dHelpers on an `any` value                                                      @typescript-eslint/no-unsafe-member-access
+  41:38  error  Unsafe member access .k3dHelpers on an `any` value                                                      @typescript-eslint/no-unsafe-member-access
+  42:34  error  Unsafe member access .k3dHelpers on an `any` value                                                      @typescript-eslint/no-unsafe-member-access
+  43:41  error  Unsafe member access .k3dHelpers on an `any` value                                                      @typescript-eslint/no-unsafe-member-access
+  44:33  error  Unsafe member access .k3dHelpers on an `any` value                                                      @typescript-eslint/no-unsafe-member-access
+  48:5   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  48:11  error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+  53:9   error  Unsafe assignment of an `any` value                                                                     @typescript-eslint/no-unsafe-assignment
+  54:15  error  Unsafe member access .k3dHelpers on an `any` value                                                      @typescript-eslint/no-unsafe-member-access
+  61:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  61:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+  62:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  62:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+  63:8   error  Unsafe member access .k3dHelpers on an `any` value                                                      @typescript-eslint/no-unsafe-member-access
+  66:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  66:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+
+/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-helper-images.ts
+  49:5  error  Prefer using an optional chain expression instead, as it's more concise and easier to read  @typescript-eslint/prefer-optional-chain
+
+/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts
+  542:9   error  Unsafe assignment of an `any` value                                                                             @typescript-eslint/no-unsafe-assignment
+  543:18  error  Unsafe member access .schemaVersion on an `any` value                                                           @typescript-eslint/no-unsafe-member-access
+  544:18  error  Unsafe member access .plan on an `any` value                                                                    @typescript-eslint/no-unsafe-member-access
+  545:10  error  Unsafe call of an `any` typed value                                                                             @typescript-eslint/no-unsafe-call
+  545:18  error  Unsafe member access .transients on an `any` value                                                              @typescript-eslint/no-unsafe-member-access
+  545:55  error  Unsafe return of a value of type `any`                                                                          @typescript-eslint/no-unsafe-return
+  545:67  error  Unsafe member access .id on an `any` value                                                                      @typescript-eslint/no-unsafe-member-access
+  549:37  error  Unsafe member access .transients on an `any` value                                                              @typescript-eslint/no-unsafe-member-access
+  550:24  error  Unsafe member access .image on an `any` value                                                                   @typescript-eslint/no-unsafe-member-access
+  553:53  error  Invalid type "any" of template literal expression                                                               @typescript-eslint/restrict-template-expressions
+  553:65  error  Unsafe member access .id on an `any` value                                                                      @typescript-eslint/no-unsafe-member-access
+  557:61  error  Unsafe member access .schemaVersion on an `any` value                                                           @typescript-eslint/no-unsafe-member-access
+  619:9   error  Unsafe assignment of an `any` value                                                                             @typescript-eslint/no-unsafe-assignment
+  620:46  error  Unsafe argument of type `any` assigned to a parameter of type `{ [s: string]: unknown; } | ArrayLike<unknown>`  @typescript-eslint/no-unsafe-argument
+  620:55  error  Unsafe member access .files on an `any` value                                                                   @typescript-eslint/no-unsafe-member-access
+  624:79  error  Unsafe member access .inventory on an `any` value                                                               @typescript-eslint/no-unsafe-member-access
+  625:38  error  Unsafe argument of type `any[]` assigned to a parameter of type `string[]`                                      @typescript-eslint/no-unsafe-argument
+  630:14  error  Unsafe member access .labId on an `any` value                                                                   @typescript-eslint/no-unsafe-member-access
+  635:9   error  Unsafe assignment of an `any` value                                                                             @typescript-eslint/no-unsafe-assignment
+  636:19  error  Unsafe member access .containers on an `any` value                                                              @typescript-eslint/no-unsafe-member-access
+  637:19  error  Unsafe member access .volumes on an `any` value                                                                 @typescript-eslint/no-unsafe-member-access
+  637:45  error  Unsafe member access .inventory on an `any` value                                                               @typescript-eslint/no-unsafe-member-access
+  638:46  error  Unsafe argument of type `any` assigned to a parameter of type `{ [s: string]: unknown; } | ArrayLike<unknown>`  @typescript-eslint/no-unsafe-argument
+  638:55  error  Unsafe member access .files on an `any` value                                                                   @typescript-eslint/no-unsafe-member-access
+  670:11  error  Unsafe assignment of an `any` value                                                                             @typescript-eslint/no-unsafe-assignment
+  672:13  error  Unsafe member access .schemaVersion on an `any` value                                                           @typescript-eslint/no-unsafe-member-access
+  673:20  error  Unsafe member access .helpers on an `any` value                                                                 @typescript-eslint/no-unsafe-member-access
+  674:20  error  Unsafe member access .sourceRevision on an `any` value                                                          @typescript-eslint/no-unsafe-member-access
+  675:20  error  Unsafe member access .toolchainSha256 on an `any` value                                                         @typescript-eslint/no-unsafe-member-access
+  676:7   error  Unsafe assignment of an `any` value                                                                             @typescript-eslint/no-unsafe-assignment
+  676:13  error  Unsafe member access .images on an `any` value                                                                  @typescript-eslint/no-unsafe-member-access
+  676:22  error  Unsafe call of an `any` typed value                                                                             @typescript-eslint/no-unsafe-call
+  676:28  error  Unsafe member access .images on an `any` value                                                                  @typescript-eslint/no-unsafe-member-access
+  676:74  error  Unsafe assignment of an `any` value                                                                             @typescript-eslint/no-unsafe-assignment
+  676:80  error  Unsafe assignment of an `any` value                                                                             @typescript-eslint/no-unsafe-assignment
+  676:84  error  Unsafe assignment of an `any` value                                                                             @typescript-eslint/no-unsafe-assignment
+  678:40  error  Unsafe member access .expected on an `any` value                                                                @typescript-eslint/no-unsafe-member-access
+  679:42  error  Unsafe member access .images on an `any` value                                                                  @typescript-eslint/no-unsafe-member-access
+  680:45  error  Unsafe member access .helpers on an `any` value                                                                 @typescript-eslint/no-unsafe-member-access
+  681:47  error  Unsafe member access .image on an `any` value                                                                   @typescript-eslint/no-unsafe-member-access
+  682:43  error  Unsafe member access .id on an `any` value                                                                      @typescript-eslint/no-unsafe-member-access
+  683:44  error  Unsafe member access .schemaVersion on an `any` value                                                           @typescript-eslint/no-unsafe-member-access
+
+/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-runtime.test.ts
+  191:9   error  Unsafe assignment of an `any` value                                                                                                                                                                                                                                                                                                                                                               @typescript-eslint/no-unsafe-assignment
+  192:9   error  Unsafe assignment of an `any` value                                                                                                                                                                                                                                                                                                                                                               @typescript-eslint/no-unsafe-assignment
+  193:20  error  Unsafe argument of type `any` assigned to a parameter of type `{ [s: string]: unknown; } | ArrayLike<unknown>`                                                                                                                                                                                                                                                                                    @typescript-eslint/no-unsafe-argument
+  193:29  error  Unsafe member access .files on an `any` value                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unsafe-member-access
+  195:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/await-thenable
+  195:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead                                                                                                                                                                                                                                                                                            @typescript-eslint/no-confusing-void-expression
+  196:59  error  Unsafe argument of type `any` assigned to a parameter of type `{ endpoint: string; daemonId: string; profile: "app" | "platform" | "fleet"; network: string; binds: { source: string; destination: string; }[]; schemaVersion: 2; helpers: { provider: "k3d"; version: "v5.9.0"; sourceRevision: "15dd1e2dbd62c53ed990fce9b7332335e8cb053c"; serverlb: { ...; }; tools: { ...; }; }; expecte...`  @typescript-eslint/no-unsafe-argument
+  243:58  error  Async arrow function 'docker' has no 'await' expression                                                                                                                                                                                                                                                                                                                                           @typescript-eslint/require-await
+  292:14  error  Unexpected `await` of a non-Promise (non-"Thenable") value                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/await-thenable
+  292:20  error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead                                                                                                                                                                                                                                                                                            @typescript-eslint/no-confusing-void-expression
+
+✖ 84 problems (84 errors, 0 warnings)

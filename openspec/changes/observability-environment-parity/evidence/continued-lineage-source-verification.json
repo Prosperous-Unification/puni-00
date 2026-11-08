@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-05T08:07:59.255049+00:00",
+  "base": "40ab007ef228cce7d16c0521fb9d64ef109884c2",
+  "nativeAccepted": false,
+  "actualRepairAccepted": false,
+  "canonicalAcceptance": "4/11; Task97 open",
+  "batchTypecheck": {
+    "observedAt": "2026-11-05T07:51:42.115948+00:00",
+    "arguments": [
+      "/home/df/.bun/bin/bun",
+      "node_modules/.bin/tsc",
+      "--build",
+      "tools/tool-fleet/tsconfig.json"
+    ],
+    "exitCode": 0,
+    "seconds": 1.9168191029966692,
+    "outputBytes": 0,
+    "outputSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "scope": "single final incremental owning Fleet check after frozen fixes for99/100/101"
+  },
+  "scope": "Task99 explicit continued-guest v2 source",
+  "sourcePins": [
+    {
+      "path": "tools/tool-fleet/src/lab-seed-preparation.py",
+      "sha256": "c85ebe531dc69d146ae23b8e140bb9ef866ad81ad9e64197c15322804c0ceadf",
+      "bytes": 53145,
+      "mode": "0644"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-seed-preparation.ts",
+      "sha256": "3531588ae3bbfc9ea331d137528021eabc5aaaa089e3d06d5ff18f15d3dfd799",
+      "bytes": 5420,
+      "mode": "0644"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-seed-preparation.test.ts",
+      "sha256": "3e1683a5a53fe5dcc536c5f0cb7de6036fd8933850b7cabfa391114399a958a0",
+      "bytes": 51582,
+      "mode": "0644"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-guest-preparation.py",
+      "sha256": "f48f9f9d4fc53f2c7ba1c41ee9f91a5262dd3ac377f4f01af8cc1054aaaff0b6",
+      "bytes": 80626,
+      "mode": "0644"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-guest-preparation.ts",
+      "sha256": "b71ef9698a8c6f170914aaa537a68df11c23c220ac18e56a36da8378a887a0f5",
+      "bytes": 3995,
+      "mode": "0644"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-guest-preparation.test.ts",
+      "sha256": "efd50e05508106935a1595318a5774b819d997fe7a5927eadbb3c39a2b72329e",
+      "bytes": 123191,
+      "mode": "0644"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-repair-lineage.py",
+      "sha256": "827cf0170f109a93cb01335d14482b8e3e195a930a324b93352a8b4cdd82eba5",
+      "bytes": 17951,
+      "mode": "0644"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-repair-lineage.test.ts",
+      "sha256": "027016d26faf8324774c5332c8b6edcd62ef21b8cc8b1fcba281d2261b3667c7",
+      "bytes": 9274,
+      "mode": "0644"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-repair-lineage.test-fixture.py",
+      "sha256": "81fce53676c829d5704d527a0ae88ddfb0d3c6b9bdf2c8a583fb682fdd4308da",
+      "bytes": 29943,
+      "mode": "0644"
+    }
+  ],
+  "records": [
+    {
+      "path": "continued-lineage-source/report.md",
+      "bytes": 6275,
+      "sha256": "36ce7891c375420f498bd13f4944d54c8762533f298ee9ea231470fd243386fc"
+    },
+    {
+      "path": "continued-lineage-source/review.md",
+      "bytes": 11059,
+      "sha256": "5f7e6222d42447d9689ef714a3894eab4b64337f9117ff737895b366c0633d0c"
+    },
+    {
+      "path": "continued-lineage-source/fix-report.md",
+      "bytes": 4608,
+      "sha256": "a4b440140af7e8025fe070bd5f63cddc7fb705781974a0841b12ccddb3036420"
+    },
+    {
+      "path": "continued-lineage-source/fix-review.md",
+      "bytes": 5383,
+      "sha256": "7e6f2d7e4ed6d9293392c3353bdddae9bd395cc74ab53dcc4efc75179cc41b81"
+    },
+    {
+      "path": "continued-lineage-source/source.patch",
+      "bytes": 97022,
+      "sha256": "dbe4bd8ab9208d27a16382ecde968789bfb1e42c9d92c596aed8ff5c6a5314b1"
+    },
+    {
+      "path": "continued-lineage-source/fix-source.patch",
+      "bytes": 99094,
+      "sha256": "a4918596375fe62558df5c6718b343b2da35b44709715eef9a088deee02c84fc"
+    },
+    {
+      "path": "continued-lineage-source/scoped-fix-from-review.patch",
+      "bytes": 3855,
+      "sha256": "6ca202422db8bcee37f6bb9f38473698fe42805b8b15f4a0f3ab402b361efd7f"
+    },
+    {
+      "path": "continued-lineage-source/commands.json",
+      "bytes": 3357,
+      "sha256": "8e7c6862a398bedab2a1ca0fff8c28a65a634b1e18c4a956389bcd10fdbcd571"
+    },
+    {
+      "path": "continued-lineage-source/faults.json",
+      "bytes": 80372,
+      "sha256": "07438c9bd810a4c66de34db3a5275a03a8c7cf41859a9554dfce5ad720513396"
+    },
+    {
+      "path": "continued-lineage-source/fix-commands.json",
+      "bytes": 4123,
+      "sha256": "a5c3cfcd5ca5abc58f71252eb9a5a9519ba864e8e55e9ffb3668e37e2da945d6"
+    },
+    {
+      "path": "continued-lineage-source/fix-fault.json",
+      "bytes": 2225,
+      "sha256": "4c74483029842de5d088cf48ad692b91fb1e32ac1840a50a5af6bc2abda5b1b8"
+    }
+  ],
+  "checks": {
+    "coveringTests": 82,
+    "assertions": 272,
+    "seconds": 13.03,
+    "originalWatchedFaults": 40,
+    "fixTests": 13,
+    "fixAssertions": 39,
+    "fixSeconds": 1.7,
+    "fixWatchedOmissions": 1,
+    "newLogicalPython": "3.14.7",
+    "legacyCompatibilityPython": "3.12.3",
+    "preloadOrRuntimeCopy": false
+  },
+  "review": "before-snapshot exact-type finding fixed; scoped approval",
+  "limits": [
+    "Tiny ordinary files/metadata/pipes and controlled native seams",
+    "No retained disk/ISO, seed/guest/unit/VM or real repaired-disk acceptance",
+    "Opaque v1 preserved; transport1/native receipt2 distinct; all unresolved G charged"
+  ]
+}

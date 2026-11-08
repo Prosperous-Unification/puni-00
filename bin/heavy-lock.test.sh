@@ -1282,6 +1282,20 @@ make_job_fixture() {
   mkdir -p "$checkout/infra/jobs"
   cp "$repo_root/infra/jobs/catalogue.json" "$checkout/infra/jobs/catalogue.json"
   : >"$checkout/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts"
+  : >"$job_scratch/heavy.lock"
+  cat >"$job_scratch/flock-held.pl" <<'PROBE'
+use strict;
+use warnings;
+use Fcntl qw(O_RDWR LOCK_EX LOCK_NB);
+sysopen(my $held, $ARGV[0], O_RDWR) or die "cannot open payload lock probe: $!\n";
+if (flock($held, LOCK_EX | LOCK_NB)) {
+    die "payload acquired the supposedly held legacy lock\n";
+}
+die "payload lock probe failed without contention: $!\n" unless $!{EWOULDBLOCK};
+open(my $ran, '>', $ARGV[1]) or die "cannot record locked payload: $!\n";
+close($ran) or die "cannot close locked payload marker: $!\n";
+close($held) or die "cannot close payload lock probe: $!\n";
+PROBE
   cat >"$job_scratch/fake-bin/bun" <<'FAKE'
 #!/usr/bin/env python3
 import json, os, signal, subprocess, sys, time
@@ -1376,13 +1390,17 @@ run_job_suite() {
     fail '40a: a mechanism ran beside the missing configuration'
   else pass '40a: neither Dash nor the legacy lock ran'; fi
 
-  # 40b. No configuration and no ledger: the legacy lock, unchanged.
+  # 40b. No configuration and no ledger: prove the payload's independent open
+  # description is excluded. A valid fast claim can cross a SECONDS tick.
+  # Proof: omitting production legacy delegation let this probe acquire the
+  # lock and fail both owning assertions; exact restoration passed (2026-11-08).
   reset_job_logs
   rm -f "$ledger"
   status=0
-  HEAVY_LOCK_JOB_TYPE=gate run_job "$sh" -- touch "$job_scratch/ran" 2>"$job_scratch/stderr" || status=$?
+  HEAVY_LOCK_JOB_TYPE=gate run_job "$sh" -- perl "$job_scratch/flock-held.pl" \
+    "$job_scratch/heavy.lock" "$job_scratch/ran" 2>"$job_scratch/stderr" || status=$?
   expect_status 0 "$status" '40b: an unenrolled host runs the job'
-  if [[ -e $job_scratch/ran ]] && grep -q 'heavy lock: waited 0s behind 0 tickets' "$job_scratch/stderr" && ! dash_was_called; then
+  if [[ -e $job_scratch/ran ]] && ! dash_was_called; then
     pass '40b: it ran under the legacy lock, not Dash'
   else fail "40b: it did not run under the legacy lock: $(cat "$job_scratch/stderr")"; fi
   mv "$config.away" "$config"

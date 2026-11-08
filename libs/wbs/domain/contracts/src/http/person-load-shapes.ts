@@ -23,7 +23,7 @@ const refusals = [
 ] as const;
 const namedProject = type({ projectId: 'string', name: 'string' });
 const unavailableProject = namedProject.and({
-  reason: "'engine_unavailable' | 'cycle' | 'calendar_range'",
+  reason: "'engine_unavailable' | 'dependency_calendar_missing' | 'cycle' | 'calendar_range'",
 });
 const bookingRef = type({ projectId: 'string', workItemId: 'string', stepId: 'string | null' });
 

@@ -202,14 +202,27 @@ export async function createPolicyWorkspace(): Promise<string> {
   return workspace;
 }
 
-/** Run `nx lint <project>` in a fixture workspace with the cache and the daemon off. */
+/**
+ * Run `nx lint <project>` with the daemon and task cache off. Both Nx cache
+ * directories belong to this fixture so its project graph cannot replace the
+ * parent workspace's graph when the caller pins Nx directories in its environment.
+ */
 export async function runLint(workspace: string, project: string): Promise<LintAttempt> {
   const nxCli = fileURLToPath(import.meta.resolve('nx/bin/nx.js'));
   const lint = Bun.spawn(
     [process.execPath, nxCli, 'lint', project, '--skip-nx-cache', '--output-style=stream'],
     {
       cwd: workspace,
-      env: { ...process.env, NX_DAEMON: 'false', NX_ISOLATE_PLUGINS: 'false' },
+      env: {
+        ...process.env,
+        NX_CACHE_DIRECTORY: join(workspace, '.nx', 'cache'),
+        // Proof: parent graph inheritance failed eslint-boundaries.test.ts's "refuses barrels,
+        // siblings, foreign suffixes, relative paths and forward SQL outside the fixture";
+        // fixture-owned directories restored all 124 tests across both boundary files.
+        NX_WORKSPACE_DATA_DIRECTORY: join(workspace, '.nx', 'workspace-data'),
+        NX_DAEMON: 'false',
+        NX_ISOLATE_PLUGINS: 'false',
+      },
       stdout: 'pipe',
       stderr: 'pipe',
     },

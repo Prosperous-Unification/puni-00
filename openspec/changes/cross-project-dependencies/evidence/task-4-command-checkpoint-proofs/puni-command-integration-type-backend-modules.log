@@ -1,0 +1,3 @@
+typecheck apps/wbs/be-01/src/module/optimization
+typecheck apps/wbs/be-01/src/module/solver-launcher
+typecheck apps/wbs/be-01/src/module/solver-supervisor

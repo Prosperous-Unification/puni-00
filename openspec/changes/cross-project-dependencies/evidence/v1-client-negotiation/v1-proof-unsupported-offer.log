@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/gw-01/src/service/dependency-admission.test.ts:
+104 |     'unknown',
+105 |     `${DEPENDENCY_WEBSOCKET_PROTOCOL}, ${DEPENDENCY_WEBSOCKET_PROTOCOL}`,
+106 |     'wbs.legacy,wbs.legacy',
+107 |     'wbs.legacy, bad token',
+108 |   ])
+109 |     expect(() => selectDependencyProtocol(capable, offered)).toThrow();
+                                                                   ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: "wbs.legacy"
+
+      at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/service/dependency-admission.test.ts:109:62)
+(fail) selection refuses duplicate, malformed and unknown-only offers without implicit echo [0.66ms]
+
+ 0 pass
+ 3 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [3.70s]

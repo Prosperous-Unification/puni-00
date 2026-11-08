@@ -1,0 +1,8 @@
+
+/tmp/puni-cross-autocomplete/apps/wbs/fe-01/src/components/wbs/plan-cards.tsx
+  2442:85  error  Invalid type "number" of template literal expression  @typescript-eslint/restrict-template-expressions
+
+/tmp/puni-cross-autocomplete/apps/wbs/fe-01/src/components/wbs/plan-columns/depends.tsx
+  1124:85  error  Invalid type "number" of template literal expression  @typescript-eslint/restrict-template-expressions
+
+✖ 2 problems (2 errors, 0 warnings)

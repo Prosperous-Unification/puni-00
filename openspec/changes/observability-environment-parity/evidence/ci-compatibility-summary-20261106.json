@@ -1,0 +1,46 @@
+{
+  "actualQualification": false,
+  "administratorInspectionAuthorized": false,
+  "artifactHashesVerified": 64,
+  "covering": {
+    "assertions": 893,
+    "failed": 0,
+    "filtered": 381,
+    "logSha256": "888885b97190f6d9fd05a3cd76f3408910642197d5bae1d4d1da56075edfc26f",
+    "passed": 211,
+    "physicalInterpreter": "3.14.7",
+    "physicalInterpreterObservations": 304,
+    "seconds": 89.75,
+    "skipped": 0,
+    "watchedGuards": 84
+  },
+  "hostedRun": 42146094743,
+  "hostedTotals": {
+    "failed": 186,
+    "passed": 5341,
+    "seconds": 1063.06,
+    "skipped": 7
+  },
+  "nativeControlsAndBootstrapUnchanged": 4,
+  "parentTypecheck": {
+    "exitCode": 0,
+    "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "remainingHostedFailures": {
+    "count": 53,
+    "next": "inspect bounded diagnostics from next natural CI push; no speculative alias/production policy change",
+    "scope": "staging runtime-mapping; actual rejected paths not in original hosted log"
+  },
+  "review": "staged scope and quality approved; fullTask117 incomplete",
+  "runtimeAcceptance": "4/11",
+  "sourceCommit": "42e1c6cccef285a288f7a5ee7693cf6695cc3d54",
+  "sourceIdentitiesVerified": 16,
+  "sourceRoles": {
+    "aggregateBytes": 414602,
+    "byteIdenticalToBaseline": true,
+    "count": 6,
+    "largestBytes": 115650
+  },
+  "state": "partial-staged-repair-hosted-compatibility-open",
+  "task": "117"
+}

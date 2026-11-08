@@ -1,0 +1,121 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:
+188 |       expect(
+189 |         (await readPermission(true, false)).leaves.find(
+190 |           (leaf) => leaf.workItemId === 'target-leaf',
+191 |         ),
+192 |       ).toMatchObject({ stepIds: [targetStep] });
+193 |       expect((await claim()).status).toBe(200);
+                                           ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:193:38)
+(fail) isolated local attempt-only continuation survives unmet prerequisites and claim replay [374.36ms]
+224 |       expect(
+225 |         (await readPermission(true, false)).leaves.find(
+226 |           (leaf) => leaf.workItemId === 'target-leaf',
+227 |         ),
+228 |       ).toMatchObject({ stepIds: [targetStep] });
+229 |       expect((await claim()).status).toBe(200);
+                                           ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:229:38)
+(fail) isolated local statement-only continuation remains distinct from prerequisite permission [266.94ms]
+188 |       expect(
+189 |         (await readPermission(true, false)).leaves.find(
+190 |           (leaf) => leaf.workItemId === 'target-leaf',
+191 |         ),
+192 |       ).toMatchObject({ stepIds: [targetStep] });
+193 |       expect((await claim()).status).toBe(200);
+                                           ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:193:38)
+(fail) isolated remote attempt-only continuation survives unmet prerequisites and claim replay [339.51ms]
+224 |       expect(
+225 |         (await readPermission(true, false)).leaves.find(
+226 |           (leaf) => leaf.workItemId === 'target-leaf',
+227 |         ),
+228 |       ).toMatchObject({ stepIds: [targetStep] });
+229 |       expect((await claim()).status).toBe(200);
+                                           ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:229:38)
+(fail) isolated remote statement-only continuation remains distinct from prerequisite permission [319.11ms]
+188 |       expect(
+189 |         (await readPermission(true, false)).leaves.find(
+190 |           (leaf) => leaf.workItemId === 'target-leaf',
+191 |         ),
+192 |       ).toMatchObject({ stepIds: [targetStep] });
+193 |       expect((await claim()).status).toBe(200);
+                                           ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:193:38)
+(fail) shared local attempt-only continuation survives unmet prerequisites and claim replay [297.86ms]
+224 |       expect(
+225 |         (await readPermission(true, false)).leaves.find(
+226 |           (leaf) => leaf.workItemId === 'target-leaf',
+227 |         ),
+228 |       ).toMatchObject({ stepIds: [targetStep] });
+229 |       expect((await claim()).status).toBe(200);
+                                           ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:229:38)
+(fail) shared local statement-only continuation remains distinct from prerequisite permission [283.79ms]
+188 |       expect(
+189 |         (await readPermission(true, false)).leaves.find(
+190 |           (leaf) => leaf.workItemId === 'target-leaf',
+191 |         ),
+192 |       ).toMatchObject({ stepIds: [targetStep] });
+193 |       expect((await claim()).status).toBe(200);
+                                           ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:193:38)
+(fail) shared remote attempt-only continuation survives unmet prerequisites and claim replay [344.04ms]
+224 |       expect(
+225 |         (await readPermission(true, false)).leaves.find(
+226 |           (leaf) => leaf.workItemId === 'target-leaf',
+227 |         ),
+228 |       ).toMatchObject({ stepIds: [targetStep] });
+229 |       expect((await claim()).status).toBe(200);
+                                           ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:229:38)
+(fail) shared remote statement-only continuation remains distinct from prerequisite permission [350.32ms]
+
+ 0 pass
+ 16 filtered out
+ 8 fail
+ 100 expect() calls
+Ran 8 tests across 1 file. [5.48s]

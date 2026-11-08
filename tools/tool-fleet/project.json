@@ -30,7 +30,13 @@
         "default",
         "^production",
         "{workspaceRoot}/infra/**/*",
-        "{workspaceRoot}/deploy/k8s/**/*"
+        "{workspaceRoot}/deploy/k8s/**/*",
+        "{workspaceRoot}/openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
+        "{workspaceRoot}/openspec/changes/observability-environment-parity/evidence/staging-native-control.py",
+        "{workspaceRoot}/openspec/changes/observability-environment-parity/evidence/staging-native-prepare-draft.py",
+        "{workspaceRoot}/openspec/changes/observability-environment-parity/evidence/staging-native-prepare-bootstrap.py",
+        "{workspaceRoot}/openspec/changes/observability-environment-parity/evidence/audit-status-inspection.py",
+        "{workspaceRoot}/openspec/changes/observability-environment-parity/audit-status-inspection-proposal.md"
       ]
     },
     "lint": {
@@ -164,6 +170,34 @@
       "outputs": ["{workspaceRoot}/dist/tool-fleet/object-store.oci"],
       "options": {
         "command": "bun tools/tool-fleet/src/object-store-image-cli.ts"
+      }
+    },
+    "validate-observability-parity": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun tools/tool-fleet/src/observability-parity-cli.ts . \"$PUNI_PARITY_TOOLS\""
+      },
+      "cache": false
+    },
+    "observability-preflight": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/observability-preflight-cli.ts"
+      }
+    },
+    "validate-observability-projection": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/observability-projection-cli.ts . \"$PUNI_PARITY_TOOLS\" \"$PUNI_PROJECTION_REQUESTS\""
+      }
+    },
+    "validate-observability-source": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/observability-source-cli.ts . \"$PUNI_PARITY_TOOLS\" \"$PUNI_SOURCE_REQUESTS\""
       }
     }
   }

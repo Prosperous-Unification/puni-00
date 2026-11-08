@@ -288,6 +288,35 @@ use `imagePullPolicy: Never`; a successful archive import alone does not prove
 digest resolution. Production uses provider object storage and excludes this
 local server.
 
+Strict `creation-v1` non-app labs require an explicit prebuilt archive; they never
+select `dist/` implicitly or start Buildx during bootstrap:
+
+```sh
+bunx nx run tool-fleet:lab -- up --profile platform --worktree-root /abs/worktrees \
+  --resource-evidence creation-v1 --object-store-archive /abs/prebuilt/object-store.oci
+```
+
+Before the first Docker resource creation, `captureObjectStoreArchive` accepts only the
+bounded locked simple-ustar OCI layout, verifies actual manifest/config/layer hashes and
+sizes, linux/amd64 and OCI/Docker import selectors, and retains a private exclusive copy.
+The source build/toolchain locks must match the selected Git commit. Tar directory entries
+use exactly `blobs/` and `blobs/sha256/`; duplicate or alternate path spellings, unsupported
+headers/types and unreferenced blobs refuse. No archive is extracted onto the host.
+
+Bootstrap resolves each node from its in-progress creator receipt, rechecks its daemon,
+name, image and network, then streams rehashed retained bytes to that full container ID.
+Source-image and digest-alias targets are still verified in `k8s.io`. Original-path edits
+cannot substitute imported bytes. Retained `object-store/archive.json` and attempt inputs
+keep archive and Git identities separate; neither grants cleanup authority. Ordinary labs
+retain their explicit build behavior, and app labs require no object-store artifact.
+
+The archive receipt records retained/buffer/metadata bytes and leaves verification heap,
+import overhead and unpack demand unknown. Preserve the platform floor and complete the
+full cold-start evaluator's host/filesystem/per-node content-store/unpack/runtime budget
+before admitting the observability rehearsal. Artifact verification does not prove a live
+import or Kubernetes/Flux/service acceptance. [Task21 evidence](../../openspec/changes/observability-environment-parity/verify.md#task21--verified-prebuilt-object-store-handoff)
+records the actual copy control and the remaining limits.
+
 `bunx nx run tool-fleet:health -- --cluster <id> --kubeconfig <k> --kubectl <path>` is
 read-only (any kubectl verb but `get` throws) and exits 1 on a critical finding. Rules: target
 marker, node Ready, etcd voter, newest ready `s3://` etcd snapshot within 7 h (node-local `file://` snapshots do not count), Flux objects Ready (suspended

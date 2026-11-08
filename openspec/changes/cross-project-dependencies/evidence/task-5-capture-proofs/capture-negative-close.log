@@ -1,0 +1,51 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:
+322 |     if (outcome === 'throw') throw new Error('injected callback failure');
+323 |     return {kind:'not_found'};
+324 |   });
+325 |   if (outcome === 'throw') expect((await failureOf(reading)).message).toContain('injected callback failure');
+326 |   else expect(await reading).toEqual({ok:true,value:{kind:'not_found'}});
+327 |   expect(closed).toBe(1);
+                       ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:327:18)
+(fail) owned connected success closes exactly once after ending transaction [166.40ms]
+322 |     if (outcome === 'throw') throw new Error('injected callback failure');
+323 |     return {kind:'not_found'};
+324 |   });
+325 |   if (outcome === 'throw') expect((await failureOf(reading)).message).toContain('injected callback failure');
+326 |   else expect(await reading).toEqual({ok:true,value:{kind:'not_found'}});
+327 |   expect(closed).toBe(1);
+                       ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:327:18)
+(fail) owned connected refusal closes exactly once after ending transaction [109.05ms]
+322 |     if (outcome === 'throw') throw new Error('injected callback failure');
+323 |     return {kind:'not_found'};
+324 |   });
+325 |   if (outcome === 'throw') expect((await failureOf(reading)).message).toContain('injected callback failure');
+326 |   else expect(await reading).toEqual({ok:true,value:{kind:'not_found'}});
+327 |   expect(closed).toBe(1);
+                       ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:327:18)
+(fail) owned connected throw closes exactly once after ending transaction [102.29ms]
+
+ 0 pass
+ 15 filtered out
+ 3 fail
+ 6 expect() calls
+Ran 3 tests across 1 file. [2.37s]

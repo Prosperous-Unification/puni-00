@@ -1,0 +1,24 @@
+Injected manufactured-init; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/source-dev-cohort.test.ts:
+104 | 
+105 | test('source decoder preserves native omitted Init without manufacturing a value', () => {
+106 |   const source = sourceFixture();
+107 |   Reflect.deleteProperty(source.HostConfig, 'Init');
+108 |   const member = decodeSourceDev(source, envLayout('dev'));
+109 |   expect(Object.hasOwn(member.host, 'Init')).toBe(false);
+                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-cohort.test.ts:109:46)
+(fail) source decoder preserves native omitted Init without manufacturing a value [1.32ms]
+
+ 0 pass
+ 32 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [47.00ms]

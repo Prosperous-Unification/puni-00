@@ -1,0 +1,88 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/connected-step-node.test.ts:
+(pass) accepts A.design B.build A.test and retains ownership and relationship provenance [0.78ms]
+(pass) refuses true reverse cycles and a cycle through distinct tasks [0.29ms]
+(pass) keeps local self-node refusal and authored provenance [0.08ms]
+(pass) expands every remote parent pair using each endpoint tree and own step identity [0.17ms]
+(pass) preserves whole FS SS FF boundaries and stepless nodes [0.20ms]
+(pass) accepts empty projects [0.02ms]
+(pass) refuses duplicate project and work-item ownership even without relationships [0.23ms]
+(pass) refuses missing endpoint project, cross-owned work item, absent work item and absent step [0.23ms]
+(pass) refuses absent and empty slices instead of creating a boundary [0.12ms]
+(pass) refuses local/external misclassification and conflicting relationship identities [0.22ms]
+(pass) refuses a local relationship whose predecessor belongs to another project [0.04ms]
+241 |   expect(() => resolveConnectedGraph({ projects: [a, { ...b, relationships: [forward] }], external: [] })).toThrow(/local relationship forward/);
+242 | });
+243 |
+244 | it('refuses missing local endpoint facts in a supplied project context', () => {
+245 |   const local = link('broken-local', ['a', 'missing'], ['a', 'A']);
+246 |   expect(() => resolveConnectedGraph({ projects: [{ ...a, relationships: [local] }], external: [] })).toThrow(/work item missing/);
+                                                                                                            ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /work item missing/
+
+Received function did not throw
+Received value: {
+  graph: {
+    nodes: [
+      {
+        kind: "step",
+        ref: {
+          workItemId: "A",
+          stepId: "design",
+        },
+        at: 0,
+      }, {
+        kind: "step",
+        ref: {
+          workItemId: "A",
+          stepId: "test",
+        },
+        at: 1,
+      }
+    ],
+    edges: [
+      {
+        predecessor: {
+          leafId: "A",
+          at: 0,
+        },
+        successor: {
+          leafId: "A",
+          at: 1,
+        },
+        type: "FS",
+        provenance: "workflow",
+      }
+    ],
+  },
+  projectIdByWorkItem: Map(1) {
+    "A": "a",
+  },
+  relationships: Map(1) {
+    "broken-local": {
+      id: "broken-local",
+      predecessor: {
+        projectId: "a",
+        workItemId: "missing",
+        scope: "whole",
+      },
+      successor: {
+        projectId: "a",
+        workItemId: "A",
+        scope: "whole",
+      },
+      type: "FS",
+    },
+  },
+}
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/domain/domain/src/connected-step-node.test.ts:246:103)
+(fail) refuses missing local endpoint facts in a supplied project context [0.19ms]
+
+ 11 pass
+ 1 fail
+ 27 expect() calls
+Ran 12 tests across 1 file. [28.00ms]

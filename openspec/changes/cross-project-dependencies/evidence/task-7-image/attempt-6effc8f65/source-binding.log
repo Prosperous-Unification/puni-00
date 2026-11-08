@@ -1,0 +1,24 @@
+[solver-image-smoke] supervisor authenticated and accepted /app/libs/wbs/domain/contracts/solver/fixtures/request/valid-quantised-baseline.json
+[solver-image-smoke] supervisor authenticated and accepted shared-person
+[solver-image-smoke] supervisor authenticated and accepted connected-feasible
+[solver-image-smoke] supervisor authenticated and accepted connected-fractional
+[solver-image-smoke] cleanup-complete e9c7b7e8-fb98-443a-bd95-2814416dc1df
+237 |       assert.ok(bound);
+238 |       const observed = await bound.stores.livePlans?.read(TARGET_PROJECT_ID, access);
+239 |       if (observed?.kind !== 'connected') throw new Error('connected projection absent');
+240 |       const placed = observed.projection.placement;
+241 |       const placementDiagnosis = `complete connected placement required: ${placed.kind}${'reason' in placed ? `:${placed.reason}` : ''}`;
+242 |       assert.ok(placed.kind === 'scheduled', placementDiagnosis);
+                   ^
+AssertionError: complete connected placement required: engine_unavailable:connected_optimization_not_supported
+ generatedMessage: false,
+     actual: false,
+   expected: true,
+   operator: "==",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /app/apps/wbs/be-01/scripts/connected-composed-image-scenario.ts:242:14
+      at runComposedImageScenario (/app/apps/wbs/be-01/scripts/connected-composed-image-scenario.ts:257:28)
+
+Bun v1.4.2 (Linux x64)

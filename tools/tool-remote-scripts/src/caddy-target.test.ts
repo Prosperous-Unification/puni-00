@@ -10,7 +10,7 @@ it('requires real Caddy boundaries in the CI and host test target', () => {
   const project = JSON.parse(readFileSync(join(import.meta.dir, '../project.json'), 'utf8')) as {
     targets: Record<
       string,
-      { dependsOn?: string[]; cache?: boolean; options: { command: string } }
+      { dependsOn?: string[]; cache?: boolean; options: { command: string; cwd?: string } }
     >;
   };
   expect(project.targets['test'].dependsOn).toContain('test:caddy');
@@ -18,7 +18,33 @@ it('requires real Caddy boundaries in the CI and host test target', () => {
   expect(project.targets['test:caddy'].options.command).toBe(
     'bun run tools/tool-remote-scripts/caddy/run.ts',
   );
-  expect(project.targets['test'].options.command).toContain('bun test src ');
+  expect(project.targets['test'].options.command).toBe('bun run test/run-tests.ts canonical');
+  expect(project.targets['test'].options.cwd).toBe('tools/tool-remote-scripts');
+  const runner = readFileSync(join(import.meta.dir, '../test/run-tests.ts'), 'utf8');
+  const discovery = /const DISCOVERY = \[([\s\S]*?)\];/.exec(runner)?.[1];
+  if (discovery === undefined) throw new Error('canonical test discovery absent');
+  // The canonical runner owns these seven suites; the target no longer spells them out.
+  expect([...discovery.matchAll(/'([^']+)'/g)].map((match) => match[1])).toEqual([
+    'src',
+    'test/edge-init.test.ts',
+    'test/solver-drain-transport.test.ts',
+    'test/solver-drain-fixture.test.ts',
+    'test/source-exclusion-transport.test.ts',
+    'test/source-exclusion-topology.test.ts',
+    'test/source-exclusion-native.test.ts',
+    'test/fixture-failure.test.ts',
+  ]);
+  const canonical = /if \(command !== 'canonical'\)([\s\S]*)/.exec(runner)?.[1];
+  if (canonical === undefined) throw new Error('canonical test branch absent');
+  const argv = /const argv = \[([\s\S]*?)\];/.exec(canonical)?.[1];
+  if (argv === undefined) throw new Error('canonical test argv absent');
+  expect(argv).toMatch(/^\s*process\.execPath,\s*'test',\s*\.\.\.DISCOVERY,/);
+  expect(argv).not.toContain('test/solver-drain.ts');
+  expect(argv).not.toContain('test/source-exclusion.ts');
+  expect(project.targets['test:source-exclusion'].cache).toBeFalse();
+  expect(project.targets['test:source-exclusion'].options.command).toBe(
+    'bun run tools/tool-remote-scripts/test/source-exclusion.ts',
+  );
 });
 
 it('refuses a native Caddy override in CI before starting the suite', () => {

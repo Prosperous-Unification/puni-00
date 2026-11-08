@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:
+89 |     );
+90 |   }
+91 |   await snapshots().withSnapshot({ id: 'ada' }, 'a1', async (snapshot) => {
+92 |     expect(
+93 |       (await snapshot.captureConnected('a1')).projects.map(({ projectId }) => projectId),
+94 |     ).toEqual(['a1', 'a2', 'a3', 'a4']);
+           ^
+error: expect(received).toEqual(expected)
+
+  [
+    "a1",
+    "a2",
+-   "a3",
+-   "a4",
+  ]
+
+- Expected  - 2
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:94:7)
+      at async readOpenSnapshot (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:566:18)
+      at async withSnapshot (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:120:29)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:91:21)
+(fail) shared closure alternates person bridges and incoming dependencies without rank cutoff [184.27ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.12s]

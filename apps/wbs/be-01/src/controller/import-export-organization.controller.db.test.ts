@@ -1,5 +1,6 @@
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
+import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
@@ -153,6 +154,90 @@ function sqliteState(): Record<string, unknown[]> {
   return Object.fromEntries(
     names.map(({ name }) => [name, h.sqlite.query(`SELECT * FROM "${name}" ORDER BY rowid`).all()]),
   );
+}
+
+for (const seeded of [false, true]) {
+  it(`mounted v12 external import refuses before any SQLite write (seeded storage authority: ${String(seeded)})`, async () => {
+    if (seeded) {
+      const main = h.sqlite
+        .query<{ name: string; file: string }, []>('PRAGMA database_list')
+        .all()
+        .find(({ name }) => name === 'main');
+      if (main === undefined) throw new Error('mounted fixture lost its main database');
+      seedDependencyAuthority(main.file);
+    }
+    const document = planDocumentFixture();
+    document.document.version = 12;
+    Reflect.set(document.workItems[0] ?? {}, 'attempts', {});
+    document.typedDependencies = [
+      {
+        id: 'cross',
+        type: 'FS',
+        predecessor: {
+          kind: 'external',
+          scope: 'whole',
+          projectId: 'source-project',
+          workItemId: 'stable-row',
+          display: {
+            projectName: 'Source',
+            abbreviation: 'SRC',
+            workItemName: 'Prerequisite',
+            address: 'SRC.1',
+          },
+        },
+        successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+      },
+    ];
+    const before = sqliteState();
+    const answer = await h.call('ada', 'POST', '/api/projects/import', document);
+    expect(answer).toMatchObject(
+      seeded
+        ? {
+            status: 400,
+            body: { error: 'unknown_ref', path: 'typedDependencies[0].predecessor' },
+          }
+        : {
+            status: 409,
+            body: { error: 'external_dependencies_inactive', detail: 'typedDependencies[0]' },
+          },
+    );
+    expect(sqliteState()).toEqual(before);
+  });
+}
+
+for (const version of [1, 2, 3] as const) {
+  it(`mounted v${String(version)} refuses a disguised external prerequisite without writes or events`, async () => {
+    const document = planDocumentFixture();
+    document.document.version = version;
+    if (version === 1)
+      for (const step of document.steps) Reflect.deleteProperty(step, 'allowancePercent');
+    document.typedDependencies = [
+      {
+        id: 'cross',
+        type: 'FS',
+        predecessor: {
+          kind: 'external',
+          scope: 'whole',
+          projectId: 'source-project',
+          workItemId: 'stable-row',
+          display: {
+            projectName: 'Source',
+            abbreviation: 'SRC',
+            workItemName: 'Prerequisite',
+            address: 'SRC.1',
+          },
+        },
+        successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+      },
+    ];
+    const before = sqliteState();
+    const answer = await h.call('ada', 'POST', '/api/projects/import', document);
+    expect(answer).toMatchObject({
+      status: 400,
+      body: { error: 'invalid_typed_dependency', path: 'typedDependencies[0]' },
+    });
+    expect(sqliteState()).toEqual(before);
+  });
 }
 
 describe('the JSON export', () => {
@@ -772,7 +857,7 @@ describe('the import', () => {
       expect(await pending).toEqual(
         refusal === 'corrupt'
           ? { status: 500, body: 'Internal Server Error' }
-          : { status: 403, body: { error: 'forbidden' } },
+          : { status: 403, body: { error: refusal === 'removed' ? 'not_a_member' : 'forbidden' } },
       );
       expect(captures).toBe(0);
       expect(h.sqlite.query('SELECT id FROM project').all()).toEqual([]);

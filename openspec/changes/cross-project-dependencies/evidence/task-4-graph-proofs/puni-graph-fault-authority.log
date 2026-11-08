@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+215 |
+216 | it('requires reached-project authority before any project or tree read', async () => {
+217 |   const scope = observation();
+218 |   scope.relationships.push(link('ba', 'b', 'a'));
+219 |   scope.forbidden.add('b');
+220 |   await expect(scope.reader.read(['a'])).rejects.toThrow(/unreadable b/);
+                                                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:220:50)
+(fail) requires reached-project authority before any project or tree read [1.51ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [135.00ms]

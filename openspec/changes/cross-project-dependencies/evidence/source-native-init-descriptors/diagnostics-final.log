@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/fixture-failure.test.ts:
+(pass) nested fixture failure retains closed source stage and known assertion category [1.83ms]
+(pass) nested command failure retains only closed operation class and numeric exit [0.47ms]
+(pass) unclassified executable and malformed command metadata never retain arbitrary fields [0.28ms]
+(pass) unknown error name message enumerable properties and raw causes stay hash-only [0.33ms]
+(pass) cause cycle depth and oversized errors terminate with explicit bounded markers [0.99ms]
+(pass) throwing error accessors and non-error payloads remain visibly unclassified [0.42ms]
+(pass) stage wrapper preserves known failures and never converts unknown failure to success [1.52ms]
+(pass) diagnostic descriptors never invoke error or typed metadata getters [0.58ms]
+(pass) error prototype traversal has a fixed depth bound [0.13ms]
+(pass) expected refusal cannot execute a getter that impersonates a known assertion [0.57ms]
+(pass) actual bounded command failure keeps closed stage exit attribution and discards stderr [46.06ms]
+(pass) expected negative preserves known refusal and rejects unknown or missing failures [1.11ms]
+(pass) invalid external diagnostic coordinates fail closed without retaining their values [0.38ms]
+(pass) command status -1 is outside the receipt grammar [0.07ms]
+(pass) command status 256 is outside the receipt grammar [0.01ms]
+(pass) command status NaN is outside the receipt grammar
+
+ 16 pass
+ 0 fail
+ 58 expect() calls
+Ran 16 tests across 1 file. [128.00ms]

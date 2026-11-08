@@ -1,0 +1,55 @@
+
+> nx run wbs-fe-01:e2e-cross-project --grep abbreviation edit
+
+> bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts --grep "abbreviation edit"
+
+(node:1923892) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:1924719) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+[WebServer]   - `__dirname` (vite.config.ts:90:20). Use `import.meta.dirname` instead
+[WebServer] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+Running 1 test using 1 worker
+
+(node:1924815) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:691:1 › abbreviation edit preserves a captured predecessor link and focuses its stable destination (3.4s)
+
+
+  1) apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:691:1 › abbreviation edit preserves a captured predecessor link and focuses its stable destination
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "/?project=129d62b1-6c69-433b-b525-e9cd7f49d03e&workItem=7193d75f-f892-4bb9-99ab-58d3b2ed1b4f"
+    Received: "/?project=NAV_OLD&workItem=7193d75f-f892-4bb9-99ab-58d3b2ed1b4f"
+
+      752 |     const href = await predecessor.getAttribute('href');
+      753 |     if (href === null) throw new Error('missing captured predecessor href');
+    > 754 |     expect(href).toBe(`/?${new URLSearchParams({ project: source.id, workItem: source.row })}`);
+          |                  ^
+      755 |     await initial.getByRole('button', { name: 'Back to dependency picker', exact: true }).click();
+      756 |     const sourcePage = await context.newPage();
+      757 |     await sourcePage.goto(address(source.id));
+        at /tmp/puni-task11-abbrev-navigation/apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:754:18
+
+    Error Context: test-results/cross-project-refresh.real-dda03-uses-its-stable-destination/error-context.md
+
+  1 failed
+    apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:691:1 › abbreviation edit preserves a captured predecessor link and focuses its stable destination
+Warning: command "bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts --grep "abbreviation edit"" exited with non-zero status code
+
+
+ NX   Running target e2e-cross-project for project wbs-fe-01 failed
+
+Failed tasks:
+
+- wbs-fe-01:e2e-cross-project
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      11.7s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     11.7s (1 task)
+  Recoverable time:  <1ms

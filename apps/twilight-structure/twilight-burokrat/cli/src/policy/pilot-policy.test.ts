@@ -485,6 +485,9 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // Proof (2026-10-19): this pilot failed on the undeclared shared-unit-recovery denial receipt.
     // Removing either exact recovery gzip declaration from either shipped policy made production
     // classify-candidate exit 1 naming that archive; both policies also refused an unlisted gzip.
+    // Proof (2026-10-23): omitting dependency-navigation.tsx from dependency-lookup's mapped
+    // consumers while its index declared that production importer made observe lint exit 1 with
+    // `pilot module external consumers disagree with index …/dependency-lookup/README.md`.
     // Proof (2026-10-25): CI run40159790962 refused the workflow-binding proof gzip.
     // Both original shipped policies reproduced that refusal; exact-file declarations restored
     // binary classification and both still refused a same-byte unlisted gzip control.

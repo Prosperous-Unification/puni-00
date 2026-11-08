@@ -1,0 +1,186 @@
+$ bun test libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts -t execution observation rechecks
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:
+238 |   expect(first.reads.eligibilityByNode.get(sliceKey('a1', 'a1-s'))?.canStart).toBe(false);
+239 | });
+240 |
+241 | test('execution observation rechecks membership and activation before materializing foreign evidence', async () => {
+242 |   write("DELETE FROM organization_membership WHERE organization_id='org-a' AND user_id='ada'");
+243 |   expect(await reader().readExecution('a1', access, null)).toEqual({ kind: 'access_refused', refusal: 'not_a_member' });
+                                                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "kind": "access_refused",
+-   "refusal": "not_a_member",
++   "kind": "ready",
++   "reads": {
++     "assignments": [],
++     "capacities": [],
++     "claims": [],
++     "demands": [],
++     "dependencies": {
++       "edges": [],
++       "typed": [
++         {
++           "id": "edge",
++           "predecessor": {
++             "projectId": "a2",
++             "scope": "whole",
++             "workItemId": "a2",
++           },
++           "projectId": "a1",
++           "successor": {
++             "projectId": "a1",
++             "scope": "whole",
++             "workItemId": "a1",
++           },
++           "type": "FS",
++         },
++       ],
++     },
++     "eligibilityByNode":
++ Map {
++       "a1\0a1-s" => {
++         "canFinish": true,
++         "canStart": false,
++         "finishBlockers": [],
++         "startBlockers": [
++           {
++             "edge": {
++               "predecessor": {
++                 "at": 0,
++                 "leafId": "a2",
++               },
++               "provenance": "authored",
++               "relationshipId": "edge",
++               "successor": {
++                 "at": 0,
++                 "leafId": "a1",
++               },
++               "type": "FS",
++             },
++             "predecessor": {
++               "at": 0,
++               "kind": "step",
++               "ref": {
++                 "stepId": "a2-s",
++                 "workItemId": "a2",
++               },
++             },
++           },
++         ],
++       },
++       "a2\0a2-s" => {
++         "canFinish": true,
++         "canStart": true,
++         "finishBlockers": [],
++         "startBlockers": [],
++       },
++     }
++ ,
++     "evidenceByNode":
++ Map {
++       "a1\0a1-s" => {
++         "done": false,
++         "started": false,
++       },
++       "a2\0a2-s" => {
++         "done": false,
++         "started": false,
++       },
++     }
++ ,
++     "nodes": {
++       "causes":
++ Map {
++         "a1" => {
++           "a1-s": [],
++         },
++         "a2" => {
++           "a2-s": [],
++         },
++       }
++ ,
++       "readings":
++ Map {
++         "a1" => {
++           "a1-s": "unknown",
++         },
++         "a2" => {
++           "a2-s": "unknown",
++         },
++       }
++ ,
++     },
++     "occupancy": [],
++     "orderByWorkItem":
++ Map {
++       "a1" => 0,
++       "a2" => 1,
++     }
++ ,
++     "personNames": Map {},
++     "predecessorIdsByLeaf":
++ Map {
++       "a1" => [
++         "a2",
++       ],
++     }
++ ,
++     "resources": Map {},
++     "rows": [
++       {
++         "deadline": null,
++         "externalRefs": [],
++         "factEnd": null,
++         "factStart": null,
++         "frozenNumber": null,
++         "hold": null,
++         "id": "a1",
++         "maxParallel": 1,
++         "name": "a1",
++         "notes": "",
++         "parentId": null,
++         "position": 10,
++         "priority": null,
++         "projectId": "a1",
++         "readiness": "ready",
++         "revision": 0,
++         "serviceId": null,
++         "serviceIds": [],
++         "serviceTeamId": null,
++         "startNoEarlierThan": null,
++         "startNoEarlierThanReason": null,
++         "tagIds": [],
++         "teamIds": [],
++         "typeIds": [],
++       },
++     ],
++     "stated": [],
++     "statuses":
++ Map {
++       "a1" => "ready",
++       "a2" => "ready",
++     }
++ ,
++     "stepIds": [
++       "a1-s",
++     ],
++     "teamId": null,
++     "teamNames": Map {},
++   },
+  }
+
+- Expected  - 2
++ Received  + 157
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:243:60)
+(fail) execution observation rechecks membership and activation before materializing foreign evidence [165.34ms]
+
+ 0 pass
+ 10 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.14s]

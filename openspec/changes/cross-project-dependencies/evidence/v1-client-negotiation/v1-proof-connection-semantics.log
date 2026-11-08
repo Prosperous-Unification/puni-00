@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+{"level":"error","time":1792772143702,"service":"gw-01","err":{"occurrence_id":"AE_JNVNHTHNFSRGMM4NJNSAF74B4C","fingerprint":"fp1_fc1ce4a1467f422ea07168b0682077d6","stack":["Error: forward failed 409","    at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/service/backend-request.ts:74:19)","    at async untilAborted (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:32:25)"],"context":{"operation":"forward"},"as_string_format":"derived","v":"corj/v0.15"},"connection_id":"e103654f-0647-427a-b24b-453ec56d1677","user_id":"ada","backend_operation":"forward","msg":"gateway backend request failed"}
+{"level":"error","time":1792772143704,"service":"gw-01","err":{"occurrence_id":"AE_GKF96AY2EY95RMMZWHPY3HKB29","fingerprint":"fp1_fc1ce4a1467f422ea07168b0682077d6","stack":["Error: resume failed 409","    at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/service/backend-request.ts:74:19)","    at async untilAborted (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:32:25)"],"context":{"operation":"resume"},"as_string_format":"derived","v":"corj/v0.15"},"connection_id":"e103654f-0647-427a-b24b-453ec56d1677","user_id":"ada","backend_operation":"resume","msg":"gateway backend request failed"}
+
+apps/wbs/gw-01/src/dependency-admission.integration.test.ts:
+213 |     socket.send(JSON.stringify({subscription:'presence',message:{write:true}}));
+214 |     const resumed = new Promise<void>((resolve) => { socket.addEventListener('message', (event) => { if (String(event.data).includes('resume_ack')) resolve(); }); });
+215 |     socket.send(JSON.stringify({type:'resume',resume_points:{}}));
+216 |     await resumed;
+217 |     expect([...seen].sort()).toEqual(['forward','resume']);
+218 |     expect(accessClaims).toEqual([DEPENDENCY_SEMANTICS]);
+                               ^
+error: expect(received).toEqual(expected)
+
+  [
+-   "cross-project-dependencies-v1",
++   undefined,
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/dependency-admission.integration.test.ts:218:26)
+(fail) dual offers explicitly select V1 and retained presence keeps that exact admission [47.32ms]
+
+ 0 pass
+ 3 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [3.06s]

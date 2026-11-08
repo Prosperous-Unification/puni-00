@@ -1,0 +1,59 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+354 |                   relationshipId: 'prerequisite',
+355 |                 },
+356 |               ]
+357 |             : [],
+358 |       });
+359 |       expect(reading.leaves.map(({ workItemId, stepIds }) => ({ workItemId, stepIds }))).toEqual(
+                                                                                               ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   {
++     "stepIds": [
++       "c9076ff4-46df-4374-a27d-0546af7d86b3",
++       "36c80b44-ebd7-4449-930f-02d74eb52b64",
++     ],
++     "workItemId": "target-leaf",
++   },
++ ]
+
+- Expected  - 1
++ Received  + 9
+
+      at <anonymous> (/tmp/puni-63-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:359:90)
+(fail) isolated remote FS advertised permission matches governed claim [379.72ms]
+354 |                   relationshipId: 'prerequisite',
+355 |                 },
+356 |               ]
+357 |             : [],
+358 |       });
+359 |       expect(reading.leaves.map(({ workItemId, stepIds }) => ({ workItemId, stepIds }))).toEqual(
+                                                                                               ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   {
++     "stepIds": [
++       "dd10485c-7dc2-42b0-96ec-afa842c40867",
++       "76b36168-245f-4943-999f-6e1191ba9149",
++     ],
++     "workItemId": "target-leaf",
++   },
++ ]
+
+- Expected  - 1
++ Received  + 9
+
+      at <anonymous> (/tmp/puni-63-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:359:90)
+(fail) shared remote FS advertised permission matches governed claim [279.44ms]
+
+ 0 pass
+ 22 filtered out
+ 2 fail
+ 12 expect() calls
+Ran 2 tests across 1 file. [3.80s]

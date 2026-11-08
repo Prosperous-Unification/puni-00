@@ -1,0 +1,29 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-remote-scripts/src/lib/source-dev-inputs.test.ts:
+240 |   const runs = f.commands.filter(
+241 |     (command) => command[0] === 'run' && !command.includes('--eval') && command.at(-2) !== '-c',
+242 |   );
+243 |   expect(runs).toHaveLength(4);
+244 |   for (const command of runs) {
+245 |     expect(command).toContain('--no-env-file');
+                          ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "--no-env-file"
+Received: [
+  "run", "--rm", "--pull", "never", "--network", "none", "--read-only", "--user", "1000:1000", "--entrypoint",
+  "/usr/bin/env", "--mount", "type=bind,source=/tmp/source-owner-8Qoko9/dev/src,target=/src,readonly,bind-propagation=rprivate,bind-recursive=readonly",
+  "--workdir", "/src/apps/wbs/be-01", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "-i", "PATH=/usr/local/bin:/usr/bin:/bin", "BUN_RUNTIME_TRANSPILER_CACHE_PATH=0", "/usr/local/bin/bun",
+  "run", "src/dependency-capabilities-cli.ts"
+]
+
+      at <anonymous> (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/lib/source-dev-inputs.test.ts:245:21)
+(fail) source input observations are private hash-only blocked records bound to live owner and source [729.41ms]
+
+ 0 pass
+ 54 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [774.00ms]

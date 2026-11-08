@@ -1,0 +1,12 @@
+{
+  "libs/wbs/application/core/src/service/schedule-parts.ts": "54ff0aad9388a937b6d5f56869d05919a20e49fbcca8ed9a6d4ccb456de74b06",
+  "libs/wbs/application/core/src/service/schedule-slices.ts": "28fa1088d4156c7c4f99f12211d3dbe038d8bee6f78340f31dc10d6ba8314e76",
+  "libs/wbs/application/core/src/service/schedule-parts.test.ts": "d1e5d73e1a07d688a5ccc5751b04f88c57493a539e161fb3a75db5352c02ecdd",
+  "libs/wbs/application/core/src/module/work-item/work-item.resource.ts": "c4ec869548e8192c28d32072b1010cc89c1db1f79bbcbf753058373c94d03245",
+  "libs/wbs/domain/domain/src/connected-step-node.ts": "11d719fd2f0bc0f311fecaa100e3a21cdc9672e15f03dc54d84adec6219cbd58",
+  "libs/wbs/application/core/src/service/connected-plan.ts": "0f656c8665e99dc6c4abd10c49e8eaac657a413433b3096fa85186223a4b11e9",
+  "libs/wbs/application/core/src/service/connected-plan-calendar.ts": "8f5fbb2c0aea703544ac6434b627541d0db269f80a70f597057e565ed536e815",
+  "libs/wbs/application/core/src/service/connected-plan-projection.ts": "bdc01c7075da44dc85cc86673f831289ac3ef778480c6f0ed48b70539fb66dd5",
+  "libs/wbs/application/core/src/service/connected-plan.test.ts": "513e8f4b7cdbbe793270485e15fa544d228def9ca5bff3ebd77ce35964b18584",
+  "libs/wbs/application/core/src/module/saved-plans/saved-plan-schedule.ts": "6321e69dd98b1951d30bf842ae3e2390547652716fa3db31acee45f7a3593a00"
+}

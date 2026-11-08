@@ -1,0 +1,51 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts:
+(pass) historical comparison side projection > retains captured context and exact stage boundaries when the diff is empty [17.73ms]
+196 |     expect(omitted.kind).toBe('connected');
+197 |     const legacy: PlanSide = {
+198 |       input: { ...local, schemaVersion: 8 },
+199 |       schedule: { present: false, absentReason: 'pending' },
+200 |     };
+201 |     expect(summarizeSavedComparisonSide(legacy, { kind: 'current' })).toEqual({
+                                                                            ^
+error: expect(received).toEqual(expected)
+
+  {
+    "provenance": {
+-     "kind": "legacy-unknown",
++     "kind": "local",
+    },
+    "schedule": {
+      "absentReason": "pending",
+      "present": false,
+    },
+    "source": {
+      "kind": "current",
+    },
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-saved-comparison-c/libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts:201:71)
+(fail) historical comparison side projection > marks legacy input unknown while explicit input9 local stays local [3.96ms]
+(pass) historical comparison side projection > retains unavailable scope and absence without manufacturing stages [3.51ms]
+(pass) historical comparison side projection > preserves boundary and plan terminal outcomes distinctly without losing a present schedule [5.72ms]
+(pass) historical comparison side projection > detaches summaries from caller changes and never needs live capabilities [6.31ms]
+(pass) historical comparison side projection > preserves pending without inferring readiness or changing selection [8.24ms]
+(pass) historical comparison side projection > preserves retrying without inferring readiness or changing selection [8.58ms]
+(pass) historical comparison side projection > preserves idle without inferring readiness or changing selection [11.27ms]
+(pass) historical comparison side projection > preserves failed without inferring readiness or changing selection [5.01ms]
+(pass) historical comparison side projection > preserves corrupt without inferring readiness or changing selection [5.12ms]
+(pass) historical comparison side projection > preserves baseline without inferring readiness or changing selection [5.07ms]
+(pass) historical comparison side projection > preserves quantisation-floor without inferring readiness or changing selection [4.55ms]
+(pass) historical comparison side projection > retains captured idle project labels without manufacturing an idle stage [7.26ms]
+(pass) historical comparison side projection > refuses missing captured project labels rather than inventing them [3.95ms]
+(pass) historical comparison side projection > refuses missing captured row labels rather than inventing them [3.65ms]
+(pass) historical comparison side projection > refuses missing captured step labels rather than inventing them [3.40ms]
+
+ 15 pass
+ 1 fail
+ 31 expect() calls
+Ran 16 tests across 1 file. [411.00ms]

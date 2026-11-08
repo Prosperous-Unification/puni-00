@@ -1,0 +1,51 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:
+(pass) bound first-child incident transition derives both directions and retains exact creation evidence [2364.76ms]
+(pass) bound structural capability refuses existing-destination instead of admitting an arbitrary node retarget [994.06ms]
+(pass) bound structural capability refuses foreign-destination instead of admitting an arbitrary node retarget [1143.16ms]
+(pass) bound structural capability refuses detached-child instead of admitting an arbitrary node retarget [977.80ms]
+(pass) restricted readable remote successor permits derived handdown while ordinary foreign typed editing refuses [1188.70ms]
+(pass) incident transition rolls back every table and held announcement on after-detach [571.81ms]
+(pass) incident transition rolls back every table and held announcement on after-structure [582.92ms]
+(pass) incident transition rolls back every table and held announcement on second-reattach [632.43ms]
+(pass) incident transition rolls back every table and held announcement on final-graph-delivery [641.94ms]
+(pass) incident final graph result refuses node_on_parent atomically with held announcements [534.38ms]
+(pass) incident final graph result refuses cycle atomically with held announcements [683.76ms]
+(pass) incident final graph result refuses self_node atomically with held announcements [636.53ms]
+(pass) incident transition refuses delivery after its genuine retained refresh resumes across graph closure [517.71ms]
+(pass) incident enumeration refuses wrong-owner delivery through the real scoped adapter boundary [438.18ms]
+(pass) incident enumeration refuses foreign-source-project delivery through the real scoped adapter boundary [445.16ms]
+(pass) modeled structural refusal makes the compound capability refuse at its top level and rolls back detached links [379.62ms]
+
+apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:
+(pass) actual first child hands an outgoing node to its child and undo redo preserves the remote row [489.64ms]
+(pass) mixed incident handdown preserves scopes steps both owners history and local retained rows through nested undo redo [688.51ms]
+(pass) compound undo refuses remote-revision atomically after an earlier patch [443.42ms]
+(pass) compound undo refuses relationship-type atomically after an earlier patch [499.64ms]
+(pass) compound undo refuses missing-receipt atomically after an earlier patch [576.76ms]
+(pass) compound undo refuses missing-created-at atomically after an earlier patch [518.92ms]
+(pass) compound undo refuses missing-receipt-direction atomically after an earlier patch [442.14ms]
+(pass) compound undo refuses changed-step atomically after an earlier patch [546.50ms]
+(pass) compound undo refuses changed-owner atomically after an earlier patch [484.74ms]
+(pass) compound undo refuses changed-scope atomically after an earlier patch [510.60ms]
+(pass) compound undo refuses changed-audit atomically after an earlier patch [454.89ms]
+(pass) compound undo refuses missing-scoped-revision atomically after an earlier patch [490.94ms]
+(pass) compound undo refuses new-incident atomically after an earlier patch [451.27ms]
+(pass) compound undo refuses missing-relationship atomically after an earlier patch [483.58ms]
+(pass) compound undo refuses both-receipt-types atomically after an earlier patch [513.89ms]
+(pass) compound undo refuses both-receipt-audits atomically after an earlier patch [455.02ms]
+(pass) mounted compound undo rechecks membership after request admission while queued for the writer [468.93ms]
+(pass) mounted compound redo rechecks membership after request admission while queued for the writer [755.49ms]
+(pass) mounted compound undo rechecks credential after request admission while queued for the writer [530.42ms]
+(pass) mounted compound redo rechecks credential after request admission while queued for the writer [664.22ms]
+(pass) compound handdown carries local statement estimate and progress facts with exact unit bindings through neighboring history [752.47ms]
+(pass) outer batch retains earliest remote before revisions across two consecutive incident mappings [726.09ms]
+(pass) compound redo refuses current unreadable-project evidence and rolls back a preceding local patch [671.29ms]
+(pass) compound redo refuses current missing-row evidence and rolls back a preceding local patch [580.18ms]
+(pass) compound redo refuses current foreign-row evidence and rolls back a preceding local patch [563.90ms]
+
+ 41 pass
+ 0 fail
+ 658 expect() calls
+Ran 41 tests across 2 files. [39.57s]

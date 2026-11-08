@@ -1,0 +1,2618 @@
+{
+  "base": "acfdc02c7f0acc98606c87312a694ed2b89302ea",
+  "sourcePins": {
+    "tools/tool-fleet/src/registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+    "tools/tool-fleet/src/registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300",
+    "tools/tool-fleet/src/registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+    "tools/tool-fleet/src/registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+    "tools/tool-fleet/src/registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab"
+  },
+  "command": "bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-fleet/src/<paired-test> [-t <pattern>]",
+  "method": "Replace one exact needle, run paired production-path tests, require the exact previously covering negative-test name set and exit1, reject ReferenceError/compile/resolve failures, and restore matching hashes for all five source/test files before and after every mutation. Contextual boundary diagnostic failures are not claimed as unsafe admissions.",
+  "faults": [
+    {
+      "name": "P01 safe counts",
+      "filename": "registry-policy.ts",
+      "needle": "type('number.integer >= 0').narrow(Number.isSafeInteger)",
+      "replacement": "type('number')",
+      "pattern": "",
+      "index": 0,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > rejects missing capacity, zero budgets and fractional counts [0.98ms]",
+        "publication admission > throws for missing or invalid capacity %s [0.05ms]",
+        "publication admission > throws for missing or invalid capacity %s [0.03ms]",
+        "publication admission > rejects missing capacity, zero budgets and fractional counts [0.98ms]",
+        "publication admission > throws for missing or invalid capacity %s [0.05ms]",
+        "publication admission > throws for missing or invalid capacity %s [0.03ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "5b180c900f73019c2e396f860a82bc73cca272a9f6fd5140664d9d1218a12fce",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P02 positive capacity",
+      "filename": "registry-policy.ts",
+      "needle": "const PositiveCount = Count.narrow((count) => count > 0);",
+      "replacement": "const PositiveCount = Count;",
+      "pattern": "",
+      "index": 1,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > rejects missing capacity, zero budgets and fractional counts [0.81ms]",
+        "publication admission > rejects missing capacity, zero budgets and fractional counts [0.81ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "7708399404f9f81db4b5d46e80f09f718b41e6d7725a21b1a06019f5e6234a97",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P03 immutable digest",
+      "filename": "registry-policy.ts",
+      "needle": "type(/^sha256:[0-9a-f]{64}$/)",
+      "replacement": "type('string')",
+      "pattern": "",
+      "index": 2,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > rejects unknown roots and mutable identities even when both references agree [0.28ms]",
+        "retirement planning > rejects unknown roots and mutable identities even when both references agree [0.28ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "7a256709cf7c5455c58f7293b9be1f9a9f55e6c380d5eec53316b2dcd4658f6f",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P04 canonical timestamp",
+      "filename": "registry-policy.ts",
+      "needle": "return Number.isFinite(milliseconds) && new Date(milliseconds).toISOString() === stamp;",
+      "replacement": "return true;",
+      "pattern": "",
+      "index": 3,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > throws for malformed timestamp [0.21ms]",
+        "retirement planning > throws for malformed timestamp [0.21ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "9a5be7bc2dc7811a58b1e1724ab444a0ca7955e4b636cd88af2d72634879128a",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P05 required inode envelope",
+      "filename": "registry-policy.ts",
+      "needle": "const Envelope = type({ bytes: Count, inodes: Count });",
+      "replacement": "const Envelope = type({ bytes: Count, 'inodes?': Count });",
+      "pattern": "",
+      "index": 4,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > throws for missing inode envelope [0.18ms]",
+        "publication admission > throws for missing inode envelope [0.18ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "5a60725fa22406911769830bf787264e89401a7a748a9a75c7ac91753abc5128",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P06 complete history",
+      "filename": "registry-policy.ts",
+      "needle": "complete: 'true',\n    releases:",
+      "replacement": "complete: 'boolean',\n    releases:",
+      "pattern": "",
+      "index": 5,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > throws for absent or incomplete history instead of assuming first install [0.24ms]",
+        "retirement planning > throws for absent or incomplete history instead of assuming first install [0.24ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "88575e6bfe53e04c2520014b2999506b3f49df7c1f1233fcaa01ea09f3bffdf0",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P07 complete graph",
+      "filename": "registry-policy.ts",
+      "needle": "graph: { complete: 'true', nodes:",
+      "replacement": "graph: { complete: 'boolean', nodes:",
+      "pattern": "",
+      "index": 6,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > throws for incomplete graph, unknown references and mutable identities [0.26ms]",
+        "retirement planning > throws for incomplete graph, unknown references and mutable identities [0.26ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "922b2c7d8fcb86b45eb0a1b24f4299bf06f8b38026e211f80d9c6b0b407cfd66",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P08 actual usable budget",
+      "filename": "registry-policy.ts",
+      "needle": "return Math.min(capacity.maximumBytes, capacity.usableBytes);",
+      "replacement": "return capacity.maximumBytes;",
+      "pattern": "",
+      "index": 7,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > uses actual usable capacity when smaller than the configured budget [0.20ms]",
+        "publication admission > uses actual usable capacity when smaller than the configured budget [0.20ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "4b4cda9d5cb151038214e903b23f632858ae2b75a6f7f637eb56878a82929e81",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P09 exact arithmetic",
+      "filename": "registry-policy.ts",
+      "needle": "return Number((BigInt(capacity) * BigInt(percent) + 99n) / 100n);",
+      "replacement": "return Math.ceil(capacity * percent / 100);",
+      "pattern": "",
+      "index": 8,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > refuses the exact byte cutoff near the safe-integer capacity limit [0.63ms]",
+        "publication admission > refuses the exact inode cutoff near the safe-integer capacity limit [0.08ms]",
+        "publication admission > keeps large safe-integer usage below its exact pressure threshold: %s [0.07ms]",
+        "publication admission > keeps large safe-integer usage below its exact pressure threshold: %s [0.02ms]",
+        "publication admission > refuses the exact byte cutoff near the safe-integer capacity limit [0.63ms]",
+        "publication admission > refuses the exact inode cutoff near the safe-integer capacity limit [0.08ms]",
+        "publication admission > keeps large safe-integer usage below its exact pressure threshold: %s [0.07ms]",
+        "publication admission > keeps large safe-integer usage below its exact pressure threshold: %s [0.02ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "b0073bd6c7590b659a7cff8ca33f909145033da45c38f538f93c4f0611237c07",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P10 byte stop",
+      "filename": "registry-policy.ts",
+      "needle": "capacity.usedBytes >= threshold(bytes, 90)",
+      "replacement": "capacity.usedBytes >= threshold(bytes, 91)",
+      "pattern": "",
+      "index": 9,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > fences writes at actual stop pressure or low host reserve [0.21ms]",
+        "publication admission > fences writes at actual stop pressure or low host reserve [0.21ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "fccea77f34a1ef597136bf162a501eda81723563d9bbf49f9962105d4bdd79ba",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P11 inode stop",
+      "filename": "registry-policy.ts",
+      "needle": "capacity.usedInodes >= threshold(capacity.totalInodes, 90)",
+      "replacement": "capacity.usedInodes >= threshold(capacity.totalInodes, 91)",
+      "pattern": "",
+      "index": 10,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > reports warning and stop pressure from inodes independently [0.23ms]",
+        "publication admission > reports warning and stop pressure from inodes independently [0.23ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "7469b58d4467b3229f0e4e6f5e1917c250980d043b0f685b90b2f24b08c488df",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P12 byte cleanup",
+      "filename": "registry-policy.ts",
+      "needle": "capacity.usedBytes >= threshold(bytes, 80)",
+      "replacement": "capacity.usedBytes >= threshold(bytes, 81)",
+      "pattern": "",
+      "index": 11,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > admits strictly below both cutoffs and reports pressure [0.22ms]",
+        "publication admission > admits strictly below both cutoffs and reports pressure [0.22ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "793ebe7a5ab7e1fb43be0df6882ba87799238c7c09370c559cf25c5dfefbac40",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P13 inode cleanup",
+      "filename": "registry-policy.ts",
+      "needle": "capacity.usedInodes >= threshold(capacity.totalInodes, 80)",
+      "replacement": "capacity.usedInodes >= threshold(capacity.totalInodes, 81)",
+      "pattern": "",
+      "index": 12,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > targets below seventy percent and requests pressure cleanup at eighty [0.27ms]",
+        "retirement planning > targets below seventy percent and requests pressure cleanup at eighty [0.27ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "2eee629efef1a8703a0f801fa237400ec278e97f054625e7dbe9defe39c3e774",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P14 byte warning",
+      "filename": "registry-policy.ts",
+      "needle": "capacity.usedBytes >= threshold(bytes, 70)",
+      "replacement": "capacity.usedBytes >= threshold(bytes, 71)",
+      "pattern": "",
+      "index": 13,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > admits strictly below both cutoffs and reports pressure [0.23ms]",
+        "publication admission > admits strictly below both cutoffs and reports pressure [0.23ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "25ec6e4e7d3625a62e855c8876fb101947057717badd9ffd5603cd78616098de",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P15 inode warning",
+      "filename": "registry-policy.ts",
+      "needle": "capacity.usedInodes >= threshold(capacity.totalInodes, 70)",
+      "replacement": "capacity.usedInodes >= threshold(capacity.totalInodes, 71)",
+      "pattern": "",
+      "index": 14,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > reports warning and stop pressure from inodes independently [0.20ms]",
+        "publication admission > reports warning and stop pressure from inodes independently [0.20ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "0fc11877ba6827027b3120b42df7d0f5fd35c8c2035b999ae948fa3e74fc1726",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P16 byte reservation",
+      "filename": "registry-policy.ts",
+      "needle": "sum + reservation.bytes",
+      "replacement": "sum + 0",
+      "pattern": "",
+      "index": 15,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > charges existing reservations to both budgets [0.34ms]",
+        "publication admission > charges existing reservations to both budgets [0.34ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "92ebd6f48e90bca5f9fcb502ef0dcfb0e54ecda1547fff57160b2fdbc7cc458f",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P17 inode reservation",
+      "filename": "registry-policy.ts",
+      "needle": "sum + reservation.inodes",
+      "replacement": "sum + 0",
+      "pattern": "",
+      "index": 16,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > charges existing reservations to both budgets [0.26ms]",
+        "publication admission > charges existing reservations to both budgets [0.26ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "e7c585d8494f4473b8b5838431bf7fd394f3b5b398d464450dee0b42c0122daa",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P18 byte admission",
+      "filename": "registry-policy.ts",
+      "needle": "if (requiredBytes > 0) reasons.push('bytes');",
+      "replacement": "",
+      "pattern": "",
+      "index": 17,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > refuses the exact byte cutoff near the safe-integer capacity limit [0.63ms]",
+        "publication admission > admits the last byte below ninety percent but refuses the exact cutoff [0.09ms]",
+        "publication admission > charges existing reservations to both budgets [0.16ms]",
+        "publication admission > rejects publication crossing ninety percent [0.09ms]",
+        "publication admission > uses actual usable capacity when smaller than the configured budget [0.05ms]",
+        "publication admission > fences writes at actual stop pressure or low host reserve [0.06ms]",
+        "publication admission > refuses the exact byte cutoff near the safe-integer capacity limit [0.63ms]",
+        "publication admission > admits the last byte below ninety percent but refuses the exact cutoff [0.09ms]",
+        "publication admission > charges existing reservations to both budgets [0.16ms]",
+        "publication admission > rejects publication crossing ninety percent [0.09ms]",
+        "publication admission > uses actual usable capacity when smaller than the configured budget [0.05ms]",
+        "publication admission > fences writes at actual stop pressure or low host reserve [0.06ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "0273c0112ff388d3991f2949f38ae5e0f643caf3ae0cba4526786d1e6d5d2780",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P19 inode admission",
+      "filename": "registry-policy.ts",
+      "needle": "if (requiredInodes > 0) reasons.push('inodes');",
+      "replacement": "",
+      "pattern": "",
+      "index": 18,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > refuses the exact inode cutoff near the safe-integer capacity limit [0.22ms]",
+        "publication admission > charges existing reservations to both budgets [0.15ms]",
+        "publication admission > reports warning and stop pressure from inodes independently [0.08ms]",
+        "publication admission > rejects inode envelopes reaching ninety percent [0.06ms]",
+        "publication admission > refuses the exact inode cutoff near the safe-integer capacity limit [0.22ms]",
+        "publication admission > charges existing reservations to both budgets [0.15ms]",
+        "publication admission > reports warning and stop pressure from inodes independently [0.08ms]",
+        "publication admission > rejects inode envelopes reaching ninety percent [0.06ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "37f6dfd73292411d47521f4cdb3520925cf9756428e3c0215ef6a480d4a4ad1c",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P20 root reserve",
+      "filename": "registry-policy.ts",
+      "needle": "if (capacity.rootFreeBytes < rootReserve) reasons.push('root-reserve');",
+      "replacement": "",
+      "pattern": "",
+      "index": 19,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > fences writes at actual stop pressure or low host reserve [0.23ms]",
+        "publication admission > fences writes at actual stop pressure or low host reserve [0.23ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "2f1957a09ca601489df5c0859717fd698580b8ce79b025be5f6b3cef4af359cc",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P21 publisher slot",
+      "filename": "registry-policy.ts",
+      "needle": "if (reservations.length > 0) reasons.push('publisher-busy');",
+      "replacement": "",
+      "pattern": "",
+      "index": 20,
+      "exit": 1,
+      "failedTests": [
+        "publication admission > charges existing reservations to both budgets [0.30ms]",
+        "publication admission > retains crash reservations and refuses a second publisher [0.09ms]",
+        "publication admission > charges existing reservations to both budgets [0.30ms]",
+        "publication admission > retains crash reservations and refuses a second publisher [0.09ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "300603b753fbc7e722f53b4e9e290cede2481da362af5d96e4c877d4db49df0a",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P22 unique identity",
+      "filename": "registry-policy.ts",
+      "needle": "if (new Set(identities).size !== identities.length)",
+      "replacement": "if (false)",
+      "pattern": "",
+      "index": 21,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > rejects duplicate graph nodes, registered environments and histories [0.28ms]",
+        "retirement planning > rejects future publication receipts and unregistered environment histories [0.35ms]",
+        "retirement planning > throws for duplicate identities, future receipts and unknown historical releases [0.16ms]",
+        "refuses duplicate physical content owners and unknown or graph-overlapping content [0.29ms]",
+        "retirement planning > rejects duplicate graph nodes, registered environments and histories [0.28ms]",
+        "retirement planning > rejects future publication receipts and unregistered environment histories [0.35ms]",
+        "retirement planning > throws for duplicate identities, future receipts and unknown historical releases [0.16ms]",
+        "refuses duplicate physical content owners and unknown or graph-overlapping content [0.29ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "a0396516a4a5af04feeb5bcb2ec22d944974ed6d49107faf4a4b1f158f8ee5e1",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P23 cycle",
+      "filename": "registry-policy.ts",
+      "needle": "if (ancestors.has(digest))",
+      "replacement": "if (false)",
+      "pattern": "",
+      "index": 22,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > rejects cyclic dependencies [0.24ms]",
+        "retirement planning > rejects cyclic dependencies [0.24ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "9ad5f72467ffe4822f25a37c9eb46308bf660fe00e7bccb1886136cc95842399",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P24 unknown dependencies",
+      "filename": "registry-policy.ts",
+      "needle": "if (node === undefined) throw new Error(`Unknown dependency ${digest}`);",
+      "replacement": "if (node === undefined) return;",
+      "pattern": "",
+      "index": 23,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > rejects unknown roots and mutable identities even when both references agree [0.19ms]",
+        "retirement planning > throws for incomplete graph, unknown references and mutable identities [0.26ms]",
+        "retirement planning > rejects unknown roots and mutable identities even when both references agree [0.19ms]",
+        "retirement planning > throws for incomplete graph, unknown references and mutable identities [0.26ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "b0788c36e89df88f382c851626e6fe9a17ae53fc5a7ea9332e0b8709149c204a",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P25 partial owner",
+      "filename": "registry-policy.ts",
+      "needle": "throw new Error('Partial content lacks reconciled abandonment');",
+      "replacement": ";",
+      "pattern": "",
+      "index": 24,
+      "exit": 1,
+      "failedTests": [
+        "refuses partial operations without an abandoned owning bundle [0.27ms]",
+        "refuses partial operations without an abandoned owning bundle [0.27ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "cc329ae415216c2c0aa578d51c2e46fe8d4a9ff5fc53d4d4e3926814268c25b7",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P26 retired identity",
+      "filename": "registry-policy.ts",
+      "needle": "throw new Error('Unknown retired operation or empty required roots');",
+      "replacement": ";",
+      "pattern": "",
+      "index": 25,
+      "exit": 1,
+      "failedTests": [
+        "refuses unknown unfinished or empty-root retired declarations [0.23ms]",
+        "refuses unknown unfinished or empty-root retired declarations [0.23ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "2f6e7a3c98f247650b48a056fa6e36bff97f9311a1548fb66edef2870f2a27e4",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P27 known graph owner",
+      "filename": "registry-policy.ts",
+      "needle": "if (!owned.has(node.digest))",
+      "replacement": "if (false)",
+      "pattern": "",
+      "index": 26,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > throws for unknown owner [0.24ms]",
+        "retirement planning > throws for unknown owner [0.24ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "fb706b62cd35cf3da67aa6c7a03257691e75fa9ee5735f0a855472e5b331ee27",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P28 physical owner",
+      "filename": "registry-policy.ts",
+      "needle": "throw new Error('Invalid unreferenced physical content ownership');",
+      "replacement": ";",
+      "pattern": "",
+      "index": 27,
+      "exit": 1,
+      "failedTests": [
+        "refuses duplicate physical content owners and unknown or graph-overlapping content [0.41ms]",
+        "refuses duplicate physical content owners and unknown or graph-overlapping content [0.41ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "a36a16ccb383ec08272f91d723edecbbae57974b7ed7549c369f428830d4d272",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P29 staging owner",
+      "filename": "registry-policy.ts",
+      "needle": "throw new Error('Unowned staged content');",
+      "replacement": ";",
+      "pattern": "",
+      "index": 28,
+      "exit": 1,
+      "failedTests": [
+        "refuses staged content without an owning bundle [0.35ms]",
+        "refuses staged content without an owning bundle [0.35ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "aedad284c9917b7713b0763a809d190a6c08688cafe8d0675dca2e93162e46a3",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P30 future bundle",
+      "filename": "registry-policy.ts",
+      "needle": "if (Date.parse(bundle.receipt.at) > currentTime)",
+      "replacement": "if (false)",
+      "pattern": "",
+      "index": 29,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > rejects future publication receipts and unregistered environment histories [0.23ms]",
+        "retirement planning > rejects future publication receipts and unregistered environment histories [0.23ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "8e7e43212e595ddcec9c4187ea0a9e8e3e67487355f2c9c99d6f65da3bc2ab0c",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P31 missing history",
+      "filename": "registry-policy.ts",
+      "needle": "if (!inventory.histories.some((history) => history.environment === environment))",
+      "replacement": "if (false)",
+      "pattern": "",
+      "index": 30,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > throws for absent or incomplete history instead of assuming first install [0.20ms]",
+        "retirement planning > throws for absent or incomplete history instead of assuming first install [0.20ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "8834c2a47a48ecbf3d21d8336763443f5f89f6e847be2bdba89de100e0f7d0e4",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P32 registered history",
+      "filename": "registry-policy.ts",
+      "needle": "if (!inventory.registeredEnvironments.includes(history.environment))",
+      "replacement": "if (false)",
+      "pattern": "",
+      "index": 31,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > rejects future publication receipts and unregistered environment histories [0.28ms]",
+        "retirement planning > rejects future publication receipts and unregistered environment histories [0.28ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "5e1629b38c83f22f803a4926ac66627457555bd99a62f218f87e1c4f0a4e1b14",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P33 first-install chronology",
+      "filename": "registry-policy.ts",
+      "needle": "if (Date.parse(history.at) > currentTime)",
+      "replacement": "if (false)",
+      "pattern": "",
+      "index": 32,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > throws for duplicate identities, future receipts and unknown historical releases [0.25ms]",
+        "retirement planning > throws for duplicate identities, future receipts and unknown historical releases [0.25ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "76a35f3fdcf1fb0daf0952a0be73fbd917f40472dca6c02b8aa71c567358c828",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P34 known history",
+      "filename": "registry-policy.ts",
+      "needle": "if (bundles.get(operationId)?.receipt.state !== 'promoted')",
+      "replacement": "if (false)",
+      "pattern": "",
+      "index": 33,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > throws for duplicate identities, future receipts and unknown historical releases [0.34ms]",
+        "retirement planning > throws for duplicate identities, future receipts and unknown historical releases [0.34ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "95afd13db4aea5498a9e7f7bb7d53e4f123c72112a884febd8d09b19f42976e6",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P35 newest ten",
+      "filename": "registry-policy.ts",
+      "needle": "successful.slice(0, 10)",
+      "replacement": "successful.slice(0, 9)",
+      "pattern": "",
+      "index": 34,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > keeps ten complete bundles [0.55ms]",
+        "retirement planning > preserves older environment rollback [0.34ms]",
+        "retirement planning > uses stable operation IDs to order tied promotion receipts [0.20ms]",
+        "current consumer shared tier preserves its image while oldest four unique tiers retire [0.33ms]",
+        "retirement planning > keeps ten complete bundles [0.55ms]",
+        "retirement planning > preserves older environment rollback [0.34ms]",
+        "retirement planning > uses stable operation IDs to order tied promotion receipts [0.20ms]",
+        "current consumer shared tier preserves its image while oldest four unique tiers retire [0.33ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "3be478297d666fb7579201c4bbf9136de46caec02802ddc759d00485b9317b81",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P36 rollback history",
+      "filename": "registry-policy.ts",
+      "needle": "history.releases.slice(0, 3)",
+      "replacement": "history.releases.slice(0, 1)",
+      "pattern": "",
+      "index": 35,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > preserves older environment rollback [0.44ms]",
+        "retirement planning > preserves older environment rollback [0.44ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "602f6d145f37167aa290de1d219dc9bf664b22a4fb6e781c00f2cd47ac7004da",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P37 retired history",
+      "filename": "registry-policy.ts",
+      "needle": "if (reasons.has(bundle.operationId))\n        throw new Error('Retired bundle remains required by release history');",
+      "replacement": "",
+      "pattern": "",
+      "index": 36,
+      "exit": 1,
+      "failedTests": [
+        "refuses retired releases still required by successful history [0.22ms]",
+        "refuses retired releases still required by successful history [0.22ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "6286146be4335b1cc8fcd2d64502b55cf1d83609b2d0c436e8ed411e532aae14",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P38 unfinished retention",
+      "filename": "registry-policy.ts",
+      "needle": "if (bundle.receipt.state === 'unfinished') retain(bundle.operationId, 'unfinished');",
+      "replacement": "if (false) retain(bundle.operationId, 'unfinished');",
+      "pattern": "",
+      "index": 37,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > retains unfinished work regardless of age and excludes it from successful history [1.38ms]",
+        "retirement planning > retains unfinished work regardless of age and excludes it from successful history [1.38ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "ee241b5f15029703515dd2af0c63d7ac6e19ee1a644d79f2580bcf8faf4cc4cc",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P39 seven day grace",
+      "filename": "registry-policy.ts",
+      "needle": "const abandonmentDelay = 7 *",
+      "replacement": "const abandonmentDelay = 6 *",
+      "pattern": "",
+      "index": 38,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > waits seven days after abandonment [0.25ms]",
+        "retirement planning > waits seven days after abandonment [0.25ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "6aa150f191ba6f317cd17c85d0c073bd87cd1c2cbce012fcff6a5b05a4b97784",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P40 exact protection closure",
+      "filename": "registry-policy.ts",
+      "needle": "bundle.roots.every((root) => protectedImages.has(root))",
+      "replacement": "bundle.roots.some((root) => protectedImages.has(root))",
+      "pattern": "",
+      "index": 39,
+      "exit": 1,
+      "failedTests": [
+        "current consumer shared tier preserves its image while oldest four unique tiers retire [0.43ms]",
+        "exact deployment roots remain protected across different owners without retaining unrelated old roots [0.18ms]",
+        "exact recovery roots remain protected across different owners without retaining unrelated old roots [0.11ms]",
+        "exact consumer roots remain protected across different owners without retaining unrelated old roots [0.10ms]",
+        "current consumer shared tier preserves its image while oldest four unique tiers retire [0.43ms]",
+        "exact deployment roots remain protected across different owners without retaining unrelated old roots [0.18ms]",
+        "exact recovery roots remain protected across different owners without retaining unrelated old roots [0.11ms]",
+        "exact consumer roots remain protected across different owners without retaining unrelated old roots [0.10ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "13460e7f0c312173b5489a88efd1464044a39d4058cfaea0b253a78ef04d38f0",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P41 protected digest",
+      "filename": "registry-policy.ts",
+      "needle": ".filter((digest) => !protectedDigests.has(digest))",
+      "replacement": ".filter(() => true)",
+      "pattern": "",
+      "index": 40,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > does not count shared blobs twice [0.35ms]",
+        "current consumer shared tier preserves its image while oldest four unique tiers retire [0.36ms]",
+        "exact deployment roots remain protected across different owners without retaining unrelated old roots [0.18ms]",
+        "exact recovery roots remain protected across different owners without retaining unrelated old roots [0.09ms]",
+        "exact consumer roots remain protected across different owners without retaining unrelated old roots [0.10ms]",
+        "retirement planning > does not count shared blobs twice [0.35ms]",
+        "current consumer shared tier preserves its image while oldest four unique tiers retire [0.36ms]",
+        "exact deployment roots remain protected across different owners without retaining unrelated old roots [0.18ms]",
+        "exact recovery roots remain protected across different owners without retaining unrelated old roots [0.09ms]",
+        "exact consumer roots remain protected across different owners without retaining unrelated old roots [0.10ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "629eb2dc1af024185cd79548ccfb599e7a7bbc46f797ae4d8517715c56230cec",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P42 already retired",
+      "filename": "registry-policy.ts",
+      "needle": "!inventory.retiredOperations?.includes(bundle.operationId),",
+      "replacement": "true,",
+      "pattern": "",
+      "index": 41,
+      "exit": 1,
+      "failedTests": [
+        "does not retire an already retired abandoned operation again [0.26ms]",
+        "does not retire an already retired abandoned operation again [0.26ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "69ad80a5f8f40208ed36511058f9a564d6651a98b1935057e00f45e605c8e5d9",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P43 every orphan owner",
+      "filename": "registry-policy.ts",
+      "needle": "content.operations.every((operationId) => released.has(operationId))",
+      "replacement": "content.operations.some((operationId) => released.has(operationId))",
+      "pattern": "",
+      "index": 42,
+      "exit": 1,
+      "failedTests": [
+        "retains shared unreferenced content until every owning operation releases it [0.26ms]",
+        "retains shared unreferenced content until every owning operation releases it [0.26ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "b98ef3d116328ee2fda119b9ec1032c91c8a873a86268ac4803a2b3a9f7ba97d",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P44 byte cleanup target",
+      "filename": "registry-policy.ts",
+      "needle": "threshold(budgetBytes(inventory.capacity), 70)",
+      "replacement": "threshold(budgetBytes(inventory.capacity), 80)",
+      "pattern": "",
+      "index": 43,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > reports all-protected exhaustion without weakening retention [0.28ms]",
+        "retirement planning > reports all-protected exhaustion without weakening retention [0.28ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "ed3e9a500dd914c2c4f4c149772025c99018df83ba5295fc1afa58d6a4e6b003",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "P45 inode cleanup target",
+      "filename": "registry-policy.ts",
+      "needle": "threshold(inventory.capacity.totalInodes, 70)",
+      "replacement": "threshold(inventory.capacity.totalInodes, 80)",
+      "pattern": "",
+      "index": 44,
+      "exit": 1,
+      "failedTests": [
+        "retirement planning > targets below seventy percent and requests pressure cleanup at eighty [0.27ms]",
+        "retirement planning > targets below seventy percent and requests pressure cleanup at eighty [0.27ms]"
+      ],
+      "sourceSha256": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "efcf25d14c3b7247ddd8ff3357d3aa90e9220d2625c79f9fedd9172c86d1667f",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J01 schema boundary",
+      "filename": "registry-journal.ts",
+      "needle": "const parsed = schema(input);",
+      "replacement": "const parsed = input as T;",
+      "pattern": "rejects malformed claims",
+      "index": 45,
+      "exit": 1,
+      "failedTests": [
+        "rejects malformed claims and insecure journal paths before mutations [22.76ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "b1cac7ab3091dce7e9ddf4aefee75613b7a73d0642900c1ff13a8b84f3cd0e71",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J02 owner-only directory",
+      "filename": "registry-journal.ts",
+      "needle": "if (!status.isDirectory() || status.uid !== process.getuid?.() || (status.mode & 0o777) !== 0o700)",
+      "replacement": "if (false)",
+      "pattern": "rejects malformed claims",
+      "index": 46,
+      "exit": 1,
+      "failedTests": [
+        "rejects malformed claims and insecure journal paths before mutations [39.26ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "7145d51f87a53d26fa526cd14f4fbf6f7615f0ddda462299603d8bc4676279bb",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J03 trusted file mode",
+      "filename": "registry-journal.ts",
+      "needle": "if (!status.isFile() || status.uid !== process.getuid?.() || (status.mode & 0o777) !== 0o600)",
+      "replacement": "if (false)",
+      "pattern": "rejects missing unreadable",
+      "index": 47,
+      "exit": 1,
+      "failedTests": [
+        "rejects missing unreadable and corrupt trusted state on command paths [28.20ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "4c9e5dc4b3194003ddaff0ba2b0df8a09ad786e726b1242997716048c7d92733",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J04 nofollow journal",
+      "filename": "registry-journal.ts",
+      "needle": "constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK",
+      "replacement": "constants.O_RDONLY | constants.O_NONBLOCK",
+      "pattern": "rejects malformed claims",
+      "index": 48,
+      "exit": 1,
+      "failedTests": [
+        "rejects malformed claims and insecure journal paths before mutations [29.59ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "f7b103a914de0858a8cc0da7f0014f35839e6ba1d042d832e62c2b379d2d85e4",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J05 bounded journal read",
+      "filename": "registry-journal.ts",
+      "needle": "if (size > maximumJournalBytes)",
+      "replacement": "if (false)",
+      "pattern": "bounds valid oversized",
+      "index": 49,
+      "exit": 1,
+      "failedTests": [
+        "bounds valid oversized command and journal inputs and refuses exhausted revisions [51.28ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "8fa3b9c3042c6d35bdfb149274d4497289d91f0a09aafb5ceffc03daa6a60341",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J06 read invariants",
+      "filename": "registry-journal.ts",
+      "needle": "requireConsistentState(journal);",
+      "replacement": "",
+      "pattern": "refuses reinitialization",
+      "index": 50,
+      "exit": 1,
+      "failedTests": [
+        "refuses reinitialization, clock reversal, duplicate roots and malformed trusted ownership [19.35ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "6151af020519ac5014ba6ddb7df8a96f9f587a43b989b36f7d5758f565460f77",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J07 unique journal identities",
+      "filename": "registry-journal.ts",
+      "needle": "if (new Set(identities).size !== identities.length)",
+      "replacement": "if (false)",
+      "pattern": "refuses reinitialization",
+      "index": 51,
+      "exit": 1,
+      "failedTests": [
+        "refuses reinitialization, clock reversal, duplicate roots and malformed trusted ownership [8.77ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "b96c36f3663948975c52d4024ebcdafbd13a1edc8f7f27fed84f438115f034e0",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J08 image references",
+      "filename": "registry-journal.ts",
+      "needle": "throw new Error('Image roots and exact repository references disagree');",
+      "replacement": ";",
+      "pattern": "rejects malformed claims",
+      "index": 52,
+      "exit": 1,
+      "failedTests": [
+        "rejects malformed claims and insecure journal paths before mutations [25.88ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "395701bf91aeb4da39cbaf1752831ba714959b3f165dd71d3b4479dc33746ea5",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J09 replacement names",
+      "filename": "registry-journal.ts",
+      "needle": "if (!name.endsWith('.json') || Token(name.slice(8, -5)) instanceof type.errors)",
+      "replacement": "if (false)",
+      "pattern": "refuses unsafe replacement",
+      "index": 53,
+      "exit": 1,
+      "failedTests": [
+        "refuses unsafe replacement entries without deleting canonical or unrelated files [21.58ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "b00a114cd8f00e88b5e298f450f458d63bd5943727ab28290476eb34857f19be",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J10 replacement regular file",
+      "filename": "registry-journal.ts",
+      "needle": "!status.isFile() ||\n    status.uid",
+      "replacement": "false ||\n    status.uid",
+      "pattern": "refuses unsafe replacement",
+      "index": 54,
+      "exit": 1,
+      "failedTests": [
+        "refuses unsafe replacement entries without deleting canonical or unrelated files [33.39ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "2e838b9d3842538cc7371c49ae083504b9cf22113a5b5dde6ad6a4f319343e2c",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J11 replacement owner",
+      "filename": "registry-journal.ts",
+      "needle": "status.uid !== process.getuid?.() ||\n    (status.mode",
+      "replacement": "false ||\n    (status.mode",
+      "pattern": "refuses a foreign-owner replacement",
+      "index": 55,
+      "exit": 1,
+      "failedTests": [
+        "refuses a foreign-owner replacement reported by the filesystem boundary [313.81ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "104d0de55cc1523119d9b19183ffcab72dd2aff91a3d9bf64f2382e0dee970a5",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J12 replacement mode",
+      "filename": "registry-journal.ts",
+      "needle": "(status.mode & 0o777) !== 0o600 ||\n    status.nlink",
+      "replacement": "false ||\n    status.nlink",
+      "pattern": "refuses unsafe replacement",
+      "index": 56,
+      "exit": 1,
+      "failedTests": [
+        "refuses unsafe replacement entries without deleting canonical or unrelated files [27.72ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "901db20a4939a9fe87f663e3218d4f3f0c427997c1e6c24377fbd1625c1095c1",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J13 replacement links",
+      "filename": "registry-journal.ts",
+      "needle": "status.nlink !== 1",
+      "replacement": "false",
+      "pattern": "refuses unsafe replacement",
+      "index": 57,
+      "exit": 1,
+      "failedTests": [
+        "refuses unsafe replacement entries without deleting canonical or unrelated files [25.14ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "a16f79bc3cd9ea83a857bae0a641d96b47b30dc839a8ea2cbdb10be039ba5904",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J14 orphan cleanup",
+      "filename": "registry-journal.ts",
+      "needle": "for (const path of replacements) await unlink(path);",
+      "replacement": "",
+      "pattern": "reclaims a crashed pre-rename",
+      "index": 58,
+      "exit": 1,
+      "failedTests": [
+        "reclaims a crashed pre-rename replacement only after validating canonical state [318.73ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "1b5952b06fc3f467e3a8eca51be6d84a31579dd93512112ced63a324611a9ea1",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J15 orphan fsync",
+      "filename": "registry-journal.ts",
+      "needle": "if (replacements.length > 0) await syncDirectory(directory, ports);",
+      "replacement": "",
+      "pattern": "propagates orphan directory fsync",
+      "index": 59,
+      "exit": 1,
+      "failedTests": [
+        "propagates orphan directory fsync failure without acknowledging the read command [7.53ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "6f81f2647de3358d5253658297c5db713435bd027bd9c364ffa4bbc33a4f05f8",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J16 kernel lock",
+      "filename": "registry-journal.ts",
+      "needle": "if (library.symbols.flock(descriptor.fd, 2 | 4) !== 0)",
+      "replacement": "if (false)",
+      "pattern": "refuses a competing process",
+      "index": 60,
+      "exit": 1,
+      "failedTests": [
+        "refuses a competing process holding the actual kernel lock without a locked bypass [31.88ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "615ee45c296d32eb700c09d6e18bff9f682db6320754dc97d55a1e83ca3d8a4b",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J17 failure growth",
+      "filename": "registry-journal.ts",
+      "needle": "replacementBytes + (recovery ? 0 : failureHeadroom)",
+      "replacement": "replacementBytes",
+      "pattern": "reserves failure growth",
+      "index": 61,
+      "exit": 1,
+      "failedTests": ["reserves failure growth below the bounded journal read limit [115.96ms]"],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "023764c9cd5e2c2dea1b2f7edc6415ff899ff4db7bb0fcbf0dac7d2c52103001",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J18 physical replacement",
+      "filename": "registry-journal.ts",
+      "needle": "    replacementAllocation +\n    (recovery",
+      "replacement": "    0n +\n    (recovery",
+      "pattern": "charges physical replacement",
+      "index": 62,
+      "exit": 1,
+      "failedTests": [
+        "charges physical replacement allocation before spending recovery headroom [14.93ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "5ba9409756ead26337da2f642b796485c4171d75ff6ce251addb0ed610aaac20",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J19 journal budget",
+      "filename": "registry-journal.ts",
+      "needle": "neededBytes * (recovery ? 1n : 10n) >= BigInt(budget) * (recovery ? 1n : 9n)",
+      "replacement": "false",
+      "pattern": "refuses a full journal",
+      "index": 63,
+      "exit": 1,
+      "failedTests": [
+        "refuses a full journal including atomic replacement and retains failure headroom [21.46ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "6f9c6014ae84d16d3aaccd490bf2344c011d6bd166cd33184fca1dc4719c977a",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J20 file fsync",
+      "filename": "registry-journal.ts",
+      "needle": "      await sync(descriptor);",
+      "replacement": "",
+      "pattern": "propagates failed file and directory fsync",
+      "index": 64,
+      "exit": 1,
+      "failedTests": [
+        "propagates failed file and directory fsync without acknowledging mutation [19.71ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "aabcc00977974e4b2e536f795eff098c53c457481868c179e1205d6ca6e026e2",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J21 directory fsync",
+      "filename": "registry-journal.ts",
+      "needle": "    await syncDirectory(directory, ports);\n  } catch (cause) {",
+      "replacement": "  } catch (cause) {",
+      "pattern": "propagates failed file and directory fsync",
+      "index": 65,
+      "exit": 1,
+      "failedTests": [
+        "propagates failed file and directory fsync without acknowledging mutation [24.50ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "808061ba795ea721b4d841a3425abe608faf805d76c4a57d403349eba31ae6e9",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J22 failed replacement unlink",
+      "filename": "registry-journal.ts",
+      "needle": "        await unlink(replacement);",
+      "replacement": "",
+      "pattern": "removes its replacement after repeated fsync",
+      "index": 66,
+      "exit": 1,
+      "failedTests": [
+        "removes its replacement after repeated fsync failures while preserving canonical state [19.89ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "50487ad6648b67eff042df598f92a43ae70659eb5398e065fc4edbd1fbdcc3f7",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J23 cleanup failure propagation",
+      "filename": "registry-journal.ts",
+      "needle": "throw new AggregateError(\n          [cause, cleanupFailure],\n          'Registry journal write and replacement cleanup failed',\n          { cause: cleanupFailure },\n        );",
+      "replacement": "throw cause;",
+      "pattern": "propagates replacement cleanup failure",
+      "index": 67,
+      "exit": 1,
+      "failedTests": [
+        "propagates replacement cleanup failure and reclaims the orphan after permission recovery [18.68ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "97d134c6bcda45613a27938e89d30c0f02a947536de78fb703f8cf65b84dff7c",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J24 operation token",
+      "filename": "registry-journal.ts",
+      "needle": "owned.token !== request.token",
+      "replacement": "false",
+      "pattern": "rejects stale operation tokens",
+      "index": 68,
+      "exit": 1,
+      "failedTests": [
+        "rejects stale operation tokens and foreign owners before releasing protections [26.29ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "07fe547717b35d103aeaec7d4a1b2d903d15631feb1cd0a1b86a468f5900a981",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J25 operation owner",
+      "filename": "registry-journal.ts",
+      "needle": "owned.owner !== request.owner",
+      "replacement": "false",
+      "pattern": "rejects stale operation tokens",
+      "index": 69,
+      "exit": 1,
+      "failedTests": [
+        "rejects stale operation tokens and foreign owners before releasing protections [24.39ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "43273c30db53d5fdcb1c7defc297d1267e5cf059d108477d72e454d54e3badd4",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J26 maintenance phase membership",
+      "filename": "registry-journal.ts",
+      "needle": "!phases.includes(maintenance.resumePhase)",
+      "replacement": "false",
+      "pattern": "rejects corrupted active",
+      "index": 70,
+      "exit": 1,
+      "failedTests": [
+        "rejects corrupted active and failed maintenance phase combinations before recovery [12.82ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "3f2deef2f85a25aa51fd360889e13d77dfb8685042f4ccdb091afa319116f1a7",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J27 maintenance phase consistency",
+      "filename": "registry-journal.ts",
+      "needle": ": maintenance.phase !== maintenance.resumePhase)",
+      "replacement": ": false)",
+      "pattern": "rejects corrupted active",
+      "index": 71,
+      "exit": 1,
+      "failedTests": [
+        "rejects corrupted active and failed maintenance phase combinations before recovery [24.72ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "5be1dfbe5d4bacbe6dc81dd818c92010da52ebe7884d490caf75822696cf7564",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J28 failed phase evidence",
+      "filename": "registry-journal.ts",
+      "needle": "maintenance.failure === undefined || maintenance.failure.length === 0",
+      "replacement": "false",
+      "pattern": "rejects corrupted active",
+      "index": 72,
+      "exit": 1,
+      "failedTests": [
+        "rejects corrupted active and failed maintenance phase combinations before recovery [14.20ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "96f5ae78c70bedc10286d65caa24aad928bbf724b5553d0d4c6f3706ca56eb2c",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J29 stale revision",
+      "filename": "registry-journal.ts",
+      "needle": "if (request.expectedRevision !== journal.revision)",
+      "replacement": "if (false)",
+      "pattern": "rejects stale revision",
+      "index": 73,
+      "exit": 1,
+      "failedTests": ["rejects stale revision without changing durable state [24.06ms]"],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "1f1bcd91ff4cc2fdbc71949f71fec02a1c887c6a7e32ab98b646cec2a32d375c",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J30 maintenance exclusion",
+      "filename": "registry-journal.ts",
+      "needle": "if (journal.maintenance !== null && !maintenanceCommand)",
+      "replacement": "if (false)",
+      "pattern": "preserves failed maintenance",
+      "index": 74,
+      "exit": 1,
+      "failedTests": [
+        "preserves failed maintenance ownership until explicit recovery and verified completion [22.76ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "e00197748b88db970b79807060d0e7e3550ea7fa6f68b8598d845381df4364f8",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J31 publication reconciliation",
+      "filename": "registry-journal.ts",
+      "needle": "if (!request.reconciled) throw new Error('Publication uploads must be reconciled');",
+      "replacement": "",
+      "pattern": "rejects invalid journal measurements",
+      "index": 75,
+      "exit": 1,
+      "failedTests": [
+        "rejects invalid journal measurements and preserves unresolved publication ownership [26.44ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "38cc51294c876b6474b8115105ac9ea2532faad634503f202e553ebc9a271953",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J32 phase sequence",
+      "filename": "registry-journal.ts",
+      "needle": "if (phases[phases.indexOf(maintenance.phase) + 1] !== request.phase)",
+      "replacement": "if (false)",
+      "pattern": "recovers crashed maintenance",
+      "index": 76,
+      "exit": 1,
+      "failedTests": [
+        "recovers crashed maintenance at its durable phase and completes only after every verification phase [27.85ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "14898de5e7d16c113b55375f571c6e02ad232b24d572694c3ff5e59f10c34c4e",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J33 bounded command",
+      "filename": "registry-journal.ts",
+      "needle": "if (typeof encoded !== 'string' || Buffer.byteLength(encoded) > maximumRequestBytes)",
+      "replacement": "if (false)",
+      "pattern": "bounds valid oversized",
+      "index": 77,
+      "exit": 1,
+      "failedTests": [
+        "bounds valid oversized command and journal inputs and refuses exhausted revisions [28.23ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "d759a22df72877f9e1d1b5626cdbf793b2fd025f66becc6649008e226044d613",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J34 initialize recovery evidence",
+      "filename": "registry-journal.ts",
+      "needle": "if ((await listReplacements(directory)).length > 0)",
+      "replacement": "if (false)",
+      "pattern": "refuses initialize when an orphan",
+      "index": 78,
+      "exit": 1,
+      "failedTests": [
+        "refuses initialize when an orphan may be the only recoverable journal [16.21ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "d8b5a664e27c147ec5e3f9d1d840336a288dd9bb37f9c8d8533669de0aef6b29",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J35 numeric chronology omission",
+      "filename": "registry-journal.ts",
+      "needle": "if (Date.parse(at) < Date.parse(state.updatedAt))",
+      "replacement": "if (false)",
+      "pattern": "chronology",
+      "index": 79,
+      "exit": 1,
+      "failedTests": [
+        "chronology rejects standard reversal before durable mutation [22.03ms]",
+        "chronology rejects expanded-boundary reversal before durable mutation [3.31ms]",
+        "chronology rejects negative-expanded reversal before durable mutation [3.09ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "51d9ce343abbb0c56ba9b452a1750359ca3beaede7c2a9ef4de29477d419a0fc",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J36 exhausted revisions",
+      "filename": "registry-journal.ts",
+      "needle": "if (!Number.isSafeInteger(state.revision + 1))",
+      "replacement": "if (false)",
+      "pattern": "bounds valid oversized",
+      "index": 80,
+      "exit": 1,
+      "failedTests": [
+        "bounds valid oversized command and journal inputs and refuses exhausted revisions [48.05ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "8c2876037c8187f4b0458bd7543c2231b9ebf2496d05eb1e66da04534aebdf6a",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "J37 lexical chronology restoration",
+      "filename": "registry-journal.ts",
+      "needle": "if (Date.parse(at) < Date.parse(state.updatedAt))",
+      "replacement": "if (at < state.updatedAt)",
+      "pattern": "chronology",
+      "index": 81,
+      "exit": 1,
+      "failedTests": [
+        "chronology rejects expanded-boundary reversal before durable mutation [2.61ms]",
+        "chronology accepts expanded-boundary advancement from an earlier spelling [1.13ms]",
+        "chronology rejects negative-expanded reversal before durable mutation [3.81ms]",
+        "chronology accepts negative-expanded advancement from an earlier spelling [1.30ms]"
+      ],
+      "sourceSha256": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "7d41ab86ed614cad84ba72baca6fd57fbf03755502fc3d872749deba2c7c2ff1",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "C01 streaming input bound",
+      "filename": "registry-journal-cli.ts",
+      "needle": "if (bytes > 64 * 1024)",
+      "replacement": "if (false)",
+      "pattern": "runs the owner-only stdin CLI",
+      "index": 82,
+      "exit": 1,
+      "failedTests": [
+        "runs the owner-only stdin CLI with real measurements and bounds input [526.44ms]"
+      ],
+      "sourceSha256": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "dbfad82e58a62a36dce165d7a2fddaae8ad15ee1eeaaf66171315def6d4386c3",
+      "observedAt": "2026-11-08"
+    },
+    {
+      "name": "C02 argument count",
+      "filename": "registry-journal-cli.ts",
+      "needle": "if (directory === undefined || process.argv.length !== 3)",
+      "replacement": "if (directory === undefined)",
+      "pattern": "runs the owner-only stdin CLI",
+      "index": 83,
+      "exit": 1,
+      "failedTests": [
+        "runs the owner-only stdin CLI with real measurements and bounds input [693.26ms]"
+      ],
+      "sourceSha256": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+      "sourceSha256Before": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "sourceSha256After": {
+        "registry-policy.ts": "6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab",
+        "registry-journal.ts": "eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d",
+        "registry-journal-cli.ts": "2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634",
+        "registry-policy.test.ts": "576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a",
+        "registry-journal.test.ts": "fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300"
+      },
+      "logSha256": "536731aacf8dc9475854ca3e4797cd9c94dfa2d357f4f46f7aa6627243de7948",
+      "observedAt": "2026-11-08"
+    }
+  ],
+  "directoryEnumerationCorrection": {
+    "previousCheckpoint": "037654411a89682d8f753b72be6288eb07fa6160",
+    "previousJournalTestSha256": "b7fb6913f53c223c93e5210d81d25c95415589312484c0cb93f2c2c8000aaa13",
+    "fixtureSource": "import * as filesystem from 'node:fs/promises';\nimport { mock } from 'bun:test';\n\nconst nativeReaddir = filesystem.readdir;\nmock.module('node:fs/promises', () => ({\n  ...filesystem,\n  readdir: async (...arguments_) => {\n    const entries = await nativeReaddir(...arguments_);\n    return entries.sort((left, right) =>\n      String(typeof right === 'object' && 'name' in right ? right.name : right).localeCompare(\n        String(typeof left === 'object' && 'name' in left ? left.name : left),\n      ),\n    );\n  },\n}));\n",
+    "command": "bun test --preload <saved-fixture> --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-fleet/src/registry-journal.test.ts",
+    "before": {
+      "exit": 1,
+      "pass": 31,
+      "fail": 5,
+      "assertions": 245
+    },
+    "after": {
+      "exit": 0,
+      "pass": 36,
+      "fail": 0,
+      "assertions": 264
+    },
+    "change": "Sort actual enumeration only in the five exact directory-membership assertions. Expected filenames and no-orphan guarantees remain unchanged.",
+    "proofRefresh": "All 84 existing guard faults rerun after this test-only change; every fault caused a named test failure. Production source hashes are unchanged.",
+    "validation": {
+      "focused": {
+        "exit": 0,
+        "pass": 86,
+        "fail": 0,
+        "assertions": 362,
+        "files": 2,
+        "seconds": 6.94
+      },
+      "wholeFleetCheck": {
+        "command": "NX_DAEMON=false bunx nx run tool-fleet:check --skip-nx-cache",
+        "exit": 0,
+        "tests": 690,
+        "fail": 0,
+        "assertions": 2522,
+        "files": 46,
+        "testSeconds": 67.48,
+        "totalDuration": "1m 25s",
+        "artifactFamilies": "every family passed",
+        "includes": ["test", "lint", "typecheck", "static artifact validation"]
+      },
+      "mainComposition": {
+        "main": "a2a9764f3b3ba5d83a8e309b766ada9c9f82156e",
+        "changedPaths": 10,
+        "candidateIntersection": []
+      }
+    }
+  },
+  "recoveryContractClarification": {
+    "previousCheckpoint": "0b238e227cb40c9c46384b49524fb5f633d475d5",
+    "legacyFaultsRerun": 84,
+    "additionalProofs": "recovery-failure-proofs.json",
+    "additionalFaults": 6,
+    "baselineBefore": {
+      "passes": 89,
+      "failures": 0,
+      "assertions": 395,
+      "logSha256": "6fa39ecb5e3054dd584f254333f68035de2b9ccb580a0cde0a646a56ee4011d1"
+    },
+    "baselineAfter": {
+      "passes": 89,
+      "failures": 0,
+      "assertions": 395,
+      "logSha256": "d5c6a53469f122f11415ec13dbcec4872c2a8c00c8997626b57ea807ffc52f8a"
+    },
+    "runtimeExpressionsChanged": false
+  }
+}

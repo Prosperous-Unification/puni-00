@@ -41,7 +41,7 @@ export function sharedPersonRequest(): ImageSolverRequest {
   );
   const built = buildSolverRequest(plan, 'pri', {
     baselineOffsets,
-    solverVersion: '0.3.0',
+    solverVersion: '0.4.0',
     budgetMs: 30_000,
   });
   if (!built.ok) throw new Error(`shared-person image scenario: ${built.failure}: ${built.detail}`);

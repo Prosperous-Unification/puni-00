@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-git-hooks/src/hooks/pixels-workflow.test.ts:
+67 |     expect(layoutStep?.run).toBe('bun run e2e -- --shard=${{ matrix.shard }}/8');
+68 |     // Proof: deleting the dedicated step failed this production-workflow oracle with an absent run command (c2-review-pixels-fault).
+69 |     expect(organizationStep?.run).toBe('bunx nx run wbs-fe-01:e2e-organization');
+70 |     expect(organizationStep?.if).toBe('${{ matrix.shard == 1 }}');
+71 |     expect(crossProjectSteps).toHaveLength(1);
+72 |     expect(crossProjectSteps?.[0]?.if).toBe('${{ matrix.shard == 4 }}');
+                                            ^
+error: expect(received).toBe(expected)
+
+Expected: "${{ matrix.shard == 4 }}"
+Received: "${{ matrix.shard != 4 }}"
+
+      at <anonymous> (/tmp/puni-ci-cross-project-browser/tools/tool-git-hooks/src/hooks/pixels-workflow.test.ts:72:40)
+(fail) the CI pixels gate > runs every browser shard and makes the stable pixels check depend on them [3.10ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 9 expect() calls
+Ran 1 test across 1 file. [77.00ms]

@@ -776,3 +776,21 @@ _Avoid_: One source revision for every artifact
 **Service artifact**:
 An immutable deployable service image with its own source and build identity, reusable by a later compatible composite release.
 _Avoid_: Latest image
+
+## Registry foundation
+
+**Registry release bundle**:
+The exact image roots belonging to one product publication and its trusted completion or promotion receipt.
+_Avoid_: release tag, image collection
+
+**Registry publication reservation**:
+The byte and inode obligation owned by an unresolved registry publication.
+_Avoid_: upload lease, expiring allowance
+
+**Registry image protection**:
+An attributable owner's continuing obligation to retain exact image roots and their dependencies.
+_Avoid_: tag pin, cache promise
+
+**Registry maintenance record**:
+The durable owner, recovery token and ordered phase of one registry maintenance operation.
+_Avoid_: maintenance proof, physical authorization

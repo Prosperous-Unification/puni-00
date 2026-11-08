@@ -156,16 +156,30 @@ export function deadlineWords(
 export function variantStateWords(
   state: PlanOptimizationView['variants'][ScheduleObjectiveView],
   admitted: boolean,
+  connected = false,
 ): string | null {
   switch (state.state) {
-    case 'ready':
-      // `quantisation-floor` publishes Fast's own schedule when rounding made
-      // the solver result worse in the real domain. There is no unfinished
-      // solver result to warn about; the ordinary comparison already describes
-      // the schedule the reader actually received.
-      return state.proof === 'incomplete'
-        ? 'Search stopped before proving this schedule optimal'
-        : null;
+    case 'ready': {
+      switch (state.proof) {
+        case 'proven':
+          return connected
+            ? 'Proof applies to this project under captured fixed positions only'
+            : null;
+        case 'incomplete':
+          return connected
+            ? 'Search stopped before proving this captured question optimal'
+            : 'Search stopped before proving this schedule optimal';
+        case 'quantisation-floor':
+          return connected ? 'Published placement retains the captured baseline' : null;
+        default: {
+          // Proof: returning null admitted an unknown proof in connected captured cue reading (2026-10-22).
+          const _exhaustive: never = state.proof;
+          throw new Error(`Unknown optimization proof: ${String(_exhaustive)}`);
+        }
+      }
+    }
+    case 'boundary-infeasible':
+      return 'This captured optimization question cannot fit the fixed positions in other projects';
     case 'idle':
       // `idle` is "absent at this key with nothing in flight", which is two
       // different situations wearing one word: a variant the cold read is about
@@ -177,7 +191,7 @@ export function variantStateWords(
       return admitted ? 'Optimizing…' : null;
     case 'pending':
     case 'retrying':
-      return 'Optimizing…';
+      return connected ? 'Optimizing… under the captured fixed positions' : 'Optimizing…';
     case 'failed':
     case 'corrupt':
       return 'Optimization unavailable';
@@ -188,8 +202,9 @@ export function variantStateWords(
     default: {
       // Named with the underscore the unused-vars policy reads: this binding
       // exists for the `never` check alone.
+      // Proof: returning null admitted an unknown state in connected captured cue reading (2026-10-22).
       const _exhaustive: never = state;
-      return null;
+      throw new Error(`Unknown optimization state: ${String(_exhaustive)}`);
     }
   }
 }

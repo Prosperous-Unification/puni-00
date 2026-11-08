@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:
+(pass) versioned saved input readers > reads frozen input v1 as local without rewriting bytes [3.24ms]
+(pass) versioned saved input readers > reads frozen input v2 as local without rewriting bytes [0.46ms]
+(pass) versioned saved input readers > reads frozen input v3 as local without rewriting bytes [0.65ms]
+(pass) versioned saved input readers > reads frozen input v4 as local without rewriting bytes [0.34ms]
+(pass) versioned saved input readers > reads frozen input v5 as local without rewriting bytes [0.34ms]
+(pass) versioned saved input readers > reads frozen input v6 as local without rewriting bytes [0.33ms]
+(pass) versioned saved input readers > reads frozen input v7 as local without rewriting bytes [0.40ms]
+(pass) versioned saved input readers > reads frozen input v8 as local without rewriting bytes [0.35ms]
+(pass) versioned saved input readers > keeps the dormant v8 writer byte-identical to the frozen v8 builder [0.13ms]
+(pass) versioned saved input readers > preserves the frozen legacy schedule1 byte contract and retired algorithm identity [1.72ms]
+(pass) versioned saved input readers > requires explicit dependency history on input9 [0.67ms]
+(pass) versioned saved input readers > refuses header/body version mismatch and malformed new fields [5.96ms]
+(pass) versioned saved input readers > refuses external claims before a legacy local upgrade can erase them [0.16ms]
+(pass) versioned saved input readers > refuses original v1 scoped claims before an upgrade can erase them [0.15ms]
+(pass) versioned saved input readers > refuses original v2 scoped claims before an upgrade can erase them [0.05ms]
+(pass) versioned saved input readers > canonicalizes unordered captured history before future writer activation [5.74ms]
+(pass) versioned saved input readers > retains direct-fact ownership and duplicate refusal in new bodies [0.86ms]
+(pass) versioned saved input readers > folds converted connected context without live capabilities [4.13ms]
+
+ 18 pass
+ 0 fail
+ 90 expect() calls
+Ran 18 tests across 1 file. [228.00ms]

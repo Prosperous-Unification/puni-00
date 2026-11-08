@@ -26,7 +26,10 @@ import type { WorkItem } from '../ports/work-item-store';
  * read cannot place.
  */
 export function workItemStatusesOf(
-  rows: readonly WorkItem[],
+  rows: readonly Pick<
+    WorkItem,
+    'id' | 'parentId' | 'position' | 'priority' | 'frozenNumber' | 'readiness' | 'hold'
+  >[],
   progress: ReadonlyMap<string, ProgressStatus>,
   dependencies: AuthoredDependencyGraph,
 ): Map<string, WorkItemStatus> {

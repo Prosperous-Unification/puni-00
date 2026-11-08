@@ -1,0 +1,92 @@
+[
+  {
+    "name": "omit-update",
+    "path": "libs/wbs/application/core/src/service/compensating.ts",
+    "before": "step.do === 'add_typed_dependency' || step.do === 'update_typed_dependency'",
+    "selected": "ordered restore lets a mounted local create-update",
+    "classification": "compatibility: valid mounted update redo refused",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-integration-round1-fault-omit-update.log"
+  },
+  {
+    "name": "external-blanket-gate",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "endpoint.projectId === projectId &&\n                checked.reason === 'not_found'",
+    "selected": "ordered restore lets an external create-link",
+    "classification": "compatibility: valid semantic redo refused",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-integration-round1-fault-external-blanket-gate.log"
+  },
+  {
+    "name": "forbidden-exemption",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "checked.reason === 'not_found' &&",
+    "selected": "ordered restore propagates a delivered forbidden",
+    "classification": "acceptance: explicit forbidden reader outcome bypassed",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-integration-round1-fault-forbidden-exemption.log"
+  },
+  {
+    "name": "unknown-step-exemption",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "checked.reason === 'not_found' &&",
+    "selected": "ordered restore propagates a delivered unknown_step",
+    "classification": "acceptance: explicit unknown-step reader outcome bypassed",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-integration-round1-fault-unknown-step-exemption.log"
+  },
+  {
+    "name": "exact-restored-address",
+    "path": "libs/wbs/application/core/src/service/compensating.ts",
+    "before": "restored.has(endpoint.workItemId)",
+    "selected": "ordered restore refuses different-address",
+    "classification": "ordering diagnostic: early not_found changed to application-time stale_undo",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-integration-round1-fault-exact-restored-address.log"
+  },
+  {
+    "name": "selected-direction",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "restoredTypedAddressesOf(command, projectId)",
+    "selected": "ordered restore refuses other-direction",
+    "classification": "ordering diagnostic: wrong direction permitted deferral",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-integration-round1-fault-selected-direction.log"
+  },
+  {
+    "name": "restore-project",
+    "path": "libs/wbs/application/core/src/service/compensating.ts",
+    "before": "if (row.projectId === ownerId) restored.add(row.id);",
+    "selected": "predicts only earlier owner-local",
+    "classification": "pure scanner boundary: foreign restore classified local",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-integration-round1-fault-restore-project.log"
+  },
+  {
+    "name": "endpoint-project",
+    "path": "libs/wbs/application/core/src/service/compensating.ts",
+    "before": "endpoint.projectId === ownerId && restored.has(endpoint.workItemId)",
+    "selected": "predicts only earlier owner-local",
+    "classification": "pure scanner boundary: remote endpoint classified restored",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-integration-round1-fault-endpoint-project.log"
+  },
+  {
+    "name": "application-order",
+    "path": "libs/wbs/application/core/src/service/compensating.ts",
+    "before": "  visit(command);\n  return allowed;",
+    "selected": "ordered restore refuses later-restore",
+    "classification": "ordering diagnostic: later restore permitted deferral",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "log": "/tmp/puni-command-integration-round1-fault-application-order.log"
+  }
+]

@@ -1,0 +1,184 @@
+{
+  "schemaVersion": 1,
+  "scope": "read-only-local-settlement-profile",
+  "observations": {
+    "failed-settlement-profile-discovery-20261105.json": {
+      "schemaVersion": 1,
+      "scope": "read-only-failed-settlement-profile-discovery",
+      "observedAt": "2026-11-05T19:01:49.048415+00:00",
+      "kernel": "7.0.11-76070011-generic",
+      "rawPayloadRead": false,
+      "rawWrite": false,
+      "drain": false,
+      "reservationCredit": false,
+      "directory": {
+        "device": "66307",
+        "inode": "21892527",
+        "owner": 1000,
+        "mode": "0700",
+        "kind": "directory",
+        "bytes": "4096",
+        "allocatedBytes": "4096",
+        "inodeFlags": "524288",
+        "xattrNames": []
+      },
+      "defaultAcl": {
+        "state": "absent",
+        "errno": 61
+      },
+      "children": [
+        {
+          "name": "failure.json",
+          "nameBytes": 12,
+          "device": "66307",
+          "inode": "21892533",
+          "owner": 1000,
+          "mode": "0600",
+          "kind": "regular",
+          "bytes": "177",
+          "allocatedBytes": "4096"
+        },
+        {
+          "name": "request-binding.json",
+          "nameBytes": 20,
+          "device": "66307",
+          "inode": "21892528",
+          "owner": 1000,
+          "mode": "0600",
+          "kind": "regular",
+          "bytes": "498",
+          "allocatedBytes": "4096"
+        },
+        {
+          "name": "reservation.json",
+          "nameBytes": 16,
+          "device": "66307",
+          "inode": "21892530",
+          "owner": 1000,
+          "mode": "0600",
+          "kind": "regular",
+          "bytes": "498",
+          "allocatedBytes": "4096"
+        },
+        {
+          "name": "worker-ready.json",
+          "nameBytes": 17,
+          "device": "66307",
+          "inode": "21892531",
+          "owner": 1000,
+          "mode": "0600",
+          "kind": "regular",
+          "bytes": "8161",
+          "allocatedBytes": "8192"
+        }
+      ],
+      "activeLsm": {
+        "state": "observed",
+        "names": ["lockdown", "capability", "landlock", "yama", "apparmor", "ima", "evm"]
+      },
+      "kernelConfig": {
+        "state": "observed",
+        "path": "/boot/config-7.0.11-76070011-generic",
+        "values": {
+          "CONFIG_BPF_LSM": "y",
+          "CONFIG_SECURITY": "y",
+          "CONFIG_SECURITY_SELINUX": "y",
+          "CONFIG_SECURITY_SMACK": "y",
+          "CONFIG_SECURITY_APPARMOR": "y",
+          "CONFIG_SECURITY_YAMA": "y",
+          "CONFIG_SECURITY_LOCKDOWN_LSM": "y",
+          "CONFIG_SECURITY_LANDLOCK": "y",
+          "CONFIG_INTEGRITY": "y",
+          "CONFIG_IMA": "y",
+          "CONFIG_EVM": "y",
+          "CONFIG_LSM": "\"landlock,lockdown,yama,integrity,apparmor\""
+        },
+        "missing": []
+      },
+      "complete": true
+    },
+    "failed-settlement-integrity-discovery-20261105.json": {
+      "schemaVersion": 1,
+      "scope": "read-only-integrity-profile-discovery",
+      "observedAt": "2026-11-05T19:14:21.144557+00:00",
+      "kernel": "7.0.11-76070011-generic",
+      "rawPayloadRead": false,
+      "rawWrite": false,
+      "drain": false,
+      "reservationCredit": false,
+      "imaAppraiseBoot": {
+        "state": "observed",
+        "tokens": [],
+        "sourceSha256": "044958b709b64c69483bd3212d69e22984c9e5fd5598a5bca14b6ee1d56e2d7b"
+      },
+      "appraisalConfig": {
+        "state": "observed",
+        "values": {
+          "CONFIG_IMA_APPRAISE": "y",
+          "CONFIG_IMA_APPRAISE_BOOTPARAM": "y"
+        },
+        "missing": []
+      },
+      "evm": {
+        "state": "unavailable",
+        "errno": 40
+      },
+      "originalRecordXattrs": [
+        {
+          "name": "failure.json",
+          "xattrs": []
+        },
+        {
+          "name": "request-binding.json",
+          "xattrs": []
+        },
+        {
+          "name": "reservation.json",
+          "xattrs": []
+        },
+        {
+          "name": "worker-ready.json",
+          "xattrs": []
+        }
+      ],
+      "complete": false
+    },
+    "failed-settlement-evm-canonical-20261105.json": {
+      "schemaVersion": 1,
+      "scope": "read-only-canonical-evm-state",
+      "observedAt": "2026-11-05T19:15:27.536438+00:00",
+      "aliasTarget": "integrity/evm/evm",
+      "canonical": "/sys/kernel/security/integrity/evm/evm",
+      "parents": [
+        {
+          "path": "/sys/kernel/security/integrity",
+          "owner": 0,
+          "mode": "0755"
+        },
+        {
+          "path": "/sys/kernel/security/integrity/evm",
+          "owner": 0,
+          "mode": "0755"
+        }
+      ],
+      "settingChanged": false,
+      "observation": {
+        "state": "unavailable",
+        "errno": 13
+      }
+    }
+  },
+  "sourceTheorem": {
+    "recommendedGrossBytes": "33554432",
+    "causalSubtotalBytes": "28016640",
+    "surplusBytes": "5537792",
+    "singleParentNewFiles": 9,
+    "operationallyImplemented": false,
+    "outsideInputsQualified": false,
+    "debtCredit": false
+  },
+  "notes": [
+    "Canonical EVM state read was denied; no disabled-state inference or setting change.",
+    "Fresh guarded profile and native publisher qualification are required before use."
+  ]
+}

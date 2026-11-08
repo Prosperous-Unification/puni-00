@@ -1,0 +1,17 @@
+Working directory: /tmp/puni-persisted-remote-display
+Command: bunx tsc --build --force apps/wbs/fe-01/tsconfig.json
+Observed exit: 0
+Captured output:
+
+Command: bunx eslint apps/wbs/fe-01/src/components/wbs/persisted-remote-dependencies.test.tsx apps/wbs/fe-01/src/components/wbs/typed-dependency-editor.tsx
+Observed exit: 0
+Captured output:
+
+Command: bunx prettier --check [the two source paths above, evidence/task-9-2-persisted-remote-display-packet.md, verify.md]
+Observed exit: 0
+Checking formatting...
+All matched files use Prettier code style!
+
+Command: git diff --cached --check
+Observed exit: 0
+Evidence output normalizes trailing line whitespace only.

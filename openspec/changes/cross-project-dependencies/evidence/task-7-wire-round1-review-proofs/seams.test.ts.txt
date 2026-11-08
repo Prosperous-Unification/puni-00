@@ -1,0 +1,163 @@
+import { type ConnectedOptimizationStage, sliceKey } from '/tmp/puni-cross-solver-wire/libs/wbs/domain/domain/src/index.ts';
+import { expect, test } from 'bun:test';
+
+import { buildConnectedSolverRequestPair } from '/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/build-connected-solver-request.ts';
+import { buildConnectedSolverBoundaries } from '/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/connected-boundaries.ts';
+import { parseConnectedSolverResponse } from '/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/parse-solver-response.ts';
+import { revalidateConnectedSolverResult } from '/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/revalidate-solver-result.ts';
+
+const a = sliceKey('a', null);
+const b = sliceKey('b', null);
+const c = sliceKey('c', null);
+
+function stage(type: 'FS' | 'SS' | 'FF' = 'FS'): ConnectedOptimizationStage {
+  return {
+    kind: 'connected-stage',
+    projectId: 'B',
+    mode: 'isolated',
+    originOrdinal: 0,
+    projects: [
+      { projectId: 'A', rank: 0, anchorOrdinal: 0 },
+      { projectId: 'B', rank: 1, anchorOrdinal: 0 },
+      { projectId: 'C', rank: 2, anchorOrdinal: 0 },
+    ],
+    input: {
+      rows: ['a', 'b', 'c'].map((id, position) => ({
+        id,
+        parentId: null,
+        position,
+        priority: 0,
+        frozenNumber: null,
+      })),
+      slices: [
+        { workItemId: 'a', stepId: null, days: 0.2, width: 1, personId: null, poolIds: [] },
+        { workItemId: 'b', stepId: null, days: 1, width: 1, personId: null, poolIds: [] },
+        { workItemId: 'c', stepId: null, days: 1, width: 1, personId: null, poolIds: [] },
+      ],
+      graph: {
+        nodes: ['a', 'b', 'c'].map((workItemId) => ({
+          kind: 'boundary' as const,
+          workItemId,
+          at: 0,
+        })),
+        edges: [
+          {
+            predecessor: { leafId: 'a', at: 0 },
+            successor: { leafId: 'b', at: 0 },
+            provenance: 'authored',
+            relationshipId: 'ab',
+            type,
+          },
+          {
+            predecessor: { leafId: 'b', at: 0 },
+            successor: { leafId: 'c', at: 0 },
+            provenance: 'authored',
+            relationshipId: 'bc',
+            type,
+          },
+        ],
+      },
+      notBefore: new Map(),
+      deadlines: new Map(),
+      poolSizes: new Map(),
+      resourceCapacities: new Map(),
+      elsewhere: new Map(),
+      order: {
+        kind: 'connected',
+        projectIdByWorkItem: new Map([
+          ['a', 'A'],
+          ['b', 'B'],
+          ['c', 'C'],
+        ]),
+        rankByProject: new Map([
+          ['A', 0],
+          ['B', 1],
+          ['C', 2],
+        ]),
+      },
+    },
+    relationships: [
+      {
+        id: 'ab',
+        type,
+        predecessor: { scope: 'whole', projectId: 'A', workItemId: 'a' },
+        successor: { scope: 'whole', projectId: 'B', workItemId: 'b' },
+      },
+      {
+        id: 'bc',
+        type,
+        predecessor: { scope: 'whole', projectId: 'B', workItemId: 'b' },
+        successor: { scope: 'whole', projectId: 'C', workItemId: 'c' },
+      },
+    ],
+    starts: new Map([
+      [a, 0],
+      [b, 0.2],
+      [c, 1.2],
+    ]),
+    finishes: new Map([
+      [a, 0.2],
+      [b, 1.2],
+      [c, 2.2],
+    ]),
+  };
+}
+
+
+function prepare(candidate = stage(), budgetMs = 1000) {
+ return buildConnectedSolverRequestPair(candidate, {inputHash:'input', questionHashes:{pri:'question-pri',time:'question-time'}}, {solverVersion:'0.4.0',budgetMs});
+}
+test('different objectives must not share a full question identity', () => {
+ const candidate=stage(); (candidate.input.graph.edges as unknown[]).pop();
+ const pair=prepare(candidate);
+ if(pair.pri.kind!=='request'||pair.time.kind!=='request') throw new Error('setup requires requests');
+ const scope=pair.pri.request.scope;
+ const response={wireVersion:5,scope:{kind:scope.kind,projectId:scope.projectId,inputHash:scope.inputHash,questionHash:scope.questionHash},status:'unknown'};
+ expect(parseConnectedSolverResponse(JSON.stringify(response),pair.time.request).ok).toBe(false);
+});
+test('malformed budget must not produce a prepared boundary terminal', async () => {
+ expect(()=>prepare(stage(),0)).toThrow(/budgetMs/);
+});
+test('fractional origin must not produce a prepared boundary terminal', async () => {
+ const candidate={...stage(),originOrdinal:0.5};
+ expect(()=>prepare(candidate)).toThrow(/originOrdinal/);
+});
+test('installed receiver rejects nonfinite foreign placement', async () => {
+ const raw=await Bun.file('/tmp/puni-wire-installed-connected-request.json').text();
+ for(const token of ['NaN','1e309']) {
+  const bytes=raw.replace('"finish": 0.2', '"finish": '+token);
+  expect(bytes).not.toBe(raw);
+  const child=Bun.spawnSync(['/tmp/puni-cross-solver-wire/.venv-solver/bin/wbs-solver'],{stdin:Buffer.from(bytes)});
+  console.log('nonfinite token',token,'exit',child.exitCode,'stdout',child.stdout.toString(),'stderr',child.stderr.toString());
+  expect(child.exitCode).toBe(64);
+ }
+});
+test('installed receiver independently rejects malformed terminal requests', async () => {
+ for(const label of ['budget','origin']) {
+  const bytes=await Bun.file('/tmp/puni-wire-review-malformed-'+label+'.json').arrayBuffer();
+  const child=Bun.spawnSync(['/tmp/puni-cross-solver-wire/.venv-solver/bin/wbs-solver'],{stdin:bytes});
+  console.log('invalid',label,'exit',child.exitCode,'stderr',child.stderr.toString());
+  expect(child.exitCode).toBe(64);
+ }
+});
+test('installed receiver rejects exponent-overflow foreign placement', async () => {
+ const raw=await Bun.file('/tmp/puni-wire-installed-connected-request.json').text();
+ const bytes=raw.replace('"finish": 0.2','"finish": 1e309');
+ const child=Bun.spawnSync(['/tmp/puni-cross-solver-wire/.venv-solver/bin/wbs-solver'],{stdin:Buffer.from(bytes)});
+ console.log('overflow-float exit',child.exitCode,'stdout',child.stdout.toString(),'stderr',child.stderr.toString());
+ expect(child.exitCode).toBe(64);
+});
+test('installed CLI classifies invalid declared witness as bad request', async () => {
+ const request=await Bun.file('/tmp/puni-wire-installed-connected-request.json').json();
+ request.scope.boundaries.pop(); request.feasibleBaselineOffsets={b:0};
+ const child=Bun.spawnSync(['/tmp/puni-cross-solver-wire/.venv-solver/bin/wbs-solver'],{stdin:Buffer.from(JSON.stringify(request))});
+ console.log('bad-witness exit',child.exitCode,'stdout',child.stdout.toString(),'stderr',child.stderr.toString());
+ expect(child.exitCode).toBe(64);
+});
+test('finite unrepresentable connected horizon is a typed preflight failure', () => {
+ const candidate=stage();
+ (candidate.starts as Map<string,number>).set(b,1e15); (candidate.finishes as Map<string,number>).set(b,1e15+1);
+ (candidate.starts as Map<string,number>).set(c,1e15+1); (candidate.finishes as Map<string,number>).set(c,1e15+2);
+ expect(()=>prepare(candidate)).not.toThrow();
+ expect(prepare(candidate).pri).toMatchObject({kind:'failed',failure:'horizon-overflow'});
+});

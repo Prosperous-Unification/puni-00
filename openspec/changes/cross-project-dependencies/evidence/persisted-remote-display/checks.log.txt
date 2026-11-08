@@ -1,0 +1,16 @@
+Working directory: /tmp/puni-persisted-remote-display
+Command: bunx tsc --build --force apps/wbs/fe-01/tsconfig.json
+Observed exit: 0
+Captured output:
+
+Command: bunx eslint apps/wbs/fe-01/src/components/wbs/dependency-navigation.tsx apps/wbs/fe-01/src/components/wbs/persisted-remote-dependencies.test.tsx apps/wbs/fe-01/src/components/wbs/depends-card.tsx apps/wbs/fe-01/src/components/wbs/plan-cards.tsx apps/wbs/fe-01/src/components/wbs/plan-chart-input.ts apps/wbs/fe-01/src/components/wbs/plan-columns/depends.tsx apps/wbs/fe-01/src/components/wbs/typed-dependency-editor.tsx apps/wbs/fe-01/src/components/wbs/use-plan-read.ts apps/wbs/fe-01/src/components/wbs/wbs-table.tsx apps/wbs/fe-01/src/components/wbs/project-page.tsx apps/wbs/fe-01/src/lib/wbs-api.ts apps/wbs/fe-01/src/lib/wbs-api.test.ts
+Observed exit: 0
+Captured output:
+
+Command: bunx prettier --check [the twelve source paths above, task-9-2-persisted-remote-display-packet.md and verify.md]
+Observed exit: 0
+Checking formatting...
+All matched files use Prettier code style!
+
+Command: git diff --check
+Observed exit: 0

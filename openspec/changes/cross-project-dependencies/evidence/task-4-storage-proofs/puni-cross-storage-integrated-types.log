@@ -1,0 +1,57 @@
+
+ NX   Running target typecheck for 4 projects and 2 tasks they depend on:
+
+- wbs-core
+- wbs-store-memory
+- wbs-store-sqlite
+- wbs-be-01
+
+
+✔  nx run wbs-core:"typecheck:module"
+✔  nx run wbs-be-01:"typecheck:module"
+
+> nx run wbs-core:typecheck
+
+> bunx tsc --build --force libs/wbs/application/core/tsconfig.json
+
+libs/wbs/application/core/src/service/compensating.test.ts(36,27): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '{ do: "add_typed_dependency"; dependency: { id: string; projectId: string; type: string; predecessor: { scope: string; workItemId: string; projectId: string; }; successor: { scope: string; workItemId: string; stepId: string; projectId: string; }; }; }' is not assignable to parameter of type 'CompensatingCommand'.
+      Types of property 'dependency' are incompatible.
+        Type '{ id: string; projectId: string; type: string; predecessor: { scope: string; workItemId: string; projectId: string; }; successor: { scope: string; workItemId: string; stepId: string; projectId: string; }; }' is not assignable to type 'StoredTypedDependency'.
+          Type '{ id: string; projectId: string; type: string; predecessor: { scope: string; workItemId: string; projectId: string; }; successor: { scope: string; workItemId: string; stepId: string; projectId: string; }; }' is not assignable to type 'ScopedTypedDependency'.
+            Types of property 'predecessor' are incompatible.
+              Type '{ scope: string; workItemId: string; projectId: string; }' is not assignable to type 'ScopedDependencyEndpoint'.
+                Type '{ scope: string; workItemId: string; projectId: string; }' is not assignable to type '{ readonly scope: "descendant-step"; readonly workItemId: string; readonly stepId: string; } & { readonly projectId: string; }'.
+                  Property 'stepId' is missing in type '{ scope: string; workItemId: string; projectId: string; }' but required in type '{ readonly scope: "descendant-step"; readonly workItemId: string; readonly stepId: string; }'.
+libs/wbs/application/core/src/service/compensating.test.ts(50,25): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '{ do: "batch"; steps: ({ steps: CompensatingCommand[]; do: "remove_typed_dependency"; } | { deletionState?: DeletionState; rootId: string; expectedSubtree: string[]; remove: string[]; ... 6 more ...; do: "remove_typed_dependency"; } | ... 26 more ... | { ...; })[]; }' is not assignable to parameter of type 'CompensatingCommand'.
+      Types of property 'steps' are incompatible.
+        Type '({ steps: CompensatingCommand[]; do: "remove_typed_dependency"; } | { deletionState?: DeletionState | undefined; rootId: string; expectedSubtree: string[]; ... 7 more ...; do: "remove_typed_dependency"; } | ... 26 more ... | { ...; })[]' is not assignable to type 'CompensatingCommand[]'.
+          Type '{ steps: CompensatingCommand[]; do: "remove_typed_dependency"; } | { deletionState?: DeletionState | undefined; rootId: string; expectedSubtree: string[]; ... 7 more ...; do: "remove_typed_dependency"; } | ... 26 more ... | { ...; }' is not assignable to type 'CompensatingCommand'.
+            Type '{ steps: CompensatingCommand[]; do: "remove_typed_dependency"; }' is not assignable to type 'CompensatingCommand'.
+              Property 'dependency' is missing in type '{ steps: CompensatingCommand[]; do: "remove_typed_dependency"; }' but required in type '{ do: "remove_typed_dependency"; dependency: StoredTypedDependency; }'.
+Warning: command "bunx tsc --build --force libs/wbs/application/core/tsconfig.json" exited with non-zero status code
+✔  nx run wbs-store-memory:typecheck
+✔  nx run wbs-store-sqlite:typecheck
+✔  nx run wbs-be-01:typecheck
+
+
+
+ NX   Running target typecheck for 4 projects and 2 tasks they depend on failed
+
+Failed tasks:
+
+- wbs-core:typecheck
+
+Output of 5 successful tasks were not shown. Run with --verbose or --output-style=static to see it.
+
+  Run duration:      1m 5s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     45.3s (2 tasks)
+  Recoverable time:  19.3s (30% of the run)
+
+  Recommendations:
+    - Increase parallelism to recover up to 19.3s → https://nx.dev/docs/concepts/ci-concepts/parallelization-distribution?utm_source=nx-cli&utm_medium=cli&utm_campaign=performance-report&utm_content=parallelization.
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.

@@ -2,6 +2,7 @@ import type { Assignment } from './assignment';
 import type { StoredBudget } from './budget';
 import type { DependencyReach } from './dependency-reach';
 import type { EstimateMethod, EstimateRounding, PertWeights } from './estimate';
+import type { MeasureDefinition } from './measure-definition';
 import type { StoredMeasureEstimate } from './measure-estimate';
 import type { PriorityBand } from './priority-band';
 import type { Hold, Readiness } from './progress';
@@ -106,6 +107,8 @@ export interface PlanInputReads {
   readonly stepBlockages: readonly StoredStepBlockage[];
   readonly stepParallels: readonly StoredStepParallel[];
   readonly measures: readonly StoredMeasure[];
+  /** Definitions read on the same snapshot; null models an unowned project. */
+  readonly measureDefinitions: readonly MeasureDefinition[] | null;
   /** Every trio of the project in measures other than time, read on the snapshot. */
   readonly measureEstimates: readonly StoredMeasureEstimate[];
   /** Every stated budget of the project, read on the snapshot. */

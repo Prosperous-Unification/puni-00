@@ -1,0 +1,38 @@
+[
+  {
+    "path": "red3.log",
+    "rawSha256": "573993dc07c74cbc329b3f295a5c58e55c6bee3e48a4e504a3e0eaa21785fda5",
+    "retainedSha256": "c3491941bec5a36419a259b01b6c65d41f5919b34c77d9926b2d9da75e978604",
+    "transform": "trim trailing whitespace and excess final blank lines"
+  },
+  {
+    "path": "lint1.log",
+    "rawSha256": "cd87b717cac038093347f91e771316f46146c2087b3de298288d2d291d52ec01",
+    "retainedSha256": "fa066a8fd8d47a8a82226a58283bc409713cf1612f80ac988fe300b0e170d21c",
+    "transform": "trim trailing whitespace and excess final blank lines"
+  },
+  {
+    "path": "focused1.log",
+    "rawSha256": "2ffdf2762c68cdc3afcc2e9e9fd572fa7a54b254b94be79b7c984753e0d5391d",
+    "retainedSha256": "6c2516dcb4b16fcd1d836b15bff24de5be5259fbed32d179207731d1e863f18a",
+    "transform": "trim trailing whitespace and excess final blank lines"
+  },
+  {
+    "path": "red2.log",
+    "rawSha256": "400d84c9c559299c39125337f8943f92c799a0e82f1e10b4bb85ab9abc7bce20",
+    "retainedSha256": "2ba2db07a28add01b53d5cfc02349d623b6a7fef2e2d868bca030271fb37dd5f",
+    "transform": "trim trailing whitespace and excess final blank lines"
+  },
+  {
+    "path": "helper-linkage.log",
+    "rawSha256": "da03e4e53626f347c2e58fd0717d5fc4d1b6251cc2b82ff8071faf9ff88b809c",
+    "retainedSha256": "8bcbfe8e830403220e93d0155c5c57322c94aaff9f62ffe8a973386bcd4caeda",
+    "transform": "trim trailing whitespace and excess final blank lines"
+  },
+  {
+    "path": "owned-environment.log",
+    "rawSha256": "e21bba74140b8e871c1a45bda059d1ba17dca67c83f6ca3b8aa20889c906556e",
+    "retainedSha256": "eb23ab1b4ba874447432040d6bf2c1195515bacb80bca7c68c7fdebf245f1087",
+    "transform": "trim trailing whitespace and excess final blank lines"
+  }
+]

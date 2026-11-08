@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/audit.test.ts:
+256 |       if (declaration.includes('auditColumns()')) return `${name}: exempt but carries auditColumns`;
+257 |       if (declaration.includes('auditColumnsBesidesCreatedAt()'))
+258 |         return `${name}: exempt but carries auditColumnsBesidesCreatedAt`;
+259 |       return null;
+260 |     });
+261 |     expect(wrong.filter((entry) => entry !== null)).toEqual([]);
+                                                          ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "projectAbbreviation: exempt but carries auditColumns",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-api/libs/wbs/adapters/store-sqlite/src/audit.test.ts:261:53)
+(fail) every write fills the audit columns > exempts only tables that carry no audit columns [1.03ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [32.00ms]

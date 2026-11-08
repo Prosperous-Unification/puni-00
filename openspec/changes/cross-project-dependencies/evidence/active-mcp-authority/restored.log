@@ -1,0 +1,14 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+(pass) HTTP commits whole FS and rereads connected placement through generated MCP [3820.32ms]
+(pass) MCP commits whole FS and rereads connected placement through generated MCP [4792.45ms]
+(pass) generated MCP authors and updates a restricted readable node predecessor without edit authority [3971.04ms]
+(pass) generated MCP queued external update revalidates revoke-credential atomically [3921.55ms]
+(pass) generated MCP queued external update revalidates restrict-successor atomically [3733.83ms]
+
+ 5 pass
+ 70 filtered out
+ 0 fail
+ 67 expect() calls
+Ran 5 tests across 1 file. [22.96s]

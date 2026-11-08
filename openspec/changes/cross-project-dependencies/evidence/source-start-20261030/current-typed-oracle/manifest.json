@@ -1,0 +1,517 @@
+{
+  "scope": "Current typed Node oracle/guard epoch; original failed frame recorder retained; no caller frame invented; manual attribution and restored-only success separate",
+  "actualReviewSHA256": "37af706892da471968c14b03d198a03ea0af76c0b172c89dad6d5ac7190b52de",
+  "entries": [
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/packet.json",
+      "semanticEpochSHA256": "d2ff30a030f1d91876faed6de7369ebfb94e15e1e63dd540238092ba331c78b8",
+      "originalMode": 436,
+      "bytes": 9105,
+      "carrier": "0000.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/openspec/changes/cross-project-dependencies/design.md",
+      "semanticEpochSHA256": "780de6dd969d3992a00eaa27250f5fc34d927bc7418044dc25a3bbaacf138706",
+      "originalMode": 436,
+      "bytes": 120208,
+      "carrier": "0001.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/00.source.txt",
+      "semanticEpochSHA256": "780de6dd969d3992a00eaa27250f5fc34d927bc7418044dc25a3bbaacf138706",
+      "originalMode": 436,
+      "bytes": 120208,
+      "carrier": "0001.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/openspec/changes/cross-project-dependencies/specs/cross-project-dependencies/spec.md",
+      "semanticEpochSHA256": "efa9e820f1f3637fe105cd42ec572cbd47a76e88361d029430ff891dbb15aeec",
+      "originalMode": 436,
+      "bytes": 135705,
+      "carrier": "0002.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/01.source.txt",
+      "semanticEpochSHA256": "efa9e820f1f3637fe105cd42ec572cbd47a76e88361d029430ff891dbb15aeec",
+      "originalMode": 436,
+      "bytes": 135705,
+      "carrier": "0002.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/openspec/changes/cross-project-dependencies/tasks.md",
+      "semanticEpochSHA256": "a2fa9962972023c37e66c0757a77adb39376618d15bfd7fa0b336781813fd53d",
+      "originalMode": 436,
+      "bytes": 155061,
+      "carrier": "0003.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/02.source.txt",
+      "semanticEpochSHA256": "a2fa9962972023c37e66c0757a77adb39376618d15bfd7fa0b336781813fd53d",
+      "originalMode": 436,
+      "bytes": 155061,
+      "carrier": "0003.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/fixtures/participant-process-bytes.ts",
+      "semanticEpochSHA256": "7d3db6d2b271c50ec81cbb9ecc534cf56f72372b13f0c46322ad904f21fa82d0",
+      "originalMode": 436,
+      "bytes": 10892,
+      "carrier": "0004.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/03.source.txt",
+      "semanticEpochSHA256": "7d3db6d2b271c50ec81cbb9ecc534cf56f72372b13f0c46322ad904f21fa82d0",
+      "originalMode": 436,
+      "bytes": 10892,
+      "carrier": "0004.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/fixtures/participant-solver-runtime.ts",
+      "semanticEpochSHA256": "6f1490276650da0bf04df2db084a2bf458ebd55b940cd0db12a01b273ab55315",
+      "originalMode": 436,
+      "bytes": 4190,
+      "carrier": "0005.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/04.source.txt",
+      "semanticEpochSHA256": "6f1490276650da0bf04df2db084a2bf458ebd55b940cd0db12a01b273ab55315",
+      "originalMode": 436,
+      "bytes": 4190,
+      "carrier": "0005.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/fixtures/participant-source-restoration-cases.ts",
+      "semanticEpochSHA256": "c3f05917454d87136b72b886ef4b529e3361532b14984ca79796c43003fc6b4a",
+      "originalMode": 436,
+      "bytes": 2538,
+      "carrier": "0006.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/05.source.txt",
+      "semanticEpochSHA256": "c3f05917454d87136b72b886ef4b529e3361532b14984ca79796c43003fc6b4a",
+      "originalMode": 436,
+      "bytes": 2538,
+      "carrier": "0006.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/fixtures/participant-source-restoration.ts",
+      "semanticEpochSHA256": "242481f4b6577cf7fea7be3be4be0c577d45f4cd0affaed6a33c836832bb1eb6",
+      "originalMode": 436,
+      "bytes": 19120,
+      "carrier": "0007.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/06.source.txt",
+      "semanticEpochSHA256": "242481f4b6577cf7fea7be3be4be0c577d45f4cd0affaed6a33c836832bb1eb6",
+      "originalMode": 436,
+      "bytes": 19120,
+      "carrier": "0007.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/fixtures/source-role-process.ts",
+      "semanticEpochSHA256": "74d1f299831b409920a763328debde4593622467cfb9138b0134fdddebc6b105",
+      "originalMode": 436,
+      "bytes": 7419,
+      "carrier": "0008.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/07.source.txt",
+      "semanticEpochSHA256": "74d1f299831b409920a763328debde4593622467cfb9138b0134fdddebc6b105",
+      "originalMode": 436,
+      "bytes": 7419,
+      "carrier": "0008.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-participant-restoration.ts",
+      "semanticEpochSHA256": "deb803e4a47c3cd6279456ec7b6462947a4d1d68b7a678cb3c2ce2d36720ccff",
+      "originalMode": 436,
+      "bytes": 37643,
+      "carrier": "0009.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/08.source.txt",
+      "semanticEpochSHA256": "deb803e4a47c3cd6279456ec7b6462947a4d1d68b7a678cb3c2ce2d36720ccff",
+      "originalMode": 436,
+      "bytes": 37643,
+      "carrier": "0009.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-product-process-model.model.ts",
+      "semanticEpochSHA256": "60f757f4e43dd5b69a3af2454eeac258b0ae7d9346c30da1980bec12edb91075",
+      "originalMode": 436,
+      "bytes": 29304,
+      "carrier": "0010.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/09.source.txt",
+      "semanticEpochSHA256": "60f757f4e43dd5b69a3af2454eeac258b0ae7d9346c30da1980bec12edb91075",
+      "originalMode": 436,
+      "bytes": 29304,
+      "carrier": "0010.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-product-process.ts",
+      "semanticEpochSHA256": "b0e880561a2632fef8dfde6866e4ebcbe3dd12fa915dfcb20bd8230f44a7abc4",
+      "originalMode": 436,
+      "bytes": 21539,
+      "carrier": "0011.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/10.source.txt",
+      "semanticEpochSHA256": "b0e880561a2632fef8dfde6866e4ebcbe3dd12fa915dfcb20bd8230f44a7abc4",
+      "originalMode": 436,
+      "bytes": 21539,
+      "carrier": "0011.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.model.ts",
+      "semanticEpochSHA256": "97fe03f92a56d0c5c438566eae9add08a4f2141e190eec6d9d460cef60635563",
+      "originalMode": 436,
+      "bytes": 15537,
+      "carrier": "0012.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/11.source.txt",
+      "semanticEpochSHA256": "97fe03f92a56d0c5c438566eae9add08a4f2141e190eec6d9d460cef60635563",
+      "originalMode": 436,
+      "bytes": 15537,
+      "carrier": "0012.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+      "semanticEpochSHA256": "07e7748ab17dec4b863425a040af49fcbaeb4eaa595eb5b301b1f787f4ce6bc4",
+      "originalMode": 436,
+      "bytes": 3057,
+      "carrier": "0013.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/12.source.txt",
+      "semanticEpochSHA256": "07e7748ab17dec4b863425a040af49fcbaeb4eaa595eb5b301b1f787f4ce6bc4",
+      "originalMode": 436,
+      "bytes": 3057,
+      "carrier": "0013.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/test/dependency-source-restoration-model-child.test.ts",
+      "semanticEpochSHA256": "943f493d310d1e26d03844c8242d00843f1e34a7619ca7c079c65f273d2c7a0d",
+      "originalMode": 436,
+      "bytes": 57,
+      "carrier": "0014.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/13.source.txt",
+      "semanticEpochSHA256": "943f493d310d1e26d03844c8242d00843f1e34a7619ca7c079c65f273d2c7a0d",
+      "originalMode": 436,
+      "bytes": 57,
+      "carrier": "0014.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/driver.py",
+      "semanticEpochSHA256": "bcb00742ad6481c300ef62707e9f4093df4ba9bb3b9d00564e0f4d94a20eef53",
+      "originalMode": 436,
+      "bytes": 6885,
+      "carrier": "0015.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/recipes.json",
+      "semanticEpochSHA256": "1b8cfe92c388578349547b6cdfd9e5a9a2cb73d347a354bf7a80472839941cc8",
+      "originalMode": 436,
+      "bytes": 998,
+      "carrier": "0016.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/run.py",
+      "semanticEpochSHA256": "9abc61f6170449156a67011aaad3df214418c2eb34009f17dc2ca5ba4a875b4e",
+      "originalMode": 436,
+      "bytes": 1167,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-mutation.json",
+      "semanticEpochSHA256": "6f110cdf0594b8c7320d794ab897c9ff0614962e26aa433eca6f370efc1ff6db",
+      "originalMode": 436,
+      "bytes": 789,
+      "carrier": "0018.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-fault.json",
+      "semanticEpochSHA256": "658cd9aa88b68eda7e31b01c10995fd43b0c0a3a5a76b8fc82e05d545b7663dc",
+      "originalMode": 436,
+      "bytes": 598,
+      "carrier": "0019.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-fault.stdout",
+      "semanticEpochSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-fault.stderr",
+      "semanticEpochSHA256": "88390a6ff2aa35e89b1f10958db963885b392f615bced280ba12ca78a4cc6b1c",
+      "originalMode": 436,
+      "bytes": 2059,
+      "carrier": "0021.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-fault.driver.stdout",
+      "semanticEpochSHA256": "189dcc5669a60611a32a7403b1c4f03a484b41d888bb71374f886d282f900064",
+      "originalMode": 436,
+      "bytes": 2635,
+      "carrier": "0022.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-fault.driver.stderr",
+      "semanticEpochSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0023.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-fault.wrapper.json",
+      "semanticEpochSHA256": "272ac0cb7e8bad4936bcbc93fc96ac8ea8141c81f4c32bc8ad63d6975221106f",
+      "originalMode": 436,
+      "bytes": 266,
+      "carrier": "0024.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/stopped-manifest.json",
+      "semanticEpochSHA256": "7ad4f2c2a4cafb3d78a8c5c0be64d684f8266fe62099af385730b44d779cfb77",
+      "originalMode": 436,
+      "bytes": 2699,
+      "carrier": "0025.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/recovery.json",
+      "semanticEpochSHA256": "ae1cbd02186322c7a0f5d9145e28e15004e0ef192aeccad3f5eed91006dbb0c2",
+      "originalMode": 436,
+      "bytes": 7081,
+      "carrier": "0026.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/restored-only-preseal.json",
+      "semanticEpochSHA256": "85bd96c0a9d9a5bf37a53c5e6c28d5825cc35d76e90aa41399af913db39f96ca",
+      "originalMode": 436,
+      "bytes": 7750,
+      "carrier": "0027.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-restored-only.json",
+      "semanticEpochSHA256": "7eec67b36c6349d4647fcddcb97c916c84ba61231642cd84ba5f1b94ccea1c69",
+      "originalMode": 436,
+      "bytes": 597,
+      "carrier": "0028.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-restored-only.stdout",
+      "semanticEpochSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-restored-only.stderr",
+      "semanticEpochSHA256": "d8268e239055e9a41ff82c2c2beeb36d7e4330187a26875f5b372c78b2201a46",
+      "originalMode": 436,
+      "bytes": 1014,
+      "carrier": "0029.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-current-node-fault-supplemental-review-20261030.md",
+      "semanticEpochSHA256": "d589a90c2a0abb0dac0b55fddb7207d189df7cc1f5132ca79bef7ee23886c508",
+      "originalMode": 436,
+      "bytes": 3036,
+      "carrier": "0030.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-00.json",
+      "semanticEpochSHA256": "dba99bad050f61a64ee4a49cfe8c1a46ff1cd7a6c38939108f1ba0c4e271d538",
+      "originalMode": 436,
+      "bytes": 623,
+      "carrier": "0031.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-00.stdout",
+      "semanticEpochSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-00.stderr",
+      "semanticEpochSHA256": "d4826b6597ef72ccc637b85318199a8425f7d5c55e2aebd3fcbf8ebab57f4b6b",
+      "originalMode": 436,
+      "bytes": 1180,
+      "carrier": "0032.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-00.driver.stdout",
+      "semanticEpochSHA256": "f1a3e6ff64908a30308be367e0437e89552ba5e9ee1479ffe7a394f4f47cf44c",
+      "originalMode": 436,
+      "bytes": 1781,
+      "carrier": "0033.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-00.driver.stderr",
+      "semanticEpochSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0023.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-01.json",
+      "semanticEpochSHA256": "def3815aff51a4b5d8af85951a544420d7cdd82f8f81e7a8ebd0a643ffcb58c6",
+      "originalMode": 436,
+      "bytes": 616,
+      "carrier": "0034.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-01.stdout",
+      "semanticEpochSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-01.stderr",
+      "semanticEpochSHA256": "d4b09ad1dcee74815ed33e7fd3bf4e35b2501db155063f03b074032b91116dd7",
+      "originalMode": 436,
+      "bytes": 1012,
+      "carrier": "0035.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-01.driver.stdout",
+      "semanticEpochSHA256": "b35b3a3af857aefbc7f2256df07901a65f913a3e4b1795421b2c82172bea4186",
+      "originalMode": 436,
+      "bytes": 1606,
+      "carrier": "0036.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-01.driver.stderr",
+      "semanticEpochSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0023.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-02.json",
+      "semanticEpochSHA256": "ccd797901e24762939c14892cedbdd528379e51928839a80ebaebaf78277f9bf",
+      "originalMode": 436,
+      "bytes": 595,
+      "carrier": "0037.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-02.stdout",
+      "semanticEpochSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-02.stderr",
+      "semanticEpochSHA256": "eb31842e7fc23b973977345f0c192a43a14e76835c5b92bafc6b5323cc41198a",
+      "originalMode": 436,
+      "bytes": 845,
+      "carrier": "0038.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-02.driver.stdout",
+      "semanticEpochSHA256": "e7986bb4d9376f8cce422db3345a42edbf8ba52de3652f44c87ad6a46a4c44e1",
+      "originalMode": 436,
+      "bytes": 1418,
+      "carrier": "0039.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-02.driver.stderr",
+      "semanticEpochSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0023.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-03.json",
+      "semanticEpochSHA256": "5ed7d1cfd500afb17c94906c3f8629e07461aa19061b60218b38b7970a660f38",
+      "originalMode": 436,
+      "bytes": 612,
+      "carrier": "0040.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-03.stdout",
+      "semanticEpochSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-03.stderr",
+      "semanticEpochSHA256": "944cf2051999dee5ecb969a258cb0502031b1212d97bb4d31fdf1ad8c1995110",
+      "originalMode": 436,
+      "bytes": 975,
+      "carrier": "0041.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-03.driver.stdout",
+      "semanticEpochSHA256": "23f50a744c6a33b5560daa6170d93fd47b0b336bf408360cc37cd90754d00210",
+      "originalMode": 436,
+      "bytes": 1565,
+      "carrier": "0042.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-current-03.driver.stderr",
+      "semanticEpochSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0023.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-one-pair/current-actual-manifest.json",
+      "semanticEpochSHA256": "accfd92852bd9d61b04bb071b7b8ea93a393639fd9d98eda7d6f2894f2516933",
+      "originalMode": 436,
+      "bytes": 15484,
+      "carrier": "0043.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-current-node-restored-independent-audit-20261030.md",
+      "semanticEpochSHA256": "37af706892da471968c14b03d198a03ea0af76c0b172c89dad6d5ac7190b52de",
+      "originalMode": 436,
+      "bytes": 3254,
+      "carrier": "0044.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-final-lint-direction-20261030.md",
+      "semanticEpochSHA256": "3d787a3f3ab011c050bba87651318b7a18fd473f311d01d27dfea68cf0f21f0c",
+      "originalMode": 436,
+      "bytes": 3249,
+      "carrier": "0045.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/final-lint.json",
+      "semanticEpochSHA256": "74ec88e88c0adb2366a9063b50fc3d1a6f3178e25a6f0d8d1c44af23294b39e8",
+      "originalMode": 436,
+      "bytes": 1213,
+      "carrier": "0046.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/final-lint.stdout",
+      "semanticEpochSHA256": "9d7aba388e7894e28d6461b959fd815720867c8581bb020a581ab339d8042145",
+      "originalMode": 436,
+      "bytes": 4884,
+      "carrier": "0047.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/final-lint.stderr",
+      "semanticEpochSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0023.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-start-20261029/lint-correction-applied.json",
+      "semanticEpochSHA256": "008025983432c2fffa5a82fcf4bf2f1e85b4db51e5faa853b35b7cd053bcbdc9",
+      "originalMode": 436,
+      "bytes": 940,
+      "carrier": "0048.txt"
+    }
+  ]
+}
