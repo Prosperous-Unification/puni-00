@@ -135,3 +135,53 @@ recovery forwards the same version. Legacy pending requests omit the version and
 trimmed brief/hash semantics. The receipt confirms a saved request, with the destination
 email and next review step; it makes no automatic email-delivery or response-time promise.
 The private site's privacy integration and analytics remain separate release work.
+
+## Anonymous allowance hardening
+
+The visitor journey remains anonymous with the existing guided conversation and Send, Stop,
+Retry, Start over and manual proposal controls. Eight completed exchanges remain visible;
+paid generations, including interrupted attempts, also have a ten-attempt ceiling. The
+necessary `__Host-puni_browser` cookie connects new drafts in one browser for up to 31 days;
+it grants no access to draft content and is independent of the draft claim.
+
+Browser and source allowances each admit three conversations and USD0.30 over a rolling
+24 hours. Source totals include today's and yesterday's salted identity so midnight does
+not replenish them. New paid conversations have durable rolling windows of one per minute
+per browser/source and twenty per minute site-wide. Existing conversations remain usable
+when only the fresh-conversation window is full. All reservations are admitted transactionally.
+
+Site spend is bounded at USD2 per rolling hour, USD10 per UTC day and USD100 per UTC month,
+with the existing USD8 automatic pause and four unsettled-call slots. Any stricter provider-key
+limit still applies. The content-free paid-attempt ledger survives text cleanup. Current-month
+and previous-day original accounting rows are retained with text blanked so a previous binary
+can still account for spend. A migration guard refuses old cleanup that would remove recent
+paid originals. Before a code rollback to a predecessor without these controls, pause inference;
+keep the additive migration and financial ledger in place. A destructive schema downgrade must
+refuse if the ledger holds financial records without original counterparts.
+
+A newly started process leaves recent peer operations reserved. Admission/startup settles
+operations older than the 30-second provider deadline at their full reservation; a restart
+can therefore report busy for up to that deadline rather than steal another process's slots.
+
+`TRUSTED_PROXY_HOPS` greater than zero requires `TRUSTED_PROXY_PEERS`: an explicit comma-separated
+list of gateway socket addresses/CIDRs. Hostnames and unrestricted `/0` networks refuse startup.
+The API checks the socket peer before trusting forwarded source headers; network policy must
+also restrict API ingress to the gateway. Runtime configuration must match observed deployment
+ranges, not guessed private networks. The current development deployment uses the two observed
+pod ranges behind its same-namespace site-only ingress policy.
+
+### Operator testing reset
+
+Provision `WEBSITE_TEST_RESET_SECRET` as 32 random bytes encoded in 64 lowercase hex characters
+in the encrypted preview runtime Secret. The feature is disabled when unset, refuses malformed
+configuration, and refuses enablement on production origins. Never commit or log its value.
+
+Open `https://dev.app.puni.dev/#test-reset=<secret>`. The app removes the fragment before
+analytics or initial API requests, sends a secret-authenticated POST to `/testing/reset`, then
+loads the same chat. The endpoint requires the exact app Origin. A current draft keeps its
+history while its testing allowances are replenished; active inference is cancelled and charged
+at its reservation. Without a draft the next intake uses the new browser allowance. Site
+spending, global fresh-conversation capacity, pauses and concurrency are never reset. Other
+browsers sharing the source keep their original limits. Request-window protection still bounds
+repeated reset calls. The fragment is not transmitted in an HTTP URL; query-string reset links
+are unsupported. Rotate the secret in the private runtime Secret to revoke old reset links.

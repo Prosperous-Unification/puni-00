@@ -9,6 +9,7 @@ import {
   replyReplacePart,
   type ScopingReply,
 } from '@website/contracts';
+import { conversationDeadlineMilliseconds } from '@website/store-sqlite';
 import {
   createUIMessageStream,
   createUIMessageStreamResponse,
@@ -68,7 +69,7 @@ export interface ChatMessage {
 }
 
 /** The server deadline for one streamed paid reply. */
-export const replyDeadlineMilliseconds = 30_000;
+export const replyDeadlineMilliseconds = conversationDeadlineMilliseconds;
 
 /**
  * Bun HTTP idle seconds: the reply deadline plus five seconds for settlement/flush. Shared by

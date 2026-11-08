@@ -19,9 +19,9 @@ interface CandidateRow {
 /**
  * Count-only plan for one expired-draft cohort. A draft whose conversation still holds an
  * operation that is not completed (`unknown`, or `inflight` in a live process), or any operation
- * on or after the cutoff's UTC day, is retained with its text blanked, so that day's spend stays
- * in the ceilings; every other candidate is deleted with its conversation, turns and completed
- * operations.
+ * on or after the cutoff's UTC day, is retained with its text blanked. Paid originals also stay
+ * through the cutoff month and previous UTC day so a previous binary's accounting reader keeps
+ * seeing current spend after code rollback; content-free audit rows live independently.
  */
 export interface DraftCleanupPlan {
   cutoff: number;
@@ -50,9 +50,11 @@ const candidateQuery = `
   SELECT draft.id, draft.expires_at, talk.id AS conversation_id,
     (SELECT count(*) FROM conversation_turn WHERE conversation_id = talk.id) AS turns,
     (SELECT count(*) FROM conversation_operation
-      WHERE conversation_id = talk.id AND state = 'completed' AND utc_day < ?2) AS completed_operations,
+      WHERE conversation_id = talk.id AND state = 'completed' AND utc_day < ?2
+        AND (reserved_micro_usd IS NULL OR utc_day < ?3)) AS completed_operations,
     (SELECT count(*) FROM conversation_operation
-      WHERE conversation_id = talk.id AND (state <> 'completed' OR utc_day >= ?2)) AS retained_operations
+      WHERE conversation_id = talk.id AND (state <> 'completed' OR utc_day >= ?2
+        OR (reserved_micro_usd IS NOT NULL AND utc_day >= ?3))) AS retained_operations
   FROM intake_draft AS draft
   LEFT JOIN conversation AS talk ON talk.draft_id = draft.id
   WHERE draft.expires_at <= ?1 AND draft.consumed_at IS NULL AND (draft.description <> '' OR EXISTS (SELECT 1 FROM conversation_operation WHERE conversation_id = talk.id AND request_json IS NOT NULL))
@@ -62,12 +64,20 @@ const candidateQuery = `
     AND NOT EXISTS (SELECT 1 FROM submission_replay WHERE claim_hash = draft.claim_hash)
   ORDER BY draft.id`;
 
+/** Earliest original accounting day needed by current-month and rolling-day readers. */
+function accountingDay(cutoff: number): string {
+  const month = `${new Date(cutoff).toISOString().slice(0, 7)}-01`;
+  const previous = new Date(cutoff - 86_400_000).toISOString().slice(0, 10);
+  // Proof: returning only the cutoff day failed the production purge/old-reader regression, including the month boundary.
+  return previous < month ? previous : month;
+}
+
 function eligibleCandidates(database: Database, cutoff: number): CandidateRow[] {
   // Proof: mixed-cohort fixtures fail independently when expiry or any one association exclusion is removed.
   // Proof: dropping `utc_day < ?2` made the same-day purge test plan that day's two completed operations for deletion.
   return database
-    .query<CandidateRow, [number, string]>(candidateQuery)
-    .all(cutoff, new Date(cutoff).toISOString().slice(0, 10));
+    .query<CandidateRow, [number, string, string]>(candidateQuery)
+    .all(cutoff, new Date(cutoff).toISOString().slice(0, 10), accountingDay(cutoff));
 }
 
 function planFor(
@@ -151,7 +161,7 @@ export function purgeExpiredDrafts(
       const remove = database.query('DELETE FROM intake_draft WHERE id = ?');
       const removeTurns = database.query('DELETE FROM conversation_turn WHERE conversation_id = ?');
       const removeCompleted = database.query(
-        "DELETE FROM conversation_operation WHERE conversation_id = ? AND state = 'completed' AND utc_day < ?",
+        "DELETE FROM conversation_operation WHERE conversation_id = ? AND state = 'completed' AND utc_day < ? AND (reserved_micro_usd IS NULL OR utc_day < ?)",
       );
       const removeConversation = database.query('DELETE FROM conversation WHERE id = ?');
       const blankDraft = database.query(
@@ -171,6 +181,7 @@ export function purgeExpiredDrafts(
           outcome.deletedConversationOperations += removeCompleted.run(
             candidate.conversation_id,
             new Date(cutoff).toISOString().slice(0, 10),
+            accountingDay(cutoff),
           ).changes;
           if (candidate.retained_operations > 0) {
             eraseConversationContent(database, candidate.id);
