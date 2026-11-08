@@ -91,3 +91,13 @@ The preview testing secret was generated in private mode0600 artifacts and encry
 `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx format:check --all` completed successfully (silent success), followed under `set -e` by the uncached five-project `bunx nx run-many -t test lint typecheck build -p website-fe-01 website-be-01 website-store-sqlite website-contracts website-analytics --skip-nx-cache` matrix: **20 successful tasks**, 3m44s, `/tmp/harden-website-matrix.log`. Main advanced to `a5e9dbe9f` during work; a normal merge preserved its registry changes. Website runtime trees were unchanged by that integration.
 
 Private main concurrently advanced to `36a3b4e` with an already-approved About header link in the canonical app snapshot. The corresponding two public app files were reconciled byte-for-byte to that eligible public source before snapshot refresh, preserving the concurrent site/app navigation rather than overwriting it. Its existing chrome regression passed.
+
+## Combined request hostname release
+
+Public901is merged. Approved public903and private100request-host/footer work are integrated without reverting About navigation, pure pin preparation, exact receipt/runtime origin binding or cross-host rollback refusal. The operator reset now accepts exact `dev.request.puni.dev` and legacy `dev.app.puni.dev` only with the development site, keeping production excluded.
+
+Fresh tests first failed on both new-host acceptance paths. After updating the API and frontend boundaries,30reset tests passed. Injecting prefix matching separately into each production boundary made the hostile suffix refusal fail; both restored. Persistent logs are in `.superpowers/sdd/harden-anonymous-conversation/delivery/preview-origin-*.log`.
+
+Private Fleet fixture is pinned to combined reviewed Fleet10f85c7, with exact six upstream blobs and tree identity. Its synthetic API input supplies trusted peers and the actual gateway-only API policy. The first full-policy fixture test refused the prior empty synthetic ingress policy, then186deployment/pin/registry tests passed with the corrected fixture. Both Fleet39CI checks are green. Frozen public installation restored the missing locked AWS SDK dependency; no unrelated source fix was made.
+
+Live HTTPS still serves private2c3c8e40/publicbe6923; the request hostname returns421before the combined gateway rollout. Final combined exact-SHA host gate, private full matrix/build, published images, migration snapshot/ledger capture, Fleet pin and live acceptance remain pending. Production is held and no new paid calls are authorized for these checks.

@@ -29,18 +29,20 @@ test('normal startup keeps its URL and makes no reset request', () => {
   expect(page.location.hash).toBe('#request');
 });
 
-test('reset consumes the fragment synchronously before its network request', async () => {
-  const page = browser(`https://dev.app.puni.dev/?keep=1#test-reset=${token}`);
-  const received: string[] = [];
-  const reset = consumeTestingReset(page, (secret) => {
-    expect(page.location.href).toBe('https://dev.app.puni.dev/?keep=1');
-    received.push(secret);
-    return Promise.resolve();
+for (const origin of ['https://dev.app.puni.dev', 'https://dev.request.puni.dev']) {
+  test(`reset consumes the ${origin} fragment before its network request`, async () => {
+    const page = browser(`${origin}/?keep=1#test-reset=${token}`);
+    const received: string[] = [];
+    const reset = consumeTestingReset(page, (secret) => {
+      expect(page.location.href).toBe(`${origin}/?keep=1`);
+      received.push(secret);
+      return Promise.resolve();
+    });
+    expect(page.location.hash).toBe('');
+    await reset;
+    expect(received).toEqual([token]);
   });
-  expect(page.location.hash).toBe('');
-  await reset;
-  expect(received).toEqual([token]);
-});
+}
 
 test('malformed reset fragments are scrubbed and refused without a request', async () => {
   const page = browser('https://dev.app.puni.dev/#test-reset=short');
@@ -55,17 +57,23 @@ test('malformed reset fragments are scrubbed and refused without a request', asy
   expect(calls).toBe(0);
 });
 
-test('production fragments are scrubbed without sending the operator token', async () => {
-  const page = browser(`https://app.puni.dev/#test-reset=${token}`);
-  let calls = 0;
-  const reset = consumeTestingReset(page, () => {
-    calls += 1;
-    return Promise.resolve();
+for (const origin of [
+  'https://app.puni.dev',
+  'https://request.puni.dev',
+  'https://dev.request.puni.dev.evil.example',
+]) {
+  test(`${origin} fragments are scrubbed without sending the operator token`, async () => {
+    const page = browser(`${origin}/#test-reset=${token}`);
+    let calls = 0;
+    const reset = consumeTestingReset(page, () => {
+      calls += 1;
+      return Promise.resolve();
+    });
+    expect((await rejectedReset(reset)).message).toContain('preview');
+    expect(page.location.hash).toBe('');
+    expect(calls).toBe(0);
   });
-  expect((await rejectedReset(reset)).message).toContain('preview');
-  expect(page.location.hash).toBe('');
-  expect(calls).toBe(0);
-});
+}
 
 test('reset network errors expose no secret or transport details', async () => {
   const page = browser(`https://dev.app.puni.dev/#test-reset=${token}`);

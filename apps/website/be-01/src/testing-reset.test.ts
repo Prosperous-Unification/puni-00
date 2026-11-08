@@ -106,6 +106,35 @@ test('an unconfigured reset endpoint is unavailable', async () => {
   }
 });
 
+test('testing reset accepts both exact preview hostnames and rejects crossed or hostile origins', () => {
+  for (const appOrigin of ['https://dev.app.puni.dev', 'https://dev.request.puni.dev']) {
+    expect(
+      readWebsiteApiConfig({
+        WEBSITE_TEST_RESET_SECRET: secret,
+        APP_ORIGIN: appOrigin,
+        PUBLIC_ORIGIN: 'https://dev.puni.dev',
+        TRUSTED_PROXY_HOPS: '1',
+        TRUSTED_PROXY_PEERS: '127.0.0.1/32',
+      }).testingResetSecret,
+    ).toBe(secret);
+  }
+  for (const [publicOrigin, appOrigin] of [
+    ['https://dev.puni.dev', 'https://dev.request.puni.dev.evil.example'],
+    ['https://puni.dev', 'https://dev.request.puni.dev'],
+    ['https://puni.dev', 'https://request.puni.dev'],
+  ]) {
+    expect(() =>
+      readWebsiteApiConfig({
+        WEBSITE_TEST_RESET_SECRET: secret,
+        APP_ORIGIN: appOrigin,
+        PUBLIC_ORIGIN: publicOrigin,
+        TRUSTED_PROXY_HOPS: '1',
+        TRUSTED_PROXY_PEERS: '127.0.0.1/32',
+      }),
+    ).toThrow('preview');
+  }
+});
+
 test('reset configuration requires a 256-bit token and exact preview or loopback origins', () => {
   for (const token of ['', 'short', 'z'.repeat(64)])
     expect(() => readWebsiteApiConfig({ WEBSITE_TEST_RESET_SECRET: token })).toThrow(

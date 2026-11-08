@@ -18,8 +18,13 @@ export function consumeTestingReset(
   // Proof: removing the scrub failed the test asserting a clean URL inside the reset callback.
   browser.history.replaceState(null, '', `${browser.location.pathname}${browser.location.search}`);
   const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(browser.location.hostname);
-  // Proof: bypassing this guard sent the token in the production-fragment refusal test.
-  if (browser.location.origin !== 'https://dev.app.puni.dev' && !loopback)
+  // Proof: bypassing this guard sent production tokens; prefix matching sent a hostile preview suffix in testing-reset.test.ts.
+  if (
+    !['https://dev.app.puni.dev', 'https://dev.request.puni.dev'].includes(
+      browser.location.origin,
+    ) &&
+    !loopback
+  )
     return Promise.reject(new Error('The testing reset is available only on preview.'));
   // Proof: bypassing this guard sent the malformed link in testing-reset.test.ts.
   if (secret === null || !/^[a-f0-9]{64}$/.test(secret))
