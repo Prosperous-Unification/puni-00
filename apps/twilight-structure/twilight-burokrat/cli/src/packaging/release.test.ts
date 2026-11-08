@@ -178,7 +178,7 @@ describe('package release planner', () => {
       })),
     ).toBe('absent');
     // Bun answers a missing version of an existing package with this JSON on stdout (observed on
-    // release run 42451249726 for twilight-burokrat-v0.2.1, after 0.1.0 had been published).
+    // release run 42451249726 for twilight-burokrat-v0.2.0, after 0.1.0 had been published).
     expect(
       await lookupRegistryVersion('twilight-burokrat', '0.2.1', () => ({
         exitCode: 1,
