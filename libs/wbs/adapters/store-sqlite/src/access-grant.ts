@@ -258,7 +258,7 @@ export class AccessGrantRepository implements AccessGrants {
           organizationId,
           groupId,
           userId,
-          // No `updated_at` on `access_group_member` either; as in `grant`.
+          // No `updated_at` on `access_group_member` either, as in `grant`.
           ...(by === null ? auditOnOperatorCreate(act.at) : auditOnCreate({ at: act.at, by })),
         })
         .run();
@@ -353,7 +353,7 @@ export function copyGrantsOfCredential(
         origin: row.origin,
         // The copy keeps its source's creator: a backfilled or operator row
         // has none. `auditOnCreate`'s `updatedAt` names no column of
-        // `access_grant`, and drizzle writes only declared columns; the call
+        // `access_grant`, drizzle writes only declared columns, and the call
         // is what `audit.test.ts`' write-site scan requires.
         ...(row.createdBy === null
           ? auditOnOperatorCreate(at)
