@@ -203,7 +203,7 @@ CREATE TABLE `access_grant` (
 	`subject_kind` text NOT NULL CHECK (`subject_kind` IN ('user', 'group', 'organization_members', 'machine_credential')),
 	`subject_id` text NOT NULL,
 	`role_id` text NOT NULL REFERENCES `access_role`(`id`),
-	`origin` text NOT NULL CHECK (`origin` IN ('backfill', 'route', 'invitation', 'creation')),
+	`origin` text NOT NULL CHECK (`origin` IN ('backfill', 'route', 'invitation', 'creation', 'operator')),
 	`created_at` integer NOT NULL,
 	`created_by` text REFERENCES `users`(`id`),
 	CONSTRAINT `access_grant_organization_scope` CHECK (`scope_kind` <> 'organization' OR `scope_id` = `organization_id`),
