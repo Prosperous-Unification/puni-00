@@ -1,3 +1,4 @@
+import type { AccessDecisions } from './access-decisions';
 import type { ActualStore } from './actual-store';
 import type { BudgetStore } from './budget-store';
 import type { CalendarMarkerStore } from './calendar-marker-store';
@@ -45,6 +46,14 @@ export interface PlanTransactionalStores {
    */
   projectRanks?: ProjectRankStore & SharedPeopleStore;
   directory: DirectoryStore;
+  /**
+   * Grant decisions (`wbs-permissions` P13). The SQLite source installs them
+   * on its public catalogs and on every catalog a unit of work admits, so a
+   * batch decides inside its own transaction; memory fixtures do not
+   * (`livePlans` and `projectRanks` precedent). A caller that needs a
+   * decision from a graph without them throws; it never answers unchecked.
+   */
+  accessDecisions?: AccessDecisions;
   /**
    * The organization limits a write consults inside its own transaction
    * (`wbs-organization-limits`). Only the catalogs a unit of work admits

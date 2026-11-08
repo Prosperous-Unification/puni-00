@@ -102,3 +102,104 @@ credential backfill is unchanged: main's `machine_credential` keeps `person_id`,
 | built-in admin's set returned unchanged on a restricted target        | an org-admin reads a restricted work package and never writes it (+ the opt-in case)        |
 | a role holding `organization.manage_access` admitted without the flag | a custom organization role equal to org-admin reads no restricted work package              |
 | the two built-in ids read instead of `reachesRestricted`              | a custom organization role that opts in reads a restricted work package and never writes it |
+
+## 1.3 `AccessDecisions` (2026-11-08, branch `feat/wbs-permissions-1-3`)
+
+Also `wbs-custom-permissions` 1.3. Port `libs/wbs/application/core/src/ports/access-decisions.ts`
+(`AccessDecisions`, `AccessTarget`, `ScopedPrincipal`, `accessSubjectOf`, `capOf`), row
+validation and the visibility rule in `@wbs/domain` `access-role.ts` (`reachingGrantsOf`,
+`effectiveRoleOn`, `UnknownPermissionRow`, `PermissionKindRow`, `EmptyRoleSet`), SQLite
+`AccessDecisionRepository` in `libs/wbs/adapters/store-sqlite/src/access-decisions.ts`,
+installed by `buildStores` on the public catalogs and on every catalog a unit of work
+admits (optional `PlanTransactionalStores.accessDecisions`, conformance family
+`accessDecisions`: SQLite offered, memory absent, the `projectRanks` precedent). Test
+`libs/wbs/adapters/store-sqlite/src/access-decisions.db.test.ts` (28 cases, after the review round below); grants are
+inserted with SQL, the grant store being task 1.4's.
+
+| Command                                                                                             | Result                                                                             |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `env -u CLAUDECODE bun test src/access-decisions.db.test.ts --timeout=30000` (store-sqlite)         | 24 pass, 0 fail                                                                    |
+| `env -u CLAUDECODE bun test ./src/testing/source-conformance.db.test.ts` (store-sqlite)             | 84 pass, 0 fail; certifies `accessDecisions.effectiveRoleAt:grant-reaches-package` |
+| `env -u CLAUDECODE bun test ./src/testing/source-conformance.test.ts` (store-memory)                | 84 pass, 0 fail; `accessDecisions` absent, not offered                             |
+| `env -u CLAUDECODE bun test --timeout=30000` (store-sqlite, full)                                   | 2072 pass, 0 fail, 2073 tests, 154 files                                           |
+| `bunx nx run-many -t test -p wbs-domain,wbs-conformance,wbs-store-memory --skip-nx-cache`           | exit 0                                                                             |
+| `bunx nx run-many -t typecheck,typecheck:module` over the eleven wbs projects of the brief          | exit 0, 11 projects                                                                |
+| `bunx nx run-many -t lint -p wbs-domain,wbs-core,wbs-store-sqlite,wbs-store-memory,wbs-conformance` | exit 0, 5 projects                                                                 |
+| `bunx nx run tool-devsync:test --skip-nx-cache`                                                     | exit 0, 1027 tests, 50 files                                                       |
+| `bun …/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                               | exit 0                                                                             |
+| `bunx nx format:check --all`                                                                        | exit 0                                                                             |
+| `bunx --no-install openspec validate --all --json`                                                  | 328 items, 328 passed                                                              |
+
+Each fault injected alone, the named case watched failing, the source restored:
+
+| Fault                                                                           | Case that failed                                                                                                                |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| membership `EXISTS` replaced by a true predicate                                | a removed member keeps no access; a credential whose account left the organization reaches nothing (listed `wp-open`, `wp-two`) |
+| `project.manage_settings` seeded into `package-manager` (migration)             | a package role at organization scope satisfies no project permission (threw `PermissionKindRow`), five more                     |
+| `roleMayHold` check dropped from `reachingGrantsOf`                             | throws PermissionKindRow on both statements (the read resolved)                                                                 |
+| P5 skip answered `unchanged` (domain)                                           | org-viewer, project and package roles at organization scope and the members subject are skipped (org-viewer read `wp-closed`)   |
+| listing's P5 clause dropped                                                     | the same case and the custom-role case (listed `wp-closed`), list and detail agree                                              |
+| listing's admin read dropped (`wp.restricted = 0` only)                         | org-admin and org-super-admin read a restricted package and never write it (missed `wp-closed`)                                 |
+| built-in admin's set returned unchanged instead of intersected with `READ_ONLY` | org-admin and org-super-admin read a restricted package and never write it (every organization permission)                      |
+| `package.manage_settings` added to `CONTRIBUTOR_CAP`                            | a person is uncapped; a credential holding org-admin reads as contributor (machine read the manager permission)                 |
+| unknown row skipped instead of thrown                                           | throws UnknownPermissionRow on both statements (the read resolved)                                                              |
+| the three `:machine = 0` guards dropped                                         | a machine principal holds only its credential grants (agent read `project.read` from its account's reach)                       |
+| listing's permission rows filtered by the vocabulary in SQL                     | throws UnknownPermissionRow on both statements (the listing resolved)                                                           |
+| permission `LEFT JOIN` made inner, `effectiveRoleAt` and listing separately     | throws EmptyRoleSet on both statements (the read resolved, empty role read as no grant)                                         |
+| listing's `package.read` admission (`reads_packages`) dropped                   | an organization role without package.read lists nothing and every detail is invisible (listed both unrestricted packages)       |
+| `effectiveRoleOn` answers any reaching set                                      | the same case (detail answered `[project.manage_budgets]`)                                                                      |
+| `accessDecisions` left out of `buildStores`                                     | both catalogs carry the decisions…; SQLite certification failed `accessDecisions.effectiveRoleAt:grant-reaches-package`         |
+
+Plans (`EXPLAIN QUERY PLAN`, asserted): a package target reads `access_grant` through its
+six-column unique index keyed by scope and subject; the organization target and the listing
+through `access_grant_subject`; neither scans `access_grant`. The subject CTE drives the join
+(`CROSS JOIN`); the listing materializes the reaching grants once. One statement per call,
+counted through Drizzle's logger, for a person and a machine principal.
+
+Assumptions taken: the organization target is never null and evaluates navigation in the
+`any` mode (every reaching grant implies `organization.navigate`; a project or package
+grant contributes only that there);
+`ScopedPrincipal` is `Pick<AuthenticatedUser, 'id' | 'authentication'>`; the interim
+package target is read by the store-private `AccessDecisionRepository.packageTargetOf`;
+no project grant admits a package until `wbs-work-packages` slice 2 adds
+`work_package.project_id`; corrupt-row detection on the listing returns the raw rows to
+`@wbs/domain` instead of the design's SQL `'corrupt'` marker, so all three errors throw on
+both statements.
+
+### Review round (Fable review of #890, 2026-11-08)
+
+Fixes: the rename tool's collision test (two `new`-sense `PROTECTED_LINES` patterns for this
+slice's shapes, locals renamed to `packageId`, the restricted-flag message reworded);
+`effectiveRoleOn` adds `organization.navigate` to every organization-scope grant at the
+organization target (CP20); `AccessTarget`'s package member narrowed to
+`InterimPackageChain` and `scopeRows` adds no project row, so no project grant reaches a
+package in detail while the listing has no project branch (narrowing chosen over a throw:
+one type member and no new runtime path); negatives for the four new throws; the plan
+assertion reads the unique key's autoindex name from `PRAGMA index_list`/`index_info`
+(SQLite numbers `sqlite_autoindex_<table>_<n>` by constraint order); the two design.md
+amendments and task 2.1's single-reader rule.
+
+| Command                                                                                               | Result                |
+| ----------------------------------------------------------------------------------------------------- | --------------------- |
+| `env -u CLAUDECODE bunx nx run tool-rename-work-package:test --skip-nx-cache`                         | exit 0                |
+| `bunx nx run tool-rename-work-package:typecheck`                                                      | exit 0                |
+| `env -u CLAUDECODE bun test src/access-decisions.db.test.ts` (store-sqlite)                           | 28 pass, 0 fail       |
+| `nx run-many -t test -p wbs-domain,wbs-conformance,wbs-store-memory,wbs-store-sqlite --skip-nx-cache` | exit 0, 4 projects    |
+| `nx run-many -t typecheck,typecheck:module` (11 wbs projects)                                         | exit 0, 11 projects   |
+| `nx run-many -t lint` (5 touched wbs projects)                                                        | exit 0, 5 projects    |
+| Burokrat `check-indexes working . HEAD`                                                               | exit 0                |
+| `nx format:check --all`                                                                               | exit 0                |
+| `openspec validate --all --json`                                                                      | 328 items, 328 passed |
+
+| Fault                                                                      | Case that failed                                                                                        |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| the two new `PROTECTED_LINES` patterns absent (the head before this round) | tool-rename-work-package collision test: 17 collisions on this slice's lines                            |
+| navigation union dropped at the organization target                        | an organization role without package.read lists nothing… (`may(…, 'organization.navigate')` false)      |
+| `reaches_restricted` 0/1 guard removed                                     | throws on a reaches_restricted outside 0 and 1, on both statements (the read resolved)                  |
+| package `restricted` 0/1 guard removed                                     | throws on a package restricted flag outside 0 and 1 (resolved)                                          |
+| `checkedMember` returns the value unchecked                                | throws on a grant scope kind outside its vocabulary, on both statements (resolved)                      |
+| "grant read with two roles" check removed                                  | `access-role.test.ts` refuses one grant read with two roles (did not throw)                             |
+| a `('project', projectId)` scope row restored for a chain naming one       | a project grant reaches no package, in detail or in the listing, until task 3.2 (detail answered a set) |
+
+Unreachable from a production path: "grant read with two roles" (`access_grant.id` is the
+key and `role_id` one column); proven on the pure function only.
