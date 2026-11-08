@@ -19,6 +19,7 @@ import { AccessDecisionRepository } from './access-decisions';
 import { openDatabase, openDrizzle } from './db';
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ORG = 'org-a';
@@ -573,7 +574,10 @@ describe('one statement per call', () => {
 
 describe('the admitted turn and the read stores', () => {
   it('both catalogs carry the decisions; a batch sees its own uncommitted grant', async () => {
-    const source = openSqliteSource({ dbPath: path });
+    const source = openSqliteSource({
+      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+      dbPath: path,
+    });
     try {
       const target = await packageTarget('wp-open');
       const publicDecisions = source.stores.accessDecisions;
