@@ -73,6 +73,7 @@ try {
     WEBSITE_DATABASE_PATH: join(directory, 'runtime.sqlite'),
     RETENTION_JOURNAL: 'disabled',
     TRUSTED_PROXY_HOPS: '1',
+    TRUSTED_PROXY_PEERS: '127.0.0.1/32',
     PUBLIC_ORIGIN: 'http://site.test',
     APP_ORIGIN: 'http://app.test',
   };

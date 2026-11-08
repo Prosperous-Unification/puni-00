@@ -59,11 +59,19 @@ One message the visitor sends in a scoping conversation, counting the request de
 _Avoid_: User turn, prompt
 
 **Conversation allowance**:
-The set of ceilings a scoping conversation runs under: visitor turns, completion tokens, and spend per conversation, per source and site-wide per UTC day.
+The set of ceilings a scoping conversation runs under: visitor turns, paid attempts, completion tokens, and spend per conversation, browser, source and site across defined windows.
 _Avoid_: Quota, budget
 
+**Browser allowance**:
+The conversations and paid attempts permitted across drafts presented by one browser claim, independently of its current network source.
+_Avoid_: Device identity, person identity
+
+**Paid attempt**:
+One admitted model generation, including one that is stopped or interrupted before a completed exchange is saved.
+_Avoid_: Visitor turn, completed reply
+
 **Source**:
-The pseudonymous, daily-salted hash of the client address behind the gateway, used only to bound how many conversations and how much spend one address may start in a day.
+The pseudonymous, daily-salted hash of the client address behind the gateway, used only to bound conversations and spend attributed to one network source.
 _Avoid_: IP, visitor id; not the WBS [Source](../../CONTEXT.md#architecture), a set of store adapters
 
 **Concept preview**:

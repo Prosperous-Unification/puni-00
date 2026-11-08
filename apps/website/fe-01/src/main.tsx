@@ -11,7 +11,7 @@ import {
   useMilestone,
   useMilestones,
 } from './analytics-flow';
-import { ApiFailure, requestJson } from './api';
+import { ApiFailure, requestJson, sendCommand } from './api';
 import { describeFailure, describeOperatorFailure, offersAi } from './app-flow';
 import { type Draft, parseDraft } from './build-contract';
 import { AppErrorBoundary, BuildPage } from './build-page';
@@ -28,6 +28,7 @@ import { FunnelPanel } from './funnel-panel';
 import { GuardrailsPanel } from './guardrails-panel';
 import { ArrivalChoice, PrivacyChoices } from './privacy-choices';
 import { clearRequestEditor, RequestEditor } from './request-editor';
+import { consumeTestingReset } from './testing-reset';
 
 interface Submission {
   id: string;
@@ -687,19 +688,46 @@ function OperatorPage() {
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing app root');
-const milestones = createMilestones(createAppAnalytics(window));
-createRoot(root).render(
-  <MilestonesContext.Provider value={milestones}>
-    {window.location.pathname.startsWith('/operator') ? (
-      <OperatorPage />
-    ) : window.location.pathname.startsWith('/manual') ? (
-      <AppErrorBoundary>
-        <ManualPage />
-      </AppErrorBoundary>
-    ) : (
-      <AppErrorBoundary>
-        <BuildPage />
-      </AppErrorBoundary>
-    )}
-  </MilestonesContext.Provider>,
+const appRoot = createRoot(root);
+
+/** Routes an operator reset failure through the existing page Error Boundary. */
+function ResetFailure({ error }: { error: Error }): never {
+  throw error;
+}
+
+function mountApp(): void {
+  const milestones = createMilestones(createAppAnalytics(window));
+  appRoot.render(
+    <MilestonesContext.Provider value={milestones}>
+      {window.location.pathname.startsWith('/operator') ? (
+        <OperatorPage />
+      ) : window.location.pathname.startsWith('/manual') ? (
+        <AppErrorBoundary>
+          <ManualPage />
+        </AppErrorBoundary>
+      ) : (
+        <AppErrorBoundary>
+          <BuildPage />
+        </AppErrorBoundary>
+      )}
+    </MilestonesContext.Provider>,
+  );
+}
+
+const testingReset = consumeTestingReset(window, (secret) =>
+  sendCommand('/testing/reset', {
+    method: 'POST',
+    headers: { 'X-Puni-Test-Reset': secret },
+    signal: AbortSignal.timeout(10_000),
+  }),
 );
+if (testingReset === null) mountApp();
+else
+  void testingReset.then(mountApp, (error: unknown) => {
+    if (!(error instanceof Error)) throw new Error('Unexpected testing reset failure');
+    appRoot.render(
+      <AppErrorBoundary>
+        <ResetFailure error={error} />
+      </AppErrorBoundary>,
+    );
+  });

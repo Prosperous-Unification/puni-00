@@ -172,7 +172,7 @@ test('erasure blanks a due subject conversation and keeps its accounting', () =>
   ]);
 });
 
-test('the expired-draft purge removes earlier days and retains unknown usage blanked', () => {
+test('the expired-draft purge removes earlier months and retains unknown usage blanked', () => {
   const databasePath = databaseFile();
   const store = new WebsiteStore(databasePath);
   store.createDraft('draft-a', 'secret a', 'claim-a', day, day + 1_000, 'source-test');
@@ -195,7 +195,7 @@ test('the expired-draft purge removes earlier days and retains unknown usage bla
   store.markConversationOperationUnknown(unknown.id);
   store.close();
 
-  const cutoff = day + 86_400_000;
+  const cutoff = Date.UTC(2026, 10, 2, 12);
   const plan = inspectExpiredDrafts(databasePath, cutoff);
   expect(plan).toMatchObject({
     eligibleDrafts: 2,
@@ -272,4 +272,50 @@ test('the purge keeps the cutoff day’s completed operations as blanked account
   expect(query(databasePath, 'SELECT description, brief FROM intake_draft')).toEqual([
     { description: '', brief: '' },
   ]);
+});
+
+test('purge retains paid originals through the cutoff month and previous-day window for rollback readers', () => {
+  for (const at of [Date.UTC(2026, 9, 6, 12), Date.UTC(2026, 9, 31, 12)]) {
+    const databasePath = databaseFile();
+    const store = new WebsiteStore(databasePath);
+    store.createDraft(
+      'draft-accounting',
+      'private draft',
+      'claim-accounting',
+      at,
+      at + 1000,
+      'source-accounting',
+    );
+    converse(store, 'claim-accounting', 2, at);
+    store.close();
+    const cutoff = at + 86_400_000;
+    const before = query(
+      databasePath,
+      'SELECT utc_day, reserved_micro_usd, settled_micro_usd FROM conversation_operation ORDER BY rowid',
+    );
+    const plan = inspectExpiredDrafts(databasePath, cutoff);
+    expect(plan.retainedOperations).toBe(2);
+    expect(
+      purgeExpiredDrafts(databasePath, cutoff, plan.fingerprint, cutoff).retainedOperations,
+    ).toBe(2);
+    expect(
+      query(
+        databasePath,
+        'SELECT utc_day, reserved_micro_usd, settled_micro_usd FROM conversation_operation ORDER BY rowid',
+      ),
+    ).toEqual(before);
+    expect(
+      query(
+        databasePath,
+        'SELECT COALESCE(SUM(COALESCE(settled_micro_usd, reserved_micro_usd)), 0) AS total FROM conversation_operation',
+      ),
+    ).toEqual([{ total: 800 }]);
+    expect(query(databasePath, 'SELECT description, brief FROM intake_draft')).toEqual([
+      { description: '', brief: '' },
+    ]);
+    expect(query(databasePath, 'SELECT message, reply FROM conversation_operation')).toEqual([
+      { message: '', reply: '' },
+      { message: '', reply: '' },
+    ]);
+  }
 });

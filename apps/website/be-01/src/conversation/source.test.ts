@@ -107,9 +107,11 @@ test('a trusted gateway hop identifies the source and a missing hop is refused',
   const accepted = await api.fetch(postInitial(first, '198.51.100.1, 203.0.113.9'), '127.0.0.1');
   expect(accepted.status).toBe(200);
   const second = await beginConversation(api);
-  expect((await api.fetch(postInitial(second, '192.0.2.55, 203.0.113.9'))).status).toBe(200);
+  expect(
+    (await api.fetch(postInitial(second, '192.0.2.55, 203.0.113.9'), '127.0.0.1')).status,
+  ).toBe(200);
   const third = await beginConversation(api);
-  expect((await api.fetch(postInitial(third, '203.0.113.10'))).status).toBe(200);
+  expect((await api.fetch(postInitial(third, '203.0.113.10'), '127.0.0.1')).status).toBe(200);
   const [firstSource, secondSource, thirdSource] = sources(config.databasePath);
   expect(firstSource).toMatch(/^[0-9a-f]{64}$/);
   expect(firstSource).not.toContain('203.0.113.9');
@@ -146,7 +148,10 @@ test('an https app origin refuses to start without trusted proxy hops', () => {
 });
 
 test('the runtime configuration refuses malformed provider, flag and hop settings', () => {
-  expect(readWebsiteApiConfig({ TRUSTED_PROXY_HOPS: '1' }).trustedProxyHops).toBe(1);
+  expect(
+    readWebsiteApiConfig({ TRUSTED_PROXY_HOPS: '1', TRUSTED_PROXY_PEERS: '127.0.0.1/32' })
+      .trustedProxyHops,
+  ).toBe(1);
   expect(readWebsiteApiConfig({}).trustedProxyHops).toBeUndefined();
   expect(() => readWebsiteApiConfig({ TRUSTED_PROXY_HOPS: 'one' })).toThrow('TRUSTED_PROXY_HOPS');
   expect(() => readWebsiteApiConfig({ OPENROUTER_INPUT_USD_PER_MILLION: 'cheap' })).toThrow(

@@ -1,9 +1,11 @@
 import { readS3JournalConfig, type S3JournalConfig } from '@website/store-sqlite';
 
+import { readProxyPeers } from './conversation/proxy-trust';
 import { defaultConversationReplyTokens } from './conversation/request';
 import { isReasoningEffort, type ReasoningEffort } from './conversation/stream';
 import { readWebhookUrl } from './guardrail-alerts';
 import type { WebsiteApiConfig } from './server';
+import { readTestingResetSecret } from './testing-reset-config';
 
 type Environment = Record<string, string | undefined>;
 
@@ -81,11 +83,17 @@ export function readWebsiteApiConfig(environment: Environment): WebsiteApiConfig
     databasePath: environment['WEBSITE_DATABASE_PATH'] ?? '.local/website.sqlite',
     publicOrigin,
     appOrigin,
+    testingResetSecret: readTestingResetSecret(
+      environment['WEBSITE_TEST_RESET_SECRET'],
+      publicOrigin,
+      appOrigin,
+    ),
     appManualUrl: `${appOrigin}/manual`,
     appBuildUrl: appOrigin,
     operatorPassword: environment['OPERATOR_PASSWORD'],
     secureCookies: new URL(appOrigin).protocol === 'https:',
     trustedProxyHops: readHops(environment),
+    trustedProxyPeers: readProxyPeers(environment['TRUSTED_PROXY_PEERS'], readHops(environment)),
     demoAuth: readFlag(environment, 'DEMO_AUTH'),
     openRouterKey: environment['OPENROUTER_API_KEY'],
     openRouterModel: environment['OPENROUTER_MODEL'],

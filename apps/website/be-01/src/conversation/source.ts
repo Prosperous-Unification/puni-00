@@ -34,9 +34,9 @@ export function selectSourcePrefix(address: string): string {
   const family = isIP(bare);
   if (family === 4) return bare;
   if (family !== 6) throw new Error('Source address is not an IP address');
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(bare);
-  if (mapped?.[1] !== undefined) return mapped[1];
-  const halves = bare.toLowerCase().split('::');
+  // URL canonicalization converts every embedded IPv4 spelling to hex before prefix selection.
+  const canonical = new URL(`http://[${bare}]/`).hostname.slice(1, -1);
+  const halves = canonical.split('::');
   const isCompressed = halves.length === 2;
   const headGroups = halves[0] === '' ? [] : halves[0].split(':');
   const tailText = isCompressed ? halves[1] : '';
@@ -48,6 +48,15 @@ export function selectSourcePrefix(address: string): string {
         ...Array<string>(8 - headGroups.length - tailGroups.length).fill('0'),
         ...tailGroups,
       ];
+  // Proof: skipping this normalization assigned hex-mapped IPv4 a new allowance in proxy-trust.test.ts.
+  if (
+    groups.slice(0, 5).every((group) => Number.parseInt(group, 16) === 0) &&
+    Number.parseInt(groups[5], 16) === 65535
+  ) {
+    const high = Number.parseInt(groups[6], 16);
+    const low = Number.parseInt(groups[7], 16);
+    return [high >>> 8, high & 255, low >>> 8, low & 255].join('.');
+  }
   // Proof: hashing the full IPv6 address made the same-/64 source test see two sources.
   return `${groups
     .slice(0, 4)

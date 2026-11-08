@@ -1,0 +1,87 @@
+# Verification
+
+## Scope and source
+
+Implementation began from current main `53d43d6c0` to preserve shipped conversion scoping. The owner authorized all six invisible controls, the scoped preview URL-fragment reset, merge and development deployment. No prospect sign-in, email verification, visible challenge or provider-key limit change is included. The preview source is governed by the private companion and fleet repositories.
+
+## Observed runtime checks
+
+- Stable public API/store suite: `bun test ./libs/website/adapters/store-sqlite/src ./apps/website/be-01/src --timeout=30000` — **850 pass, 0 fail**, 43 files, 10,637 assertions, 210.43s; `/tmp/task1-stable-tests.log`.
+- Backend/store lint, both typechecks and builds passed; `/tmp/task1-stable-checks.log` and `/tmp/task1-api-lint-final.log`.
+- Actual adapter package smoke passed. API package smoke initially refused its old fixture missing TRUSTED_PROXY_PEERS; the fixture now explicitly trusts loopback and the actual bundled smoke passed (`/tmp/harden-api-package-smoke.log`).
+- Parent proxy/reset/frontend focused tests: 44 pass before the additional active-reset test; the active-reset test separately passed and retained the full charged reservation. Production retention/old-reader and fragment tests: 11 pass. Final affected Nx matrix and format-all are in progress.
+- Private runtime encryption transport: 16 pass, 0 fail. Fleet rendered policy suite: 55 pass, 0 fail. No private or fleet deployment is claimed yet.
+
+Sandbox-only EPERM on loopback/subprocess fixtures was reproduced and rerun with authorized execution facilities. One moving-source run was invalidated by subsequent migration edits and is not accepted as evidence. A pristine-main archive baseline passed 460 tests; its sole missing migration-linter dependency was restored and that test passed independently. Prettier has no parser for .env.example; its textual configuration example is excluded from direct parser checks, while canonical Nx formatting remains required.
+
+## Failure proofs
+
+Every fault below was injected into the production guard or dependency; its named production-path test exited nonzero, then restored code passed. Full task1 mutation transformations and logs are under `.superpowers/sdd/harden-anonymous-conversation/` (ignored scratch); observed details follow.
+
+Runner: `python3 .superpowers/sdd/harden-anonymous-conversation/task1-mutations.py`.
+
+The runner performs one actual production-source/SQL mutation at a time, runs the real mounted API/store test, requires nonzero exit with an observed failing test, and restores the original file in `finally`.33/33 mutations were killed. Full transformations are in that runner; individual logs and machine-readable summary are in `proofs/`. Adjacent `Proof:` comments name the observed fault/test on the guards and ledger dependencies. The following are exact test commands for each injected fault (every run exited1):
+
+- **attempt-cap**: `bun test ./apps/website/be-01/src/conversation/conversation.test.ts -t 'mounted repeated Stop'` → mounted repeated Stop refuses paid attempt eleven before contacting provider [297.39ms]
+- **rolling-conversations**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'retained browser|new browser keeps'` → retained browser refuses fourth paid conversation despite changing source [80.27ms]
+- **rolling-spend**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'rolling source and browser spend'` → rolling source and browser spend each refuse a reservation beyond thirty cents [55.96ms]
+- **browser-scope**: `bun test ./apps/website/be-01/src/conversation/conversation.test.ts -t 'mounted retained browser'` → mounted retained browser survives changed sources and missing browser cookie on existing draft [486.21ms]
+- **source-scope**: `bun test ./apps/website/be-01/src/conversation/conversation.test.ts -t 'mounted cleared browser'` → mounted cleared browser cookie cannot renew a source across UTC midnight [879.75ms]
+- **scoped-minute**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'durable one-minute'` → durable one-minute source and browser bursts refuse without exhausting drafts [60.41ms]
+- **site-minute**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'site twenty-per-minute|preview reset preserves four-call'` → site twenty-per-minute burst survives distinct sources and browsers [195.98ms]
+- **site-hour**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'rolling site hour|preview reset preserves hourly'` → rolling site hour and UTC month ceilings count retained accounting [44.51ms]
+- **site-month**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'rolling site hour|preview reset preserves hourly'` → rolling site hour and UTC month ceilings count retained accounting [81.04ms]
+- **immutable-binding**: `bun test ./apps/website/be-01/src/conversation/conversation.test.ts -t 'mounted retained browser'` → mounted retained browser survives changed sources and missing browser cookie on existing draft [551.99ms]
+- **server-browser-registry**: `bun test ./apps/website/be-01/src/conversation/conversation.test.ts -t 'intake mints'` → intake mints a registered host-only browser cookie and ignores a forged browser identity [39.78ms]
+- **yesterday-source**: `bun test ./apps/website/be-01/src/conversation/conversation.test.ts -t 'mounted cleared browser'` → mounted cleared browser cookie cannot renew a source across UTC midnight [605.56ms]
+- **reset-fence**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'preview reset fences'` → preview reset fences in-flight operation before renewing counters [44.71ms]
+- **retention-accounting**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'content deletion|production retention purge'` → content deletion preserves ledger spend and settlement from compatible writers [48.04ms]
+- **paid_attempt_conversation_insert**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'content deletion|retired-provider triggers'` → content deletion preserves ledger spend and settlement from compatible writers [43.06ms]
+- **paid_attempt_conversation_update**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'content deletion|retired-provider triggers'` → content deletion preserves ledger spend and settlement from compatible writers [65.36ms]
+- **paid_attempt_provider_insert**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'content deletion|retired-provider triggers'` → retired-provider triggers preserve insert settlement and deletion accounting [32.37ms]
+- **paid_attempt_provider_update**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'content deletion|retired-provider triggers'` → retired-provider triggers preserve insert settlement and deletion accounting [35.37ms]
+- **backfill-conversation**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'migration backfills'` → migration backfills conversation and retired-provider spend without content ownership [59.57ms]
+- **backfill-provider**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'migration backfills'` → migration backfills conversation and retired-provider spend without content ownership [64.49ms]
+- **browser-registry-expiry**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'browser registry refuses expired'` → browser registry refuses expired registrations without waiting for cleanup [37.15ms]
+- **browser-registry-cleanup**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'stale browser registrations'` → stale browser registrations expire while draft bindings remain [42.94ms]
+- **browser-registry-atomic-issuance**: `bun test ./apps/website/be-01/src/conversation/conversation.test.ts -t 'refused draft caps cannot'` → refused draft caps cannot create orphan browser registrations [107.17ms]
+- **site-day**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'preview reset preserves hourly'` → preview reset preserves hourly monthly daily and pause refusals [169.53ms]
+- **site-pause**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'preview reset preserves hourly'` → preview reset preserves hourly monthly daily and pause refusals [202.23ms]
+- **site-concurrency**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'preview reset preserves four-call'` → preview reset preserves four-call concurrency and site fresh-minute ceiling [78.88ms]
+- **browser-registry-refresh**: `bun test ./apps/website/be-01/src/conversation/conversation.test.ts -t 'accepted intake refreshes'` → accepted intake refreshes browser registration through its original thirty-one-day boundary [50.10ms]
+- **fresh-admission-clock**: `bun test ./apps/website/be-01/src/conversation/conversation.test.ts -t 'slow request bodies'` → slow request bodies reserve under the fresh admission time and UTC day [106.85ms]
+- **live-operation-recovery**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'second process cannot recover'` → a second process cannot recover live calls or bypass four slots before their deadline [61.28ms]
+- **expired-operation-recovery**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'second process cannot recover'` → a second process cannot recover live calls or bypass four slots before their deadline [62.57ms]
+- **retained-operation-delete**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'cannot delete paid original'` → predecessor cleanup cannot delete paid original operations still in the current UTC month [45.43ms]
+- **retained-provider-delete**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'cannot delete current-month retired'` → predecessor cleanup cannot delete current-month retired-provider accounting [57.48ms]
+- **orphaned-financial-rollback**: `bun test ./libs/website/adapters/store-sqlite/src/anonymous-admission.test.ts -t 'rollback refuses'` → migration rollback refuses to discard orphaned retained financial records [59.84ms]
+
+### Additional boundary proofs
+
+| Injected fault                         | Observed failing production-path test                                                      | Evidence                                     |
+| -------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| Bypass trusted socket peer             | proxy-trust.test.ts: untrusted socket chooses forwarded source                             | /tmp/harden-proxy-peer-negative.log          |
+| Omit required runtime peers            | proxy-trust.test.ts: runtime forwarded deployment                                          | /tmp/harden-proxy-runtime-negative.log       |
+| Allow /0 trusted range                 | proxy-trust.test.ts: unrestricted peer startup                                             | /tmp/harden-proxy-range-negative.log         |
+| Skip IPv4-mapped normalization         | proxy-trust.test.ts: alternate mapped spellings                                            | /tmp/harden-source-mapped-negative.log       |
+| Bypass reset secret comparison         | testing-reset.test.ts: missing/wrong secret                                                | /tmp/harden-reset-auth-negative.log          |
+| Bypass reset Origin                    | testing-reset.test.ts: foreign Origin                                                      | /tmp/harden-reset-origin-negative.log        |
+| Permit production reset config         | testing-reset.test.ts: production configuration                                            | /tmp/harden-reset-production-negative.log    |
+| Permit malformed reset secret          | testing-reset.test.ts: secret shape                                                        | /tmp/harden-reset-shape-negative.log         |
+| Remove active reset abort              | testing-reset.test.ts: immediately aborts active provider                                  | /tmp/harden-reset-active-abort-negative.log  |
+| Remove URL fragment scrub              | frontend testing-reset.test.ts: clean URL inside callback                                  | /tmp/harden-fragment-scrub-negative.log      |
+| Permit production fragment             | frontend testing-reset.test.ts: production refusal                                         | /tmp/harden-fragment-origin-negative.log     |
+| Permit malformed fragment              | frontend testing-reset.test.ts: malformed refusal                                          | /tmp/harden-fragment-shape-negative.log      |
+| Rethrow secret-bearing transport error | frontend testing-reset.test.ts: sanitized network error                                    | /tmp/harden-fragment-errors-negative.log     |
+| Restore day-only original retention    | conversation-retention.test.ts: production purge and old-reader sums across month boundary | /tmp/harden-retention-originals-negative.log |
+| Bypass exact ingress policy validation | fleet policy.test.ts: widened policy retains expected name                                 | /tmp/harden-fleet-policy-negative.log        |
+
+## Review
+
+Independent review reproduced inherited live-peer startup recovery, active-cookie expiry, refused-intake registry growth and old-reader accounting gaps. Each has a production correction and regression/proof; scoped stable-source re-review remains required. Recent peer reservations now remain until their deadline. Active browser registrations refresh only on admitted drafts. Recent original financial rows are blanked, retained and delete-guarded; a code rollback keeps migration014 and pauses inference before a predecessor lacking the new policies.
+
+## Release acceptance
+
+Pending exact-SHA canonical host gate, merged public source, governed five-tree private snapshot, source and fleet CI/rehearsal, packaged artifacts, SQLite pre-start backup/full name-hash capture, live served identities, normal anonymous journey, proxy refusals and configured reset.
+
+The preview testing secret was generated in private mode0600 artifacts and encrypted on h4 using the SHA256-verified locked SOPS binary. Every existing runtime value was decrypted/re-encrypted and compared on that host without publication; all remained unchanged. The prepared ciphertext has not been applied. Site ceilings, provider-key caps, production configuration and inference activation remain authoritative.
