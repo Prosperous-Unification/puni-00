@@ -248,3 +248,75 @@ and fail-fast competing observations (controlled original-promises pending oracl
 Each omitted version exited 1 at its owning assertion before emergency rescue;
 each exact byte-restored version exited 0. Original intermediate failures and
 prior review receipts remain historical evidence, not final-source certificates.
+
+## Follow-up: failed release retains the original waiting group (2026-11-08)
+
+The preceding eight-case inventory was incomplete: the manual dev deploy holder
+was a ninth instance of the same READY-before-cleanup defect. It now uses the
+same owner, with an additional real manual-holder READY-failure regression.
+`roots` and its cleanup hook are declared before the helper tests. Configure's
+nonzero-exit assertion remains on the successful body path; a failed body still
+joins the original configure observations and propagates its primary failure.
+
+The owner now creates its child with Bun's POSIX `detached: true` contract, making
+that child its own session and process-group leader. If cooperative release cannot
+be written while observations remain pending, it signals only the group named by
+the PID it created, then joins the original exit and both pipes. The aggregate
+retains the primary failure, release failure and termination marker. A signal
+failure other than `ESRCH` reports loudly that the observations were not joined,
+retaining all causes; it does not claim successful custody or wait indefinitely.
+
+The new real flock regression removes only its own empty release directory after
+READY. It verifies bounded completion before emergency rescue, original
+observations settled at completion, retained primary identity and `ENOENT`, empty
+streams, and a fresh contender acquiring the released lock. It also verifies that
+the waiting Bash is flock's forked descendant, so a wrapper-only kill cannot
+satisfy the proof.
+
+Observed development receipts (the earlier 48-case receipt stays historical):
+
+- Test-only RED: `bun test tools/tool-remote-scripts/src/edge-admission.test.ts`
+  produced 49 passed, 1 failed, 182 assertions. The new release-failure oracle
+  observed unfinished cleanup before its independent cooperative rescue.
+- First implementation GREEN: the same command produced 50 passed, 0 failed,
+  192 assertions in 14.56 seconds.
+- Each of three exact source faults—omit `detached`, signal only the flock wrapper,
+  and omit termination—exited 1 at the release-failure completion oracle before
+  rescue. Omitting the original join separately exited 1 at the physical
+  acknowledgment pending oracle. The source hash was restored exactly after
+  each bounded run; each run joined its own original observations after rescue.
+- Initial owning lint found two errors, corrected with an AggregateError `cause`
+  and a closure-state getter. Typecheck passed before and after that correction.
+- A subsequent run alongside lint/typecheck produced 49 passed and 1 failed at
+  configure's unchanged READY assertion. This failure is retained; the READY
+  budget and assertions were not increased or weakened.
+
+These are local disposable fixture proofs. They do not qualify installed/native
+custody, UNKNOWN settlement, physical storage, a host rollout or a deployment.
+
+Final local verification after bringing the follow-up onto main `a5e9dbe9`
+(including merged #843) and installing its lockfile frozen:
+
+- Serial `bun test tools/tool-remote-scripts/src/edge-admission.test.ts`: 50 passed,
+  0 failed, 192 assertions, 15.81 seconds. This retains the concurrent-run failure
+  above without changing the READY oracle.
+- On that main: `bunx nx run tool-remote-scripts:lint` exited 0 (59.6 seconds),
+  `bunx nx run tool-remote-scripts:typecheck` exited 0 (8.0 seconds), and
+  `bunx nx run tool-remote-scripts:build` plus eleven dependency tasks exited 0
+  (3.8 seconds).
+- `./node_modules/.bin/openspec validate --all --json`: 340 passed, 0 failed.
+
+Hosted checks and the final-head canonical h2puni gate are still required before
+merge; these local receipts do not stand in for either.
+
+The actual Fable 5.1 review approved this two-file follow-up and closed the two
+Important findings from #900. Two nonblocking limitations remain: detached
+fixture groups can survive interruption or hard termination of the test runner,
+so any surviving fixture must be identified as belonging to that run before
+manual termination; the runner's process group alone is insufficient. Also,
+the numeric process-group identity is guarded by original-observation settlement,
+not a kernel identity pin. The small interval after all group members exit but
+before that flag's reaction runs is not formally protected against PID reuse.
+These limits concern disposable test fixtures; no production group is accepted
+as an argument to the factory. No interruption handler or additional runtime
+identity check was introduced without a corresponding proof.
