@@ -4,7 +4,7 @@
 - [x] 1.2 Record/validate compact integration artifacts before coordinator edits; retain both glossary scopes and all original rollout tasks open.
 - [x] 1.3 Repair only canonical executable fixture inputs; test: full registry-maintenance-installation suite; negative: owned parent-directory alias must be admitted when the existing canonical guard is omitted, then restore it unchanged.
 - [x] 1.4 Establish meaningful cross-contract RED using actual foundation-path and managed-facade commands: schema1/schema3 initialization, wrong-profile read/no orphan mutation, explicit1/2 upgrade, promoted grammar/deferred bootstrap, differentiated reopening and schema4 phase-only refusal.
-- [ ] 1.5 Refresh main and perform the authorized ordinary main-into-feature merge, retaining main policy/eight additive tests/foundation evidence and both original journal suites without wholesale conflict choices.
+- [x] 1.5 Refresh main and perform the authorized ordinary main-into-feature merge, retaining main policy/eight additive tests/foundation evidence and both original journal suites without wholesale conflict choices.
 
 ## 2. Typed surfaces and shared coordination
 
@@ -19,9 +19,11 @@
 
 - [x] 3.3 Restore precise shipped registry classification declarations and the mutable expected-array test type; tests: existing selected classification controls and Burokrat owning type/lint/build; negatives:26 independent exact selector/archive omissions with restoration,12 unlisted sibling controls, existing k3s/timer/unknown/overlap/binary refusals. Preserve production classifier and archive bytes.
 
+- [x] 3.4 Restore only five exact owner memberships and navigation in the findings and Dagger library READMEs after actual clean-A pilot failure; retain all source, policies, mappings, guards and pilot assertions. Normal follow-up B precedes the unchanged eleven-case cohort.
+
 ## 4. Freeze and required acceptance
 
 - [x] 4.1 Run finite focused policy/foundation/managed/cross-contract/control suites and justified new proofs, owning lint/type/build, format/OpenSpec/scanner/migrations, active closure/baseline/retention checks; record exact source, timings, failures/skips and proof classifications.
 - [ ] 4.2 Commit normally, freeze security-parent-to-integration-head package/report and obtain scoped local source acceptance before parent push; complete required hosted gate/infra/pixels/CodeQL on the exact published head before parent external merge; keep all runtime/native/provider/storage/physicalbackup/interop acceptance open.
 
-- [ ] 4.3 After the normal clean local candidate commit, run only the exact11 formerly masked pilot cases on its actual HEAD/tree; retain all original assertions and nested ownership faults, record clean before/after, then submit the complete integration delta for scoped local source review. Later verification-only documentation may record that exact candidate without claiming it was retested.
+- [x] 4.3 After the normal clean local candidate commit, run only the exact11 formerly masked pilot cases on its actual HEAD/tree; retain all original assertions and nested ownership faults, record clean before/after, then submit the complete integration delta for scoped local source review. Later verification-only documentation may record that exact candidate without claiming it was retested.
