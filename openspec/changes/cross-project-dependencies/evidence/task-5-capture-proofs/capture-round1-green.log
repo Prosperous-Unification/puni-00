@@ -1,0 +1,17 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:
+(pass) live project first response refuses before SQL after success [143.88ms]
+(pass) fanout authorizeProjectUpdate refuses before membership SQL after success [83.09ms]
+(pass) fanout authorizeStepRemoval refuses before membership SQL after success [79.84ms]
+(pass) live project first response refuses before SQL after refusal [79.45ms]
+(pass) fanout authorizeProjectUpdate refuses before membership SQL after refusal [86.96ms]
+(pass) fanout authorizeStepRemoval refuses before membership SQL after refusal [83.51ms]
+(pass) live project first response refuses before SQL after throw [92.41ms]
+(pass) fanout authorizeProjectUpdate refuses before membership SQL after throw [83.95ms]
+(pass) fanout authorizeStepRemoval refuses before membership SQL after throw [81.34ms]
+
+ 9 pass
+ 0 fail
+ 21 expect() calls
+Ran 9 tests across 1 file. [2.89s]

@@ -1,0 +1,40 @@
+{"argv": ["bun", "test", "--preload", "./tools/test/scratch/preload.ts", "tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts", "--test-name-pattern=isolated\\ remote\\ matrix\\ is\\ exactly\\ four\\ independent\\ whole\\-file\\ runners$"], "pid": 3321032, "exit": 1, "signal": null, "stdoutEOF": true, "stderrEOF": true, "elapsedSeconds": 0.03586613305378705, "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47", "stderrSHA256": "168791ccc5af0f5b5d379d7ec198aade6960348a2a11da6c64a90e8dc1375df2"}
+bun test v1.4.4 (38afee6c8)
+
+
+tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts:
+179 | });
+180 | 
+181 | // Proof: dropping remote-source failed this parsed matrix consumer; exact restoration passed (2026-10-29).
+182 | test('isolated remote matrix is exactly four independent whole-file runners', () => {
+183 |   const runtime = job('gate_remote_model');
+184 |   expect(runtime.strategy).toEqual({
+                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+    "fail-fast": false,
+    "matrix": {
+      "partition": [
+        "remote-model",
+        "remote-model-continuation",
+        "remote-source",
+-       "remote-source-restoration",
+      ],
+    },
+  }
+
+- Expected  - 1
++ Received  + 0
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts:184:28)
+(fail) isolated remote matrix is exactly four independent whole-file runners [0.27ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [33.00ms]
+

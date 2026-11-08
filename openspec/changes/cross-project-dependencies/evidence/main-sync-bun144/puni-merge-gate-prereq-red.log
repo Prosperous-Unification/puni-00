@@ -1,0 +1,125 @@
+heavy lock: waited 0s behind 0 tickets
+h2puni gate: running on 36ec811cf2e02f1630b012c4497cf239a99f97e5
+  ok: gate on a pinned sha succeeds (exit 0)
+  ok: steps run on the requested sha, not the tree head
+  ok: the tree is left on the gated sha
+  ok: a gate refused for a held lock exits 75 (exit 75)
+  ok: a refused gate leaves the head where it found it
+heavy lock: waited 0s behind 0 tickets
+h2puni gate: running on 36ec811cf2e02f1630b012c4497cf239a99f97e5
+heavy lock: waited 6s behind 0 tickets
+h2puni gate: running on 01656cf1b6bcb19e115fc1d9927442a00dd27366
+  ok: the second gate queues behind the first and runs (exit 0)
+  ok: the first gate ran on its own sha
+  ok: the second gate ran on its own sha, not the first one
+  ok: an unknown sha is refused (exit 64)
+  ok: an unknown sha never took the lock
+  ok: bin/h2puni-gate.sh defaults to queueing, not refusing
+  ok: a tracked edit surviving the checkout is refused (exit 65)
+  ok: the steps never ran over a modified tracked file
+  ok: an untracked file the commit does not contain is refused (exit 65)
+  ok: the steps never ran over an untracked file
+  ok: a 400-file refusal lists ten paths and says how many more
+  ok: the refusal counts the paths it did not print
+  ok: the wait default stops at the lock and never enters the steps environment
+  ok: a rejected candidate preserves its command status (exit 1)
+  ok: a rejected gate restores the pre-gate branch
+  ok: a rejected gate restores the pre-gate commit
+heavy lock: waited 0s behind 0 tickets
+h2puni gate: running on 36ec811cf2e02f1630b012c4497cf239a99f97e5
+  ok: a second gate starts from restored trusted checkout state (exit 0)
+  ok: a rejected candidate from detached state preserves its status (exit 1)
+  ok: a rejected gate preserves detached checkout shape
+  ok: a rejected gate restores detached commit
+  ok: a concurrently moved original branch is a loud restore failure (exit 74)
+  ok: restore does not overwrite the concurrently moved branch
+  ok: restore preserves the exact saved commit after a branch move
+  ok: a moved branch leaves the saved commit recoverable in detached state
+  ok: concurrent ref movement names the failed symbolic restore
+  ok: a failed checkout restore is loud (exit 74)
+  ok: restore failure names the lost safety recovery
+  ok: a relative launcher descriptor resolves from its activation root (exit 0)
+  ok: launcher resolution is independent of caller cwd
+  ok: a relative launcher symlink into the candidate is refused (exit 78)
+  ok: candidate-contained launcher refusal names the trust boundary
+  ok: a malformed activation marker is refused (exit 78)
+  ok: malformed marker refusal names the invalid activation decision
+  ok: an unreadable launcher descriptor is refused (exit 78)
+  ok: unreadable descriptor refusal names the missing authority
+  ok: a launcher descriptor naming a directory is refused (exit 78)
+  ok: non-file launcher refusal names the invalid artifact shape
+  ok: an activation root inside the candidate is refused (exit 78)
+  ok: candidate-contained activation root refusal names the trust boundary
+  ok: the host entrypoint propagates a candidate-launcher refusal (exit 78)
+  ok: the host entrypoint names the external launcher boundary
+  ok: the host entrypoint refuses before taking the heavy gate
+  ok: a configured host activation with no marker is refused (exit 78)
+  ok: the missing host marker names the lost provisioning state
+  ok: the missing host marker is refused before taking the heavy gate
+  ok: the host runtime defaults below the external activation root (exit 0)
+  ok: the default runtime is relocatable and external
+  ok: a missing external TypeScript runtime is refused (exit 78)
+  ok: the missing runtime refusal names the lost provisioning state
+  ok: candidate-owned TypeScript runtime modules are refused (exit 78)
+  ok: the candidate runtime refusal names the trust boundary
+  ok: an exit-zero OpenSpec report with a failed spec refuses the gate steps (exit 1)
+  ok: the gate invokes the pinned validator contract
+  ok: the failed OpenSpec report stops before later Nx work
+  ok: the failed OpenSpec report cleans its temporary file
+  ok: an OpenSpec report with no passing specs refuses the gate steps (exit 1)
+  ok: the empty OpenSpec report stops before later Nx work
+  ok: a missing OpenSpec validator refuses the gate steps (exit 127)
+  ok: the missing validator stops before later Nx work
+  ok: a missing jq refuses the gate steps (exit 127)
+  ok: the missing jq stops before later Nx work
+  ok: a string OpenSpec pass total refuses the gate steps (exit 1)
+  ok: the string OpenSpec pass total stops before later Nx work
+  ok: a fractional OpenSpec pass total refuses the gate steps (exit 1)
+  ok: the fractional OpenSpec pass total stops before later Nx work
+  ok: two sequential OpenSpec reports refuse the gate steps (exit 1)
+  ok: two sequential OpenSpec reports stop before later Nx work
+  ok: a missing tee refuses the gate steps (exit 127)
+  ok: the missing tee stops before later Nx work
+  ok: a passing OpenSpec report admits the remaining gate steps (exit 0)
+  ok: the passing OpenSpec JSON remains in gate output
+  ok: the passing OpenSpec report reaches later Nx work
+  ok: the passing OpenSpec report cleans its temporary file
+  FAIL: a missing bubblewrap refuses the gate steps: want exit 127, got 0
+  FAIL: the missing bubblewrap allowed later Nx work
+  FAIL: a unusable bubblewrap refuses the gate steps: want exit 74, got 0
+  FAIL: the unusable bubblewrap allowed later Nx work
+heavy lock: waited 0s behind 0 tickets
+  ok: a gate queued behind a holder runs once the holder releases (exit 0)
+  ok: the queue wait is reported before the head being gated
+  ok: the wait is reported in whole seconds (6s behind a 3s holder)
+  ok: bin/h2puni-gate.sh labels its heavy-lock lane with the gated sha
+  ok: the lane label is built from the resolved commit, not the caller argument
+  ok: a gate refused for a held lock exits 75 while queued (exit 75)
+  ok: a gate refused while queued still ran its own EXIT trap
+  ok: a passing install and report admit the remaining gate steps (exit 0)
+  ok: the gate installs against the frozen lockfile
+  ok: the install precedes OpenSpec validation
+  ok: a refused frozen install refuses the gate steps (exit 1)
+  ok: the refused install keeps the installer message in gate output
+  ok: the refused install stops before OpenSpec validation
+  ok: the refused install stops before later Nx work
+  ok: a missing installer refuses the gate steps (exit 127)
+  ok: the missing installer stops before OpenSpec validation
+  ok: the missing installer stops before later Nx work
+  ok: a gate launched under umask 077 still runs (exit 0)
+  ok: a file the checkout rewrites is world-readable under a 077 caller
+  ok: a tracked file unreadable to other users is refused (exit 66)
+  ok: the steps never ran over an unreadable tracked file
+  ok: the refusal names the unreadable file
+  ok: a tracked directory closed to other users is refused (exit 66)
+  ok: the refusal names the closed directory
+  ok: a failing file scan fails the gate (exit 123)
+  ok: the steps never ran after a failed scan
+  ok: a failed scan restores the pre-gate branch
+  ok: the opt-in repair lets the gate run (exit 0)
+  ok: the steps ran after the repair
+  ok: the repair widened the tracked file
+  ok: the repair opened the tracked directory
+  ok: the repair did not follow a tracked symlink out of the tree
+
+4 failing case(s)

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:
+878 |         connection.db,
+879 |         'org-a',
+880 |         { schedulerOf: () => { throw new Error('capture cannot schedule'); } },
+881 |         lifetime,
+882 |       ),
+883 |     ).rejects.toThrow('read snapshot is closed');
+                    ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-attempt-fanout/libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:883:15)
+(fail) refuses an attempt read that completes after its borrowed snapshot expires [216.01ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [3.82s]

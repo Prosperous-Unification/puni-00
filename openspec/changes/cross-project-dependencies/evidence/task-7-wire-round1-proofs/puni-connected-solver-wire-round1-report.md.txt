@@ -1,0 +1,45 @@
+# Connected solver wire/Python round 1 handoff
+
+Worktree: `/tmp/puni-cross-solver-wire`, original frozen checkpoint `05a5b85d5`. No Git mutation was made here. This round fixes all six findings in `/tmp/puni-connected-solver-wire-review.md` and adds the active-boundary UNKNOWN case. Exact owned source hashes are in `/tmp/puni-connected-solver-wire-round1-sha256.txt` (paths relative to worktree). The reviewer probes under `/tmp/puni-wire-review-probes` were preserved unchanged; their original failures remain in `/tmp/puni-wire-review-seams.log`.
+
+## Behavior
+
+1. Pair preparation accepts `questionHashes: { pri, time }` and rejects absent/equal objective hashes. Each objective request and retained boundary finding carries its own full hash. `revalidateConnectedSolverResult` reconstructs exactly its requested objective; it no longer invents a hash for the other objective. Permanent tests reject crossed `unknown` responses in both directions and inspect both retained terminal requests.
+2. Before either request or prepared terminal, each objective passes the normative wire-5 connected schema plus cross-field key, ownership, occupancy, and booking checks. The real contradictory 10/9 window still returns a terminal; `budgetMs: 0` and fractional `originOrdinal` now throw as malformed trusted preparation. Nine distinct corruptions of a complete request are refused, including duplicate keys, offset mismatch, bad edge/owner, missing occupancy booking, and an out-of-horizon booking.
+3. The Python request parser refuses nonfinite values recursively, covering non-JSON `NaN`/`Infinity` constants and valid JSON `1e309`, in fixed and occupancy evidence. Occupancy quantization compares the scaled value to the safe range before calling `math.isfinite`, `floor`, or `ceil`. This also handles arbitrarily large finite JSON integers: `math.isfinite(10**400)` itself raises `OverflowError` if called first.
+4. The CLI catches a modeled `RequestRejected` from the solve/witness phase as exit 64 with empty stdout; later-stage infeasible exit 70 and model-invalid exit 71 paths remain separate. A valid fractional fixed placement still yields the boundary terminal; a bad declared feasible witness is refused without traceback.
+5. Finite unrepresentable incoming/outgoing boundary arithmetic and movement reference are `horizon-overflow` prepared failures. The builder catches only `ConnectedBoundaryOverflow`, so unrelated stage-integrity errors are rethrown. Incoming, reference, and outgoing cases each assert the typed failure.
+6. Permanent production CLI tests refuse unknown local/foreign boundary keys and a foreign owner inconsistent with the fixed endpoint. An active-boundary CP-SAT UNKNOWN still returns `unknown`; it is not relabelled boundary-infeasible.
+
+No wire schema fields or historical wire 1–4 files changed in this round. The normative wire-5 schema and installed copy remain the original checkpoint's byte-identical pair. No backend production, publication/cache, OpenSpec, WBS, or Git metadata files were edited. `libs/wbs/domain/contracts/src/http/project-address-shapes.ts` is a pre-existing root-owned dirty file and is explicitly excluded from this handoff.
+
+## Fresh restored checks
+
+- `PATH=/tmp/puni-solver-wire-venv/bin:$PATH NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-solver-py:test --skip-nx-cache`: **276 OK**, `/tmp/puni-round1-python-final-green.log`.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-contracts:test --skip-nx-cache`: **516 pass, 0 fail**, `/tmp/puni-round1-contracts-test-green.log`.
+- Same environment, `wbs-contracts:typecheck` and `wbs-contracts:lint` with `--skip-nx-cache`: both successful, `/tmp/puni-round1-contracts-typecheck-green.log` and `/tmp/puni-round1-contracts-lint-green.log`.
+- `bunx prettier --check` on all changed TypeScript files: passed. `git diff --check`: passed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-solver-py:setup-local-solver --skip-nx-cache`: isolated `.venv-solver` rebuilt and verified Python 3.14.7, `wbs-solver 0.4.0`, golden request feasible, `/tmp/puni-round1-setup-final.log`. The first sandboxed attempt failed DNS while installing a build dependency; the authorized escalated retry succeeded. No active user/production runtime was switched.
+- `bun test /tmp/puni-round1-installed.test.ts`: **3 pass, 36 assertions**, against the rebuilt installed console script. It covers valid boundary terminal, bad witness exit 64/no stdout, nonfinite fixed/occupancy variants, and finite unsafe occupancy quantization including a 401-digit JSON integer, `/tmp/puni-round1-installed-final.log`.
+
+## Watched faults and restored guards
+
+All mutations were made only in this isolated worktree, run through the named production-path assertions, and restored before the final checks.
+
+| Removed/broken guard | Observed red output |
+| --- | --- |
+| Complete-request validation before terminal | `malformed complete requests` failed; malformed budget returned `boundary-infeasible`, `/tmp/puni-round1-ts-validator-mutant.log`. |
+| Semantic cross-field validation after schema | Nine explicit corruptions were accepted, `/tmp/puni-round1-ts-semantic-mutant.log`. |
+| Objective-hash distinctness | Equal-hash preparation no longer threw, `/tmp/puni-round1-identity-mutant.log`. |
+| Boundary overflow conversion | Finite incoming evidence threw instead of typed failure, `/tmp/puni-round1-boundary-overflow-mutant.log`. |
+| Movement-reference range refusal | Preflight threw instead of typed failure, `/tmp/puni-round1-reference-overflow-mutant.log`. |
+| Python boundary foreign-owner predicate | Configured 276-test target failed the CLI owner subcase: exit 0 rather than 64, `/tmp/puni-round1-owner-mutant.log`. |
+| Python recursive finite-value rejection | Configured target failed NaN, Infinity and 1e309 CLI subcases: exit 0 rather than 64, `/tmp/puni-round1-nonfinite-mutant.log`. |
+| Python occupancy quantization guard | Configured target failed with `OverflowError`/exit 1 rather than 64, `/tmp/puni-round1-quantize-mutant.log`. |
+| Wrong order of `math.isfinite` and range comparison for a giant finite integer | Configured target failed with `OverflowError`/exit 1 rather than 64; fixed by comparing first, `/tmp/puni-round1-python-giant-red.log`. |
+| Python post-parse `RequestRejected` CLI handler | Configured target failed bad witness with traceback/exit 1 rather than 64, `/tmp/puni-round1-cli-mutant.log`. |
+| Active-boundary UNKNOWN classification | Configured target failed with `boundary-infeasible` rather than `unknown`, `/tmp/puni-round1-active-unknown-mutant.log`. |
+
+## Scope and remaining integration
+
+This is a source checkpoint for Astra re-review, not full runtime/publication integration. Backend active-current fixtures in optimization events/coordinator/model DB tests, schedule organization/controller, services current-solver cases, and `services.db.test.ts` still need coordinated version/wire updates after this checkpoint integrates. Historical migration/cache mismatch identities must stay historical. Root owns that fresh integration lane, its backend checks, Git commit/integration, WBS and OpenSpec bookkeeping, and the h2/h4 gate. No full host gate was run in this isolated round.

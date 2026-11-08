@@ -1,0 +1,44 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/gw-01/src/fan-out.integration.test.ts:
+(pass) project events reach the sockets that asked for them > delivers to every subscriber of that project and nobody else [140.87ms]
+(pass) project events reach the sockets that asked for them > refuses a socket that asks for an unknown subscription [123.49ms]
+(pass) the presence roster is a project’s, not the gateway’s > shows each socket only the names in the project it subscribed to [4.15ms]
+(pass) the presence roster is a project’s, not the gateway’s > answers `who` with the asking socket’s own project [22.17ms]
+(pass) the presence roster is a project’s, not the gateway’s > moves a socket that switches project, and tells both rosters [22.30ms]
+(pass) a closed socket leaves the subscription it joined > is not counted in the fan-out after it disconnects [184.53ms]
+(pass) targets socket presence transitions and leaves unrelated streams silent [59.42ms]
+
+apps/wbs/gw-01/src/composition.integration.test.ts:
+(pass) the production gateway composition > asks be-01 and refuses a foreign project [21.59ms]
+(pass) the production gateway composition > resumes for the socket’s own principal through be-01 [20.25ms]
+
+apps/wbs/be-01/src/controller/cross-project-delivery.controller.db.test.ts:
+(pass) mounted completion delivers durable successor envelopes through the production gateway [3621.14ms]
+
+apps/wbs/be-01/src/controller/gateway-browser.controller.db.test.ts:
+(pass) POST /internal/gateway/projects/:id/browser-access > admits a member to their organization’s project [118.08ms]
+(pass) POST /internal/gateway/projects/:id/browser-access > refuses a foreign project as not found, exactly like an absent one [129.37ms]
+(pass) POST /internal/gateway/projects/:id/browser-access > refuses a removed member [145.14ms]
+(pass) POST /internal/gateway/projects/:id/browser-access > refuses a forwarded browser credential without the gateway secret [113.98ms]
+(pass) POST /internal/gateway/projects/:id/browser-access > refuses a Bearer in place of the forwarded browser cookie [109.39ms]
+(pass) POST /internal/gateway/projects/:id/browser-access > refuses a forwarded credential that proves nobody [111.48ms]
+(pass) POST /internal/resume for the forwarded principal > refuses a resume naming a foreign project [116.41ms]
+(pass) POST /internal/resume for the forwarded principal > replays nothing to a removed member [122.33ms]
+(pass) POST /internal/resume for the forwarded principal > refuses a resume without the gateway secret or a forwarded principal [106.25ms]
+
+apps/wbs/be-01/src/controller/cross-project-events.controller.db.test.ts:
+(pass) rename invalidates dependency label readers without retargeting or foreign delivery [321.97ms]
+(pass) dependency fanout delivery occurs after commit and writer release [277.68ms]
+(pass) a rejected dependency command batch publishes nothing and rolls earlier mutations back [292.96ms]
+(pass) mounted completion refreshes successor-only readiness with shared mode %s [323.23ms]
+(pass) mounted completion refreshes successor-only readiness with shared mode %s [317.08ms]
+(pass) mounted shared-person bridge carries a label change across an external edge [264.86ms]
+(pass) rank reversal invalidates the dependency component with shared mode %s [323.12ms]
+(pass) rank reversal invalidates the dependency component with shared mode %s [303.35ms]
+(pass) number-only edits refresh dependency labels without retargeting or foreign events [325.65ms]
+
+ 28 pass
+ 0 fail
+ 191 expect() calls
+Ran 28 tests across 5 files. [11.03s]

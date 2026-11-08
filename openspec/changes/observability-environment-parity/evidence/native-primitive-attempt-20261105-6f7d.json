@@ -1,0 +1,248 @@
+{
+  "schemaVersion": 1,
+  "scope": "qualified-tiny-primitives-only",
+  "accepted": true,
+  "sourceCommit": "93042abd5edb11deb2a3143f7f54d970b7b5f4ae",
+  "sourceSha256": "8b9efd098776b71a578b3d2ef7f4f12dbcbd44fe9488f4f17be2a542dd54ad2b",
+  "request": {
+    "nonce": "6f7ddcf89107339386b0d1bb5de99d0c",
+    "sha256": "70112203211e480c759105ecc46b1da1d857684e540b0bfa9b27fbdf78ff16af",
+    "bytes": 32768,
+    "dev": 66307,
+    "inode": 18898050,
+    "uid": 1000,
+    "mode": "0600",
+    "sourceDigest": "590bf3f059171da1c7018a901fde70a476bc75e094a2b9d84a8d9a0f429efb1f",
+    "pins": 84,
+    "runtimePins": 70,
+    "independentProperHostReview": "approved source/Git/kernel/runtime/schema/originalFD/exact6255inventory/ledger/capacity before one run"
+  },
+  "run": {
+    "originalToolSession": 33683,
+    "exitCode": 0,
+    "elapsedMilliseconds": 3198,
+    "originalStdoutBytes": 880,
+    "originalStdoutSha256": "6b992b0bb654cc6f0b06a52c66dedf85f90aa13261274f8a3b0059d3ee3a3de4",
+    "retryPerformed": false
+  },
+  "binding": {
+    "caps": {
+      "cpu.max": "100000 100000",
+      "memory.max": "268435456",
+      "memory.swap.max": "0",
+      "pids.max": "32"
+    },
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/puni-repair-primitives-6f7ddcf89107339386b0d1bb5de99d0c.service",
+    "invocation": "cda071b381bc4d15ab64c37cb873b94b",
+    "nonce": "6f7ddcf89107339386b0d1bb5de99d0c",
+    "pid": 2556533,
+    "processLimits": {
+      "Max address space": [268435456, 268435456],
+      "Max core file size": [0, 0],
+      "Max file size": [2097152, 2097152],
+      "Max open files": [64, 64],
+      "NoNewPrivs": 1,
+      "Umask": "0077"
+    },
+    "request": "70112203211e480c759105ecc46b1da1d857684e540b0bfa9b27fbdf78ff16af",
+    "source": "590bf3f059171da1c7018a901fde70a476bc75e094a2b9d84a8d9a0f429efb1f",
+    "staging": [66307, 21889026, 1000, 448],
+    "stagingFd": 3,
+    "start": "6926782",
+    "unit": "puni-repair-primitives-6f7ddcf89107339386b0d1bb5de99d0c.service"
+  },
+  "receipts": {
+    "durable": {
+      "bytes": 11808,
+      "sha256": "601f218300b84fe8f6a3e04e1730fdb4a299739216c63bde56dbb36730bd0523"
+    },
+    "terminal": {
+      "bytes": 3685,
+      "sha256": "045244a7f3dc26940fe92e3f24e5d787ccd120b9a612ace82fda4cd9faef3dbc"
+    }
+  },
+  "controls": {
+    "directAndOffset": {
+      "flags": 53250,
+      "rewriteSteps": 1,
+      "targetBytes": 1048576,
+      "sameInodeHashAndInitializedMap": true,
+      "wide2GiBReadStatus": 0,
+      "wide4GiBReadStatus": 0,
+      "wrapped4GiBReadStatus": 4096
+    },
+    "allocation": {
+      "nativeFallocateCalls": 1,
+      "bytes": 4096,
+      "status": 0
+    },
+    "truncate": {
+      "isolatedBeforeSeccomp": true,
+      "guardErrno": 13,
+      "faultAllows": true
+    },
+    "exec": {
+      "isolatedBeforeSeccomp": true,
+      "guardErrno": 13,
+      "faultPinnedTrueExit": 0
+    },
+    "inheritedFd": {
+      "guardErrno": 9,
+      "faultWriteStatus": 1
+    },
+    "clone": {
+      "guardErrno": 1,
+      "faultOneOwnedChildReaped": true
+    },
+    "reapedCaseChildren": 10,
+    "caseRecords": 23
+  },
+  "budget": {
+    "fixtureAllocatedBytes": 1544192,
+    "fixtureMaximumBytes": 2097152,
+    "controlMetadataAtReceiptAuditBytes": 626688,
+    "metadataMaximumBytes": 1048576,
+    "accounting": "Only12exactreceipt-boundfixtureinodeallocations are fixturedata; all other paths and directoryblocks are metadata. Both are charged in full-root capacity."
+  },
+  "counter": {
+    "binding": {
+      "caps": {
+        "cpu.max": "100000 100000",
+        "memory.max": "268435456",
+        "memory.swap.max": "0",
+        "pids.max": "32"
+      },
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/puni-repair-primitives-6f7ddcf89107339386b0d1bb5de99d0c.service",
+      "invocation": "cda071b381bc4d15ab64c37cb873b94b",
+      "nonce": "6f7ddcf89107339386b0d1bb5de99d0c",
+      "pid": 2556533,
+      "processLimits": {
+        "Max address space": [268435456, 268435456],
+        "Max core file size": [0, 0],
+        "Max file size": [2097152, 2097152],
+        "Max open files": [64, 64],
+        "NoNewPrivs": 1,
+        "Umask": "0077"
+      },
+      "request": "70112203211e480c759105ecc46b1da1d857684e540b0bfa9b27fbdf78ff16af",
+      "source": "590bf3f059171da1c7018a901fde70a476bc75e094a2b9d84a8d9a0f429efb1f",
+      "staging": [66307, 21889026, 1000, 448],
+      "stagingFd": 3,
+      "start": "6926782",
+      "unit": "puni-repair-primitives-6f7ddcf89107339386b0d1bb5de99d0c.service"
+    },
+    "caps": {
+      "cpu.max": "100000 100000",
+      "memory.max": "268435456",
+      "memory.swap.max": "0",
+      "pids.max": "32"
+    },
+    "controlled": true,
+    "counters": {
+      "cpu.stat": "usage_usec 1549268\nuser_usec 1402527\nsystem_usec 146741\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 19\nnr_throttled 3\nthrottled_usec 2915\nnr_bursts 0\nburst_usec 0",
+      "memory.current": "23764992",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0",
+      "memory.peak": "26083328",
+      "pids.current": "1",
+      "pids.events": "max 0"
+    },
+    "finishedNs": 1793885538583584248,
+    "startedNs": 1793885538101529561
+  },
+  "finalSystemdJournal": {
+    "cpuUsageNanoseconds": 1566278000,
+    "memoryPeakBytes": 26083328,
+    "source": "original unit consumption event, separately observed after exit",
+    "rawBytes": 9084,
+    "rawSha256": "be125b20b1b1f6ff88dc224c1fe7f9e484242de973be5015a15a802f0809f431"
+  },
+  "capacity": {
+    "initial": {
+      "availableMemoryBytes": 16259399680,
+      "freeBytes": 213795573760,
+      "initial": true,
+      "inventory": {
+        "digest": "68c87f3b567b1ac580841573766086a87ab993f4c717e7a55c2b0d6c4e623b6f",
+        "entries": 6255,
+        "outsideBytes": 105570304,
+        "retainedBytes": 9488932864
+      },
+      "ledger": {
+        "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "grossBytes": 0,
+        "records": 0
+      }
+    },
+    "afterCases": {
+      "availableMemoryBytes": 16258408448,
+      "freeBytes": 213793751040,
+      "initial": false,
+      "inventory": {
+        "digest": "68d3d80bb624e7c442e5809b5150d1a354362db337c0aeb10ff8b5ad14a18ff3",
+        "entries": 6269,
+        "outsideBytes": 107118592,
+        "retainedBytes": 9488932864
+      },
+      "ledger": {
+        "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "grossBytes": 0,
+        "records": 0
+      }
+    },
+    "terminal": {
+      "availableMemoryBytes": 16283103232,
+      "freeBytes": 213793615872,
+      "initial": false,
+      "inventory": {
+        "digest": "c55c751433a53951149e148236c21fa7f919033e074d9b4dc35403332b89ab24",
+        "entries": 6270,
+        "outsideBytes": 107130880,
+        "retainedBytes": 9488932864
+      },
+      "ledger": {
+        "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "grossBytes": 0,
+        "records": 0
+      }
+    }
+  },
+  "cleanup": {
+    "repeatOwnedCleanup": true,
+    "terminal": {
+      "ActiveState": "inactive",
+      "ControlGroup": "",
+      "ExecMainStatus": "0",
+      "InvocationID": "",
+      "LoadState": "not-found",
+      "MainPID": "0",
+      "Result": "success",
+      "SubState": "dead"
+    },
+    "repeated": {
+      "ActiveState": "inactive",
+      "ControlGroup": "",
+      "ExecMainStatus": "0",
+      "InvocationID": "",
+      "LoadState": "not-found",
+      "MainPID": "0",
+      "Result": "success",
+      "SubState": "dead"
+    },
+    "postCollectionEvents": null,
+    "repeatedPostCollectionEvents": null,
+    "limits": "Collected cgroup events are explicitly unavailable; live counters and separate final journal peak retained"
+  },
+  "privateCapture": {
+    "path": "repair-native-controls/attempt-6f7ddcf89107339386b0d1bb5de99d0c.json",
+    "bytes": 5016,
+    "sha256": "f92c63723056289d2b5f5cc750ccf56b50727475265ac7ab70d9e44dcb70d48c"
+  },
+  "review": "Independent read-only runtime audit approved exact tiny scope: joins/cases/fixtures/capacity/ACK/durability/counters/collected-group cleanup; no native or test replay",
+  "limitations": [
+    "No full8GiB repair or transient/performance qualification",
+    "No repair reservation release or gross credit",
+    "No new seed or guest execution",
+    "No complete two-instance observability or live-cutover acceptance",
+    "All prior failed requests and original raw/ISO/history retained; no retry"
+  ]
+}

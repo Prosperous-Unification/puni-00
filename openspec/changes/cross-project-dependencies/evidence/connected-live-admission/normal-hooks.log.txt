@@ -1,0 +1,44 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  pre-commit │
+╰───────────────────────────────────────╯
+│  website-migration-lint (skip) no files for inspection
+│  migration-lint (skip) no files for inspection
+│  doc-caps (skip) no matching staged files
+┃  tool-wiki ❯
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+┃  private-nesting ❯
+
+┃  plaintext-secrets ❯
+
+┃  format ❯
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯
+
+  ────────────────────────────────────
+summary: (done in 8.86 seconds)
+✓ tool-wiki (0.00 seconds)
+✓ private-nesting (0.03 seconds)
+✓ plaintext-secrets (0.03 seconds)
+✓ format (3.15 seconds)
+✓ lint (8.81 seconds)
+╭───────────────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  prepare-commit-msg │
+╰───────────────────────────────────────────────╯
+┃  agent-authored-by ❯
+
+  ────────────────────────────────────
+summary: (done in 0.02 seconds)
+✓ agent-authored-by (0.02 seconds)
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  commit-msg │
+╰───────────────────────────────────────╯
+┃  agent-authored-by ❯
+
+  ────────────────────────────────────
+summary: (done in 0.03 seconds)
+✓ agent-authored-by (0.03 seconds)
+
+Observed normal git commit exit: 0

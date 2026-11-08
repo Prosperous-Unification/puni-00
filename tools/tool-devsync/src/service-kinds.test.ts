@@ -239,6 +239,8 @@ test('every backend service file with no kind suffix is classified exactly once'
   // exact candidate path; adding its feature entry restored this inventory.
   // Proof (2026-10-16): wave11 CI and the focused inventory test named omitted
   // command-fields.ts and compensating-command.ts before their support entries were restored.
+  // Proof (2026-10-22): omitting connected-optimization.ts, connected-readiness.ts and
+  // connected-tree.ts failed this comparison with those three candidate paths.
   expect(classified).toEqual([...(await listServiceCandidates(WORKSPACE))]);
 });
 

@@ -8,7 +8,9 @@ import { DirectoryService } from '@wbs/core/module/directory/directory.resource'
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { AuthService } from '@wbs/core/service/auth.service';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite';
 import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
@@ -40,7 +42,7 @@ import { fastScheduler } from '../service/optimizer-wiring';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
 import {
   refusingEmailVerification,
   refusingInvitations,
@@ -58,6 +60,7 @@ import {
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
+import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
 import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
@@ -113,7 +116,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
 
     const writing = {
       projects: new ProjectService({
-        dependencyGraph: sqliteDependencyGraph(db, projectStore),
+        dependencyContext: sqliteDependencyContext(db, projectStore),
         clock: testClock,
         projects: projectStore,
         broadcast: recordingBroadcaster(),
@@ -131,13 +134,21 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
       stepParallels: testStepParallels(),
       calendarMarkers: testCalendarMarkerService(),
       steps: new StepService({
-        dependencyGraph: sqliteDependencyGraph(db, projectStore),
+        dependencyContext: sqliteDependencyContext(db, projectStore),
         clock: testClock,
         projects: projectStore,
         steps: new StepRepository(db, OPEN),
         broadcast,
       }),
       workItems: new WorkItemService({
+        dependencyContext: createLocalDependencyContext({
+          projects: projectStore,
+          workItems: workItems,
+          estimates: new EstimateRepository(db, OPEN),
+          dependencies: new DependencyRepository(db, OPEN),
+          typedDependencies: new TypedDependencyRepository(db, OPEN),
+        }),
+        externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
         admission: CREATOR_ADMISSION,
         scheduler: fastScheduler,
         clock: testClock,
@@ -165,6 +176,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
       }),
     };
     app = buildApp({
+      projectAddressSearch: refusingProjectAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -185,6 +197,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
       auth,
       history: testHistoryService(),
       replay: testReplay().replay,
+      admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
       writes: testWrites(undefined, writing),
@@ -246,11 +259,13 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
   /** A project of `ownerId`'s, and a team, both real rows. */
   async function plan(name = 'Rewire the shed'): Promise<string> {
     const created = await new ProjectService({
-      dependencyGraph: sqliteDependencyGraph(db, projectStore),
+      dependencyContext: sqliteDependencyContext(db, projectStore),
       clock: testClock,
       projects: projectStore,
       broadcast: recordingBroadcaster(),
     }).create(name, ownerId);
+    if (typeof created === 'string')
+      throw new Error(`fixture project creation refused: ${created}`);
     return created.project.id;
   }
 
@@ -373,7 +388,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
     const projectId = await plan();
     const platform = await team('Platform');
     await new ProjectService({
-      dependencyGraph: sqliteDependencyGraph(db, projectStore),
+      dependencyContext: sqliteDependencyContext(db, projectStore),
       clock: testClock,
       projects: projectStore,
       broadcast: recordingBroadcaster(),

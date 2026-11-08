@@ -1,0 +1,166 @@
+{
+  "scope": "Root explicit restoration-only; stopped frame-mismatch attempt uncredited; no runtime/driver change",
+  "sourceOriginalSHA256": "deb803e4a47c3cd6279456ec7b6462947a4d1d68b7a678cb3c2ce2d36720ccff",
+  "retainedMutantSHA256": "1dd3c19950c3d0c8773796315c71d85273bc1f0d601de061f00bb68fea3f4421",
+  "restoredSHA256": "deb803e4a47c3cd6279456ec7b6462947a4d1d68b7a678cb3c2ce2d36720ccff",
+  "device": 66307,
+  "inode": 22631290,
+  "mode": 436,
+  "controls": [
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/openspec/changes/cross-project-dependencies/design.md",
+      "sha256": "780de6dd969d3992a00eaa27250f5fc34d927bc7418044dc25a3bbaacf138706",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/00.source.txt",
+      "sha256": "780de6dd969d3992a00eaa27250f5fc34d927bc7418044dc25a3bbaacf138706",
+      "mode": 436
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/openspec/changes/cross-project-dependencies/specs/cross-project-dependencies/spec.md",
+      "sha256": "efa9e820f1f3637fe105cd42ec572cbd47a76e88361d029430ff891dbb15aeec",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/01.source.txt",
+      "sha256": "efa9e820f1f3637fe105cd42ec572cbd47a76e88361d029430ff891dbb15aeec",
+      "mode": 436
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/openspec/changes/cross-project-dependencies/tasks.md",
+      "sha256": "a2fa9962972023c37e66c0757a77adb39376618d15bfd7fa0b336781813fd53d",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/02.source.txt",
+      "sha256": "a2fa9962972023c37e66c0757a77adb39376618d15bfd7fa0b336781813fd53d",
+      "mode": 436
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/fixtures/participant-process-bytes.ts",
+      "sha256": "7d3db6d2b271c50ec81cbb9ecc534cf56f72372b13f0c46322ad904f21fa82d0",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/03.source.txt",
+      "sha256": "7d3db6d2b271c50ec81cbb9ecc534cf56f72372b13f0c46322ad904f21fa82d0",
+      "mode": 436
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/fixtures/participant-solver-runtime.ts",
+      "sha256": "6f1490276650da0bf04df2db084a2bf458ebd55b940cd0db12a01b273ab55315",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/04.source.txt",
+      "sha256": "6f1490276650da0bf04df2db084a2bf458ebd55b940cd0db12a01b273ab55315",
+      "mode": 436
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/fixtures/participant-source-restoration-cases.ts",
+      "sha256": "c3f05917454d87136b72b886ef4b529e3361532b14984ca79796c43003fc6b4a",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/05.source.txt",
+      "sha256": "c3f05917454d87136b72b886ef4b529e3361532b14984ca79796c43003fc6b4a",
+      "mode": 436
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/fixtures/participant-source-restoration.ts",
+      "sha256": "242481f4b6577cf7fea7be3be4be0c577d45f4cd0affaed6a33c836832bb1eb6",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/06.source.txt",
+      "sha256": "242481f4b6577cf7fea7be3be4be0c577d45f4cd0affaed6a33c836832bb1eb6",
+      "mode": 436
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/fixtures/source-role-process.ts",
+      "sha256": "74d1f299831b409920a763328debde4593622467cfb9138b0134fdddebc6b105",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/07.source.txt",
+      "sha256": "74d1f299831b409920a763328debde4593622467cfb9138b0134fdddebc6b105",
+      "mode": 436
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-participant-restoration.ts",
+      "sha256": "deb803e4a47c3cd6279456ec7b6462947a4d1d68b7a678cb3c2ce2d36720ccff",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/08.source.txt",
+      "sha256": "deb803e4a47c3cd6279456ec7b6462947a4d1d68b7a678cb3c2ce2d36720ccff",
+      "mode": 436
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-product-process-model.model.ts",
+      "sha256": "60f757f4e43dd5b69a3af2454eeac258b0ae7d9346c30da1980bec12edb91075",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/09.source.txt",
+      "sha256": "60f757f4e43dd5b69a3af2454eeac258b0ae7d9346c30da1980bec12edb91075",
+      "mode": 436
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-product-process.ts",
+      "sha256": "b0e880561a2632fef8dfde6866e4ebcbe3dd12fa915dfcb20bd8230f44a7abc4",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/10.source.txt",
+      "sha256": "b0e880561a2632fef8dfde6866e4ebcbe3dd12fa915dfcb20bd8230f44a7abc4",
+      "mode": 436
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.model.ts",
+      "sha256": "97fe03f92a56d0c5c438566eae9add08a4f2141e190eec6d9d460cef60635563",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/11.source.txt",
+      "sha256": "97fe03f92a56d0c5c438566eae9add08a4f2141e190eec6d9d460cef60635563",
+      "mode": 436
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+      "sha256": "07e7748ab17dec4b863425a040af49fcbaeb4eaa595eb5b301b1f787f4ce6bc4",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/12.source.txt",
+      "sha256": "07e7748ab17dec4b863425a040af49fcbaeb4eaa595eb5b301b1f787f4ce6bc4",
+      "mode": 436
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/test/dependency-source-restoration-model-child.test.ts",
+      "sha256": "943f493d310d1e26d03844c8242d00843f1e34a7619ca7c079c65f273d2c7a0d",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/13.source.txt",
+      "sha256": "943f493d310d1e26d03844c8242d00843f1e34a7619ca7c079c65f273d2c7a0d",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/driver.py",
+      "sha256": "bcb00742ad6481c300ef62707e9f4093df4ba9bb3b9d00564e0f4d94a20eef53",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/recipes.json",
+      "sha256": "1b8cfe92c388578349547b6cdfd9e5a9a2cb73d347a354bf7a80472839941cc8",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/run.py",
+      "sha256": "9abc61f6170449156a67011aaad3df214418c2eb34009f17dc2ca5ba4a875b4e",
+      "mode": 436
+    }
+  ]
+}

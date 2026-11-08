@@ -13,6 +13,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 const migrations = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 describe('SQLite runtime command persistence', () => {
@@ -20,7 +21,10 @@ describe('SQLite runtime command persistence', () => {
     const directory = mkdtempSync(join(tmpdir(), 'runtime-command-'));
     const dbPath = join(directory, 'plan.db');
     runMigrations(dbPath, migrations);
-    const source = openSqliteSource({ dbPath });
+    const source = openSqliteSource({
+      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+      dbPath,
+    });
     return Promise.resolve({
       source,
       async close() {
@@ -37,7 +41,10 @@ it('retains an exact claim acceptance and its attempt binding after closing and 
   const directory = mkdtempSync(join(tmpdir(), 'runtime-claim-reopen-'));
   const dbPath = join(directory, 'plan.db');
   runMigrations(dbPath, migrations);
-  const source = openSqliteSource({ dbPath });
+  const source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath,
+  });
   const ledger = await source.stores.runtimeCommands.inspectLedger();
   const stored = runtimeAcceptanceFixture(ledger.ledgerId, 'claim');
   const acceptance = {
@@ -61,7 +68,10 @@ it('retains an exact claim acceptance and its attempt binding after closing and 
   } finally {
     await source.close();
   }
-  const reopened = openSqliteSource({ dbPath });
+  const reopened = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath,
+  });
   try {
     expect(await reopened.stores.runtimeCommands.readAcceptance(RUNTIME_SCOPE, 'claim')).toEqual(
       acceptance,
@@ -84,7 +94,10 @@ it('retains ordered write acceptance and exact bindings after reopening without 
   const directory = mkdtempSync(join(tmpdir(), 'runtime-write-reopen-'));
   const dbPath = join(directory, 'plan.db');
   runMigrations(dbPath, migrations);
-  const source = openSqliteSource({ dbPath });
+  const source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath,
+  });
   const ledger = await source.stores.runtimeCommands.inspectLedger();
   const stored = runtimeAcceptanceFixture(ledger.ledgerId, 'write');
   const acceptance = {
@@ -112,7 +125,10 @@ it('retains ordered write acceptance and exact bindings after reopening without 
   } finally {
     await source.close();
   }
-  const reopened = openSqliteSource({ dbPath });
+  const reopened = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath,
+  });
   try {
     expect(await reopened.stores.runtimeCommands.readAcceptance(RUNTIME_SCOPE, 'write')).toEqual(
       acceptance,

@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/solver-binding-command.test.ts:
+158 |   test(`noncanonical state spelling ${suffix} refuses before solver child launch`, async () => {
+159 |     const host = await fixture();
+160 |     await rename(host.state, `${host.state}-real`);
+161 |     await symlink(`${host.state}-real`, host.state);
+162 |     const attempt = await host.run('valid', `export WBS_EDGE_STATE="$WBS_EDGE_STATE${suffix}";`);
+163 |     expect(attempt.code).not.toBe(0);
+                                   ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:163:30)
+(fail) noncanonical state spelling / refuses before solver child launch [52.86ms]
+
+ 0 pass
+ 23 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [87.00ms]

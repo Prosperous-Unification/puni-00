@@ -3,6 +3,10 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'bun:test';
 
 import {
+  CONNECTED_SOLVER_REQUEST_KEYS,
+  CONNECTED_SOLVER_RESPONSE_STATUSES,
+  CONNECTED_SOLVER_SCOPE_KEYS,
+  SOLVER_BOUNDARY_KEYS,
   SOLVER_EDGE_KEYS,
   SOLVER_HORIZON_UNITS_MAX,
   SOLVER_OBJECTIVE_TERM_KEYS,
@@ -21,7 +25,7 @@ import {
 /**
  * The drift guard for `wire-types.ts`.
  *
- * `solver-wire.v4.json` is the contract and Python reads the same file, so the
+ * `solver-wire.v5.json` is the contract and Python reads the same file, so the
  * TypeScript binding is not allowed to be an independent second opinion. Each
  * case below reads the schema **at run time** — not through an `import`, which
  * TypeScript would resolve at build time and which would put the file inside
@@ -34,7 +38,7 @@ import {
  * tolerating a duplicate.
  */
 
-const SCHEMA_PATH = new URL('../solver-wire.v4.json', import.meta.url);
+const SCHEMA_PATH = new URL('../solver-wire.v5.json', import.meta.url);
 
 type Branch = Record<string, unknown>;
 
@@ -48,7 +52,7 @@ const schema = JSON.parse(readFileSync(SCHEMA_PATH, 'utf8')) as WireSchema;
 
 const def = (name: string): Branch => {
   const branch = schema.$defs[name];
-  if (branch === undefined) throw new Error(`solver-wire.v4.json has no $defs/${name}`);
+  if (branch === undefined) throw new Error(`solver-wire.v5.json has no $defs/${name}`);
   return branch;
 };
 
@@ -57,20 +61,20 @@ const properties = (name: string): Branch => def(name)['properties'] as Branch;
 const enumOf = (name: string, property: string): readonly string[] => {
   const prop = properties(name)[property] as { enum?: readonly string[] } | undefined;
   if (prop?.enum === undefined) {
-    throw new Error(`solver-wire.v4.json $defs/${name}.properties.${property} has no enum`);
+    throw new Error(`solver-wire.v5.json $defs/${name}.properties.${property} has no enum`);
   }
   return prop.enum;
 };
 
 const sorted = (values: readonly string[]): string[] => [...values].sort();
 
-describe('wire-types is pinned to solver-wire.v4.json', () => {
+describe('wire-types is pinned to solver-wire.v5.json', () => {
   it('SOLVER_WIRE_VERSION is the schema const', () => {
     expect(def('wireVersion')['const']).toBe(SOLVER_WIRE_VERSION);
   });
 
   it('SOLVER_RESPONSE_STATUSES is the response status enum', () => {
-    const wire = enumOf('response', 'status');
+    const wire = enumOf('response-local', 'status');
     expect(wire.length).toBe(SOLVER_RESPONSE_STATUSES.length);
     expect(sorted(wire)).toEqual(sorted(SOLVER_RESPONSE_STATUSES));
   });
@@ -98,8 +102,8 @@ describe('wire-types is pinned to solver-wire.v4.json', () => {
     // `additionalProperties: false` is what makes this set closed; without it
     // the constant would describe a subset and the unknown-key rejection 2.3
     // is written against would have nothing to reject.
-    expect(def('response')['additionalProperties']).toBe(false);
-    const wire = Object.keys(properties('response'));
+    expect(def('response-local')['additionalProperties']).toBe(false);
+    const wire = Object.keys(properties('response-local'));
     expect(wire.length).toBe(SOLVER_RESPONSE_KEYS.length);
     expect(sorted(wire)).toEqual(sorted(SOLVER_RESPONSE_KEYS));
   });
@@ -122,7 +126,7 @@ describe('wire-types is pinned to solver-wire.v4.json', () => {
     // conditional. This pins the branch it was read off, so opening the
     // conditional in the schema fails here rather than silently making the
     // union stricter than the wire.
-    const allOf = def('response')['allOf'] as readonly Branch[];
+    const allOf = def('response-local')['allOf'] as readonly Branch[];
     const conditional = allOf.at(0);
     if (conditional === undefined) throw new Error('$defs/response has no allOf conditional');
 
@@ -136,9 +140,46 @@ describe('wire-types is pinned to solver-wire.v4.json', () => {
   });
 });
 
-describe('the request side is pinned to solver-wire.v4.json', () => {
+describe('the request side is pinned to solver-wire.v5.json', () => {
+  it('the connected request and scope arms require every provenance and witness member', () => {
+    // Proof: removing `occupancy` from the normative connected scope's required
+    // list made this drift guard fail (16 pass / 1 fail).
+    for (const [branch, keys] of [
+      ['request-connected', CONNECTED_SOLVER_REQUEST_KEYS],
+      ['scope-connected', CONNECTED_SOLVER_SCOPE_KEYS],
+    ] as const) {
+      expect(def(branch)['additionalProperties']).toBe(false);
+      expect(sorted(Object.keys(properties(branch)))).toEqual(sorted(keys));
+      expect(sorted(def(branch)['required'] as string[])).toEqual(sorted(keys));
+    }
+  });
+
+  it('a boundary requires exactly its directional signed start bound', () => {
+    expect(def('boundary')['additionalProperties']).toBe(false);
+    expect(sorted(Object.keys(properties('boundary')))).toEqual(sorted(SOLVER_BOUNDARY_KEYS));
+    const clause = (def('boundary')['allOf'] as readonly Branch[])[0];
+    expect((clause['then'] as Branch)['required']).toEqual(['minimumStartUnits']);
+    expect((clause['then'] as Branch)['not']).toEqual({ required: ['maximumStartUnits'] });
+    expect((clause['else'] as Branch)['required']).toEqual(['maximumStartUnits']);
+    expect((clause['else'] as Branch)['not']).toEqual({ required: ['minimumStartUnits'] });
+  });
+
+  it('the connected response admits boundary-infeasible and remains a closed scoped arm', () => {
+    expect(sorted(enumOf('response-connected', 'status'))).toEqual(
+      sorted(CONNECTED_SOLVER_RESPONSE_STATUSES),
+    );
+    expect(def('response-connected')['additionalProperties']).toBe(false);
+    expect(sorted(Object.keys(properties('response-connected')))).toEqual(
+      sorted(SOLVER_RESPONSE_KEYS),
+    );
+    expect(sorted(def('response-connected')['required'] as string[])).toEqual([
+      'scope',
+      'status',
+      'wireVersion',
+    ]);
+  });
   it('SOLVER_OBJECTIVES is the objective enum', () => {
-    const wire = enumOf('request', 'objective');
+    const wire = enumOf('request-local', 'objective');
     expect(wire.length).toBe(SOLVER_OBJECTIVES.length);
     expect(sorted(wire)).toEqual(sorted(SOLVER_OBJECTIVES));
   });
@@ -148,7 +189,7 @@ describe('the request side is pinned to solver-wire.v4.json', () => {
   // rather than a subset, and `required` covering the whole property set is
   // what makes the TypeScript interface's lack of optional members correct.
   for (const [branch, keys] of [
-    ['request', SOLVER_REQUEST_KEYS],
+    ['request-local', SOLVER_REQUEST_KEYS],
     ['slice', SOLVER_SLICE_KEYS],
   ] as const) {
     it(`${branch} is closed, fully required, and matches its key constant`, () => {
@@ -174,14 +215,14 @@ describe('the request side is pinned to solver-wire.v4.json', () => {
   });
 
   it('SOLVER_HORIZON_UNITS_MAX is the schema bound checked before spawn', () => {
-    const horizon = properties('request')['horizonUnits'] as { maximum: number };
+    const horizon = properties('request-local')['horizonUnits'] as { maximum: number };
     expect(horizon.maximum).toBe(SOLVER_HORIZON_UNITS_MAX);
     // Narrower than safeInteger on purpose: it is a CP-SAT variable domain.
     expect(horizon.maximum).toBeLessThan(Number.MAX_SAFE_INTEGER);
   });
 
   it('the stage budget split is a fixed-length tuple, not a list', () => {
-    const split = properties('request')['stageBudgetSplit'] as {
+    const split = properties('request-local')['stageBudgetSplit'] as {
       minItems: number;
       maxItems: number;
     };
@@ -193,7 +234,7 @@ describe('the request side is pinned to solver-wire.v4.json', () => {
     // Both are the same boundary stated twice: duration is effort divided by
     // width, and a pool of 0 slots is a plan of Infinity dates.
     expect((properties('slice')['width'] as { minimum: number }).minimum).toBe(1);
-    const pools = properties('request')['pools'] as {
+    const pools = properties('request-local')['pools'] as {
       additionalProperties: { minimum: number };
     };
     expect(pools.additionalProperties.minimum).toBe(1);

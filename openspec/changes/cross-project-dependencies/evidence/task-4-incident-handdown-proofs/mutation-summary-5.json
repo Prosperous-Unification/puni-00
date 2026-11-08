@@ -1,0 +1,17 @@
+[
+  {
+    "name": "bound-incident-owner",
+    "exit": 1,
+    "status": "CAUGHT"
+  },
+  {
+    "name": "bound-incident-actor",
+    "exit": 1,
+    "status": "CAUGHT"
+  },
+  {
+    "name": "incident-command-stamp",
+    "exit": 1,
+    "status": "CAUGHT"
+  }
+]

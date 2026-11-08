@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { type NumberedRow, parseDependencies, unknownMessage } from './depends-input';
+import {
+  currentDependencyToken,
+  type NumberedRow,
+  parseDependencies,
+  replaceDependencyToken,
+  unknownMessage,
+} from './depends-input';
 
 const ROWS: NumberedRow[] = [
   { id: 'a', number: '010' },
@@ -71,5 +77,23 @@ describe('unknownMessage', () => {
 
   it('names several, in the singular or plural as it should be', () => {
     expect(unknownMessage(['999', '888'])).toBe('No work items numbered 999, 888.');
+  });
+});
+
+describe('current dependency token', () => {
+  it('keeps mixed earlier tokens byte for byte when selecting a project or endpoint', () => {
+    const typed = '010,  020.3 030.s1-dev, puni';
+    expect(currentDependencyToken(typed)).toEqual({
+      prefix: '010,  020.3 030.s1-dev, ',
+      token: 'puni',
+    });
+    expect(replaceDependencyToken(typed, 'PUNI.')).toBe('010,  020.3 030.s1-dev, PUNI.');
+    expect(replaceDependencyToken('010, PUNI.080', 'PUNI.080.39')).toBe('010, PUNI.080.39');
+  });
+
+  it('starts an empty current token after a separator without reviving earlier text', () => {
+    expect(currentDependencyToken('010,  ')).toEqual({ prefix: '010,  ', token: '' });
+    expect(currentDependencyToken('')).toEqual({ prefix: '', token: '' });
+    expect(currentDependencyToken('010.s1-dev')).toEqual({ prefix: '', token: '010.s1-dev' });
   });
 });

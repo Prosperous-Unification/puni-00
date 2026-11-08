@@ -1,0 +1,182 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/docker-inventory.test.ts:
+87 |       unrelated.Mounts.push({ ...unrelated.Mounts[0], Destination: '/extra' });
+88 |     if (fault === 'config') unrelated.Config.User = '0:0';
+89 |     if (fault === 'host') unrelated.HostConfig.Privileged = true;
+90 |     if (fault === 'process') unrelated.State.Pid++;
+91 |     if (fault === 'membership') containers.pop();
+92 |     expect(identifyInventory(containers)).not.toEqual(baseline);
+                                                   ^
+error: expect(received).not.toEqual(expected)
+
+Expected: not [
+  {
+    "config": {
+      "Cmd": [
+        "bun",
+        "run",
+        "dev",
+      ],
+      "Entrypoint": null,
+      "Image": "wbs-dev-src:1",
+      "Labels": {
+        "com.docker.compose.project": "dev-src",
+        "com.docker.compose.service": "dev-src",
+      },
+      "User": "1000:1000",
+      "WorkingDir": "/src",
+    },
+    "host": {
+      "CapAdd": null,
+      "Init": null,
+      "NetworkMode": "wbs-dev-net",
+      "PidMode": "",
+      "Privileged": false,
+      "RestartPolicy": {
+        "MaximumRetryCount": 0,
+        "Name": "unless-stopped",
+      },
+    },
+    "id": "1111111111111111111111111111111111111111111111111111111111111111",
+    "image": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "mounts": [
+      {
+        "Destination": "/a",
+      },
+      {
+        "Destination": "/z",
+      },
+    ],
+    "name": "/source",
+    "networks": {
+      "wbs-dev-net": {
+        "NetworkID": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      },
+    },
+    "process": {
+      "dead": false,
+      "paused": false,
+      "pid": 100,
+      "restarting": false,
+      "running": true,
+      "startedAt": "2026-10-23T00:00:00Z",
+    },
+    "restarts": 0,
+  },
+  {
+    "config": {
+      "Cmd": [
+        "bun",
+        "run",
+        "dev",
+      ],
+      "Entrypoint": null,
+      "Image": "wbs-dev-src:1",
+      "Labels": {
+        "com.docker.compose.project": "dev-src",
+        "com.docker.compose.service": "dev-src",
+      },
+      "User": "1000:1000",
+      "WorkingDir": "/src",
+    },
+    "host": {
+      "CapAdd": null,
+      "Init": null,
+      "NetworkMode": "wbs-dev-net",
+      "PidMode": "",
+      "Privileged": false,
+      "RestartPolicy": {
+        "MaximumRetryCount": 0,
+        "Name": "unless-stopped",
+      },
+    },
+    "id": "2222222222222222222222222222222222222222222222222222222222222222",
+    "image": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "mounts": [
+      {
+        "Destination": "/a",
+      },
+      {
+        "Destination": "/z",
+      },
+    ],
+    "name": "/caddy",
+    "networks": {
+      "wbs-dev-net": {
+        "NetworkID": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      },
+    },
+    "process": {
+      "dead": false,
+      "paused": false,
+      "pid": 100,
+      "restarting": false,
+      "running": true,
+      "startedAt": "2026-10-23T00:00:00Z",
+    },
+    "restarts": 0,
+  },
+  {
+    "config": {
+      "Cmd": [
+        "bun",
+        "run",
+        "dev",
+      ],
+      "Entrypoint": null,
+      "Image": "wbs-dev-src:1",
+      "Labels": {
+        "com.docker.compose.project": "dev-src",
+        "com.docker.compose.service": "dev-src",
+      },
+      "User": "1000:1000",
+      "WorkingDir": "/src",
+    },
+    "host": {
+      "CapAdd": null,
+      "Init": null,
+      "NetworkMode": "wbs-dev-net",
+      "PidMode": "",
+      "Privileged": false,
+      "RestartPolicy": {
+        "MaximumRetryCount": 0,
+        "Name": "unless-stopped",
+      },
+    },
+    "id": "3333333333333333333333333333333333333333333333333333333333333333",
+    "image": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "mounts": [
+      {
+        "Destination": "/a",
+      },
+      {
+        "Destination": "/z",
+      },
+    ],
+    "name": "/unrelated",
+    "networks": {
+      "wbs-dev-net": {
+        "NetworkID": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      },
+    },
+    "process": {
+      "dead": false,
+      "paused": false,
+      "pid": 100,
+      "restarting": false,
+      "running": true,
+      "startedAt": "2026-10-23T00:00:00Z",
+    },
+    "restarts": 0,
+  },
+]
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/docker-inventory.test.ts:92:47)
+(fail) complete native identity retains unrelated field changes [2.17ms]
+
+ 0 pass
+ 29 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [52.00ms]

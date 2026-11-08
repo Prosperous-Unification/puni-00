@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+1479 |           stepId: workflowStep(a.projectId, 'QA'),
+1480 |         },
+1481 |         type: 'FS',
+1482 |       }),
+1483 |     ),
+1484 |   ).toMatchObject({ ok: true });
+           ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "ok": false,
++   "reason": "cycle",
+  }
+
+- Expected  - 1
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-command-proofs/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1484:5)
+(fail) admitted distinct tasks interleave projects until a local edge closes the remote cycle [403.11ms]
+
+ 0 pass
+ 116 filtered out
+ 1 fail
+ 12 expect() calls
+Ran 1 test across 1 file. [3.25s]

@@ -37,6 +37,7 @@ const space = (id: string, name: string, projectCount: number) => ({
 
 const project = (id: string, name: string, restricted = false) => ({
   id,
+  abbreviation: id.toUpperCase(),
   name,
   ownerId: 'u1',
   restricted,

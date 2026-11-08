@@ -1,0 +1,21 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/claim-race.db.test.ts:
+(pass) two fleets claim the same step > admits exactly one, the other refused naming the winner (account-f first) [192.18ms]
+(pass) two fleets claim the same step > admits exactly one, the other refused naming the winner (account-g first) [127.67ms]
+(pass) a claim on SQLite > refuses an undo of a subtree claim that would take a delegated claim it never wrote [150.51ms]
+(pass) a claim on SQLite > moves the revision by one and records one entry for a claim that states progress [132.28ms]
+(pass) a claim on SQLite > refuses an undo of a claim after the holder’s leaf moved on [117.49ms]
+(pass) a claim on SQLite > refuses a redo of a claim after the leaf moved on [145.18ms]
+(pass) a claim on SQLite > hands a claimed leaf’s claim to its first child, fencing and releasable there, and back on undo [150.09ms]
+(pass) a claim on SQLite > undoes a release and redoes a claim journalled before claim occupancy [122.27ms]
+(pass) a claim on SQLite > refuses a redo of a claim once another holder took the step [114.12ms]
+
+libs/wbs/adapters/store-sqlite/src/claim-occupancy-race.db.test.ts:
+(pass) two fleets claim two leaves that do not both fit > admits one of two concurrent claims over capacity, the other refused resources_exhausted (account-f first) [135.95ms]
+(pass) two fleets claim two leaves that do not both fit > admits one of two concurrent claims over capacity, the other refused resources_exhausted (account-g first) [122.01ms]
+
+ 11 pass
+ 0 fail
+ 44 expect() calls
+Ran 11 tests across 2 files. [3.65s]

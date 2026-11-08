@@ -1,0 +1,42 @@
+
+ NX   Nx was denied permission to create a plugin worker socket. Running plugins in the main process instead.
+
+Plugins that expect isolation may misbehave, and this is slower than a worker.
+Nx was denied permission to use its unix socket under /tmp/.nx or ~/.nx.
+To fix this, do one of the following:
+  - In `~/.codex/config.toml`, set `sandbox_workspace_write.network_access` to true and add /tmp/.nx or ~/.nx to `sandbox_workspace_write.writable_roots`. Codex has no setting that scopes sockets to a path, and `network_access` also grants general network access, so this is a broader grant than the other agents need.
+  - Get permission to create sockets under /tmp/.nx or ~/.nx, or set NX_SOCKET_DIR to a directory you do have permission for.
+See https://nx.dev/docs/kb/nx-sandbox-unix-sockets for details.
+
+
+ NX   Running target typecheck for 4 projects and 2 tasks they depend on:
+
+- wbs-core
+- wbs-store-sqlite
+- wbs-be-01
+- wbs-store-memory
+
+
+✔  nx run wbs-be-01:"typecheck:module"
+✔  nx run wbs-store-memory:typecheck
+✔  nx run wbs-store-sqlite:typecheck
+✔  nx run wbs-be-01:typecheck
+✔  nx run wbs-core:"typecheck:module"
+✔  nx run wbs-core:typecheck
+
+
+
+ NX   Successfully ran target typecheck for 4 projects and 2 tasks they depend on
+
+
+Output of 6 successful tasks were not shown. Run with --verbose or --output-style=static to see it.
+
+  Run duration:      50.7s
+  Cache:             0/6 hit (0%)
+  Critical path:     50.7s (2 tasks)
+  Recoverable time:  36ms (0% of the run)
+
+  Recommendations:
+    - Drastically reduce your run duration by sharing a cache across your team and CI → https://cloud.nx.app/get-started?utm_source=nx-cli&utm_medium=cli&utm_campaign=performance-report&utm_content=remote-cache.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-core:typecheck:module    46.6s

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:
+(pass) in-flight source recognition cannot return proof after token expiry [378.44ms]
+(pass) in-flight source inspection cannot return proof after token expiry [406.03ms]
+(pass) source inspection refuses invalid supplied deadline NaN before Docker reads [434.96ms]
+(pass) source inspection refuses invalid supplied deadline Infinity before Docker reads [127.48ms]
+(pass) source inspection refuses invalid supplied deadline -1 before Docker reads [107.93ms]
+(pass) source inspection tighter deadline aborts and reaps stalled ps child without changing original scope [270.48ms]
+(pass) source inspection tighter deadline aborts and reaps stalled image child without changing original scope [242.09ms]
+(pass) source recognition refuses invalid supplied deadline NaN before Docker reads [152.29ms]
+(pass) source recognition refuses invalid supplied deadline Infinity before Docker reads [125.13ms]
+(pass) source recognition refuses invalid supplied deadline -1 before Docker reads [112.93ms]
+(pass) source recognition tighter deadline aborts and reaps stalled ps child without changing original scope [240.65ms]
+(pass) source recognition tighter deadline aborts and reaps stalled image child without changing original scope [245.15ms]
+(pass) source inspection supplied longer deadline cannot extend original scope [1004.01ms]
+(pass) source recognition supplied longer deadline cannot extend original scope [1004.62ms]
+
+ 14 pass
+ 33 filtered out
+ 0 fail
+ 28 expect() calls
+Ran 14 tests across 1 file. [4.91s]

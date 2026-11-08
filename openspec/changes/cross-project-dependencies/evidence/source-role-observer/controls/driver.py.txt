@@ -1,0 +1,67 @@
+from pathlib import Path
+import hashlib,json,subprocess,sys
+packet=Path('/tmp/puni-source-observer-proofs-auznn7kj')
+if len(sys.argv)!=2 or sys.argv[1]!='execute': raise RuntimeError('explicit reviewed execute required')
+packetBytes=(packet/'packet.json').read_bytes()
+if hashlib.sha256(packetBytes).hexdigest()!='47a73fd65bcee8d3f6a694518104b8fc65f90e6f004eceae8c8689419c59b397': raise RuntimeError('reviewed packet pin differs')
+manifest=json.loads(packetBytes);root=Path(manifest['root'])
+sha=lambda body: hashlib.sha256(body).hexdigest()
+recipeBytes=Path('/tmp/puni-source-observer-proof-recipes.json').read_bytes()
+if sha(recipeBytes)!=manifest['controls']['/tmp/puni-source-observer-proof-recipes.json']: raise RuntimeError('reviewed recipe pin differs')
+recipes=json.loads(recipeBytes)
+rows=[]
+def pins(overrides=None):
+ expected=dict(manifest['pins']); expected.update({} if overrides is None else overrides)
+ for relative,digest in expected.items():
+  if sha((root/relative).read_bytes())!=digest: raise RuntimeError('source pin differs: '+relative)
+ for path,digest in manifest['controls'].items():
+  if sha(Path(path).read_bytes())!=digest: raise RuntimeError('control pin differs: '+path)
+ for command,expected in [(['git','rev-parse','HEAD'],manifest['head']),(['git','branch','--show-current'],manifest['branch'])]:
+  current=subprocess.run(command,cwd=root,check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE).stdout.decode().strip()
+  if current!=expected: raise RuntimeError('source Git identity differs')
+def run(entry,phase,overrides=None):
+ pins(overrides)
+ prefix=packet/(entry['name']+'.'+phase); custody=Path(str(prefix)+'.custody.json')
+ with Path(str(prefix)+'.stdout.log.txt').open('xb') as stdout,Path(str(prefix)+'.stderr.log.txt').open('xb') as stderr:
+  completed=subprocess.run(['/home/df/.bun/bin/bun','/tmp/puni-source-observer-run-case.ts',entry['case'],phase,str(custody)],cwd=root,stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr)
+ # The pinned runner writes this exclusively ONLY after its original child exit and both original stream readers fulfill.
+ if not custody.is_file(): raise RuntimeError('original child custody unproved; retain source fault, original peer and saved baseline; no restoration or next fault')
+ receipt=json.loads(custody.read_bytes())
+ stdout=Path(str(prefix)+'.stdout.log.txt').read_bytes();stderr=Path(str(prefix)+'.stderr.log.txt').read_bytes()
+ row={'guard':entry['name'],'case':entry['case'],'phase':phase,'runnerExit':completed.returncode,'custody':receipt,'stdoutSha256':sha(stdout),'stderrSha256':sha(stderr)}
+ rows.append(row);(packet/'observations.json').write_text(json.dumps(rows,indent=2)+'\n')
+ if completed.returncode!=0: raise RuntimeError('selected real assertion audit refused: '+entry['name']+' '+phase)
+ if receipt['stdoutSha256']!=sha(stdout) or receipt['stderrSha256']!=sha(stderr): raise RuntimeError('original child/output receipt differs')
+ if receipt['childSignal'] is not None or receipt['childExit']!=(1 if phase=='omitted' else 0): raise RuntimeError('original child outcome differs')
+ pins(overrides)
+ print(entry['name']+' '+phase+': audited original child exit '+str(receipt['childExit'])+', native exit and both original EOF readers joined',flush=True)
+ return custody
+pins()
+# One fresh, finite execution only: stale logs/custody refuse BEFORE any source mutation.
+for entry in recipes:
+ for phase in ['omitted','restored']:
+  for suffix in ['.stdout.log.txt','.stderr.log.txt','.custody.json']:
+   reserved=packet/(entry['name']+'.'+phase+suffix)
+   try: reserved.lstat()
+   except FileNotFoundError: pass
+   else: raise RuntimeError('preexisting proof path refuses before source mutation: '+str(reserved))
+for entry in recipes:
+ relative='tools/tool-remote-scripts/src/lib/'+entry['file'];path=root/relative;original=(packet/'baseline'/relative).read_bytes()
+ if path.read_bytes()!=original: raise RuntimeError('exact saved source differs before fault')
+ if original.decode().count(entry['before'])!=1: raise RuntimeError('fault anchor is not unique')
+ changed=original.decode().replace(entry['before'],entry['after']).encode();custody=packet/(entry['name']+'.omitted.custody.json')
+ path.write_bytes(changed)
+ try:
+  run(entry,'omitted',{relative:sha(changed)})
+ finally:
+  # Do not restore or move to another mutation on an unknown original-handle outcome.
+  if custody.is_file():
+   json.loads(custody.read_bytes())
+   path.write_bytes(original)
+   if path.read_bytes()!=original: raise RuntimeError('exact source restoration failed: '+relative)
+   pins()
+   print(entry['name']+': exact saved bytes restored after original custody record',flush=True)
+  else:
+   raise RuntimeError('RESTORATION HELD: original custody unproved; retain '+str(packet)+' and '+relative)
+ run(entry,'restored')
+pins();print('Finite packet completed; all twelve guard faults independently audited and exactly restored.',flush=True)

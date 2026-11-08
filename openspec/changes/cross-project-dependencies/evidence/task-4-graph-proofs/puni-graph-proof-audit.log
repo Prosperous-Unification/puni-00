@@ -1,0 +1,40 @@
+puni-graph-fault-authority.log: requires reached-project authority before any project or tree read [1.51ms]; 1 fail
+puni-graph-fault-conflicting-domain-identity.log: refuses local/external misclassification and conflicting relationship identities [0.83ms]; 1 fail
+puni-graph-fault-duplicate-override.log: rejects duplicate overrides and a proposed set owned by another project [1.35ms]; 1 fail
+puni-graph-fault-duplicate-project-isolated.log: refuses duplicate empty project identities without ownership masking [0.36ms]; 1 fail
+puni-graph-fault-duplicate-project.log: refuses duplicate project and work-item ownership even without relationships [0.43ms]; 1 fail
+puni-graph-fault-duplicate-work-owner.log: refuses duplicate project and work-item ownership even without relationships [0.52ms]; 1 fail
+puni-graph-fault-effective-conflict.log: rejects conflicts between effective proposed sets and retained owners [1.51ms]; 1 fail
+puni-graph-fault-empty-slice.log: refuses absent and empty slices instead of creating a boundary [0.74ms]; 1 fail
+puni-graph-fault-expiry.log: refuses expired borrowed capabilities before reads and if expiry happens during a read [1.35ms]; 1 fail
+puni-graph-fault-external-local.log: refuses local/external misclassification and conflicting relationship identities [0.67ms]; 1 fail
+puni-graph-fault-foreign-row.log: throws for missing required projects, unreadable facts and foreign work-item rows [2.02ms]; 1 fail
+puni-graph-fault-incoming-closure.log: walks incoming and outgoing incidents once, without an owned-empty shortcut [1.51ms]; 1 fail
+puni-graph-fault-lifetime-boundary-1.log: checks lifetime for an empty observation and immediately after every awaited boundary [1.20ms]; 1 fail
+puni-graph-fault-lifetime-boundary-2.log: checks lifetime for an empty observation and immediately after every awaited boundary [1.83ms]; 1 fail
+puni-graph-fault-lifetime-boundary-3.log: checks lifetime for an empty observation and immediately after every awaited boundary [2.12ms]; 1 fail
+puni-graph-fault-lifetime-boundary-4.log: checks lifetime for an empty observation and immediately after every awaited boundary [1.94ms]; 1 fail
+puni-graph-fault-lifetime-boundary-5.log: checks lifetime for an empty observation and immediately after every awaited boundary [1.96ms]; 1 fail
+puni-graph-fault-local-endpoint-evidence.log: refuses missing local endpoint facts in a supplied project context [0.37ms]; 1 fail
+puni-graph-fault-local-predecessor-isolated.log: refuses each foreign local endpoint project independently even when work-item lookup would succeed [0.64ms]; 1 fail
+puni-graph-fault-local-predecessor.log: refuses a local relationship whose predecessor belongs to another project [0.50ms]; 1 fail
+puni-graph-fault-local-successor-isolated.log: refuses each foreign local endpoint project independently even when work-item lookup would succeed [0.79ms]; 1 fail
+puni-graph-fault-local-successor.log: refuses local/external misclassification and conflicting relationship identities [0.58ms]; 1 fail
+puni-graph-fault-mismatched-project-core.log: rejects a required project read returning another project identity [1.36ms]; 1 fail
+puni-graph-fault-missing-project-core-diagnostic.log: throws for missing required projects, unreadable facts and foreign work-item rows [1.89ms]; 1 fail
+puni-graph-fault-missing-project-diagnostic.log: refuses missing endpoint project, cross-owned work item, absent work item and absent step [0.52ms]; 1 fail
+puni-graph-fault-missing-slice-diagnostic.log: refuses absent and empty slices instead of creating a boundary [0.50ms]; 1 fail
+puni-graph-fault-missing-work-item-diagnostic.log: refuses missing endpoint project, cross-owned work item, absent work item and absent step [0.85ms]; 1 fail
+puni-graph-fault-non-incident.log: rejects malformed owner, unrelated incident rows and conflicting stored identities [2.14ms]; 1 fail
+puni-graph-fault-old-new-seeds.log: replaces complete successor-owned sets and seeds both old and new components [1.99ms]; 1 fail
+puni-graph-fault-omit-expanded-pair.log: expands every remote parent pair using each endpoint tree and own step identity [0.59ms]; 1 fail
+puni-graph-fault-outgoing-closure.log: walks incoming and outgoing incidents once, without an owned-empty shortcut [2.03ms]; 1 fail
+puni-graph-fault-project-cycle-refusal.log: accepts A.design B.build A.test and retains ownership and relationship provenance [0.64ms]; 1 fail
+puni-graph-fault-proposed-owner.log: rejects each proposed ownership mismatch independently [1.43ms]; 1 fail
+puni-graph-fault-proposed-successor.log: rejects each proposed ownership mismatch independently [1.86ms]; 1 fail
+puni-graph-fault-stale-graph.log: reobserves staged estimate anchors and project reach between cycle evaluations [3.10ms]; 1 fail
+puni-graph-fault-stale-incidents.log: observes staged changes freshly on every evaluation and applies precise local overrides [2.64ms]; 1 fail
+puni-graph-fault-stored-conflict.log: rejects conflicting stored identities even if an override removes their owner [1.41ms]; 1 fail
+puni-graph-fault-stored-owner.log: rejects malformed owner, unrelated incident rows and conflicting stored identities [1.61ms]; 1 fail
+puni-graph-fault-wrong-project-reach.log: reads each project with its own reach, steps, estimate presence and unreduced holds [2.46ms]; 1 fail
+puni-graph-fault-wrong-remote-context.log: expands every remote parent pair using each endpoint tree and own step identity [0.60ms]; 1 fail

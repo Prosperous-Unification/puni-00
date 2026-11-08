@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/browser-auth-lifecycle.db.test.ts:
+(pass) open, replace and historical close are durable across connections [365.92ms]
+(pass) generation CAS loses after closure or another replacement without revoking unrelated credentials [220.59ms]
+(pass) two Bun processes capturing one generation publish exactly one successor [644.59ms]
+(pass) identical bytes and foreign user cannot become a successor [316.06ms]
+(pass) replace refuses a predecessor independently revoked through B1 [481.66ms]
+(pass) corrupt matching B1 revocation is a storage fault, not stale authentication [440.12ms]
+(pass) open and successor replacement refuse valid previously revoked bytes [219.98ms]
+(pass) close refuses malformed historical expiry and impossible generation [183.71ms]
+(pass) already-closed retry still reads B1 revocation authority [450.67ms]
+(pass) missing authority and failed writes throw without acknowledging a transition [376.98ms]
+(pass) absent correlation is typed refusal while malformed stored state is a server fault [378.21ms]
+(pass) rollback refuses retained lifecycle and association rows [360.87ms]
+(pass) rollback independently refuses lifecycle-only and association-only residue [1060.21ms]
+(pass) rollback removes both empty lifecycle tables and their migration ledger entry [327.23ms]
+
+ 14 pass
+ 0 fail
+ 67 expect() calls
+Ran 14 tests across 1 file. [6.08s]

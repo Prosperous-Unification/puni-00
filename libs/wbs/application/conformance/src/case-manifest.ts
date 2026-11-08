@@ -1,6 +1,8 @@
 import type { HistoryStores, TransactionalStores } from '@wbs/core';
 
-export type PortName = keyof TransactionalStores | keyof HistoryStores;
+/** Writer authority is a source lifetime capability, outside CRUD store conformance. */
+export type PortName =
+  Exclude<keyof TransactionalStores, 'externalDependencyAuthoring'> | keyof HistoryStores;
 
 export const PORT_NAMES = [
   'projects',

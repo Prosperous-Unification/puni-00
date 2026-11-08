@@ -7,7 +7,15 @@ import { handleWsMessage, isKnownSubscription, type WsSocket } from './ws.contro
 
 function makeSocket(): { sock: WsSocket; sent: string[] } {
   const sent: string[] = [];
-  return { sock: { send: (s) => sent.push(s) }, sent };
+  return {
+    sock: {
+      send: (s) => {
+        sent.push(s);
+        return Promise.resolve('sent');
+      },
+    },
+    sent,
+  };
 }
 
 describe('handleWsMessage', () => {
@@ -224,8 +232,9 @@ describe('subscription names', () => {
   it('does not register a socket for an unknown subscription, and says so', async () => {
     const sent: string[] = [];
     const socket = {
-      send(data: string) {
-        sent.push(data);
+      send(payload: string) {
+        sent.push(payload);
+        return Promise.resolve('sent' as const);
       },
     };
     const subs = new SubscriptionMap<typeof socket>();

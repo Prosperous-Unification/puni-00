@@ -1,0 +1,132 @@
+[
+  {
+    "index": 0,
+    "id": "membership",
+    "path": "tools/tool-remote-scripts/test/ci-leaf.ts",
+    "before": "? ['test', `./${RESTORATION}`, ...OPTIONS]",
+    "after": "? ['test', `./${MODEL}`, ...OPTIONS]",
+    "testfile": "tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts",
+    "name": "fresh fixed leaves preserve real canonical Bun discovery including future and collision files",
+    "witness": "expect(restorationCases).toEqual([RESTORATION]);",
+    "markers": [],
+    "site": 152,
+    "outcomeName": "fresh fixed leaves preserve real canonical Bun discovery including future and collision files",
+    "scope": "Actual exact singleton dispatch/membership, not a generic summary parser",
+    "witnesses": [
+      "expect(restorationCases).toEqual([RESTORATION]);",
+      "src/lib/dependency-product-process-model.test.ts",
+      "src/lib/dependency-source-restoration.test.ts"
+    ]
+  },
+  {
+    "index": 1,
+    "id": "required-parent",
+    "path": "tools/tool-remote-scripts/test/ci-leaf.ts",
+    "before": "[MODEL, CONTINUATION, ...SOURCE, RESTORATION, ...DISCOVERY.slice(1)]",
+    "after": "[MODEL, CONTINUATION, ...SOURCE, ...DISCOVERY.slice(1)]",
+    "testfile": "tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts",
+    "name": "restoration owner refuses invalid parent before actual child selection: missing",
+    "witness": "'no test child before required-parent validation'",
+    "markers": [
+      "RESTORATION_PARENT_CHILD: {\"leaf\":\"source-restoration\",\"executed\":[]}"
+    ],
+    "site": 657,
+    "outcomeName": "restoration owner refuses invalid parent before actual child selection: missing",
+    "scope": "Onlynewrequired-parent entry; actual child launch is forbidden even if Bun later refuses missingfile",
+    "witnesses": [
+      "no test child before required-parent validation",
+      "Expected: false",
+      "Received: true"
+    ]
+  },
+  {
+    "index": 2,
+    "id": "required-target",
+    "path": "tools/tool-remote-scripts/test/ci-leaf.ts",
+    "before": "    'source',\n    'source-restoration',\n    'rest',\n  ] as const)",
+    "after": "    'source',\n    'rest',\n  ] as const)",
+    "testfile": "tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts",
+    "name": "all leaves refuse malformed restoration target before actual children: absent",
+    "witness": "expect(refused.exitCode).not.toBe(0);",
+    "markers": [
+      "RESTORATION_TARGET_CHILD: {\"leaf\":\"model\",\"executed\":[\"src/lib/dependency-product-process-model.test.ts\"]}"
+    ],
+    "site": 684,
+    "outcomeName": "all leaves refuse malformed restoration target before actual children: absent",
+    "scope": "Onlynewtarget loop entry; model-first actual child/sentinel before refusal",
+    "witnesses": [
+      "Expected: not 0"
+    ]
+  },
+  {
+    "index": 3,
+    "id": "rest-exclusion",
+    "path": "tools/tool-remote-scripts/test/ci-leaf.ts",
+    "before": "              `--path-ignore-patterns=${RESTORATION}`,",
+    "after": "",
+    "testfile": "tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts",
+    "name": "fresh fixed leaves preserve real canonical Bun discovery including future and collision files",
+    "witness": "expect(complement).not.toContain(RESTORATION);",
+    "markers": [],
+    "site": 167,
+    "outcomeName": "fresh fixed leaves preserve real canonical Bun discovery including future and collision files",
+    "scope": "Onlynewliteral rest ignore and actual canonical disjointness",
+    "witnesses": [
+      "expect(complement).not.toContain(RESTORATION);"
+    ]
+  },
+  {
+    "index": 4,
+    "id": "runtime-mapping",
+    "path": "tools/tool-git-hooks/src/hooks/ci-run-runtime.ts",
+    "before": "          : partition === 'remote-source-restoration'\n            ? 'source-restoration'",
+    "after": "          : partition === 'remote-source-restoration'\n            ? 'source'",
+    "testfile": "tools/tool-git-hooks/src/hooks/ci-plan.test.ts",
+    "name": "fixed remote leaves retain one logical owner and explicit static/dependency execution",
+    "witness": "run tool-remote-scripts:test:ci:source-restoration",
+    "markers": [],
+    "site": 368,
+    "outcomeName": "production CI plan and execution > fixed remote leaves retain one logical owner and explicit static/dependency execution",
+    "scope": "Newpartition actualCLI forward ledger in affected/full; static-once remains",
+    "witnesses": [
+      "run tool-remote-scripts:test:ci:source-restoration",
+      "run tool-remote-scripts:test:ci:source "
+    ]
+  },
+  {
+    "index": 5,
+    "id": "matrix",
+    "path": ".github/workflows/ci.yml",
+    "before": "[remote-model, remote-model-continuation, remote-source, remote-source-restoration]",
+    "after": "[remote-model, remote-model-continuation, remote-source]",
+    "testfile": "tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts",
+    "name": "isolated remote matrix is exactly four independent whole-file runners",
+    "witness": "remote-source-restoration",
+    "markers": [],
+    "site": 184,
+    "outcomeName": "isolated remote matrix is exactly four independent whole-file runners",
+    "scope": "Parsed fourth isolatedmatrix membership; not hosted execution",
+    "witnesses": [
+      "remote-source-restoration",
+      "expect(runtime.strategy).toEqual({"
+    ]
+  },
+  {
+    "index": 6,
+    "id": "node-condition",
+    "path": ".github/workflows/ci.yml",
+    "before": "if: ${{ matrix.partition == 'remote-source' || matrix.partition == 'remote-source-restoration' }}",
+    "after": "if: ${{ matrix.partition == 'remote-source' }}",
+    "testfile": "tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts",
+    "name": "both source matrix members provision the exact CI Node runtime",
+    "witness": "remote-source-restoration",
+    "markers": [],
+    "site": 202,
+    "outcomeName": "both source matrix members provision the exact CI Node runtime",
+    "scope": "Parsed second explicitsourceNode identity; not targetsource native tooling",
+    "witnesses": [
+      "${{ matrix.partition == 'remote-source' || matrix.partition == 'remote-source-restoration' }}",
+      "${{ matrix.partition == 'remote-source' }}"
+    ]
+  }
+]

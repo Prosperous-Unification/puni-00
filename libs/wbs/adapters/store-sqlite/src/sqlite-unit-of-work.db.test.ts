@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { unitOfWorkConformance, type UnitOfWorkFixture } from '@wbs/conformance';
 import { ProjectService } from '@wbs/core';
-import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { afterEach, beforeEach, describe } from 'bun:test';
@@ -40,14 +40,18 @@ beforeEach(async () => {
   // Through the service, so the row this writes is the row production writes —
   // `NewProject` carries nine fields a literal here would have to keep in step.
   const created = await new ProjectService({
-    dependencyGraph: new DependencyGraphGuard(publicStores),
+    dependencyContext: createLocalDependencyContext(publicStores),
     clock: testClock,
     projects: publicStores.projects,
     broadcast: recordingBroadcaster(),
   }).create('Rewire the shed', ownerId);
+  if (typeof created === 'string') throw new Error(`fixture creation refused: ${created}`);
 
   fixture = {
-    uow: sqliteUnitOfWork(db, coordinator, admitted),
+    uow: sqliteUnitOfWork(db, coordinator, {
+      createScope: () => ({ stores: admitted }),
+      createRepairScope: () => ({ stores: admitted }),
+    }),
     // Read through the **public** stores, on the same connection: what the kit
     // asks is what a later request would see, not what the act believes.
     reader: publicStores,

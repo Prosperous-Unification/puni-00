@@ -1,0 +1,21 @@
+from pathlib import Path
+import subprocess
+root=Path('/tmp/puni-cross-capture')
+chain=root/'libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts'
+capture=root/'libs/wbs/adapters/store-sqlite/src/connected-plan-capture.ts'
+checks=[
+('identity',capture,lambda s:s.replace("if (prior !== undefined && JSON.stringify(prior) !== JSON.stringify(relationship))",'if (false)'), 'inconsistent identity'),
+('local-projection',capture,lambda s:s.replace('if (JSON.stringify(local) !== JSON.stringify(reads.typedDependencies))','if (false)'), 'inconsistent local-projection'),
+]
+
+for name,path,mutate,pattern in checks:
+    original=path.read_text()
+    changed=mutate(original)
+    if changed == original: raise RuntimeError('mutation missed '+name)
+    try:
+        path.write_text(changed)
+        completed=subprocess.run(['bun','test','libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts','--test-name-pattern',pattern],cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+        Path('/tmp/capture-negative-'+name+'.log').write_text(completed.stdout)
+        print(name,completed.returncode,completed.stdout[-600:])
+        if completed.returncode == 0: raise RuntimeError('mutation survived '+name)
+    finally: path.write_text(original)

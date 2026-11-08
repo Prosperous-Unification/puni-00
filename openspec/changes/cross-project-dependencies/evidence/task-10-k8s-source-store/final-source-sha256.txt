@@ -1,0 +1,4 @@
+4b817a76af79fcc503fb088a4db70439d827d47444687e4ce11657ef836a0017  tools/tool-deploy/src/k8s/execute.ts
+022b8c72078ef3f7fecaac3291eafa28f68cd4007eedecdc9015910db04a102e  tools/tool-deploy/src/k8s/fake-cluster.ts
+b02f20f62c55453bb78e11559ca4f5d168fc3c2b6fb23a31de95abf7a556dba9  tools/tool-deploy/src/k8s/controller-release.test.ts
+c2591862c136f21db9ca15790ab62c6331cf720af7ab5579dce118d7db2ad233  tools/tool-deploy/src/k8s/execute.test.ts

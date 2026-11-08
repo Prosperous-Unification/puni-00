@@ -1,0 +1,57 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+420 |     expect((await harness.call('ada', 'POST', `/api/projects/${target}/undo`)).status).toBe(200);
+421 |     harness.sqlite.run("DELETE FROM step_progress WHERE work_item_id='predecessor-leaf'");
+422 |     const before = captureState();
+423 |     expect(harness.sqlite.query('SELECT id FROM command_journal').all()).toHaveLength(1);
+424 |     publications.length = 0;
+425 |     expect(await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).toMatchObject({
+                                                                                    ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "body": {
+-     "error": "stale_undo",
++     "detail": null,
++     "done": "claim “target-leaf”",
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-63-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:425:79)
+(fail) isolated remote redo revalidates upstream evidence while continuation and release undo retain history [499.32ms]
+420 |     expect((await harness.call('ada', 'POST', `/api/projects/${target}/undo`)).status).toBe(200);
+421 |     harness.sqlite.run("DELETE FROM step_progress WHERE work_item_id='predecessor-leaf'");
+422 |     const before = captureState();
+423 |     expect(harness.sqlite.query('SELECT id FROM command_journal').all()).toHaveLength(1);
+424 |     publications.length = 0;
+425 |     expect(await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).toMatchObject({
+                                                                                    ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "body": {
+-     "error": "stale_undo",
++     "detail": null,
++     "done": "claim “target-leaf”",
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-63-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:425:79)
+(fail) shared remote redo revalidates upstream evidence while continuation and release undo retain history [379.24ms]
+
+ 0 pass
+ 22 filtered out
+ 2 fail
+ 20 expect() calls
+Ran 2 tests across 1 file. [4.00s]

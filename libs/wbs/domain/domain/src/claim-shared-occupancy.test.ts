@@ -38,6 +38,7 @@ function totalsOf(rows: readonly OccupancyRow[]): ResourceUnits[] {
 /** A leaf with one unstated step, asking its declared `demand`. */
 function leafClaim(workItemId: string, over: Partial<ClaimRequest>): ClaimRequest {
   return {
+    admission: new Map([['impl', { started: false, canStart: true, blockers: [] }]]),
     target: {
       workItemId,
       isLeaf: true,

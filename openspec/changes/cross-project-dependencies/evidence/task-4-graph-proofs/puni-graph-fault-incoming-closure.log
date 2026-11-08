@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+ 97 |
+ 98 | it('walks incoming and outgoing incidents once, without an owned-empty shortcut', async () => {
+ 99 |   const scope = observation();
+100 |   scope.relationships.push(link('ba', 'b', 'a'), link('bc', 'b', 'c'), link('cd', 'c', 'd'));
+101 |   const captured = await scope.reader.read(['a']);
+102 |   expect(captured.projects.map((project) => project.projectId)).toEqual(['a', 'b', 'c', 'd']);
+                                                                      ^
+error: expect(received).toEqual(expected)
+
+  [
+    "a",
+-   "b",
+-   "c",
+-   "d",
+  ]
+
+- Expected  - 3
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:102:65)
+(fail) walks incoming and outgoing incidents once, without an owned-empty shortcut [1.51ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [132.00ms]

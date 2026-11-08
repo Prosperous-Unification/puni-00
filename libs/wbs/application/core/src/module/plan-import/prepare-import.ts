@@ -40,6 +40,7 @@ import { MOST_CHARACTERS_IN_A_UNIT_LABEL } from '../../service/command-fields';
 import { MOST_CHARACTERS_IN_A_REF_NAME } from '../../service/command-normalizers';
 import { findDependencyGraphCycle } from '../../service/dependency-graph';
 import {
+  findImportDependencyDuplicate,
   type ImportPreparation,
   type ImportRefusalCode,
   type PreparedActual,
@@ -647,6 +648,8 @@ export function prepareImport(
     })),
   );
   const typedDependencies: TypedDependency[] = [];
+  const typedDependencyPaths = new Map<string, string>();
+  const externalDependencies: PreparedImport['externalDependencies'] = [];
   const relationshipKeys = new Set<string>();
   const leafByFileId = new Map(preparedRows.map(({ fileId, isLeaf }) => [fileId, isLeaf]));
   const stepBlockages: PlanDocumentImport['stepBlockages'] = [];
@@ -672,12 +675,86 @@ export function prepareImport(
     (left, right) =>
       left.position - right.position || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
   );
+  const relationshipIds = new Set<string>();
+  for (const [at, relationship] of document.typedDependencies.entries()) {
+    const path = `typedDependencies[${String(at)}].id`;
+    // Proof: bypassing empty-ID and repeated-ID checks separately failed the named
+    // authored-ID preparation tests (2026-10-22), including the cross-arm case.
+    if (relationship.id === '' || relationshipIds.has(relationship.id))
+      return refuses('invalid_typed_dependency', path);
+    relationshipIds.add(relationship.id);
+  }
   for (const [at, relationship] of document.typedDependencies.entries()) {
     const prefix = `typedDependencies[${String(at)}]`;
-    const endpointOf = (endpoint: typeof relationship.predecessor) =>
+    const endpointOf = (
+      endpoint: typeof relationship.predecessor | typeof relationship.successor,
+    ) =>
       endpoint.scope === 'whole'
-        ? { scope: 'whole' as const, workItemId: endpoint.workItem }
-        : { scope: endpoint.scope, workItemId: endpoint.workItem, stepId: endpoint.step };
+        ? {
+            scope: 'whole' as const,
+            workItemId: 'workItem' in endpoint ? endpoint.workItem : endpoint.workItemId,
+          }
+        : {
+            scope: endpoint.scope,
+            workItemId: 'workItem' in endpoint ? endpoint.workItem : endpoint.workItemId,
+            stepId: 'step' in endpoint ? endpoint.step : endpoint.stepId,
+          };
+    if ('kind' in relationship.predecessor && relationship.predecessor.kind === 'external') {
+      const successor = endpointOf(relationship.successor);
+      const defect = findTypedEndpointDefect(successor, {
+        isLeaf: (workItemId) => leafByFileId.get(workItemId),
+        hasStep: (stepId) => steps.byId.has(stepId),
+      });
+      if (defect !== null)
+        return refuses(
+          'invalid_typed_dependency',
+          `${prefix}.successor.${defect === 'unknown_step' ? 'step' : 'workItem'}`,
+          defect,
+        );
+      const predecessor = relationship.predecessor;
+      const key = JSON.stringify([
+        predecessor.projectId,
+        predecessor.workItemId,
+        predecessor.scope,
+        'stepId' in predecessor ? predecessor.stepId : null,
+        successor,
+        relationship.type,
+      ]);
+      // Proof: forcing this duplicate guard false made the module's duplicate external declaration test receive external_dependencies_inactive instead of invalid_typed_dependency (2026-10-22).
+      if (relationshipKeys.has(key))
+        return refuses('invalid_typed_dependency', prefix, 'duplicate');
+      relationshipKeys.add(key);
+      const mapping = document.externalMappings.find(
+        ({ source }) =>
+          source.projectId === predecessor.projectId &&
+          source.workItemId === predecessor.workItemId &&
+          source.scope === predecessor.scope &&
+          ('stepId' in source ? source.stepId : null) ===
+            ('stepId' in predecessor ? predecessor.stepId : null),
+      );
+      const destination =
+        mapping?.destination ??
+        (predecessor.scope === 'whole'
+          ? {
+              scope: 'whole' as const,
+              projectId: predecessor.projectId,
+              workItemId: predecessor.workItemId,
+            }
+          : {
+              scope: predecessor.scope,
+              projectId: predecessor.projectId,
+              workItemId: predecessor.workItemId,
+              stepId: predecessor.stepId,
+            });
+      externalDependencies.push({
+        path: prefix,
+        predecessor,
+        destination,
+        successor,
+        type: relationship.type,
+      });
+      continue;
+    }
     const typed: TypedDependency = {
       id: relationship.id,
       predecessor: endpointOf(relationship.predecessor),
@@ -705,7 +782,18 @@ export function prepareImport(
     if (relationshipKeys.has(key)) return refuses('invalid_typed_dependency', prefix, 'duplicate');
     relationshipKeys.add(key);
     typedDependencies.push(typed);
+    typedDependencyPaths.set(typed.id, prefix);
   }
+  const duplicatePath = findImportDependencyDuplicate(
+    externalDependencies.map(({ destination, ...relationship }) => ({
+      ...relationship,
+      predecessor: destination,
+    })),
+  );
+  // Proof: bypassing this refusal admitted the mapped-destination collision
+  // in prepare-import.test.ts (2026-10-22).
+  if (duplicatePath !== null)
+    return refuses('invalid_typed_dependency', duplicatePath, 'duplicate');
   if (typedDependencies.length > 0) {
     const cycle = findDependencyGraphCycle({
       rows: document.workItems.map(rowShape),
@@ -782,6 +870,8 @@ export function prepareImport(
       workItems: preparedRows,
       dependencies,
       typedDependencies,
+      typedDependencyPaths,
+      externalDependencies,
       stepByFileId,
       teamByFileId,
       personByFileId,

@@ -1,0 +1,312 @@
+{
+  "project": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3",
+  "root": "/tmp/gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-KREHCo",
+  "network": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-net",
+  "image": "docker.io/wbs-gw-01@sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4",
+  "sha": "5e34d3b0dc610fc98d2b720f0b8f6cf874553ecd",
+  "sourceProvenance": {
+    "head": "5e34d3b0dc610fc98d2b720f0b8f6cf874553ecd",
+    "verified": false,
+    "changes": "?? tools/tool-remote-scripts/test/fixtures/provenance-untracked-proof.ts"
+  },
+  "createdIds": [
+    "7bb5a2b08a74c91736e76d7b0d7a97e929c85536826ec7536029e8dcfc7d4b66",
+    "8cf80aa63735472f0bc45cf4962e7e295a5b3fa95c3cdb692a3b991cd3126886",
+    "acde3df26b8657c84f9faaf297ea9d667fbd2a9ae692477ab42da83d2d5474c6"
+  ],
+  "networkId": "ec05438e5d80b55e6de9da9dcbf81cb1aac1757b665987da480332cab7b97321",
+  "pendingNetwork": false,
+  "pendingContainers": [],
+  "observations": [
+    {
+      "label": "creation-pending",
+      "proof": {
+        "kind": "network",
+        "name": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-net"
+      }
+    },
+    {
+      "label": "creation-resolved",
+      "proof": {
+        "kind": "network",
+        "name": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-net",
+        "id": "ec05438e5d80b55e6de9da9dcbf81cb1aac1757b665987da480332cab7b97321"
+      }
+    },
+    {
+      "label": "creation-pending",
+      "proof": {
+        "kind": "container",
+        "name": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-bystander"
+      }
+    },
+    {
+      "label": "creation-resolved",
+      "proof": {
+        "kind": "container",
+        "name": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-bystander",
+        "id": "7bb5a2b08a74c91736e76d7b0d7a97e929c85536826ec7536029e8dcfc7d4b66"
+      }
+    },
+    {
+      "label": "creation-pending",
+      "proof": {
+        "kind": "container",
+        "name": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-gw-01-blue"
+      }
+    },
+    {
+      "label": "creation-resolved",
+      "proof": {
+        "kind": "container",
+        "name": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-gw-01-blue",
+        "id": "3fc5680ddf2bcc97b24f4cbe0ec76d9c08cd788cdd87bb08b43f224433ad206a"
+      }
+    },
+    {
+      "label": "no-init-prepublication-refusal",
+      "proof": {
+        "id": "3fc5680ddf2bcc97b24f4cbe0ec76d9c08cd788cdd87bb08b43f224433ad206a",
+        "files": ["deploy.lock"]
+      }
+    },
+    {
+      "label": "creation-pending",
+      "proof": {
+        "kind": "container",
+        "name": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-gw-01-blue"
+      }
+    },
+    {
+      "label": "creation-resolved",
+      "proof": {
+        "kind": "container",
+        "name": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-gw-01-blue",
+        "id": "8cf80aa63735472f0bc45cf4962e7e295a5b3fa95c3cdb692a3b991cd3126886"
+      }
+    },
+    {
+      "label": "creation-pending",
+      "proof": {
+        "kind": "container",
+        "name": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-gw-01-green"
+      }
+    },
+    {
+      "label": "creation-resolved",
+      "proof": {
+        "kind": "container",
+        "name": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-gw-01-green",
+        "id": "acde3df26b8657c84f9faaf297ea9d667fbd2a9ae692477ab42da83d2d5474c6"
+      }
+    },
+    {
+      "label": "live-processes-and-stubborn-child",
+      "proof": {
+        "topology": "PID                 PPID                COMMAND\n366233              366208              /sbin/docker-init -- bun /probe.ts parent\n366298              366233              bun /probe.ts parent\n366307              366298              /usr/local/bin/bun /probe.ts child\n",
+        "id": "8cf80aa63735472f0bc45cf4962e7e295a5b3fa95c3cdb692a3b991cd3126886",
+        "parent": {
+          "role": "parent",
+          "pid": 7,
+          "ppid": 1,
+          "start": "34603761",
+          "nonce": "04acb70b-f22e-43e2-be1a-37d40f4193e9"
+        },
+        "child": {
+          "role": "child",
+          "pid": 10,
+          "ppid": 7,
+          "start": "34603763",
+          "nonce": "04acb70b-f22e-43e2-be1a-37d40f4193e9"
+        }
+      }
+    },
+    {
+      "label": "live-processes-and-stubborn-child",
+      "proof": {
+        "topology": "PID                 PPID                COMMAND\n366379              366354              /sbin/docker-init -- bun /probe.ts parent\n366458              366379              bun /probe.ts parent\n366462              366458              /usr/local/bin/bun /probe.ts child\n",
+        "id": "acde3df26b8657c84f9faaf297ea9d667fbd2a9ae692477ab42da83d2d5474c6",
+        "parent": {
+          "role": "parent",
+          "pid": 7,
+          "ppid": 1,
+          "start": "34603797",
+          "nonce": "be9e6a9f-8647-4bff-8d5c-a8240b858f23"
+        },
+        "child": {
+          "role": "child",
+          "pid": 10,
+          "ppid": 7,
+          "start": "34603798",
+          "nonce": "be9e6a9f-8647-4bff-8d5c-a8240b858f23"
+        }
+      }
+    },
+    {
+      "label": "host-process-identities-gone",
+      "proof": [
+        {
+          "pid": "366233",
+          "start": "34603744"
+        },
+        {
+          "pid": "366298",
+          "start": "34603761"
+        },
+        {
+          "pid": "366307",
+          "start": "34603763"
+        },
+        {
+          "pid": "366379",
+          "start": "34603784"
+        },
+        {
+          "pid": "366458",
+          "start": "34603797"
+        },
+        {
+          "pid": "366462",
+          "start": "34603798"
+        }
+      ]
+    },
+    {
+      "label": "physical-exclusion",
+      "proof": {
+        "completion": {
+          "format": "dependency-gateway-complete",
+          "version": 1,
+          "attempt": "7d1be16f-ba76-476b-8933-cbf5d45de763",
+          "intentSha256": "9ebd262609708ec71b6b004308b95226ddf3974427aeefca1f50fe777ee88d86",
+          "cohort": {
+            "blue": {
+              "id": "8cf80aa63735472f0bc45cf4962e7e295a5b3fa95c3cdb692a3b991cd3126886",
+              "name": "/gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-gw-01-blue",
+              "image": "sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4",
+              "imageRef": "docker.io/wbs-gw-01@sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4",
+              "service": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-gw-01-blue",
+              "project": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3",
+              "network": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-net",
+              "networkId": "ec05438e5d80b55e6de9da9dcbf81cb1aac1757b665987da480332cab7b97321",
+              "restartPolicy": {
+                "name": "no",
+                "maximumRetryCount": 0
+              },
+              "restartCount": 0,
+              "state": {
+                "running": false,
+                "paused": false,
+                "restarting": false,
+                "dead": false,
+                "oomKilled": false,
+                "pid": 0,
+                "status": "exited",
+                "startedAt": "2026-10-23T09:36:58.106567955Z",
+                "finishedAt": "2026-10-23T09:36:59.649280991Z",
+                "exitCode": 143,
+                "error": ""
+              }
+            },
+            "green": {
+              "id": "acde3df26b8657c84f9faaf297ea9d667fbd2a9ae692477ab42da83d2d5474c6",
+              "name": "/gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-gw-01-green",
+              "image": "sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4",
+              "imageRef": "docker.io/wbs-gw-01@sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4",
+              "service": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-gw-01-green",
+              "project": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3",
+              "network": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-net",
+              "networkId": "ec05438e5d80b55e6de9da9dcbf81cb1aac1757b665987da480332cab7b97321",
+              "restartPolicy": {
+                "name": "no",
+                "maximumRetryCount": 0
+              },
+              "restartCount": 0,
+              "state": {
+                "running": false,
+                "paused": false,
+                "restarting": false,
+                "dead": false,
+                "oomKilled": false,
+                "pid": 0,
+                "status": "exited",
+                "startedAt": "2026-10-23T09:36:58.503830478Z",
+                "finishedAt": "2026-10-23T09:37:00.030624086Z",
+                "exitCode": 143,
+                "error": ""
+              }
+            }
+          }
+        },
+        "intent": "{\"format\":\"dependency-gateway-intent\",\"version\":1,\"attempt\":\"7d1be16f-ba76-476b-8933-cbf5d45de763\",\"environment\":\"prod\",\"root\":\"/tmp/gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-KREHCo\",\"network\":\"gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-net\",\"sha\":\"5e34d3b0dc610fc98d2b720f0b8f6cf874553ecd\",\"cohort\":{\"blue\":{\"id\":\"8cf80aa63735472f0bc45cf4962e7e295a5b3fa95c3cdb692a3b991cd3126886\",\"name\":\"/gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-gw-01-blue\",\"image\":\"sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4\",\"imageRef\":\"docker.io/wbs-gw-01@sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4\",\"service\":\"gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-gw-01-blue\",\"project\":\"gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3\",\"network\":\"gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-net\",\"networkId\":\"ec05438e5d80b55e6de9da9dcbf81cb1aac1757b665987da480332cab7b97321\",\"restartPolicy\":{\"name\":\"always\",\"maximumRetryCount\":0},\"restartCount\":0,\"state\":{\"running\":true,\"paused\":false,\"restarting\":false,\"dead\":false,\"oomKilled\":false,\"pid\":366233,\"status\":\"running\",\"startedAt\":\"2026-10-23T09:36:58.106567955Z\",\"finishedAt\":\"0001-01-01T00:00:00Z\",\"exitCode\":0,\"error\":\"\"}},\"green\":{\"id\":\"acde3df26b8657c84f9faaf297ea9d667fbd2a9ae692477ab42da83d2d5474c6\",\"name\":\"/gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-gw-01-green\",\"image\":\"sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4\",\"imageRef\":\"docker.io/wbs-gw-01@sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4\",\"service\":\"gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-gw-01-green\",\"project\":\"gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3\",\"network\":\"gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-net\",\"networkId\":\"ec05438e5d80b55e6de9da9dcbf81cb1aac1757b665987da480332cab7b97321\",\"restartPolicy\":{\"name\":\"always\",\"maximumRetryCount\":0},\"restartCount\":0,\"state\":{\"running\":true,\"paused\":false,\"restarting\":false,\"dead\":false,\"oomKilled\":false,\"pid\":366379,\"status\":\"running\",\"startedAt\":\"2026-10-23T09:36:58.503830478Z\",\"finishedAt\":\"0001-01-01T00:00:00Z\",\"exitCode\":0,\"error\":\"\"}}}}\n",
+        "closedSessions": 6,
+        "refusedFreshChallenges": 4,
+        "bystander": "7bb5a2b08a74c91736e76d7b0d7a97e929c85536826ec7536029e8dcfc7d4b66"
+      }
+    },
+    {
+      "label": "external-restart-refused",
+      "proof": {
+        "id": "8cf80aa63735472f0bc45cf4962e7e295a5b3fa95c3cdb692a3b991cd3126886"
+      }
+    },
+    {
+      "label": "empty-cohort",
+      "proof": {
+        "format": "dependency-gateway-complete",
+        "version": 1,
+        "attempt": "c0af6ab1-ce5a-481d-8c44-aad90fdfba9e",
+        "intentSha256": "07d57616ce03bcfd5fc7d55c3b1e4faa199eca6c756e86dd2a52b1d6833f0a58",
+        "cohort": {
+          "blue": null,
+          "green": null
+        }
+      }
+    },
+    {
+      "label": "creation-reconciliation",
+      "proof": {
+        "containers": [
+          {
+            "id": "acde3df26b8657c84f9faaf297ea9d667fbd2a9ae692477ab42da83d2d5474c6",
+            "name": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-gw-01-green"
+          },
+          {
+            "id": "8cf80aa63735472f0bc45cf4962e7e295a5b3fa95c3cdb692a3b991cd3126886",
+            "name": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-gw-01-blue"
+          },
+          {
+            "id": "7bb5a2b08a74c91736e76d7b0d7a97e929c85536826ec7536029e8dcfc7d4b66",
+            "name": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-bystander"
+          }
+        ],
+        "networks": [
+          {
+            "id": "ec05438e5d80b55e6de9da9dcbf81cb1aac1757b665987da480332cab7b97321",
+            "name": "gateway-proof-e5b38dd3-8750-4775-8e9d-7dd9d2a6f7a3-net"
+          }
+        ]
+      }
+    },
+    {
+      "label": "cleanup-inventory",
+      "proof": {
+        "remainingContainers": [],
+        "remainingNetworks": []
+      }
+    },
+    {
+      "label": "cleanup",
+      "proof": {
+        "ids": [
+          "7bb5a2b08a74c91736e76d7b0d7a97e929c85536826ec7536029e8dcfc7d4b66",
+          "8cf80aa63735472f0bc45cf4962e7e295a5b3fa95c3cdb692a3b991cd3126886",
+          "acde3df26b8657c84f9faaf297ea9d667fbd2a9ae692477ab42da83d2d5474c6"
+        ],
+        "networkId": "ec05438e5d80b55e6de9da9dcbf81cb1aac1757b665987da480332cab7b97321",
+        "complete": true
+      }
+    }
+  ],
+  "cleanupFailures": []
+}

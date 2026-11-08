@@ -1,0 +1,66 @@
+{
+  "tools/tool-fleet/src/lab-raw-repair.test.ts": {
+    "bytes": 69281,
+    "sha256": "178f9694e518ddcd12ae138ab0c068045e3559cac0c65b088fb1e6a83b966547"
+  },
+  "tools/tool-fleet/src/lab-repair-release.test.ts": {
+    "bytes": 24475,
+    "sha256": "8a6a3c85c34dfb7bcbcb037f2d3f03cb5910ef884957583eb4d5b1b42d2f689e"
+  },
+  "tools/tool-fleet/src/lab-staging-native-control.test.ts": {
+    "bytes": 56888,
+    "sha256": "b658491d9143c81488220f738e09da97dd43e1807911eb49b6a1170812a5c509"
+  },
+  "tools/tool-fleet/src/lab-staging-native-cold-fixture.py": {
+    "bytes": 8092,
+    "sha256": "e39338f975a91dc8633794623f0ed776ee50a1a046f72156788e6dc14af862d2"
+  },
+  "tools/tool-fleet/src/lab-failed-settlement.test.ts": {
+    "bytes": 58836,
+    "sha256": "c004678a5041259bc16e46d31e9e093eb87f76ebfc12e0d50fcba568cc10a489"
+  },
+  "tools/tool-fleet/src/lab-guest-preparation.test.ts": {
+    "bytes": 123331,
+    "sha256": "a2457261417631e5c00cdcf3a9f1d4c4169a9dca6daf66b26c01d9fdf740900e"
+  },
+  "tools/tool-fleet/src/lab-raw-repair.py": {
+    "bytes": 115650,
+    "sha256": "b68f9e7409da4a4b71b3a131b6da0dcb2cce976d4f512f8b2bd8d34b86e4ac67"
+  },
+  "tools/tool-fleet/src/lab-raw-preparation.py": {
+    "bytes": 55284,
+    "sha256": "3e78d2ea8aecced76bd82ea07fb006ce99a1b2212fec15fb805a8e8f7b27e8e8"
+  },
+  "tools/tool-fleet/src/lab-repair-worker.py": {
+    "bytes": 94255,
+    "sha256": "4735a0a4276ebde32a99c17b81942453013c01cf7b041cc6bbf9f30a37b9b482"
+  },
+  "tools/tool-fleet/src/lab-seed-preparation.py": {
+    "bytes": 53199,
+    "sha256": "a226b0fb582fb41636d04e83c5e7e1a54640811cd16cee465341835aa7c24c88"
+  },
+  "tools/tool-fleet/src/lab-guest-preparation.py": {
+    "bytes": 80680,
+    "sha256": "6d180f9c1d2cd116ef314215a75c88774789d29daa882f81fbbf06a2e9263f2c"
+  },
+  "tools/tool-fleet/src/lab-raw-allocation.py": {
+    "bytes": 15534,
+    "sha256": "be25ffe1740848c2dad861d87f42123a1a1664c8ffc0df6aa0a3062cf4d13ea8"
+  },
+  "openspec/changes/observability-environment-parity/evidence/repair-native-control.py": {
+    "bytes": 68193,
+    "sha256": "92c5011dac4c803c2f1e241f069f454d94c27ebdb17f9f5b199b5f7e6dd7ab7c"
+  },
+  "openspec/changes/observability-environment-parity/evidence/staging-native-control.py": {
+    "bytes": 30699,
+    "sha256": "e30a28472334fe23c5d39ae7f694a289b24eb9836463f28ae5078034d0e735f9"
+  },
+  "openspec/changes/observability-environment-parity/evidence/staging-native-prepare-draft.py": {
+    "bytes": 33242,
+    "sha256": "c9c2040f795372cfa99de0707c2fc68df5148e5929b23727a6f4601faac94b34"
+  },
+  "openspec/changes/observability-environment-parity/evidence/staging-native-prepare-bootstrap.py": {
+    "bytes": 3248,
+    "sha256": "7c23633b8e693fb5406f8947c0999fb21ddf286bc6085e75b1cb84089f9d0f03"
+  }
+}

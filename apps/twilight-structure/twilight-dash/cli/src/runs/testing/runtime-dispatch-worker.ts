@@ -9,7 +9,7 @@ import {
   decodeWorkflowBinding,
   selectWorkflowActivity,
 } from '@twilight-burokrat/contracts';
-import { canonicalRuntimeRequest, fetchTransport } from '@wbs/contracts';
+import { canonicalRuntimeRequest, DEPENDENCY_SEMANTICS, fetchTransport } from '@wbs/contracts';
 
 import type { ActivityExecutor, ActivitySession } from '../../agents/activity-executor';
 import { createClaimClient } from '../../bridge/claim-client';
@@ -97,39 +97,54 @@ const options = {
 const writer = await bootstrapSqliteStores(options);
 let observer: Awaited<ReturnType<typeof openSqliteStores>> | undefined;
 let posts = 0;
+let conditionalResponse: { status: number; publicError: string | null } | null = null;
 let turns = 0;
 try {
   observer = await openSqliteStores(options);
   const reader = observer;
   const cancellation = AbortSignal.timeout(25000);
   // The same authenticated public transport serves the runtime and live-claim readers.
-  const transport = fetchTransport(config.base, async (url, init) => {
-    const headers = new Headers(init.headers);
-    headers.set('authorization', 'Bearer ' + config.credential);
-    headers.set('origin', 'http://localhost');
-    headers.set('X-WBS-Expected-Organization', config.organizationId);
-    const conditional =
-      init.method === 'POST' && new URL(url).pathname.endsWith('/runtime-commands');
-    if (conditional) {
-      posts += 1;
-      const history = await reader.runs.readExecutionHistory(run.runId, attempt.attemptId);
-      // Proof: O2 premature POST adds a second send; the boot assertion rejects it.
-      assert.equal(history.attempt.state.kind, 'claiming', 'claim intent must commit before HTTP');
-      // Proof: R1 corrupts the reader locator; the boot assertion rejects it.
-      assert.deepEqual(
-        history.attempt.state.session.locator,
-        session.locator,
-        'locator must commit before conditional HTTP',
-      );
-    }
-    const response = await fetch(url, { ...init, headers });
-    if (conditional) {
-      assert.equal(response.status, 200, 'original conditional acceptance');
-      await response.arrayBuffer();
-      throw new TypeError('controlled response loss after actual receiver acceptance');
-    }
-    return response;
-  });
+  // Proof: the real ENABLED boot failed at discovery without this opt-in, then
+  // passed with V1; its missing/wrong-claim controls preserved every table row.
+  const transport = fetchTransport(
+    config.base,
+    async (url, init) => {
+      const headers = new Headers(init.headers);
+      headers.set('authorization', 'Bearer ' + config.credential);
+      headers.set('origin', 'http://localhost');
+      headers.set('X-WBS-Expected-Organization', config.organizationId);
+      const conditional =
+        init.method === 'POST' && new URL(url).pathname.endsWith('/runtime-commands');
+      if (conditional) {
+        posts += 1;
+        const history = await reader.runs.readExecutionHistory(run.runId, attempt.attemptId);
+        // Proof: O2 premature POST adds a second send; the boot assertion rejects it.
+        assert.equal(
+          history.attempt.state.kind,
+          'claiming',
+          'claim intent must commit before HTTP',
+        );
+        // Proof: R1 corrupts the reader locator; the boot assertion rejects it.
+        assert.deepEqual(
+          history.attempt.state.session.locator,
+          session.locator,
+          'locator must commit before conditional HTTP',
+        );
+      }
+      const response = await fetch(url, { ...init, headers });
+      if (conditional) {
+        conditionalResponse = {
+          status: response.status,
+          publicError: response.status === 200 ? null : await response.clone().text(),
+        };
+        assert.equal(response.status, 200, 'original conditional acceptance');
+        await response.arrayBuffer();
+        throw new TypeError('controlled response loss after actual receiver acceptance');
+      }
+      return response;
+    },
+    DEPENDENCY_SEMANTICS,
+  );
   const runtime = createRuntimeClient(transport);
   const claims = createClaimClient(transport);
   const ownership = unwrapReply(
@@ -377,7 +392,7 @@ try {
   assert.equal(lost.kind, 'pending');
   assert.equal(lost.observation.kind, 'unconfirmed');
   assert.deepEqual(lost.intent, duplicate.intent);
-  sendPhase({ phase: 'lost' });
+  sendPhase({ phase: 'lost', conditionalResponse });
   await receiveCommand('reconcile');
   const old = await awaitPhase(dispatchClaim(), 'old-cut lookup');
   assert.equal(old.kind, 'pending', 'duplicate must not refresh submitted old revisions');

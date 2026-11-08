@@ -3,11 +3,12 @@ export const SUPERVISOR_PROTOCOL_VERSION = 1;
 
 /**
  * The solver wire versions a start frame may carry: v1 from a backend released
- * before SS/FF typed dependencies, v2 after, and v3 with fixed person calendars. The host
+ * before SS/FF typed dependencies, v2 after, v3 with fixed person calendars,
+ * v4 with resource demands, and v5 with connected scope. The host
  * supervisor outlives either backend colour during a blue/green swap, so it
- * admits all three and leaves exact schema validation to the solver image.
+ * admits all five and leaves exact schema validation to the solver image.
  */
-export const SOLVER_REQUEST_WIRE_VERSIONS: readonly unknown[] = [1, 2, 3, 4];
+export const SOLVER_REQUEST_WIRE_VERSIONS: readonly unknown[] = [1, 2, 3, 4, 5];
 
 export type SupervisorObjective = 'pri' | 'time';
 
@@ -158,6 +159,8 @@ export function decodeSupervisorStartFrame(
   // Proof: the v1-v3 list rejected `carries resource demands and capacities on
   // solver wire 4 unchanged` with `request wireVersion 4 is not supported`
   // (`wbs-resources` R5); watched 2026-10-20.
+  // Proof: keeping the pre-v5 list made the connected start-frame case fail
+  // with "request wireVersion 5 is not supported" (11 pass / 1 fail).
   if (!SOLVER_REQUEST_WIRE_VERSIONS.includes(request['wireVersion'])) {
     throw defect(`request wireVersion ${JSON.stringify(request['wireVersion'])} is not supported`);
   }

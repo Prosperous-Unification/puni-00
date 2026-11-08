@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs';
-
-import { documentFromShapes, documentPathOf, type EndpointShape, httpShapes } from '@wbs/contracts';
+import { fileURLToPath } from 'node:url';
 
 /**
  * Derives MCP inputs from generated shared descriptors, never a hand-listed tool table.
@@ -71,6 +70,7 @@ interface OpenApiOperation {
 type OpenApiPathItem = Readonly<Record<string, OpenApiOperation | undefined>>;
 
 export interface OpenApiDocument {
+  readonly 'x-wbs-human-only-operations'?: unknown;
   readonly paths?: Readonly<Record<string, OpenApiPathItem | undefined>>;
 }
 
@@ -103,25 +103,43 @@ export interface HumanOnlyOperation {
   readonly operationId: string;
 }
 
-/** The operations of the `humanOnly` shapes in `shapes`, in the document's spelling. */
-export function humanOnlyOperationsOf(shapes: readonly EndpointShape[]): HumanOnlyOperation[] {
-  return shapes
-    .filter((shape) => shape.humanOnly === true)
-    .map((shape) => ({
-      method: methodOf(shape.method),
-      path: documentPathOf(shape.path),
-      operationId: shape.operationId,
-    }));
-}
-
-/** The production policy: every `humanOnly` shape of the shared table. */
-export const HUMAN_ONLY_OPERATIONS: readonly HumanOnlyOperation[] =
-  humanOnlyOperationsOf(httpShapes);
-
-function methodOf(method: EndpointShape['method']): HttpMethod {
-  const lower = method.toLowerCase();
-  if (!isMethod(lower)) throw new Error(`${method} is not an HTTP method mcp-01 derives`);
-  return lower;
+/**
+ * Reads the required policy from the same artifact as its operations, without
+ * loading schema validators. An explicit empty list is valid; absent or malformed
+ * metadata refuses production derivation before any tool is exposed.
+ * @throws when the policy is not an array of method/path/operationId records.
+ */
+export function humanOnlyOperationsOf(document: OpenApiDocument): HumanOnlyOperation[] {
+  const declared = document['x-wbs-human-only-operations'];
+  // Proof: treating missing metadata as [] made the otherwise-derivable subset
+  // return protected tools instead of refusing in artifact-policy.test.ts (2026-10-28).
+  if (!Array.isArray(declared)) throw new Error('missing human-only operation policy');
+  return declared.map((supplied: unknown) => {
+    // Proof: omitting this guard gave null a destructuring TypeError instead of the
+    // modeled consumer-boundary refusal in artifact-policy.test.ts (2026-10-28).
+    if (
+      typeof supplied !== 'object' ||
+      supplied === null ||
+      Array.isArray(supplied) ||
+      !('method' in supplied) ||
+      !('path' in supplied) ||
+      !('operationId' in supplied)
+    )
+      throw new Error('invalid human-only operation policy record');
+    const { method, path, operationId } = supplied;
+    // Proof: omitting field validation admitted an empty operationId through the
+    // otherwise-valid subset consumer in artifact-policy.test.ts (2026-10-28).
+    if (
+      typeof method !== 'string' ||
+      !isMethod(method) ||
+      typeof path !== 'string' ||
+      !path.startsWith('/') ||
+      typeof operationId !== 'string' ||
+      operationId.trim() === ''
+    )
+      throw new Error('invalid human-only operation policy fields');
+    return { method, path, operationId };
+  });
 }
 
 /** What the MCP protocol accepts as a tool name; `operationId` must already fit. */
@@ -139,7 +157,13 @@ const excludes = (pattern: string, path: string): boolean =>
 // They remain outside the required external exclusion set because they are optional
 // in documents supplied by older or third-party servers.
 // Proof: removing these deny paths exposed getHealth in the external-document production derivation test.
-const optionalOperationalPaths = ['/health', '/metrics'] as const;
+// Proof: removing the dependency-capability path exposed getDependencyCapability
+// in the generated-document production derivation (12 pass / 2 fail, 2026-10-23).
+const optionalOperationalPaths = [
+  '/health',
+  '/metrics',
+  '/api/runtime/dependency-capability',
+] as const;
 const exclusionFor = (path: string): string | undefined =>
   [...EXCLUDED_PATHS, ...optionalOperationalPaths].find((candidate) => excludes(candidate, path));
 
@@ -272,7 +296,7 @@ function toTool(method: HttpMethod, path: string, operation: OpenApiOperation): 
  */
 export function toolsFromDocument(
   document: OpenApiDocument,
-  humanOnly: readonly HumanOnlyOperation[] = HUMAN_ONLY_OPERATIONS,
+  humanOnly: readonly HumanOnlyOperation[] = humanOnlyOperationsOf(document),
 ): DerivedTool[] {
   const paths = document.paths;
   if (paths === undefined || Object.keys(paths).length === 0) {
@@ -338,9 +362,16 @@ export function toolsFromDocument(
   return tools;
 }
 
-/** Generates the production document, or reads an explicitly supplied external fixture file. */
-export function readDocument(file?: string): OpenApiDocument {
-  if (file === undefined) return documentFromShapes(httpShapes);
+/**
+ * Reads the required same-checkout build artifact beside this runtime module.
+ * Explicit paths support external fixtures. Missing, unreadable and malformed
+ * documents refuse startup; runtime never imports the HTTP schema validators.
+ */
+// Proof: the bundled default-runtime tests failed when artifact reads were
+// replaced by runtime generation: missing/unreadable/malformed files booted.
+export function readDocument(
+  file = fileURLToPath(new URL('./openapi.json', import.meta.url)),
+): OpenApiDocument {
   let text: string;
   try {
     text = readFileSync(file, 'utf8');
@@ -348,6 +379,8 @@ export function readDocument(file?: string): OpenApiDocument {
     throw new Error(`cannot read the OpenAPI document at ${file}`, { cause });
   }
   try {
+    // The document is generated by emit-openapi-cli; toolsFromDocument checks
+    // the operation and exclusion invariants before any tool is exposed.
     return JSON.parse(text) as OpenApiDocument;
   } catch (cause) {
     throw new Error(`the OpenAPI document at ${file} is not valid JSON`, { cause });

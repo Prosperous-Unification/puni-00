@@ -1,0 +1,24 @@
+
+test/source-inner-program-child.test.ts:
+source Node owning namespace actual UID/GID1000:1000 observed
+source Node normal proc BEGIN timestamp-range
+646 |         const decoded = decodeInnerProcess(receipt.tokens.slice(index + 1, index + 12), {});
+647 |         expect(decoded.executable.device).toBe('9007199254740993');
+648 |         expect(decoded.executable.inode).toBe('9007199254740995');
+649 |         expect(receipt.tokens[index + 7]).toContain('2026-10-29 08:00:00.123456789 +0000');
+650 |       } else {
+651 |         expect(receipt.code).toBe(1);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-program.model.ts:651:30)
+(fail) actual source collector normal proc boundary observes timestamp-range [206.73ms]
+
+ 0 pass
+ 48 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [226.00ms]

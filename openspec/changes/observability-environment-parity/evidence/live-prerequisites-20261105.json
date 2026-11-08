@@ -1,0 +1,57 @@
+{
+  "observedAt": "2026-11-05T04:29:16.890282+00:00",
+  "scope": "metadata-only supplemental inventory",
+  "selectedReadsComplete": true,
+  "fullPreflightComplete": false,
+  "migrationReady": false,
+  "runtimeAuthority": false,
+  "records": [
+    {
+      "operation": "namespaces",
+      "projection": {
+        "observed": ["namespace/observability", "namespace/flux-system"],
+        "absent": ["namespace/observability-dev"],
+        "basis": "exact named selector with ignore-not-found and native exit0"
+      },
+      "exit": 0,
+      "outputSha256": "5b5e81f916e2a47c531ef979a6dd182b97b98d7a0bfdf600d7e2be9e8ba79b81",
+      "outputBytes": 46,
+      "diagnosticBytes": 0
+    },
+    {
+      "operation": "controller-crds",
+      "projection": {
+        "observed": [],
+        "absent": [
+          "customresourcedefinition.apiextensions.k8s.io/elasticsearches.elasticsearch.k8s.elastic.co",
+          "customresourcedefinition.apiextensions.k8s.io/kibanas.kibana.k8s.elastic.co",
+          "customresourcedefinition.apiextensions.k8s.io/prometheuses.monitoring.coreos.com"
+        ],
+        "basis": "exact named selector with ignore-not-found and native exit0"
+      },
+      "exit": 0,
+      "outputSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "outputBytes": 0,
+      "diagnosticBytes": 0
+    },
+    {
+      "operation": "secrets:observability",
+      "projection": [],
+      "exit": 0,
+      "outputSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "outputBytes": 2,
+      "diagnosticBytes": 0
+    }
+  ],
+  "execution": {
+    "observedAt": "2026-11-05T04:29:17.975751+00:00",
+    "exit": 0,
+    "durationSeconds": 2.5869073860012577,
+    "readOnly": true,
+    "scriptSha256": "b90c8bd7ae7345cbb0c45c5d405ab244b7e849d2f97dbcdac7e8f2879e5ebf48",
+    "stdoutSha256": "6463f87168e6abe7e9ff53cd3f368afff97a44ee20f43309b32d6694d12a58e6",
+    "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "secretValuesRequested": false,
+    "sameAuthorizedTransportAs": "live-inventory-20261104/execution.json"
+  }
+}

@@ -14,8 +14,8 @@ export interface ConnectionAccessDeps {
   timers: Timers;
   /** Aborted when the connection closes; no check starts or reports after it. */
   signal: AbortSignal;
-  /** A held project subscription lost access: the composition unsubscribes it. */
-  onRevoked: (subscription: string) => void;
+  /** A held project lost access; await its unsubscribe/presence/control delivery before advancing. */
+  onRevoked: (subscription: string) => Promise<void> | void;
   /** The credential no longer proves anyone: the composition closes the socket with 1008. */
   onUnauthenticated: () => void;
   /** be-01 could not answer: the composition reports it and closes the socket. */
@@ -115,9 +115,17 @@ export class ConnectionAccess {
       // busy subscription changes` run stacked rounds back to back (2026-10-11).
       if (this.rounding) return;
       this.rounding = true;
-      void this.run(() => this.renew()).finally(() => {
-        this.rounding = false;
-      });
+      // Proof: omitting this rejection path detached the rejected revocation and
+      // left its lease scheduled in reports a rejected asynchronous revocation.
+      void this.run(() => this.renew())
+        .catch((caught: unknown) => {
+          this.close(() => {
+            this.deps.onUnavailable(caught);
+          });
+        })
+        .finally(() => {
+          this.rounding = false;
+        });
     });
   }
 
@@ -136,11 +144,14 @@ export class ConnectionAccess {
     const held = [...this.held];
     const admissions = await Promise.all(held.map(([, projectId]) => this.admit(projectId)));
     if (admissions.includes('closed')) return;
-    held.forEach(([subscription, projectId], index) => {
-      if (admissions[index] !== 'denied' || this.held.get(subscription) !== projectId) return;
-      this.held.delete(subscription);
-      this.deps.onRevoked(subscription);
-    });
+    await Promise.all(
+      held.map(async ([subscription, projectId], index) => {
+        if (admissions[index] !== 'denied' || this.held.get(subscription) !== projectId) return;
+        this.held.delete(subscription);
+        // Proof: detaching this callback loses the error in reports a rejected asynchronous revocation.
+        await this.deps.onRevoked(subscription);
+      }),
+    );
   }
 
   private close(hook: () => void): void {

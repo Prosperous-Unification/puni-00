@@ -27,6 +27,10 @@ export function createProjectCatalog({
     create: (name) => whileCurrent(() => routes.createProject(name)),
     markOpened: (projectId) => whileCurrent(() => routes.openProject(projectId)),
     rename: (projectId, name) => whileCurrent(() => routes.renameProject(projectId, name)),
+    // Proof: bypassing whileCurrent here failed `sends nothing once its session is
+    // withdrawn`: sent contained abbreviation:p1:puni2 instead of []. Watched 2026-10-22.
+    setAbbreviation: (projectId, abbreviation) =>
+      whileCurrent(() => routes.setAbbreviation(projectId, abbreviation)),
     importPlan: (document) => whileCurrent(() => routes.importPlan(document)),
   };
 }

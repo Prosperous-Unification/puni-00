@@ -1,0 +1,55 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/fixture-failure.test.ts:
+(pass) nested fixture failure retains closed source stage and known assertion category [0.75ms]
+(pass) nested command failure retains only closed operation class and numeric exit [0.23ms]
+(pass) unclassified executable and malformed command metadata never retain arbitrary fields [0.11ms]
+(pass) unknown error name message enumerable properties and raw causes stay hash-only [0.12ms]
+(pass) cause cycle depth and oversized errors terminate with explicit bounded markers [0.28ms]
+(pass) throwing error accessors and non-error payloads remain visibly unclassified [0.19ms]
+(pass) stage wrapper preserves known failures and never converts unknown failure to success [0.78ms]
+136 |     });
+137 |     const report = summarizeFixtureFailure(new Error('outer', { cause: failure }));
+138 |     expect(report.chain.at(-1)?.category).toBe('unreadable-error');
+139 |     expect(JSON.stringify(report)).not.toContain('PRIVATE_');
+140 |   }
+141 |   expect(reads).toBe(0);
+                      ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 6
+
+      at <anonymous> (/tmp/puni-source-native-init-descriptors/tools/tool-remote-scripts/test/fixture-failure.test.ts:141:17)
+(fail) diagnostic descriptors never invoke error or typed metadata getters [0.57ms]
+152 |   const failure = new Error('hidden');
+153 |   Object.defineProperty(failure, 'message', { get() {
+154 |     reads++;
+155 |     return 'managed cohort source dev mutable image tag resolution changed or was not excluded';
+156 |   } });
+157 |   await rejects(requireFixtureRefusal('fixture-tag-negative', 'source-tag-resolution', () => Promise.reject(failure)),
+              ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: [Function],
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-native-init-descriptors/tools/tool-remote-scripts/test/fixture-failure.test.ts:157:9
+(fail) expected refusal cannot execute a getter that impersonates a known assertion [7.35ms]
+(pass) actual bounded command failure keeps closed stage exit attribution and discards stderr [23.90ms]
+(pass) expected negative preserves known refusal and rejects unknown or missing failures [0.54ms]
+(pass) invalid external diagnostic coordinates fail closed without retaining their values [0.23ms]
+(pass) command status -1 is outside the receipt grammar [0.03ms]
+(pass) command status 256 is outside the receipt grammar
+(pass) command status NaN is outside the receipt grammar
+
+ 13 pass
+ 2 fail
+ 51 expect() calls
+Ran 15 tests across 1 file. [120.00ms]

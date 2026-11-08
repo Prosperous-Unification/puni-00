@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "bun",
+    "/tmp/puni-source-start-20261029/spy-identity-probe.ts"
+  ],
+  "pid": 3023077,
+  "exit": 0,
+  "signal": null,
+  "stdoutEOF": true,
+  "stderrEOF": true,
+  "elapsedSeconds": 0.03117521305102855,
+  "stdoutSHA256": "92eaacd69bc0139931b4dc26a521c0626ea435c817a656ebe077674cc276b62c",
+  "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

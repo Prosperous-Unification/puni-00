@@ -2,7 +2,7 @@
 
 ### Requirement: Browser provisioning and validation have explicit finite budgets
 
-Every browser shard SHALL declare a 50-minute whole-job budget, a 15-minute Chromium provisioning budget, a 25-minute layout validation budget and a five-minute organization validation budget. The whole-job allowance SHALL include five minutes beyond the sum of those phase allowances for other setup and artifact work. The production-workflow contract SHALL reject an absent phase allowance or an insufficient whole-job allowance.
+Every one of the eight browser shards SHALL declare a 55-minute whole-job budget, a 15-minute Chromium provisioning budget and a 25-minute layout validation budget. The organization validation on shard one SHALL have five minutes and the dedicated cross-project validation on shard four SHALL have ten minutes. The whole-job allowance SHALL include five minutes beyond the sum of the phases selected on each shard for other setup and artifact work. The production-workflow contract SHALL reject an absent phase allowance, an insufficient whole-job allowance or continued execution after a required phase failure.
 
 #### Scenario: Slow valid provisioning leaves room for validation
 
@@ -18,6 +18,11 @@ Every browser shard SHALL declare a 50-minute whole-job budget, a 15-minute Chro
 
 - **WHEN** the browser job is restored to a 25-minute cap while retaining the required phase budgets
 - **THEN** the production-workflow contract fails because setup can consume the intended validation allowance
+
+#### Scenario: Shard four needs its dedicated allowance
+
+- **WHEN** the whole-job cap is reduced to 50 minutes while the dedicated cross-project step remains on shard four with its ten-minute limit
+- **THEN** the production-workflow contract fails because that selected path requires 55 minutes including overhead
 
 ### Requirement: Deadline failures remain visible to the existing required verdict
 
@@ -35,7 +40,7 @@ A browser phase that exceeds its declared deadline SHALL fail the job and preven
 
 ### Requirement: Budget correction preserves validation scope
 
-The correction SHALL preserve four shards, existing test commands, organization acceptance on shard one, zero Playwright retries, provider and runner selection, affected/docs scope selection, artifacts, and the stable pixels reducer. It SHALL add no merge serialization or review requirements.
+The correction SHALL preserve eight shards, existing test commands, organization acceptance on shard one, dedicated cross-project validation on shard four, zero Playwright retries, provider and runner selection, affected/docs scope selection, artifacts, and the stable pixels reducer. It SHALL add no merge serialization or review requirements.
 
 #### Scenario: The complete browser validation succeeds
 

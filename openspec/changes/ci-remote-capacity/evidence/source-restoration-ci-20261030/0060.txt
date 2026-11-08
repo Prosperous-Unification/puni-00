@@ -1,0 +1,24 @@
+
+tools/tool-git-hooks/src/hooks/ci-plan.test.ts:
+363 |           commands
+364 |             .trim()
+365 |             .split('\n')
+366 |             .filter((line) => line.includes(':test:ci:')),
+367 |         ).toHaveLength(1);
+368 |         expect(commands).toContain(
+                               ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "run tool-remote-scripts:test:ci:source-restoration --head=dd152488360509f54959e05ef3d13f8c96381262 --skip-nx-cache --parallel=2"
+Received: "nx run tool-remote-scripts:test:ci:source --head=dd152488360509f54959e05ef3d13f8c96381262 --skip-nx-cache --parallel=2 --output-style=stream\n"
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-git-hooks/src/hooks/ci-plan.test.ts:368:26)
+(fail) production CI plan and execution > fixed remote leaves retain one logical owner and explicit static/dependency execution [2844.18ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=2
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 23 expect() calls
+Ran 1 test across 1 file. [2.88s]

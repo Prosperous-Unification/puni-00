@@ -1,0 +1,86 @@
+[
+  {
+    "name": "original-context",
+    "file": "source-role-process.ts",
+    "case": "context",
+    "before": "    await assertParticipantRestorationContext(context);\n    checkDeadline",
+    "after": "    checkDeadline"
+  },
+  {
+    "name": "opening-monitor",
+    "file": "source-role-process.ts",
+    "case": "monitor",
+    "before": "    await context.source.inspectRunning();\n    const selected",
+    "after": "    const selected"
+  },
+  {
+    "name": "closing-monitor",
+    "file": "source-role-process.ts",
+    "case": "closing-output",
+    "before": "    await context.source.inspectRunning();\n    await assertParticipantRestorationContext(context);",
+    "after": "    await assertParticipantRestorationContext(context);"
+  },
+  {
+    "name": "host-inner-join",
+    "file": "source-role-profile.ts",
+    "case": "uid",
+    "before": "    if (\n      inner?.start !== host.start ||\n      inner.uid !== host.uid ||\n      !isArgvEqual(inner.uids.map(String), host.uids.map(String)) ||\n      host.uids.some((uid) => uid !== 1000) ||\n      host.cgroup !== rootHost.cgroup\n    )\n      refuse();",
+    "after": ""
+  },
+  {
+    "name": "role-listener-join",
+    "file": "source-role-profile.ts",
+    "case": "misassigned",
+    "before": "    const application = candidates.find((process) =>\n      owned.every((listener) => listener.owner === process.pid),\n    );",
+    "after": "    const application = candidates.at(0);"
+  },
+  {
+    "name": "whole-roster",
+    "file": "source-role-profile.ts",
+    "case": "extra",
+    "before": "  if (admitted.size !== pass.processes.length) refuse();",
+    "after": ""
+  },
+  {
+    "name": "inner-readback",
+    "file": "source-role-process.ts",
+    "case": "closing-listener",
+    "before": "    assertSame(passes[0], passes[1], 'source inner process/listener readback');",
+    "after": ""
+  },
+  {
+    "name": "host-readback",
+    "file": "source-role-process.ts",
+    "case": "closing-host",
+    "before": "    assertSame(firstRoster, lastRoster, 'source host process roster readback');",
+    "after": ""
+  },
+  {
+    "name": "runtime-readback",
+    "file": "source-role-process.ts",
+    "case": "closing-runtime",
+    "before": "    assertParticipantTransition(runtime, finalRuntime.native, 'stable');",
+    "after": ""
+  },
+  {
+    "name": "first-binding",
+    "file": "source-role-process.ts",
+    "case": "pid-reuse",
+    "before": "    else assertSame(first, binding, 'source original whole-process binding');",
+    "after": ""
+  },
+  {
+    "name": "terminal-cleanup",
+    "file": "source-role-process.ts",
+    "case": "cleanup",
+    "before": "  if (terminal.has(context) || observing.has(context))",
+    "after": "  if (observing.has(context))"
+  },
+  {
+    "name": "role-ancestry",
+    "file": "source-role-profile.ts",
+    "case": "role-parent",
+    "before": "    if (parent(child) !== controller.pid) refuse();",
+    "after": ""
+  }
+]

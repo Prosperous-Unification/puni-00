@@ -12,6 +12,7 @@ import type {
 } from '@/modules/project/contract';
 import { fakeProjectApi } from '@/testing/fake-project-api';
 import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
+import { createRefusingAddressApi } from '@/testing/refusing-address-api';
 
 import { createProjectOwner, installProjectRuntime, type ProjectOwner } from './project-runtime';
 
@@ -148,7 +149,7 @@ function sourceFor(world: OwnerWorld, projectId: string, broken = false): Projec
       return base.createCalendarMarker(id, marker);
     },
   };
-  const composed = projectServicesOver(client, NO_SAVED_PLANS);
+  const composed = projectServicesOver(client, NO_SAVED_PLANS, createRefusingAddressApi());
   const services: ProjectServices = {
     ...composed,
     planCommandsFor: (id) => {

@@ -1,0 +1,5 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+
+error: regex "fails corrupt placement" matched 0 tests. Searched 1 file (skipping 12 tests) [2.49s]

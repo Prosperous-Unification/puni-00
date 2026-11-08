@@ -1,0 +1,20 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-delivery.controller.db.test.ts:
+(pass) mounted completion delivers durable successor envelopes through the production gateway [5577.80ms]
+
+apps/wbs/be-01/src/controller/cross-project-events.controller.db.test.ts:
+(pass) rename invalidates dependency label readers without retargeting or foreign delivery [379.02ms]
+(pass) dependency fanout delivery occurs after commit and writer release [346.49ms]
+(pass) a rejected dependency command batch publishes nothing and rolls earlier mutations back [289.86ms]
+(pass) mounted completion refreshes successor-only readiness with shared mode %s [423.56ms]
+(pass) mounted completion refreshes successor-only readiness with shared mode %s [450.31ms]
+(pass) mounted shared-person bridge carries a label change across an external edge [342.25ms]
+(pass) rank reversal invalidates the dependency component with shared mode %s [296.32ms]
+(pass) rank reversal invalidates the dependency component with shared mode %s [285.69ms]
+(pass) number-only edits refresh dependency labels without retargeting or foreign events [310.63ms]
+
+ 10 pass
+ 0 fail
+ 142 expect() calls
+Ran 10 tests across 2 files. [14.96s]

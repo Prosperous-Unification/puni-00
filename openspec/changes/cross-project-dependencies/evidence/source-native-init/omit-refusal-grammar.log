@@ -1,0 +1,30 @@
+Injected refusal-grammar; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/fixture-failure.test.ts:
+215 |     'fixture stage invalid',
+216 |   );
+217 |   expect(() =>
+218 |     summarizeFixtureFailure(new Error('opaque'), 'PRIVATE_FALLBACK' as FixtureStage),
+219 |   ).toThrow('fixture diagnostic fallback invalid');
+220 |   await rejects(
+              ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: /expected refusal category invalid/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:220:9
+(fail) invalid external diagnostic coordinates fail closed without retaining their values [4.99ms]
+
+ 0 pass
+ 13 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [53.00ms]

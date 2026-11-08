@@ -1,0 +1,359 @@
+{
+  "format": "ordinary-hold-load-expectations-v1",
+  "sourceRoot": "/home/df/.codex/worktrees/1b31/puni-00",
+  "sourceEpoch": "ordinary-febb-custody-v1",
+  "rows": [
+    {
+      "namespace": "file",
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/src/backup.ts",
+      "mode": "transform",
+      "loader": "ts",
+      "bytes": 25197,
+      "sha256": "8af3c9b643e7ac9080acf2f0de4c72ab2e4e8d111d3617656c25dbb04a919b45"
+    },
+    {
+      "namespace": "file",
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/src/db.ts",
+      "mode": "transform",
+      "loader": "ts",
+      "bytes": 24666,
+      "sha256": "3c914d8a3245ca1c5b425fa83b6d624f5682ed5f7657426b77292c98174ef5aa"
+    },
+    {
+      "namespace": "file",
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/src/migrate.ts",
+      "mode": "transform",
+      "loader": "ts",
+      "bytes": 8984,
+      "sha256": "97625f423470fbdf28f34a81bc2c03f71c519cbba528bd065e67b267b393376c"
+    },
+    {
+      "namespace": "file",
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/src/sqlite-cleanup.ts",
+      "mode": "pinned-pass-through",
+      "loader": "ts",
+      "bytes": 2479,
+      "sha256": "83785f02655bf81514328255fe45e047b4b79a5374fdebb3a269d2d2687ac74b"
+    },
+    {
+      "namespace": "file",
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts",
+      "mode": "transform",
+      "loader": "ts",
+      "bytes": 17506,
+      "sha256": "a91f394f42bb8338f939a664625a4f1f106897bc097b31b241167497f6168d5c"
+    },
+    {
+      "namespace": "file",
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/fixtures/dependency-participant-restoration.ts",
+      "mode": "transform",
+      "loader": "ts",
+      "bytes": 4834,
+      "sha256": "288079f27e2086fbf4c4b63df2efedccf25f65f35a0766765923a2e69fb662cc"
+    },
+    {
+      "namespace": "file",
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/fixtures/namespace-audit.ts",
+      "mode": "transform",
+      "loader": "ts",
+      "bytes": 10555,
+      "sha256": "914cc2d20a92424c0ef4d784ca4dd89facee016de22aa9c2bde9c6a10357e5a6"
+    },
+    {
+      "namespace": "file",
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/fixtures/source-database-binding.ts",
+      "mode": "transform",
+      "loader": "ts",
+      "bytes": 14071,
+      "sha256": "54fc03ff6042f9cc125d5ddcc550636a21ef798ef11f7e98d3b19bb86990bbb6"
+    },
+    {
+      "namespace": "file",
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts",
+      "mode": "transform",
+      "loader": "ts",
+      "bytes": 5444,
+      "sha256": "58cdc3eb156fb1253ffd2962131c5a0ae5727db3d05eaca72aeb75ace0ebbfc1"
+    },
+    {
+      "namespace": "file",
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/fixtures/source-startup.ts",
+      "mode": "transform",
+      "loader": "ts",
+      "bytes": 4632,
+      "sha256": "706cb60da6d3ea19dc84ca0f0842b9078abad3cfc15f5bc81156acd143302d93"
+    },
+    {
+      "namespace": "file",
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts",
+      "mode": "transform",
+      "loader": "ts",
+      "bytes": 43654,
+      "sha256": "8cb76524aa8da1fc88bbf64922117c7c5e8abaad72a63739903e0fd8f7c591d3"
+    },
+    {
+      "namespace": "file",
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts",
+      "mode": "transform",
+      "loader": "ts",
+      "bytes": 34725,
+      "sha256": "8f90b539f10e737725e2c10004a6ddfa9555a21be97631b3d28d234387cfb35d"
+    },
+    {
+      "namespace": "file",
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/directory-file.ts",
+      "mode": "pinned-pass-through",
+      "loader": "ts",
+      "bytes": 3520,
+      "sha256": "b3d0480ceaa6fc88e19278cfc667919d1803173f5fdccaf5e4b33bf2c97e7e0c"
+    },
+    {
+      "namespace": "file",
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/edge-ownership.ts",
+      "mode": "transform",
+      "loader": "ts",
+      "bytes": 84486,
+      "sha256": "3956121941905aea3725555d1e9b1449922d388e5c30b1c68fa5b17a0f39e59b"
+    },
+    {
+      "namespace": "file",
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts",
+      "mode": "transform",
+      "loader": "ts",
+      "bytes": 91035,
+      "sha256": "2894de90ca15d31a3dce7360450fc27d3e8579bc6ab0e27da92c1c409c984772"
+    },
+    {
+      "namespace": "file",
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/lock.ts",
+      "mode": "transform",
+      "loader": "ts",
+      "bytes": 8861,
+      "sha256": "8ea2695cf3546db599ce64d33dbab70b9f39f28aedd2a5883dc810f5248acf4c"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "backup-fs",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 2945,
+      "sha256": "b2a26a22dab5248c6e90f9a902961cc428ec959048109c9dd30aa8fbf145862b"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "child-collector",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 625,
+      "sha256": "ea430341dba21438706fff87b973675750bbdda6399001dda392fded1709cfbe"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "child-emitter",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 600,
+      "sha256": "afe6eebf63310f3d83b24cb5d5a22e1d25215752c92ed548e30d2dd863fd070a"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "child-git",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 540,
+      "sha256": "12fa6ba5fe6ff958accaf2ca8528ac92e0d9092406d8321c0b15a1881dbefbaf"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "child-namespace",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 767,
+      "sha256": "d34c6c8616a9f70507307a09ac91b7153ea3ba991fa8fc5052a1b2deb5d7528a"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "complete-scanner",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 742,
+      "sha256": "777f622329284efcb4758ecb06d14854b2575c9166b5523b695c7499774f7a77"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "complete-storage",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 793,
+      "sha256": "2a0455aab145f724a4a972f646d071e0ecfb75eb0fbf283caf66b16607e383fe"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "database-readonly",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 875,
+      "sha256": "f706a1b0117f74349ff6435f8eb1fe64a2fdf5cce4e68f360b8ed0633775a2d9"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "database-readwrite",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 915,
+      "sha256": "054872c8c034de11df3e2a546962afab7563057f97c0ce45be6f5a54990794c6"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "graph-fs",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 3408,
+      "sha256": "bc741330d289b5379fc29779610d3c1e745d33a52f23cf953789a0f5e33fc960"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "graph-relative",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 1085,
+      "sha256": "6e4c77f63d3adbcb01b2b83dd095f135c5fb9a47ab611e2ff95b73c9037080bb"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "ledger",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 27674,
+      "sha256": "b66005fc4f10c138fe631e4d4822d024ddfc6c9d9c676d814e5e608b1b4346eb"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "lock-fs",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 2907,
+      "sha256": "c5b1ab061b82c3a69aee28e0ba60a724465cd190309e5476dcf156bddb310574"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "migration-call",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 697,
+      "sha256": "e8ae5ea333fdabe71c6905068390b6cf28e92e73ba2637c4f95500cf7e0a29cc"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "migration-fs",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 1709,
+      "sha256": "c801b4ef82adcc94fddf1a665eab442065909aa669d234bf6270620185a277f0"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "owner-fs",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 2926,
+      "sha256": "7b21a010a636b9c5dfc528aa3b8eca8a5ec5b1559a8be6e9345cd81b3282de7d"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "owner-timer",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 679,
+      "sha256": "26a2beebff060e15fdb8fc66a321121826e270c5d6258d668e1a6903e2e773fd"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "setup-complete-fs",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 1670,
+      "sha256": "286bc1457308920e256dd6463fdc3d8b2d503eededc98ae8c9bf4a6d6c071b5b"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "setup-complete-write",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 719,
+      "sha256": "26de48b8240055c1835e833d710aca4f21323ef32511909dac44840538d4afec"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "setup-database-fs",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 1670,
+      "sha256": "3b2c95d99f96e88bbe8fb4a4752797d16241050341ac403fbbee854fc234f4b9"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "setup-frontend-fs",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 1670,
+      "sha256": "4d0be4d99edaa7a0528d53309f36b66134332f21e0f0d445840df8b304cac020"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "setup-namespace-fs",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 1683,
+      "sha256": "3c982ee5a3a1f0e647946351fe39ee998ae2b4a13b2d92e2e9789c12eba42800"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "setup-namespace-write",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 778,
+      "sha256": "7d860c6f9e3d8ae4e74db01ac7585b9961fd83987e0b9c966f53e54e8d180af5"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "setup-participant-fs",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 1709,
+      "sha256": "4beb5ccd5c0513ca7e59e129f0e06019d10f9569df9a283e31e80380ab93f114"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "setup-startup-fs",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 1657,
+      "sha256": "f6518b8c16d58d1fdbceca39df5b7aeb519eecea934dfdce6f31d1aa2ee41daf"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "storage-database",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 1108,
+      "sha256": "1bcb854b0e4af4fd83fc0b96c050fd21e0c07e8b4acfb9075a322b55f675916d"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "storage-fs",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 2964,
+      "sha256": "06574e78e0ac4cc6f8ce07c84fb477923dc71114f6ee129194cc1ea1a87c3648"
+    },
+    {
+      "namespace": "ordinary-hold-v1",
+      "identity": "storage-graph",
+      "mode": "virtual",
+      "loader": "ts",
+      "bytes": 978,
+      "sha256": "fd050598456e015d61cb4ad70f3b5476f36d9348d2eec3126010c8371f77c56f"
+    }
+  ]
+}

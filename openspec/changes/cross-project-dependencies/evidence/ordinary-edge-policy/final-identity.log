@@ -1,0 +1,40 @@
+Command: bun test tools/tool-remote-scripts/src/lib/edge-policy.test.ts --preload ./tools/test/scratch/preload.ts --test-name-pattern final-path|final-metadata
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/edge-policy.test.ts:
+141 |       } catch (cause) { if (!(cause instanceof Error)) throw cause; if (fault === 'opened-path' && !cause.message.includes('file identity')) throw cause; }
+142 |     `;
+143 |     const child = Bun.spawn([process.execPath, '-e', program], { stderr: 'pipe', stdout: 'pipe' });
+144 |     const stderr = await new Response(child.stderr).text();
+145 |     expect(stderr).toBe('');
+146 |     expect(await child.exited).toBe(0);
+                                     ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 2
+
+      at <anonymous> (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.test.ts:146:32)
+(fail) production policy final-path fault refuses and preserves publication evidence [28.34ms]
+141 |       } catch (cause) { if (!(cause instanceof Error)) throw cause; if (fault === 'opened-path' && !cause.message.includes('file identity')) throw cause; }
+142 |     `;
+143 |     const child = Bun.spawn([process.execPath, '-e', program], { stderr: 'pipe', stdout: 'pipe' });
+144 |     const stderr = await new Response(child.stderr).text();
+145 |     expect(stderr).toBe('');
+146 |     expect(await child.exited).toBe(0);
+                                     ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 2
+
+      at <anonymous> (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.test.ts:146:32)
+(fail) production policy final-metadata fault refuses and preserves publication evidence [23.02ms]
+
+ 0 pass
+ 16 filtered out
+ 2 fail
+ 4 expect() calls
+Ran 2 tests across 1 file. [87.00ms]
+
+Exit: 1

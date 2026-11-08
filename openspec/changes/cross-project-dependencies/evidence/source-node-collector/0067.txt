@@ -1,0 +1,12 @@
+
+test/source-inner-program-child.test.ts:
+source Node owning namespace actual UID/GID1000:1000 observed
+source Node census identity BEGIN count
+actual source census count identity refusal observed
+(pass) actual source fresh census refuses count at its identity boundary [25.77ms]
+
+ 1 pass
+ 48 filtered out
+ 0 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [46.00ms]

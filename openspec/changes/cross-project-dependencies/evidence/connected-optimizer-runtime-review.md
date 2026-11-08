@@ -1,0 +1,32 @@
+# Connected optimizer runtime bridge — independent review
+
+**APPROVE bounded integration.** No blocking finding in commit `68d8a55e97008da6f1322967f4fbf063d60b628d` against base `5cb98ca31`. This approves the deterministic exit evaluator and callback-backed captured adapter only. Tasks **7.3 and 7.4 remain open**; this is not installed-runtime, persistence, activation or release approval.
+
+Reviewed the clean `/tmp/puni-connected-runtime` checkout, its AGENTS/LLM index, proposal, task 7 contracts, scheduler-optimization delta, connected-optimization architecture ruling, prior stage/identity reviews and evidence, and this packet's `evidence/connected-optimizer-runtime.md`. No source edits or pushes were performed. Final HEAD matches the requested commit and `git status --short` is empty.
+
+The adapter computes SHA-256 over the canonical exact stage bytes, then hashes the full `(projectId, inputHash, objective, contractVersion, budgetMs, quantum, wireVersion)` tuple. PRI and Time have distinct full question hashes and share the same input identity. Both prepared requests reach the same synchronous `readPair` call. The real selector/adapter test verifies fixed foreign request contents, earlier replacement feeding a later stage, configured objective selection and unchanged Fast-selected placement.
+
+The evaluator replays trusted captured evidence before evaluating child output, reconstructs request correspondence before accepting response status, and delegates feasible responses to whole-component domain replay. The fractional candidate at `10/48` which would reconcile foreign C from `1.208333334` is refused despite valid integer arithmetic. Real comparison uses the quantized movement reference divided by Q as required by the ruling. Candidate projection uses the selected real schedule, including baseline retention on quantisation-floor.
+
+Direct 10/9 contradictions and solver `boundary-infeasible` responses remain distinct from local deadline infeasibility, unknown and invalid output. In-memory boundary evidence detaches the stage, request and actual contradiction/response. The adapter's existing core projection retains question identity and evidence kind only: it is deliberately **not** the durable certificate envelope required by 7.4. This limitation is accurately disclosed rather than claimed complete.
+
+`readPair` is a supplied callback contract, not a SQLite reader. Its signature has no admission operation, and callback lifetime errors propagate on reads. The lifetime test establishes that propagation only; it does not establish database snapshot isolation, read-only SQL enforcement, installed capability or post-close admission behavior. Existing `deriveConnectedPlan` still returns `connected_optimization_not_supported`/`adapter_missing` for required optimized connected members. This packet adds no constructor registration or shortcut past that refusal.
+
+## Fresh reviewer verification
+
+- `bun test libs/wbs/domain/contracts/solver/src libs/wbs/domain/domain/src/connected-publication.test.ts libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts libs/wbs/application/core/src/service/connected-optimization.test.ts libs/wbs/adapters/store-sqlite/src/connected-optimization-reader.test.ts`: **558 pass, 0 fail, 1327 assertions, 31 files**, exit 0. Log: `/tmp/puni-connected-runtime-review-tests.log`.
+- `bunx tsc --build --force libs/wbs/adapters/store-sqlite/tsconfig.json`: exit 0. Log: `/tmp/puni-connected-runtime-review-typecheck.log`.
+- Focused ESLint over all four new TypeScript files with `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`: exit 0, with no skipped-module-boundary warning.
+- Prettier check over those four files and `tsconfig.base.json`: all matched files conform, exit 0.
+- `bunx openspec validate cross-project-dependencies --json`: one valid change, zero issues, exit 0.
+- `git diff --check 5cb98ca31..HEAD`: exit 0; requested HEAD and clean status confirmed.
+
+Inspected all ten `/tmp/puni-connected-fault-*.log` outputs. They show the claimed failing assertions for request correspondence, solver/adapter terminal mapping, foreign replay pins, exact foreign timing, objective hash inclusion, trusted replay, evidence detachment, ordinary/boundary classification and empty deadline certificates. The trusted-replay fault changes a required throw into `failed/internal-error`; it does not make an unsafe candidate publish. The foreign-pin fault causes baseline retention and a later expected-pin assertion failure; exact-timing removal independently admits the invalid fractional output. These distinctions matter to what each proof establishes. The packet correctly discloses that the initial discriminator fixture was masked by the empty-certificate guard and that a nonbinding deadline made the independent failure observable. I did not modify source or rerun the mutation sweep; the restored suites were freshly rerun.
+
+## Required follow-through
+
+For 7.3: bind a real coherent reader to the same owned/borrowed SQLite snapshot as component capture; enforce its lifetime through actual wrappers; expose prepared component facts and invoke selection in production connected derivation; restore/project the final composite; install explicit compatible connected runtime capability and supervisor/exit wiring; retain sufficient scoped comparison/certificate evidence for consumers. Add real DB reader and production consumer negatives, including concurrent publication visibility and capture non-admission. Merely passing this factory as a capability is insufficient.
+
+For 7.4: strict scope-bearing result/certificate codecs; additive immutable terminal retention and coherent conflict refusal; exact identity/generation/attempt publication fencing; committed outcome/event and slot-release ordering; post-close live admission; queued/restart/Retry recapture and same-question terminal suppression; changed-question admission; every identity-field production negative. Full boundary evidence must survive durable storage and restart rather than being replaced by the current core summary. Keep external authoring dormant until the complete compatibility barrier is satisfied.
+
+Not run in this review: mutation reinjection, Python/installed handshake, real SQLite connected publication/capture/restart integration, browser/API production consumers, full Nx/host gate, build, secrets scan or migration lint. No new independent probe was needed beyond the focused production-path suites. Those checks are not established by this bounded approval.

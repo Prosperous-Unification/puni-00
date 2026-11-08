@@ -187,7 +187,7 @@ export function identifyCandidate(
 ): {
   readonly schemaVersion: 1;
   readonly tool: 'twilight-burokrat';
-  readonly toolVersion: '0.1.0';
+  readonly toolVersion: '0.2.0';
   readonly candidate: string;
   readonly selection: CandidateSnapshot['selection'];
   readonly certifies: false;
@@ -197,7 +197,7 @@ export function identifyCandidate(
   return {
     schemaVersion: 1,
     tool: 'twilight-burokrat',
-    toolVersion: '0.1.0',
+    toolVersion: '0.2.0',
     candidate: digestCandidate(candidate),
     selection: candidate.selection,
     certifies: false,

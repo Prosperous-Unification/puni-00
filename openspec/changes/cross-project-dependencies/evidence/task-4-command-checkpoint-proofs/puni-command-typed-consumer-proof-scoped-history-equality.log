@@ -1,0 +1,34 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+1184 |   const fixture = await open();
+1185 |   expect(await semantic(fixture, (service) => service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input))).toMatchObject({ ok: true });
+1186 |   const before = effects();
+1187 |   // Negative-only projection fault: the database and checked endpoint evidence
+1188 |   // remain genuine; only listByProject's delivered predecessor qualifier lies.
+1189 |   expect(await semantic(fixture, (service) => service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess), undefined, undefined, undefined, false, true)).toMatchObject({ ok: false, reason: 'stale_undo', detail: 'that relationship has changed since this command.' });
+                                                                                                                                                                                               ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "detail": "that relationship has changed since this command.",
+-   "ok": false,
+-   "reason": "stale_undo",
++   "ok": true,
++   "value": {
++     "detail": null,
++     "done": "make “Owner row” wait for “PRE.010 Predecessor row”",
++   },
+  }
+
+- Expected  - 3
++ Received  + 5
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1189:185)
+(fail) replay refuses a corrupt scoped stored-row delivery even when its unqualified endpoint IDs match [452.33ms]
+
+ 0 pass
+ 62 filtered out
+ 1 fail
+ 11 expect() calls
+Ran 1 test across 1 file. [3.02s]

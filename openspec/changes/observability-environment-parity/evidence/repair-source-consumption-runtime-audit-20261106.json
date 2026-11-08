@@ -1,0 +1,15 @@
+{
+  "executable": "/home/df/.local/share/uv/python/cpython-3.14.7-linux-x86_64-gnu/bin/python3.14",
+  "bytes": 32166632,
+  "sha256": "91dd30622178f6e33cf2939e1ed333e44f86a1e85a506049e8c21d9fff4606fd",
+  "observedVersions": [[3, 14, 7]],
+  "observedExecutables": [
+    "/home/df/.local/share/uv/python/cpython-3.14.7-linux-x86_64-gnu/bin/python3.14"
+  ],
+  "observedPhysicalExecutables": [
+    "/home/df/.local/share/uv/python/cpython-3.14.7-linux-x86_64-gnu/bin/python3.14"
+  ],
+  "auditedLaunches": 256,
+  "noSiteModes": [0, 1],
+  "physical312AttemptCount": 0
+}

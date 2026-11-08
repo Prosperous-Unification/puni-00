@@ -1,0 +1,23 @@
+
+tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:
+
+test/dependency-source-restoration-model-child.test.ts:
+SOURCE_RESTORATION_REACHED: original prepare/consume/solver/backend/gateway complete; source cold and dev openers excluded
+SOURCE_RESTORATION_REFUSED: record-rebased before start and after exact repair
+(pass) source restoration refuses gateway record rebased through public summary [79559.65ms]
+
+ 1 pass
+ 20 filtered out
+ 0 fail
+ 478 expect() calls
+Ran 1 test across 1 file. [79.62s]
+SOURCE_RESTORATION_INNER_CUSTODY: {"name":"source restoration refuses gateway record rebased through public summary","exitCode":0,"signal":null,"stdoutEof":true,"stderrEof":true}
+(pass) isolated source restoration refuses gateway record rebased through public summary [79638.75ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 1 pass
+ 20 filtered out
+ 0 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [79.65s]

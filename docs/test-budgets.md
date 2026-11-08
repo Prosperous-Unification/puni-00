@@ -12,11 +12,18 @@ healthy tests at random (WBS 080.15), so every Bun test a target runs states its
   file only and overrides the flag there; later files fall back to 5 seconds. That is why the dev
   poller's overlap test kept timing out at 5000 ms under the shared preload.
   `tools/test/scratch/scratch.test.ts` proves the flag ends a hang in every file.
-- The shared scratch cleanup hook has an explicit 30-second allowance. This changes only
+- The shared scratch cleanup hook has an explicit 60-second allowance. This changes only
   teardown: ordinary test, job and phase limits stay unchanged. A synchronous overrun is
   reported after return and cannot interrupt a blocked filesystem call.
   `tools/test/scratch/cleanup-budget.test.ts` injects finite latency into the actual remover,
   verifies physical removal, and proves inherited/reduced hook limits and ordinary hangs fail.
+  PR 760 run `40591788802` passed its named devsync tests but exhausted the former
+  30-second cleanup allowance at 31.095 seconds. A separate copied actual-preload/remover
+  replay with 31 seconds injected at `rmSync` reproduced that unnamed timeout; the revised
+  60-second hook passed and physically removed the roots. This one-off proof stays outside
+  the default fast suite; commands and source identities are recorded in
+  `openspec/changes/ci-scratch-cleanup-allowance/verify.md`. The hosted filesystem cause
+  remains unmeasured; the replay is controlled latency, not a hosted timing measurement.
 - A test that needs more than its target's budget states its own as the third argument.
 - The target budget is the smallest of 10, 30 or 60 seconds that is at least 3 times the slowest
   idle run and 1.5 times the slowest loaded run. Count only the tests that have no budget of their
@@ -140,6 +147,22 @@ On the loaded run these timed out at their own budget. They were raised by the r
   shim exiting 73 proved that the install hook must assert the removal exit code:
   the old hook passed with leftovers, while the asserted hook failed visibly.
 
+- Shared scratch preload global cleanup: inherited target allowance to explicit 30 s
+  (2026-10-24). Exact-head hosted run `40090762480` at `b2d87d487` passed 3334
+  remote tests before its start/return markers attributed the sole failure to
+  synchronous cleanup at 10400 ms under the inherited 10000 ms hook budget.
+  Thirty seconds follows the standard family, exceeds twice the failed allowance
+  and gives margin over the loaded observation; 15 s is below 1.5 times 10.4 s.
+  `tools/test/scratch/cleanup-budget.test.ts` copies the actual preload/remover,
+  injects 100 ms at its real removal boundary, proves physical cleanup across two
+  files under a 20 ms ordinary budget, and reproduces the hook failure with only
+  the allowance removed. Ordinary test deadlines and later-file hangs remain
+  enforced. A scaled explicit hook overrun still fails. These tiny controls are
+  not representative whole-tree idle measurements. Bun reports synchronous
+  hook overruns after return; the allowance cannot interrupt an OS syscall.
+  Removal's existing best-effort error policy and the 75/90-minute CI phase/job
+  limits remain unchanged. Evidence: `openspec/changes/ci-remote-capacity/verify.md`.
+
 ## Vitest (fe-01), WBS 080.16
 
 Vitest also ends a test at 5 seconds, and a hook at 10. The gate reached that on fe-01: a keyboard
@@ -175,6 +198,17 @@ All three commands share one budget so the target reads as one.
 the loaded `test:unit` run (2.3 s in the idle UTC half). By the rule above it is now 20 s, and its
 case budget 30 s so the probe still reports first.
 
+On 2026-10-24, the hosted frontend CI run at `c3be` exhausted that probe's 20 s child deadline
+(`spawnSync bun ETIMEDOUT`, null status, SIGTERM, empty output) while 1036 other tests passed.
+The unchanged focused probe passed locally in about 4.8 s; that observation does not identify
+which import or request step consumed the hosted time. The policy minimum is
+max(3 × 4.8 s, 2 × 20 s) = 40 s, rounded to the listed 45 s step. This probe alone now has
+a 45 s child deadline and 60 s owning case; the child reports first. Its same execution wrapper
+uses SIGKILL on timeout, and a short owned-child test proves timeout, termination, join, and no
+accepted late 401. A focused 2026-10-24 local replay measured 4502 ms inside the child call
+and 4762 ms for the case, below the earlier 4.8 s value used above. The configured node-tier
+worker count remains four.
+
 ## Found under load, outside this budget
 
 These tests failed on the loaded run, but not at a time budget. They need their own work items:
@@ -187,3 +221,11 @@ These tests failed on the loaded run, but not at a time budget. They need their 
   and checks each sample's read counts, and the refusal is told apart from a wait by its outcome.
 - twilight-burokrat: `a competing recovery cannot clear publication while Git holds prepared ref
 locks` and two `review invocation provenance` cases. All three failed at about 3 s.
+
+- `tools/tool-remote-scripts/src/lib/backend-exclusion.test.ts`, solver-restoration
+  composition cases: inherited 10 to explicit 20 s (2026-10-24). Exact terminal and
+  created-attempt cases perform the full owner/exclusion/finalizer, durable
+  private-record, cleanup and readiness sequence. Idle runs took about 3.4–4.3 s;
+  a loaded focused replay passed terminal at 6.54 s but timed out created at
+  10.005 s. The scoped 20 s budget meets both three times idle and twice the
+  overrun budget; production operation deadlines and all refusal assertions remain.

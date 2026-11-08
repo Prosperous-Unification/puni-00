@@ -1,0 +1,54 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+806 |       await effects.parkLease(holder, state.phase);
+807 |     }
+808 |   } finally {
+809 |     clearInterval(heartbeat);
+810 |   }
+811 |   if (state.phase !== 'lease-released') throw new ReleaseFailedError(state, journal.path);
+                                                    ^
+ReleaseFailedError: release bbbbbbbbbbbb-4d914821ccea ended at rollback-failed
+journal: /tmp/wbs-test-1415-wH5hrR/k8s-controller-release-2hMUuv/release.json
+failed step: check-replay: storage controller barrier failed: kubectl -n wbs-solver patch cronjob/sqlite-backup --type=json -p [{"op":"test","path":"/metadata/uid","value":"sqlite-backup-uid"},{"op":"test","path":"/metadata/resourceVersion","value":"1"},{"op":"test","path":"/spec","value":{"schedule":"* * * * *","suspend":false,"jobTemplate":{"spec":{"template":{"spec":{"containers":[{"name":"backup","image":"registry.test/backend@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","volumeMounts":[{"name":"db","mountPath":"/data"}]}],"volumes":[{"name":"db","persistentVolumeClaim":{"claimName":"wbs-data"}}]}}}}}},{"op":"test","path":"/metadata/annotations","value":{}},{"op":"add","path":"/metadata/annotations","value":{"puni.dev/storage-owner":"b91d7fa7-2cba-4ee0-8c19-6f4eb750a3e2"}},{"op":"add","path":"/spec/suspend","value":true}] exited 1: 22 | const intervals = Object.values(JSON.parse(readFileSync(journal,'utf8')).state.controllers);
+23 | if (args.includes('patch')) {
+24 |   const operations = JSON.parse(args[args.indexOf('-p')+1]);
+25 |   const token = backup.metadata.annotations['puni.dev/storage-owner'] ?? operations.find(p=>p.op==='add' && p.path==='/metadata/annotations')?.value['puni.dev/storage-owner'];
+26 |   const interval = intervals.find(p=>p?.ownership.token===token);
+27 |   if (!interval) throw new Error('missing durable interval');
+                                ^
+error: missing durable interval
+      at /tmp/wbs-test-1415-wH5hrR/k8s-controller-release-2hMUuv/kubectl:27:28
+
+Bun v1.4.2 (Linux x64)
+captured migration set: (not captured)
+replay forward: (not checked)
+replay rollback: (not checked)
+snapshot: (none)
+writes remain fenced and the Lease stays held
+manual command: inspect the authoritative journal /tmp/wbs-test-1415-wH5hrR/k8s-controller-release-2hMUuv/release.json; no controller ownership was established
+      state: {
+  releaseId: "bbbbbbbbbbbb-4d914821ccea",
+  transactionId: "bbbbbbbbbbbb-4d914821ccea-579379",
+  phase: "rollback-failed",
+  rollbackFrom: null,
+  capture: null,
+  replayForward: null,
+  replayRollback: null,
+  previous: [Object ...],
+  snapshot: null,
+  controllers: [Object ...],
+  fluxSuspendedByUs: true,
+  writesReopened: false,
+  failure: [Object ...],
+},
+ journalPath: "/tmp/wbs-test-1415-wH5hrR/k8s-controller-release-2hMUuv/release.json",
+
+      at executeRelease (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/execute.ts:811:47)
+      at async <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:336:27)
+(fail) mounted release checkpoints and restores exact false backup suspension [404.77ms]
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+Ran 1 test across 1 file. [450.00ms]

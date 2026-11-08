@@ -1,0 +1,28 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-helper-images.test.ts:
+76 |   lock.charts.certManager.images.shift();
+77 |   const bytes = JSON.stringify(lock);
+78 |   const directory = await scratchAsync('retained-current-lock-');
+79 |   const path = join(directory, 'toolchain.json');
+80 |   await writeFile(path, bytes);
+81 |   await rejects(contracts.readRetainedToolchain(path, createHash('sha256').update(bytes).digest('hex')));
+             ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: undefined,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-helper-images.test.ts:81:9
+(fail) Task37 retained current toolchain still validates complete chart image roles [14.36ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+Ran 1 test across 1 file. [212.00ms]

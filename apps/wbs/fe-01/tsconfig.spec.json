@@ -1,10 +1,24 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2023"],
     "outDir": "../../../dist/out-tsc",
     "types": ["vitest/globals", "@testing-library/jest-dom", "node", "vite/client"],
     "paths": {
+      "@wbs/contracts/solver/plan-infeasible": [
+        "../../../libs/wbs/domain/contracts/solver/src/plan-infeasible-dto.ts"
+      ],
+      "@wbs/domain": ["../../../libs/wbs/domain/domain/src/index.ts"],
+      "@wbs/domain/*": ["../../../libs/wbs/domain/domain/src/*"],
+      "@wbs/contracts/solver/build-connected-request": [
+        "../../../libs/wbs/domain/contracts/solver/src/build-connected-solver-request.ts"
+      ],
+      "@wbs/contracts/solver/connected-solver-outcome": [
+        "../../../libs/wbs/domain/contracts/solver/src/connected-solver-outcome.ts"
+      ],
       "@/*": ["./src/*"],
+      "@wbs/domain/typed-dependency": ["../../../libs/wbs/domain/domain/src/typed-dependency.ts"],
+      "@wbs/domain/project-address": ["../../../libs/wbs/domain/domain/src/project-address.ts"],
       "@wbs/domain/step-node": ["../../../libs/wbs/domain/domain/src/step-node.ts"],
       "@wbs/domain/step-reference": ["../../../libs/wbs/domain/domain/src/step-reference.ts"],
       "@wbs/domain/workday": ["../../../libs/wbs/domain/domain/src/workday.ts"],

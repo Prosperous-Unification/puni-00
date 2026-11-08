@@ -1,0 +1,34 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+1671 | for (const refusal of ['forbidden', 'unknown_step'] as const) test(`ordered restore propagates a delivered ${refusal} instead of exempting it as a missing row`, async () => {
+1672 |   const prepared = await undoneExternalCreate();
+1673 |   const { fixture } = prepared;
+1674 |   const before = effects();
+1675 |   const redone = await semantic(fixture, (service) => service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess), undefined, undefined, undefined, false, false, refusal);
+1676 |   expect(redone).toMatchObject({ ok: false, reason: refusal === 'forbidden' ? 'forbidden' : 'not_found', detail: null });
+                        ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "detail": null,
+-   "ok": false,
+-   "reason": "not_found",
++   "ok": true,
++   "value": {
++     "detail": null,
++     "done": "2 changes",
++   },
+  }
+
+- Expected  - 3
++ Received  + 5
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1676:18)
+(fail) ordered restore propagates a delivered unknown_step instead of exempting it as a missing row [374.69ms]
+
+ 0 pass
+ 77 filtered out
+ 1 fail
+ 14 expect() calls
+Ran 1 test across 1 file. [2.64s]

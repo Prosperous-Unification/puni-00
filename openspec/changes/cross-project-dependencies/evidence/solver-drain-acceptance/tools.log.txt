@@ -1,0 +1,1 @@
+{"bun":"/home/df/.bun/bin/bun","git":"/usr/bin/git","docker":"/usr/bin/docker","systemctl":"/usr/bin/systemctl","/bin/sleep":"/bin/sleep","/bin/rm":"/bin/rm"}

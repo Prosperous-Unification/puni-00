@@ -36,6 +36,8 @@ const REASON_WORDS: Readonly<Record<UnavailableReason, string>> = {
   engine_unavailable: 'its schedule engine is not available here',
   cycle: 'its dependencies run in a circle',
   calendar_range: 'its dates run past the calendar',
+  // Proof: omitting this key rendered a valid connected calendar refusal as "Platform could not be read: ." in the mounted page test.
+  dependency_calendar_missing: 'a connected project has no scheduling calendar',
 };
 
 /** The key that names one booking in an overlap and in a lane alike. */

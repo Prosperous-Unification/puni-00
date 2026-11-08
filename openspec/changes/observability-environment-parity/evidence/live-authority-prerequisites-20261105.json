@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "scope": "separate read-only marker and declared Flux source prerequisite observations",
+  "sourceCommit": "89b613cfca1fd124021cf3fff046a018e23bc634",
+  "marker": {
+    "observedAt": "2026-11-05T09:32:55.483933+00:00",
+    "projection": {
+      "name": "puni-cluster-platform-production",
+      "uid": "dcd4f421-04ba-45b3-a812-0b6670ef3809",
+      "namespace": "kube-system",
+      "marker": "platform-production",
+      "immutable": true
+    },
+    "stdoutSha256": "1aead400a7dbcf2901d7b2277592c52954b85ad7a1963140119539d811a13bc0"
+  },
+  "source": {
+    "observedAt": "2026-11-05T09:34:13.354431+00:00",
+    "projection": {
+      "name": "puni-platform",
+      "uid": "309c7d73-50fb-4be7-8575-d955dd3b6950",
+      "namespace": "flux-system",
+      "kind": "GitRepository",
+      "revision": "sha1:584230c9e47b71cdb48e8d6397dc753e9aa93983",
+      "ready": true,
+      "generation": 1,
+      "observedGeneration": 1
+    },
+    "stdoutSha256": "9539d9eeb302eae5f6c97c5f673332197e3ec5a83312a72fa45379a4d5c58ee7",
+    "declarationPath": "infra/clusters/platform/production/observability.yaml",
+    "declarationSha256": "1177f5794cd9a374406ebe477262fb942464337ab16c386bfea1339ad94fbe10"
+  },
+  "privateEvidence": [
+    {
+      "bytes": 6274,
+      "sha256": "3087dec20705435c0a980d07b2ab2e01c4574c43485bf7ddaee22a1146a84ddd"
+    },
+    {
+      "bytes": 4662,
+      "sha256": "e9f16c5713fe92b949df93585f0abe5906ca80ea96b7a090a38983eb195cdd42"
+    }
+  ],
+  "operatorCorrection": "first source lookup used wrong name puni-00 and returned NotFound; actual declaration names puni-platform, whose corrected query succeeded",
+  "review": "independent read-only audit approved exact production projections, argv, sourceRef and hashes; no rerun or writes; SSH flags not independently re-proven",
+  "fullPreflightComplete": false,
+  "migrationReady": false,
+  "deploymentAccepted": false,
+  "liveMutation": false,
+  "secretValuesRead": false
+}

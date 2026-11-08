@@ -24,6 +24,23 @@ describe('renderTemplate', () => {
 });
 
 describe('previewContext', () => {
+  for (const [container, init] of [
+    ['be-01-blue', true],
+    ['be-01-green', true],
+    ['gw-01-blue', true],
+    ['gw-01-green', true],
+    ['fe-01-blue', undefined],
+    ['mcp-01-green', undefined],
+  ] as const) {
+    it(`renders init ${String(init)} for the ${container} preview service`, () => {
+      const template = readFileSync(join(TEMPLATES, 'tier.compose.tmpl'), 'utf8');
+      const compose = Bun.YAML.parse(
+        renderTemplate(template, previewContext({ CONTAINER: container })),
+      ) as { services: Record<string, { init?: boolean }> };
+      expect(compose.services[container].init).toBe(init);
+    });
+  }
+
   it('supplies an empty MCP route block for the build preview', () => {
     expect(previewContext({})).toMatchObject({ MCP_ROUTES: '', ENVIRONMENT: '' });
   });

@@ -1,0 +1,50 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:
+(pass) captures staged upstream displacement on the borrowed writer without admitting optimization [306.71ms]
+538 |         (topology === 'alternating' ? ['a2', 'a3', 'a4'] : ['a3']).map((projectId) => ({ type: 'elsewhere_changed', projectId, causeProjectId })),
+539 |       );
+540 |       connection.db.run(sql`UPDATE step SET code = 'delivery' WHERE id = ${`${causeProjectId}-step`}`);
+541 |       const relabeled = await readFanoutObservationIn(connection.db, 'org-a', options, createReadSnapshotLifetime());
+542 |       const labelEvents = await recordCommittedFanout(new DrizzleEventLogStore(connection.db, OPEN), after, relabeled, () => 2);
+543 |       expect(labelEvents.map(({ projectId }) => projectId)).toEqual(topology === 'alternating' ? ['a2', 'a3', 'a4'] : ['a3']);
+                                                                  ^
+error: expect(received).toEqual(expected)
+
+- [
+-   "a3",
+- ]
++ []
+
+- Expected  - 3
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-connected-fanout/libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:543:61)
+(fail) captures staged external shared connected facts once without scheduling the component [209.97ms]
+538 |         (topology === 'alternating' ? ['a2', 'a3', 'a4'] : ['a3']).map((projectId) => ({ type: 'elsewhere_changed', projectId, causeProjectId })),
+539 |       );
+540 |       connection.db.run(sql`UPDATE step SET code = 'delivery' WHERE id = ${`${causeProjectId}-step`}`);
+541 |       const relabeled = await readFanoutObservationIn(connection.db, 'org-a', options, createReadSnapshotLifetime());
+542 |       const labelEvents = await recordCommittedFanout(new DrizzleEventLogStore(connection.db, OPEN), after, relabeled, () => 2);
+543 |       expect(labelEvents.map(({ projectId }) => projectId)).toEqual(topology === 'alternating' ? ['a2', 'a3', 'a4'] : ['a3']);
+                                                                  ^
+error: expect(received).toEqual(expected)
+
+- [
+-   "a2",
+-   "a3",
+-   "a4",
+- ]
++ []
+
+- Expected  - 5
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-connected-fanout/libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:543:61)
+(fail) captures staged alternating shared connected facts once without scheduling the component [220.77ms]
+
+ 1 pass
+ 8 filtered out
+ 2 fail
+ 30 expect() calls
+Ran 3 tests across 1 file. [3.49s]

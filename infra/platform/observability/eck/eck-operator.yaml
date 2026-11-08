@@ -19,8 +19,8 @@ spec:
       tag: 3.5.0
       digest: sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314
     resources:
-      requests: { cpu: 100m, memory: 150Mi }
-      limits: { cpu: '1', memory: 512Mi }
+      requests: { cpu: 100m, memory: 150Mi, ephemeral-storage: 256Mi }
+      limits: { cpu: '1', memory: 512Mi, ephemeral-storage: 256Mi }
     nodeSelector:
       puni.dev/capability-observability: 'true'
     config:

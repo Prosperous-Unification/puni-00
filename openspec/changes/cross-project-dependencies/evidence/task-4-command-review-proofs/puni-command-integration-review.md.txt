@@ -1,0 +1,111 @@
+Independent command integration review, 2026-10-22
+
+**Verdict: request changes for two P2 replay defects.** This is a bounded review of the dormant command integration checkpoint, not approval of the cross-project feature or activation. Both findings were reproduced against the frozen implementation without modifying source. The first affects currently mounted, wholly local commands; the second affects the explicitly active semantic SQLite transaction path.
+
+Reviewed identity: `/tmp/puni-cross-command-integration`, branch `feat/cross-project-command-integration`, HEAD `db2d38ec903a9f87e51f1d6e20c9328ccbdbda4d`, base `3363bac036b9301e8e91bc2d36b5d1388f562d59`. Git status was clean. The manifest SHA256 is `083d01a555649b982b6f6ff2a24c57b357a20bbc9370dbb9baf6e024ea4f9af6`; all 113 recorded path hashes matched independently. Review used the full review brief and author report, plus the binding `command-admission.md` and `command-local-context.md` from the main feature worktree and tasks 3.2/4.2/4.3/bounded 4.4. Separately integrated solver changes and the parallel backend compatibility/migration lane are not treated as command-authored regressions.
+
+1. **P2 — permit ordered local restoration for typed updates as well as adds.** `libs/wbs/application/core/src/service/compensating.ts:505` (`restoredTypedAddressesOf`, lines 505–509).
+
+   The scanner only adds endpoints from `add_typed_dependency`. A valid mounted local batch can create a replacement predecessor and update an existing relationship to that batch alias. The batch succeeds and undo succeeds. On redo, the new predecessor is temporarily absent because the selected direction will first restore it. The scanner omits the update endpoint, so `walkStack` marks it as defective, returns `409 stale_undo`, and follows the stale-entry discard path instead of replaying a valid command.
+
+   Reproducer: create a local predecessor plus FS relationship to an existing owner row; then POST a batch containing `createWorkItem {ref:'replacement'}` followed by `updateTypedDependency` with `predecessor:{scope:'whole',workItemRef:'replacement'}` and the existing successor. POST bodyless undo, then redo. Fresh observed statuses: initial 200, update batch 200, undo 200, redo **409** with `{"error":"stale_undo","detail":"a local dependency endpoint changed or was removed."}`. Expected redo: 200. This does not depend on external activation.
+
+2. **P2 — keep the local restoration exception when the same journal contains external revision metadata.** `libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6811` (lines 6810–6827).
+
+   The `external === null` condition disables the ordered local restoration exception for an entire journal entry. In a real admitted SQLite transaction, create a new local successor and add a relationship from an existing readable remote predecessor, collecting and recording both commands together. The forward transaction succeeds and undo succeeds. Redo then reads the absent local successor before its earlier `restore_subtree` applies and returns `{ok:false,reason:'not_found',detail:null}`. The scanner already recognizes this restore/add ordering, but the blanket external-metadata condition prevents its use. All SQLite tables remain unchanged after that refusal. Production external authoring is dormant, so this is a semantic checkpoint defect, not a claim of mounted external success.
+
+   Expected: redo restores the local successor and the relationship under current owner admission, remote read authority, exact external revision preconditions and connected graph validation. No remote row is restored.
+
+Both independent reproducers are in `/tmp/puni-command-review-probe.test.ts`, selected by `-t REVIEW`. Command:
+
+```sh
+bun test --tsconfig-override=/tmp/puni-cross-command-integration/tsconfig.base.json /tmp/puni-command-review-probe.test.ts -t REVIEW
+```
+
+`/tmp/puni-command-review-probe-final.log` records **two real assertion failures**, after the prerequisites passed. The probe imports the real organization harness and copies the existing SQLite semantic fixture into `/tmp`; it uses the real writer, current resolver, retained WorkingPlan, connected context, collector and journal. There is no permissive graph/tree mock. Its first draft omitted required create placement fields and failed setup; that draft is excluded from the findings. The corrected probe supplies `parentId:null,afterId:null`. Bun printed a tsconfig directory-mismatch diagnostic but continued and executed both tests; the failures are the displayed replay assertions.
+
+The required rule is narrow: for the **selected replay direction**, walk nested commands in application order. A missing **owner-local** endpoint may be deferred only when an earlier valid local `restore_subtree` in that direction will supply its exact `(projectId,workItemId)` before the typed add/update uses it. This applies independently of whether other endpoints in the journal are external. Keep owner/project identity checks, restored-row authorization, local step/shape checks at application, relationship equality, exact remote metadata coverage, current remote evidence and revisions, and final connected validation. Remote addresses never receive a restoration exemption. Do not exempt every missing local ID, treat a later restore as earlier evidence, allow forbidden/unknown-step outcomes as restoration, or use unrelated ordinary references to manufacture restoration authority. Add regressions for both reproduced cases and nested/order-negative cases. This implements the existing architecture rather than changing it.
+
+The inspected architecture is otherwise coherent within this checkpoint. The wire normalizer preserves explicit nonblank projects, rejects scoped aliases and mixed step-node arms, and the binder attaches the owner only for omitted projects. The authenticated runner resolves the original principal inside the writer turn, and mounted/current-authority regressions exercise the actual composition. Required dependency contexts originate from raw admitted stores before the retained owner plan; bound owner/actor identity, graph closure and observation closure remain distinct. Public composition uses the explicit local-only factory, with incoming/outgoing incident checks and no remote read grant. Endpoint evidence establishes scoped project readability before row/tree/step/label evidence; predecessor read permission is not predecessor edit permission. The owner refresh partitions old/new endpoint addresses correctly. Typed add/update/remove, create/move/duplicate/delete, estimate presence, legacy links, project reach, step addition/removal and structural replay reach the connected facade. Full proposed graph facts are supplied where inspected. Typed history uses scoped equality and remote revision coverage, earliest before-images, flips and conditional neighbor restamping. The production dormant request is a modeled indexed 409 with atomic earlier-command rollback. These observations do not erase the two reproduced replay gaps.
+
+Fresh reviewer verification and explicit limits follow. All logs named here are reviewer logs, separate from author evidence.
+
+| Reviewer check | Fresh observed outcome | Evidence |
+| --- | --- | --- |
+| Focused SQLite/current authority/undo/context/evidence/history/binder/normalizer/shared-shape set, `bun test` over nine named files | 211 pass, 0 fail, 1728 assertions | `/tmp/puni-command-review-focused.log` |
+| All 32 changed core/contracts test paths, `bun test ... --timeout=10000` | 530 pass, 0 fail, 2525 assertions | `/tmp/puni-command-review-core.log`; exact paths in `/tmp/puni-command-review-groups.json` |
+| Ten actual HTTP/current-authority/organization/directory/step/typed/lifecycle/undo suites, same Bun command form | 252 pass, 0 fail, 1694 assertions | `/tmp/puni-command-review-http.log`; exact paths in the groups JSON |
+| `bun test ./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts ./apps/wbs/be-01/src/http/elysia/work-item.test.ts` | 77 pass, 0 fail, 873 assertions | `/tmp/puni-command-review-connected.log` |
+| `bun test ./tools/tool-devsync/src/service-kinds.test.ts --timeout=10000` | 17 pass, 0 fail, 19 assertions | `/tmp/puni-command-review-classification.log` |
+| `bunx tsc --build --force` for backend, core, SQLite and memory tsconfig programs | All four exit 0 | Exact arguments and logs in `/tmp/puni-command-review-types.json` |
+| `bun tools/tool-devsync/src/typecheck-modules.ts` for core and backend module roots | Both exit 0; logs enumerate 17 actual core and three actual backend module programs | Same type manifest and the two module logs |
+| `bunx prettier --check` over all 113 manifest paths | Exit 0 | `/tmp/puni-command-review-format.log`, `/tmp/puni-command-review-static.log` |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx eslint --no-cache` over all 112 manifest TS paths | Exit 0 | `/tmp/puni-command-review-lint.log`, static log |
+| Corrected independent `/tmp` replay probes | Two expected-behavior assertion failures, reproduced above | `/tmp/puni-command-review-probe-final.log` |
+| Frozen identity, source hashes, clean status, whitespace | Match/clean; `git diff --check HEAD` exit 0 | `/tmp/puni-command-review-identity.txt` |
+
+The test sets overlap and must not be summed as unique coverage. The fresh core assertion count differs from the author report; the observed reviewer count is recorded rather than copied. No tests were skipped in these reviewer sets. The broader nine-file SQLite/performance group and the two narrowed claim fixtures were not rerun by this review; their author evidence remains separately attributed. No benchmark was rerun. No required tool was unavailable.
+
+I independently inspected all **51** entries in `/tmp/puni-command-integration-proof-index.json` and their actual readable failure logs, checking recorded status 1, the selected failing test and observed assertion. `/tmp/puni-command-review-proof-audit.txt` contains the per-entry extraction. I did **not** reapply the author's 51 source mutations to the frozen tree. Five are core/memory consumer observations (8, 37–40 below); the other 46 run across SQLite boundaries. In particular, the refresh-partition fault is memory plus a raw-listByIds tripwire; separate admitted SQLite positives provide the retained-plan evidence. A watched assertion failure is not automatically an unsafe accepted write. The following classification records what the log actually establishes.
+
+| # | Watched fault | Boundary | Observed consequence with fault |
+| --- | --- | --- | --- |
+| 1 | scoped-alias-admission | SQLite | Diagnostic: invalid_typed_endpoint became unknown_ref; still refused. |
+| 2 | preserve-explicit-project | SQLite | Compatibility: expected dormant 409 became 404 after project relabeling; still refused. |
+| 3 | scoped-project-evidence | SQLite | Concealment: genuine org-b endpoint reached dormant 409 instead of 404; not an accepted write. |
+| 4 | exact-row-project-evidence | SQLite | Modeled refusal became late 500; not an accepted write. |
+| 5 | external-owner-step-concealment | SQLite | Concealment: not_found became unknown_step; still refused. |
+| 6 | dormant-authoring | SQLite | Dormant 409 became 500 during public tree derivation; log alone does not assert persistence after the fault. |
+| 7 | typed-complete-connected-cycle | SQLite | Acceptance: actual reverse node cycle returned ok:true. |
+| 8 | owner-refresh-partition | memory/core | Refresh partition: real memory UoW hit rejecting remote-ID raw-listByIds tripwire. |
+| 9 | missing-external-history-metadata | SQLite | Required trusted-state exception disappeared (fulfilled result mapped to null by test); exact fulfilled outcome not printed. |
+| 10 | remote-revision-conflict | SQLite | Acceptance: stale remote revision replay returned ok:true. |
+| 11 | conditional-remote-neighbor | SQLite | Acceptance: genuine intervening remote edit was restamped and later replay returned ok:true. |
+| 12 | earliest-batch-external-before | SQLite | Metadata correctness: earliest remote from revision 0 became 1. |
+| 13 | command-observation-close | SQLite | Expired evidence escaped: actual endpoint evidence returned after observation close. |
+| 14 | post-await-evidence-lifetime | SQLite | Expired continuation escaped: not_found result returned after observation close. |
+| 15 | create | SQLite | Consumer omission: injected connected read failure became successful create. |
+| 16 | move | SQLite | Consumer omission: injected connected read failure became successful move. |
+| 17 | duplicate | SQLite | Consumer omission: injected connected read failure became successful duplicate. |
+| 18 | cascade | SQLite | Consumer omission: injected connected read failure became successful cascade delete. |
+| 19 | promote | SQLite | Consumer omission: injected connected read failure became successful promote delete. |
+| 20 | set-estimate | SQLite | Consumer omission: injected connected read failure became successful set estimate. |
+| 21 | clear-estimate | SQLite | Consumer omission: injected connected read failure became successful clear estimate. |
+| 22 | add-legacy | SQLite | Consumer omission: injected connected read failure became successful legacy add. |
+| 23 | remove-legacy | SQLite | Consumer omission: injected connected read failure became successful legacy remove. |
+| 24 | project-reach | SQLite | Consumer omission: injected connected read failure became successful project reach update. |
+| 25 | step-add | SQLite | Consumer omission: injected connected read failure became successful step add. |
+| 26 | step-remove | SQLite | Consumer omission: injected connected read failure became successful step remove. |
+| 27 | step-references | SQLite | Consumer omission: injected incident reference read failure became successful step remove. |
+| 28 | old-update-evidence | SQLite | Modeled old-endpoint not_found became late required-project Error; still refused. |
+| 29 | old-remove-evidence | SQLite | Modeled old-endpoint not_found became late required-project Error; still refused. |
+| 30 | restored-local-typed-evidence | SQLite | Valid behavior lost: local create/add redo became 409 instead of 200. |
+| 31 | ordinary-reference-partition | SQLite | Acceptance: nested unrelated foreign patch replay returned ok:true. |
+| 32 | metadata-object-shape | SQLite | Diagnostic: malformed object error became malformed list error; still threw. |
+| 33 | metadata-list-shape | SQLite | Diagnostic: list error became TypeError; still threw. |
+| 34 | metadata-revision-value | SQLite | Trusted-state/refusal policy: invalid revision became modeled stale_undo instead of Error; not success. |
+| 35 | metadata-duplicate | SQLite | Diagnostic: duplicate error became exact-coverage error; still threw. |
+| 36 | metadata-exact-coverage | SQLite | Acceptance: omitted external coverage replay returned ok:true. |
+| 37 | context-owner-actor | memory/core | Bound owner/actor guard: expected exception disappeared in real memory service. |
+| 38 | local-incident-failclosed | memory/core | Diagnostic: local incident error became different-project error; still threw. |
+| 39 | required-authoring-construction | memory/core | Construction invariant: malformed required capability no longer threw; no accepted mutation asserted. |
+| 40 | graph-helper-owner-admission | memory/core | Authority ordering: NO_ADMISSION reached rejecting evidence tripwire; still threw. |
+| 41 | structural first-child creation | SQLite | Modeled node_on_parent became late graph Error; still refused. |
+| 42 | last-child deletion refuses | SQLite | Modeled descendant_step_on_leaf became late graph Error; still refused. |
+| 43 | apply-move | SQLite | Delivery/order diagnostic: expected proposed-cycle error became step_blockage_inactive; still refused. |
+| 44 | apply-delete | SQLite | Consumer omission: proposed-cycle delivery failure became successful replay delete. |
+| 45 | apply-restore | SQLite | Delivery/order diagnostic: expected proposed-cycle error became step_blockage_inactive; still refused. |
+| 46 | omitted-final-remote-revision | SQLite | Acceptance: omitted final remote revision allowed recordCollected and semantic success. |
+| 47 | typed-add | SQLite | Consumer omission: injected connected read failure became successful typed add. |
+| 48 | typed-update | SQLite | Consumer omission: injected connected read failure became successful typed update. |
+| 49 | typed-remove | SQLite | Consumer omission: injected connected read failure became successful typed remove. |
+| 50 | scoped-history-equality | SQLite | Acceptance: corrupt scoped stored-row delivery replay returned ok:true. |
+| 51 | mounted absent-row | SQLite | Modeled absent row 404 became late 500; still refused. |
+
+The old-endpoint denial faults are named rejecting scoped-project-read deliveries over genuine SQLite authority/UoW/journal, not durable organization ownership revocations. The separate org-b proposed endpoint is genuine foreign organization state. Structural consumer delivery faults complete the real connected read and then reject its delivery; their mutation results prove that particular caller is required to propagate the failure, not that a real cyclic graph was independently constructed for each consumer. The real reverse-cycle fixture supplies graph-semantic evidence separately. Corrupt scoped-row delivery is likewise a negative-only delivery fault. The two pre-settlement replay-close red/green logs are additional author observations, outside the 51 count; fresh context tests execute the restored implementation.
+
+Remaining scope is explicit. Generated OpenAPI/MCP command/refusal equivalence and mounted MCP negatives are still unproved; shared schema tests alone do not close task 3.2. External authoring remains dormant pending connected runtime tree/readiness and transactional durable fan-out/activation. First-child remote pinned-node refusal and external endpoint deletion failure are the allowed checkpoint behavior, not completion of incident hand-down/deletion, transfer/copy/import/saved/history-publication lifecycle tasks. No full 4.4, runtime solver/readiness, production announcement, deployment or activation approval is given. Tool Wiki remains inactive and uncertified. No h1 builds/tests, full h2 gate, raw full Nx gate, build, host/deploy check, MCP mounted suite or full OpenAPI gate was run. The author's stable benchmark is developer-run process-CPU evidence on its then-dirty base, not frozen-clean elapsed-time certification; this review does not upgrade it. Combined-main integration and the canonical clean host gate remain the root owner's responsibility after corrections and the other lanes are integrated.
+
+No source, Git metadata or WBS mutations were made by this review. Temporary probes, logs and this report are under `/tmp`; type checks may update ignored compiler outputs. Final clean status and manifest recheck are recorded below.
+
+Final identity: HEAD db2d38ec903a9f87e51f1d6e20c9328ccbdbda4d; clean tracked/untracked status; all 113 source SHA256 values and the manifest SHA256 unchanged after reviewer checks. git diff --check HEAD exited 0.

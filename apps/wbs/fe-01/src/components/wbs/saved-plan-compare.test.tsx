@@ -30,7 +30,18 @@ const ready = (over: Partial<Extract<SavedPlanComparisonState, { kind: 'ready' }
     left: SAVED,
     right: 'current',
     diff: { input: [], schedule: [] },
-    schedules: { left: { kind: 'present' }, right: { kind: 'present' } },
+    summaries: {
+      left: {
+        source: { kind: 'saved', savedPlanId: 'sp1' },
+        schedule: { present: true, algorithmId: 'historical' },
+        provenance: { kind: 'legacy-unknown' },
+      },
+      right: {
+        source: { kind: 'current' },
+        schedule: { present: true, algorithmId: 'historical' },
+        provenance: { kind: 'local' },
+      },
+    },
     rows: [row()],
     livePlanRevision: 0,
     ...over,
@@ -96,9 +107,17 @@ describe('what a comparison renders', () => {
     render(
       <SavedPlanComparison
         state={ready({
-          schedules: {
-            left: { kind: 'absent', reason: 'infeasible' },
-            right: { kind: 'absent', reason: 'infeasible' },
+          summaries: {
+            left: {
+              source: { kind: 'saved', savedPlanId: 'sp1' },
+              schedule: { present: false, absentReason: 'infeasible' },
+              provenance: { kind: 'legacy-unknown' },
+            },
+            right: {
+              source: { kind: 'current' },
+              schedule: { present: false, absentReason: 'infeasible' },
+              provenance: { kind: 'local' },
+            },
           },
         })}
       />,

@@ -1,0 +1,65 @@
+{
+  "scope": "Exact record repair must not permit second attempt",
+  "fault": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+        "--test-name-pattern=^isolated source restoration refuses missing gateway record and terminal repair$",
+        "--timeout=320000"
+      ],
+      "pid": 3050030,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 114.83299439703114,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "7db93af47d15610c8259e1a61d567037dcf097aae404fd1e85dd553cda71c893"
+    },
+    "wrapper": {
+      "pid": 3050029,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "0510d986440ef72335b9be10def3aa4a3f120f5e2f7a064873a3d788e318d8e5",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderrSHA256": "7db93af47d15610c8259e1a61d567037dcf097aae404fd1e85dd553cda71c893"
+  },
+  "restored": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+        "--test-name-pattern=^isolated source restoration refuses missing gateway record and terminal repair$",
+        "--timeout=320000"
+      ],
+      "pid": 3053610,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 83.62957592704333,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "09fd6569991c9dce9f132b110c44f040ac024cce72b48b8dd1c49b7cf51707db"
+    },
+    "wrapper": {
+      "pid": 3053609,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "f84d593bed3fb1082497d006192c641b38bb085cd9e1b5e1ecf1d1cc50c83bb2",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderrSHA256": "09fd6569991c9dce9f132b110c44f040ac024cce72b48b8dd1c49b7cf51707db"
+  }
+}

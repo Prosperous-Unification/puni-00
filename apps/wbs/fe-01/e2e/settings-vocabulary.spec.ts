@@ -105,10 +105,10 @@ for (const scheme of ['light', 'dark'] as const) {
       const borders = await dialog
         .getByRole('tab')
         .evaluateAll((tabs) => tabs.map((tab) => getComputedStyle(tab).borderTopWidth));
-      // Proof: on 3e06eb5a4 this failed with six `"2px"` — the platform's own
-      // `<button>` border, which the base layer leaves in place on purpose.
-      // Seven sections since compute providers slice 5 added Resources (2026-10-23).
-      expect(borders).toEqual(['0px', '0px', '0px', '0px', '0px', '0px', '0px']);
+      // Proof: injecting `border-2` into the rendered tab class made this test fail
+      // at the every-tab assertion; the unmodified light and dark cases passed.
+      expect(borders.length).toBeGreaterThan(0);
+      expect(borders.every((border) => border === '0px')).toBe(true);
     });
 
     test('a locked unit says why and still shows which (F-118)', async ({ page }, info) => {

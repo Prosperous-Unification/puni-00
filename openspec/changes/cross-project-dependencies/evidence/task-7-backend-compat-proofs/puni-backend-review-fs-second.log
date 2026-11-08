@@ -1,0 +1,9 @@
+bun test v1.4.2 (744846f84)
+
+../puni-backend-review-probes/fs-second.test.ts:
+(pass) external FS constrains the second selected-project step and omission is refused even on unknown [21.02ms]
+
+ 1 pass
+ 0 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [504.00ms]

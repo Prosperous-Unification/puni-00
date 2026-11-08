@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+727 |             workItemId: 'missing-row',
+728 |             patch: { name: 'Invalid' },
+729 |           });
+730 |         const before = (await fixture.inspect()).effects;
+731 |         const reply = await submit(fixture, transport, commands);
+732 |         expect(reply.status).not.toBe(200);
+                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 200
+
+      at <anonymous> (/tmp/puni-mcp-node-parity/apps/wbs/mcp-01/src/connected-command-parity.test.ts:732:34)
+(fail) MCP node dormant refuses atomically with all staged effects rolled back [7200.85ms]
+
+ 0 pass
+ 24 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [9.98s]

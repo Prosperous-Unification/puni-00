@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "status": "Unapplied source proposals; no production or dependency adoption",
+  "sourceBase": "c7a721b106ab687f83d6cf64522b4c97f155a657",
+  "documentationBase": "24e8ee92281f39ed6fe51ea4868b5a0034f3b44c",
+  "owner": {
+    "patch": "owner-custody.patch",
+    "sha256": "66f567d67657d2b44d029a85920c3057adc1d67314e5d03ba554b020c1bf2882",
+    "source": [
+      {
+        "path": "tools/tool-remote-scripts/src/lib/edge-ownership.ts",
+        "baseline_sha256": "1f29dd8598580244b1fa4980dda23bef6bf5418539109fe17804458c44ec7027",
+        "r4_sha256": "54d47f9a05c8aeedcd29697d66519b220d1742efc0d7837f69c7e072e6e264e6",
+        "candidate_sha256": "54d47f9a05c8aeedcd29697d66519b220d1742efc0d7837f69c7e072e6e264e6"
+      },
+      {
+        "path": "tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts",
+        "baseline_sha256": "fdc355f58eb1d78e7e8f3ec93bfeeb6ba66ea0637524a953f7205c86423eb332",
+        "r4_sha256": "0dc437f47b74fa8e742a47c41eb7c0074fa06282293363e95c634932479a2a43",
+        "candidate_sha256": "c14523d8f562b7398f905aec9c5420591c94fb9d4e9fbc78ccfdbcc91d3b7340"
+      },
+      {
+        "path": "tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts",
+        "baseline_sha256": "ab7766c66a8a53fb84f11f3e0262802295ad823854b1cb4df13899bfddd2b798",
+        "r4_sha256": "4754c8fe15f7de353f9f78eee34730aecbb26169b52cddb316c5a3ed51b21861",
+        "candidate_sha256": "4754c8fe15f7de353f9f78eee34730aecbb26169b52cddb316c5a3ed51b21861"
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/db.ts",
+        "baseline_sha256": "3071cca955b20084cac3c769dad23b0741a34ad4204d6f7e4dbb476392715120",
+        "r4_sha256": "e7edbdc8333e77df67f4b36f2482a9994308afcc5947a6c5d0b2f0ec3577cea3",
+        "candidate_sha256": "e7edbdc8333e77df67f4b36f2482a9994308afcc5947a6c5d0b2f0ec3577cea3"
+      }
+    ],
+    "cases": "owner-custody-cases.md",
+    "casesSHA256": "acc5f8ebe1d709ed5024f5bba70c6397186e9cb168ae81e70d00897cda1cfd06",
+    "sourceAndStaticReviewSHA256": "2427de93c7f614a079f43a2e7f55787205899f1cd912463752b9344b7a96e9aa",
+    "actualStaticReceiptSHA256": "ce6559cc03bb690d1ae331b43e545b3b874648af56aad9adeec68fd49e9f54f5",
+    "staticScope": "Disposable full source copy: configured forced uncached remote typecheck; populated55-node graph four-file ESLint0errors0warnings; four-file formatting. No owning callback executed."
+  },
+  "vite": {
+    "patch": "vite-lifecycle.patch",
+    "sha256": "4827ddf6d58d4e930ed3dda7658d38383d3859f6c47d3c8a5e92d0bbc5ce7a59",
+    "patchFormat": "Text diff from original-node.js.txt to patched-node.js.txt; reconstruct private candidate only, not a dependency selection instruction",
+    "originalChunkSHA256": "f64038f08022030b77efee87b6baa81933a7b77d820aaa64bc3262fda44d80b0",
+    "candidateChunkSHA256": "014b3baf960ca4dcb2dfd9b7b0562bb2ee796c1efd32a6e1acec7ff57b67f6fc",
+    "sourceReviewSHA256": "80fd4822b0875c6e8db6c6b9fd04d8bfc18c99cbf7c611285acd67501a21a406",
+    "watcherActualReceiptSHA256": "4e7b3ff8bd39ebe0ee0474ebced56fe9c62f485e5bacf929fe9c3b397bddad1a",
+    "watcherActualReviewSHA256": "b0ee1f9833ccc3fe653de12195adce50d333d5da4ebabbd7eb2534f0f14f1f37",
+    "qualification": "Three extracted-method inert calls only for R4 watcher correction. Whole patched package parse/runtime, native stream retirement, other lifecycle paths and full producer remain unqualified."
+  },
+  "open": [
+    "genuine constructor baseline RED",
+    "repaired HOLD fixture and actual owning callbacks",
+    "production-path R5 necessity proofs",
+    "coupled native/runtime and installed-image acceptance",
+    "complete CI and exact-SHA host gate",
+    "architectural main adoption and deployment"
+  ]
+}

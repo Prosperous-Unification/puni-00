@@ -1,0 +1,13 @@
+{"run":{"ok":false,"error":"insufficient_scope"},"remove":{"ok":false,"error":"insufficient_scope"},"stepPersisted":true}
+Internal error: directory mismatch for directory "/tmp/puni-cross-command-authority/tsconfig.base.json", fd 3. You don't need to do anything, but this indicates a bug.
+28 |   const readOnly = { ...principal, scopes: ['read'] as const };
+29 |   const run = await harness.publicCommands().runWithin(project.id, readOnly, [], access);
+30 |   const remove = await harness.removeBareStep(project.id, step.id, readOnly, true, access);
+31 |   const remaining = harness.sqlite.query('SELECT id FROM step WHERE id = ?').get(step.id);
+32 |   console.log(JSON.stringify({ run, remove, stepPersisted: remaining !== null }));
+33 |   if (run.ok || !remove.ok || remaining !== null) throw new Error('probe did not reproduce expected contrast');
+                                                                 ^
+error: probe did not reproduce expected contrast
+      at /tmp/command-review-direct-probe.ts:33:61
+
+Bun v1.4.2 (Linux x64)

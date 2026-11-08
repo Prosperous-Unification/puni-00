@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+(pass) shared-person bridge preserves remote FS governed admission and readiness [543.33ms]
+(pass) shared-person bridge preserves remote SS governed admission and readiness [406.77ms]
+(pass) shared-person bridge preserves remote FF governed admission and readiness [347.38ms]
+
+ 3 pass
+ 24 filtered out
+ 0 fail
+ 49 expect() calls
+Ran 3 tests across 1 file. [4.51s]

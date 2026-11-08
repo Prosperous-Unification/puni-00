@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:
+524 |         ),
+525 |         captureRead: { afterFirstRead: async ({ projectId }: { projectId: string }) => { capturedIds.push(projectId); } },
+526 |       };
+527 |       connection.db.run(sql.raw('BEGIN IMMEDIATE'));
+528 |       const before = await readFanoutObservationIn(connection.db, 'org-a', options, createReadSnapshotLifetime());
+529 |       expect(capturedIds.sort()).toEqual(['a1', 'a2', 'a3', 'a4']);
+                                       ^
+error: expect(received).toEqual(expected)
+
+  [
+    "a1",
++   "a1",
+    "a2",
+    "a3",
++   "a4",
+    "a4",
+  ]
+
+- Expected  - 0
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-connected-fanout/libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:529:34)
+(fail) captures staged external shared connected facts once without scheduling the component [252.82ms]
+
+ 0 pass
+ 10 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [4.71s]

@@ -1,0 +1,3557 @@
+{
+  "format": "ordinary-setup-input-closure-v1",
+  "version": 1,
+  "sourceEpoch": "ordinary-uc2-coupled-setup-v1",
+  "sourceRoot": "/home/df/.codex/worktrees/1b31/puni-00",
+  "sourceRootCanonical": "/home/df/.codex/worktrees/1b31/puni-00",
+  "compilerCwd": "/home/df/.codex/worktrees/1b31/puni-00",
+  "readLeaseAssumption": "Preparation has no atomic snapshot or exclusive no-writer lease. Root must establish reviewed source/install/config/layout protection before preflight and retain it through postflight.",
+  "files": [
+    {
+      "identity": "/home/df/.bun/bin/bun",
+      "canonical": "/home/df/.bun/bin/bun",
+      "mode": 493,
+      "bytes": 107308936,
+      "sha256": "10702245766b225e70bbf6235fd6b47214fd94b4760d00ffaed8ab0df57ac235",
+      "roles": ["authority"]
+    },
+    {
+      "identity": "bun.lock",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/bun.lock",
+      "mode": 436,
+      "bytes": 534113,
+      "sha256": "48b5cea4e2ac740d300f4e41cc705dfb5213210c4db378f8cdf65640fb695adb",
+      "roles": ["authority"]
+    },
+    {
+      "identity": "libs/wbs/adapters/store-sqlite/src/backup.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/src/backup.ts",
+      "mode": 436,
+      "bytes": 25178,
+      "sha256": "c681a4ec8fc6d8b2787647507e8f8357146cff261cba75250ae446cea305a230",
+      "roles": ["compiler"],
+      "compilerMode": "transform"
+    },
+    {
+      "identity": "libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.ts",
+      "mode": 436,
+      "bytes": 9432,
+      "sha256": "a8c7726a4ea176bcc5d48db3eb42d138b809dcac1e7a46bd58be27e0824c72e1",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "libs/wbs/adapters/store-sqlite/src/cross-project-dependency-rollback.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-rollback.ts",
+      "mode": 436,
+      "bytes": 1635,
+      "sha256": "1758666c672ba21c59c0baff8ce4c25ef584d93a4985d693bfe654f907a8a487",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "libs/wbs/adapters/store-sqlite/src/db.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/src/db.ts",
+      "mode": 436,
+      "bytes": 24545,
+      "sha256": "3071cca955b20084cac3c769dad23b0741a34ad4204d6f7e4dbb476392715120",
+      "roles": ["compiler"],
+      "compilerMode": "transform"
+    },
+    {
+      "identity": "libs/wbs/adapters/store-sqlite/src/migrate-down.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/src/migrate-down.ts",
+      "mode": 436,
+      "bytes": 10632,
+      "sha256": "5965e4cc9274dff003876f4ec0d0980813628cd979d5f17e26e59c47990fa5cc",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "libs/wbs/adapters/store-sqlite/src/migrate.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/src/migrate.ts",
+      "mode": 436,
+      "bytes": 8962,
+      "sha256": "029cd9f29f1b555175c4fe6d758e2921c2d6abe320210b9b5f7cd079cace9f8f",
+      "roles": ["compiler"],
+      "compilerMode": "transform"
+    },
+    {
+      "identity": "libs/wbs/adapters/store-sqlite/src/migration-set.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/src/migration-set.ts",
+      "mode": 436,
+      "bytes": 9089,
+      "sha256": "28f41cf67de5ed08a0c83138dafd17eb0a16c1fa535541c4483e2c9720470c05",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "libs/wbs/adapters/store-sqlite/src/sqlite-cleanup.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/src/sqlite-cleanup.ts",
+      "mode": 436,
+      "bytes": 2479,
+      "sha256": "83785f02655bf81514328255fe45e047b4b79a5374fdebb3a269d2d2687ac74b",
+      "roles": ["compiler"],
+      "compilerMode": "transform"
+    },
+    {
+      "identity": "libs/wbs/adapters/store-sqlite/tsconfig.json",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/tsconfig.json",
+      "mode": 436,
+      "bytes": 471,
+      "sha256": "cda020e012c219e6b3c49cbdabb50d6d24d349ffdcf40035d86bc8eecd28565a",
+      "roles": ["authority"]
+    },
+    {
+      "identity": "libs/wbs/domain/contracts/src/dependency-runtime.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/domain/contracts/src/dependency-runtime.ts",
+      "mode": 436,
+      "bytes": 4700,
+      "sha256": "6d8bb70b1bd4c844ae50e63e25d4d596ccb0c3073cbcd27880b92ce2c93f59c2",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "libs/wbs/domain/contracts/tsconfig.json",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/domain/contracts/tsconfig.json",
+      "mode": 436,
+      "bytes": 471,
+      "sha256": "cda020e012c219e6b3c49cbdabb50d6d24d349ffdcf40035d86bc8eecd28565a",
+      "roles": ["authority"]
+    },
+    {
+      "identity": "node_modules/@typescript/old/lib/typescript.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/@typescript/old/lib/typescript.js",
+      "mode": 420,
+      "bytes": 9144216,
+      "sha256": "569177652966bd528c319171c7dd22860dbf72bde116cbc4f644f1d02bb12e39",
+      "roles": ["authority"]
+    },
+    {
+      "identity": "node_modules/@typescript/old/package.json",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/@typescript/old/package.json",
+      "mode": 420,
+      "bytes": 3527,
+      "sha256": "9332e97c30d3e53ed54910b89207ed657fb444066484df6e5b6965bf130865e9",
+      "roles": ["package"]
+    },
+    {
+      "identity": "node_modules/bun-types/bun.d.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/bun-types/bun.d.ts",
+      "mode": 420,
+      "bytes": 349983,
+      "sha256": "2089ccdcdfb5b2ffe365a797387a024cd69146c4ea271fa6d2b6e2079ca5c8e9",
+      "roles": ["authority"]
+    },
+    {
+      "identity": "node_modules/bun-types/package.json",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/bun-types/package.json",
+      "mode": 420,
+      "bytes": 933,
+      "sha256": "3a84571e93b9af8e5503ea535a5deec9b7800513250a16eab43151988f10ba74",
+      "roles": ["package"]
+    },
+    {
+      "identity": "node_modules/drizzle-orm/alias.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/alias.js",
+      "mode": 420,
+      "bytes": 5029,
+      "sha256": "abb2002e3bda3b61afe9439d2ddd6f8b940c320b214863230edf0915e7440846",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/bun-sqlite/driver.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/bun-sqlite/driver.js",
+      "mode": 420,
+      "bytes": 1772,
+      "sha256": "03bbf748dde0324dc27d73bd4999db7f63f4c43b6df751faa0cbe563b352cf5b",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/bun-sqlite/index.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/bun-sqlite/index.js",
+      "mode": 420,
+      "bytes": 208,
+      "sha256": "f6dda1d755517112c1480a2ef9b697403ab39c0bc674592e6ffdead0e1b6c7cb",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/bun-sqlite/migrator.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/bun-sqlite/migrator.js",
+      "mode": 420,
+      "bytes": 758,
+      "sha256": "f95e0b5a852ce6776c371be51ccf140a4af2997fe9616eddfd3b08ced8600968",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/bun-sqlite/session.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js",
+      "mode": 420,
+      "bytes": 2412,
+      "sha256": "4be8c1fff4563f620cf6fe0d56a3311fede43ea7f8f6a11babfd57c6f1f8159a",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/cache/core/cache.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/cache/core/cache.js",
+      "mode": 420,
+      "bytes": 1521,
+      "sha256": "9f9c068cf777508f5e52dccd995a5d3c27f0e7ac4b63ca8e116c96e0193e23fd",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/casing.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/casing.js",
+      "mode": 420,
+      "bytes": 709,
+      "sha256": "b6c8e844f5748413cf5fd4acb571d3a87876e077825ee8d6c974c03b8cb125fd",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/column-builder.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/column-builder.js",
+      "mode": 420,
+      "bytes": 3253,
+      "sha256": "f3138372a51dfa71a6b0c89bb569cd1cca94e1a707d80b531fc0b2d4d41afd3d",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/column-common.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/column-common.js",
+      "mode": 420,
+      "bytes": 174,
+      "sha256": "aeee40dc38217af239f5aaf4caec4c2eea3ff597041108ad26d17c59efb97447",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/column.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/column.js",
+      "mode": 420,
+      "bytes": 1784,
+      "sha256": "ba0092ebdb64b91fa0360c153d4d5e98ea317e8cbbc2b2b0c12e43b51be44529",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/entity.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/entity.js",
+      "mode": 420,
+      "bytes": 813,
+      "sha256": "49c2a130aff2cccb665e00185767b256957b1640e6e43819022b73ab12c4cc79",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/errors.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/errors.js",
+      "mode": 420,
+      "bytes": 979,
+      "sha256": "0b93533b5831b41852a2a58b831d65b11b41ce55bacc9ea82663a1935705aaf8",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/index.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/index.js",
+      "mode": 420,
+      "bytes": 5091,
+      "sha256": "c3615a7f031a2f486a45b05ec69b7ab83735d8ec4bdc228cc0a61bf408ef40d0",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/logger.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/logger.js",
+      "mode": 420,
+      "bytes": 853,
+      "sha256": "f639a5fd02a0906650e81e4fec2f64d941cb3fb400ffd25eff51fa1a39bad3e3",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/migrator.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/migrator.js",
+      "mode": 420,
+      "bytes": 1388,
+      "sha256": "d941831d98652529d44948aa0894d98851b8720f6ef1e2c4e0c18b0c738eef08",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/migrator.utils.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/migrator.utils.js",
+      "mode": 420,
+      "bytes": 794,
+      "sha256": "ad5e05feeef8a1292bbb498d977a7310cfa5f2d2eac96bcd637c02e42743aabb",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/package.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/package.js",
+      "mode": 420,
+      "bytes": 120,
+      "sha256": "88dd8a73fc81bb5536a66d9fba3b3782bea389ec63f2a7d0f157d7cebbd83ba2",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/package.json",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/package.json",
+      "mode": 420,
+      "bytes": 290146,
+      "sha256": "e31432c0ad6975d2b937cf579aa60f5d8a98f00dab81f4742e788c7369f866aa",
+      "roles": ["package"]
+    },
+    {
+      "identity": "node_modules/drizzle-orm/query-builders/query-builder.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/query-builders/query-builder.js",
+      "mode": 420,
+      "bytes": 398,
+      "sha256": "15f963dd306b1325883e40b29f3f1769d315db42aa7b56213b52b394ca5d54a5",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/query-promise.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/query-promise.js",
+      "mode": 420,
+      "bytes": 570,
+      "sha256": "dbd26bd652552b54bc5ccc80b94750f66d7e05a806a986bdef40557724042ae8",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/relations.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/relations.js",
+      "mode": 420,
+      "bytes": 31427,
+      "sha256": "055c93ee5e4897f34afd4cfe76192b419261c0137730070da27175fe7087b71c",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/selection-proxy.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/selection-proxy.js",
+      "mode": 420,
+      "bytes": 2045,
+      "sha256": "8b5d341feed92d2fba9a8ab2072802d11c471126c9c5c09f5067be6e94198bae",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sql/expressions/conditions.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/expressions/conditions.js",
+      "mode": 420,
+      "bytes": 10238,
+      "sha256": "dc0651ec0ee7f5b7028235dd9b62eda4c4cddbb2f2b2a009339bd7405f6bfeaa",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sql/expressions/select.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/expressions/select.js",
+      "mode": 420,
+      "bytes": 1050,
+      "sha256": "a8bb899a58da6dc1518324bf781475bd82a189e393eead613ad40cc8e1706f8c",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sql/functions/aggregate.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/functions/aggregate.js",
+      "mode": 420,
+      "bytes": 3420,
+      "sha256": "acf5af23fd4b6ab7dc5dd00c847eba19f4f5052cea45ceab1647d0964331d72d",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sql/functions/vector.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/functions/vector.js",
+      "mode": 420,
+      "bytes": 4589,
+      "sha256": "e99e61737352afa96fe7a23e9542fac54048d270b729d659ec77791a1b9bee43",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sql/index.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/index.js",
+      "mode": 420,
+      "bytes": 1437,
+      "sha256": "4a8ebd013007165d1298cb2ac54c5cbe5ac619311d21e29dd04fa211f3abaaca",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sql/sql.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/sql.js",
+      "mode": 420,
+      "bytes": 15686,
+      "sha256": "bc8c9a847768f0826cb240efca4a9d2621ffbc36cf4c0523e45ad3a3cbae54b9",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/async/count.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/async/count.js",
+      "mode": 420,
+      "bytes": 1147,
+      "sha256": "2d46b23ca0724c7108b50bf597b0f40dcac7e8c5d400608f1fb814be256c0b92",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/async/db.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/async/db.js",
+      "mode": 420,
+      "bytes": 12490,
+      "sha256": "de02088ed949e4fa6911cc4f8032221a33f3c19be6dc46b00fba3f78a2c2a716",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/async/delete.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/async/delete.js",
+      "mode": 420,
+      "bytes": 1385,
+      "sha256": "909f53e9b0eddc8d2ab0123fd216bd1c4ddcae97f77597d5f8e793db5e0b16d7",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/async/insert.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/async/insert.js",
+      "mode": 420,
+      "bytes": 1351,
+      "sha256": "4891410bd7f685840d8c3f26158608bb4d1075cc8d90cd7dddf991bae7c9e4e5",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/async/query.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/async/query.js",
+      "mode": 420,
+      "bytes": 1330,
+      "sha256": "867efc09effe841b028e8523212492aade93f90992a7d85f6c61ba839a734a80",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/async/raw.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/async/raw.js",
+      "mode": 420,
+      "bytes": 604,
+      "sha256": "8c996f37fd3569edf3a917fe08386a26304dc5c3a31d201c343cd7698c82bcbd",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/async/select.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js",
+      "mode": 420,
+      "bytes": 1341,
+      "sha256": "a0e0bc917006111d09f8e45ace0e317577dcac091519fc4bdf09bb3d7395b682",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/async/session.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js",
+      "mode": 420,
+      "bytes": 10697,
+      "sha256": "9cf940c50e97dfa3fe60cb224e23fef858d5c66fae1f4234a88449f419351678",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/async/update.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/async/update.js",
+      "mode": 420,
+      "bytes": 1373,
+      "sha256": "66b6e018f0e0249e36ed5ffc70c76d2363bddace5e9eb7b97ca1713906294269",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/checks.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/checks.js",
+      "mode": 420,
+      "bytes": 636,
+      "sha256": "aa1abef2c43a23eea7b1c8d5b70e2ec409020e23d54562a178cf9325f3b78af5",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/columns/all.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/columns/all.js",
+      "mode": 420,
+      "bytes": 459,
+      "sha256": "096ae2766a5afaa77bb318c8a254c3ff6c9ca3f838fed0e5b607c0388cc517c8",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/columns/blob.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/columns/blob.js",
+      "mode": 420,
+      "bytes": 3389,
+      "sha256": "40e21b4d0257e919d17291f173e73a6e46eb40d7c55cdee39f270c73489be9df",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/columns/common.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/columns/common.js",
+      "mode": 420,
+      "bytes": 1518,
+      "sha256": "14104277ea6cfdb0c93acc37351daffe434d132a91ab2ae0ab10bbfbd8e67e18",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/columns/custom.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/columns/custom.js",
+      "mode": 420,
+      "bytes": 2351,
+      "sha256": "c09183bb27e4e085c0fcc7dd15f3b71b288d25d7486a114d50706a6e74d5d726",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/columns/index.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/columns/index.js",
+      "mode": 420,
+      "bytes": 1513,
+      "sha256": "bcb176677f6acd60ca5223823303dce4c461f5aaa1ce4ad62b248a361ca00a21",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/columns/integer.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/columns/integer.js",
+      "mode": 420,
+      "bytes": 3492,
+      "sha256": "77e0d09eed9adab0a401771ff2091d0f0d94223ac7d1c6b57370405fbd0b7bbf",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/columns/numeric.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/columns/numeric.js",
+      "mode": 420,
+      "bytes": 2264,
+      "sha256": "7f7042e825aff699ae7486aa46da4b1485699d7f38c92453852c517358e9608a",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/columns/real.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/columns/real.js",
+      "mode": 420,
+      "bytes": 696,
+      "sha256": "c17d233d4ef86fe2c6e707a09845cdc8875f7dc742dab2dc6c89f5fcd44dae79",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/columns/text.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/columns/text.js",
+      "mode": 420,
+      "bytes": 1729,
+      "sha256": "4f84582cee92ce5a785f324b2e60e20eb17534d499c3435e1939b5091e8d4f6a",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/dialect.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/dialect.js",
+      "mode": 420,
+      "bytes": 19855,
+      "sha256": "7e90ee59c7468744ab08596c1c64b14ecb2d5e81b1fd77892f1627b46ce0859b",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/foreign-keys.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/foreign-keys.js",
+      "mode": 420,
+      "bytes": 1942,
+      "sha256": "66958651d803bc4a3ad40f96958b73d01885ff1102783eb28975c696b74ab9bf",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/indexes.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/indexes.js",
+      "mode": 420,
+      "bytes": 1180,
+      "sha256": "6ddaf0f75f569fd30f45996c8ce382d8e157f108b4f3b475e1af6b4eee15dfcd",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/primary-keys.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/primary-keys.js",
+      "mode": 420,
+      "bytes": 1093,
+      "sha256": "6d84d981e0d4a4eb434782fb75dd0f171b4d0aabea682a500eb45fd9d53141bb",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/query-builders/count.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/query-builders/count.js",
+      "mode": 420,
+      "bytes": 1108,
+      "sha256": "2bb32491f48afb22ba064b242fc7afe1a4ee023d2bf21e6ec3765b2c5c502e7d",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/query-builders/delete.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/query-builders/delete.js",
+      "mode": 420,
+      "bytes": 2408,
+      "sha256": "b5a1033e630abf2cca8558093c3f9d10735cff0eda99450add78d53da3c16ea6",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/query-builders/index.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/query-builders/index.js",
+      "mode": 420,
+      "bytes": 538,
+      "sha256": "a5f9925517c289c624dff5c4d46f8a6b409af4536777218d3db8aff8dd9b8069",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/query-builders/insert.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/query-builders/insert.js",
+      "mode": 420,
+      "bytes": 5334,
+      "sha256": "c37b3a00126c849e50293011092dddcea877ab08edc8b710bc8c90158171d192",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/query-builders/query-builder.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/query-builders/query-builder.js",
+      "mode": 420,
+      "bytes": 1982,
+      "sha256": "bee53d57c6f52bd850f00e70cd92ca75e461bad154078059dd6bd5e460dbc8e5",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/query-builders/query.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/query-builders/query.js",
+      "mode": 420,
+      "bytes": 2019,
+      "sha256": "6454bae4ee11aad41fbabef5c5858bd44075e962eda296a13e3f2a4bec182174",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/query-builders/raw.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/query-builders/raw.js",
+      "mode": 420,
+      "bytes": 446,
+      "sha256": "dd6c92ce74de8b480d26fcdb988980a5f5141a2a7f226ceebd1e508ebefe51f1",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/query-builders/select.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/query-builders/select.js",
+      "mode": 420,
+      "bytes": 21835,
+      "sha256": "2d5ec3856b862cf94e48c1c228dd8020ca4529e710cb716b24f4d0766a33bc2a",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/query-builders/update.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/query-builders/update.js",
+      "mode": 420,
+      "bytes": 4299,
+      "sha256": "2aabdd04fba11e9547fc6da54fecc5f50beff774cb7d17bff056450efd64d4e6",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/session.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/session.js",
+      "mode": 420,
+      "bytes": 645,
+      "sha256": "de490b9766cd1f7a7b692e885ee0456d54986561069f768afbf6925549d8c253",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/table.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/table.js",
+      "mode": 420,
+      "bytes": 2118,
+      "sha256": "a6e92aa1a4bfbef6d99cfd3527d9867a3883d79766f51682a8cd84d5fe89f4ca",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/unique-constraint.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/unique-constraint.js",
+      "mode": 420,
+      "bytes": 1392,
+      "sha256": "1403133727c8415ea1879c50cc25330e74bc249ecbb38664554ca5bce1fcdd17",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/utils.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/utils.js",
+      "mode": 420,
+      "bytes": 2127,
+      "sha256": "a230872e9d4afdca0d6f9b4ce5c6b6cf549b858a0e3857645a96539c05adb170",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/sqlite-core/view-base.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/view-base.js",
+      "mode": 420,
+      "bytes": 285,
+      "sha256": "61db0205a72deb3c2ed7cb22bb61461f7830719de9fd41d3829121710342c03d",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/subquery.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/subquery.js",
+      "mode": 420,
+      "bytes": 482,
+      "sha256": "febf66b8f9c48f0651db4197797138730e9071c6ef62e7e69c7d417fa1a7c06e",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/table.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/table.js",
+      "mode": 420,
+      "bytes": 2115,
+      "sha256": "654716c30ae06b0eab772f587929f2e1e7e0ec99aa0c42cbd7b2e7639c5e1a74",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/table.utils.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/table.utils.js",
+      "mode": 420,
+      "bytes": 167,
+      "sha256": "b2f204e669f164fd5eaf23c264f875597ded7c4fafe30b54c0cc16c4a640ab1d",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/tracing-utils.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/tracing-utils.js",
+      "mode": 420,
+      "bytes": 155,
+      "sha256": "3d480ff0b9fe7f5c4be81546bf4691f93bfa6fc213df5f8ec7358956f61fbf16",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/tracing.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/tracing.js",
+      "mode": 420,
+      "bytes": 303,
+      "sha256": "97c167f58f9ec0b0c0b04cc93949e34969643dd76a7cff02f9b4198f99947d39",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/up-migrations/sqlite.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/up-migrations/sqlite.js",
+      "mode": 420,
+      "bytes": 7424,
+      "sha256": "30c59d175f52173acfa70da4123bc86d4d6c3c2be72b979f070270601c9182c9",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/up-migrations/utils.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/up-migrations/utils.js",
+      "mode": 420,
+      "bytes": 867,
+      "sha256": "7eb68446c80266c9d714166c0d32e451cdd8f9b49e8e1b0058bed4f76a5d15c5",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/utils.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/utils.js",
+      "mode": 420,
+      "bytes": 15281,
+      "sha256": "979b16839f8d153f1704b464f9550aaf382378a4db0ed5073abca953098b3ccb",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/version.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/version.js",
+      "mode": 420,
+      "bytes": 204,
+      "sha256": "de8b2de5371f9b1a33ba46986a37b8cff6be810f97b68d487ebc785103e2b97f",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/drizzle-orm/view-common.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/view-common.js",
+      "mode": 420,
+      "bytes": 170,
+      "sha256": "bebb66d2ce1936124f0f46321fa37dfbf8b12dd02d0a40e8ec71b22ee32af35f",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/typescript/lib/typescript.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/typescript/lib/typescript.js",
+      "mode": 420,
+      "bytes": 45,
+      "sha256": "d3f3cd2b04b7f466f4484df921b744223f7bd1f3e353ec9110bdf52695b983d5",
+      "roles": ["authority"]
+    },
+    {
+      "identity": "node_modules/typescript/package.json",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/typescript/package.json",
+      "mode": 420,
+      "bytes": 841,
+      "sha256": "d9b8fb53c67c947fece83bcb73fa8512227ea6a12b110e096fdab8ecdc02b655",
+      "roles": ["package"]
+    },
+    {
+      "identity": "node_modules/zod/index.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/index.js",
+      "mode": 420,
+      "bytes": 422,
+      "sha256": "32e7efd49a94a765f6d10a1a0a3c02c50c246def17c80c6f0225f85525d98505",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/package.json",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/package.json",
+      "mode": 420,
+      "bytes": 4142,
+      "sha256": "a046ed85fa09571dba539fee9ef236152d12dabd1f229b014ec3bd2ebaad9000",
+      "roles": ["package"]
+    },
+    {
+      "identity": "node_modules/zod/v4/classic/checks.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/classic/checks.js",
+      "mode": 420,
+      "bytes": 690,
+      "sha256": "7543391a9ad5e7df287bbfecaa79844d46af44c75c1de0d43a411d65795d9dd1",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/classic/coerce.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/classic/coerce.js",
+      "mode": 420,
+      "bytes": 550,
+      "sha256": "fb2efe3b6eacc475c77cbb571b5fb8650d92a10f316dc869e49b722973d83c3c",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/classic/compat.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/classic/compat.js",
+      "mode": 420,
+      "bytes": 1090,
+      "sha256": "0e948b101771cc0e7b753e54b3f5b486929d3db9bd4c09d98fe4ce86271bcf7b",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/classic/deep-partial.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/classic/deep-partial.js",
+      "mode": 420,
+      "bytes": 543,
+      "sha256": "0abffcc9838e04dc6f091229c1d522fbfd43aab9563316b52d3eb8ff2bacf26d",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/classic/errors.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/classic/errors.js",
+      "mode": 420,
+      "bytes": 2532,
+      "sha256": "d32f7c1ef8e2c70072f6f0ec8ba7081bbc331353cc3a7cb4429e5ece91409543",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/classic/external.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/classic/external.js",
+      "mode": 420,
+      "bytes": 1101,
+      "sha256": "c6b584ae70ba4e7132b2cd78c23ea4ecedc9828abf999edee312372e1fb453d6",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/classic/from-json-schema.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/classic/from-json-schema.js",
+      "mode": 420,
+      "bytes": 38171,
+      "sha256": "31dc999a26cb6928f5e99ea564d648567e85cf9aa47565198fb6186dbd6c070e",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/classic/in-out.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/classic/in-out.js",
+      "mode": 420,
+      "bytes": 2190,
+      "sha256": "34370913842ff02d14a9796b11c5ec2af160bdb35a7148edc286e9a9c6fb5c17",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/classic/iso.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/classic/iso.js",
+      "mode": 420,
+      "bytes": 556,
+      "sha256": "deaa026b7c5302e59719f401248e7866691d8d8a892884dd2b6868b1cb7252d8",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/classic/package.json",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/classic/package.json",
+      "mode": 420,
+      "bytes": 127,
+      "sha256": "3e3125b5a537a24c3632c1c5c09640ce7bcb3935901b127ad8ae3c37a27f133f",
+      "roles": ["package"]
+    },
+    {
+      "identity": "node_modules/zod/v4/classic/parse.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/classic/parse.js",
+      "mode": 420,
+      "bytes": 1057,
+      "sha256": "11941573401bbef138842c7a523dff554873343fccbf0e8b0a144259d2d703f1",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/classic/schemas.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/classic/schemas.js",
+      "mode": 420,
+      "bytes": 53354,
+      "sha256": "2bf4a631a18f734a9a7ab7fc11bcf919214774d2235a312dcec0dd53d0324c32",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/core/api.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/api.js",
+      "mode": 420,
+      "bytes": 28953,
+      "sha256": "03ae6016abc9585e3f3481d6b8d775a95ae4ee65badbde73ca1ed953ff14c0e7",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/core/checks.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/checks.js",
+      "mode": 420,
+      "bytes": 19491,
+      "sha256": "bc42543274218aa7ef72192b3218d2a4a399e53df8de240a04d9ff275096f563",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/core/compile.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/compile.js",
+      "mode": 420,
+      "bytes": 91611,
+      "sha256": "df28853593428e5a2a8729b09f43baf0998eaae7f1e37797993035187833b054",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/core/core.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/core.js",
+      "mode": 420,
+      "bytes": 6642,
+      "sha256": "c7ce485c97263e42568d16b11bb4a90133221c7e807498a9273d70f41ba16ef6",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/core/doc.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/doc.js",
+      "mode": 420,
+      "bytes": 1290,
+      "sha256": "be4c1b1a1ad247cc70f360a572060edd7e0cea24252c3a319f33d247899c5643",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/core/errors.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/errors.js",
+      "mode": 420,
+      "bytes": 10871,
+      "sha256": "a0c95ef2f7085b5bc2931f7b566f524b26a0360c8df741e3f87f923745cf9792",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/core/index.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/index.js",
+      "mode": 420,
+      "bytes": 690,
+      "sha256": "2a0e452323aa5b75b7d7de4879289e2579b9dd2d6af291c0416ba6806ca2199d",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/core/json-schema-generator.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/json-schema-generator.js",
+      "mode": 420,
+      "bytes": 3857,
+      "sha256": "beaeab6faa654e99e443b8a9f5d8a4adc08cd8226f92a0cd32477a58ecfa1807",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/core/json-schema-processors.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/json-schema-processors.js",
+      "mode": 420,
+      "bytes": 34985,
+      "sha256": "b6d2aee72212c076b9cde38da6333591c76a24eb049a4ee4e7bd2b7825d8b817",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/core/json-schema.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/json-schema.js",
+      "mode": 420,
+      "bytes": 11,
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/core/memoizer.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/memoizer.js",
+      "mode": 420,
+      "bytes": 12517,
+      "sha256": "18a3188c51229d9189a5408b0b7fbc3e121b55c2b4c3c406d79cb9b77e7ad964",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/core/package.json",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/package.json",
+      "mode": 420,
+      "bytes": 127,
+      "sha256": "3e3125b5a537a24c3632c1c5c09640ce7bcb3935901b127ad8ae3c37a27f133f",
+      "roles": ["package"]
+    },
+    {
+      "identity": "node_modules/zod/v4/core/parse.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/parse.js",
+      "mode": 420,
+      "bytes": 8267,
+      "sha256": "fb05b91ec260f3f484f7c00a177b6126ceb8fd1b09dc90b1200afdffd4d98efd",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/core/regexes.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/regexes.js",
+      "mode": 420,
+      "bytes": 11818,
+      "sha256": "24fc98f6fc9175e50ff29d28b040e3b4ac5650de19914d45ee27b853d367ecc6",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/core/registries.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/registries.js",
+      "mode": 420,
+      "bytes": 1540,
+      "sha256": "f04d4b2c0bc5b4ac2d6610ea34edf2e5260eade18f20976b79916dcdbeb9fa4d",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/core/schemas.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/schemas.js",
+      "mode": 420,
+      "bytes": 105968,
+      "sha256": "e632b655441418f0593153abc6809fd81cf3e0782d810622d0a4fa50ef6e182e",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/core/to-json-schema.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/to-json-schema.js",
+      "mode": 420,
+      "bytes": 29029,
+      "sha256": "85b883eb8f05e9f060c71a39fce7df9345b566af29d5bc9c8fa477fe616a051d",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/core/util.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/util.js",
+      "mode": 420,
+      "bytes": 34363,
+      "sha256": "728f52b496620336775eafcdb91c0a574380086e53f215b55c58eedc1422c49c",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/core/versions.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/versions.js",
+      "mode": 420,
+      "bytes": 70,
+      "sha256": "63b38035ff5e2a5a5cfe5665e271af72b0cf9791e770dccf5e99d977064fb96c",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/core/visit.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/visit.js",
+      "mode": 420,
+      "bytes": 6643,
+      "sha256": "a804062900869e09ea0b975cfa569fd3c70dc33bad7fc30b63872d451cae29f7",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/ar.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/ar.js",
+      "mode": 420,
+      "bytes": 5404,
+      "sha256": "eec4016c2b3063ae929617d90ec609e4c425e60c97a954d3a24de0f457b6ec97",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/az.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/az.js",
+      "mode": 420,
+      "bytes": 4703,
+      "sha256": "5bd03646b9d18b73e71356cd28937e4e6413b806bb23e14689cc88f6f65ff3a6",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/be.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/be.js",
+      "mode": 420,
+      "bytes": 6998,
+      "sha256": "f969afea5d9800a71958a621658943b85a2576a2bfefdd5dea70afc4924d4af4",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/bg.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/bg.js",
+      "mode": 420,
+      "bytes": 6029,
+      "sha256": "96741333a790320e05aef7286b5b709a4a7c48cfffc50fc5e6acff5b505275e9",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/bn.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/bn.js",
+      "mode": 420,
+      "bytes": 5757,
+      "sha256": "6d8227b52a6864465b7c52a9ef7e09d261d904ec8a619932e15dd9f9f826e8dd",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/ca.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/ca.js",
+      "mode": 420,
+      "bytes": 4908,
+      "sha256": "67f6f38b59a6e3ee81cc5155480465331dd9a142b2471a495503a81dafba0684",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/ckb.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/ckb.js",
+      "mode": 420,
+      "bytes": 5948,
+      "sha256": "bdb9ef0cfda4009f8892585a1780fff863cd409931d6f89394c271042c131137",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/cs.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/cs.js",
+      "mode": 420,
+      "bytes": 4953,
+      "sha256": "4ffa0e484ad1842a2c0e5c7f2dfe9160155ff5be4b95ab6e524d3a30a2210488",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/da.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/da.js",
+      "mode": 420,
+      "bytes": 4987,
+      "sha256": "29addcd60e88422bed9ed78c6c864220a15c06b31fdb4ab7ad4f87be4098e6ae",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/de.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/de.js",
+      "mode": 420,
+      "bytes": 4774,
+      "sha256": "f344eb96ba18d9db907f3f9c95897ce2590ab0cde1553c023daffbb1cb5ef6f4",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/el.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/el.js",
+      "mode": 420,
+      "bytes": 5701,
+      "sha256": "fdea833aa0a8c381d26216db1521dd7fbc4dccb6d3aa50f9a585ffb975df91eb",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/en.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/en.js",
+      "mode": 420,
+      "bytes": 5302,
+      "sha256": "d5930e10d137b048b37823e168e4177947e1f696ada8419c71bb0d32da4333c0",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/eo.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/eo.js",
+      "mode": 420,
+      "bytes": 4784,
+      "sha256": "97797bd22319ecc3f2044da6c305f1114b851803697029ffce2b66644757da3a",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/es.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/es.js",
+      "mode": 420,
+      "bytes": 5591,
+      "sha256": "12e762b921b1e3fdb8e265d2b554de81ce9706ceb23a81527f48ae2dddf355db",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/fa.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/fa.js",
+      "mode": 420,
+      "bytes": 5343,
+      "sha256": "60e7eeff4c000c85f8420168374344305d3c2110a5f91a2fb672b2a2381eeddf",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/fi.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/fi.js",
+      "mode": 420,
+      "bytes": 5007,
+      "sha256": "1e72af4193e564cd37dce4a850dc18bc1bcd6ca280f29e9f5f8c6bbab6a2cad9",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/fr-CA.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/fr-CA.js",
+      "mode": 420,
+      "bytes": 4749,
+      "sha256": "a2ca0451ff943766bb6a88b392b25447462a1d3ed75c1adda5ddb0bc474bcd42",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/fr.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/fr.js",
+      "mode": 420,
+      "bytes": 5414,
+      "sha256": "477345d6401d0e4f07794b1a2cff8b78953723f1fc8cfaeb6b660c19be47125a",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/gu.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/gu.js",
+      "mode": 420,
+      "bytes": 5930,
+      "sha256": "b1921ac6b4158e6360a8da6099df8bbf2d7bce7c1cf381d5a5e47aa0c74874d2",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/he.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/he.js",
+      "mode": 420,
+      "bytes": 12411,
+      "sha256": "1cfff31fac19616d900d1f3febd9690ea87711e13b5be299326ebfd3f33aad4d",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/hi.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/hi.js",
+      "mode": 420,
+      "bytes": 5940,
+      "sha256": "c31e466c2a31dc10ba6a288e1aebf429a6e9566a26918d0240aae058693f6329",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/hr.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/hr.js",
+      "mode": 420,
+      "bytes": 5184,
+      "sha256": "ff2bebef0761f2d6095103d58484e3b95551bc51d56770db8f161b8e0e0ec941",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/hu.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/hu.js",
+      "mode": 420,
+      "bytes": 4871,
+      "sha256": "9816c21ee0b3be9d973f9e033e9587a608f2d35dd1b984d415b88e03242b0189",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/hy.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/hy.js",
+      "mode": 420,
+      "bytes": 6720,
+      "sha256": "daf6d0c590d9b061759598ba9f7f97041e2874c7a58da2c64b86f152840d68fa",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/id.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/id.js",
+      "mode": 420,
+      "bytes": 4759,
+      "sha256": "e5c23bb0b6f696fa936bafd7969e64738504cf7a5be3ec04b24ae899d4912b58",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/index.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/index.js",
+      "mode": 420,
+      "bytes": 2607,
+      "sha256": "7ea85250d1e7bd9459cda61f38c78757a410d561a5421bb3f08019bba79c9849",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/is.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/is.js",
+      "mode": 420,
+      "bytes": 4822,
+      "sha256": "1cce1285bbf55c8a76303fea0be0fb6d39fbd0ece833137ea23a22f406ac1ae1",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/it.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/it.js",
+      "mode": 420,
+      "bytes": 4775,
+      "sha256": "096b497df6c5fe7de4422482b7733e764e4b344e8d7f768a7289556687acdb82",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/ja.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/ja.js",
+      "mode": 420,
+      "bytes": 5054,
+      "sha256": "2a6bbbd6dbd573687b22f35873a13cdf730c07423b4ab114e5a8b12d8777146d",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/ka.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/ka.js",
+      "mode": 420,
+      "bytes": 6527,
+      "sha256": "baf3204123cf4246df654fd1948b6c8da6917e7a06e470aeeaf7c1eaa7003628",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/kh.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/kh.js",
+      "mode": 420,
+      "bytes": 111,
+      "sha256": "78c3d1991041bb8c8fc0f7c5d745aae422d4c2e4e8f30bae44f3fef4765900a8",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/km.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/km.js",
+      "mode": 420,
+      "bytes": 6509,
+      "sha256": "e61079f14070dfa9c7b2047eb79f5bea6d4e845f192756d103c121bbd63ee18a",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/kn.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/kn.js",
+      "mode": 420,
+      "bytes": 6512,
+      "sha256": "884b1b68a1ca02fe9a774b8de9cbfa3486892eea36192699120f57b31f0a1f42",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/ko.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/ko.js",
+      "mode": 420,
+      "bytes": 5109,
+      "sha256": "11fcef61a2f23e010bf0f569d71be0d49524afc97f3072cc03fdc6fe3ea2f14d",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/lt.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/lt.js",
+      "mode": 420,
+      "bytes": 8223,
+      "sha256": "d2e67a35a3c6e7241a9eb9c5851e4b5b651ac8b23278854862e6055829946c48",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/mk.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/mk.js",
+      "mode": 420,
+      "bytes": 5399,
+      "sha256": "64ddd914c432ba5690d0686bff6603651ce886a891f84823d7dc766c9c980cd1",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/ms.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/ms.js",
+      "mode": 420,
+      "bytes": 4674,
+      "sha256": "94faf0d306ffa2a4f95e57f3e53060d27220a639b9cb529f00d1d01b6270f045",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/ne.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/ne.js",
+      "mode": 420,
+      "bytes": 5819,
+      "sha256": "6da69989b702ae15baa27b799b6b2b32fd011ba3980a190dd0eccfc9233083d6",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/nl.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/nl.js",
+      "mode": 420,
+      "bytes": 4939,
+      "sha256": "296ced8be508c5f9e82b562049d2974882029bcd5b2ab4ade14401b33ec99909",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/nn.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/nn.js",
+      "mode": 420,
+      "bytes": 4678,
+      "sha256": "bae9756817629db30841eb54a27ed9b3c71c2a4208314d8d070be624bd2e9359",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/no.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/no.js",
+      "mode": 420,
+      "bytes": 4693,
+      "sha256": "f358e5586940350ee25a05db184565d23eb1c66903e182ebec812172f31cb55a",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/ota.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/ota.js",
+      "mode": 420,
+      "bytes": 4723,
+      "sha256": "66ed8c3ce00b2e9971ed5a17f002937405d8cdfeb399ebe012db9d2317f42146",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/package.json",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/package.json",
+      "mode": 420,
+      "bytes": 127,
+      "sha256": "3e3125b5a537a24c3632c1c5c09640ce7bcb3935901b127ad8ae3c37a27f133f",
+      "roles": ["package"]
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/pl.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/pl.js",
+      "mode": 420,
+      "bytes": 5150,
+      "sha256": "b7f82cf9f747785beeec05cd31d3d7493c52bd3647598924141568f148c07222",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/ps.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/ps.js",
+      "mode": 420,
+      "bytes": 5123,
+      "sha256": "1c15b81fcce0cdc59dbcca18df5c4ecf4e176fc3fb7668207b9ba54df43cce46",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/pt-BR.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/pt-BR.js",
+      "mode": 420,
+      "bytes": 7024,
+      "sha256": "abc52db767b9dd938954776728ea7480cdcab569a5a17664f60e5a2c1d63e60b",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/pt.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/pt.js",
+      "mode": 420,
+      "bytes": 7024,
+      "sha256": "93a820f60d571607bf34b69198f5b24617475584c0b22c0f8d160fcdef096a46",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/ro.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/ro.js",
+      "mode": 420,
+      "bytes": 4883,
+      "sha256": "54751d2866171c9c7ce1a72868dec09efa54d1b2b67401767594c5b360aca38a",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/ru.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/ru.js",
+      "mode": 420,
+      "bytes": 7095,
+      "sha256": "40a019b53bd1684fd4b750db87021520dd5d710f714010c0a594e5bcf5787478",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/sk.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/sk.js",
+      "mode": 420,
+      "bytes": 4949,
+      "sha256": "ae7c49242e70149434c9051dd00209afbd517d98ba54c13692371a5340b616da",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/sl.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/sl.js",
+      "mode": 420,
+      "bytes": 4756,
+      "sha256": "490ca48f8aae3aed660758b32856d49a9fc5c7e255dad220e75abaef8c35140b",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/sv.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/sv.js",
+      "mode": 420,
+      "bytes": 4841,
+      "sha256": "448f36996bb0d159489b34ad7d86df03e520a13e43b1c98ea2fb18d7ed4a3c95",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/ta.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/ta.js",
+      "mode": 420,
+      "bytes": 6688,
+      "sha256": "8b6e1bc033fdaefb1acfc7edf88c9f53c3a50cc892066effdab306103e994d42",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/tg.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/tg.js",
+      "mode": 420,
+      "bytes": 5647,
+      "sha256": "9a5c9a3b18b8ccded28d66033575b22d823df17a7afa8bb9a733f31fe071462f",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/th.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/th.js",
+      "mode": 420,
+      "bytes": 6563,
+      "sha256": "913cc4962ddf5cb54ed694d04b7008493ef401d3333b26426b32f4890712574e",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/tk.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/tk.js",
+      "mode": 420,
+      "bytes": 4458,
+      "sha256": "445abfed18c5a9d79143b02c9cf9c171b41fb5dff8ffc2cb59b7aef7203e5a7f",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/tr.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/tr.js",
+      "mode": 420,
+      "bytes": 4642,
+      "sha256": "bca07607a27f518f19877dd9c2235fada9c73eb56896f0f6e274781fab71d64e",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/ua.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/ua.js",
+      "mode": 420,
+      "bytes": 111,
+      "sha256": "9391169ffbc72f777a83230b6ffcc3f4cf46ab5945ec540de9ef4609dca1f4cc",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/uk.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/uk.js",
+      "mode": 420,
+      "bytes": 5665,
+      "sha256": "1e59ba41296aeb5b6142a6e5ed84712931e33e54ab0b9ae5d83faf436fc3d968",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/ur.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/ur.js",
+      "mode": 420,
+      "bytes": 5491,
+      "sha256": "d37ed2c93408e0a6b6e1cd290117a6f0e9d7b2c83509cd34b502e1dd94899c87",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/uz.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/uz.js",
+      "mode": 420,
+      "bytes": 4844,
+      "sha256": "2cbe07635b03064ffad0bfcc98d2d570f3264b9cd3e22bbd5c160cd0343f7872",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/vi.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/vi.js",
+      "mode": 420,
+      "bytes": 4967,
+      "sha256": "15939adaf263e0869c602d4b34c206178a235b8bec11c8207ccd3fa50de3a141",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/yo.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/yo.js",
+      "mode": 420,
+      "bytes": 4847,
+      "sha256": "88b33f6527c1a2faaf159568330cf727c448dc468eac72142a6fb24f8714ac1e",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/zh-CN.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/zh-CN.js",
+      "mode": 420,
+      "bytes": 4622,
+      "sha256": "8fc02f2bd4d92f46b24b8d82da0ee95c962fc80c14dd7dd469500e14de08d320",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/locales/zh-TW.js",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/zh-TW.js",
+      "mode": 420,
+      "bytes": 4672,
+      "sha256": "01d9b119e318d8b9f1a8fa720d06424457429425a61d0730984b750e6a5edf7d",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "node_modules/zod/v4/package.json",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/package.json",
+      "mode": 420,
+      "bytes": 127,
+      "sha256": "3e3125b5a537a24c3632c1c5c09640ce7bcb3935901b127ad8ae3c37a27f133f",
+      "roles": ["package"]
+    },
+    {
+      "identity": "package.json",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/package.json",
+      "mode": 436,
+      "bytes": 4992,
+      "sha256": "0b635ebde6513e9bce36d000bbd04fc3cc817ff49074af8e5e3219910a97f131",
+      "roles": ["package"]
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts",
+      "mode": 436,
+      "bytes": 17432,
+      "sha256": "ae37e7411040d680ab04419090a546fcddfc7f295697d99ff9e46ff7d915d91e",
+      "roles": ["compiler"],
+      "compilerMode": "transform"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/fixtures/dependency-participant-restoration.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/fixtures/dependency-participant-restoration.ts",
+      "mode": 436,
+      "bytes": 5394,
+      "sha256": "32c05b771edbab3f5f6fd448aaa0de7184f16e6ffe21e1d84444c66087d841bc",
+      "roles": ["compiler"],
+      "compilerMode": "transform"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/fixtures/namespace-audit.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/fixtures/namespace-audit.ts",
+      "mode": 436,
+      "bytes": 10450,
+      "sha256": "63a0506377f8d7c4ee7701e06a155bccb65ab8abd0783d5d4f6929e491bab015",
+      "roles": ["compiler"],
+      "compilerMode": "transform"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/fixtures/source-database-binding.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/fixtures/source-database-binding.ts",
+      "mode": 436,
+      "bytes": 14053,
+      "sha256": "b83a928aae6880c6142c4dc6d0f584fa085d5039a1b4f70512c73f5819d5bbd4",
+      "roles": ["compiler"],
+      "compilerMode": "transform"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/fixtures/source-dev.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/fixtures/source-dev.ts",
+      "mode": 436,
+      "bytes": 1427,
+      "sha256": "27ec345485a6208ede383e6cf98cd7adbe4242d03cda4ff2520b1672dd7f8bf1",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts",
+      "mode": 436,
+      "bytes": 5425,
+      "sha256": "a4f9378c421110a43d2a2db51edb9e56afc38cbb6bfc74f954322b2810d196c0",
+      "roles": ["compiler"],
+      "compilerMode": "transform"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/fixtures/source-restoration.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/fixtures/source-restoration.ts",
+      "mode": 436,
+      "bytes": 447,
+      "sha256": "f0d35745dbbba604f732231a8b1bad43e3d92ebe0afd8395de2ca15971e82fac",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/fixtures/source-startup.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/fixtures/source-startup.ts",
+      "mode": 436,
+      "bytes": 4791,
+      "sha256": "0c8e0b6afc98008f34352d68254fbe137265c46a24fa0edf482dcf1ca341783b",
+      "roles": ["compiler"],
+      "compilerMode": "transform"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/atomic.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/atomic.ts",
+      "mode": 436,
+      "bytes": 2143,
+      "sha256": "34dd33e212e51fbe18bcdcbdf1a46d1ceb69ea135a62c9f56bc58abb7da5d3af",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/backend-cohort.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/backend-cohort.ts",
+      "mode": 436,
+      "bytes": 23028,
+      "sha256": "e1b2d02ac6cd55485ecb92632cb4b64e27fcb9d47a4fe804af55f92e1d35a87a",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/backend-config.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/backend-config.ts",
+      "mode": 436,
+      "bytes": 9033,
+      "sha256": "c68b2058c232d19d52a20e6bc6bcb36ff672f734a6af14dd42e11f04eca229d1",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/backend-exclusion.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/backend-exclusion.ts",
+      "mode": 436,
+      "bytes": 16295,
+      "sha256": "bd418ecb0927e7976c6b70cbc8d97406ca1dc4b7691db95d5d1dc88d2a3dca7f",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/backend-fence.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/backend-fence.ts",
+      "mode": 436,
+      "bytes": 3341,
+      "sha256": "30368fc339fa271d1a585ef8c0782f0b7c0e11f24673b77d5fe103d5ba169b2c",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts",
+      "mode": 436,
+      "bytes": 43658,
+      "sha256": "ab7766c66a8a53fb84f11f3e0262802295ad823854b1cb4df13899bfddd2b798",
+      "roles": ["compiler"],
+      "compilerMode": "transform"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/dependency-activation-failure.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/dependency-activation-failure.ts",
+      "mode": 436,
+      "bytes": 870,
+      "sha256": "bc760963b436d4cb1121b51114db0d86e3ed5a98987c4c03682e90cd2a7b5e99",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/dependency-activation-owner.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/dependency-activation-owner.ts",
+      "mode": 436,
+      "bytes": 10906,
+      "sha256": "8c764a6b990ea31c6d6c54069abe6e8d03b790a7580a9cbee2daadf247bae850",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts",
+      "mode": 436,
+      "bytes": 34665,
+      "sha256": "e8ac098736b6cc538693437ae9c923819f5783fb8df61285d4f217a0f1b2154a",
+      "roles": ["compiler"],
+      "compilerMode": "transform"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/dependency-capability.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/dependency-capability.ts",
+      "mode": 436,
+      "bytes": 2394,
+      "sha256": "9519bc54a8ab076d36985c7c7dd244888a99bc399a70dac481e7871e629838ff",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/dependency-complete-activation.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/dependency-complete-activation.ts",
+      "mode": 436,
+      "bytes": 9454,
+      "sha256": "6911c1e8b8d52536ee12406b6c2e0a0787e0276efc223b450dbcc88ba0c58286",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/dependency-ingress.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/dependency-ingress.ts",
+      "mode": 436,
+      "bytes": 19979,
+      "sha256": "368508a4319db5575fefcedfcc7fbf2b9143ecc6177b5f018f3f7686a9274fa2",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/dependency-inventory.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/dependency-inventory.ts",
+      "mode": 436,
+      "bytes": 7411,
+      "sha256": "b2954e73dfb45a442b815b75fcdbdb93300f5ecc50a2c1385b1f10247b9295d4",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts",
+      "mode": 436,
+      "bytes": 9796,
+      "sha256": "fd749af5d221bafecfb7581d61e187a0ef15bcdb59a077eed25e86b0ce382ace",
+      "roles": ["scanner"]
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/dependency-migration-artifact.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/dependency-migration-artifact.ts",
+      "mode": 436,
+      "bytes": 21980,
+      "sha256": "3731def128a91a42f8fb627f5fc96226ee21ae428c265451d328eb0daf99cf2c",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/dependency-participant-images.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/dependency-participant-images.ts",
+      "mode": 436,
+      "bytes": 4801,
+      "sha256": "f4291e9aef12bd3cd511c49b6f708a7fdec51e2fcedef26023f5bf7451fea245",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/dependency-participant-transition.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/dependency-participant-transition.ts",
+      "mode": 436,
+      "bytes": 5731,
+      "sha256": "43dcd6ba6b8cc042d7b331305fa7a8c347cf71c4642e58a187eba3d9ab8b4873",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/dependency-preflight.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/dependency-preflight.ts",
+      "mode": 436,
+      "bytes": 4675,
+      "sha256": "fa32658a800f1aa203d74c40b0f383aa30b9313ae1ebf29fce8a58e24d86a03a",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/dependency-solver-restoration.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/dependency-solver-restoration.ts",
+      "mode": 436,
+      "bytes": 6603,
+      "sha256": "1d1a0cfe95d00ec013a890d35e99b0e73cccec9de713abcc4819a0d64eef9f9a",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/deploy-contract.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/deploy-contract.ts",
+      "mode": 436,
+      "bytes": 5584,
+      "sha256": "f80d604148b6fd39b553e751db752724c8341da918b4ffdb544b95b4ab30c559",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/directory-file.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/directory-file.ts",
+      "mode": 436,
+      "bytes": 3520,
+      "sha256": "b3d0480ceaa6fc88e19278cfc667919d1803173f5fdccaf5e4b33bf2c97e7e0c",
+      "roles": ["compiler"],
+      "compilerMode": "transform"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/docker-deadline.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/docker-deadline.ts",
+      "mode": 436,
+      "bytes": 1734,
+      "sha256": "e58839b6a19b398efbd33aba6f9e0faada28b244c14bd1b53494686f041905e7",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/docker-exec.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/docker-exec.ts",
+      "mode": 436,
+      "bytes": 4009,
+      "sha256": "6a55cd0a508dea15745c8264afaafe93d5828e3e4209ba7dd955c0075686922f",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/docker-inspection-json.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/docker-inspection-json.ts",
+      "mode": 436,
+      "bytes": 569,
+      "sha256": "855907597e0030493f2d825d9c062725532c5232d3c246e86ed50e71867f884d",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/docker-inventory.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/docker-inventory.ts",
+      "mode": 436,
+      "bytes": 3258,
+      "sha256": "bbbe0a1f0f1cfeab268fab33d59ff14224be2607d5c6b06eab20402722cd1a78",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/docker-product-metadata.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/docker-product-metadata.ts",
+      "mode": 436,
+      "bytes": 8955,
+      "sha256": "f2b957ac5109590b0e499fe1224725eda2407bce4eac803a6e4222ea02caea33",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/docker.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/docker.ts",
+      "mode": 436,
+      "bytes": 59102,
+      "sha256": "24c6037c712b3e7580d18b222e34e6f50d20de62013f9e7efb0ace2ff18bbf00",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/edge-admission.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/edge-admission.ts",
+      "mode": 436,
+      "bytes": 15994,
+      "sha256": "f3fd051b3f3767b3f75cf66f2ca7c221f9dff5a19249a54a94954e58fd9e695b",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/edge-ownership.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/edge-ownership.ts",
+      "mode": 436,
+      "bytes": 83874,
+      "sha256": "d979452d02089652c12515af8bfcaeede1fa13bc458a66013f5463555b528f68",
+      "roles": ["compiler"],
+      "compilerMode": "transform"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/edge-policy.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/edge-policy.ts",
+      "mode": 436,
+      "bytes": 37000,
+      "sha256": "0a822ca5b1f023d210bb380f928fbf5e56ea8aa5518c282d8adba739fd2a0a10",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/env.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/env.ts",
+      "mode": 436,
+      "bytes": 6419,
+      "sha256": "98cc747f5b50f1323c7fb845e87b12f07707f695b2a99bac622207f7a0ef51e5",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/gateway-exclusion.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/gateway-exclusion.ts",
+      "mode": 436,
+      "bytes": 11495,
+      "sha256": "3db6b074b8d43e58037962f5432d8f9397c8af38d510b91b6254b962c59fb558",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/gateway-fence.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/gateway-fence.ts",
+      "mode": 436,
+      "bytes": 4042,
+      "sha256": "8dd1db0a7c4feb8b3f2081a19f03ffc356f880f7aacd11ea343fb4d794be8365",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts",
+      "mode": 436,
+      "bytes": 91002,
+      "sha256": "bdf3da709f70238e073fcc7db1f51870e855959477048645c1fcd46bb3b042ef",
+      "roles": ["compiler"],
+      "compilerMode": "transform"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/installed-authorities.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/installed-authorities.ts",
+      "mode": 436,
+      "bytes": 22095,
+      "sha256": "4e470ee6aa5e813ab5a654c8ab43867ac9d33fbbe6eba9860077a5f32e1bca72",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/installed-authority-collector.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/installed-authority-collector.ts",
+      "mode": 436,
+      "bytes": 65585,
+      "sha256": "f33f76b19dfdbcb6186cec63336eb417d3ba3a7d2bfce47e98d90f1f4e6ed920",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/installed-authority-files.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/installed-authority-files.ts",
+      "mode": 436,
+      "bytes": 4957,
+      "sha256": "3c218bfc09da77cba6297528f457f69a00f82029d2043fceb003ebf79fa4da54",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/installed-authority-supervision.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/installed-authority-supervision.ts",
+      "mode": 436,
+      "bytes": 11108,
+      "sha256": "0ce204dae1d7bc7a9ae5bd29f249dc5a7ebd6435ede4a1b59da71b396b98c900",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/installed-authority-supervisor.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/installed-authority-supervisor.ts",
+      "mode": 436,
+      "bytes": 14379,
+      "sha256": "17cf900e8efd3278b6c84c054774a0ebf6e47edb1513fc5f3041b8eb4716e60f",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/installed-authority-transport.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/installed-authority-transport.ts",
+      "mode": 436,
+      "bytes": 2194,
+      "sha256": "fc2764f43099cb36db0e32224b4eb64da99bf335ca5d1340589cd512372f14bc",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/installed-writers.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/installed-writers.ts",
+      "mode": 436,
+      "bytes": 13487,
+      "sha256": "bf72fdc0e5d269ea1d84a7bac394a008eda81d1d74655870321bd855d77eaca1",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/lock.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/lock.ts",
+      "mode": 436,
+      "bytes": 8844,
+      "sha256": "6d2c29fa57f4356f28f0ba0287f15c0c8a49dded94b251d12a33c3e11a28d40d",
+      "roles": ["compiler"],
+      "compilerMode": "transform"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/managed-cohort.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/managed-cohort.ts",
+      "mode": 436,
+      "bytes": 16212,
+      "sha256": "9d661beb885f1a67e3c4007772579322653e912fc06954790b9b729f33f8edda",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/mcp-preflight.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/mcp-preflight.ts",
+      "mode": 436,
+      "bytes": 8186,
+      "sha256": "71203edb850e600363a333c80f49a5496891096d0dc8848c552d66f1df394a48",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/migration-capture-file.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/migration-capture-file.ts",
+      "mode": 436,
+      "bytes": 1343,
+      "sha256": "94c27a45e1a438f61f755127c66f20d15f2424f0074c38368013c09f0616ef60",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/migration-capture.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/migration-capture.ts",
+      "mode": 436,
+      "bytes": 1918,
+      "sha256": "c236d830ec22bb5b85db98f1f4940d6c0e0326729a3d4c56784f200d8117a19b",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/mount-audit.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/mount-audit.ts",
+      "mode": 436,
+      "bytes": 23957,
+      "sha256": "327e419ec3ffc1318c58335eb044581a1054105167524a83f314c75d3efb2279",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/mount-exec-program.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/mount-exec-program.ts",
+      "mode": 436,
+      "bytes": 3347,
+      "sha256": "84d4d74b819a4453b2b27200021f0a2e7086b7f2accdf20baeaaa5f2397199e4",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/parked-dependencies.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/parked-dependencies.ts",
+      "mode": 436,
+      "bytes": 6598,
+      "sha256": "4da1900621a438374f2bd63142677c5e38fa33dded11467724ea9fc7fbbf378f",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/site.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/site.ts",
+      "mode": 436,
+      "bytes": 8378,
+      "sha256": "349e4ea3817c854a216935d04ff388d02571101c5e1beb05e9a97babb5e836da",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/solver-cohort.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/solver-cohort.ts",
+      "mode": 436,
+      "bytes": 7916,
+      "sha256": "3bfb93dec34b1e0af3e0f81f812939d81d1aee5e792aaa49d6cda35720b12b29",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/solver-exclusion.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/solver-exclusion.ts",
+      "mode": 436,
+      "bytes": 15764,
+      "sha256": "6de3c1a70ac459642c996d2330cfa90e3ff90d9724247e7af32c6a21fd65f3f3",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/solver-execution.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/solver-execution.ts",
+      "mode": 436,
+      "bytes": 2133,
+      "sha256": "1b2b5af8bf7b661db5abb4485993415940f99cfa17d472a0c51bd82ad4436de3",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/solver-host.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/solver-host.ts",
+      "mode": 436,
+      "bytes": 18219,
+      "sha256": "50b242f688c7e1e48f2d1bc8a26e2996421a7507c731496280294cb61a53a6a5",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/solver-launch-observation.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/solver-launch-observation.ts",
+      "mode": 436,
+      "bytes": 10649,
+      "sha256": "87ad6ae1142aaa27ddb71b10ae17c42443b79a11fc0d93e5146a26600528d85a",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/solver-reader-preparation.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/solver-reader-preparation.ts",
+      "mode": 436,
+      "bytes": 37428,
+      "sha256": "1d8e214f3af82ab011c73b477840400ca66fc54788d56316091dc7488d58ac3e",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/solver-restoration.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/solver-restoration.ts",
+      "mode": 436,
+      "bytes": 12741,
+      "sha256": "9f101747212d482726aa7542d91ead7db6a4fe37f6d5cb4e13ff483913ab5655",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/solver-supervisor-command.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/solver-supervisor-command.ts",
+      "mode": 436,
+      "bytes": 4488,
+      "sha256": "9959708ffc5c3b113523a76c9fd7dd29c958d762f5776fe6973faf61a644c4c1",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/solver-supervisor-config.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/solver-supervisor-config.ts",
+      "mode": 436,
+      "bytes": 3009,
+      "sha256": "92f26ddb8e8c31cf26848f4c75f60bfcaed661e08f74e385fdb64baae217492d",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/solver-supervisor-docker-output.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/solver-supervisor-docker-output.ts",
+      "mode": 436,
+      "bytes": 8056,
+      "sha256": "b491d1e3687774ee905e5213120153f08c13d2b8c617c00eb00ae58ca2057b25",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/solver-supervisor-image-map.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/solver-supervisor-image-map.ts",
+      "mode": 436,
+      "bytes": 3892,
+      "sha256": "7c2219aaa9c20227a62d4f94be03a40837932d69257ebfb8e2a919352d65330b",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/solver-supervisor-install-contract.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/solver-supervisor-install-contract.ts",
+      "mode": 436,
+      "bytes": 2685,
+      "sha256": "3b2ea29c1eb45057499e497cb49ccdd185f233cb89822a83c0113de2780b2b2a",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/solver-unit-observation.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/solver-unit-observation.ts",
+      "mode": 436,
+      "bytes": 5785,
+      "sha256": "2fbea18b1f3657bcd4aadea0e360fc9c4b3c87cf801161730d5dce2574331158",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/source-database-binding.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/source-database-binding.ts",
+      "mode": 436,
+      "bytes": 17223,
+      "sha256": "1abd5047aa46f7ebda0bb317f13a574f40bdbd450ada00ecd5b6fc7a3a756142",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/source-dev-cohort.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/source-dev-cohort.ts",
+      "mode": 436,
+      "bytes": 9317,
+      "sha256": "4871333ae80c0ab3227f0a3ef338830d0b0a8fa7b92717287fecef9f604064ee",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts",
+      "mode": 436,
+      "bytes": 20479,
+      "sha256": "94556fff4b5765640df93b87739b4d9e8dce0d457b80f7e1a69c2e18c26b1e9a",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/source-dev-inputs.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/source-dev-inputs.ts",
+      "mode": 436,
+      "bytes": 21424,
+      "sha256": "742d9e3e62e4456f30a7edb5fcd2ab40d2d0a03a1959c4f3e83040b627d5ba80",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/source-frontend-profile.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/source-frontend-profile.ts",
+      "mode": 436,
+      "bytes": 7528,
+      "sha256": "11b60f2a789e11175f9fe43423ed83f9a2d4e59ff1d92b6b82c80345a56a4957",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/source-restoration-configuration.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/source-restoration-configuration.ts",
+      "mode": 436,
+      "bytes": 5049,
+      "sha256": "e12429c403bb8adb640aa5025df4b6a0499d9fd2a23452d55ed1665c3af74a4e",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/source-startup-manifest.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/source-startup-manifest.ts",
+      "mode": 436,
+      "bytes": 41087,
+      "sha256": "96f35890c1d849daaafce4059d5dfab60ffb6772a4a717a99e74ed552212eb0b",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/sqlite-probe.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/sqlite-probe.ts",
+      "mode": 436,
+      "bytes": 1867,
+      "sha256": "1e20f331288ff01f4e5172d0812098bbfdbb919b9f58c180125251d8eaba0c80",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/src/lib/step-blockage-inventory.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/step-blockage-inventory.ts",
+      "mode": 436,
+      "bytes": 7222,
+      "sha256": "e3469b6d2193a83d8a4ee26472316737428df822c52be726b8d27aad36c1f457",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/test/installed-authority-fixture.ts",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/test/installed-authority-fixture.ts",
+      "mode": 436,
+      "bytes": 7150,
+      "sha256": "db46be1971e6ad823c5ee5ec1685e655c30c14d1c8cc68e3a1a00a54b389cdce",
+      "roles": ["compiler"],
+      "compilerMode": "default"
+    },
+    {
+      "identity": "tools/tool-remote-scripts/tsconfig.json",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/tsconfig.json",
+      "mode": 436,
+      "bytes": 330,
+      "sha256": "aa2609c503371e15c44927fbdd3e09f5f5a978e5b9381867f5f4ec9f4d918dac",
+      "roles": ["authority"]
+    },
+    {
+      "identity": "tsconfig.base.json",
+      "canonical": "/home/df/.codex/worktrees/1b31/puni-00/tsconfig.base.json",
+      "mode": 436,
+      "bytes": 9865,
+      "sha256": "7d7908b972d34a26998bf4f486dfd74cf8742e7286c68587da86a13b4d8b8423",
+      "roles": ["authority"]
+    }
+  ],
+  "directories": [
+    {
+      "identity": "/",
+      "mode": 493
+    },
+    {
+      "identity": "/home",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df",
+      "mode": 488
+    },
+    {
+      "identity": "/home/df/.bun",
+      "mode": 509
+    },
+    {
+      "identity": "/home/df/.bun/bin",
+      "mode": 509
+    },
+    {
+      "identity": "/home/df/.codex",
+      "mode": 509
+    },
+    {
+      "identity": "/home/df/.codex/worktrees",
+      "mode": 509
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31",
+      "mode": 509
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00",
+      "mode": 509
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs",
+      "mode": 509
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs",
+      "mode": 509
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters",
+      "mode": 509
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite",
+      "mode": 509
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/src",
+      "mode": 509
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/domain",
+      "mode": 509
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/domain/contracts",
+      "mode": 509
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/domain/contracts/src",
+      "mode": 509
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/@typescript",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/@typescript/old",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/@typescript/old/lib",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/bun-types",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/bun-sqlite",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/cache",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/cache/core",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/query-builders",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/expressions",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/functions",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/async",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/columns",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/query-builders",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/up-migrations",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/typescript",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/typescript/lib",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/classic",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales",
+      "mode": 493
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools",
+      "mode": 509
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts",
+      "mode": 509
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src",
+      "mode": 509
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/fixtures",
+      "mode": 509
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib",
+      "mode": 509
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/test",
+      "mode": 509
+    }
+  ],
+  "symlinks": [],
+  "absences": [
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/src/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/src/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/src/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/store-sqlite/src/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/adapters/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/domain/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/domain/contracts/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/domain/contracts/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/domain/contracts/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/domain/contracts/src/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/domain/contracts/src/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/domain/contracts/src/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/domain/contracts/src/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/domain/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/domain/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/domain/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/libs/wbs/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/@typescript/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/@typescript/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/@typescript/old/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/@typescript/old/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/@typescript/old/lib/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/@typescript/old/lib/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/@typescript/old/lib/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/@typescript/old/lib/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/@typescript/old/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/@typescript/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/@typescript/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/bun-types/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/bun-types/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/bun-types/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/bun-sqlite/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/bun-sqlite/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/bun-sqlite/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/bun-sqlite/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/cache/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/cache/core/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/cache/core/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/cache/core/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/cache/core/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/cache/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/cache/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/cache/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/query-builders/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/query-builders/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/query-builders/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/query-builders/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/expressions/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/expressions/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/expressions/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/expressions/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/functions/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/functions/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/functions/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/functions/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sql/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/async/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/async/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/async/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/async/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/columns/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/columns/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/columns/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/columns/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/query-builders/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/query-builders/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/query-builders/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/query-builders/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/sqlite-core/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/up-migrations/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/up-migrations/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/up-migrations/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/drizzle-orm/up-migrations/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/typescript/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/typescript/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/typescript/lib/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/typescript/lib/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/typescript/lib/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/typescript/lib/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/typescript/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/classic/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/classic/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/classic/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/core/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/locales/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/node_modules/zod/v4/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/fixtures/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/fixtures/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/fixtures/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/fixtures/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/lib/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/src/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/test/bunfig.toml"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/test/jsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/test/package.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tool-remote-scripts/test/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tools/tsconfig.json"
+    },
+    {
+      "identity": "/home/df/.codex/worktrees/1b31/puni-00/tsconfig.json"
+    }
+  ],
+  "compilerInputs": [
+    "libs/wbs/adapters/store-sqlite/src/backup.ts",
+    "libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.ts",
+    "libs/wbs/adapters/store-sqlite/src/cross-project-dependency-rollback.ts",
+    "libs/wbs/adapters/store-sqlite/src/db.ts",
+    "libs/wbs/adapters/store-sqlite/src/migrate-down.ts",
+    "libs/wbs/adapters/store-sqlite/src/migrate.ts",
+    "libs/wbs/adapters/store-sqlite/src/migration-set.ts",
+    "libs/wbs/adapters/store-sqlite/src/sqlite-cleanup.ts",
+    "libs/wbs/domain/contracts/src/dependency-runtime.ts",
+    "node_modules/drizzle-orm/alias.js",
+    "node_modules/drizzle-orm/bun-sqlite/driver.js",
+    "node_modules/drizzle-orm/bun-sqlite/index.js",
+    "node_modules/drizzle-orm/bun-sqlite/migrator.js",
+    "node_modules/drizzle-orm/bun-sqlite/session.js",
+    "node_modules/drizzle-orm/cache/core/cache.js",
+    "node_modules/drizzle-orm/casing.js",
+    "node_modules/drizzle-orm/column-builder.js",
+    "node_modules/drizzle-orm/column-common.js",
+    "node_modules/drizzle-orm/column.js",
+    "node_modules/drizzle-orm/entity.js",
+    "node_modules/drizzle-orm/errors.js",
+    "node_modules/drizzle-orm/index.js",
+    "node_modules/drizzle-orm/logger.js",
+    "node_modules/drizzle-orm/migrator.js",
+    "node_modules/drizzle-orm/migrator.utils.js",
+    "node_modules/drizzle-orm/package.js",
+    "node_modules/drizzle-orm/query-builders/query-builder.js",
+    "node_modules/drizzle-orm/query-promise.js",
+    "node_modules/drizzle-orm/relations.js",
+    "node_modules/drizzle-orm/selection-proxy.js",
+    "node_modules/drizzle-orm/sql/expressions/conditions.js",
+    "node_modules/drizzle-orm/sql/expressions/select.js",
+    "node_modules/drizzle-orm/sql/functions/aggregate.js",
+    "node_modules/drizzle-orm/sql/functions/vector.js",
+    "node_modules/drizzle-orm/sql/index.js",
+    "node_modules/drizzle-orm/sql/sql.js",
+    "node_modules/drizzle-orm/sqlite-core/async/count.js",
+    "node_modules/drizzle-orm/sqlite-core/async/db.js",
+    "node_modules/drizzle-orm/sqlite-core/async/delete.js",
+    "node_modules/drizzle-orm/sqlite-core/async/insert.js",
+    "node_modules/drizzle-orm/sqlite-core/async/query.js",
+    "node_modules/drizzle-orm/sqlite-core/async/raw.js",
+    "node_modules/drizzle-orm/sqlite-core/async/select.js",
+    "node_modules/drizzle-orm/sqlite-core/async/session.js",
+    "node_modules/drizzle-orm/sqlite-core/async/update.js",
+    "node_modules/drizzle-orm/sqlite-core/checks.js",
+    "node_modules/drizzle-orm/sqlite-core/columns/all.js",
+    "node_modules/drizzle-orm/sqlite-core/columns/blob.js",
+    "node_modules/drizzle-orm/sqlite-core/columns/common.js",
+    "node_modules/drizzle-orm/sqlite-core/columns/custom.js",
+    "node_modules/drizzle-orm/sqlite-core/columns/index.js",
+    "node_modules/drizzle-orm/sqlite-core/columns/integer.js",
+    "node_modules/drizzle-orm/sqlite-core/columns/numeric.js",
+    "node_modules/drizzle-orm/sqlite-core/columns/real.js",
+    "node_modules/drizzle-orm/sqlite-core/columns/text.js",
+    "node_modules/drizzle-orm/sqlite-core/dialect.js",
+    "node_modules/drizzle-orm/sqlite-core/foreign-keys.js",
+    "node_modules/drizzle-orm/sqlite-core/indexes.js",
+    "node_modules/drizzle-orm/sqlite-core/primary-keys.js",
+    "node_modules/drizzle-orm/sqlite-core/query-builders/count.js",
+    "node_modules/drizzle-orm/sqlite-core/query-builders/delete.js",
+    "node_modules/drizzle-orm/sqlite-core/query-builders/index.js",
+    "node_modules/drizzle-orm/sqlite-core/query-builders/insert.js",
+    "node_modules/drizzle-orm/sqlite-core/query-builders/query-builder.js",
+    "node_modules/drizzle-orm/sqlite-core/query-builders/query.js",
+    "node_modules/drizzle-orm/sqlite-core/query-builders/raw.js",
+    "node_modules/drizzle-orm/sqlite-core/query-builders/select.js",
+    "node_modules/drizzle-orm/sqlite-core/query-builders/update.js",
+    "node_modules/drizzle-orm/sqlite-core/session.js",
+    "node_modules/drizzle-orm/sqlite-core/table.js",
+    "node_modules/drizzle-orm/sqlite-core/unique-constraint.js",
+    "node_modules/drizzle-orm/sqlite-core/utils.js",
+    "node_modules/drizzle-orm/sqlite-core/view-base.js",
+    "node_modules/drizzle-orm/subquery.js",
+    "node_modules/drizzle-orm/table.js",
+    "node_modules/drizzle-orm/table.utils.js",
+    "node_modules/drizzle-orm/tracing-utils.js",
+    "node_modules/drizzle-orm/tracing.js",
+    "node_modules/drizzle-orm/up-migrations/sqlite.js",
+    "node_modules/drizzle-orm/up-migrations/utils.js",
+    "node_modules/drizzle-orm/utils.js",
+    "node_modules/drizzle-orm/version.js",
+    "node_modules/drizzle-orm/view-common.js",
+    "node_modules/zod/index.js",
+    "node_modules/zod/v4/classic/checks.js",
+    "node_modules/zod/v4/classic/coerce.js",
+    "node_modules/zod/v4/classic/compat.js",
+    "node_modules/zod/v4/classic/deep-partial.js",
+    "node_modules/zod/v4/classic/errors.js",
+    "node_modules/zod/v4/classic/external.js",
+    "node_modules/zod/v4/classic/from-json-schema.js",
+    "node_modules/zod/v4/classic/in-out.js",
+    "node_modules/zod/v4/classic/iso.js",
+    "node_modules/zod/v4/classic/parse.js",
+    "node_modules/zod/v4/classic/schemas.js",
+    "node_modules/zod/v4/core/api.js",
+    "node_modules/zod/v4/core/checks.js",
+    "node_modules/zod/v4/core/compile.js",
+    "node_modules/zod/v4/core/core.js",
+    "node_modules/zod/v4/core/doc.js",
+    "node_modules/zod/v4/core/errors.js",
+    "node_modules/zod/v4/core/index.js",
+    "node_modules/zod/v4/core/json-schema-generator.js",
+    "node_modules/zod/v4/core/json-schema-processors.js",
+    "node_modules/zod/v4/core/json-schema.js",
+    "node_modules/zod/v4/core/memoizer.js",
+    "node_modules/zod/v4/core/parse.js",
+    "node_modules/zod/v4/core/regexes.js",
+    "node_modules/zod/v4/core/registries.js",
+    "node_modules/zod/v4/core/schemas.js",
+    "node_modules/zod/v4/core/to-json-schema.js",
+    "node_modules/zod/v4/core/util.js",
+    "node_modules/zod/v4/core/versions.js",
+    "node_modules/zod/v4/core/visit.js",
+    "node_modules/zod/v4/locales/ar.js",
+    "node_modules/zod/v4/locales/az.js",
+    "node_modules/zod/v4/locales/be.js",
+    "node_modules/zod/v4/locales/bg.js",
+    "node_modules/zod/v4/locales/bn.js",
+    "node_modules/zod/v4/locales/ca.js",
+    "node_modules/zod/v4/locales/ckb.js",
+    "node_modules/zod/v4/locales/cs.js",
+    "node_modules/zod/v4/locales/da.js",
+    "node_modules/zod/v4/locales/de.js",
+    "node_modules/zod/v4/locales/el.js",
+    "node_modules/zod/v4/locales/en.js",
+    "node_modules/zod/v4/locales/eo.js",
+    "node_modules/zod/v4/locales/es.js",
+    "node_modules/zod/v4/locales/fa.js",
+    "node_modules/zod/v4/locales/fi.js",
+    "node_modules/zod/v4/locales/fr-CA.js",
+    "node_modules/zod/v4/locales/fr.js",
+    "node_modules/zod/v4/locales/gu.js",
+    "node_modules/zod/v4/locales/he.js",
+    "node_modules/zod/v4/locales/hi.js",
+    "node_modules/zod/v4/locales/hr.js",
+    "node_modules/zod/v4/locales/hu.js",
+    "node_modules/zod/v4/locales/hy.js",
+    "node_modules/zod/v4/locales/id.js",
+    "node_modules/zod/v4/locales/index.js",
+    "node_modules/zod/v4/locales/is.js",
+    "node_modules/zod/v4/locales/it.js",
+    "node_modules/zod/v4/locales/ja.js",
+    "node_modules/zod/v4/locales/ka.js",
+    "node_modules/zod/v4/locales/kh.js",
+    "node_modules/zod/v4/locales/km.js",
+    "node_modules/zod/v4/locales/kn.js",
+    "node_modules/zod/v4/locales/ko.js",
+    "node_modules/zod/v4/locales/lt.js",
+    "node_modules/zod/v4/locales/mk.js",
+    "node_modules/zod/v4/locales/ms.js",
+    "node_modules/zod/v4/locales/ne.js",
+    "node_modules/zod/v4/locales/nl.js",
+    "node_modules/zod/v4/locales/nn.js",
+    "node_modules/zod/v4/locales/no.js",
+    "node_modules/zod/v4/locales/ota.js",
+    "node_modules/zod/v4/locales/pl.js",
+    "node_modules/zod/v4/locales/ps.js",
+    "node_modules/zod/v4/locales/pt-BR.js",
+    "node_modules/zod/v4/locales/pt.js",
+    "node_modules/zod/v4/locales/ro.js",
+    "node_modules/zod/v4/locales/ru.js",
+    "node_modules/zod/v4/locales/sk.js",
+    "node_modules/zod/v4/locales/sl.js",
+    "node_modules/zod/v4/locales/sv.js",
+    "node_modules/zod/v4/locales/ta.js",
+    "node_modules/zod/v4/locales/tg.js",
+    "node_modules/zod/v4/locales/th.js",
+    "node_modules/zod/v4/locales/tk.js",
+    "node_modules/zod/v4/locales/tr.js",
+    "node_modules/zod/v4/locales/ua.js",
+    "node_modules/zod/v4/locales/uk.js",
+    "node_modules/zod/v4/locales/ur.js",
+    "node_modules/zod/v4/locales/uz.js",
+    "node_modules/zod/v4/locales/vi.js",
+    "node_modules/zod/v4/locales/yo.js",
+    "node_modules/zod/v4/locales/zh-CN.js",
+    "node_modules/zod/v4/locales/zh-TW.js",
+    "tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts",
+    "tools/tool-remote-scripts/src/fixtures/dependency-participant-restoration.ts",
+    "tools/tool-remote-scripts/src/fixtures/namespace-audit.ts",
+    "tools/tool-remote-scripts/src/fixtures/source-database-binding.ts",
+    "tools/tool-remote-scripts/src/fixtures/source-dev.ts",
+    "tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts",
+    "tools/tool-remote-scripts/src/fixtures/source-restoration.ts",
+    "tools/tool-remote-scripts/src/fixtures/source-startup.ts",
+    "tools/tool-remote-scripts/src/lib/atomic.ts",
+    "tools/tool-remote-scripts/src/lib/backend-cohort.ts",
+    "tools/tool-remote-scripts/src/lib/backend-config.ts",
+    "tools/tool-remote-scripts/src/lib/backend-exclusion.ts",
+    "tools/tool-remote-scripts/src/lib/backend-fence.ts",
+    "tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts",
+    "tools/tool-remote-scripts/src/lib/dependency-activation-failure.ts",
+    "tools/tool-remote-scripts/src/lib/dependency-activation-owner.ts",
+    "tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts",
+    "tools/tool-remote-scripts/src/lib/dependency-capability.ts",
+    "tools/tool-remote-scripts/src/lib/dependency-complete-activation.ts",
+    "tools/tool-remote-scripts/src/lib/dependency-ingress.ts",
+    "tools/tool-remote-scripts/src/lib/dependency-inventory.ts",
+    "tools/tool-remote-scripts/src/lib/dependency-migration-artifact.ts",
+    "tools/tool-remote-scripts/src/lib/dependency-participant-images.ts",
+    "tools/tool-remote-scripts/src/lib/dependency-participant-transition.ts",
+    "tools/tool-remote-scripts/src/lib/dependency-preflight.ts",
+    "tools/tool-remote-scripts/src/lib/dependency-solver-restoration.ts",
+    "tools/tool-remote-scripts/src/lib/deploy-contract.ts",
+    "tools/tool-remote-scripts/src/lib/directory-file.ts",
+    "tools/tool-remote-scripts/src/lib/docker-deadline.ts",
+    "tools/tool-remote-scripts/src/lib/docker-exec.ts",
+    "tools/tool-remote-scripts/src/lib/docker-inspection-json.ts",
+    "tools/tool-remote-scripts/src/lib/docker-inventory.ts",
+    "tools/tool-remote-scripts/src/lib/docker-product-metadata.ts",
+    "tools/tool-remote-scripts/src/lib/docker.ts",
+    "tools/tool-remote-scripts/src/lib/edge-admission.ts",
+    "tools/tool-remote-scripts/src/lib/edge-ownership.ts",
+    "tools/tool-remote-scripts/src/lib/edge-policy.ts",
+    "tools/tool-remote-scripts/src/lib/env.ts",
+    "tools/tool-remote-scripts/src/lib/gateway-exclusion.ts",
+    "tools/tool-remote-scripts/src/lib/gateway-fence.ts",
+    "tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts",
+    "tools/tool-remote-scripts/src/lib/installed-authorities.ts",
+    "tools/tool-remote-scripts/src/lib/installed-authority-collector.ts",
+    "tools/tool-remote-scripts/src/lib/installed-authority-files.ts",
+    "tools/tool-remote-scripts/src/lib/installed-authority-supervision.ts",
+    "tools/tool-remote-scripts/src/lib/installed-authority-supervisor.ts",
+    "tools/tool-remote-scripts/src/lib/installed-authority-transport.ts",
+    "tools/tool-remote-scripts/src/lib/installed-writers.ts",
+    "tools/tool-remote-scripts/src/lib/lock.ts",
+    "tools/tool-remote-scripts/src/lib/managed-cohort.ts",
+    "tools/tool-remote-scripts/src/lib/mcp-preflight.ts",
+    "tools/tool-remote-scripts/src/lib/migration-capture-file.ts",
+    "tools/tool-remote-scripts/src/lib/migration-capture.ts",
+    "tools/tool-remote-scripts/src/lib/mount-audit.ts",
+    "tools/tool-remote-scripts/src/lib/mount-exec-program.ts",
+    "tools/tool-remote-scripts/src/lib/parked-dependencies.ts",
+    "tools/tool-remote-scripts/src/lib/site.ts",
+    "tools/tool-remote-scripts/src/lib/solver-cohort.ts",
+    "tools/tool-remote-scripts/src/lib/solver-exclusion.ts",
+    "tools/tool-remote-scripts/src/lib/solver-execution.ts",
+    "tools/tool-remote-scripts/src/lib/solver-host.ts",
+    "tools/tool-remote-scripts/src/lib/solver-launch-observation.ts",
+    "tools/tool-remote-scripts/src/lib/solver-reader-preparation.ts",
+    "tools/tool-remote-scripts/src/lib/solver-restoration.ts",
+    "tools/tool-remote-scripts/src/lib/solver-supervisor-command.ts",
+    "tools/tool-remote-scripts/src/lib/solver-supervisor-config.ts",
+    "tools/tool-remote-scripts/src/lib/solver-supervisor-docker-output.ts",
+    "tools/tool-remote-scripts/src/lib/solver-supervisor-image-map.ts",
+    "tools/tool-remote-scripts/src/lib/solver-supervisor-install-contract.ts",
+    "tools/tool-remote-scripts/src/lib/solver-unit-observation.ts",
+    "tools/tool-remote-scripts/src/lib/source-database-binding.ts",
+    "tools/tool-remote-scripts/src/lib/source-dev-cohort.ts",
+    "tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts",
+    "tools/tool-remote-scripts/src/lib/source-dev-inputs.ts",
+    "tools/tool-remote-scripts/src/lib/source-frontend-profile.ts",
+    "tools/tool-remote-scripts/src/lib/source-restoration-configuration.ts",
+    "tools/tool-remote-scripts/src/lib/source-startup-manifest.ts",
+    "tools/tool-remote-scripts/src/lib/sqlite-probe.ts",
+    "tools/tool-remote-scripts/src/lib/step-blockage-inventory.ts",
+    "tools/tool-remote-scripts/test/installed-authority-fixture.ts"
+  ],
+  "virtualInputs": [
+    "ordinary-hold-v1:backup-fs",
+    "ordinary-hold-v1:child-collector",
+    "ordinary-hold-v1:child-emitter",
+    "ordinary-hold-v1:child-git",
+    "ordinary-hold-v1:child-namespace",
+    "ordinary-hold-v1:complete-acceptance",
+    "ordinary-hold-v1:complete-scanner",
+    "ordinary-hold-v1:complete-storage",
+    "ordinary-hold-v1:controller",
+    "ordinary-hold-v1:database-readonly",
+    "ordinary-hold-v1:database-readwrite",
+    "ordinary-hold-v1:graph-fs",
+    "ordinary-hold-v1:graph-layout",
+    "ordinary-hold-v1:graph-relative",
+    "ordinary-hold-v1:ledger",
+    "ordinary-hold-v1:lock-fs",
+    "ordinary-hold-v1:migration-call",
+    "ordinary-hold-v1:migration-fs",
+    "ordinary-hold-v1:owner-fs",
+    "ordinary-hold-v1:owner-timer",
+    "ordinary-hold-v1:setup-complete-fs",
+    "ordinary-hold-v1:setup-complete-write",
+    "ordinary-hold-v1:setup-database-fs",
+    "ordinary-hold-v1:setup-frontend-fs",
+    "ordinary-hold-v1:setup-namespace-fs",
+    "ordinary-hold-v1:setup-namespace-write",
+    "ordinary-hold-v1:setup-participant-fs",
+    "ordinary-hold-v1:setup-startup-fs",
+    "ordinary-hold-v1:storage-database",
+    "ordinary-hold-v1:storage-fs",
+    "ordinary-hold-v1:storage-graph"
+  ],
+  "generatedEntry": {
+    "role": "generated-entry",
+    "mode": 384,
+    "bytes": 2384,
+    "sha256": "166dd5de43c96129671b7f1696286aeab9df00922fa6624ffbcb65f97f1f3213",
+    "template": {
+      "format": "ordinary-coupled-entry-v1",
+      "exports": [
+        ["owner", "tools/tool-remote-scripts/src/lib/edge-ownership.ts"],
+        ["storage", "tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts"],
+        ["complete", "tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts"],
+        ["graph", "tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts"],
+        ["database", "libs/wbs/adapters/store-sqlite/src/db.ts"],
+        ["snapshot", "libs/wbs/adapters/store-sqlite/src/backup.ts"],
+        ["sqliteCleanup", "libs/wbs/adapters/store-sqlite/src/sqlite-cleanup.ts"],
+        ["locks", "tools/tool-remote-scripts/src/lib/lock.ts"],
+        ["scanner", "tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts"],
+        [
+          "participantFixture",
+          "tools/tool-remote-scripts/src/fixtures/dependency-participant-restoration.ts"
+        ],
+        [
+          "completeFixture",
+          "tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts"
+        ],
+        ["sourceSetup", "tools/tool-remote-scripts/src/fixtures/source-startup.ts"],
+        [
+          "sourceDatabaseSetup",
+          "tools/tool-remote-scripts/src/fixtures/source-database-binding.ts"
+        ],
+        ["frontendSetup", "tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts"],
+        ["namespaceSetup", "tools/tool-remote-scripts/src/fixtures/namespace-audit.ts"],
+        ["directoryFile", "tools/tool-remote-scripts/src/lib/directory-file.ts"],
+        ["migrations", "libs/wbs/adapters/store-sqlite/src/migrate.ts"]
+      ],
+      "ledger": "export * as ledger from 'ordinary-hold-v1:ledger';\n",
+      "controller": "export {runOrdinaryKnownComposition} from 'ordinary-hold-v1:controller';\nexport {inspectKnownComposition} from 'ordinary-hold-v1:ledger';\n"
+    }
+  },
+  "historicalSourcePins": [
+    {
+      "relative": "tools/tool-remote-scripts/src/lib/edge-ownership.ts",
+      "bytes": 83874,
+      "sha256": "d979452d02089652c12515af8bfcaeede1fa13bc458a66013f5463555b528f68"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts",
+      "bytes": 34665,
+      "sha256": "e8ac098736b6cc538693437ae9c923819f5783fb8df61285d4f217a0f1b2154a"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts",
+      "bytes": 43658,
+      "sha256": "ab7766c66a8a53fb84f11f3e0262802295ad823854b1cb4df13899bfddd2b798"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/lib/lock.ts",
+      "bytes": 8844,
+      "sha256": "6d2c29fa57f4356f28f0ba0287f15c0c8a49dded94b251d12a33c3e11a28d40d"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts",
+      "bytes": 91002,
+      "sha256": "bdf3da709f70238e073fcc7db1f51870e855959477048645c1fcd46bb3b042ef"
+    },
+    {
+      "relative": "libs/wbs/adapters/store-sqlite/src/db.ts",
+      "bytes": 24545,
+      "sha256": "3071cca955b20084cac3c769dad23b0741a34ad4204d6f7e4dbb476392715120"
+    },
+    {
+      "relative": "libs/wbs/adapters/store-sqlite/src/backup.ts",
+      "bytes": 25178,
+      "sha256": "c681a4ec8fc6d8b2787647507e8f8357146cff261cba75250ae446cea305a230"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts",
+      "bytes": 9796,
+      "sha256": "fd749af5d221bafecfb7581d61e187a0ef15bcdb59a077eed25e86b0ce382ace"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/fixtures/dependency-participant-restoration.ts",
+      "bytes": 5394,
+      "sha256": "32c05b771edbab3f5f6fd448aaa0de7184f16e6ffe21e1d84444c66087d841bc"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts",
+      "bytes": 17432,
+      "sha256": "ae37e7411040d680ab04419090a546fcddfc7f295697d99ff9e46ff7d915d91e"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/fixtures/source-startup.ts",
+      "bytes": 4791,
+      "sha256": "0c8e0b6afc98008f34352d68254fbe137265c46a24fa0edf482dcf1ca341783b"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/fixtures/source-database-binding.ts",
+      "bytes": 14053,
+      "sha256": "b83a928aae6880c6142c4dc6d0f584fa085d5039a1b4f70512c73f5819d5bbd4"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts",
+      "bytes": 5425,
+      "sha256": "a4f9378c421110a43d2a2db51edb9e56afc38cbb6bfc74f954322b2810d196c0"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/fixtures/namespace-audit.ts",
+      "bytes": 10450,
+      "sha256": "63a0506377f8d7c4ee7701e06a155bccb65ab8abd0783d5d4f6929e491bab015"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/lib/directory-file.ts",
+      "bytes": 3520,
+      "sha256": "b3d0480ceaa6fc88e19278cfc667919d1803173f5fdccaf5e4b33bf2c97e7e0c"
+    },
+    {
+      "relative": "libs/wbs/adapters/store-sqlite/src/sqlite-cleanup.ts",
+      "bytes": 2479,
+      "sha256": "83785f02655bf81514328255fe45e047b4b79a5374fdebb3a269d2d2687ac74b"
+    },
+    {
+      "relative": "libs/wbs/adapters/store-sqlite/src/migrate.ts",
+      "bytes": 8962,
+      "sha256": "029cd9f29f1b555175c4fe6d758e2921c2d6abe320210b9b5f7cd079cace9f8f"
+    }
+  ],
+  "census": {
+    "F": 278,
+    "D": 48,
+    "L": 0,
+    "A": 147
+  },
+  "closureOperationCount": 2064
+}

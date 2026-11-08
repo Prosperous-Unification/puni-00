@@ -153,8 +153,20 @@ describe('the fake uses the shared tree response shape', () => {
     await expect(api.addStep('p1', 7 as never)).rejects.toThrow('fake_invalid_request');
 
     expect(await api.steps('p1')).toEqual([
-      { estimateUnit: 'workdays' as const, id: 'step-dev', name: 'Dev', allowancePercent: 0 },
-      { estimateUnit: 'workdays' as const, id: 'step-qa', name: 'QA', allowancePercent: 0 },
+      {
+        code: 'fake-1',
+        estimateUnit: 'workdays' as const,
+        id: 'step-dev',
+        name: 'Dev',
+        allowancePercent: 0,
+      },
+      {
+        code: 'fake-2',
+        estimateUnit: 'workdays' as const,
+        id: 'step-qa',
+        name: 'QA',
+        allowancePercent: 0,
+      },
     ]);
   });
 

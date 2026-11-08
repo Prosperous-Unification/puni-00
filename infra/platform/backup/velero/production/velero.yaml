@@ -13,6 +13,31 @@ spec:
         kind: GitRepository
         name: puni-platform
         namespace: flux-system
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              group: apps
+              version: v1
+              kind: Deployment
+              name: velero
+              namespace: puni-backup
+            patch: |
+              - op: test
+                path: /spec/template/spec/volumes
+                value:
+                  - name: cloud-credentials
+                    secret: { secretName: velero-credentials }
+                  - name: plugins
+                    emptyDir: {}
+                  - name: scratch
+                    emptyDir: {}
+              - op: add
+                path: /spec/template/spec/volumes/1/emptyDir/sizeLimit
+                value: 256Mi
+              - op: add
+                path: /spec/template/spec/volumes/2/emptyDir/sizeLimit
+                value: 1Gi
   # File-system backup only: hcloud volumes have no snapshots, and databases use their own
   # application-consistent paths (SQLite VACUUM INTO, Elastic SLM).
   values:
@@ -27,6 +52,9 @@ spec:
         volumeMounts:
           - mountPath: /target
             name: plugins
+        resources:
+          requests: { cpu: 50m, memory: 64Mi, ephemeral-storage: 16Mi }
+          limits: { cpu: '1', memory: 256Mi, ephemeral-storage: 128Mi }
     credentials:
       useSecret: true
       existingSecret: velero-credentials
@@ -45,12 +73,18 @@ spec:
             s3ForcePathStyle: 'true'
             s3Url: https://hel1.your-objectstorage.com
     resources:
-      requests: { cpu: 100m, memory: 128Mi }
-      limits: { cpu: '1', memory: 512Mi }
+      requests: { cpu: 100m, memory: 128Mi, ephemeral-storage: 128Mi }
+      limits: { cpu: '1', memory: 512Mi, ephemeral-storage: 1Gi }
     nodeAgent:
+      useScratchEmptyDir: false
+      extraVolumes:
+        - name: scratch
+          emptyDir: { sizeLimit: 1Gi }
+      extraVolumeMounts:
+        - { name: scratch, mountPath: /scratch }
       resources:
-        requests: { cpu: 100m, memory: 128Mi }
-        limits: { cpu: '1', memory: 1Gi }
+        requests: { cpu: 100m, memory: 128Mi, ephemeral-storage: 256Mi }
+        limits: { cpu: '1', memory: 1Gi, ephemeral-storage: 2Gi }
       tolerations:
         - operator: Exists
     metrics:

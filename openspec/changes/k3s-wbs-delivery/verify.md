@@ -977,3 +977,182 @@ F11.1d remains unchecked for independent re-review and live acceptance. No live
 operations, push, merge, activation, full host gate or shared Lease executor changes.
 The previously recorded live acceptance and external configuration provenance gaps
 remain outstanding.
+
+## F8 MCP replacement observation race (2026-10-23)
+
+Infra run `39924067289` selected a historical termination from the pre-restart Recreate
+pod, then failed when that pod disappeared before `logs --previous`. The nominal
+180-second loop did not bound its individual kubectl calls or model that lifecycle race.
+`observeMissingMcpKey`, called by the real lab, now captures pre-restart UIDs, validates
+structured pod JSON, selects the named `mcp` container only on a replacement non-terminating
+pod, and correlates a nonzero exit and `MCP_STORE_KEY_CURRENT is required` log to the
+same UID and terminated container ID with a second status read. Only log-request pod
+NotFound or previous-container unavailability naming the selected pod, and the precise
+unavailable-log form with a 64-hex containerd ID, retry. A newer
+unavailable container ID retries because that pod-scoped command can race a restart;
+success still requires matching UID/container evidence across reads. Collection reads and
+errors naming another pod, malformed runtime IDs, authorization failures and malformed
+observations refuse immediately. Restart, reads, logs and sleeps share the remaining deadline; failure
+retains bounded redacted evidence. The SQL CHECK assertion is unchanged.
+
+Focused production-loop coverage includes replacement/disappearance convergence, each
+modeled lifecycle fault exhausting the deadline, exit-zero and unrelated OOM rejection,
+changed terminated-container identity, Forbidden/malformed refusal, diagnostic redaction,
+command-time budget consumption and completion after the deadline.
+
+Eleven watched omission faults each exited 1 with a named failed focused test: nonzero
+exit guard, required-log guard, container-ID confirmation, lifecycle recovery, old-UID
+exclusion, terminating-pod exclusion, subprocess deadline cap, and post-command deadline
+guard, foreign-pod recovery, malformed-runtime recovery and structured decoding. Each
+original was restored in `finally`. The initial UID negative was too weak:
+removing its guard survived because another later pod supplied the proof. It now asserts
+which exact pod names supplied logs; the omission then failed. Logs are local execution
+artifacts at `/tmp/puni-mcp-observation-proofs/<fault>.log`.
+
+Fresh verification in `/tmp/puni-mcp-race` (Nx daemon and plugin isolation disabled,
+Nx cache skipped):
+
+- `bun test tools/tool-deploy/src/k8s/lab-mcp-observation.test.ts`: exit 0,
+  21 pass, 0 fail, 378 assertions; `/tmp/puni-mcp-focused-final.log`.
+- `bunx nx run tool-deploy:test --skip-nx-cache`: exit 1, 1325 pass, 2 fail,
+  3853 assertions across 42 files, 341.17s; `/tmp/puni-mcp-test-final.log`.
+  Both failures were existing `first-start-adapter.test.ts` SQLite observation cases,
+  `bad-replay` and `nonempty-wal`, hitting the configured 10000ms timeout. No MCP case failed.
+  The initial restricted attempt could not bind the fake registry's local HTTP listener;
+  the complete run used listener permission outside the sandbox.
+- Rerunning only those two cases with the same scratch preload and unchanged 10000ms
+  timeout: exit 0, 2 pass, 0 fail, 12.31s; `/tmp/puni-mcp-unrelated-timeouts-rerun.log`.
+  This does not turn the complete configured run green.
+- `bunx nx run tool-deploy:lint --skip-nx-cache` and
+  `bunx nx run tool-deploy:typecheck --skip-nx-cache`: exit 0;
+  `/tmp/puni-mcp-lint-final.log`, `/tmp/puni-mcp-typecheck-final.log`.
+- `./node_modules/.bin/openspec validate --all --json`: exit 0, all 273 entries pass;
+  `/tmp/puni-mcp-openspec.log`. Scoped Prettier check and `git diff --check`: exit 0.
+
+No heavy k3s rerun, host gate, deployment, integration or push was performed. The separate
+rollback Job OOM/exit-137 failure remains unresolved; this race repair does not establish
+live rehearsal acceptance.
+
+## F8 exact runtime log identity correction (2026-10-23)
+
+Independent Astra review blocked the preceding packet: two matching API reads cannot
+bind `kubectl logs --previous` to a terminated container, because the API can remain stale
+while kubelet advances its previous container. A new production-loop negative reproduced
+that false pass, and a real `run()` timeout negative lost both pod evidence and Secret
+redaction before this correction (`/tmp/puni-mcp-p2-red.log`). The earlier packet is not
+live acceptance evidence.
+
+The lab creates one server and zero agents. Its observation now reads the selected
+validated `containerd://<64hex>` container through
+`docker exec k3d-puni-f8-lab-server-0 k3s crictl --timeout=<remaining>ms --runtime-endpoint=unix:///run/k3s/containerd/containerd.sock logs --tail=40 --limit-bytes=8192 <64hex>`.
+There is no `--previous` lookup. Both container output streams are read: cri-tools sends
+container stderr to its own stderr even on success. API UID/container checks remain, and
+only the requested runtime ID's precise CRI NotFound response models garbage collection;
+raw, logrus and klog wrappers are covered. Other IDs, authorization, Docker/tool failures
+and malformed IDs refuse immediately. The subprocess and CRI request share the remaining
+budget. `run()` now throws the Error subtype `CommandTimedOut` with its unchanged message
+and kill behavior. Only that subtype gains last redacted pod evidence in the observer;
+unrelated rejections, including lookalike timeout messages, propagate unchanged.
+
+Pinned primary-source evidence:
+
+- [k3s v1.36.4+k3s1 main](https://github.com/k3s-io/k3s/blob/v1.36.4%2Bk3s1/cmd/k3s/main.go)
+  exposes `k3s crictl` and
+  [its go.mod](https://github.com/k3s-io/k3s/blob/v1.36.4%2Bk3s1/go.mod)
+  pins the fork `github.com/k3s-io/cri-tools v1.36.0-k3s1` and containerd
+  `v2.3.4-k3s1.36`.
+- [That cri-tools tag's logs.go](https://github.com/k3s-io/cri-tools/blob/v1.36.0-k3s1/cmd/crictl/logs.go)
+  defines `tail` and `limit-bytes`, calls `ContainerStatus(containerID, false)`, and reads
+  its returned LogPath. Its two output streams explain the stderr-only regression.
+  [main.go](https://github.com/k3s-io/cri-tools/blob/v1.36.0-k3s1/cmd/crictl/main.go)
+  defines duration `timeout` and `runtime-endpoint` flags. These exact tagged sources were
+  fetched with `curl -fsSL`, including `/tmp/puni-pinned-crictl-{logs,main}.go`.
+- [Pinned containerd status](https://github.com/k3s-io/containerd/blob/v2.3.4-k3s1.36/internal/cri/server/container_status.go)
+  looks up the requested ID, and its
+  [container store](https://github.com/k3s-io/containerd/blob/v2.3.4-k3s1.36/internal/cri/store/container/container.go)
+  returns ErrNotFound for a collected ID. This is the narrow modeled GC outcome.
+
+The local Docker daemon has no cached pinned k3s image (`docker image inspect`: exit 1,
+No such image). No image was pulled and no node/cluster was started. Tagged source and
+injected command tests establish the command contract; live CRI behavior remains unverified.
+
+Eight watched faults each exited 1: using API logs instead of the runtime transport,
+substituting another container ID, accepting another ID's NotFound, removing timeout
+context, catching unrelated exception types, changing `run()` back to an untyped timeout,
+dropping runtime stderr, and removing runtime-ID validation. The first two failed the
+stale-API/newer-kubelet negative. Timeout faults failed the real killed-process or unrelated
+rejection negatives. Originals were restored in `finally`; logs:
+`/tmp/puni-mcp-p2-proofs/<fault>.log`. Proof comments are adjacent to the changed checks.
+
+Fresh checks:
+
+- Focused MCP observation, diagnostic and lab-migration files with configured scratch preload
+  and 10000ms timeout: exit 0, 41 pass, 458 assertions; `/tmp/puni-mcp-p2-focused-final.log`.
+  MCP observation alone: 29 pass, including the real subprocess timeout.
+- Existing `execute-adapter.test.ts` real subprocess-kill test, same preload/timeout:
+  exit 0, 1 pass (97 filtered), 2 assertions; `/tmp/puni-mcp-p2-runner-final.log`.
+
+- Configured `tool-deploy:lint` and `tool-deploy:typecheck` through Nx with daemon and
+  plugin isolation disabled and cache skipped: exit 0;
+  `/tmp/puni-mcp-p2-lint.log`, `/tmp/puni-mcp-p2-typecheck.log`.
+- Scoped Prettier and `git diff --check`: exit 0. OpenSpec all validation: exit 0,
+  273 pass; `/tmp/puni-mcp-p2-openspec.log`.
+
+No heavy k3s run, host gate, integration or push was performed. The earlier complete
+configured-suite run's two existing SQLite timeouts and the separate rollback Job OOM
+remain recorded above; this correction does not establish a green complete suite or live
+rehearsal acceptance.
+
+## F8 selected runtime log garbage-collection correction (2026-10-23)
+
+Astra's next review reproduced another lifecycle race: kubelet removes logs before the
+runtime container, so exact-ID `crictl logs` can obtain ContainerStatus and then fail
+resolving/opening its removed log. This packet adds that modeled ENOENT outcome without
+changing exact-ID log selection or the success proof.
+
+Pinned primary evidence is the k3s dependency's
+[kubelet removeContainer](https://github.com/k3s-io/kubernetes/blob/v1.36.4-k3s1/pkg/kubelet/kuberuntime/kuberuntime_container.go#L1275),
+which removes logs before calling RemoveContainer, and its
+[CRI ReadLogs](https://github.com/k3s-io/kubernetes/blob/v1.36.4-k3s1/staging/src/k8s.io/cri-client/pkg/logs/logs.go#L265),
+which returns distinct errors for EvalSymlinks and opening the resolved path. These match
+the upstream cri-client `v0.36.0` forms identified in review.
+
+The exact validated runtime ID remains the logs argument. Recovery requires the canonical
+selected namespace/name/UID/container directory
+`/var/log/pods/wbs_<selected-name>_<selected-uid>/mcp/<decimal>.log` and ENOENT. The inner
+failed `open` path must equal that file; the inner failed `lstat` path can equal the file,
+the selected MCP directory, or the selected pod directory. Foreign paths with the same
+basename, different namespaces/containers, rotation/traversal paths, URI paths, mismatched
+inner operations, EACCES, tool failures and malformed logrus wrappers throw immediately.
+Raw and canonically encoded logrus diagnostics are modeled; persistent loss exhausts the
+existing shared deadline with redacted evidence.
+
+Before the fix, all twelve selected-log convergence/exhaustion cases failed through the
+production observer (`/tmp/puni-mcp-enoent-red.log`). Afterward, six forms covering raw and
+wrapped EvalSymlinks/open errors and selected ancestors converged after replacement and
+exhausted the bounded deadline when repeated. Persistent selected-path loss with key
+material in the path kept it redacted.
+
+Seven watched faults each exited 1: removing ENOENT recovery, removing selected-path
+scope, removing numeric restart-log scope, omitting the inner EvalSymlinks path guard,
+omitting the inner open path guard, accepting EACCES, and accepting a malformed wrapper.
+The initial open-guard omission survived because only the lstat foreign-inner case was
+covered; explicit foreign-open/ancestor and operation-mismatch negatives were added, and
+the omission then failed. Originals were restored in `finally`; logs:
+`/tmp/puni-mcp-enoent-proofs/<fault>.log`. Adjacent Proof comments identify these checks.
+
+Fresh verification:
+
+- MCP observation, diagnostics and lab-migration files, configured scratch preload and
+  unchanged 10000ms timeout: exit 0, 72 pass, 1134 assertions; MCP observation contributes
+  60 cases. `/tmp/puni-mcp-enoent-focused-final.log`.
+- Configured Nx `tool-deploy:lint` and `tool-deploy:typecheck`, daemon/plugin isolation
+  disabled and cache skipped: exit 0; `/tmp/puni-mcp-enoent-lint.log`,
+  `/tmp/puni-mcp-enoent-typecheck.log`.
+
+- Scoped Prettier and `git diff --check`: exit 0. OpenSpec all validation:
+  exit 0, 273 pass; `/tmp/puni-mcp-enoent-openspec.log`.
+
+The full suite and heavy k3s/host gate were not rerun for this correction. No integration,
+push or live operation was performed. Earlier full-suite SQLite timeouts, rollback Job
+OOM and live CRI/rehearsal acceptance gaps remain unresolved above.

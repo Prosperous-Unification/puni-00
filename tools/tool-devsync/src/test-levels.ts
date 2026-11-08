@@ -884,6 +884,10 @@ export const UNDECLARED_TEST_TARGETS: Readonly<Record<string, string>> = {
   // test fail and the production verifier refuse `wbs-fe-01:e2e-organization`.
   'wbs-fe-01:e2e-organization':
     'Real-backend organization Browser Playwright target without this slice’s report binding.',
+  // Proof: omitting this classification made the cross-project Browser production-CLI
+  // regression fail naming `unknown test target declaration wbs-fe-01:e2e-cross-project`.
+  'wbs-fe-01:e2e-cross-project':
+    'Real-backend cross-project Browser Playwright target without this slice’s report binding.',
   'wbs-fe-01:e2e-packaged': 'Legacy packaged Browser target without this slice’s report binding.',
 };
 

@@ -1,0 +1,12 @@
+[
+  {
+    "name": "sqlite-restore-duplicate",
+    "status": "CAUGHT",
+    "exit": 1
+  },
+  {
+    "name": "memory-restore-duplicate",
+    "status": "CAUGHT",
+    "exit": 1
+  }
+]

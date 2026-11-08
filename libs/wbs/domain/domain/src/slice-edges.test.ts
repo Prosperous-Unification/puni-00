@@ -465,6 +465,61 @@ describe('findStepNodeCycle', () => {
     ).toEqual({ kind: 'cycle', relationshipIds: ['r1', 'r2'] });
   });
 
+  it('names only cyclic authored edges in A ↔ B → C → D', () => {
+    const leaves = ['A', 'B', 'C', 'D'];
+    expect(
+      findStepNodeCycle(
+        resolveStepNodeGraph(leaves, () => [{ days: null, stepId: 'dev' }], [], 'whole-item', {
+          dependencies: [
+            fs('remote-forward', node('A', 'dev'), node('B', 'dev')),
+            fs('remote-reverse', node('B', 'dev'), node('A', 'dev')),
+            fs('incoming-0', node('B', 'dev'), node('C', 'dev')),
+            fs('internal-1', node('C', 'dev'), node('D', 'dev')),
+          ],
+          leavesUnder: (id) => [id],
+        }),
+      ),
+    ).toEqual({ kind: 'cycle', relationshipIds: ['remote-forward', 'remote-reverse'] });
+  });
+
+  it('excludes a bridge between distinct cyclic components while preserving authored order', () => {
+    const leaves = ['A', 'B', 'C', 'D'];
+    expect(
+      findStepNodeCycle(
+        resolveStepNodeGraph(leaves, () => [{ days: null, stepId: 'dev' }], [], 'whole-item', {
+          dependencies: [
+            fs('ab', node('A', 'dev'), node('B', 'dev')),
+            fs('bridge', node('B', 'dev'), node('C', 'dev')),
+            fs('cd', node('C', 'dev'), node('D', 'dev')),
+            fs('ba', node('B', 'dev'), node('A', 'dev')),
+            fs('dc', node('D', 'dev'), node('C', 'dev')),
+          ],
+          leavesUnder: (id) => [id],
+        }),
+      ),
+    ).toEqual({ kind: 'cycle', relationshipIds: ['ab', 'cd', 'ba', 'dc'] });
+  });
+
+  it('excludes an independent acyclic edge beside a legacy-only cycle', () => {
+    expect(
+      findStepNodeCycle(
+        resolveStepNodeGraph(
+          ['A', 'B', 'C', 'D'],
+          () => [{ days: null, stepId: 'dev' }],
+          [
+            { predecessorId: 'A', successorId: 'B' },
+            { predecessorId: 'B', successorId: 'A' },
+          ],
+          'whole-item',
+          {
+            dependencies: [fs('independent', node('C', 'dev'), node('D', 'dev'))],
+            leavesUnder: (id) => [id],
+          },
+        ),
+      ),
+    ).toEqual({ kind: 'cycle', relationshipIds: [] });
+  });
+
   it('refuses a directed SS cycle even when equal starts could satisfy it', () => {
     expect(
       cycleOf([

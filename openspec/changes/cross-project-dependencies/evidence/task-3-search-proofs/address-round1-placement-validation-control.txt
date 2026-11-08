@@ -1,0 +1,14 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+{"level":"error","time":1792623951885,"service":"be-01","err":{"occurrence_id":"AE_ZN4M9Q0YZEM24BZ8BV03G89J6V","fingerprint":"fp1_d83b8bbdf911bd846b9eba60359bfa43","stack":["Error: malformed project address placement","    at capture (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:170:19)","    at <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/service/project-address-search.ts:214:33)","    at withSnapshot (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:49:29)","    at async <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/http/project-address.routes.ts:38:39)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) fails malformed frozen placement evidence visibly during mounted candidate lookup [151.24ms]
+
+libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts:
+(pass) rejects malformed trusted placement evidence at capture before returning detached facts [86.61ms]
+
+ 2 pass
+ 23 filtered out
+ 0 fail
+ 3 expect() calls
+Ran 2 tests across 2 files. [2.33s]

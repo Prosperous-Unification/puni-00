@@ -1,0 +1,69 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-remote-scripts/test/source-exclusion-transport.test.ts:
+(pass) fresh owner census preserves unrelated complete inventory and native startup [1.28ms]
+(pass) foreign label refuses before any exact-ID effect [0.21ms]
+(pass) unplanned labelled child is never hidden from fixture census [0.10ms]
+(pass) physical mount escape refuses before translating source coordinates [0.07ms]
+(pass) image substitution refuses before any effect [0.06ms]
+(pass) fresh census detects a newly labelled writer after an earlier observation [0.23ms]
+(pass) same planned name cannot replace its captured full identity [0.15ms]
+(pass) source tag lookup reaches the exact invocation tag and native image inspection [0.19ms]
+(pass) alien exec and unsupported lifecycle argv never reach owned containers [0.22ms]
+(pass) native startup, lifecycle, full mount flags and security survive exact translations [0.17ms]
+(pass) malformed native inspection never exposes credential-bearing parser excerpts [0.11ms]
+(pass) namespace audit native projection preserves exact owned argv [0.07ms]
+
+tools/tool-remote-scripts/test/solver-drain-transport.test.ts:
+(pass) discovery retains original census and adds only owner filter [0.09ms]
+(pass) execution mapping preserves real serialization bookkeeping and rejects alien argv [0.08ms]
+(pass) execution rejects unknown native serialization and extra execution records [0.04ms]
+50 | 
+51 | async function refuses(operation: Promise<string>, message: string): Promise<void> {
+52 |   try {
+53 |     await operation;
+54 |   } catch (cause) {
+55 |     expect(String(cause)).toContain(message);
+                               ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "encoded"
+Received: "Error: fixture command /home/df/.bun/bin/bun exit 1"
+
+      at refuses (/tmp/puni-source-exclusion-acceptance/tools/tool-remote-scripts/test/solver-drain-transport.test.ts:55:27)
+      at async <anonymous> (/tmp/puni-source-exclusion-acceptance/tools/tool-remote-scripts/test/solver-drain-transport.test.ts:82:9)
+(fail) bounded command kills and reaps exact child on timeout and malformed UTF8 [84.32ms]
+50 | 
+51 | async function refuses(operation: Promise<string>, message: string): Promise<void> {
+52 |   try {
+53 |     await operation;
+54 |   } catch (cause) {
+55 |     expect(String(cause)).toContain(message);
+                               ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "bound"
+Received: "Error: fixture command /home/df/.bun/bin/bun exit 1"
+
+      at refuses (/tmp/puni-source-exclusion-acceptance/tools/tool-remote-scripts/test/solver-drain-transport.test.ts:55:27)
+      at async <anonymous> (/tmp/puni-source-exclusion-acceptance/tools/tool-remote-scripts/test/solver-drain-transport.test.ts:96:9)
+(fail) bounded command refuses excessive output and nonzero status [21.73ms]
+(pass) ownership rejects foreign label, unknown name and changed ID before exact effect [0.40ms]
+(pass) cleanup refuses a no-op kill and changed terminal identity before remove [0.37ms]
+(pass) cleanup removes created-inert without kill/wait and verifies terminal kill agreement [0.12ms]
+(pass) effective unit refuses prefix drop-ins and extra commands before initial start [0.56ms]
+(pass) effective preflight blocks actual guarded unit start and cleanup stop effects [0.41ms]
+(pass) native full inspect remains unchanged and ownership guarded in the runner transport [1.25ms]
+
+tools/tool-remote-scripts/test/solver-drain-fixture.test.ts:
+(pass) creator holds actual runtime admission through lifetime and creates during stop using only declared argv [61.41ms]
+(pass) retained marker refuses creator before readiness or during-stop effects [27.18ms]
+
+2 tests failed:
+(fail) bounded command kills and reaps exact child on timeout and malformed UTF8 [84.32ms]
+(fail) bounded command refuses excessive output and nonzero status [21.73ms]
+
+ 23 pass
+ 2 fail
+ 84 expect() calls
+Ran 25 tests across 3 files. [254.00ms]

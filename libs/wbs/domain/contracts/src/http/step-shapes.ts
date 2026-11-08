@@ -107,7 +107,7 @@ export const addStep = defineEndpointShape({
   refusals: [
     ...nameRefusals,
     { status: 422, schema: responseSchema(type({ error: "'invalid_code' | 'reserved_code'" })) },
-    { status: 409, schema: responseSchema(type({ error: "'code_taken'" })) },
+    { status: 409, schema: responseSchema(type({ error: "'code_taken' | 'dependency_cycle'" })) },
   ] as const,
   document: { summary: 'Add a project step.' },
 });

@@ -1,0 +1,122 @@
+# Fixed remote execution exception
+
+This is the explicit narrow exception to the whole-project physical execution promised by `workspace-gate-time-budget`. Logical project partitioning remains unchanged. Only `tool-remote-scripts` expands after validation into `remote-model`, `remote-model-continuation` and `remote-rest`; every other owner retains whole-project execution.
+
+The core singleton owns `./src/lib/dependency-product-process-model.test.ts` (43 registrations). The continuation singleton owns `./src/lib/dependency-participant-continuation-model.test.ts` (24 registrations: nine solver/backend and fifteen gateway). The complement preserves every canonical positional discovery token and excludes only those two exact root-relative paths with separate `--path-ignore-patterns` arguments. The moved registration loop and neutral child-custody closure retain their existing behavior; neither registering test file imports the other. Each file runs its HTTP cases serially because their fixtures share fixed loopback ports. Bun 1.4.4 treats `src` as a substring filter; recursively enumerating a directory would change coverage. The transformation binds to the reviewed project command and Bun discovery configuration, validates required regular readable files and rejects unsupported overrides. New matching files flow automatically into the complement.
+
+CI-only `test:ci:model`, `test:ci:model-continuation` and `test:ci:rest` Nx targets are explicitly noncached and duplicate the canonical cross-project inputs and test environment. They retain actual Nx executor PATH, FORCE_COLOR, task metadata and dotenv processing rather than recreating an approximation outside Nx. All three require `^build`; only rest requires the existing `test:caddy`. The runner validates these raw contracts before executing fresh Bun. Actual Bun execution must finish successfully and report nonempty tests; neither a cache receipt nor a failed/empty child qualifies. Remainder owns Caddy, typecheck/build and full-mode lint; workspace continues independent affected lint. Both model leaves retain required dependency builds. All three runners independently validate the same source plan and use the existing remote selection bit, provisioning, 75-minute phase/90-minute job bounds and distinct always-upload artifacts. The stable required `gate_remote_model` job expands through a closed two-entry matrix with `fail-fast: false`; its aggregate must succeed along with rest. Model artifacts and phase logs include the matrix partition. Each model runner keeps its own original bounds, so combined model allocation doubles; no larger per-runner deadline is introduced.
+
+Only `afterAll(removeScratchAfterAll, 30000)` changes cleanup allowance. The callback and removal helper stay unchanged. Thirty seconds follows the repository budget family and exceeds twice the overrun allowance; fifteen seconds gives less than 1.5 times the observed 10.4-second loaded duration. Synchronous Bun hook timeouts are reported after return; this does not provide OS interruption. Outer bounds and markers remain.
+
+## R19 source execution owner
+
+Completed B297 remainder phase used 4459 of 4500 seconds. Its existing source-role parent accounted for268.293 seconds; new mandatory Node/frontend parents add work. CI therefore moves six exact existing source parent files to a fourth fixed leaf, retaining canonical DISCOVERY and all parent/child bounds. Existing gate_remote_model becomes the stable isolated-leaf matrix with remote-source as its third independent runner; rest alone retains Caddy/static obligations. Source-only CI Node 24.20.0 uses official setup-node commit249970729cb0ef3589644e2896645e5dc5ba9c38; package-manager caching is disabled. This is runner tooling, not source-image/native qualification. Historical timing subtraction is not current capacity proof.
+
+## Source-restoration whole-parent owner
+
+After source checkpoint 6d2b86ee is integrated, the tracked `src/lib/dependency-source-restoration.test.ts` belongs only to fixed `source-restoration`, routed by `remote-source-restoration`. Canonical DISCOVERY, options and terminal summary parsing remain unchanged; the singleton retains the existing exact one-file receipt contract. The existing seven-source list is unchanged and rest excludes only the additional exact parent. Missing, unreadable, aliased or malformed required inputs refuse before child launch.
+
+A fourth closed matrix member uses its own isolated runner. Both explicit source partition equalities provision the same pinned Node 24.20.0; no prefix selector is accepted. Static checks and Caddy remain once in rest; immutable head/base/mode, fresh noncached leaf execution, dependency builds, fail-fast false, strict aggregate, distinct partition artifacts, 75-minute phase/90-minute job/30-second TERM bounds are retained. One additional maximum 90-job-minute allocation is a resource cost, not proof of sufficiency. Do not run both actual HTTP parents concurrently on one host.
+
+The mixed-epoch projection 4508.923495s motivates separation but does not certify cold hosted capacity. No actual long parent or performance campaign is part of this bounded local CI implementation. The previous count-specific design sections describe their earlier checkpoints.
+
+## Current policy8 and inherited23 ownership revision
+
+The current contract supersedes earlier checkpoint counts with six fixed leaves
+and five isolated matrix members. Split exact frozen31 source-restoration tuples
+into inherited23 and policy8 parents through one same-depth shared registration/
+original-child custody helper. Retain canonical full-model policy8-then23 order,
+independent literal tuple oracle, exact required files/targets and full canonical
+union/disjointness. Empty, duplicate, overlap, missing, cross-assigned or renamed
+tuples refuse in the actual registration path before fixture or child creation.
+
+Add closed participant-policy leaf/remote-participant-policy runtime dispatch,
+noncached target with ^build and the fifth existing matrix entry. Both source
+identities and policy use the same commit-pinned Node setup via exact equalities.
+Rest alone owns static/Caddy; strict aggregation receives one whole-matrix result.
+Parsed workflow membership, execution-step and actual affected/full dispatch
+proofs establish the fifth member; reducer proofs establish only strict handling
+of its actual whole-matrix input. Each singleton's contiguous FINAL outer
+receipt must show exactly23/8 passes AND tests, one file and no failure/skip/todo/
+outer filter. Nested child filtering remains expected.
+
+Policy-only D465/M495/A505/P525, original custody reservation and H300 follow
+[cross-project timing](../cross-project-dependencies/design.md#fixed-policy-model-timing-and-case-ownership).
+Outer-only scratch preload remains unchanged; its once-per-file30s hook is in H,
+not charged to each case. Inherited23 retains original timing. Existing75m phase,
+90m job,30s TERM escalation and all production reserves remain unchanged. These
+allocations are not measured successful bounds. Same-candidate hosted23/8 and
+all required leaves/aggregate must finish before current distributed coverage or
+capacity acceptance. No intact31 single-process fit or native qualification is
+inferred. The approved independent CI addendum fixes these exact proof scopes;
+local plumbing does not replace actual policy qualification.
+
+## Complete-activation whole-parent follow-up (2026-11-01)
+
+This current revision supersedes earlier counts with seven fixed leaves and six
+isolated matrix members. Add only complete-activation,
+`tool-remote-scripts:test:ci:complete-activation`, and remote-complete-activation.
+It owns the unchanged whole `src/lib/complete-dependency-exclusion.test.ts`
+(39 registrations), distinct from dependency-complete-activation.test.ts. Rest
+adds only its exact root-relative exclusion. Actual canonical Bun discovery stays
+authoritative: fixed owners and remainder have complete, pairwise-disjoint union,
+including future substring/same-name collisions outside the exact root path.
+
+The new target is noncached, preserves canonical inputs/environment and ^build.
+Its final outer receipt requires39 passes AND tests, one file, without failures,
+skips, todos or outer filters. Nested summaries do not qualify. Required regular
+readable owners and raw target contracts validate before child launch; missing,
+unreadable and alias faults remain distinct. The six-member matrix retains
+logical selection, immutable plan/head/base/mode checks, --skip-nx-cache dispatch,
+serial cases, fail-fast:false, distinct artifacts and strict whole-matrix input.
+Exact pinned Node identities remain source, source-restoration and policy; the
+new owner uses existing Bun/Git/Python/BusyBox tooling. Rest alone retains Caddy
+and static checks. Canonical local/host execution and heavy-lock scripts stay exact.
+
+Both captures completed39 cases:1181.00017s baseline and1287.85446s current.
+These justify owner selection, not capacity acceptance. Retain4500-second phases,
+90-minute jobs,30-second TERM escalation and all current CLI/per-case budgets.
+New complete39/remainder and all peers/aggregate must qualify on one final head.
+Actual original child exit and both output settlements remain required; timeout124
+is not settlement. Preserve earlier histories and unfinished policy qualification.
+
+Verify actual tiny-Bun discovery, exact target/file contracts, affected/full
+routing, parsed sixth membership/execution, complete outer receipts, unchanged
+workflow reducer and toolchain checks. Each new safety boundary still needs a
+separately reviewed finite production-path R5 witness. This materialization grants
+no source omission, held-campaign replay, native acceptance or hosted retry.
+
+## Storage whole-parent follow-up (2026-11-05)
+
+This revision extends the fixed CI exception to eight leaves and seven isolated
+matrix members. Add only storage, `tool-remote-scripts:test:ci:storage`, and
+remote-storage. Its exact owner is `src/lib/dependency-activation-storage.test.ts`.
+Keep the whole69 expanded-case parent in place;42 syntactic callback sites are
+only the separate preservation census. Rest adds one exact root-relative ignore.
+The three-case `dependency-initial-layout-boundary.test.ts` stays in rest.
+
+The completed old run41937874976 storage group accounts for2163.981 printed
+callback-seconds/69cases; its complete phase ended4500s/124 without final census.
+That concentration justifies one isolated runner. Failure repair may increase
+execution time, and unexecuted tail/per-file wall time remain unknown. This is
+owner-selection evidence, not capacity acceptance.
+
+Use the existing fixed singleton contract: noncached target, canonical inputs
+and test-default environment, ^build, required regular/readable/nonaliased owner
+and raw target admission before launch. Require fresh FINAL outer69passes AND
+69tests/onefile, no failures/skips/todos/outer filters, original child exit0 and
+joined outputs. Preserve all canonical positional tokens and exact collision
+union/disjointness. Existing source/complete39/Graph228 receipts remain exact.
+
+Extend only closed runtime dispatch and matrix membership/execution. Keep
+fail-fast:false, immutable plan/head/base/mode, --skip-nx-cache/parallel2, distinct
+logs/artifacts, and the strict whole-matrix reducer. Rest retains Caddy/static
+once. No reached separate Node dependency is established for this Bun emitter
+fixture: preserve the current exact source/policy Node subset. Phase4500s,
+job90m, TERM30s and all per-case/cleanup bounds remain unchanged. Canonical
+local/host execution and separate private three-case acceptance stay unchanged.
+
+Task29–31 finite local implementation/proofs are independent of task32 hosted
+acceptance. Require storage69, rest and every peer plus strict aggregate on one
+final reviewed candidate before capacity qualification. No private pin/grant,
+architecture main or deployment authority follows from this CI-only change.

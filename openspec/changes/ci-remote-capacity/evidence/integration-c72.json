@@ -1,0 +1,129 @@
+{
+  "reviewedSource": "c72f63b2d3026a343660a87dbf1e00dd5fe65600",
+  "integrationParent": "14d40188447373a40defd9cffb3ef27224b83171",
+  "reviewedPathsByteIdentical": 20,
+  "checks": [
+    {
+      "name": "tests",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts",
+        "./tools/tool-git-hooks/src/hooks/ci-plan.test.ts",
+        "./tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts",
+        "./tools/tool-git-hooks/src/hooks/gate-workflow.test.ts",
+        "./tools/tool-git-hooks/src/hooks/pr-merge-base.test.ts",
+        "./tools/tool-git-hooks/src/hooks/ci-runtime-partitions.test.ts",
+        "./tools/tool-devsync/src/toolchain-pins.test.ts",
+        "./tools/test/scratch/scratch.test.ts",
+        "./tools/test/scratch/cleanup-budget.test.ts",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "--timeout=10000"
+      ],
+      "exit": 0,
+      "seconds": 36.936373885022476,
+      "log": "/tmp/puni-ci-integrated-tests-20261024.log",
+      "logSha256": "1f595d5c724c8a88164db3b987453b48d8e72f44c1dcaa62522e3a3fbaca09e7"
+    },
+    {
+      "name": "lint",
+      "argv": ["/home/df/.bun/bin/bun", "x", "nx", "run", "tool-git-hooks:lint"],
+      "exit": 0,
+      "seconds": 0.4650362679967657,
+      "log": "/tmp/puni-ci-integrated-lint-20261024.log",
+      "logSha256": "03a565e44230f1014cbb432a8930acdc601cc921a2d6bb981eee7390234bd3ef"
+    },
+    {
+      "name": "remote-lint",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "x",
+        "eslint",
+        "tools/tool-remote-scripts/test/ci-leaf.ts",
+        "tools/tool-devsync/src/toolchain-pins.test.ts"
+      ],
+      "exit": 0,
+      "seconds": 3.7666375389671884,
+      "log": "/tmp/puni-ci-integrated-remote-lint-20261024.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "types",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "x",
+        "tsc",
+        "--build",
+        "--force",
+        "tools/tool-git-hooks/tsconfig.json",
+        "tools/tool-remote-scripts/tsconfig.json",
+        "tools/test/scratch/tsconfig.json"
+      ],
+      "exit": 0,
+      "seconds": 4.211786507978104,
+      "log": "/tmp/puni-ci-integrated-types-20261024.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "format",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "x",
+        "prettier",
+        "--check",
+        ".github/workflows/ci.yml",
+        "docs/test-budgets.md",
+        "openspec/changes/ci-remote-capacity/design.md",
+        "openspec/changes/ci-remote-capacity/proposal.md",
+        "openspec/changes/ci-remote-capacity/specs/ci-gate/spec.md",
+        "openspec/changes/ci-remote-capacity/tasks.md",
+        "openspec/changes/ci-remote-capacity/verify.md",
+        "openspec/changes/workspace-gate-time-budget/proposal.md",
+        "openspec/changes/workspace-gate-time-budget/specs/ci-gate/spec.md",
+        "tools/test/scratch/cleanup-budget.test.ts",
+        "tools/test/scratch/preload.ts",
+        "tools/tool-devsync/src/toolchain-pins.test.ts",
+        "tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts",
+        "tools/tool-git-hooks/src/hooks/ci-plan.test.ts",
+        "tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts",
+        "tools/tool-git-hooks/src/hooks/ci-run-runtime.ts",
+        "tools/tool-git-hooks/src/hooks/gate-workflow.test.ts",
+        "tools/tool-git-hooks/src/hooks/pr-merge-base.test.ts",
+        "tools/tool-remote-scripts/project.json",
+        "tools/tool-remote-scripts/test/ci-leaf.ts"
+      ],
+      "exit": 0,
+      "seconds": 0.6716053139534779,
+      "log": "/tmp/puni-ci-integrated-format-20261024.log",
+      "logSha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    {
+      "name": "spec",
+      "argv": ["/home/df/.bun/bin/bun", "x", "openspec", "validate", "--all", "--json"],
+      "exit": 0,
+      "seconds": 0.9773425339953974,
+      "log": "/tmp/puni-ci-integrated-spec-20261024.log",
+      "logSha256": "dc17ce2ba1cb5f86c7d3beb9541ad253e901462a7ec0182b67923b6f51278fdd"
+    },
+    {
+      "name": "diff",
+      "argv": ["git", "diff", "--cached", "--check"],
+      "exit": 0,
+      "seconds": 0.008396892983000726,
+      "log": "/tmp/puni-ci-integrated-diff-20261024.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "uncachedLintLog": "/tmp/puni-ci-integrated-lint-uncached-20261024.log",
+  "readinessControls": {
+    "pass": 9,
+    "assertions": 33,
+    "log": "/tmp/puni-ci-integrated-readiness-controls-20261024.log"
+  },
+  "limitations": [
+    "Cold hosted complete leaves and required aggregate remain unexecuted for this integration.",
+    "Canonical exact-SHA host gate and native acceptance remain incomplete.",
+    "New main b6b021dfb contains substantial measure/budget changes pending reconciliation."
+  ]
+}

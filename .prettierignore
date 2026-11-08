@@ -57,3 +57,30 @@ openspec/changes/saved-plans/tasks.md
 openspec/changes/dual-optimized-scheduler/tasks.md
 openspec/changes/archive/2026-08-30-token-tracking/tasks.md
 openspec/changes/work-item-deadline/tasks.md
+
+# Deterministic signal artifacts are emitted and checked by observability-generate.ts.
+# Keep their exact generator bytes; validatePlatform rejects any drift.
+infra/platform/observability/base/signals.yaml
+infra/platform/observability/base/metrics.yaml
+infra/platform/observability/base/coexistence.json
+infra/platform/observability/local/collector.yaml
+infra/platform/observability/local/gateway.yaml
+infra/platform/observability/local/retention.json
+infra/platform/observability/local/logs-policy.json
+infra/platform/observability/local/logs-template.json
+infra/platform/observability/local/traces-policy.json
+infra/platform/observability/local/traces-template.json
+infra/platform/observability/local/metrics-policy.json
+infra/platform/observability/local/metrics-template.json
+infra/platform/observability/production/collector.yaml
+infra/platform/observability/production/gateway.yaml
+infra/platform/observability/production/retention.json
+infra/platform/observability/production/logs-policy.json
+infra/platform/observability/production/logs-template.json
+infra/platform/observability/production/traces-policy.json
+infra/platform/observability/production/traces-template.json
+infra/platform/observability/production/metrics-policy.json
+infra/platform/observability/production/metrics-template.json
+infra/platform/observability/elastic/settings/settings.yaml
+infra/platform/observability/local/apply.js
+infra/platform/observability/production/apply.js

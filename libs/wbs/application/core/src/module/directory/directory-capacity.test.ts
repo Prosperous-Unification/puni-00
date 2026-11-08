@@ -4,8 +4,10 @@ import { describe, expect, it } from 'bun:test';
 import { servicesOver } from '../../compose';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-access';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
+import { expectCreated } from '../../testing/expect-created';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 
@@ -35,13 +37,14 @@ async function seeded() {
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
+    dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
   await source.stores.users.create({ id: F, username: F, passwordHash: 'x', createdAt: 1 }, STAMP);
   const projects = [
-    (await graph.projects.create('A', F)).project.id,
-    (await graph.projects.create('B', F)).project.id,
-    (await graph.projects.create('C', F)).project.id,
+    expectCreated(await graph.projects.create('A', F)).project.id,
+    expectCreated(await graph.projects.create('B', F)).project.id,
+    expectCreated(await graph.projects.create('C', F)).project.id,
   ] as const;
   await source.stores.workItems.insert(
     workItemRow({
@@ -65,7 +68,10 @@ async function seeded() {
   for (const projectId of projects) fixture.ownProjectInOrganization(projectId, 'org-a');
   const state = (resourceId: string, units: number | null, access: ResourceAccess = ADMIN) =>
     source.uow.run(async (scope) => {
-      const services = servicesOver(scope.stores, options);
+      const services = servicesOver(scope.stores, {
+        ...options,
+        dependencyContext: createLocalDependencyContext(scope.stores),
+      });
       const outcome = await services.directory.setDirectoryCapacityWithin(
         resourceId,
         F,
